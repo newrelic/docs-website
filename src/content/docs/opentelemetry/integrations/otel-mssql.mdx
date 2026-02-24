@@ -1,0 +1,3273 @@
+---
+title: "Microsoft SQL Server monitoring with OpenTelemetry"
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-MSSQL
+  - nrdot-collector-Database
+  - NRDOT
+  - SQL Server
+metaDescription: New Relic's Microsoft SQL Server monitoring integration using OpenTelemetry Collector
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+We're still working on this feature, but we'd love for you to try it out!
+
+This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+New Relic now empowers your team to monitor your Microsoft SQL Server database performance using OpenTelemetry (OTEL) with New Relic's database monitoring capabilities. This integration provides comprehensive insights into database metrics, query performance, and system health using the OpenTelemetry Collector.
+
+This OTEL-based approach complements our existing On-Host Integration (OHI) by leveraging OpenTelemetry standards for database monitoring, making it easier to integrate with your existing observability stack.
+
+## Prerequisites [#prerequisites]
+
+Before you begin, ensure you have the following:
+
+* Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+
+* SQL Server database setup:
+  * Administrative access to your SQL Server instance (`sysadmin` role or equivalent)
+  * Microsoft SQL Server that supports on-premises managed instances
+  * Network connectivity between the OpenTelemetry Collector and your SQL Server
+  * SQL Server Management Studio (SSMS) or `sqlcmd` utility
+  * Server hostname or IP address
+  * Port number (usually 1433) or custom port
+  * Windows domain or SQL Server authentication
+  * SSL preference
+
+* System requirements:
+  * Windows system to run the OpenTelemetry Collector
+  * Network connectivity to New Relic's OTLP endpoint
+
+{/* ## How OTEL database monitoring differs from OHI
+
+New Relic offers two approaches for SQL Server monitoring:
+
+<Tabs>
+<TabsBar>
+<TabsBarItem id="otel-approach">OpenTelemetry (OTEL)</TabsBarItem>
+<TabsBarItem id="ohi-approach">On-Host Integration (OHI)</TabsBarItem>
+</TabsBar>
+
+<TabsPages>
+<TabsPageItem id="otel-approach">
+
+**OpenTelemetry approach:**
+* Uses industry-standard OpenTelemetry protocol
+* Runs as a separate collector process
+* Vendor-neutral and portable across platforms
+* Integrates with any OTEL-compatible observability platform
+* Ideal for cloud-native and containerized environments
+
+</TabsPageItem>
+<TabsPageItem id="ohi-approach">
+
+**On-Host Integration approach:**
+* Uses New Relic's proprietary infrastructure agent
+* Tightly integrated with New Relic's infrastructure monitoring
+* Includes additional New Relic-specific features
+* Requires New Relic infrastructure agent installation
+* Optimal for New Relic-centric monitoring strategies
+
+</TabsPageItem>
+</TabsPages>
+</Tabs>
+
+*/}
+
+
+## Set-up the NRDOT Collector for Microsoft SQL Server monitoring [#install-collector]
+
+You can use the New Relic OpenTelemetry Distribution (NRDOT) Collector to monitor your Microsoft SQL Server databases. The NRDOT Collector is a pre-configured distribution of the OpenTelemetry Collector that includes New Relic-specific components.
+
+To install & configure the NRDOT Collector, follow these steps:
+
+<Steps>
+
+  <Step>
+
+### Configure the collector [#configure-collector]
+
+1. Create a `config.yaml` file, add the following code snippet:
+
+    <Callout variant="important">
+
+      If you're an existing NRDOT Collector user, ensure to merge the above configuration with your existing `config.yaml` file. This includes adding the new receivers, processors, and exporters for MSSQL Database monitoring while retaining your current configurations.
+    </Callout>
+
+```yaml
+# OpenTelemetry Collector Configuration for New Relic SQL Server Integration
+# SQL Server On-Premises/VM Configuration
+
+receivers:
+  newrelicsqlserver:
+    hostname: "<YOUR_DB_HOST>"
+    port: "<YOUR_DB_PORT>"
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    monitored_databases: []
+    timeout: 600s
+    collection_interval: 30s
+    query_monitoring_fetch_interval: 30 #Should be greater than or equal to collection_interval
+    enable_query_monitoring: true
+    enable_active_running_queries: true 
+    query_monitoring_response_time_threshold: 0 #Capture all queries (including fast ones)
+    query_monitoring_count_threshold: 20
+    query_monitoring_text_truncate_limit: 4094
+    enable_interval_based_averaging: true
+    interval_calculator_cache_ttl_minutes: 10
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+  
+  cumulativetodelta:
+  
+  deltatorate:
+    metrics:
+      - sqlserver.user_connections.authentication.failed_login_events
+      - sqlserver.wait_stats.latch.wait_time_ms
+      - sqlserver.wait_stats.latch.waiting_tasks_count
+      - sqlserver.wait_stats.wait_time_ms
+      - sqlserver.wait_stats.waiting_tasks_count
+
+exporters:
+  otlphttp:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>" # OTLP endpoint of EU/US region. Refer New Relic OTLP docs at https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    tls:
+      insecure: false
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 100
+    compression: gzip
+    timeout: 30s
+  
+  otlphttp/logs:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>" # refer New Relic OTLP docs at https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    tls:
+      insecure: false
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 100
+    compression: gzip
+    timeout: 30s
+  
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    metrics:
+      receivers: [newrelicsqlserver]
+      processors: [memory_limiter, cumulativetodelta, deltatorate, batch]
+      exporters: [otlphttp, debug]
+    logs:
+      receivers: [newrelicsqlserver]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/logs, debug]
+  
+  telemetry:
+    logs:
+      level: debug
+    metrics:
+      level: none
+```
+
+  </Step>
+
+  <Step>
+  
+    ### Run the configuration script [#script]
+
+New Relic provides a configuration script that automates the setup of SQL Server and the NRDOT Collector for monitoring. 
+
+
+To install and configure the NRDOT Collector for SQL Server, follow these steps:
+
+
+1. Create a file named `nrdot_mssql_instrumentation.ps1` and paste the following script into it:
+
+    <Callout variant="tip">
+
+      This script is supported when you've NRDOT Collector and Database configured on the same host.
+
+    </Callout>
+
+<CollapserGroup>
+
+  <Collapser 
+  id="script" 
+  title="SQL script to create monitoring user">
+
+```powershell
+
+<#
+
+.SYNOPSIS
+Configures SQL Server and installs New Relic NRDOT Collector for database monitoring.
+
+.DESCRIPTION
+This script automates the complete setup process for SQL Server monitoring with New Relic NRDOT Collector.
+
+The script performs the following operations:
+1. SQL Server Configuration:
+   - Enables TCP/IP protocol
+   - Configures Mixed Mode Authentication
+   - Opens firewall ports
+   - Enables SQL Server Browser service
+
+2. Database User Setup:
+   - Creates monitoring user with necessary permissions
+   - Configures server-level and database-level access
+
+3. New Relic NRDOT Collector Installation:
+   - Downloads and installs the collector
+   - Configures YAML configuration file
+   - Sets up Windows service using NSSM
+
+4. Log Management:
+   - Configures automatic log rotation
+   - Sets up scheduled cleanup tasks
+
+Supported SQL Server Versions: 2017, 2019, 2022, 2025
+SQL Server version is automatically detected from the instance name.
+
+.PARAMETER SqlInstanceName
+SQL Server instance name to configure. Examples: "MSSQLSERVER" 
+
+To detect SQL instances on your system, run:
+(Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL').PSObject.Properties.Name | Where-Object { $_ -notlike 'PS*' }
+
+.PARAMETER DBUsername
+Database monitoring user to be created. This user will be granted necessary permissions for monitoring.
+Example: "newrelic"
+
+.PARAMETER DBPassword
+Password for the database monitoring user. Use a strong password following your organization's security policy.
+Example: "SecureP@ssw0rd123!"
+
+.PARAMETER DBHostname
+Database hostname or IP address used in the YAML configuration file for database connection.
+Examples: "localhost", "server.domain.com", "192.168.1.100"
+
+.PARAMETER ConfigPath
+Full path where the YAML configuration file will be saved.
+Example: "C:\ProgramData\New Relic\nrdot\config.yaml"
+
+.PARAMETER OtlpEndpoint
+New Relic OTLP endpoints vary by region. Use the endpoint corresponding to your New Relic account region:
+- US:         "https://otlp.nr-data.net:4318" 
+- EU:         "https://otlp.eu01.nr-data.net:4318"
+- US FedRAMP: "https://gov-otlp.nr-data.net:4318"
+Refer to New Relic OTLP documentation: https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/
+
+.PARAMETER LicenseKey
+Your New Relic license key (40-character hexadecimal string).
+Find it at: New Relic UI > API Keys
+Example: "1234567890abcdef1234567890abcdef12345678"
+
+.PARAMETER allowSqlServerRestart
+Whether to allow automatic SQL Server restart if needed. Optional, default: $false
+- $true: Allow restart
+- $false: Do not allow restart
+
+.PARAMETER Port
+SQL Server port number. Optional, default: 1433
+- For default instance: typically 1433
+- For named instances: use dynamic port or configured static port
+
+.PARAMETER KeepLogCount
+Number of recent log files to retain. Optional, default: 3
+Older log files will be automatically cleaned up.
+
+.PARAMETER CleanupIntervalMinutes
+How often to run log cleanup in minutes. Optional, default: 30
+Scheduled task will run at this interval.
+
+.PARAMETER ForceServiceRemoval
+Force removal of existing NRDOT service before installation. Optional, default: $false
+- $true: Remove existing service
+- $false: Fail if service exists (safer for production environments)
+
+.EXAMPLE
+.\nrdot_mssql_instrumentation.ps1 -SqlInstanceName "MSSQLSERVER" `
+    -DBUsername "newrelic" `
+    -DBPassword "SecureP@ssw0rd123!" `
+    -DBHostname "localhost" `
+    -ConfigPath "C:\ProgramData\New Relic\nrdot\config.yaml" `
+    -OtlpEndpoint "https://otlp.nr-data.net:4318" `
+    -LicenseKey "1234567890abcdef1234567890abcdef12345678" `
+    [-Port 1433] `
+    [-allowSqlServerRestart $false] `
+    [-ForceServiceRemoval $false] `
+    [-KeepLogCount 3] `
+    [-CleanupIntervalMinutes 30]
+
+Note: Parameters in square brackets [] are optional with default values shown.
+This example configures the default SQL Server instance with New Relic monitoring using US region OTLP endpoint.
+
+.NOTES
+INSTRUCTIONS TO RUN THE SCRIPT:
+
+1. Copy the config file from https://docs-preview.newrelic.com/docs/otel-mssql#configure-collector (section 3) to a location on your Windows machine
+   Example: C:\Config\config.yaml
+
+2. Copy this script file to a location on your Windows machine
+   Example: C:\Scripts\nrdot_mssql_instrumentation.ps1
+
+3. Open PowerShell as Administrator:
+   - Click Start, type "PowerShell"
+   - Right-click "Windows PowerShell" and select "Run as administrator"
+
+4. Navigate to the script location:
+   cd C:\Scripts
+
+5. Execute the script using the command shown in the EXAMPLE section above
+
+Replace the placeholder values with your actual values before running.
+
+#>
+
+param(
+    [ValidateNotNullOrEmpty()]
+    [string]$DBUsername,
+
+    [ValidateNotNullOrEmpty()]
+    [string]$DBPassword,
+
+    [ValidateNotNullOrEmpty()]
+    [string]$ConfigPath,
+
+    [ValidateNotNullOrEmpty()]
+    [string]$OtlpEndpoint,
+
+    [ValidateNotNullOrEmpty()]
+    [string]$LicenseKey,
+
+    [int]$KeepLogCount = 3,
+
+    [int]$CleanupIntervalMinutes = 30,
+
+    [bool]$ForceServiceRemoval = $false,
+
+    [ValidateNotNullOrEmpty()]
+    [string]$DBHostname,
+
+    [int]$Port = 1433,
+
+    [bool]$allowSqlServerRestart = $false,
+
+    [ValidateNotNullOrEmpty()]
+    [string]$SqlInstanceName
+)
+
+# ============================================
+# VALIDATE MANDATORY PARAMETERS (NON-INTERACTIVE MODE)
+# ============================================
+# Check all required parameters BEFORE starting any execution
+
+$missingParams = @()
+
+if ([string]::IsNullOrWhiteSpace($SqlInstanceName)) {
+    $missingParams += "SqlInstanceName"
+}
+
+if ([string]::IsNullOrWhiteSpace($DBUsername)) {
+    $missingParams += "DBUsername"
+}
+
+if ([string]::IsNullOrWhiteSpace($DBPassword)) {
+    $missingParams += "DBPassword"
+}
+
+if ([string]::IsNullOrWhiteSpace($DBHostname)) {
+    $missingParams += "DBHostname"
+}
+
+if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+    $missingParams += "ConfigPath"
+}
+
+if ([string]::IsNullOrWhiteSpace($OtlpEndpoint)) {
+    $missingParams += "OtlpEndpoint"
+}
+
+if ([string]::IsNullOrWhiteSpace($LicenseKey)) {
+    $missingParams += "LicenseKey"
+}
+
+# If any parameters are missing, display error and exit immediately
+if ($missingParams.Count -gt 0) {
+    Write-Host ""
+    Write-Host "ERROR: Missing required parameters!" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "The following required parameters were not provided:" -ForegroundColor Yellow
+    foreach ($param in $missingParams) {
+        Write-Host "  - $param" -ForegroundColor Red
+    }
+
+    # Show helpful SQL instance detection information if SqlInstanceName is missing
+    if ($missingParams -contains "SqlInstanceName") {
+        Write-Host ""
+        Write-Host "SQL Instance Detection:" -ForegroundColor Cyan
+        Write-Host "  To detect SQL instances on your system, run:" -ForegroundColor White
+        Write-Host "  (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL').PSObject.Properties.Name | Where-Object { `$_ -notlike 'PS*' }" -ForegroundColor Green
+    }
+
+    # Show helpful OTLP endpoint information if OtlpEndpoint is missing
+    if ($missingParams -contains "OtlpEndpoint") {
+        Write-Host ""
+        Write-Host "OTLP Endpoint Options:" -ForegroundColor Cyan
+        Write-Host "  New Relic OTLP endpoints vary by region. Use the endpoint corresponding to your New Relic account region:" -ForegroundColor White
+        Write-Host "  - US:         https://otlp.nr-data.net:4318" -ForegroundColor Green
+        Write-Host "  - EU:         https://otlp.eu01.nr-data.net:4318" -ForegroundColor Green
+        Write-Host "  - US FedRAMP: https://gov-otlp.nr-data.net:4318" -ForegroundColor Green
+        Write-Host "  Refer to: https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/" -ForegroundColor Gray
+    }
+
+    Write-Host ""
+    Write-Host "Usage:" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  .\nrdot_mssql_instrumentation.ps1 -SqlInstanceName `"<INSTANCE>`" ``" -ForegroundColor White
+    Write-Host "      -DBUsername `"<USERNAME>`" ``" -ForegroundColor White
+    Write-Host "      -DBPassword `"<PASSWORD>`" ``" -ForegroundColor White
+    Write-Host "      -DBHostname `"<HOSTNAME>`" ``" -ForegroundColor White
+    Write-Host "      -ConfigPath `"<PATH_TO_CONFIG.YAML>`" ``" -ForegroundColor White
+    Write-Host "      -OtlpEndpoint `"<OTLP_ENDPOINT>`" ``" -ForegroundColor White
+    Write-Host "      -LicenseKey `"<LICENSE_KEY>`"" -ForegroundColor White
+    Write-Host "      [-Port 1433] ``" -ForegroundColor Gray
+    Write-Host "      [-allowSqlServerRestart `$false] ``" -ForegroundColor Gray
+    Write-Host "      [-ForceServiceRemoval `$false] ``" -ForegroundColor Gray
+    Write-Host "      [-KeepLogCount 3] ``" -ForegroundColor Gray
+    Write-Host "      [-CleanupIntervalMinutes 30]" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Note: Parameters in square brackets [] are optional with default values shown." -ForegroundColor Yellow
+    Write-Host "For detailed help, run: Get-Help .\nrdot_mssql_instrumentation.ps1 -Detailed" -ForegroundColor Cyan
+    Write-Host ""
+    exit 1
+}
+
+# Additional validation for provided parameters
+if (-not $ConfigPath.EndsWith('.yaml')) {
+    Write-Host "ERROR: ConfigPath must end with .yaml extension." -ForegroundColor Red
+    Write-Host "Provided: $ConfigPath" -ForegroundColor Yellow
+    exit 1
+}
+
+if (-not (Test-Path $ConfigPath)) {
+    Write-Host "ERROR: Config file not found at the specified path." -ForegroundColor Red
+    Write-Host "Path: $ConfigPath" -ForegroundColor Yellow
+    exit 1
+}
+
+# Validate Port range (must be a valid TCP port)
+if ($Port -lt 1 -or $Port -gt 65535) {
+    Write-Host "ERROR: Port must be between 1 and 65535." -ForegroundColor Red
+    Write-Host "Provided: $Port" -ForegroundColor Yellow
+    exit 1
+}
+
+# Validate KeepLogCount (must be at least 1)
+if ($KeepLogCount -lt 1) {
+    Write-Host "ERROR: KeepLogCount must be at least 1." -ForegroundColor Red
+    Write-Host "Provided: $KeepLogCount" -ForegroundColor Yellow
+    exit 1
+}
+
+# Validate CleanupIntervalMinutes (must be at least 1 minute)
+if ($CleanupIntervalMinutes -lt 1) {
+    Write-Host "ERROR: CleanupIntervalMinutes must be at least 1." -ForegroundColor Red
+    Write-Host "Provided: $CleanupIntervalMinutes" -ForegroundColor Yellow
+    exit 1
+}
+
+# Check for Administrator privileges
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "ERROR: This script requires Administrator privileges." -ForegroundColor Red
+    Write-Host "Please run PowerShell as Administrator and try again." -ForegroundColor Yellow
+    exit 1
+}
+
+# --- LOGGING SETUP ---
+
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$logFile = "sql_and_collector_setup_$timestamp.log"
+
+try {
+    Start-Transcript -Path $logFile -Append -ErrorAction Stop
+    Write-Host "Logging to: $logFile" -ForegroundColor Gray
+} catch {
+    Write-Host "ERROR: Failed to start transcript logging: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Script will continue without logging to file." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "Script started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Gray
+Write-Host "Running as: $env:USERNAME" -ForegroundColor Gray
+
+$ErrorActionPreference = 'Stop'
+$scriptErrors = @()
+
+# Auto-detect SQL Server version from instance name
+Write-Host "`nDetecting SQL Server version for instance '$SqlInstanceName'..." -ForegroundColor Yellow
+
+$versionIdMap = @{
+    "14" = "SQL Server 2017"
+    "15" = "SQL Server 2019"
+    "16" = "SQL Server 2022"
+    "17" = "SQL Server 2025"
+}
+
+$detectedVersion = $null
+$detectedVersionId = $null
+
+# Scan supported versions (2017-2025, version IDs 14-17)
+# Check newest version first to correctly identify when multiple versions are installed
+# Validate both WMI namespace (for TCP/IP config) and registry path (for Mixed Mode auth)
+foreach ($versionId in @("17", "16", "15", "14")) {
+    try {
+        # Check 1: WMI namespace for TCP/IP configuration
+        $namespace = "root\Microsoft\SqlServer\ComputerManagement$versionId"
+        $tcpProtocol = Get-WmiObject -Namespace $namespace -Class "ServerNetworkProtocol" -Filter "InstanceName = '$SqlInstanceName'" -ErrorAction SilentlyContinue
+
+        if ($tcpProtocol) {
+            # Check 2: Registry path for Mixed Mode Authentication
+            $testRegistryPath = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL$versionId.$SqlInstanceName\MSSQLServer"
+
+            if (Test-Path $testRegistryPath) {
+                # Both paths exist - this is the correct version
+                $detectedVersionId = $versionId
+                $detectedVersion = $versionIdMap[$versionId]
+                Write-Host "SUCCESS: Detected $detectedVersion (Version ID: $versionId)" -ForegroundColor Green
+                Write-Host "  WMI Namespace: $namespace" -ForegroundColor Gray
+                Write-Host "  Registry Path: $testRegistryPath" -ForegroundColor Gray
+                break
+            } else {
+                Write-Host "  Found instance in $namespace but registry path missing, checking other versions..." -ForegroundColor Gray
+            }
+        }
+    } catch {
+        # Namespace doesn't exist, continue to next version
+        continue
+    }
+}
+
+if (-not $detectedVersionId) {
+    Write-Host "ERROR: Could not detect SQL Server version for instance '$SqlInstanceName'" -ForegroundColor Red
+    Write-Host "Please verify:" -ForegroundColor Yellow
+    Write-Host "  1. The instance name is correct" -ForegroundColor Yellow
+    Write-Host "  2. SQL Server is installed" -ForegroundColor Yellow
+    Write-Host "  3. SQL Server version is 2017 or later" -ForegroundColor Yellow
+    Write-Host "`nOr to list SQL Server services, run:" -ForegroundColor Cyan
+    Write-Host "  Get-Service -Name 'MSSQL*' | Where-Object { `$_.Name -like 'MSSQL`$*' -or `$_.Name -eq 'MSSQLSERVER' }" -ForegroundColor Gray
+    Stop-Transcript
+    exit 1
+}
+
+# Set detected values
+$SqlVersion = $detectedVersionId
+$originalSqlVersion = $detectedVersion
+
+# Validate config file path and location
+try {
+    $resolvedConfigPath = (Resolve-Path $ConfigPath -ErrorAction Stop).Path
+
+    # Check if config file is in Program Files (not allowed due to UAC restrictions)
+    if ($resolvedConfigPath -match 'Program Files' -or $resolvedConfigPath -match 'Program Files \(x86\)') {
+        Write-Host "ERROR: Config file cannot be in Program Files location!" -ForegroundColor Red
+        Write-Host "  Path: $resolvedConfigPath" -ForegroundColor Yellow
+        Write-Host "  Reason: Windows UAC restrictions may cause service to start in 'Paused' state" -ForegroundColor Yellow
+        Write-Host "  Please move the config file to a different location (e.g., C:\Config\) or in Documents or Desktop folder." -ForegroundColor Cyan
+        Stop-Transcript
+        exit 1
+    }
+} catch {
+    Write-Host "ERROR: Failed to resolve config file path: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Path: $ConfigPath" -ForegroundColor Yellow
+    Stop-Transcript
+    exit 1
+}
+
+# Verify current user has write access to config file (needed for editing placeholders)
+try {
+    $testContent = Get-Content -Path $resolvedConfigPath -Raw -ErrorAction Stop
+    Set-Content -Path $resolvedConfigPath -Value $testContent -Force -ErrorAction Stop
+    Write-Host "SUCCESS: Config file is writable." -ForegroundColor Green
+} catch {
+    Write-Host "ERROR: Cannot write to config file: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Please ensure you have write permissions to: $resolvedConfigPath" -ForegroundColor Yellow
+    Stop-Transcript
+    exit 1
+}
+
+# Ensure SYSTEM account has read access to config file (needed for service to load config)
+try {
+    $configDir = Split-Path -Parent $resolvedConfigPath
+    $acl = Get-Acl -Path $resolvedConfigPath -ErrorAction Stop
+    
+    $systemAccess = $acl.Access | Where-Object { $_.IdentityReference -eq "NT AUTHORITY\SYSTEM" }
+    if (-not $systemAccess) {
+        Write-Host "Granting SYSTEM account read access to config file..." -ForegroundColor Yellow
+        icacls "$resolvedConfigPath" /grant "NT AUTHORITY\SYSTEM:R" | Out-Null
+        icacls "$configDir" /grant "NT AUTHORITY\SYSTEM:(OI)(CI)RX" | Out-Null
+        Write-Host "SUCCESS: SYSTEM read permissions granted." -ForegroundColor Green
+    }
+} catch {
+    Write-Host "ERROR: Could not verify or set config file permissions: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "The service may fail to start without SYSTEM read access to the config file." -ForegroundColor Yellow
+    Stop-Transcript
+    exit 1
+}
+
+Write-Host "`n============================================" -ForegroundColor Cyan
+Write-Host "SQL Server & New Relic Collector Setup" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+
+Write-Host "`n--- PART 1: SQL Server Configuration ---" -ForegroundColor Magenta
+
+# Use provided SqlVersion and SqlInstanceName for SQL Server configuration
+$v = $SqlVersion
+$instanceName = $SqlInstanceName
+$configuredInstanceName = $instanceName  # Store for collector logs
+$needsRestart = $false
+
+Write-Host "`n========================================" -ForegroundColor Cyan
+Write-Host "Instance: SQL Server $originalSqlVersion (Version ID: $v) - $instanceName" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+
+Write-Host "`nChecking current configuration..." -ForegroundColor Yellow
+$willNeedRestart = $false
+
+Write-Host "`nConfiguring SQL Server $originalSqlVersion (Version ID: $v) - $instanceName..." -ForegroundColor Yellow
+
+        # --- ENABLE TCP/IP ---
+        try {
+            $namespace = "root\Microsoft\SqlServer\ComputerManagement$v"
+            $tcpProtocol = Get-WmiObject -Namespace $namespace -Class "ServerNetworkProtocol" -Filter "ProtocolName = 'Tcp' and InstanceName = '$instanceName'" -ErrorAction Stop
+
+            if (-not $tcpProtocol) {
+                throw "TCP protocol settings not found for instance '$instanceName'. Verify version ID and instance name."
+            }
+            
+            if ($tcpProtocol.Enabled -eq $false) {
+# Check if restart is allowed before making changes
+                if (-not $allowSqlServerRestart) {
+                    Write-Host "`nERROR: TCP/IP Protocol needs to be enabled, but allowSqlServerRestart is set to false." -ForegroundColor Red
+                    Write-Host "Instance: $instanceName" -ForegroundColor Yellow
+                    Write-Host "`nEnabling TCP/IP Protocol requires a SQL Server restart." -ForegroundColor Yellow
+                    Write-Host "`nTo proceed, choose one of the following options:" -ForegroundColor Yellow
+                    Write-Host "  1. Set -allowSqlServerRestart `$true to allow automatic SQL Server restart" -ForegroundColor Cyan
+                    Write-Host "  2. Manually enable TCP/IP Protocol from SQL Server Configuration Manager" -ForegroundColor Cyan
+                    Write-Host "`nScript halted. No changes have been made." -ForegroundColor Red
+                    Stop-Transcript
+                    exit 1
+                }
+                
+                $result = $tcpProtocol.SetEnable()
+                if ($result.ReturnValue -ne 0) {
+                    throw "Failed to enable TCP protocol. Return code: $($result.ReturnValue)"
+                }
+                Write-Host "TCP Protocol was disabled. Enabling now..." -ForegroundColor Green
+                $needsRestart = $true
+            } else {
+                Write-Host "CHECK: TCP Protocol is already enabled." -ForegroundColor Gray
+            }
+        } catch {
+            $errorMsg = "ERROR: Failed to configure TCP/IP for $instanceName - $($_.Exception.Message)"
+            Write-Host $errorMsg -ForegroundColor Red
+            Write-Host "`nThis is a critical error. The script cannot continue without TCP/IP enabled." -ForegroundColor Yellow
+            Write-Host "Please check the error message above and verify the SQL Server installation." -ForegroundColor Yellow
+            $scriptErrors += $errorMsg
+            Stop-Transcript
+            exit 1
+        }
+
+        # --- ENABLE MIXED MODE ---
+        try {
+            $registryPath = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL$v.$instanceName\MSSQLServer"
+            
+            if (-not (Test-Path $registryPath)) {
+                throw "Registry path not found: $registryPath. Verify version ID and instance name."
+            }
+            
+            $currentMode = Get-ItemProperty -Path $registryPath -Name "LoginMode" -ErrorAction Stop
+            
+            if ($currentMode.LoginMode -ne 2) {
+                # Check if restart is allowed before making changes
+                if (-not $allowSqlServerRestart) {
+                    Write-Host "`nERROR: Mixed Mode Authentication needs to be enabled, but allowSqlServerRestart is set to false." -ForegroundColor Red
+                    Write-Host "Instance: $instanceName" -ForegroundColor Yellow
+                    Write-Host "`nEnabling Mixed Mode Authentication requires a SQL Server restart." -ForegroundColor Yellow
+                    Write-Host "`nTo proceed, choose one of the following options:" -ForegroundColor Yellow
+                    Write-Host "  1. Set -allowSqlServerRestart `$true to allow automatic SQL Server restart" -ForegroundColor Cyan
+                    Write-Host "  2. Manually enable Mixed Mode Authentication from SQL Server properties" -ForegroundColor Cyan
+                    Write-Host "`nScript halted. No changes have been made." -ForegroundColor Red
+                    Stop-Transcript
+                    exit 1
+                }
+                
+                Write-Host "Mixed Mode Authentication is currently disabled. Enabling..." -ForegroundColor Yellow
+                Set-ItemProperty -Path $registryPath -Name "LoginMode" -Value 2 -ErrorAction Stop
+                $verifyMode = (Get-ItemProperty -Path $registryPath -Name "LoginMode").LoginMode
+                if ($verifyMode -ne 2) {
+                    throw "Failed to set LoginMode to 2. Current value: $verifyMode"
+                }
+                Write-Host "SUCCESS: Mixed Mode Authentication enabled via Registry." -ForegroundColor Green
+                $needsRestart = $true
+            } else {
+                Write-Host "CHECK: Mixed Mode Authentication is already enabled." -ForegroundColor Gray
+            }
+        } catch {
+            $errorMsg = "ERROR: Failed to configure authentication mode for $($instance.VersionName) - $instanceName - $($_.Exception.Message)"
+            Write-Host $errorMsg -ForegroundColor Red
+            Write-Host "`nThis is a critical error. The script cannot continue without Mixed Mode Authentication." -ForegroundColor Yellow
+            Write-Host "Please check the error message above and verify the SQL Server installation." -ForegroundColor Yellow
+            $scriptErrors += $errorMsg
+            Stop-Transcript
+            exit 1
+        }
+
+        # --- RESTART SQL SERVER SERVICE ---
+        $serviceName = if ($instanceName -eq "MSSQLSERVER") { "MSSQLSERVER" } else { "MSSQL`$$instanceName" }
+
+        if ($needsRestart) {
+            try {
+                Write-Host "Restarting SQL Server ($serviceName) to apply changes..." -ForegroundColor Cyan
+                
+                $service = Get-Service -Name $serviceName -ErrorAction Stop
+                Restart-Service -Name $serviceName -Force -ErrorAction Stop
+                
+                Start-Sleep -Seconds 2
+                $service = Get-Service -Name $serviceName
+                if ($service.Status -ne "Running") {
+                    throw "SQL Server service did not start successfully after restart. Status: $($service.Status)"
+                }
+                
+                Write-Host "SUCCESS: SQL Server service '$serviceName' ($($instance.VersionName)) restarted successfully." -ForegroundColor Green
+            } catch {
+                $errorMsg = "ERROR: Failed to restart SQL Server service - $($_.Exception.Message)"
+                Write-Host $errorMsg -ForegroundColor Red
+                $scriptErrors += $errorMsg
+                Write-Host "You may need to manually restart the SQL Server service." -ForegroundColor Yellow
+                Stop-Transcript
+                exit 1
+            }
+        }
+
+        # --- CREATE DATABASE USER ---
+        try {
+            Write-Host "`n--- Configuring Read-Only Database User ---" -ForegroundColor Cyan
+            
+            $sqlInstanceName = if ($instanceName -eq "MSSQLSERVER") { $env:COMPUTERNAME } else { "$env:COMPUTERNAME\$instanceName" }
+            
+            $username = $DBUsername
+            $password = $DBPassword
+            $createNewLogin = $true
+            
+            Write-Host "Using database username: $username" -ForegroundColor Cyan
+
+            # Check for SqlServer module
+                if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+                    Write-Host "`nSqlServer PowerShell module not found. Installing..." -ForegroundColor Yellow
+
+                    try {
+                        # Ensure NuGet provider is installed (non-interactive)
+                        Write-Host "Ensuring NuGet provider is available..." -ForegroundColor Gray
+                        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                        $null = Get-PackageProvider -Name NuGet -ForceBootstrap -ErrorAction SilentlyContinue
+
+                        # Trust PSGallery if not already trusted (suppress prompts)
+                        $psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
+                        if ($psGallery -and $psGallery.InstallationPolicy -ne 'Trusted') {
+                            Write-Host "Setting PSGallery as trusted..." -ForegroundColor Gray
+                            Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction Stop
+                        }
+
+                        # Install module (completely non-interactive)
+                        Write-Host "Downloading and installing SqlServer module..." -ForegroundColor Gray
+                        Install-Module -Name SqlServer -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck -ErrorAction Stop
+                        Import-Module SqlServer -ErrorAction Stop
+                        Write-Host "SqlServer module installed successfully." -ForegroundColor Green
+                    } catch {
+                        Write-Host "ERROR: Failed to install SqlServer module: $($_.Exception.Message)" -ForegroundColor Red
+                        Write-Host "Please install manually: Install-Module -Name SqlServer -Scope CurrentUser" -ForegroundColor Yellow
+                        Stop-Transcript
+                        exit 1
+                    }
+                } else {
+                    Import-Module SqlServer -ErrorAction SilentlyContinue
+                    Write-Host "SqlServer module already installed." -ForegroundColor Gray
+                }
+
+                # Check if login already exists
+                $checkLoginQuery = "SELECT COUNT(*) as LoginExists FROM sys.server_principals WHERE name = '$username' AND type = 'S'"
+                
+                try {
+                    $loginCheck = Invoke-Sqlcmd -ServerInstance $sqlInstanceName -Query $checkLoginQuery -TrustServerCertificate -ErrorAction Stop
+                    
+                    if ($loginCheck.LoginExists -gt 0) {
+                        Write-Host "`nLogin '$username' already exists. Validating password and checking permissions..." -ForegroundColor Yellow
+                        
+                        # Test password by attempting connection
+                        try {
+                            $testQuery = "SELECT 1 as TestConnection"
+                            $testResult = Invoke-Sqlcmd -ServerInstance $sqlInstanceName -Username $username -Password $password -Query $testQuery -TrustServerCertificate -ErrorAction Stop
+                            Write-Host "  Password validation: Success" -ForegroundColor Green
+                        } catch {
+                            Write-Host "  ERROR: Password incorrect for user '$username'" -ForegroundColor Red
+                            Write-Host "  Please provide the correct password or use a different username." -ForegroundColor Yellow
+                            Write-Host "  Halting script execution." -ForegroundColor Red
+                            Stop-Transcript
+                            exit 1
+                        }
+                        
+                        # Check permissions
+                        $checkPermissionsQuery = @"
+SELECT 
+    (SELECT COUNT(*) FROM sys.server_permissions sp 
+     JOIN sys.server_principals sp2 ON sp.grantee_principal_id = sp2.principal_id 
+     WHERE sp2.name = '$username' AND sp.permission_name = 'VIEW SERVER STATE' AND sp.state = 'G') as HasViewServerState,
+    (SELECT COUNT(*) FROM sys.server_permissions sp 
+     JOIN sys.server_principals sp2 ON sp.grantee_principal_id = sp2.principal_id 
+     WHERE sp2.name = '$username' AND sp.permission_name = 'VIEW ANY DEFINITION' AND sp.state = 'G') as HasViewAnyDefinition,
+    (SELECT COUNT(*) FROM sys.server_permissions sp 
+     JOIN sys.server_principals sp2 ON sp.grantee_principal_id = sp2.principal_id 
+     WHERE sp2.name = '$username' AND sp.permission_name = 'VIEW ANY DATABASE' AND sp.state = 'G') as HasViewAnyDatabase
+"@
+
+                        $permCheck = Invoke-Sqlcmd -ServerInstance $sqlInstanceName -Query $checkPermissionsQuery -TrustServerCertificate -ErrorAction Stop
+                        
+                        $hasAllPermissions = ($permCheck.HasViewServerState -gt 0) -and 
+                                            ($permCheck.HasViewAnyDefinition -gt 0) -and 
+                                            ($permCheck.HasViewAnyDatabase -gt 0)
+                        
+                        if ($hasAllPermissions) {
+                            Write-Host "  Login '$username' has all required permissions:" -ForegroundColor Green
+                            Write-Host "  - VIEW SERVER STATE: Yes" -ForegroundColor Gray
+                            Write-Host "  - VIEW ANY DEFINITION: Yes" -ForegroundColor Gray
+                            Write-Host "  - VIEW ANY DATABASE: Yes" -ForegroundColor Gray
+                            Write-Host "`nNo action needed. Continuing..." -ForegroundColor Green
+                            $username = $null
+                        } else {
+                            Write-Host "  ERROR: User '$username' exists but is missing required permissions:" -ForegroundColor Red
+                            if ($permCheck.HasViewServerState -eq 0) { Write-Host "  - VIEW SERVER STATE: Missing" -ForegroundColor Red }
+                            if ($permCheck.HasViewAnyDefinition -eq 0) { Write-Host "  - VIEW ANY DEFINITION: Missing" -ForegroundColor Red }
+                            if ($permCheck.HasViewAnyDatabase -eq 0) { Write-Host "  - VIEW ANY DATABASE: Missing" -ForegroundColor Red }
+                            Write-Host "`nPlease grant the required permissions or use a different username." -ForegroundColor Yellow
+                            Write-Host "Halting script execution." -ForegroundColor Red
+                            Stop-Transcript
+                            exit 1
+                        }
+                    } else {
+                        Write-Host "User '$username' does not exist. Will create new user." -ForegroundColor Green
+                    }
+                } catch {
+                    Write-Host "Warning: Could not check if login exists. Proceeding with user creation..." -ForegroundColor Yellow
+                }
+            if ($username) {
+                Write-Host "Creating new login '$username' with provided password..." -ForegroundColor Green
+                $createLoginPart = @"
+CREATE LOGIN [$username] WITH PASSWORD = '$password';
+GO
+
+"@
+
+                $sqlQuery = @"
+USE [master];
+GO
+
+$createLoginPart
+-- Instance-level permissions
+GRANT VIEW SERVER STATE TO [$username];
+GO
+GRANT VIEW ANY DEFINITION TO [$username];
+GO
+GRANT VIEW ANY DATABASE TO [$username];
+GO
+
+-- Grant read access privileges to all user databases
+DECLARE @name SYSNAME;
+DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name]
+    FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master', 'msdb', 'tempdb', 'model', 'rdsadmin', 'distribution')
+      AND [state] = 0;
+
+OPEN db_cursor;
+FETCH NEXT FROM db_cursor INTO @name;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    BEGIN TRY
+        PRINT 'Processing database: ' + @name;
+
+        EXEC('USE [' + @name + '];
+              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''$username'')
+              BEGIN
+                  CREATE USER [$username] FOR LOGIN [$username];
+              END;
+              GRANT VIEW DATABASE STATE TO [$username];
+              GRANT VIEW DEFINITION TO [$username];
+              ALTER ROLE db_datareader ADD MEMBER [$username];');
+
+        PRINT 'Success: ' + @name;
+    END TRY
+    BEGIN CATCH
+        PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+    END CATCH
+
+    FETCH NEXT FROM db_cursor INTO @name;
+END
+
+CLOSE db_cursor;
+DEALLOCATE db_cursor;
+GO
+"@
+
+                Write-Host "`nDatabase User Configuration:" -ForegroundColor Green
+                Write-Host "  Instance: $sqlInstanceName" -ForegroundColor White
+                Write-Host "  Username: $username" -ForegroundColor White
+                Write-Host "  Password: $('*' * $password.Length)" -ForegroundColor White
+                Write-Host "  Action:   Create new login" -ForegroundColor White
+
+                Write-Host "`nExecuting database user creation..." -ForegroundColor Green
+                
+                $queries = $sqlQuery -split '(?m)^\s*GO\s*$' | Where-Object { $_.Trim() -ne '' }
+                
+                $dbUserCreated = $true
+                foreach ($query in $queries) {
+                    $trimmedQuery = $query.Trim()
+                    if ($trimmedQuery -ne '') {
+                        try {
+                            $result = Invoke-Sqlcmd -ServerInstance $sqlInstanceName -Query $trimmedQuery -TrustServerCertificate -ErrorAction Stop
+                            if ($result) {
+                                Write-Host $result -ForegroundColor Gray
+                            }
+                        } catch {
+                            Write-Host "Query execution error: $($_.Exception.Message)" -ForegroundColor Yellow
+                            $dbUserCreated = $false
+                        }
+                    }
+                }
+
+                if ($dbUserCreated) {
+                    Write-Host "SUCCESS: Login '$username' created with read permissions!" -ForegroundColor Green
+                    Write-Host "  - VIEW SERVER STATE (instance-level)" -ForegroundColor Gray
+                    Write-Host "  - VIEW ANY DEFINITION (instance-level)" -ForegroundColor Gray
+                    Write-Host "  - VIEW ANY DATABASE (instance-level)" -ForegroundColor Gray
+                    Write-Host "  - db_datareader role (all user databases)" -ForegroundColor Gray
+                    Write-Host "  - VIEW DATABASE STATE (all user databases)" -ForegroundColor Gray
+                    Write-Host "  - VIEW DEFINITION (all user databases)" -ForegroundColor Gray
+                }
+            }
+        } catch {
+            $errorMsg = "ERROR: Failed to create database user for $instanceName - $($_.Exception.Message)"
+            Write-Host $errorMsg -ForegroundColor Red
+            $scriptErrors += $errorMsg
+            Stop-Transcript
+            exit 1
+        }
+
+    # --- CHECK FIREWALL SETTINGS ---
+    try {
+        Write-Host "`n--- Firewall Configuration ---" -ForegroundColor Cyan
+        Write-Host "Checking firewall configuration..." -ForegroundColor Yellow
+
+        $portRules = Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue |
+            Where-Object {
+                $portFilter = $_ | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue
+                $portFilter.LocalPort -eq $Port -and $portFilter.Protocol -eq 'TCP'
+            }
+
+        if ($portRules) {
+            Write-Host "CHECK: Firewall rule(s) already allow inbound TCP $Port." -ForegroundColor Gray
+            foreach ($rule in $portRules) {
+                Write-Host "  - Rule Name: $($rule.DisplayName)" -ForegroundColor Gray
+            }
+        } else {
+            $ruleName = "SQL Server TCP $Port"
+            New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -LocalPort $Port -Protocol TCP -Action Allow -ErrorAction Stop | Out-Null
+            Write-Host "SUCCESS: SQL Server TCP $Port Firewall rule created" -ForegroundColor Green
+            Write-Host "  - Rule Name: $ruleName" -ForegroundColor Gray
+        }
+    } catch {
+        $errorMsg = "ERROR: Failed to configure firewall rule - $($_.Exception.Message)"
+        Write-Host $errorMsg -ForegroundColor Red
+        $scriptErrors += $errorMsg
+        Stop-Transcript
+        exit 1
+    }
+
+    # --- ENABLE SQL SERVER BROWSER SERVICE ---
+    try {
+        Write-Host "`n--- SQL Server Browser Service ---" -ForegroundColor Cyan
+        $browser = Get-Service -Name "SQLBrowser" -ErrorAction Stop
+        
+        if ($browser.StartType -ne "Automatic" -or $browser.Status -ne "Running") {
+            if ($browser.StartType -ne "Automatic") {
+                Set-Service -Name "SQLBrowser" -StartupType Automatic -ErrorAction Stop
+            }
+            
+            if ($browser.Status -ne "Running") {
+                Start-Service -Name "SQLBrowser" -ErrorAction Stop
+                $browser = Get-Service -Name "SQLBrowser"
+                if ($browser.Status -ne "Running") {
+                    throw "Service did not start successfully"
+                }
+            }
+            Write-Host "SUCCESS: SQL Browser Service set to Automatic and Started." -ForegroundColor Green
+        } else {
+            Write-Host "CHECK: SQL Browser Service is already Automatic and Running." -ForegroundColor Gray
+        }
+    } catch {
+        $errorMsg = "ERROR: Failed to configure SQL Browser Service - $($_.Exception.Message)"
+        Write-Host $errorMsg -ForegroundColor Red
+        $scriptErrors += $errorMsg
+        Stop-Transcript
+        exit 1
+    }
+
+# ============================================
+# PART 2: NEW RELIC NRDOT COLLECTOR INSTALLATION
+# ============================================
+
+Write-Host "`n--- PART 2: New Relic NRDOT Collector Installation ---" -ForegroundColor Magenta
+
+# Collector configuration
+$url = "https://download.newrelic.com/database-monitoring/nrdot-collector/mssql/nrdot-collector-host-windows-amd64-1.0.0.exe"
+    $nssmUrl = "https://nssm.cc/release/nssm-2.24.zip"
+    $destDir = "C:\Program Files\New Relic\nrdot-collector"
+    $exePath = "$destDir\nrdot-collector-host-windows-amd64-1.0.0.exe"
+    $nssmDir = "$destDir\nssm"
+    $nssmExe = "$nssmDir\nssm.exe"
+    
+    # Make service name unique per SQL instance
+    if ($configuredInstanceName) {
+        $serviceName = "nrdot-collector-$configuredInstanceName"
+        $displayName = "New Relic NRDOT Collector ($configuredInstanceName)"
+        $logsDir = "$destDir\logs\$configuredInstanceName"
+        Write-Host "`nUsing instance-specific configuration:" -ForegroundColor Gray
+        Write-Host "  Service Name: $serviceName" -ForegroundColor Gray
+        Write-Host "  Log Directory: $logsDir" -ForegroundColor Gray
+    } else {
+        $serviceName = "nrdot-collector"
+        $displayName = "New Relic NRDOT Collector"
+        $logsDir = "$destDir\logs"
+        Write-Host "`nUsing default configuration:" -ForegroundColor Gray
+        Write-Host "  Service Name: $serviceName" -ForegroundColor Gray
+        Write-Host "  Log Directory: $logsDir" -ForegroundColor Gray
+    }
+    $serviceLogFile = "$logsDir\otel-collector.log"
+
+    # 1. DOWNLOAD THE EXE
+    if (-not (Test-Path "$destDir")) { New-Item -ItemType Directory -Path "$destDir" -Force | Out-Null }
+    if (-not (Test-Path "$logsDir")) { New-Item -ItemType Directory -Path "$logsDir" -Force | Out-Null }
+
+    if (-not (Test-Path "$exePath")) {
+        Write-Host "`nDownloading collector executable..." -ForegroundColor Yellow
+        try {
+            curl.exe -L -o "$exePath" "$url"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "ERROR: Download failed with exit code $LASTEXITCODE" -ForegroundColor Red
+                Stop-Transcript
+                exit 1
+            }
+            Write-Host "Download complete." -ForegroundColor Green
+        } catch {
+            Write-Host "ERROR: Failed to download collector: $($_.Exception.Message)" -ForegroundColor Red
+            Stop-Transcript
+            exit 1
+        }
+    } else {
+        Write-Host "`nCollector executable already exists." -ForegroundColor Gray
+    }
+
+    # 2. DOWNLOAD AND EXTRACT NSSM
+    if (-not (Test-Path "$nssmExe")) {
+        Write-Host "Downloading NSSM (Non-Sucking Service Manager)..." -ForegroundColor Yellow
+        $nssmZip = "$env:TEMP\nssm.zip"
+
+        try {
+            # Remove any existing corrupted zip file
+            if (Test-Path "$nssmZip") {
+                Remove-Item "$nssmZip" -Force -ErrorAction SilentlyContinue
+            }
+
+            # Use Invoke-WebRequest for better redirect handling
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri "$nssmUrl" -OutFile "$nssmZip" -UseBasicParsing -ErrorAction Stop
+
+            # Wait for file to be fully written and verify it exists
+            Start-Sleep -Seconds 3
+            if (-not (Test-Path "$nssmZip")) {
+                throw "Downloaded zip file not found at $nssmZip"
+            }
+            $zipSize = (Get-Item "$nssmZip").Length
+            if ($zipSize -lt 100KB) {
+                throw "Downloaded zip file is too small ($zipSize bytes), may be corrupted. Actual size: $zipSize bytes"
+            }
+            Write-Host "NSSM zip downloaded successfully ($zipSize bytes)." -ForegroundColor Green
+
+            Write-Host "Extracting NSSM..." -ForegroundColor Yellow
+            Expand-Archive -Path "$nssmZip" -DestinationPath "$env:TEMP\nssm-extract" -Force
+
+            $arch = if ([Environment]::Is64BitOperatingSystem) { "win64" } else { "win32" }
+            New-Item -ItemType Directory -Path "$nssmDir" -Force | Out-Null
+            Copy-Item "$env:TEMP\nssm-extract\nssm-2.24\$arch\nssm.exe" -Destination "$nssmExe" -Force
+
+            Write-Host "NSSM installed successfully." -ForegroundColor Green
+        } catch {
+            Write-Host "ERROR: Failed to download or extract NSSM: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "`nPlease check:" -ForegroundColor Yellow
+            Write-Host "  1. Internet connectivity to $nssmUrl" -ForegroundColor Yellow
+            Write-Host "  2. Write permissions to $env:TEMP" -ForegroundColor Yellow
+            Write-Host "  3. Available disk space" -ForegroundColor Yellow
+            Write-Host "`nAlternatively, manually download and install NSSM:" -ForegroundColor Cyan
+            Write-Host "  1. Download NSSM from: $nssmUrl" -ForegroundColor White
+            Write-Host "  2. Extract the zip file" -ForegroundColor White
+            Write-Host "  3. Copy nssm.exe (from win64 or win32 folder) to:" -ForegroundColor White
+            Write-Host "     $nssmExe" -ForegroundColor Green
+            Write-Host "  4. Re-run this script" -ForegroundColor White
+            Stop-Transcript
+            exit 1
+        } finally {
+            Remove-Item "$nssmZip" -Force -ErrorAction SilentlyContinue
+            Remove-Item "$env:TEMP\nssm-extract" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    } else {
+        Write-Host "NSSM already installed." -ForegroundColor Gray
+    }
+
+    # 3. CLEAN UP OLD SERVICE
+    if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+        try {
+            Write-Host "`nWARNING: NRDOT Collector service is already detected in the system!" -ForegroundColor Yellow
+            Write-Host "Service Name: $serviceName" -ForegroundColor Gray
+
+            $currentService = Get-Service -Name $serviceName
+            Write-Host "Current Status: $($currentService.Status)" -ForegroundColor Gray
+
+            if (-not $ForceServiceRemoval) {
+                Write-Host "`nERROR: Service already exists. Set -ForceServiceRemoval `$true to remove existing service." -ForegroundColor Red
+                Write-Host "Existing service name: $serviceName" -ForegroundColor Yellow
+                Write-Host "Current status: $($currentService.Status)" -ForegroundColor Yellow
+                Stop-Transcript
+                exit 1
+            }
+            
+            Write-Host "`nThe existing service will be stopped and removed." -ForegroundColor Yellow
+            Write-Host "`nStopping and removing existing service..." -ForegroundColor Yellow
+            & "$nssmExe" stop $serviceName confirm
+            Start-Sleep -Seconds 2
+            & "$nssmExe" remove $serviceName confirm
+            Start-Sleep -Seconds 2
+            Write-Host "Old service removed." -ForegroundColor Green
+
+            if (Test-Path "$logsDir") {
+                $oldLogs = Get-ChildItem -Path "$logsDir" -Filter "otel-collector*" -ErrorAction SilentlyContinue
+                if ($oldLogs) {
+                    $oldLogs | Remove-Item -Force -ErrorAction SilentlyContinue
+                    Write-Host "Old otel-collector log files removed." -ForegroundColor Green
+                }
+
+                # Also remove cleanup script log file
+                $cleanupLog = "$logsDir\cleanup-log.log"
+                if (Test-Path $cleanupLog) {
+                    Remove-Item $cleanupLog -Force -ErrorAction SilentlyContinue
+                    Write-Host "Cleanup script log file removed." -ForegroundColor Green
+                }
+            }
+        } catch {
+            Write-Host "ERROR: Failed to clean up old service: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "You may need to manually remove the service using: sc.exe delete $serviceName" -ForegroundColor Yellow
+            Stop-Transcript
+            exit 1
+        }
+    }
+
+    # 4. USE PROVIDED CONFIG FILE
+    $selectedConfig = $ConfigPath
+    Write-Host "`nUsing config file: $selectedConfig" -ForegroundColor Green
+
+    # 5. CONFIGURE CONFIG FILE
+    Write-Host "`n--- Configuring Config File ---" -ForegroundColor Cyan
+
+    try {
+        $configContent = Get-Content -Path $selectedConfig -Raw -ErrorAction Stop
+
+        $placeholdersFound = @()
+        if ($configContent -match '<YOUR_DB_HOST>') { $placeholdersFound += 'YOUR_DB_HOST' }
+        if ($configContent -match '<YOUR_DB_USERNAME>') { $placeholdersFound += 'YOUR_DB_USERNAME' }
+        if ($configContent -match '<YOUR_DB_PASSWORD>') { $placeholdersFound += 'YOUR_DB_PASSWORD' }
+        if ($configContent -match '<YOUR_NEWRELIC_OTLP_ENDPOINT>') { $placeholdersFound += 'YOUR_NEWRELIC_OTLP_ENDPOINT' }
+        if ($configContent -match '<YOUR_NEWRELIC_LICENSE_KEY>') { $placeholdersFound += 'YOUR_NEWRELIC_LICENSE_KEY' }
+        if ($configContent -match '<YOUR_DB_PORT>') { $placeholdersFound += 'YOUR_DB_PORT' }
+    } catch {
+        Write-Host "ERROR: Failed to read config file: $($_.Exception.Message)" -ForegroundColor Red
+        Stop-Transcript
+        exit 1
+    }
+
+    if ($placeholdersFound.Count -eq 0) {
+        Write-Host "No placeholders found in config file. Skipping configuration." -ForegroundColor Green
+        $needsConfig = $false
+    } else {
+        Write-Host "Placeholders found: $($placeholdersFound -join ', ')" -ForegroundColor Green
+        $needsConfig = $true
+    }
+
+    if ($needsConfig) {
+        Write-Host "`n--- SQL Server Configuration ---" -ForegroundColor Cyan
+        
+        $hostname = $DBHostname
+        Write-Host "Using hostname: $hostname" -ForegroundColor Green
+        
+        # Use the database credentials provided via command line parameters
+        $dbUsername = $DBUsername
+        $dbPassword = $DBPassword
+        Write-Host "Using database credentials from command line parameters" -ForegroundColor Green
+        Write-Host "  Username: $dbUsername" -ForegroundColor Gray
+        
+        # Use New Relic configuration from command line parameters
+        $otlpEndpoint = $OtlpEndpoint
+        $licenseKey = $LicenseKey
+        Write-Host "Using New Relic configuration from command line parameters" -ForegroundColor Green
+        Write-Host "  OTLP Endpoint: $otlpEndpoint" -ForegroundColor Gray
+        Write-Host "  License Key: $($licenseKey.Substring(0, [Math]::Min(8, $licenseKey.Length)))..." -ForegroundColor Gray
+        
+        if ($needsConfig) {
+            Write-Host "`n--- Configuration Summary ---" -ForegroundColor Green
+            Write-Host "  Hostname:      $hostname" -ForegroundColor White
+            Write-Host "  Username:      $dbUsername" -ForegroundColor White
+            Write-Host "  Password:      $('*' * $dbPassword.Length)" -ForegroundColor White
+            Write-Host "  Port:          $Port" -ForegroundColor White
+            Write-Host "  OTLP Endpoint: $otlpEndpoint" -ForegroundColor White
+            Write-Host "  License Key:   $($licenseKey.Substring(0, [Math]::Min(8, $licenseKey.Length)))..." -ForegroundColor White
+            Write-Host "`nProceeding with configuration..." -ForegroundColor Green
+        }
+        
+        if ($needsConfig) {
+            try {
+                $backupFile = "$selectedConfig.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+                Copy-Item -Path $selectedConfig -Destination $backupFile -Force -ErrorAction Stop
+                Write-Host "`nBackup created: $backupFile" -ForegroundColor Gray
+            } catch {
+                Write-Host "WARNING: Failed to create backup: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+            
+            Write-Host "Updating config file..." -ForegroundColor Green
+            
+            $configContent = $configContent -replace '<YOUR_DB_HOST>', $hostname
+            $configContent = $configContent -replace '<YOUR_DB_USERNAME>', $dbUsername
+            $configContent = $configContent -replace '<YOUR_DB_PASSWORD>', $dbPassword
+            $configContent = $configContent -replace '<YOUR_DB_PORT>', $Port
+            $configContent = $configContent -replace '<YOUR_NEWRELIC_OTLP_ENDPOINT>', $otlpEndpoint
+            $configContent = $configContent -replace '<YOUR_NEWRELIC_LICENSE_KEY>', $licenseKey
+            
+            try {
+                Set-Content -Path $selectedConfig -Value $configContent -Force -ErrorAction Stop
+                Write-Host "Config file updated successfully!" -ForegroundColor Green
+            } catch {
+                Write-Host "`nERROR: Failed to update config file." -ForegroundColor Red
+                Write-Host $_.Exception.Message -ForegroundColor Red
+                Write-Host "`n--- Manual Configuration Required ---" -ForegroundColor Yellow
+                Write-Host "The config file could not be updated automatically." -ForegroundColor Yellow
+                Write-Host "Please manually edit the config file $selectedConfig" -ForegroundColor Yellow
+                Write-Host "`nFor detailed instructions, refer to Section 3 at:" -ForegroundColor Cyan
+                Write-Host "https://docs-preview.newrelic.com/docs/otel-mssql" -ForegroundColor Cyan
+                Write-Host "`nAfter manual editing, continue..." -ForegroundColor Yellow 
+                Stop-Transcript
+                exit 1
+            }
+        }
+    }
+
+    # 5. TEST EXECUTABLE
+    Write-Host "`nTesting executable..." -ForegroundColor Yellow
+
+    try {
+        $testLogFile = "$destDir\test-run.log"
+        
+        if (Test-Path "$testLogFile") {
+            Remove-Item "$testLogFile" -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path "$testLogFile.err") {
+            Remove-Item "$testLogFile.err" -Force -ErrorAction SilentlyContinue
+        }
+        
+        $testProcess = Start-Process -FilePath "$exePath" `
+                                     -ArgumentList "--config=`"$selectedConfig`"" `
+                                     -WorkingDirectory "$destDir" `
+                                     -RedirectStandardOutput "$testLogFile" `
+                                     -RedirectStandardError "$testLogFile.err" `
+                                     -NoNewWindow `
+                                     -PassThru `
+                                     -ErrorAction Stop
+
+        Start-Sleep -Seconds 3
+
+        if ($testProcess.HasExited) {
+            Write-Host "ERROR: Executable exited immediately with code: $($testProcess.ExitCode)" -ForegroundColor Red
+            Write-Host "Check test logs:" -ForegroundColor Yellow
+            Write-Host "  Get-Content '$testLogFile'" -ForegroundColor White
+            Write-Host "  Get-Content '$testLogFile.err'" -ForegroundColor White
+            Stop-Transcript
+            exit 1
+        } else {
+            Write-Host "Good! Executable is running. Stopping test process..." -ForegroundColor Green
+            try {
+                Stop-Process -Id $testProcess.Id -Force -ErrorAction Stop
+            } catch {
+                Get-Process -Name "nrdot-collector-host-windows-amd64-1.0.0" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch {
+        Write-Host "ERROR: Failed to test executable: $($_.Exception.Message)" -ForegroundColor Red
+        if ($testProcess -and -not $testProcess.HasExited) {
+            Stop-Process -Id $testProcess.Id -Force -ErrorAction SilentlyContinue
+        }
+        Stop-Transcript
+        exit 1
+    }
+
+    # 6. INSTALL SERVICE USING NSSM
+    Write-Host "`nInstalling Collector service..." -ForegroundColor Green
+
+    try {
+        Write-Host "Setting permissions..." -ForegroundColor Yellow
+        icacls "$destDir" /grant "NT AUTHORITY\SYSTEM:(OI)(CI)F" /T | Out-Null
+        icacls "$logsDir" /grant "NT AUTHORITY\SYSTEM:(OI)(CI)F" /T | Out-Null
+
+        Write-Host "Installing service with NSSM..." -ForegroundColor Yellow
+        & "$nssmExe" install $serviceName "$exePath" --config="$selectedConfig"
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Failed to install service. Exit code: $LASTEXITCODE" -ForegroundColor Red
+            Stop-Transcript
+            exit 1
+        }
+
+        if (-not (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)) {
+            Write-Host "ERROR: Service was not created!" -ForegroundColor Red
+            Stop-Transcript
+            exit 1
+        }
+
+        Write-Host "Service installed successfully!" -ForegroundColor Green
+
+        Write-Host "Configuring log redirection..." -ForegroundColor Yellow
+        & "$nssmExe" set $serviceName AppStdout "$serviceLogFile"
+        & "$nssmExe" set $serviceName AppStderr "$serviceLogFile"
+
+        & "$nssmExe" set $serviceName AppRotateFiles 1
+        & "$nssmExe" set $serviceName AppRotateOnline 1
+        & "$nssmExe" set $serviceName AppRotateBytes 52428800
+
+        Write-Host "Configuring restart behavior..." -ForegroundColor Yellow
+        & "$nssmExe" set $serviceName AppExit Default Exit
+        & "$nssmExe" set $serviceName AppThrottle 1500
+        & "$nssmExe" set $serviceName AppRestartDelay 1000
+
+        & "$nssmExe" set $serviceName AppDirectory "$destDir"
+
+        & "$nssmExe" set $serviceName Description "New Relic Database Monitoring Collector for SQL Server"
+        & "$nssmExe" set $serviceName DisplayName "$displayName"
+        & "$nssmExe" set $serviceName Start SERVICE_AUTO_START
+
+        Write-Host "NSSM configuration complete." -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: Failed to install service: $($_.Exception.Message)" -ForegroundColor Red
+        Stop-Transcript
+        exit 1
+    }
+
+    # 7. START AND VERIFY
+    try {
+        Write-Host "`nStarting service..." -ForegroundColor Yellow
+        & "$nssmExe" start $serviceName
+
+        Start-Sleep -Seconds 5
+
+        Write-Host "`nStatus Update:" -ForegroundColor Cyan
+        $svcStatus = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+        if ($svcStatus) {
+            $svcStatus | Select-Object Name, Status, StartType | Format-Table -AutoSize
+
+            if ($svcStatus.Status -eq "Running") {
+                Write-Host "Service is RUNNING!" -ForegroundColor Green
+            } else {
+                Write-Host "ERROR: Service is not running. Status: $($svcStatus.Status)" -ForegroundColor Red
+                Write-Host "`nCheck these logs:" -ForegroundColor Yellow
+                Write-Host "  Get-Content '$destDir\test-run.log'" -ForegroundColor White
+                Write-Host "  Get-Content '$serviceLogFile'" -ForegroundColor White
+                Stop-Transcript
+                exit 1
+            }
+        } else {
+            Write-Host "ERROR: Service not found!" -ForegroundColor Red
+            Stop-Transcript
+            exit 1
+        }
+    } catch {
+        Write-Host "ERROR: Failed to start service: $($_.Exception.Message)" -ForegroundColor Red
+        Stop-Transcript
+        exit 1
+    }
+
+# ============================================
+# LOG CLEANUP SCHEDULED TASK
+# ============================================
+
+Write-Host "`n--- Configuring Log Cleanup ---" -ForegroundColor Magenta
+
+# Check if service is running before setting up cleanup
+$service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+if (-not $service) {
+    Write-Host "WARNING: Service '$serviceName' not found. Skipping log cleanup setup." -ForegroundColor Yellow
+} elseif ($service.Status -ne "Running") {
+    Write-Host "WARNING: Service '$serviceName' is not running (Status: $($service.Status)). Skipping log cleanup setup." -ForegroundColor Yellow
+    Write-Host "You can set up log cleanup manually after the service is running." -ForegroundColor Gray
+} else {
+    Write-Host "Service is running. Proceeding with log cleanup setup..." -ForegroundColor Green
+
+    $cleanupScriptPath = "$logsDir\cleanup-logs-script.ps1"
+    $taskName = if ($configuredInstanceName) { 
+        "Cleanup NRDOT Collector Logs ($configuredInstanceName)" 
+    } else { 
+        "Cleanup NRDOT Collector Logs" 
+    }
+
+    # Use log cleanup configuration from parameters
+    $keepCount = $KeepLogCount
+    $intervalMinutes = $CleanupIntervalMinutes
+    
+    Write-Host "`nLog Cleanup Configuration:" -ForegroundColor Yellow
+    Write-Host "  Maximum log files to keep: $keepCount" -ForegroundColor Gray
+    Write-Host "  Cleanup interval: Every $intervalMinutes minutes" -ForegroundColor Gray
+
+Write-Host "`nCreating cleanup script..." -ForegroundColor Yellow
+
+# Track whether cleanup script was created successfully
+$cleanupScriptCreated = $false
+
+$cleanupScriptContent = @"
+# NRDOT Collector Log Cleanup Script
+# Auto-generated - keeps only last $keepCount log files
+
+param(
+    [string]`$serviceName = "$serviceName"
+)
+
+`$logsDir = "$logsDir"
+`$logPattern = "otel-collector-*"
+`$keepCount = $keepCount  # Keep last $keepCount log files total
+`$scriptLogFile = "`$logsDir\cleanup-log.log"
+
+function Write-Log {
+    param([string]`$Message, [string]`$Level = "INFO")
+    `$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    `$logEntry = "[`$timestamp] [`$Level] `$Message"
+    try {
+        Add-Content -Path `$scriptLogFile -Value `$logEntry -ErrorAction SilentlyContinue
+    } catch {}
+}
+
+Write-Log "Starting log cleanup..." "INFO"
+
+# Check if service is running before proceeding
+try {
+    `$service = Get-Service -Name `$serviceName -ErrorAction Stop
+    if (`$service.Status -ne "Running") {
+        Write-Log "Service '`$serviceName' is not running (Status: `$(`$service.Status)). Skipping cleanup." "WARNING"
+        exit 0
+    }
+    Write-Log "Service '`$serviceName' is running. Proceeding with cleanup." "INFO"
+} catch {
+    Write-Log "Service '`$serviceName' not found. Skipping cleanup." "WARNING"
+    exit 0
+}
+
+try {
+    # Self-cleanup: Keep only last 100 lines of cleanup-log.log
+    if (Test-Path `$scriptLogFile) {
+        `$logSize = (Get-Item `$scriptLogFile).Length
+        if (`$logSize -gt 100KB) {
+            `$lastLines = Get-Content `$scriptLogFile -Tail 100
+            Set-Content `$scriptLogFile -Value `$lastLines
+            Write-Log "Trimmed cleanup log to last 100 lines" "INFO"
+        }
+    }
+
+    if (-not (Test-Path `$logsDir)) {
+        Write-Log "Log directory not found: `$logsDir" "WARNING"
+        exit 0
+    }
+
+    # Find all log files matching pattern (timestamp-based names with .log extension)
+    `$allLogs = Get-ChildItem -Path `$logsDir -Filter `$logPattern -File -ErrorAction SilentlyContinue | 
+               Where-Object { `$_.Name -match '^otel-collector-\d{8}T\d+\.\d+\.log$' } |
+               Sort-Object LastWriteTime -Descending
+
+    if (`$allLogs.Count -eq 0) {
+        Write-Log "No log files found." "INFO"
+        exit 0
+    }
+
+    Write-Log "Found `$(`$allLogs.Count) log file(s)" "INFO"
+
+    if (`$allLogs.Count -le `$keepCount) {
+        Write-Log "Within retention limit (`$keepCount files). No cleanup needed." "INFO"
+        exit 0
+    }
+
+    # Delete files beyond the keep count (keeping the most recent based on LastWriteTime)
+    `$logsToDelete = `$allLogs | Select-Object -Skip `$keepCount
+    `$deletedCount = 0
+    `$deletedSizeMB = 0
+
+    foreach (`$log in `$logsToDelete) {
+        try {
+            `$sizeMB = [math]::Round(`$log.Length / 1MB, 2)
+            Remove-Item -Path `$log.FullName -Force -ErrorAction Stop
+            Write-Log "Deleted: `$(`$log.Name) (`$sizeMB MB)" "INFO"
+            `$deletedCount++
+            `$deletedSizeMB += `$sizeMB
+        } catch {
+            Write-Log "Failed to delete: `$(`$log.Name) - `$(`$_.Exception.Message)" "ERROR"
+        }
+    }
+
+    Write-Log "Cleanup complete. Deleted `$deletedCount file(s), freed `$([math]::Round(`$deletedSizeMB, 2)) MB" "INFO"
+
+} catch {
+    Write-Log "ERROR: `$(`$_.Exception.Message)" "ERROR"
+    exit 1
+}
+
+exit 0
+"@
+
+try {
+    Set-Content -Path $cleanupScriptPath -Value $cleanupScriptContent -Force
+    Write-Host "Cleanup script created: $cleanupScriptPath" -ForegroundColor Green
+    $cleanupScriptCreated = $true
+} catch {
+    Write-Host "WARNING: Failed to create cleanup script: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "Skipping scheduled task creation." -ForegroundColor Yellow
+    $scriptErrors += "Cleanup script creation failed..please try re-running or configure log cleanup manually."
+}
+
+# Only create scheduled task if cleanup script was created successfully
+if ($cleanupScriptCreated) {
+    Write-Host "Registering scheduled task..." -ForegroundColor Yellow
+
+    try {
+    # Remove existing task if present
+    $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    if ($existingTask) {
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+        Write-Host "Removed existing task." -ForegroundColor Gray
+    }
+
+    # Create new task
+    $action = New-ScheduledTaskAction -Execute "PowerShell.exe" `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$cleanupScriptPath`" -serviceName `"$serviceName`""
+
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $intervalMinutes)
+
+    $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+
+    Register-ScheduledTask -TaskName $taskName `
+        -Action $action `
+        -Trigger $trigger `
+        -Principal $principal `
+        -Settings $settings `
+        -Description "Automatically cleans up old NRDOT Collector log files every $intervalMinutes minutes, keeping only last $keepCount" | Out-Null
+
+    Write-Host "Scheduled task registered successfully!" -ForegroundColor Green
+    Write-Host "  Task Name: $taskName" -ForegroundColor Gray
+    Write-Host "  Schedule: Every $intervalMinutes minutes" -ForegroundColor Gray
+    Write-Host "  Retention: $keepCount files maximum" -ForegroundColor Gray
+
+    } catch {
+        Write-Host "WARNING: Failed to register scheduled task: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "You may need to manually create a scheduled task to run $cleanupScriptPath every $intervalMinutes minutes." -ForegroundColor Yellow
+        $scriptErrors += "Scheduled task registration failed..please create a task to run $cleanupScriptPath every $intervalMinutes minutes manually."
+    }
+} else {
+    Write-Host "Skipping scheduled task registration because cleanup script creation failed." -ForegroundColor Yellow
+}
+}  # End of service status check for log cleanup
+
+# ============================================
+# FINAL SUMMARY
+# ============================================
+
+Write-Host "`n============================================" -ForegroundColor Cyan
+Write-Host "SETUP COMPLETE" -ForegroundColor Cyan
+Write-Host "Service Name:    $serviceName" -ForegroundColor Cyan
+Write-Host "Display Name:    $displayName" -ForegroundColor Cyan
+Write-Host "Executable:      $exePath" -ForegroundColor Cyan
+Write-Host "Config File:     $selectedConfig" -ForegroundColor Cyan
+Write-Host "Log File:        $serviceLogFile" -ForegroundColor Cyan
+if ($taskName) {
+    Write-Host "Scheduled Task:  $taskName" -ForegroundColor Cyan
+}
+Write-Host "============================================" -ForegroundColor Cyan
+
+if ($taskName) {
+    Write-Host "`n--- Scheduled Task Management ---" -ForegroundColor Yellow
+    Write-Host "`nIMPORTANT: If you stop or remove the NRDOT service, remember to disable or unregister" -ForegroundColor Yellow
+    Write-Host "the scheduled task to prevent unnecessary cleanup attempts." -ForegroundColor Yellow
+    Write-Host "`nTo view, disable, or unregister the scheduled task, use:" -ForegroundColor Gray
+    Write-Host "`n  View Status:" -ForegroundColor Cyan
+    Write-Host "  Get-ScheduledTask -TaskName `"$taskName`" | Select-Object TaskName, State, LastRunTime, NextRunTime | Format-List" -ForegroundColor White
+    Write-Host "`n  Disable:" -ForegroundColor Cyan
+    Write-Host "  Get-ScheduledTask -TaskName `"$taskName`" -TaskPath `"\`" | Disable-ScheduledTask" -ForegroundColor White
+    Write-Host "`n  Remove:" -ForegroundColor Cyan
+    Write-Host "  Get-ScheduledTask -TaskName `"$taskName`" | Unregister-ScheduledTask -Confirm:`$false" -ForegroundColor White
+}
+Write-Host "Script completed at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Gray
+if ($scriptErrors.Count -eq 0) {
+    Write-Host "`nAll steps completed successfully!" -ForegroundColor Green
+    $exitCode = 0
+} else {
+    Write-Host "`nEncountered $($scriptErrors.Count) error(s)/warning(s):" -ForegroundColor Yellow
+    foreach ($err in $scriptErrors) {
+        Write-Host "  - $err" -ForegroundColor Yellow
+    }
+    $exitCode = 1
+}
+
+Write-Host "`nLog file: $logFile" -ForegroundColor Cyan
+
+Stop-Transcript
+
+exit $exitCode
+
+```
+</Collapser>
+
+</CollapserGroup>
+
+
+2. Set the following required parameters and run the script:
+
+    ```powershell
+    .\nrdot_mssql_instrumentation.ps1 -SqlInstanceName "<YOUR_HOST_NAME>"  -DBUsername "<YOUR_DB_USERNAME>" -DBPassword "<YOUR_DB_PASSWORD>"  -DBHostname "localhost" -ConfigPath "C:\Users\mssql\config.yaml" -OtlpEndpoint "YOUR_NEWRELIC_OTLP_ENDPOINT>" -LicenseKey "<YOUR_NEWRELIC_API_KEY>"
+    ```
+
+  <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>`<YOUR_HOST_NAME>`</td>
+        <td>Enter your SQL Server hostname or IP address.</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_DB_USERNAME>`</td>
+        <td>Enter your database username.</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_DB_PASSWORD>`</td>
+        <td>Enter your database password.</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_NEWRELIC_OTLP_ENDPOINT>`</td>
+        <td>
+        Enter the New Relic OTLP endpoint. For more information, refer to [New Relic OTLP endpoints documentation](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/).
+        </td>
+      </tr>
+      <tr>
+        <td>`<YOUR_NEWRELIC_API_KEY>`</td>
+        <td>Enter your New Relic API key.</td>
+      </tr>
+    </tbody>
+  </table>
+
+<Callout variant="tip">
+
+For more detailed information about New Relic OTLP endpoint configuration and OpenTelemetry best practices, refer to the [OpenTelemetry OTLP documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/).
+</Callout>
+
+
+
+
+  </Step>
+
+<Step>
+
+### Verify data collection [#verify-data]
+
+Use these NRQL queries in New Relic to verify data is being collected:
+
+<CollapserGroup>
+
+  <Collapser 
+    id="test1" 
+    title="Test 1: Check SQL Server connection metrics"
+    >
+
+The following NRQL query retrieves the total number of user connections to your SQL Server instance over the last 10 minutes:
+
+```sql
+FROM Metric 
+SELECT latest(sqlserver.user_connections.total) AS 'Total User Connections' 
+SINCE 10 minutes ago
+```
+
+
+  </Collapser>
+
+  <Collapser 
+    id="test2" 
+    title="Test 2: List monitored databases"
+    >
+
+The following NRQL query lists the databases being monitored for slow query activity. Use this query only when you have enabled query perfomrance monitoring by setting `enable_query_monitoring` to `true` in your configuration file:
+
+```sql  
+SELECT uniqueCount(query_id) 
+FROM Metric 
+WHERE metricName like 'sqlserver.slowquery.avg_elapsed_time_ms' 
+AND database_name != 'N/A' 
+FACET database_name 
+SINCE 10 minutes ago
+```
+
+
+  </Collapser>
+
+</CollapserGroup>
+
+</Step>
+
+<Step>
+
+### Find and use your data [#find-use-data]
+
+Once your data is being collected, you can access comprehensive SQL Server database monitoring through New Relic's UI. 
+
+To find your SQL Server database entity in New Relic:
+
+1. Go to <DoNotTranslate>**[https://one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DoNotTranslate>.
+2. Set the search criteria as `instrumentation.provider = opentelemetry`.
+3. Select your SQL Server database from the list of entities.
+
+
+</Step>
+
+</Steps>
+
+
+## Available metrics [#otel-metrics]
+
+The OpenTelemetry Collector for SQL Server monitoring collects a comprehensive set of metrics related to Microsoft SQL Server performance and health. The following sections outline the key metrics available for monitoring:
+
+<CollapserGroup>
+
+  <Collapser 
+    id="page-access-metrics" 
+    title="Page access metrics"
+    >
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.access.page_splits_per_sec`</td>
+          <td>Page splits per second</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="active-query-metrics" 
+    title="Active query metrics"
+    >
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.activequery.cpu_time_ms`</td>
+          <td>CPU time for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.activequery.elapsed_time_ms`</td>
+          <td>Total elapsed time for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.activequery.granted_query_memory_pages`</td>
+          <td>Number of memory pages granted to currently executing query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.activequery.logical_reads`</td>
+          <td>Number of logical reads from buffer cache for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.activequery.reads`</td>
+          <td>Number of physical reads from disk for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.activequery.row_count`</td>
+          <td>Number of rows returned by currently executing query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.activequery.wait_time_seconds`</td>
+          <td>Wait time for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.activequery.writes`</td>
+          <td>Number of writes for currently executing query</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="buffer-pool-memory-metrics" 
+    title="Buffer pool & memory metrics"
+    >
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.buffer.cache_hit_ratio`</td>
+          <td>Buffer cache hit ratio percentage</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.buffer.checkpoint_pages_per_sec`</td>
+          <td>Checkpoint pages per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.buffer.page_life_expectancy`</td>
+          <td>Page life expectancy in seconds</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.bufferpool.batch_requests_per_sec`</td>
+          <td>Batch requests per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.bufferpool.page_life_expectancy_ms`</td>
+          <td>Page life expectancy in milliseconds</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="slowquery" 
+    title="Slow query analysis metrics"
+    >
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.slowquery.avg_disk_reads`</td>
+          <td>Average disk reads for slow query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.avg_disk_writes`</td>
+          <td>Average disk writes for slow query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.avg_rows_processed`</td>
+          <td>Average rows processed (returned) per execution for slow query</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.historical_avg_cpu_time_ms`</td>
+          <td>Historical average CPU time in milliseconds (cumulative since plan cached)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.historical_avg_elapsed_time_ms`</td>
+          <td>Historical average elapsed time in milliseconds (cumulative since plan cached)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.historical_execution_count`</td>
+          <td>Historical execution count (cumulative since plan cached)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.interval_avg_elapsed_time_ms`</td>
+          <td>Interval average elapsed time in milliseconds (delta for this collection interval)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.interval_execution_count`</td>
+          <td>Interval execution count (delta for this collection interval)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.last_dop`</td>
+          <td>Last degree of parallelism</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.last_elapsed_time_ms`</td>
+          <td>Last elapsed time in milliseconds</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.last_grant_kb`</td>
+          <td>Last memory grant in KB</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.last_spills`</td>
+          <td>Last TempDB spills count</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.last_used_grant_kb`</td>
+          <td>Last used memory grant in KB</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.max_elapsed_time_ms`</td>
+          <td>Maximum elapsed time in milliseconds</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.max_spills`</td>
+          <td>Maximum TempDB spills count</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.min_elapsed_time_ms`</td>
+          <td>Minimum elapsed time in milliseconds</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.slowquery.query_text`</td>
+          <td>Query text for slow query</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  {/* <Collapser 
+    id="database-metrics" 
+    title="Database metrics"
+    >
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`cpu_time_ms`</td>
+          <td>CPU time for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`elapsed_time_ms`</td>
+          <td>Total elapsed time for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`granted_query_memory_pages`</td>
+          <td>Number of memory pages granted to currently executing query</td>
+        </tr>
+        <tr>
+          <td>`logical_reads`</td>
+          <td>Number of logical reads from buffer cache for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`reads`</td>
+          <td>Number of physical reads from disk for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`row_count`</td>
+          <td>Number of rows returned by currently executing query</td>
+        </tr>
+        <tr>
+          <td>`wait_time_seconds`</td>
+          <td>Wait time for currently executing query</td>
+        </tr>
+        <tr>
+          <td>`writes`</td>
+          <td>Number of writes for currently executing query</td>
+        </tr>
+      </tbody>
+    </table> 
+
+  </Collapser> */}
+
+  <Collapser 
+    id="execution-plan" 
+    title="Execution plan metrics"
+    >
+
+    The following `sqlserver.plan` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.plan.avg_elapsed_time_ms`</td>
+          <td>Average elapsed time per execution of this plan (historical)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.plan.total_elapsed_time_ms`</td>
+          <td>Total elapsed time across all executions of this plan (historical)</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="failover-cluster" 
+    title="Failover cluster / Always On availability group metrics"
+    >
+
+    The following `sqlserver.failover_cluster` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.failover_cluster.ag_cluster_type`</td>
+          <td>Cluster type for the availability group (WSFC, EXTERNAL, NONE)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.ag_failure_condition_level`</td>
+          <td>Automatic failover condition level for the availability group (1-5)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.ag_health_check_timeout`</td>
+          <td>Health check timeout for the availability group in milliseconds</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.ag_replica_role`</td>
+          <td>Current role of the replica within the Availability Group (PRIMARY or SECONDARY)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.ag_required_sync_secondaries`</td>
+          <td>Number of synchronous secondary replicas required to commit transactions</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.ag_synchronization_health`</td>
+          <td>Health of data synchronization between primary and secondary replica</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.flow_control_time_ms`</td>
+          <td>Time spent in flow control by log records from primary replica</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.log_bytes_received_per_sec`</td>
+          <td>Rate of log records received by secondary replica from primary replica</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.log_send_queue_kb`</td>
+          <td>Amount of log records in the log send queue waiting to be sent to secondary</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.redo_queue_kb`</td>
+          <td>Amount of log records in the redo queue waiting to be redone on secondary</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.redo_rate_kb_sec`</td>
+          <td>Rate at which log records are being redone on the secondary replica</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.failover_cluster.transaction_delay_ms`</td>
+          <td>Average delay for transactions on the secondary replica</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="database-metrics" 
+    title="Database metrics"
+    >
+
+    ### Database buffer pool
+    The following `sqlserver.database.bufferpool` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.database.bufferpool.size_per_database_bytes`</td>
+          <td>Size of the SQL Server buffer pool allocated for the database</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Database I/O
+    The following `sqlserver.database.io` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.database.io.stall_ms`</td>
+          <td>Total IO stall time for the SQL Server database</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Database log
+    The following `sqlserver.database.log` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.database.log.bytes_flushed_per_sec`</td>
+          <td>Number of log bytes flushed per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.log.flush_waits_per_sec`</td>
+          <td>Number of flush wait operations per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.log.flushes_per_sec`</td>
+          <td>Number of log flush operations per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.log.transaction_growth`</td>
+          <td>Number of log growth events for the SQL Server database</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.log.used_space_mb`</td>
+          <td>Used log space in megabytes</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Database storage
+    The following `sqlserver.database` storage metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.database.max_disk_size_bytes`</td>
+          <td>Maximum disk size allowed for the SQL Server database</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.page_file_available_bytes`</td>
+          <td>Available page file space (reserved space not used)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.page_file_total_bytes`</td>
+          <td>Total page file space (total reserved space)</td>
+        </tr>
+      </tbody>
+    </table>
+
+
+    ### Database principals
+    The following `sqlserver.database.principal` and `sqlserver.database.principals` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.database.principals.applicationRoles`</td>
+          <td>Number of application roles</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.principals.old`</td>
+          <td>Number of old principals (older than 365 days)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.principals.orphanedUsers`</td>
+          <td>Number of orphaned users without server login</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.principals.recentlyCreated`</td>
+          <td>Number of recently created principals (last 30 days)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.principals.roles`</td>
+          <td>Number of database roles</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.principals.sqlUsers`</td>
+          <td>Number of SQL authentication users</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.principals.total`</td>
+          <td>Total number of database principals</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.principals.users`</td>
+          <td>Number of database users</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.principals.windowsUsers`</td>
+          <td>Number of Windows authentication users</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Role members
+    The following `sqlserver.database.role.members` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.database.role.members.applicationRoles`</td>
+          <td>Number of application role members</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.role.members.crossRole`</td>
+          <td>Number of cross-role members</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.role.members.highPrivilege`</td>
+          <td>Number of high privilege role members</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.role.members.unique`</td>
+          <td>Number of unique members in roles</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Role memberships
+    The following `sqlserver.database.role.membership` and `sqlserver.database.role.memberships` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`memberships.active`</td>
+          <td>Number of active role memberships</td>
+        </tr>
+        <tr>
+          <td>`memberships.custom`</td>
+          <td>Number of custom role memberships</td>
+        </tr>
+        <tr>
+          <td>`memberships.nested`</td>
+          <td>Number of nested role memberships</td>
+        </tr>
+        <tr>
+          <td>`memberships.total`</td>
+          <td>Total number of role memberships</td>
+        </tr>
+        <tr>
+          <td>`memberships.users`</td>
+          <td>Number of user role memberships</td>
+        </tr>
+      </tbody>
+    </table>
+
+
+    ### Role hierarchy & permissions
+    The following `sqlserver.database.role` metrics are available for role, hierarchy, and permissions:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {/* <tr>
+          <td>`nesting.level`</td>
+          <td>Role nesting level</td>
+        </tr>
+        <tr>
+          <td>`permissions.inherited`</td>
+          <td>Role permission inheritance status</td>
+        </tr> */}
+        <tr>
+          <td>`permission.memberCount`</td>
+          <td>Number of members in role</td>
+        </tr>
+        <tr>
+          <td>`permission.riskLevel`</td>
+          <td>Role risk level</td>
+        </tr>
+        <tr>
+          <td>`roles.empty`</td>
+          <td>Number of empty roles</td>
+        </tr>
+        <tr>
+          <td>`roles.withMembers`</td>
+          <td>Number of unique roles with members</td>
+        </tr>
+      </tbody>
+    </table>
+
+
+    ### Database size
+    The following `sqlserver.database.size` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.database.size.data_mb`</td>
+          <td>Total data file size excluding log files</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.database.size.total_mb`</td>
+          <td>Total database size including data and log files</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Database transactions
+    The following `sqlserver.database.transactions` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.database.transactions.active`</td>
+          <td>Number of active transactions</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+
+
+
+  <Collapser 
+    id="instance-metrics" 
+    title="Instance metrics"
+    >
+
+    ### Instance processes
+    The following `sqlserver.instance` process metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.instance.background_processes_count`</td>
+          <td>Number of background processes</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.blocked_processes_count`</td>
+          <td>Number of blocked processes</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.buffer_pool_hit_percent`</td>
+          <td>Buffer pool hit percentage</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.buffer_pool_size`</td>
+          <td>Buffer pool size</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.compilations_per_batch`</td>
+          <td>SQL compilations per batch request</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.connections_active`</td>
+          <td>Number of active connections</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.disk_in_bytes`</td>
+          <td>Total disk space in bytes</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.dormant_processes_count`</td>
+          <td>Number of dormant processes</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.forced_parameterizations_per_sec`</td>
+          <td>Forced parameterizations per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.full_scans_rate`</td>
+          <td>Full table/index scans per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.lock_timeouts_rate`</td>
+          <td>Number of lock timeouts per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.memory_available`</td>
+          <td>Available physical memory on the system</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.memory_total`</td>
+          <td>Total physical memory on the system</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.memory_utilization_percent`</td>
+          <td>Percentage of memory utilization</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.page_splits_per_batch`</td>
+          <td>Page splits per batch request</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.preconnect_processes_count`</td>
+          <td>Number of preconnect processes</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.runnable_processes_count`</td>
+          <td>Number of runnable processes</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.runnable_tasks`</td>
+          <td>Number of runnable tasks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.running_processes_count`</td>
+          <td>Number of running processes</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.sleeping_processes_count`</td>
+          <td>Number of sleeping processes</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.suspended_processes_count`</td>
+          <td>Number of suspended processes</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.target_memory_kb`</td>
+          <td>Target server memory in KB</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.instance.transactions_per_sec`</td>
+          <td>Transactions per second</td>
+        </tr>
+      </tbody>
+    </table>
+
+    {/* ### Instance buffer pool
+    The following `sqlserver.instance` buffer pool metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+
+      </tbody>
+    </table> */}
+
+    {/* ### Instance performance
+    The following `sqlserver.instance` performance metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+
+
+
+      </tbody>
+    </table> */}
+
+    {/* ### Instance connections
+    The following `sqlserver.instance` connection metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+
+      </tbody>
+    </table> */}
+
+    {/* ### Instance storage
+    The following `sqlserver.instance` storage metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+
+      </tbody>
+    </table> */}
+
+    {/* ### Instance memory
+    The following `sqlserver.instance` memory metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+
+
+      </tbody>
+    </table> */}
+
+    {/* ### Instance tasks
+    The following `sqlserver.instance` task metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+
+      </tbody>
+    </table> */}
+
+    {/* ### Instance transactions
+    The following `sqlserver.instance` transaction metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+
+      </tbody>
+    </table> */}
+
+  </Collapser>
+
+  <Collapser 
+    id="lock-metrics" 
+    title="Lock metrics"
+    >
+
+    ### Lock mode (How it's locked)
+    The following `sqlserver.lock.mode` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.lock.mode.bulk_update`</td>
+          <td>Number of bulk update locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.mode.exclusive`</td>
+          <td>Number of exclusive locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.mode.intent`</td>
+          <td>Number of intent locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.mode.schema`</td>
+          <td>Number of schema locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.mode.shared`</td>
+          <td>Number of shared locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.mode.shared_intent_exclusive`</td>
+          <td>Number of shared intent exclusive locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.mode.total`</td>
+          <td>Total active locks by mode</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.mode.update`</td>
+          <td>Number of update locks</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Lock resource (What's being locked)
+    The following `sqlserver.lock.resource` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.lock.resource.allocation_unit`</td>
+          <td>Number of allocation unit locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.application`</td>
+          <td>Number of application locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.database_level`</td>
+          <td>Number of database-level locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.extent`</td>
+          <td>Number of extent-level locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.file`</td>
+          <td>Number of file-level locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.hobt`</td>
+          <td>Number of heap or B-tree locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.key`</td>
+          <td>Number of key-level locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.metadata`</td>
+          <td>Number of metadata locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.page`</td>
+          <td>Number of page-level locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.row`</td>
+          <td>Number of row-level locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.table`</td>
+          <td>Number of table-level locks</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.lock.resource.total`</td>
+          <td>Total active locks in the database</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Locked objects
+    The following locked object metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.locked_object`</td>
+          <td>Database object locked by a session</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="security-metrics" 
+    title="Security metrics"
+    >
+
+    The following `sqlserver.security` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.security.server_principals_count`</td>
+          <td>Total number of server principals (logins)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.security.server_role_members_count`</td>
+          <td>Total number of server role members</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="system-metrics" 
+    title="System metrics"
+    >
+
+### Page access metrics
+
+The following `sqlserver.access` metrics are available for page access system:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.access.page_splits_per_sec`</td>
+          <td>Page splits per second</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Buffer & cache
+    The following metrics are available for buffer and cache system:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.buffer.cache_hit_ratio`</td>
+          <td>Buffer cache hit ratio percentage</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.buffer.checkpoint_pages_per_sec`</td>
+          <td>Checkpoint pages per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.buffer.page_life_expectancy`</td>
+          <td>Page life expectancy in seconds</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.bufferpool.batch_requests_per_sec`</td>
+          <td>Batch requests per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.bufferpool.page_life_expectancy_ms`</td>
+          <td>Page life expectancy in milliseconds</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Connections
+    The following `sqlserver.connections` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.connections.user`</td>
+          <td>Number of user connections</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Memory
+    The following `sqlserver.memory` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.memory.target`</td>
+          <td>Target server memory in KB</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.memory.total`</td>
+          <td>Total server memory in KB</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Statistics
+    The following `sqlserver.stats` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.stats.connections`</td>
+          <td>Current user connections</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.stats.deadlocks_per_sec`</td>
+          <td>Deadlocks per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.stats.kill_connection_errors_per_sec`</td>
+          <td>Kill connection errors per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.stats.lock_waits_per_sec`</td>
+          <td>Lock waits per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.stats.sql_compilations_per_sec`</td>
+          <td>SQL compilations per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.stats.sql_recompilations_per_sec`</td>
+          <td>SQL recompilations per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.stats.user_errors_per_sec`</td>
+          <td>User errors per second</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="thread-tempdb-metrics" 
+    title="Thread pool & TempDB metrics"
+    >
+
+    ### TempDB metrics
+    The following `sqlserver.tempdb` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.tempdb.allocation_waits_ms`</td>
+          <td>Total allocation-related wait time (GAM, SGAM, PFS)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.tempdb.current_waiters`</td>
+          <td>Number of tasks currently waiting on TempDB page latches</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.tempdb.data_file_count`</td>
+          <td>Number of TempDB data files</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.tempdb.pagelatch_waits_ms`</td>
+          <td>Total page latch wait time since server start</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.tempdb.total_size_mb`</td>
+          <td>Total size of TempDB data files</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Thread pool metrics
+    The following `sqlserver.threadpool` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.threadpool.current_tasks`</td>
+          <td>Total tasks currently assigned to schedulers</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.threadpool.max_workers`</td>
+          <td>Maximum configured worker threads</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.threadpool.runnable_tasks`</td>
+          <td>Tasks ready to run but waiting for CPU time</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.threadpool.running_workers`</td>
+          <td>Number of worker threads currently running</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.threadpool.utilization_percent`</td>
+          <td>Percentage of worker threads currently in use</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.threadpool.waiting_tasks`</td>
+          <td>Number of tasks currently waiting for threadpool worker threads</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.threadpool.work_queue_count`</td>
+          <td>Total number of tasks in scheduler work queues</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="user-connection-metrics" 
+    title="User connection metrics"
+    >
+
+    ### Authentication metrics
+    The following `sqlserver.user_connections.authentication` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.user_connections.authentication.churn_rate`</td>
+          <td>Connection churn rate (logout/login ratio as percentage)</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.authentication.logins_per_sec`</td>
+          <td>Current login rate per second</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.authentication.recent_failed_logins`</td>
+          <td>Count of failed logins in the last hour</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.authentication.total_failed_logins`</td>
+          <td>Total count of failed login attempts in current error log</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.authentication.unique_failed_sources`</td>
+          <td>Count of distinct source IPs with failed logins</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.authentication.unique_failed_users`</td>
+          <td>Count of distinct usernames with failed logins</td>
+        </tr>
+        {/* <tr>
+          <td>`logouts_per_sec`</td>
+          <td>Current logout rate per second</td>
+        </tr> */}
+        {/* <tr>
+          <td>`rate`</td>
+          <td>Login or logout rate per second from performance counters</td>
+        </tr>
+        <tr>
+          <td>`failed_login_events`</td>
+          <td>Count of failed login events processed</td>
+        </tr>
+        <tr>
+          <td>`total_activity`</td>
+          <td>Sum of logins and logouts per second</td>
+        </tr> */}
+
+      </tbody>
+    </table>
+
+    ### Client connection metrics
+    The following `sqlserver.user_connections.client` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.user_connections.client.count`</td>
+          <td>Number of connections grouped by client host and program</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.client.unique_hosts`</td>
+          <td>Count of unique client hosts with active connections</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.client.unique_programs`</td>
+          <td>Count of unique programs with active connections</td>
+        </tr>
+        {/* <tr>
+          <td>`hosts_multi_program`</td>
+          <td>Count of hosts running multiple different programs</td>
+        </tr>
+        <tr>
+          <td>`programs_multi_host`</td>
+          <td>Count of programs connecting from multiple hosts</td>
+        </tr>
+        <tr>
+          <td>`top_host_connections`</td>
+          <td>Highest number of connections from a single host</td>
+        </tr>
+        <tr>
+          <td>`top_program_connections`</td>
+          <td>Highest number of connections from a single program</td>
+        </tr> */}
+
+      </tbody>
+    </table>
+
+    ### Connection status metrics
+    The following `sqlserver.user_connections` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {/* <tr>
+          <td>`dormant`</td>
+          <td>Number of dormant user connections</td>
+        </tr> */}
+        <tr>
+          <td>`sqlserver.user_connections.runnable`</td>
+          <td>Number of runnable user connections</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.running`</td>
+          <td>Number of running user connections</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.sleeping`</td>
+          <td>Number of sleeping user connections</td>
+        </tr>
+        {/* <tr>
+          <td>`count`</td>
+          <td>Number of user sessions by connection status</td>
+        </tr> */}
+        <tr>
+          <td>`sqlserver.user_connections.suspended`</td>
+          <td>Number of suspended user connections</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.user_connections.total`</td>
+          <td>Total number of user connections across all statuses</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Connection utilization metrics
+    The following `sqlserver.user_connections.utilization` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.user_connections.utilization.active_ratio`</td>
+          <td>Ratio of active connections to total connections</td>
+        </tr>
+        {/* <tr>
+          <td>`efficiency`</td>
+          <td>Connection efficiency metric (active/total ratio adjusted for waiting)</td>
+        </tr> */}
+        <tr>
+          <td>`sqlserver.user_connections.utilization.idle_ratio`</td>
+          <td>Ratio of idle connections to total connections</td>
+        </tr>
+        {/* <tr>
+          <td>`waiting_ratio`</td>
+          <td>Ratio of waiting connections to total connections</td>
+        </tr> */}
+      </tbody>
+    </table>
+
+  </Collapser>
+
+  <Collapser 
+    id="wait-statistics-metrics" 
+    title="Wait statistics metrics"
+    >
+
+    The following `sqlserver.wait_stats` metrics are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric name</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`sqlserver.wait_stats.latch.wait_time_ms`</td>
+          <td>Latch wait time in milliseconds</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.wait_stats.latch.waiting_tasks_count`</td>
+          <td>Number of tasks waiting on latches</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.wait_stats.wait_time_ms`</td>
+          <td>Total wait time in milliseconds</td>
+        </tr>
+        <tr>
+          <td>`sqlserver.wait_stats.waiting_tasks_count`</td>
+          <td>Number of tasks currently waiting</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </Collapser>
+
+</CollapserGroup>
+
+
+## What's next [#whats-next]
+
+After setting up SQL Server database monitoring with OpenTelemetry:
+
+* [Create custom dashboards](https://docs.newrelic.com//docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your database metrics
+* [Set up alerts](https://docs.newrelic.com//docs/alerts-applied-intelligence/new-relic-alerts/get-started/your-first-nrql-condition/) for critical database performance thresholds  
+* [Explore your data](https://docs.newrelic.com//docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) using New Relic's query capabilities
+* Consider deploying [additional database monitoring integrations](https://docs.newrelic.com//docs/infrastructure/host-integrations/host-integrations-list/) for comprehensive coverage
