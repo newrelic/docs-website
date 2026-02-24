@@ -1,11 +1,11 @@
 ---
 title: 'Workflow Automation now generally available'
-summary: 'Automate incident response, infrastructure management, and operational tasks with no-code workflows that connect New Relic with your existing tools.'
-releaseDate: '2025-02-18'
+summary: 'Automate incident response, infrastructure management, and operational tasks with no-code workflows that connect New Relic with AWS, Azure, Slack, PagerDuty, and more.'
+releaseDate: '2026-02-24'
 learnMoreLink: 'https://docs.newrelic.com/docs/workflow-automation/introduction-to-workflow'
 ---
 
-New Relic is excited to announce the general availability of Workflow Automation, a powerful feature that enables you to automate routine tasks and incident responses without writing code. Connect New Relic with AWS, Slack, and any HTTP API to build workflows that respond to alerts, manage infrastructure, and streamline operational tasks.
+New Relic is excited to announce the general availability of Workflow Automation, a powerful feature that enables you to automate routine tasks and incident responses without writing code. Connect New Relic with AWS, Azure, Slack, PagerDuty, and custom HTTP APIs to build workflows that respond to alerts, manage infrastructure, and streamline operational tasks.
 
 ## Automate your operational workflows
 
@@ -13,29 +13,32 @@ Workflow Automation transforms how teams respond to incidents and manage infrast
 
 ## Key features
 
-* **Multiple trigger options**: Start workflows from alerts, on-demand via API, or on schedule using cron expressions for complete flexibility in how automation runs.
+* **Versatile Triggers**: Start workflows from alert events, on-demand, or on a recurring schedule using cron expressions.
 
-* **No-code workflow builder**: Use the drag-and-drop interface to chain actions, add conditional logic, loops, and data transformations without writing a single line of code.
+* **Drag-and-Drop Builder**: Chain actions, add conditional logic (if/else), and create loops without managing scripts or servers.
 
 * **Pre-built templates**: Deploy ready-to-use workflows for common scenarios including Slack notifications, deployment rollbacks, EC2 auto-scaling, and more.
 
-* **AWS integration**: Connect directly with AWS services to manage EC2 instances, API Gateway deployments, and other cloud resources in response to alerts.
+* **AWS, Azure & Tool Ecosystem**: Direct, secure integrations with AWS (EC2, Lambda, API Gateway), Azure, Slack, PagerDuty, and more.
 
-* **Approval gates**: Add human oversight to critical workflows—request team confirmation before executing production changes or infrastructure modifications.
+* **NerdGraph (GraphQL) Integration**: Query and mutate your own New Relic data directly within workflows, enabling power users to make automation decisions based on their observability data.
+
+* **Production-Safe Gates**: Add human-in-the-loop approvals. Require a "thumbs up" in Slack before scaling production infrastructure or rolling back a deployment.
 
 * **Version control**: Automatically track workflow versions with the ability to pin specific versions for scheduled executions, ensuring stability while you iterate.
 
 ## Common use cases
 
-* **Incident response**: Automatically resize infrastructure, roll back failed deployments, or restart services when alerts fire—reducing MTTR without manual intervention.
+* **Auto-Remediation**: Automatically restart services or resize EC2 instances when performance thresholds are breached—reducing MTTR without manual intervention.
 
-* **Infrastructure management**: Scale services on schedules, manage AWS resources, and execute runbooks automatically based on your operational needs.
+* **Deployment Guardrails**: Trigger an automatic rollback if a deployment causes error rate spikes or performance degradation, protecting production stability.
 
-* **Enhanced notifications**: Send enriched alert data to Slack, generate scheduled reports, and format data to integrate with ticketing systems like Jira or ServiceNow.
+* **Enriched Notifications**: Don't just send an alert—send a Slack message with captured log snippets, stack traces, and relevant context to accelerate troubleshooting.
 
-* **System integrations**: Connect to any HTTP API, sync data across platforms, and update external systems based on New Relic observability data.
+* **Infrastructure Management**: Scale services on schedules, manage AWS and Azure resources, and execute runbooks automatically based on your operational needs.
 
 ## Pricing and availability
-Workflow Automation is now generally available to all New Relic customers. Start building workflows today to reduce manual toil and accelerate your incident response.
+
+Workflow Automation is now generally available and included in the New Relic platform. Advanced executions and heavy data processing may contribute to your Advanced Compute usage. Start building today via the **Workflow Automation** menu in your All Capabilities.
 
 Want to know more? Check out our [Workflow Automation documentation](/docs/workflow-automation/introduction-to-workflow).
