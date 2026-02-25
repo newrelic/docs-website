@@ -41,4 +41,4 @@ Workflow Automation transforms how teams respond to incidents and manage infrast
 
 Workflow Automation is now generally available and included in the New Relic platform. Advanced executions and heavy data processing may contribute to your Advanced Compute usage. Start building today via the **Workflow Automation** menu in your All Capabilities.
 
-Want to know more? Check out our [Workflow Automation documentation](/docs/workflow-automation/introduction-to-workflow).
+Want to know more? Check out our [Workflow Automation documentation](https://docs.newrelic.com/docs/workflow-automation/introduction-to-workflow).
