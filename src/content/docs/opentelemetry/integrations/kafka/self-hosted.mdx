@@ -11,7 +11,16 @@ freshnessValidatedDate: never
 
 Monitor your self-hosted Apache Kafka cluster by installing the OpenTelemetry Collector directly on Linux hosts.
 
-## Installation and configuration [#installation-configuration]
+## Architecture [#architecture]
+
+The following diagram illustrates how the OpenTelemetry Java Agent on each Kafka broker pushes JMX metrics to the collector, while the collector also scrapes cluster-level metrics and forwards everything to New Relic.
+
+<img
+  src="/images/otel-kafka-self-host-architecture.webp"
+  alt="Self-hosted Kafka monitoring architecture with OpenTelemetry"
+/>
+
+## Installation steps [#installation-steps]
 
 Follow these steps to set up comprehensive Kafka monitoring by installing the OpenTelemetry Java Agent on your brokers and deploying a collector to gather and send metrics to New Relic.
 
@@ -1178,6 +1187,91 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     ```bash
     # From Kafka broker machine, test connection to collector
     timeout 5 bash -c "</dev/tcp/COLLECTOR_HOST/4317" 2>/dev/null && echo "Can reach collector" || echo "Cannot reach collector"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="high-memory-usage"
+    title="High memory usage"
+  >
+    **1. Monitor collector memory usage**:
+    ```bash
+    # Check memory usage of the collector process
+    ps aux | grep -E "[n]rdot-collector|[o]telcol" | awk '{print $1, $2, $4, $11}'
+
+    # Watch memory usage over time (refresh every 2 seconds)
+    watch -n 2 'ps aux | grep -E "[n]rdot-collector|[o]telcol" | awk "{print \$1, \$2, \$4, \$11}"'
+
+    # Check overall system memory
+    free -h
+    ```
+
+    **2. Reduce monitored topics**: Limit collection to essential topics only
+    ```yaml
+    receivers:
+      kafkametrics:
+        brokers: ${env:KAFKA_BOOTSTRAP_BROKER_ADDRESSES}
+        collection_interval: 30s
+        scrapers:
+          - brokers
+          - topics  # Consider removing if not needed
+          - consumers  # Consider removing if not needed
+        topic_match: "^(important-topic-1|important-topic-2)$"  # Filter specific topics
+    ```
+
+    **3. Increase collection intervals**: Reduce collection frequency
+    ```yaml
+    receivers:
+      kafkametrics:
+        collection_interval: 60s  # Increase from 30s to 60s
+
+    processors:
+      batch/aggregation:
+        timeout: 60s  # Increase from 30s
+    ```
+
+    **4. Optimize batch processing**: Reduce in-memory batch size
+    ```yaml
+    processors:
+      batch/aggregation:
+        send_batch_size: 512  # Reduce from 1024
+        timeout: 60s
+    ```
+
+    **5. Add a memory limiter**: Prevent the collector from exceeding a memory threshold
+    ```yaml
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 512       # Hard limit in MiB — drop data if exceeded
+        spike_limit_mib: 128 # Allowed spike above limit before dropping
+
+      batch/aggregation:
+        send_batch_size: 512
+        timeout: 60s
+
+    service:
+      pipelines:
+        metrics/broker:
+          receivers: [otlp, kafkametrics]
+          processors: [memory_limiter, resourcedetection, resource, filter/exclude_cluster_metrics, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
+          exporters: [otlp/newrelic]
+        metrics/cluster:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, batch/aggregation]
+          exporters: [otlp/newrelic]
+    ```
+
+    **6. Restart the collector after changes**:
+    ```bash
+    # Find the collector process ID and stop it
+    pkill -f "kafka-config.yaml"
+
+    # Restart NRDOT Collector
+    nrdot-collector --config ~/opentelemetry/kafka-config.yaml
+
+    # Or restart OpenTelemetry Collector
+    otelcol-contrib --config ~/opentelemetry/kafka-config.yaml
     ```
   </Collapser>
 </CollapserGroup>
