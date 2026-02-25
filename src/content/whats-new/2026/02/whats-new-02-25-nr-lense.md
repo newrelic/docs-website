@@ -1,7 +1,7 @@
 ---
 title: 'Query External Data Sources with New Relic Lens: no ingest required'
 summary: 'Do you have data stored in multiple different databases? Would you like to combine this data with your New Relic telemetry data? If so, then we are excited to announce the preview of New Relic Lens!'
-releaseDate: '2026-02-24'
+releaseDate: '2026-02-25'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-lens/overview/'
 ---
 
