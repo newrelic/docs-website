@@ -13,868 +13,1735 @@ translationType: machine
 
 OpenTelemetry Collector 구현하거나 배포하여 Strimzi 연산자를 사용하여 Kubernetes 에서 실행 중인 Kafka 클러스터를 모니터링합니다. 수집기는 Kafka 브로커를 자동으로 발견하고 포괄적인 정보를 수집합니다.
 
-## 시작하기 전에 [#prerequisites]
+## 설치 및 구성
 
-다음 사항을 확인하십시오:
+쿠버네티스 클러스터에서 OpenTelemetry Collector 구현하고 배포하고 구성하려면 다음 단계에 따라 Strimzi Kafka 브로커를 자동으로 검색하고 모니터링하세요.
 
-* [뉴렐릭 계정](https://newrelic.com/signup)<InlinePopover type="licenseKey" />
-* kubectl 액세스 권한이 있는 쿠버네티스 클러스터
-* Kafka 구현하다, JMX가 활성화된 [Strimzi 연산자를](https://strimzi.io/) 통해 배포하다
+<Steps>
+  <Step>
+    ### 시작하기 전에
 
-#### Strimzi Kafka에서 JMX를 활성화합니다.
+    다음 사항을 확인하십시오:
 
-Strimzi Kafka 리소스에서 Kafka 클러스터에 JMX가 활성화되어 있는지 확인하십시오.
+    * [뉴렐릭 계정](https://newrelic.com/signup)<InlinePopover type="licenseKey" />
+    * kubectl 액세스 권한이 있는 쿠버네티스 클러스터
+    * Kafka 구현하다, [Strimzi 연산자를](https://strimzi.io/)통해 배포하다
+  </Step>
 
-```yaml
-apiVersion: kafka.strimzi.io/v1beta2
-kind: Kafka
-metadata:
-  name: my-cluster
-  namespace: kafka
-spec:
-  kafka:
-    jmxOptions: {}  # Enables JMX with default settings
-    # ...other broker configuration
-```
+  <Step>
+    ### Kafka JMX 메트릭을 위해 Kafka 클러스터를 구성합니다.
 
-### 1단계: 네임스페이스 생성 [#create-namespace]
+    Strimzi Kafka 클러스터를 구성하여 Prometheus JMX Exporter를 통해 Kafka JMX 메트릭을 노출하십시오. 이 설정은 ConfigMap으로 구현되고 배포되며 Kafka 클러스터에서 참조됩니다.
 
-OpenTelemetry Collector 전용 네임스페이스를 생성하거나 기존 Kafka 네임스페이스를 사용하십시오.
+    **JMX 메트릭 ConfigMap을 생성합니다.**
 
-```bash
-kubectl create namespace kafka
-```
-
-### 2단계: 라이선스 키를 사용하여 비밀 키를 생성합니다. [#create-secret]
-
-크리에이터 클러스터 키를 Kubernetes 비밀로 저장하세요.
-
-```bash
-kubectl create secret generic nr-license-key \
-  --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
-  -n kafka
-```
-
-`YOUR_LICENSE_KEY` 실제 뉴렐릭 키로 바꾸세요.
-
-### 3단계: 구현하다, 배포하다 OpenTelemetry Collector [#deploy-collector]
-
-#### 3.1 사용자 지정 수집기 이미지 생성 [#build-image]
-
-Java 런타임 및 JMX 스크래퍼가 포함된 사용자 지정 OpenTelemetry Collector 이미지를 생성합니다.
-
-<Callout variant="important">
-  **버전 호환성**: 이 가이드에서는 JMX Scraper 1.52.0 및 OpenTelemetry Collector 0.143.1 버전을 사용합니다. 이전 수집기 버전에는 호환성 목록에 이 스크래퍼의 해시가 포함되어 있지 않을 수 있습니다. 최상의 결과를 얻으려면 이 가이드에 나와 있는 대로 최신 버전을 사용하십시오.
-
-  <CollapserGroup>
-    <Collapser id="version-compatibility-details" title="수집기가 이 JMX 스크래퍼 버전을 지원하는지 확인하십시오.">
-      **최신 버전을 확인하세요**:
-
-      * OpenTelemetry Collector: [OpenTelemetry Collector 릴리스 페이지를](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest)방문하세요.
-      * JMX 스크래퍼: [OpenTelemetry Java Contrib 릴리스](https://github.com/open-telemetry/opentelemetry-java-contrib/releases/latest)확인
-
-      **버전 호환성을 확인하세요**:
-
-      1. 수집기 버전에 맞는 [supported\_jars.go](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/jmxreceiver/supported_jars.go) 파일을 확인하세요.
-      2. JMX Scraper 1.52.0이 SHA256 해시와 함께 `jmxScraperVersions` 맵에 나열되어 있는지 확인하십시오.
-      3. 목록에 없으면 OpenTelemetry Collector를 최신 버전으로 업데이트하십시오.
-    </Collapser>
-  </CollapserGroup>
-
-  **타겟, 목표 실행**: 시스템에 맞는 올바른 바이너리를 찾으려면 [OpenTelemetry Collector 릴리스](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest) 페이지를 참조하세요(예: `linux_amd64`, `linux_arm64`, `darwin_amd64`). Dockerfile에서 `TARGETARCH` 변수를 accordingly 업데이트하세요.
-</Callout>
-
-`Dockerfile` 으로 저장:
-
-```dockerfile
-# Multi-stage build for OpenTelemetry Collector with Java support for JMX receiver
-# This image bundles the OTEL Collector with Java 17 runtime and JMX scraper JAR
-
-FROM alpine:latest as prep
-
-# OpenTelemetry Collector Binary
-ARG OTEL_VERSION=0.143.1
-ARG TARGETARCH=linux_amd64
-ADD "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol-contrib_${OTEL_VERSION}_${TARGETARCH}.tar.gz" /otelcontribcol
-RUN tar -zxvf /otelcontribcol
-
-# JMX Scraper JAR (for JMX receiver with YAML-based configuration)
-ARG JMX_SCRAPER_JAR_VERSION=1.52.0
-ADD https://github.com/open-telemetry/opentelemetry-java-contrib/releases/download/v${JMX_SCRAPER_JAR_VERSION}/opentelemetry-jmx-scraper.jar /opt/opentelemetry-jmx-scraper.jar
-
-# Set permissions for nonroot user (uid 65532)
-ARG USER_UID=65532
-RUN chown ${USER_UID} /opt/opentelemetry-jmx-scraper.jar
-
-# Final minimal image with Java runtime
-FROM openjdk:17-jre-slim
-
-COPY --from=prep /opt/opentelemetry-jmx-scraper.jar /opt/opentelemetry-jmx-scraper.jar
-COPY --from=prep /otelcol-contrib /otelcol-contrib
-
-EXPOSE 4317 4318 8888
-ENTRYPOINT ["/otelcol-contrib"]
-CMD ["--config", "/conf/otel-agent-config.yaml"]
-```
-
-이미지를 빌드하고 푸시합니다.
-
-```bash
-docker build -t your-registry/otel-collector-kafka:latest .
-docker push your-registry/otel-collector-kafka:latest
-```
-
-#### 3.2 JMX 맞춤형 지표 ConfigMap 생성 [#jmx-configmap]
-
-먼저, 사용자 정의 JMX 지표 설정을 사용하여 ConfigMap을 만듭니다. `jmx-kafka-config.yaml` 으로 저장:
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: jmx-kafka-config
-  namespace: kafka
-data:
-  jmx-kafka-config.yaml: |
-    ---
-    rules:
-      # Per-topic custom metrics using custom MBean commands
-      - bean: kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec,topic=*
-        metricAttribute:
-          topic: param(topic)
-        mapping:
-          Count:
-            metric: kafka.prod.msg.count
-            type: counter
-            desc: The number of messages in per topic
-            unit: "{message}"
-
-      - bean: kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec,topic=*
-        metricAttribute:
-          topic: param(topic)
-          direction: const(in)
-        mapping:
-          Count:
-            metric: kafka.topic.io
-            type: counter
-            desc: The bytes received or sent per topic
-            unit: By
-
-      - bean: kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec,topic=*
-        metricAttribute:
-          topic: param(topic)
-          direction: const(out)
-        mapping:
-          Count:
-            metric: kafka.topic.io
-            type: counter
-            desc: The bytes received or sent per topic
-            unit: By
-
-      # Cluster-level metrics using controller-based MBeans
-      - bean: kafka.controller:type=KafkaController,name=GlobalTopicCount
-        mapping:
-          Value:
-            metric: kafka.cluster.topic.count
-            type: gauge
-            desc: The total number of global topics in the cluster
-            unit: "{topic}"
-
-      - bean: kafka.controller:type=KafkaController,name=GlobalPartitionCount
-        mapping:
-          Value:
-            metric: kafka.cluster.partition.count
-            type: gauge
-            desc: The total number of global partitions in the cluster
-            unit: "{partition}"
-
-      - bean: kafka.controller:type=KafkaController,name=FencedBrokerCount
-        mapping:
-          Value:
-            metric: kafka.broker.fenced.count
-            type: gauge
-            desc: The number of fenced brokers in the cluster
-            unit: "{broker}"
-
-      - bean: kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount
-        mapping:
-          Value:
-            metric: kafka.partition.non_preferred_leader
-            type: gauge
-            desc: The count of topic partitions for which the leader is not the preferred leader
-            unit: "{partition}"
-
-      # Broker-level metrics using ReplicaManager MBeans
-      - bean: kafka.server:type=ReplicaManager,name=UnderMinIsrPartitionCount
-        mapping:
-          Value:
-            metric: kafka.partition.under_min_isr
-            type: gauge
-            desc: The number of partitions where the number of in-sync replicas is less than the minimum
-            unit: "{partition}"
-
-      # Broker uptime metric using JVM Runtime
-      - bean: java.lang:type=Runtime
-        mapping:
-          Uptime:
-            metric: kafka.broker.uptime
-            type: gauge
-            desc: Broker uptime in milliseconds
-            unit: ms
-
-      # Leader count per broker
-      - bean: kafka.server:type=ReplicaManager,name=LeaderCount
-        mapping:
-          Value:
-            metric: kafka.broker.leader.count
-            type: gauge
-            desc: Number of partitions for which this broker is the leader
-            unit: "{partition}"
-
-      # JVM metrics
-      - bean: java.lang:type=GarbageCollector,name=*
-        mapping:
-          CollectionCount:
-            metric: jvm.gc.collections.count
-            type: counter
-            unit: "{collection}"
-            desc: total number of collections that have occurred
-            metricAttribute:
-              name: param(name)
-          CollectionTime:
-            metric: jvm.gc.collections.elapsed
-            type: counter
-            unit: ms
-            desc: the approximate accumulated collection elapsed time in milliseconds
-            metricAttribute:
-              name: param(name)
-
-      - bean: java.lang:type=Memory
-        unit: By
-        prefix: jvm.memory.
-        dropNegativeValues: true
-        mapping:
-          HeapMemoryUsage.committed:
-            metric: heap.committed
-            desc: current heap usage
-            type: gauge
-          HeapMemoryUsage.max:
-            metric: heap.max
-            desc: current heap usage
-            type: gauge
-          HeapMemoryUsage.used:
-            metric: heap.used
-            desc: current heap usage
-            type: gauge
-
-      - bean: java.lang:type=Threading
-        mapping:
-          ThreadCount:
-            metric: jvm.thread.count
-            type: gauge
-            unit: "{thread}"
-            desc: Total thread count (Kafka typical range 100-300 threads)
-
-      - bean: java.lang:type=OperatingSystem
-        prefix: jvm.
-        dropNegativeValues: true
-        mapping:
-          SystemLoadAverage:
-            metric: system.cpu.load_1m
-            type: gauge
-            unit: "{run_queue_item}"
-            desc: System load average (1 minute) - alert if > CPU count
-          AvailableProcessors:
-            metric: cpu.count
-            type: gauge
-            unit: "{cpu}"
-            desc: Number of processors available
-          ProcessCpuLoad:
-            metric: cpu.recent_utilization
-            type: gauge
-            unit: '1'
-            desc: Recent CPU utilization for JVM process (0.0 to 1.0)
-          SystemCpuLoad:
-            metric: system.cpu.utilization
-            type: gauge
-            unit: '1'
-            desc: Recent CPU utilization for whole system (0.0 to 1.0)
-          OpenFileDescriptorCount:
-            metric: file_descriptor.count
-            type: gauge
-            unit: "{file_descriptor}"
-            desc: Number of open file descriptors - alert if > 80% of ulimit
-
-      - bean: java.lang:type=ClassLoading
-        mapping:
-          LoadedClassCount:
-            metric: jvm.class.count
-            type: gauge
-            unit: "{class}"
-            desc: Currently loaded class count
-
-      - bean: java.lang:type=MemoryPool,name=*
-        type: gauge
-        unit: By
-        metricAttribute:
-          name: param(name)
-        mapping:
-          Usage.used:
-            metric: jvm.memory.pool.used
-            desc: Memory pool usage by generation (G1 Old Gen, Eden, Survivor)
-          Usage.max:
-            metric: jvm.memory.pool.max
-            desc: Maximum memory pool size
-          CollectionUsage.used:
-            metric: jvm.memory.pool.used_after_last_gc
-            desc: Memory used after last GC (shows retained memory baseline)
-```
-
-<Callout variant="tip">
-  **메트릭 수집 사용자 지정**: `kafka-jmx-config.yaml` 파일에 사용자 지정 MBean 규칙을 추가하여 추가 Kafka 메트릭을 수집할 수 있습니다.
-
-  * [JMX 메트릭 규칙의 기본 구문을](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/jmx-metrics#basic-syntax)알아보세요.
-  * [Kafka 모니터링 문서](https://kafka.apache.org/41/operations/monitoring/)에서 사용 가능한 MBean 이름을 찾아보세요.
-
-  이를 통해 특정 모니터링 요구 사항에 따라 Kafka 브로커에서 노출하는 모든 JMX 메트릭을 수집할 수 있습니다.
-</Callout>
-
-JMX ConfigMap을 적용합니다.
-
-```bash
-kubectl apply -f jmx-kafka-config.yaml
-```
-
-#### 3.3 수집기 ConfigMap 생성 [#collector-configmap]
-
-OpenTelemetry Collector 설정을 포함하는 ConfigMap을 생성합니다. `otel-kafka-config.yaml` 으로 저장:
-
-```yaml
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: otel-collector-config
-  namespace: kafka
-  labels:
-    app: otel-collector
-data:
-  otel-collector-config.yaml: |
-    receivers:
-      # Kafka cluster-level metrics (runs once per OTEL collector)
-      kafkametrics/cluster:
-        brokers:
-          - "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
-        protocol_version: 2.8.0
-        scrapers:
-          - brokers
-          - topics
-          - consumers
-        collection_interval: 30s
-        metrics:
-          kafka.topic.min_insync_replicas:
-            enabled: true
-          kafka.topic.replication_factor:
-            enabled: true
-          kafka.partition.replicas:
-            enabled: false
-          kafka.partition.oldest_offset:
-            enabled: false
-          kafka.partition.current_offset:
-            enabled: false
-
-      # Receiver creator for dynamic per-broker JMX receivers
-      receiver_creator:
-        watch_observers: [k8s_observer]
-        receivers:
-          # JMX receiver template (created per discovered broker pod)
-          jmx:
-            rule: type == "pod" && labels["strimzi.io/kind"] == "Kafka" && labels["strimzi.io/cluster"] == "my-cluster" && labels["strimzi.io/name"] == "my-cluster-kafka"
-            config:
-              endpoint: 'service:jmx:rmi:///jndi/rmi://`endpoint`:9999/jmxrmi'
-              jar_path: /opt/opentelemetry-jmx-scraper.jar
-              target_system: kafka
-              jmx_configs: /conf-jmx/jmx-kafka-config.yaml
-              collection_interval: 30s
-              # Set dynamic resource attributes from discovered pod
-              resource_attributes:
-                broker.endpoint: '`endpoint`'
-
-    exporters:
-      otlp:
-        endpoint: https://otlp.nr-data.net:4317
-        tls:
-          insecure: false
-        sending_queue:
-          num_consumers: 12
-          queue_size: 5000
-        retry_on_failure:
-          enabled: true
-        headers:
-          api-key: ${NEW_RELIC_LICENSE_KEY}
-
-    processors:
-      # Batch processor for efficiency
-      batch/aggregation:
-        send_batch_size: 1024
-        timeout: 30s
-
-      # Memory limiter to prevent OOM
-      memory_limiter:
-        limit_percentage: 80
-        spike_limit_percentage: 30
-        check_interval: 1s
-
-      # Detect system resources
-      resourcedetection:
-        detectors: [env, docker, system]
-        timeout: 5s
-        override: false
-
-      # Add Kafka cluster metadata
-      resource/kafka_metadata:
-        attributes:
-          - key: kafka.cluster.name
-            value: my-cluster
-            action: upsert
-    
-
-      # Extract Kubernetes attributes
-      k8sattributes:
-        auth_type: serviceAccount
-        passthrough: false
-        extract:
-          metadata:
-            - k8s.pod.name
-            - k8s.pod.uid
-            - k8s.namespace.name
-            - k8s.node.name
-          labels:
-            - tag_name: strimzi.cluster
-              key: strimzi.io/cluster
-              from: pod
-            - tag_name: strimzi.kind
-              key: strimzi.io/kind
-              from: pod
-
-      # Transform metrics for New Relic UI
-      transform:
-        metric_statements:
-          - context: metric
-            statements:
-              # Clean up descriptions and units
-              - set(description, "") where description != ""
-              - set(unit, "") where unit != ""
-
-          - context: resource
-            statements:
-              # Extract broker.id from k8s.pod.name: my-cluster-kafka-0 -> 0 (supports multi-digit)
-              - set(attributes["broker.id"], ExtractPatterns(attributes["k8s.pod.name"], ".*-(?P<broker_id>\\d+)$")["broker_id"]) where attributes["k8s.pod.name"] != nil
-
-      # Remove broker.id for cluster-level metrics
-      transform/remove_broker_id:
-        metric_statements:
-          - context: resource
-            statements:
-              - delete_key(attributes, "broker.id")
-              - delete_key(attributes, "broker.endpoint")
-              - delete_key(attributes, "k8s.pod.name")
-
-      # Topic sum aggregation for replicas_in_sync
-      metricstransform/kafka_topic_sum_aggregation:
-        transforms:
-          - include: kafka.partition.replicas_in_sync
-            action: insert
-            new_name: kafka.partition.replicas_in_sync.total
-            operations:
-              - action: aggregate_labels
-                label_set: [ topic ]
-                aggregation_type: sum
-
-      # Filter to remove partition-level metric after aggregation
-      filter/remove_partition_level_replicas:
-        metrics:
-          exclude:
-            match_type: strict
-            metric_names:
-              - kafka.partition.replicas_in_sync
-
-      # Filter to include only cluster-level metrics
-      filter/include_cluster_metrics:
-        metrics:
-          include:
-            match_type: regexp
-            metric_names:
-              - "kafka\\.partition\\.offline"
-              - "kafka\\.(leader|unclean)\\.election\\.rate"
-              - "kafka\\.partition\\.non_preferred_leader"
-              - "kafka\\.broker\\.fenced\\.count"
-              - "kafka\\.cluster\\.partition\\.count"
-              - "kafka\\.cluster\\.topic\\.count"
-
-      # Filter to exclude cluster-level metrics from broker pipeline
-      filter/exclude_cluster_metrics:
-        metrics:
-          exclude:
-            match_type: regexp
-            metric_names:
-              - "kafka\\.partition\\.offline"
-              - "kafka\\.(leader|unclean)\\.election\\.rate"
-              - "kafka\\.partition\\.non_preferred_leader"
-              - "kafka\\.broker\\.fenced\\.count"
-              - "kafka\\.cluster\\.partition\\.count"
-              - "kafka\\.cluster\\.topic\\.count"
-
-      # Convert cumulative metrics to delta for New Relic
-      cumulativetodelta:
-
-    extensions:
-      # K8s observer extension
-      k8s_observer:
-        auth_type: serviceAccount
-        observe_pods: true
-        observe_nodes: false
-
-    service:
-      extensions: [k8s_observer]
-
-      pipelines:
-        # Per-broker metrics pipeline (with broker.id)
-        metrics/broker:
-          receivers:
-            - receiver_creator
-            - kafkametrics/cluster
-          processors:
-            - memory_limiter
-            - resourcedetection
-            - resource/kafka_metadata
-            - k8sattributes
-            - filter/exclude_cluster_metrics
-            - transform
-            - metricstransform/kafka_topic_sum_aggregation
-            - filter/remove_partition_level_replicas
-            - cumulativetodelta
-            - batch/aggregation
-          exporters: [otlp]
-
-        # Cluster-level metrics pipeline (without broker.id, aggregated)
-        metrics/cluster:
-          receivers:
-            - receiver_creator
-          processors:
-            - memory_limiter
-            - resourcedetection
-            - resource/kafka_metadata
-            - k8sattributes
-            - filter/include_cluster_metrics
-            - transform/remove_broker_id
-            - metricstransform/kafka_topic_sum_aggregation
-            - cumulativetodelta
-            - batch/aggregation
-          exporters: [otlp]
-```
-
-**설정 참고 사항:**
-
-* `my-cluster-kafka-bootstrap` Strimzi Kafka 서비스 이름으로 바꾸세요.
-* `rule` 과 `kafka.cluster.name` 에서 `my-cluster` 클러스터 이름으로 바꾸세요.
-* 네임스페이스가 다르면 업데이트하세요. `kafka`
-* **OTLP 엔드포인트**: `https://otlp.nr-data.net:4317` (미국 지역) 또는 `https://otlp.eu01.nr-data.net:4317` (유럽 지역)을 사용합니다. 다른 지역의 [OTLP 엔드포인트 구성 방법을](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 참조하세요.
-* `receiver_creator` 은 Strimzi 레이블을 사용하여 Kafka 브로커를 자동으로 검색합니다.
-
-<CollapserGroup>
-  <Collapser id="additional-receiver-docs" title="추가 수신자 문서">
-    고급 설정 옵션에 대해서는 다음 수신기 설명서 페이지를 참조하십시오.
-
-    * [수신기 생성기 문서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) - 동적 수신기 검색 옵션
-    * [Kafka 지표 수신기 문서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/kafkametricsreceiver) - 추가 Kafka 지표 설정
-    * [JMX 수신기 문서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/jmxreceiver) - JMX 수신기 설정 옵션
-  </Collapser>
-</CollapserGroup>
-
-ConfigMap을 적용합니다.
-
-```bash
-kubectl apply -f otel-kafka-config.yaml
-```
-
-#### 3.4 구현하다, 배포하다 수집기 [#deploy-deployment]
-
-구현, 배포를 만듭니다. `otel-collector-deployment.yaml` 으로 저장:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: otel-collector
-  namespace: kafka
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: otel-collector
-  template:
-    metadata:
-      labels:
-        app: otel-collector
-    spec:
-      serviceAccountName: otel-collector
-      containers:
-      - name: otel-collector
-        image: your-registry/otel-collector-kafka:latest
-        env:
-          - name: NEW_RELIC_LICENSE_KEY
-            valueFrom:
-              secretKeyRef:
-                name: nr-license-key
-                key: NEW_RELIC_LICENSE_KEY
-        resources:
-          limits:
-            cpu: "1"
-            memory: "2Gi"
-          requests:
-            cpu: "500m"
-            memory: "1Gi"
-        volumeMounts:
-        - name: vol-kafka-test-cluster
-          mountPath: /conf
-        - name: jmx-config
-          mountPath: /conf-jmx
-        ports:
-        - containerPort: 4317  # OTLP gRPC
-        - containerPort: 4318  # OTLP HTTP
-        - containerPort: 8888  # Metrics
-      volumes:
-      - name: vol-kafka-test-cluster
-        configMap:
-          name: otel-collector-config
-          items:
-          - key: otel-collector-config.yaml
-            path: otel-agent-config.yaml
-      - name: jmx-config
-        configMap:
-          name: jmx-kafka-config
-          items:
-          - key: jmx-kafka-config.yaml
-            path: jmx-kafka-config.yaml
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: otel-collector
-  namespace: kafka
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: otel-collector
-rules:
-  - apiGroups: [""]
-    resources: ["pods", "nodes"]
-    verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: otel-collector
-subjects:
-  - kind: ServiceAccount
-    name: otel-collector
-    namespace: kafka
-roleRef:
-  kind: ClusterRole
-  name: otel-collector
-  apiGroup: rbac.authorization.k8s.io
-```
-
-**자원 설정:**
-
-* 위의 리소스 제한은 중간 규모의 Kafka 클러스터(브로커 5-10개, 토픽 20-100개)에 적합합니다.
-
-구현을 적용합니다.
-
-```bash
-kubectl apply -f otel-collector-deployment.yaml
-```
-
-수집기가 실행 중인지 확인하십시오.
-
-```bash
-kubectl get pods -n kafka -l app=otel-collector
-kubectl logs -n kafka -l app=otel-collector -f
-```
-
-### 4단계: (선택 사항) 제작자 또는 소비자 참여 [#instrument-apps]
-
-Kubernetes 에서 실행되는 Kafka 제작자 및 소비자 제작으로부터 로그 수준의 텔레메트리를 수집하려면 [OpenTelemetry 서버 에이전트를](https://opentelemetry.io/docs/zero-code/java/agent/getting-started/) 사용하여 이를 로그합니다.
-
-#### 당신의 Kafka를 편집하세요
-
-Kafka 생산자 또는 소비자 군대를 위해 기존 구현에 OpenTelemetry 동양 에이전트를 추가하고 배포합니다.
-
-1. **에이전트 에이전트 다운로드**: 에이전트 JAR을 다운로드하려면 init 컨테이너를 추가하세요.
-
-   ```yaml
-   initContainers:
-   - name: download-otel-agent
-     image: busybox:latest
-     command:
-       - sh
-       - -c
-       - |
-         wget -O /otel/opentelemetry-javaagent.jar \
-           https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
-     volumeMounts:
-       - name: otel-agent
-         mountPath: /otel
-   ```
-
-2. **군대 에이전트 구성**: 견고한 컨테이너에 환경 변수를 추가합니다.
-
-   ```yaml
-   env:
-     - name: JAVA_TOOL_OPTIONS
-       value: >-
-         -javaagent:/otel/opentelemetry-javaagent.jar
-         -Dotel.service.name="kafka-producer"
-         -Dotel.resource.attributes="kafka.cluster.name=my-cluster"
-         -Dotel.exporter.otlp.endpoint="http://localhost:4317"
-         -Dotel.exporter.otlp.protocol="grpc"
-         -Dotel.metrics.exporter="otlp"
-         -Dotel.traces.exporter="otlp"
-         -Dotel.logs.exporter="otlp"
-         -Dotel.instrumentation.kafka.experimental-span-attributes="true"
-         -Dotel.instrumentation.messaging.experimental.receive-telemetry.enabled="true"
-         -Dotel.instrumentation.kafka.producer-propagation.enabled="true"
-         -Dotel.instrumentation.kafka.enabled="true"
-   volumeMounts:
-     - name: otel-agent
-       mountPath: /otel
-   ```
-
-3. **볼륨 추가**: 볼륨 정의를 포함하세요:
-
-   ```yaml
-   volumes:
-     - name: otel-agent
-       emptyDir: {}
-   ```
-
-바꾸다:
-
-* `kafka-producer` 귀하의 독특한 이름으로
-* `my-cluster` Kafka 클러스터 이름을 사용하여
-
-<Callout variant="tip">
-  위 설정은 텔메트리를 localhost:4317에서 실행되는 OpenTelemetry Collector 로 보냅니다. 이 설정을 사용하여 구현하다, 배포하다:
-
-  ```yaml
-  receivers:
-    otlp:
-      protocols:
-        grpc:
-          endpoint: "0.0.0.0:4317"
-
-  exporters:
-    otlp/newrelic:
-      endpoint: https://otlp.nr-data.net:4317
-      headers:
-        api-key: "${NEW_RELIC_LICENSE_KEY}"
-      compression: gzip
-      timeout: 30s
-
-  service:
-    pipelines:
-      traces:
-        receivers: [otlp]
-        exporters: [otlp/newrelic]
-      metrics:
-        receivers: [otlp]
-        exporters: [otlp/newrelic]
-      logs:
-        receivers: [otlp]
-        exporters: [otlp/newrelic]
-  ```
-
-  이를 통해 처리를 사용자 지정하고, 필터를 추가하거나, 여러 백앤드에게 라우팅할 수 있습니다. 다른 엔드포인트 설정에 대해서는 [OTLP 엔드포인트 구성을](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 참조하세요.
-</Callout>
-
-잔류 에이전트는 코드 변경이 전혀 없는 [기본 Kafka 측정,](https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/out-of-the-box-instrumentation/) 캡처 기능을 제공합니다.
-
-* 요청 지연시간
-* 처리량 지표
-* 오류율
-* 분산 추적
-
-고급 설정에 대해서는 [Kafka 측정, 로그 문서를](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/kafka) 참조하세요.
-
-### 5단계: (선택 사항) Kafka 브로커 로그 전달 [#forward-logs]
-
-Kubernetes 환경에서 Kafka 브로커 로그를 수집하여 뉴렐릭으로 전송하려면 OpenTelemetry Collector 에서 파일 로그 수신기를 구성하십시오.
-
-<CollapserGroup>
-  <Collapser id="configure-log-collection" title="로그 수집 구성">
-    파일 로그 수신기를 추가하도록 수집기 ConfigMap을 업데이트하십시오. `receivers` 섹션에 다음을 추가하세요:
+    수집할 Kafka 메트릭을 정의하는 JMX Exporter 패턴이 포함된 ConfigMap을 생성합니다. `kafka-jmx-metrics-config.yaml` 으로 저장:
 
     ```yaml
-    receivers:
-      # ... existing receivers (receiver_creator, kafkametrics/cluster) ...
-      
-      # File log receiver for Kafka broker logs
-      filelog/kafka_broker:
-        include:
-          - ${env:HOME}/logs/kafka-broker-1.log
-        start_at: end
-        multiline:
-          line_start_pattern: '^\['
-        resource:
-          broker.id: "1"  # Adjust based on your broker setup
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: kafka-jmx-metrics
+      namespace: newrelic
+    data:
+      kafka-metrics-config.yml: |
+        startDelaySeconds: 0
+        lowercaseOutputName: true
+        lowercaseOutputLabelNames: true
+
+        rules:
+          # Cluster-level controller metrics
+          - pattern: 'kafka.controller<type=KafkaController, name=GlobalTopicCount><>Value'
+            name: kafka_cluster_topic_count
+            type: GAUGE
+
+          - pattern: 'kafka.controller<type=KafkaController, name=GlobalPartitionCount><>Value'
+            name: kafka_cluster_partition_count
+            type: GAUGE
+
+          - pattern: 'kafka.controller<type=KafkaController, name=FencedBrokerCount><>Value'
+            name: kafka_broker_fenced_count
+            type: GAUGE
+
+          - pattern: 'kafka.controller<type=KafkaController, name=PreferredReplicaImbalanceCount><>Value'
+            name: kafka_partition_non_preferred_leader
+            type: GAUGE
+
+          - pattern: 'kafka.controller<type=KafkaController, name=OfflinePartitionsCount><>Value'
+            name: kafka_partition_offline
+            type: GAUGE
+
+          - pattern: 'kafka.controller<type=KafkaController, name=ActiveControllerCount><>Value'
+            name: kafka_controller_active_count
+            type: GAUGE
+
+          # Broker-level replica metrics
+          - pattern: 'kafka.server<type=ReplicaManager, name=UnderMinIsrPartitionCount><>Value'
+            name: kafka_partition_under_min_isr
+            type: GAUGE
+
+          - pattern: 'kafka.server<type=ReplicaManager, name=LeaderCount><>Value'
+            name: kafka_broker_leader_count
+            type: GAUGE
+
+          - pattern: 'kafka.server<type=ReplicaManager, name=PartitionCount><>Value'
+            name: kafka_partition_count
+            type: GAUGE
+
+          - pattern: 'kafka.server<type=ReplicaManager, name=UnderReplicatedPartitions><>Value'
+            name: kafka_partition_under_replicated
+            type: GAUGE
+
+          - pattern: 'kafka.server<type=ReplicaManager, name=IsrShrinksPerSec><>Count'
+            name: kafka_isr_operation_count
+            type: COUNTER
+            labels:
+              operation: "shrink"
+
+          - pattern: 'kafka.server<type=ReplicaManager, name=IsrExpandsPerSec><>Count'
+            name: kafka_isr_operation_count
+            type: COUNTER
+            labels:
+              operation: "expand"
+
+          - pattern: 'kafka.server<type=ReplicaFetcherManager, name=MaxLag, clientId=Replica><>Value'
+            name: kafka_max_lag
+            type: GAUGE
+
+          # Broker topic metrics (totals)
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=MessagesInPerSec><>Count'
+            name: kafka_message_count
+            type: COUNTER
+
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=TotalFetchRequestsPerSec><>Count'
+            name: kafka_request_count
+            type: COUNTER
+            labels:
+              type: "fetch"
+
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=TotalProduceRequestsPerSec><>Count'
+            name: kafka_request_count
+            type: COUNTER
+            labels:
+              type: "produce"
+
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=FailedFetchRequestsPerSec><>Count'
+            name: kafka_request_failed
+            type: COUNTER
+            labels:
+              type: "fetch"
+
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=FailedProduceRequestsPerSec><>Count'
+            name: kafka_request_failed
+            type: COUNTER
+            labels:
+              type: "produce"
+
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=BytesInPerSec><>Count'
+            name: kafka_network_io
+            type: COUNTER
+            labels:
+              direction: "in"
+
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=BytesOutPerSec><>Count'
+            name: kafka_network_io
+            type: COUNTER
+            labels:
+              direction: "out"
+
+          # Per-topic metrics (only appear after traffic flows)
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=MessagesInPerSec, topic=(.+)><>Count'
+            name: kafka_prod_msg_count
+            type: COUNTER
+            labels:
+              topic: "$1"
+
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=BytesInPerSec, topic=(.+)><>Count'
+            name: kafka_topic_io
+            type: COUNTER
+            labels:
+              topic: "$1"
+              direction: "in"
+
+          - pattern: 'kafka.server<type=BrokerTopicMetrics, name=BytesOutPerSec, topic=(.+)><>Count'
+            name: kafka_topic_io
+            type: COUNTER
+            labels:
+              topic: "$1"
+              direction: "out"
+
+          # Request metrics
+          - pattern: 'kafka.network<type=RequestMetrics, name=TotalTimeMs, request=(Produce|FetchConsumer|FetchFollower)><>Count'
+            name: kafka_request_time_total
+            type: COUNTER
+            labels:
+              type: "$1"
+
+          - pattern: 'kafka.network<type=RequestMetrics, name=TotalTimeMs, request=(Produce|FetchConsumer|FetchFollower)><>50thPercentile'
+            name: kafka_request_time_50p
+            type: GAUGE
+            labels:
+              type: "$1"
+
+          - pattern: 'kafka.network<type=RequestMetrics, name=TotalTimeMs, request=(Produce|FetchConsumer|FetchFollower)><>99thPercentile'
+            name: kafka_request_time_99p
+            type: GAUGE
+            labels:
+              type: "$1"
+
+          - pattern: 'kafka.network<type=RequestMetrics, name=TotalTimeMs, request=(Produce|FetchConsumer|FetchFollower)><>Mean'
+            name: kafka_request_time_avg
+            type: GAUGE
+            labels:
+              type: "$1"
+
+          - pattern: 'kafka.network<type=RequestChannel, name=RequestQueueSize><>Value'
+            name: kafka_request_queue
+            type: GAUGE
+
+          - pattern: 'kafka.server<type=DelayedOperationPurgatory, name=PurgatorySize, delayedOperation=(.+)><>Value'
+            name: kafka_purgatory_size
+            type: GAUGE
+            labels:
+              type: "$1"
+
+          # Controller stats
+          - pattern: 'kafka.controller<type=ControllerStats, name=LeaderElectionRateAndTimeMs><>Count'
+            name: kafka_leader_election_rate
+            type: COUNTER
+
+          - pattern: 'kafka.controller<type=ControllerStats, name=UncleanLeaderElectionsPerSec><>Count'
+            name: kafka_unclean_election_rate
+            type: COUNTER
+
+          # Log flush metrics
+          - pattern: 'kafka.log<type=LogFlushStats, name=LogFlushRateAndTimeMs><>Count'
+            name: kafka_logs_flush_count
+            type: COUNTER
+
+          - pattern: 'kafka.log<type=LogFlushStats, name=LogFlushRateAndTimeMs><>50thPercentile'
+            name: kafka_logs_flush_time_50p
+            type: GAUGE
+
+          - pattern: 'kafka.log<type=LogFlushStats, name=LogFlushRateAndTimeMs><>99thPercentile'
+            name: kafka_logs_flush_time_99p
+            type: GAUGE
+
+          # JVM Garbage Collection
+          - pattern: 'java.lang<name=(.+), type=GarbageCollector><>CollectionCount'
+            name: jvm_gc_collections_count
+            type: COUNTER
+            labels:
+              name: "$1"
+
+          - pattern: 'java.lang<name=(.+), type=GarbageCollector><>CollectionTime'
+            name: jvm_gc_collections_elapsed
+            type: COUNTER
+            labels:
+              name: "$1"
+
+          # JVM Memory
+          - pattern: 'java.lang<type=Memory><HeapMemoryUsage>committed'
+            name: jvm_memory_heap_committed
+            type: GAUGE
+
+          - pattern: 'java.lang<type=Memory><HeapMemoryUsage>max'
+            name: jvm_memory_heap_max
+            type: GAUGE
+
+          - pattern: 'java.lang<type=Memory><HeapMemoryUsage>used'
+            name: jvm_memory_heap_used
+            type: GAUGE
+
+          # JVM Threading and System
+          - pattern: 'java.lang<type=Threading><>ThreadCount'
+            name: jvm_thread_count
+            type: GAUGE
+
+          - pattern: 'java.lang<type=OperatingSystem><>SystemLoadAverage'
+            name: jvm_system_cpu_load_1m
+            type: GAUGE
+
+          - pattern: 'java.lang<type=OperatingSystem><>AvailableProcessors'
+            name: jvm_cpu_count
+            type: GAUGE
+
+          - pattern: 'java.lang<type=OperatingSystem><>ProcessCpuLoad'
+            name: jvm_cpu_recent_utilization
+            type: GAUGE
+
+          - pattern: 'java.lang<type=OperatingSystem><>SystemCpuLoad'
+            name: jvm_system_cpu_utilization
+            type: GAUGE
+
+          - pattern: 'java.lang<type=OperatingSystem><>OpenFileDescriptorCount'
+            name: jvm_file_descriptor_count
+            type: GAUGE
+
+          - pattern: 'java.lang<type=ClassLoading><>LoadedClassCount'
+            name: jvm_class_count
+            type: GAUGE
+
+          # JVM Memory Pool
+          - pattern: 'java.lang<type=MemoryPool, name=(.+)><Usage>used'
+            name: jvm_memory_pool_used
+            type: GAUGE
+            labels:
+              name: "$1"
+
+          - pattern: 'java.lang<type=MemoryPool, name=(.+)><Usage>max'
+            name: jvm_memory_pool_max
+            type: GAUGE
+            labels:
+              name: "$1"
+
+          - pattern: 'java.lang<type=MemoryPool, name=(.+)><CollectionUsage>used'
+            name: jvm_memory_pool_used_after_last_gc
+            type: GAUGE
+            labels:
+              name: "$1"
+
+          # Broker uptime
+          - pattern: 'java.lang<type=Runtime><>Uptime'
+            name: kafka_broker_uptime
+            type: GAUGE
     ```
 
-    `service` 섹션에 로그 파이프라인을 추가하세요:
+    <Callout variant="tip">
+      **메트릭 사용자 지정**: 이 ConfigMap에는 Kafka 브로커, 토픽, 요청, 컨트롤러 및 JVM에 대한 포괄적인 메트릭이 포함되어 있습니다. [Prometheus JMX Exporter 예제](https://github.com/prometheus/jmx_exporter/tree/main/examples) 및 [Kafka MBean 문서를](https://kafka.apache.org/documentation/#monitoring) 참조하여 패턴을 추가하거나 수정할 수 있습니다. 추가 설정은 [JMX Exporter 규칙 문서를](https://github.com/prometheus/jmx_exporter/blob/main/docs/content/1.5.0/http-mode/rules.md) 참조하십시오.
+    </Callout>
+
+    <Callout variant="important">
+      **지우개 스페이스 요구 사항**: JMX 지표 ConfigMap과 Kafka 클러스터는 동일한 지우개 스페이스에 있어야 합니다. 이 가이드에서는 둘 다 `newrelic` 지우스페이스에 구현하다, 배포하다입니다.
+    </Callout>
+
+    ConfigMap을 적용합니다.
+
+    ```bash
+    kubectl apply -f kafka-jmx-metrics-config.yaml
+    ```
+
+    **Kafka 클러스터를 JMX Exporter를 사용하도록 업데이트합니다.**
+
+    Strimzi Kafka 리소스가 메트릭 ConfigMap을 참조하도록 업데이트하세요.
 
     ```yaml
-    service:
-      pipelines:
-        # ... existing pipelines (metrics/broker, metrics/cluster) ...
-        
-        # Logs pipeline for Kafka broker logs
-        logs/brokers:
-          receivers: [filelog/kafka_broker]
-          processors: [batch/aggregation, resourcedetection, resource/kafka_metadata]
-          exporters: [otlp]
+    apiVersion: kafka.strimzi.io/v1beta2
+    kind: Kafka
+    metadata:
+      name: my-cluster
+      namespace: newrelic
+    spec:
+      kafka:
+        version: X.X.X
+        metricsConfig:
+          type: jmxPrometheusExporter
+          valueFrom:
+            configMapKeyRef:
+              name: kafka-jmx-metrics
+              key: kafka-metrics-config.yml
+        # ...rest of your Kafka configuration
+    ```
+
+    변경 사항을 적용하세요. Strimzi는 Kafka 브로커를 순차적으로 재시작합니다.
+
+    ```bash
+    kubectl apply -f kafka-cluster.yaml
+    ```
+
+    롤링 재시작이 완료되면 각 Kafka 브로커는 `9404` 포트에서 Prometheus 메트릭을 노출합니다.
+  </Step>
+
+  <Step>
+    ### 구현하다, 배포하다 OpenTelemetry Collector [#deploy-opentelemetry-collector]
+
+    Kafka 클러스터를 모니터링하기 위한 OpenTelemetry Collector 구현하다, 배포합니다. 원하는 설치 방법을 선택하세요.
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="helm">Helm 설치(권장)</TabsBarItem> <TabsBarItem id="manifest">매니페스트 설치</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="helm">
+          Helm 설치 방법은 Kubernetes 에서 구현하다, 배포하다 OpenTelemetry Collector 에 권장되는 접근 방식입니다.
+
+          **뉴렐릭 자격 증명 비밀을 생성합니다.**
+
+          뉴렐릭 클러스터 키 및 OTLP 엔드포인트가 포함된 Kubernetes 시크릿을 생성하세요. 귀하의 뉴렐릭 지역에 맞는 포인트를 선택하세요:
+
+          <CollapserGroup>
+            <Collapser id="secret-us" title="미국 지역">
+              ```bash
+              kubectl create secret generic newrelic-otlp-secret \
+                --namespace newrelic \
+                --from-literal=NEW_RELIC_LICENSE_KEY='your-license-key-here' \
+                --from-literal=NEW_RELIC_OTLP_ENDPOINT='https://otlp.nr-data.net:4317'
+              ```
+            </Collapser>
+
+            <Collapser id="secret-eu" title="EU 지역">
+              ```bash
+              kubectl create secret generic newrelic-otlp-secret \
+                --namespace newrelic \
+                --from-literal=NEW_RELIC_LICENSE_KEY='your-license-key-here' \
+                --from-literal=NEW_RELIC_OTLP_ENDPOINT='https://eu01-otlp.nr-data.net:4317'
+              ```
+            </Collapser>
+          </CollapserGroup>
+
+          <Callout variant="tip">
+            다른 엔드포인트 설정에 대해서는 [OTLP 엔드포인트 구성을](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 참조하세요.
+          </Callout>
+
+          **수집기 설정을 포함하는 values.yaml 파일을 생성합니다.**
+
+          OpenTelemetry Collector 설정 전체 내용이 포함된 `values.yaml` 파일을 생성하세요. NRDOT과 OpenTelemetry 수집기 모두 동일한 설정을 사용하고 동일한 Kafka 모니터링 기능을 제공합니다. 원하는 수집기 이미지를 선택하세요:
+
+          <CollapserGroup>
+            <Collapser id="helm-nrdot" title="NRDOT Collector 사용(권장)">
+              **NRDOT** 은 뉴릭에서 지원하는 OpenTelemetry Collector 배포판으로, 뉴릭에 대한 완벽한 지원을 제공합니다. 자세한 내용은 [NRDOT Collector GitHub 저장소를](https://github.com/newrelic/nrdot-collector-releases/tree/main/distributions/nrdot-collector) 참조하세요.
+
+              다음 내용으로 `values.yaml` 생성하세요:
+
+              ```yaml
+              # Deployment mode
+              mode: deployment
+              replicaCount: 1
+
+              # Use NRDOT collector image
+              image:
+                repository: newrelic/nrdot-collector
+                tag: "latest"
+                pullPolicy: Always
+
+              # Service account configuration
+              serviceAccount:
+                create: true
+                name: otel-collector
+
+              # RBAC for Kubernetes service discovery
+              clusterRole:
+                create: true
+                rules:
+                  - apiGroups: [""]
+                    resources: ["pods", "nodes"]
+                    verbs: ["get", "list", "watch"]
+
+              # Pod security context
+              podSecurityContext:
+                runAsNonRoot: true
+                runAsUser: 10001
+
+              # Container security context
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+
+              # Resource limits
+              resources:
+                requests:
+                  memory: 512Mi
+                  cpu: 250m
+                limits:
+                  memory: 1Gi
+                  cpu: 500m
+
+              # Load environment variables from secret
+              extraEnvsFrom:
+                - secretRef:
+                    name: newrelic-otlp-secret
+
+              # Disable default ports
+              ports:
+                jaeger-compact:
+                  enabled: false
+                jaeger-thrift:
+                  enabled: false
+                jaeger-grpc:
+                  enabled: false
+                zipkin:
+                  enabled: false
+
+              # OpenTelemetry Collector Configuration
+              config:
+                receivers:
+                  # Disable default receivers not available in NRDOT experimental
+                  jaeger: null
+                  zipkin: null
+
+                  kafkametrics/cluster:
+                    brokers:
+                      # TODO#1: Replace with your Kafka bootstrap service
+                      - "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
+                    collection_interval: 30s
+                    protocol_version: 2.0.0
+                    scrapers:
+                      - brokers
+                      - topics
+                      - consumers
+                    metrics:
+                      kafka.topic.min_insync_replicas:
+                        enabled: true
+                      kafka.topic.replication_factor:
+                        enabled: true
+                      kafka.partition.replicas:
+                        enabled: false
+                      kafka.partition.oldest_offset:
+                        enabled: false
+                      kafka.partition.current_offset:
+                        enabled: false
+
+                  prometheus/kafka-jmx:
+                    config:
+                      scrape_configs:
+                        - job_name: 'kafka-jmx-metrics'
+                          scrape_interval: 30s
+                          kubernetes_sd_configs:
+                            - role: pod
+                              namespaces:
+                                names:
+                                  # TODO#2: Replace with the namespace where your Kafka cluster is deployed
+                                  - newrelic
+                          relabel_configs:
+                            # Filter for Kafka broker pods
+                            - source_labels: [__meta_kubernetes_pod_label_strimzi_io_name]
+                              action: keep
+                              # TODO#3: Replace with your Strimzi Kafka cluster name followed by '-kafka'
+                              regex: my-cluster-kafka
+
+                            - source_labels: [__meta_kubernetes_pod_label_strimzi_io_cluster]
+                              action: keep
+                              # TODO#4: Replace with your Strimzi Kafka cluster name
+                              regex: my-cluster
+
+                            # Extract broker ID from pod name
+                            - source_labels: [__meta_kubernetes_pod_name]
+                              target_label: broker.id
+                              regex: '.*-(\\d+)$'
+                              replacement: '$1'
+
+                            # Set scrape target to pod IP on port 9404
+                            - source_labels: [__meta_kubernetes_pod_ip]
+                              target_label: __address__
+                              replacement: '$1:9404'
+
+                exporters:
+                  # New Relic OTLP exporter
+                  otlp/backend:
+                    endpoint: ${NEW_RELIC_OTLP_ENDPOINT}
+                    tls:
+                      insecure: false
+                    sending_queue:
+                      num_consumers: 12
+                      queue_size: 5000
+                    retry_on_failure:
+                      enabled: true
+                    headers:
+                      api-key: ${NEW_RELIC_LICENSE_KEY}
+
+                processors:
+                  # Batch processor for efficient export
+                  batch/export:
+                    send_batch_size: 1024
+                    timeout: 30s
+
+                  # Memory limiter to prevent OOM
+                  memory_limiter:
+                    limit_percentage: 80
+                    spike_limit_percentage: 30
+                    check_interval: 1s
+
+                  # Transform metric naming conventions
+                  transform/metric-naming:
+                    metric_statements:
+                      - context: metric
+                        statements:
+                          - replace_pattern(name, "_", ".")
+                          - replace_pattern(name, "\\.load\\.1", ".load_1")
+                          - replace_pattern(name, "\\.recent\\.util", ".recent_util")
+                          - replace_pattern(name, "file\\.descriptor\\.count", "file_descriptor.count")
+                          - replace_pattern(name, "\\.memory\\.pool\\.used\\.bytes$", ".memory.pool.used")
+                          - replace_pattern(name, "\\.memory\\.pool\\.max\\.bytes$", ".memory.pool.max")
+                          - replace_pattern(name, "\\.memory\\.pool\\.collection\\.used\\.bytes$", ".memory.pool.used_after_last_gc")
+                          - replace_pattern(name, "\\.non\\.preferred\\.leader", ".non_preferred_leader")
+                          - replace_pattern(name, "\\.under\\.min\\.isr", ".under_min_isr")
+                          - replace_pattern(name, "\\.under\\.replicated", ".under_replicated")
+                          - replace_pattern(name, "\\.total$", "") where name != "kafka.request.time.total"
+                      - context: datapoint
+                        statements:
+                          - set(attributes["name"], attributes["gc"]) where attributes["gc"] != nil
+                          - delete_key(attributes, "gc") where attributes["gc"] != nil
+                          - set(attributes["name"], attributes["pool"]) where attributes["pool"] != nil
+                          - delete_key(attributes, "pool") where attributes["pool"] != nil
+
+                  # Add cluster name to all metrics
+                  resource/cluster-name:
+                    attributes:
+                      - key: kafka.cluster.name
+                        # TODO#5: Replace with your Kafka cluster name (used to identify and filter metrics in New Relic)
+                        value: my-cluster
+                        action: upsert
+
+                  # Remove broker.id for cluster-level metrics
+                  transform/remove_broker_id:
+                    metric_statements:
+                      - context: datapoint
+                        statements:
+                          - delete_key(attributes, "broker.id")
+
+                  # Filter out scrape overhead metrics
+                  filter/scrape-overhead:
+                    metrics:
+                      exclude:
+                        match_type: regexp
+                        metric_names:
+                          - "^jmx_.*"
+                          - "^process_.*"
+                          - "^jvm_buffer_pool_.*"
+                          - "^jvm_threads_.*"
+                          - "^jvm_classes_.*"
+                          - "^jvm_memory_(heap|non_heap)_(committed|init|max|used)_bytes$"
+                          - "^jvm_compilation_.*"
+                          - "^jvm_(runtime|info).*"
+                          - "^jvm_memory_pool_(allocated_bytes_total|committed_bytes|init_bytes|collection_(committed|init|max)_bytes)$"
+
+                  # Include only cluster-level metrics for cluster pipeline
+                  filter/include_cluster_metrics:
+                    metrics:
+                      include:
+                        match_type: regexp
+                        metric_names:
+                          - "^kafka\\.partition\\.offline$"
+                          - "^kafka\\.(leader|unclean)\\.election\\.rate$"
+                          - "^kafka\\.partition\\.non_preferred_leader$"
+                          - "^kafka\\.broker\\.fenced\\.count$"
+                          - "^kafka\\.cluster\\.partition\\.count$"
+                          - "^kafka\\.cluster\\.topic\\.count$"
+
+                  # Exclude cluster-level metrics from broker pipeline
+                  filter/exclude_cluster_metrics:
+                    metrics:
+                      exclude:
+                        match_type: regexp
+                        metric_names:
+                          - "^kafka\\.partition\\.offline$"
+                          - "^kafka\\.(leader|unclean)\\.election\\.rate$"
+                          - "^kafka\\.partition\\.non_preferred_leader$"
+                          - "^kafka\\.broker\\.fenced\\.count$"
+                          - "^kafka\\.cluster\\.partition\\.count$"
+                          - "^kafka\\.cluster\\.topic\\.count$"
+
+                  # Remove unnecessary attributes
+                  transform/remove_attributes:
+                    metric_statements:
+                      - context: metric
+                        statements:
+                          - set(description, "") where description != ""
+                          - set(unit, "") where unit != ""
+                      - context: resource
+                        statements:
+                          - delete_key(attributes, "server.address")
+                          - delete_key(attributes, "server.port")
+                          - delete_key(attributes, "service.instance.id")
+                          - delete_key(attributes, "host.name")
+                          - delete_key(attributes, "k8s.pod.uid")
+                          - delete_key(attributes, "url.scheme")
+
+                  # Aggregate partition metrics to topic level
+                  metricstransform/topic-aggregation:
+                    transforms:
+                      - include: kafka.partition.replicas_in_sync
+                        action: insert
+                        new_name: kafka.partition.replicas_in_sync.total
+                        operations:
+                          - action: aggregate_labels
+                            label_set: [topic]
+                            aggregation_type: sum
+                      - include: kafka.partition.replicas
+                        action: insert
+                        new_name: kafka.partition.replicas.total
+                        operations:
+                          - action: aggregate_labels
+                            label_set: [topic]
+                            aggregation_type: sum
+
+                  # Filter out original partition replicas metric
+                  filter/exclude_partition_replicas_metric:
+                    metrics:
+                      exclude:
+                        match_type: strict
+                        metric_names:
+                          - kafka.partition.replicas_in_sync
+
+                  # Convert cumulative to delta metrics
+                  cumulativetodelta:
+
+                service:
+                  pipelines:
+                    # Override default traces pipeline to only use receivers that exist in NRDOT
+                    traces:
+                      receivers: [otlp]
+                      processors: [memory_limiter, batch]
+                      exporters: [debug]
+
+                    # Broker-level metrics from Prometheus JMX scraping
+                    metrics/broker:
+                      receivers:
+                        - prometheus/kafka-jmx
+                      processors:
+                        - resource/cluster-name
+                        - filter/scrape-overhead
+                        - transform/metric-naming
+                        - transform/remove_attributes
+                        - filter/exclude_cluster_metrics
+                        - memory_limiter
+                        - cumulativetodelta
+                        - batch/export
+                      exporters:
+                        - otlp/backend
+
+                    # Cluster-level metrics from Prometheus JMX scraping
+                    metrics/cluster/prometheus:
+                      receivers:
+                        - prometheus/kafka-jmx
+                      processors:
+                        - resource/cluster-name
+                        - filter/scrape-overhead
+                        - transform/metric-naming
+                        - transform/remove_attributes
+                        - filter/include_cluster_metrics
+                        - transform/remove_broker_id
+                        - memory_limiter
+                        - cumulativetodelta
+                        - batch/export
+                      exporters:
+                        - otlp/backend
+
+                    # Cluster-level metrics from Kafka metrics receiver
+                    metrics/cluster/kafkametrics:
+                      receivers:
+                        - kafkametrics/cluster
+                      processors:
+                        - resource/cluster-name
+                        - transform/remove_attributes
+                        - metricstransform/topic-aggregation
+                        - filter/exclude_partition_replicas_metric
+                        - memory_limiter
+                        - cumulativetodelta
+                        - batch/export
+                      exporters:
+                        - otlp/backend
+              ```
+
+              **클러스터에 맞게 사용자 지정하려면** 위의 Helm 구성 파일에서 TODO 항목을 업데이트하세요.
+
+              * TODO#1: Kafka 부트스트랩 서비스로 교체하세요
+              * TODO#2: Kafka 클러스터가 구현되는 지우스페이스로 교체하세요, 배포하다
+              * TODO#3: Strimzi Kafka 클러스터 이름 뒤에 오는 내용을 입력하세요. `-kafka`
+              * TODO#4: Strimzi Kafka 클러스터 이름으로 교체하세요
+              * TODO#5: Kafka 클러스터 이름으로 바꿉니다(이 이름은 뉴렐릭에서 지표를 식별하고 필터링하는 데 사용됩니다).
+            </Collapser>
+
+            <Collapser id="helm-otel" title="OpenTelemetry Collector 사용">
+              유연성을 극대화하고 공급업체 비종속 구현, 배포를 위해 커뮤니티 **OpenTelemetry Collector** 사용하세요.
+
+              다음 내용으로 `values.yaml` 생성하세요:
+
+              ```yaml
+              # Deployment mode
+              mode: deployment
+              replicaCount: 1
+
+              # Use contrib image for kafkametrics receiver
+              image:
+                repository: otel/opentelemetry-collector-contrib
+                tag: "latest"
+                pullPolicy: Always
+
+              # Service account configuration
+              serviceAccount:
+                create: true
+                name: otel-collector
+
+              # RBAC for Kubernetes service discovery
+              clusterRole:
+                create: true
+                rules:
+                  - apiGroups: [""]
+                    resources: ["pods", "nodes"]
+                    verbs: ["get", "list", "watch"]
+
+              # Pod security context
+              podSecurityContext:
+                runAsNonRoot: true
+                runAsUser: 10001
+
+              # Container security context
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+
+              # Resource limits
+              resources:
+                requests:
+                  memory: 512Mi
+                  cpu: 250m
+                limits:
+                  memory: 1Gi
+                  cpu: 500m
+
+              # Load environment variables from secret
+              extraEnvsFrom:
+                - secretRef:
+                    name: newrelic-otlp-secret
+
+              # OpenTelemetry Collector Configuration
+              config:
+                receivers:
+                  # Kafka metrics receiver for cluster-level metrics
+                  kafkametrics/cluster:
+                    brokers:
+                      # TODO#1: Replace with your Kafka bootstrap service
+                      - "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
+                    collection_interval: 30s
+                    protocol_version: 2.0.0
+                    scrapers:
+                      - brokers
+                      - topics
+                      - consumers
+                    metrics:
+                      kafka.topic.min_insync_replicas:
+                        enabled: true
+                      kafka.topic.replication_factor:
+                        enabled: true
+                      kafka.partition.replicas:
+                        enabled: false
+                      kafka.partition.oldest_offset:
+                        enabled: false
+                      kafka.partition.current_offset:
+                        enabled: false
+
+                  # Prometheus receiver for JMX metrics from Kafka brokers
+                  prometheus/kafka-jmx:
+                    config:
+                      scrape_configs:
+                        - job_name: 'kafka-jmx-metrics'
+                          scrape_interval: 30s
+                          kubernetes_sd_configs:
+                            - role: pod
+                              namespaces:
+                                names:
+                                  # TODO#2: Replace with the namespace where your Kafka cluster is deployed
+                                  - newrelic
+                          relabel_configs:
+                            # Filter for Kafka broker pods
+                            - source_labels: [__meta_kubernetes_pod_label_strimzi_io_name]
+                              action: keep
+                              # TODO#3: Replace with your Strimzi Kafka cluster name followed by '-kafka'
+                              regex: my-cluster-kafka
+
+                            - source_labels: [__meta_kubernetes_pod_label_strimzi_io_cluster]
+                              action: keep
+                              # TODO#4: Replace with your Strimzi Kafka cluster name
+                              regex: my-cluster
+
+                            # Extract broker ID from pod name
+                            - source_labels: [__meta_kubernetes_pod_name]
+                              target_label: broker.id
+                              regex: '.*-(\\d+)$'
+                              replacement: '$1'
+
+                            # Set scrape target to pod IP on port 9404
+                            - source_labels: [__meta_kubernetes_pod_ip]
+                              target_label: __address__
+                              replacement: '$1:9404'
+
+                exporters:
+                  # New Relic OTLP exporter
+                  otlp/backend:
+                    endpoint: ${NEW_RELIC_OTLP_ENDPOINT}
+                    tls:
+                      insecure: false
+                    sending_queue:
+                      num_consumers: 12
+                      queue_size: 5000
+                    retry_on_failure:
+                      enabled: true
+                    headers:
+                      api-key: ${NEW_RELIC_LICENSE_KEY}
+
+                processors:
+                  # Batch processor for efficient export
+                  batch/export:
+                    send_batch_size: 1024
+                    timeout: 30s
+
+                  # Memory limiter to prevent OOM
+                  memory_limiter:
+                    limit_percentage: 80
+                    spike_limit_percentage: 30
+                    check_interval: 1s
+
+                  # Transform metric naming conventions
+                  transform/metric-naming:
+                    metric_statements:
+                      - context: metric
+                        statements:
+                          - replace_pattern(name, "_", ".")
+                          - replace_pattern(name, "\\.load\\.1", ".load_1")
+                          - replace_pattern(name, "\\.recent\\.util", ".recent_util")
+                          - replace_pattern(name, "file\\.descriptor\\.count", "file_descriptor.count")
+                          - replace_pattern(name, "\\.memory\\.pool\\.used\\.bytes$", ".memory.pool.used")
+                          - replace_pattern(name, "\\.memory\\.pool\\.max\\.bytes$", ".memory.pool.max")
+                          - replace_pattern(name, "\\.memory\\.pool\\.collection\\.used\\.bytes$", ".memory.pool.used_after_last_gc")
+                          - replace_pattern(name, "\\.non\\.preferred\\.leader", ".non_preferred_leader")
+                          - replace_pattern(name, "\\.under\\.min\\.isr", ".under_min_isr")
+                          - replace_pattern(name, "\\.under\\.replicated", ".under_replicated")
+                          - replace_pattern(name, "\\.total$", "") where name != "kafka.request.time.total"
+                      - context: datapoint
+                        statements:
+                          - set(attributes["name"], attributes["gc"]) where attributes["gc"] != nil
+                          - delete_key(attributes, "gc") where attributes["gc"] != nil
+                          - set(attributes["name"], attributes["pool"]) where attributes["pool"] != nil
+                          - delete_key(attributes, "pool") where attributes["pool"] != nil
+
+                  # Add cluster name to all metrics
+                  resource/cluster-name:
+                    attributes:
+                      - key: kafka.cluster.name
+                        # TODO#5: Replace with your Kafka cluster name (used to identify and filter metrics in New Relic)
+                        value: my-cluster
+                        action: upsert
+
+                  # Remove broker.id for cluster-level metrics
+                  transform/remove_broker_id:
+                    metric_statements:
+                      - context: datapoint
+                        statements:
+                          - delete_key(attributes, "broker.id")
+
+                  # Filter out scrape overhead metrics
+                  filter/scrape-overhead:
+                    metrics:
+                      exclude:
+                        match_type: regexp
+                        metric_names:
+                          - "^jmx_.*"
+                          - "^process_.*"
+                          - "^jvm_buffer_pool_.*"
+                          - "^jvm_threads_.*"
+                          - "^jvm_classes_.*"
+                          - "^jvm_memory_(heap|non_heap)_(committed|init|max|used)_bytes$"
+                          - "^jvm_compilation_.*"
+                          - "^jvm_(runtime|info).*"
+                          - "^jvm_memory_pool_(allocated_bytes_total|committed_bytes|init_bytes|collection_(committed|init|max)_bytes)$"
+
+                  # Include only cluster-level metrics for cluster pipeline
+                  filter/include_cluster_metrics:
+                    metrics:
+                      include:
+                        match_type: regexp
+                        metric_names:
+                          - "^kafka\\.partition\\.offline$"
+                          - "^kafka\\.(leader|unclean)\\.election\\.rate$"
+                          - "^kafka\\.partition\\.non_preferred_leader$"
+                          - "^kafka\\.broker\\.fenced\\.count$"
+                          - "^kafka\\.cluster\\.partition\\.count$"
+                          - "^kafka\\.cluster\\.topic\\.count$"
+
+                  # Exclude cluster-level metrics from broker pipeline
+                  filter/exclude_cluster_metrics:
+                    metrics:
+                      exclude:
+                        match_type: regexp
+                        metric_names:
+                          - "^kafka\\.partition\\.offline$"
+                          - "^kafka\\.(leader|unclean)\\.election\\.rate$"
+                          - "^kafka\\.partition\\.non_preferred_leader$"
+                          - "^kafka\\.broker\\.fenced\\.count$"
+                          - "^kafka\\.cluster\\.partition\\.count$"
+                          - "^kafka\\.cluster\\.topic\\.count$"
+
+                  # Remove unnecessary attributes
+                  transform/remove_attributes:
+                    metric_statements:
+                      - context: metric
+                        statements:
+                          - set(description, "") where description != ""
+                          - set(unit, "") where unit != ""
+                      - context: resource
+                        statements:
+                          - delete_key(attributes, "server.address")
+                          - delete_key(attributes, "server.port")
+                          - delete_key(attributes, "service.instance.id")
+                          - delete_key(attributes, "host.name")
+                          - delete_key(attributes, "k8s.pod.uid")
+                          - delete_key(attributes, "url.scheme")
+
+                  # Aggregate partition metrics to topic level
+                  metricstransform/topic-aggregation:
+                    transforms:
+                      - include: kafka.partition.replicas_in_sync
+                        action: insert
+                        new_name: kafka.partition.replicas_in_sync.total
+                        operations:
+                          - action: aggregate_labels
+                            label_set: [topic]
+                            aggregation_type: sum
+                      - include: kafka.partition.replicas
+                        action: insert
+                        new_name: kafka.partition.replicas.total
+                        operations:
+                          - action: aggregate_labels
+                            label_set: [topic]
+                            aggregation_type: sum
+
+                  # Filter out original partition replicas metric
+                  filter/exclude_partition_replicas_metric:
+                    metrics:
+                      exclude:
+                        match_type: strict
+                        metric_names:
+                          - kafka.partition.replicas_in_sync
+
+                  # Convert cumulative to delta metrics
+                  cumulativetodelta:
+
+                service:
+                  pipelines:
+                    # Override default pipelines to only use custom Kafka metrics pipelines
+                    traces: null
+                    logs: null
+                    metrics: null
+
+                    # Broker-level metrics from Prometheus JMX scraping
+                    metrics/broker:
+                      receivers:
+                        - prometheus/kafka-jmx
+                      processors:
+                        - resource/cluster-name
+                        - filter/scrape-overhead
+                        - transform/metric-naming
+                        - transform/remove_attributes
+                        - filter/exclude_cluster_metrics
+                        - memory_limiter
+                        - cumulativetodelta
+                        - batch/export
+                      exporters:
+                        - otlp/backend
+
+                    # Cluster-level metrics from Prometheus JMX scraping
+                    metrics/cluster/prometheus:
+                      receivers:
+                        - prometheus/kafka-jmx
+                      processors:
+                        - resource/cluster-name
+                        - filter/scrape-overhead
+                        - transform/metric-naming
+                        - transform/remove_attributes
+                        - filter/include_cluster_metrics
+                        - transform/remove_broker_id
+                        - memory_limiter
+                        - cumulativetodelta
+                        - batch/export
+                      exporters:
+                        - otlp/backend
+
+                    # Cluster-level metrics from Kafka metrics receiver
+                    metrics/cluster/kafkametrics:
+                      receivers:
+                        - kafkametrics/cluster
+                      processors:
+                        - resource/cluster-name
+                        - transform/remove_attributes
+                        - metricstransform/topic-aggregation
+                        - filter/exclude_partition_replicas_metric
+                        - memory_limiter
+                        - cumulativetodelta
+                        - batch/export
+                      exporters:
+                        - otlp/backend
+              ```
+
+              **클러스터에 맞게 사용자 지정하려면** 위의 Helm 구성 파일에서 TODO 항목을 업데이트하세요.
+
+              * TODO#1: Kafka 부트스트랩 서비스로 교체하세요
+              * TODO#2: Kafka 클러스터가 구현되는 지우스페이스로 교체하세요, 배포하다
+              * TODO#3: Strimzi Kafka 클러스터 이름 뒤에 오는 내용을 입력하세요. `-kafka`
+              * TODO#4: Strimzi Kafka 클러스터 이름으로 교체하세요
+              * TODO#5: Kafka 클러스터 이름으로 바꿉니다(이 이름은 뉴렐릭에서 지표를 식별하고 필터링하는 데 사용됩니다).
+            </Collapser>
+          </CollapserGroup>
+
+          고급 설정 옵션에 대해서는 다음 수신기 설명서 페이지를 참조하십시오.
+
+          * [Prometheus 수신기 문서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver) - 추가 수신기 설정 옵션
+          * [Kafka 지표 수신기 문서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/kafkametricsreceiver) - 추가 Kafka 지표 설정
+
+          **Helm을 사용하여 OpenTelemetry Collector를 설치합니다.**
+
+          Helm 저장소를 추가하고 values.yaml 파일을 사용하여 OpenTelemetry Collector를 설치하세요.
+
+          ```bash
+          helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+          helm upgrade kafka-monitoring open-telemetry/opentelemetry-collector \
+            --install \
+            --namespace newrelic \
+            --create-namespace \
+            -f values.yaml
+          ```
+
+          **구현을 확인하세요.**
+
+          ```bash
+          # Check pod status
+          kubectl get pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+
+          # View logs to verify metrics collection
+          kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector --tail=50
+          ```
+
+          포트 9404의 Kafka 브로커에서 스크래핑이 성공적으로 완료되었음을 나타내는 로그를 확인할 수 있습니다.
+        </TabsPageItem>
+
+        <TabsPageItem id="manifest">
+          매니페스트 설치 방식은 Helm을 사용하지 않고도 Kubernetes 리소스를 직접 제어할 수 있도록 해줍니다.
+
+          **뉴렐릭 자격 증명 비밀을 생성합니다.**
+
+          뉴렐릭 클러스터 키 및 OTLP 엔드포인트가 포함된 Kubernetes 시크릿을 생성하세요. 귀하의 뉴렐릭 지역에 맞는 포인트를 선택하세요:
+
+          <CollapserGroup>
+            <Collapser id="manifest-secret-us" title="미국 지역">
+              ```bash
+              kubectl create secret generic newrelic-otlp-secret \
+                --namespace newrelic \
+                --from-literal=NEW_RELIC_LICENSE_KEY='your-license-key-here' \
+                --from-literal=NEW_RELIC_OTLP_ENDPOINT='https://otlp.nr-data.net:4317'
+              ```
+            </Collapser>
+
+            <Collapser id="manifest-secret-eu" title="EU 지역">
+              ```bash
+              kubectl create secret generic newrelic-otlp-secret \
+                --namespace newrelic \
+                --from-literal=NEW_RELIC_LICENSE_KEY='your-license-key-here' \
+                --from-literal=NEW_RELIC_OTLP_ENDPOINT='https://eu01-otlp.nr-data.net:4317'
+              ```
+            </Collapser>
+          </CollapserGroup>
+
+          <Callout variant="tip">
+            다른 엔드포인트 설정에 대해서는 [OTLP 엔드포인트 구성을](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 참조하세요.
+          </Callout>
+
+          **매니페스트 파일 생성**
+
+          원하는 수집기를 위한 Kubernetes 매니페스트 파일을 생성하세요. 두 수집기 모두 동일한 설정을 사용하며 이미지만 다릅니다.
+
+          수집기 옵션을 선택하고 필요한 파일 세 개를 생성하세요.
+
+          <CollapserGroup>
+            <Collapser id="manifest-nrdot" title="NRDOT Collector 사용(권장)">
+              **NRDOT** 은 뉴릭에서 지원하는 OpenTelemetry Collector 배포판으로, 뉴릭에 대한 완벽한 지원을 제공합니다. 자세한 내용은 [NRDOT Collector GitHub 저장소를](https://github.com/newrelic/nrdot-collector-releases/tree/main/distributions/nrdot-collector) 참조하세요.
+
+              **1. \{…} 생성** - Kubernetes API 접근을 위한 RBAC 구성:
+
+              ```yaml
+              ---
+              apiVersion: v1
+              kind: ServiceAccount
+              metadata:
+                name: otel-collector
+                namespace: newrelic
+                labels:
+                  app: otel-collector
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRole
+              metadata:
+                name: otel-collector
+                labels:
+                  app: otel-collector
+              rules:
+              - apiGroups: [""]
+                resources: ["pods", "nodes"]
+                verbs: ["get", "list", "watch"]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: otel-collector
+                labels:
+                  app: otel-collector
+              subjects:
+              - kind: ServiceAccount
+                name: otel-collector
+                namespace: newrelic
+              roleRef:
+                kind: ClusterRole
+                name: otel-collector
+                apiGroup: rbac.authorization.k8s.io
+              ```
+
+              **2. `collector-configmap.yaml` 생성** - OpenTelemetry Collector 구성:
+
+              ```yaml
+              ---
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+              name: otel-collector-config
+              namespace: newrelic
+              labels:
+              app: otel-collector
+              data:
+              otel-collector-config.yaml: |
+              receivers:
+                kafkametrics/cluster:
+                  brokers:
+                    # TODO#1: Replace with your Kafka bootstrap service
+                    - "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
+                  collection_interval: 30s
+                  protocol_version: 2.0.0
+                  scrapers:
+                    - brokers
+                    - topics
+                    - consumers
+                  metrics:
+                    kafka.topic.min_insync_replicas:
+                      enabled: true
+                    kafka.topic.replication_factor:
+                      enabled: true
+                    kafka.partition.replicas:
+                      enabled: false
+                    kafka.partition.oldest_offset:
+                      enabled: false
+                    kafka.partition.current_offset:
+                      enabled: false
+
+                prometheus/kafka-jmx:
+                  config:
+                    scrape_configs:
+                      - job_name: 'kafka-jmx-metrics'
+                        scrape_interval: 30s
+                        kubernetes_sd_configs:
+                          - role: pod
+                            namespaces:
+                              names:
+                                # TODO#2: Replace with the namespace where your Kafka cluster is deployed
+                                - kafka
+                        relabel_configs:
+                          - source_labels: [__meta_kubernetes_pod_label_strimzi_io_name]
+                            action: keep
+                            # TODO#3: Replace with your Strimzi Kafka cluster name followed by '-kafka'
+                            regex: my-cluster-kafka
+                          - source_labels: [__meta_kubernetes_pod_label_strimzi_io_cluster]
+                            action: keep
+                            # TODO#4: Replace with your Strimzi Kafka cluster name
+                            regex: my-cluster
+                          - source_labels: [__meta_kubernetes_pod_name]
+                            target_label: broker.id
+                            regex: '.*-(\\d+)$'
+                            replacement: '$1'
+                          - source_labels: [__meta_kubernetes_pod_ip]
+                            target_label: __address__
+                            replacement: '$1:9404'
+
+              exporters:
+                otlp/backend:
+                  endpoint: ${NEW_RELIC_OTLP_ENDPOINT}
+                  tls:
+                    insecure: false
+                  sending_queue:
+                    num_consumers: 12
+                    queue_size: 5000
+                  retry_on_failure:
+                    enabled: true
+                  headers:
+                    api-key: ${NEW_RELIC_LICENSE_KEY}
+
+              processors:
+                batch/export:
+                  send_batch_size: 1024
+                  timeout: 30s
+                memory_limiter:
+                  limit_percentage: 80
+                  spike_limit_percentage: 30
+                  check_interval: 1s
+                transform/metric-naming:
+                  metric_statements:
+                  - context: metric
+                    statements:
+                    - replace_pattern(name, "_", ".")
+                    - replace_pattern(name, "\\.load\\.1", ".load_1")
+                    - replace_pattern(name, "\\.recent\\.util", ".recent_util")
+                    - replace_pattern(name, "file\\.descriptor\\.count", "file_descriptor.count")
+                    - replace_pattern(name, "\\.memory\\.pool\\.used\\.bytes$", ".memory.pool.used")
+                    - replace_pattern(name, "\\.memory\\.pool\\.max\\.bytes$", ".memory.pool.max")
+                    - replace_pattern(name, "\\.memory\\.pool\\.collection\\.used\\.bytes$", ".memory.pool.used_after_last_gc")
+                    - replace_pattern(name, "\\.non\\.preferred\\.leader", ".non_preferred_leader")
+                    - replace_pattern(name, "\\.under\\.min\\.isr", ".under_min_isr")
+                    - replace_pattern(name, "\\.under\\.replicated", ".under_replicated")
+                    - replace_pattern(name, "\\.total$", "") where name != "kafka.request.time.total"
+                  - context: datapoint
+                    statements:
+                    - set(attributes["name"], attributes["gc"]) where attributes["gc"] != nil
+                    - delete_key(attributes, "gc") where attributes["gc"] != nil
+                    - set(attributes["name"], attributes["pool"]) where attributes["pool"] != nil
+                    - delete_key(attributes, "pool") where attributes["pool"] != nil
+                resource/cluster-name:
+                  attributes:
+                  - key: kafka.cluster.name
+                    # TODO#5: Replace with your Kafka cluster name (used to identify and filter metrics in New Relic)
+                    value: my-cluster
+                    action: upsert
+                transform/remove_broker_id:
+                  metric_statements:
+                  - context: datapoint
+                    statements:
+                    - delete_key(attributes, "broker.id")
+                filter/scrape-overhead:
+                  metrics:
+                    exclude:
+                      match_type: regexp
+                      metric_names:
+                      - "^jmx_.*"
+                      - "^process_.*"
+                      - "^jvm_buffer_pool_.*"
+                      - "^jvm_threads_.*"
+                      - "^jvm_classes_.*"
+                      - "^jvm_memory_(heap|non_heap)_(committed|init|max|used)_bytes$"
+                      - "^jvm_compilation_.*"
+                      - "^jvm_(runtime|info).*"
+                      - "^jvm_memory_pool_(allocated_bytes_total|committed_bytes|init_bytes|collection_(committed|init|max)_bytes)$"
+                filter/include_cluster_metrics:
+                  metrics:
+                    include:
+                      match_type: regexp
+                      metric_names:
+                      - "^kafka\\.partition\\.offline$"
+                      - "^kafka\\.(leader|unclean)\\.election\\.rate$"
+                      - "^kafka\\.partition\\.non_preferred_leader$"
+                      - "^kafka\\.broker\\.fenced\\.count$"
+                      - "^kafka\\.cluster\\.partition\\.count$"
+                      - "^kafka\\.cluster\\.topic\\.count$"
+                filter/exclude_cluster_metrics:
+                  metrics:
+                    exclude:
+                      match_type: regexp
+                      metric_names:
+                      - "^kafka\\.partition\\.offline$"
+                      - "^kafka\\.(leader|unclean)\\.election\\.rate$"
+                      - "^kafka\\.partition\\.non_preferred_leader$"
+                      - "^kafka\\.broker\\.fenced\\.count$"
+                      - "^kafka\\.cluster\\.partition\\.count$"
+                      - "^kafka\\.cluster\\.topic\\.count$"
+                transform/remove_attributes:
+                  metric_statements:
+                  - context: metric
+                    statements:
+                    - set(description, "") where description != ""
+                    - set(unit, "") where unit != ""
+                  - context: resource
+                    statements:
+                    - delete_key(attributes, "server.address")
+                    - delete_key(attributes, "server.port")
+                    - delete_key(attributes, "service.instance.id")
+                    - delete_key(attributes, "host.name")
+                    - delete_key(attributes, "k8s.pod.uid")
+                    - delete_key(attributes, "url.scheme")
+                metricstransform/topic-aggregation:
+                  transforms:
+                  - include: kafka.partition.replicas_in_sync
+                    action: insert
+                    new_name: kafka.partition.replicas_in_sync.total
+                    operations:
+                    - action: aggregate_labels
+                      label_set: [topic]
+                      aggregation_type: sum
+                  - include: kafka.partition.replicas
+                    action: insert
+                    new_name: kafka.partition.replicas.total
+                    operations:
+                    - action: aggregate_labels
+                      label_set: [topic]
+                      aggregation_type: sum
+                filter/exclude_partition_replicas_metric:
+                  metrics:
+                    exclude:
+                      match_type: strict
+                      metric_names:
+                      - kafka.partition.replicas_in_sync
+                cumulativetodelta:
+
+              service:
+                pipelines:
+                  metrics/broker:
+                    receivers: [prometheus/kafka-jmx]
+                    processors:
+                      - resource/cluster-name
+                      - filter/scrape-overhead
+                      - transform/metric-naming
+                      - transform/remove_attributes
+                      - filter/exclude_cluster_metrics
+                      - memory_limiter
+                      - cumulativetodelta
+                      - batch/export
+                    exporters: [otlp/backend]
+                  metrics/cluster/prometheus:
+                    receivers: [prometheus/kafka-jmx]
+                    processors:
+                      - resource/cluster-name
+                      - filter/scrape-overhead
+                      - transform/metric-naming
+                      - transform/remove_attributes
+                      - filter/include_cluster_metrics
+                      - transform/remove_broker_id
+                      - memory_limiter
+                      - cumulativetodelta
+                      - batch/export
+                    exporters: [otlp/backend]
+                  metrics/cluster/kafkametrics:
+                    receivers: [kafkametrics/cluster]
+                    processors:
+                      - resource/cluster-name
+                      - transform/remove_attributes
+                      - metricstransform/topic-aggregation
+                      - filter/exclude_partition_replicas_metric
+                      - memory_limiter
+                      - cumulativetodelta
+                      - batch/export
+                    exporters: [otlp/backend]
+              ```
+
+              **3. `collector-deployment.yaml` 생성** - OpenTelemetry Collector 배포:
+
+              ```yaml
+              ---
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: otel-collector
+                namespace: newrelic
+                labels:
+                  app: otel-collector
+              spec:
+                replicas: 1
+                selector:
+                  matchLabels:
+                    app: otel-collector
+                template:
+                  metadata:
+                    labels:
+                      app: otel-collector
+                  spec:
+                    serviceAccountName: otel-collector
+                    containers:
+                    - name: otel-collector
+                      image: newrelic/nrdot-collector:latest
+                      command:
+                      - "/nrdot-collector"
+                      - "--config=/conf/otel-collector-config.yaml"
+                      env:
+                      - name: NEW_RELIC_LICENSE_KEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-otlp-secret
+                            key: NEW_RELIC_LICENSE_KEY
+                      - name: NEW_RELIC_OTLP_ENDPOINT
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-otlp-secret
+                            key: NEW_RELIC_OTLP_ENDPOINT
+                      - name: GOGC
+                        value: "80"
+                      resources:
+                        limits:
+                          cpu: "1000m"
+                          memory: "1Gi"
+                        requests:
+                          cpu: "200m"
+                          memory: "512Mi"
+                      volumeMounts:
+                      - name: config
+                        mountPath: /conf
+                    volumes:
+                    - name: config
+                      configMap:
+                        name: otel-collector-config
+                        items:
+                        - key: otel-collector-config.yaml
+                          path: otel-collector-config.yaml
+              ```
+
+              **구현하다, 배포하기 전에 사용자 정의**: `collector-configmap.yaml` 에서 TODO 항목을 업데이트합니다.
+
+              * TODO#1: Kafka 부트스트랩 서비스로 교체하세요
+              * TODO#2: Kafka 클러스터가 구현되는 지우스페이스로 교체하세요, 배포하다
+              * TODO#3: Strimzi Kafka 클러스터 이름 뒤에 오는 내용을 입력하세요. `-kafka`
+              * TODO#4: Strimzi Kafka 클러스터 이름으로 교체하세요
+              * TODO#5: Kafka 클러스터 이름으로 바꿉니다(이 이름은 뉴렐릭에서 지표를 식별하고 필터링하는 데 사용됩니다).
+            </Collapser>
+
+            <Collapser id="manifest-otel" title="OpenTelemetry Collector 사용">
+              공급업체 비종속 구현, 배포를 위해 커뮤니티 **OpenTelemetry Collector** 사용하세요.
+
+              **1. `collector-rbac.yaml` 생성** - 위의 NRDOT 옵션과 동일합니다(RBAC 구성은 동일합니다).
+
+              **2. `collector-configmap.yaml` 생성** - 위의 NRDOT 옵션과 동일합니다(구성도 동일).
+
+              **3. `collector-deployment.yaml` 생성** - OpenTelemetry Collector 배포(이미지만 다름):
+
+              ```yaml
+              ---
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: otel-collector
+                namespace: newrelic
+                labels:
+                  app: otel-collector
+              spec:
+                replicas: 1
+                selector:
+                  matchLabels:
+                    app: otel-collector
+                template:
+                  metadata:
+                    labels:
+                      app: otel-collector
+                  spec:
+                    serviceAccountName: otel-collector
+                    containers:
+                    - name: otel-collector
+                      image: otel/opentelemetry-collector-contrib:latest
+                      command:
+                      - "/otelcol-contrib"
+                      - "--config=/conf/otel-collector-config.yaml"
+                      env:
+                      - name: NEW_RELIC_LICENSE_KEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-otlp-secret
+                            key: NEW_RELIC_LICENSE_KEY
+                      - name: NEW_RELIC_OTLP_ENDPOINT
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-otlp-secret
+                            key: NEW_RELIC_OTLP_ENDPOINT
+                      - name: GOGC
+                        value: "80"
+                      resources:
+                        limits:
+                          cpu: "1000m"
+                          memory: "1Gi"
+                        requests:
+                          cpu: "200m"
+                          memory: "512Mi"
+                      volumeMounts:
+                      - name: config
+                        mountPath: /conf
+                    volumes:
+                    - name: config
+                      configMap:
+                        name: otel-collector-config
+                        items:
+                        - key: otel-collector-config.yaml
+                          path: otel-collector-config.yaml
+              ```
+
+              **구현하다, 배포하기 전에 사용자 정의**: `collector-configmap.yaml` 에서 TODO 항목을 업데이트합니다.
+
+              * TODO#1: Kafka 부트스트랩 서비스로 교체하세요
+              * TODO#2: Kafka 클러스터가 구현되는 지우스페이스로 교체하세요, 배포하다
+              * TODO#3: Strimzi Kafka 클러스터 이름 뒤에 오는 내용을 입력하세요. `-kafka`
+              * TODO#4: Strimzi Kafka 클러스터 이름으로 교체하세요
+              * TODO#5: Kafka 클러스터 이름으로 바꿉니다(이 이름은 뉴렐릭에서 지표를 식별하고 필터링하는 데 사용됩니다).
+            </Collapser>
+          </CollapserGroup>
+
+          고급 설정 옵션에 대해서는 다음 수신기 설명서 페이지를 참조하십시오.
+
+          * [Prometheus 수신기 문서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver) - 추가 수신기 설정 옵션
+          * [Kafka 지표 수신기 문서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/kafkametricsreceiver) - 추가 Kafka 지표 설정
+
+          **구현하다, 배포하다 매니페스트**
+
+          Kubernetes 매니페스트를 구현에 적용하고 OpenTelemetry Collector 배포합니다.
+
+          ```bash
+          # Create namespace if it doesn't exist
+          kubectl create namespace newrelic --dry-run=client -o yaml | kubectl apply -f -
+
+          # Apply RBAC configuration
+          kubectl apply -f collector-rbac.yaml
+
+          # Apply ConfigMap
+          kubectl apply -f collector-configmap.yaml
+
+          # Apply Deployment
+          kubectl apply -f collector-deployment.yaml
+          ```
+
+          **구현을 확인하세요.**
+
+          ```bash
+          # Check pod status
+          kubectl get pods -n newrelic -l app=otel-collector
+
+          # View logs to verify metrics collection
+          kubectl logs -n newrelic -l app=otel-collector --tail=50
+          ```
+
+          포트 9404의 Kafka 브로커에서 스크래핑이 성공적으로 완료되었음을 나타내는 로그를 확인할 수 있습니다.
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ### (선택사항) 제작자 또는 소비자를 위해 [#instrument-apps]
+
+    <Callout variant="important">
+      **언어 지원**: OpenTelemetry 측 에이전트를 사용하여 즉시 사용 가능한 Kafka 클라이언트 측정을 지원합니다.
+    </Callout>
+
+    Kafka 생산자 및 소비자 근로자로부터 디버그 수준의 텔레메트리를 수집하려면 OpenTelemetry 클라이언트 에이전트를 사용하세요.
+
+    #### 당신의 Kafka를 편집하세요
+
+    init 컨테이너를 사용하여 런타임에 OpenTelemetry 저항 에이전트를 다운로드합니다.
+
+    ```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: kafka-producer-app
+    spec:
+      template:
+        spec:
+          initContainers:
+          - name: download-java-agent
+            image: busybox:latest
+            command:
+            - sh
+            - -c
+            - |
+              wget -O /otel-auto-instrumentation/opentelemetry-javaagent.jar \
+              https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
+            volumeMounts:
+            - name: otel-auto-instrumentation
+              mountPath: /otel-auto-instrumentation
+
+          containers:
+          - name: app
+            image: your-kafka-app:latest
+            env:
+            - name: JAVA_TOOL_OPTIONS
+              value: >-
+                -javaagent:/otel-auto-instrumentation/opentelemetry-javaagent.jar
+                -Dotel.service.name=order-process-service
+                -Dotel.resource.attributes=kafka.cluster.name=my-cluster
+                -Dotel.exporter.otlp.endpoint=http://localhost:4317
+                -Dotel.exporter.otlp.protocol=grpc
+                -Dotel.metrics.exporter=otlp
+                -Dotel.traces.exporter=otlp
+                -Dotel.logs.exporter=otlp
+                -Dotel.instrumentation.kafka.experimental-span-attributes=true
+                -Dotel.instrumentation.messaging.experimental.receive-telemetry.enabled=true
+                -Dotel.instrumentation.kafka.producer-propagation.enabled=true
+                -Dotel.instrumentation.kafka.enabled=true
+            volumeMounts:
+            - name: otel-auto-instrumentation
+              mountPath: /otel-auto-instrumentation
+
+          volumes:
+          - name: otel-auto-instrumentation
+            emptyDir: {}
     ```
 
     **설정 참고 사항:**
 
-    * `include` 경로 패턴을 Kafka 로그 파일 위치에 맞게 업데이트하세요.
-    * 브로커 식별자에 맞게 `broker.id` 조정하세요.
-    * `multiline` 패턴은 로그가 `[` 로 시작한다고 가정합니다. 로그 형식이 다르면 조정하십시오.
-    * 전체 설정 옵션 및 고급 패턴에 대한 자세한 내용은 [파일 로그 수신기 설명서를](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/filelogreceiver)참조하십시오.
+    * `order-process-service` 생산자 또는 소비자 애플리케이션에 대한 고유한 이름으로 바꾸십시오.
+    * `my-cluster` 수집기 설정에 사용된 것과 동일한 클러스터 이름으로 바꾸세요.
+    * 엔드포인트 `http://localhost:4317` 는 수집기가 동일한 파드에서 사이드카로 실행 중이거나 localhost를 통해 액세스할 수 있다고 가정합니다.
 
-    업데이트된 설정을 적용하세요:
+    <Callout variant="tip">
+      위의 설정은 텔레메트리를 OpenTelemetry Collector 로 보냅니다. 망원경을 수집기로 보내야 하는 경우 [3단계](#deploy-opentelemetry-collector) 에 설명된 대로 다음 설정을 사용하여 구현하고 배포합니다.
 
-    ```bash
-    kubectl apply -f otel-collector-config.yaml
-    kubectl rollout restart deployment -n kafka otel-collector
-    ```
-  </Collapser>
+      <CollapserGroup>
+        <Collapser id="app-collector-config" title="텔레메트리의 Collector 설정">
+          OTLP 수신기와 파이프라인을 수집기 설정에 추가하여 HTML 버전리의 HTML 소스를 받으십시오.
 
-  <Collapser id="find-logs-in-new-relic" title="뉴렐릭에서 내 로그인 찾기">
-    Kafka 브로커 로그는 다음 두 곳에서 확인할 수 있습니다.
+          **수신자 섹션에 추가:**
 
-    * **브로커 부분**: 특정 브로커와 상관 관계가 있는 로그를 보려면 뉴렐릭의 Kafka 브로커 부분으로 이동하세요.
-    * **로그 UI**: 다음과 같은 필터가 포함된 [로그 UI](/docs/logs/ui-data/use-logs-ui/) 사용하여 모든 Kafka 로그를 쿼리합니다. `kafka.cluster.name = 'my-cluster'`
+          ```yaml
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: "0.0.0.0:4317"
 
-    NRQL을 사용하여 로그를 쿼리할 수도 있습니다.
+            # ... existing receivers (prometheus/kafka-jmx, kafkametrics/cluster)
+          ```
 
-    ```sql
-    FROM Log SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
-    ```
-  </Collapser>
-</CollapserGroup>
+          **수출업체 목록에 추가:**
 
-## 데이터 찾기 [#find-data]
+          ```yaml
+          exporters:
+            otlp/backend:
+              endpoint: ${NEW_RELIC_OTLP_ENDPOINT}
+              headers:
+                api-key: ${NEW_RELIC_LICENSE_KEY}
+
+            # ... existing exporters
+          ```
+
+          **service.pipelines 섹션에 추가하세요:**
+
+          ```yaml
+          service:
+            pipelines:
+              traces:
+                receivers: [otlp]
+                exporters: [otlp/backend]
+
+              metrics:
+                receivers: [otlp]
+                exporters: [otlp/backend]
+
+              logs:
+                receivers: [otlp]
+                exporters: [otlp/backend]
+
+              # ... existing pipelines (metrics/broker, metrics/cluster/prometheus, metrics/cluster/kafkametrics)
+          ```
+
+          이를 통해 수집기가 원본 Kafka 클라이언트로부터 로그, 로그, 트레이스 등을 수신하여 브로커 지표와 함께 뉴렐릭으로 전달할 수 있습니다.
+        </Collapser>
+      </CollapserGroup>
+    </Callout>
+
+    잔류 에이전트는 코드 변경이 전혀 없는 [기본 Kafka 측정,](https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/out-of-the-box-instrumentation/) 캡처 기능을 제공합니다.
+
+    * 요청 지연시간
+    * 처리량 지표
+    * 오류율
+    * 분산 추적
+
+    고급 설정에 대해서는 [Kafka 측정, 로그 문서를](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/kafka) 참조하세요.
+  </Step>
+</Steps>
+
+## 데이터 찾기
 
 몇 분 후, Kafka 창이 뉴렐릭에 나타날 것입니다. 뉴렐릭 UI 의 다양한 보기에서 Kafka 범위를 탐색하는 방법에 대한 자세한 지침은 [&quot;데이터 찾기&quot;를](/docs/opentelemetry/integrations/kafka/find-and-query-data) 참조하세요.
 
@@ -888,31 +1755,38 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
 
 <CollapserGroup>
   <Collapser id="enable-debug-logging" title="디버그 로깅 활성화">
-    **수집기 디버그 로그 활성화**: 설정 문제를 해결하기 위해 자세한 로깅을 추가합니다.
+    **1. 수집기 디버그 로그 활성화**: 설정 문제를 해결하기 위해 자세한 로깅을 추가합니다.
 
-    수집기 ConfigMap을 편집하세요:
+    Helm 구현, 배포의 경우 `values.yaml` 을 업데이트합니다.
 
-    ```bash
-    kubectl edit configmap -n kafka otel-collector-config
+    ```yaml
+    config:
+      service:
+        telemetry:
+          logs:
+            level: "debug"  # Enable detailed collector internal logs
     ```
 
-    `otel-collector-config.yaml` 데이터의 `service:` 아래에 텔레메트리 섹션을 추가하세요:
+    매니페스트 구현을 위해 수집기 ConfigMap을 편집합니다.
+
+    ```bash
+    kubectl edit configmap -n newrelic otel-collector-config
+    ```
+
+    `service:` 아래에 텔레메트리 섹션을 추가합니다.
 
     ```yaml
     service:
       telemetry:
         logs:
-          level: "debug"  # Enable detailed collector internal logs
-      extensions: [k8s_observer]
+          level: "debug"
       pipelines:
         # ... existing pipelines ...
     ```
 
-    저장하고 종료하세요. 수집기는 자동으로 설정을 다시 로드합니다.
+    **2. 디버그 내보내기 추가**: 뉴렐릭으로 보내기 전에 수집기 로그에서 지표 보기
 
-    **디버그 내보내기 추가**: 뉴렐릭으로 보내기 전에 수집기 로그에서 지표를 확인하세요.
-
-    ConfigMap에 다음을 추가하세요:
+    설정에 다음을 추가하세요:
 
     ```yaml
     exporters:
@@ -921,187 +1795,271 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
         sampling_initial: 5        # Log first 5 metrics
         sampling_thereafter: 200   # Then log every 200th metric
 
-      otlp/newrelic:
-        endpoint: https://otlp.nr-data.net:4317
+      otlp/backend:
+        endpoint: ${NEW_RELIC_OTLP_ENDPOINT}
         headers:
-          api-key: ${env:NEW_RELIC_LICENSE_KEY}
-        compression: gzip
-        timeout: 30s
+          api-key: ${NEW_RELIC_LICENSE_KEY}
 
     service:
       pipelines:
-        metrics/brokers-cluster-topics:
-          receivers: [receiver_creator, kafkametrics/cluster]
-          processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, batch/aggregation]
-          exporters: [debug, otlp/newrelic]  # Add debug exporter
+        metrics/broker:
+          receivers: [prometheus/kafka-jmx]
+          processors: [resource/cluster-name, filter/scrape-overhead, transform/metric-naming, transform/remove_attributes, filter/exclude_cluster_metrics, memory_limiter, cumulativetodelta, batch/export]
+          exporters: [debug, otlp/backend]  # Add debug exporter
     ```
 
     그런 다음 수집기를 다시 시작하고 로그를 확인하십시오.
 
     ```bash
     # Restart collector
-    kubectl rollout restart deployment -n kafka otel-collector
+    kubectl rollout restart deployment -n newrelic otel-collector
 
     # View logs with metric output
-    kubectl logs -n kafka -l app=otel-collector -f
+    kubectl logs -n newrelic -l app=otel-collector -f
     ```
 
     **중요**: 로그 오버플로를 방지하려면 프로덕션 환경에서 디버그 익스포터를 제거하십시오.
   </Collapser>
 
   <Collapser id="collector-pod-not-starting" title="Collector 파드 시작 안 됨">
-    **파드 상태 및 이벤트 확인**:
+    **1. 파드 상태 및 이벤트 확인**:
 
     ```bash
     # Check pod status
-    kubectl get pods -n kafka -l app=otel-collector
+    # For Helm:
+    kubectl get pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+    # For Manifest:
+    kubectl get pods -n newrelic -l app=otel-collector
 
     # View detailed pod description
-    kubectl describe pod -n kafka -l app=otel-collector
+    # For Helm:
+    kubectl describe pod -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+    # For Manifest:
+    kubectl describe pod -n newrelic -l app=otel-collector
 
     # Check recent logs
-    kubectl logs -n kafka -l app=otel-collector --previous --tail=50
+    # For Helm:
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector --previous --tail=50
+    # For Manifest:
+    kubectl logs -n newrelic -l app=otel-collector --previous --tail=50
     ```
 
     **일반적인 문제점 및 해결책**:
 
-    **JMX 스크래퍼 누락**: init 컨테이너가 JAR 파일을 성공적으로 다운로드했는지 확인하십시오.
+    **2. 잘못된 설정**: ConfigMap YAML 구문의 유효성을 검사합니다.
 
     ```bash
-    # Check init container logs
-    kubectl logs -n kafka -l app=otel-collector -c download-jmx-scraper
-    ```
-
-    **잘못된 설정**: ConfigMap YAML 구문의 유효성을 검사합니다.
-
-    ```bash
-    # Check ConfigMap contents
-    kubectl get configmap -n kafka otel-kafka-config -o yaml
+    # For manifest deployments, check ConfigMap
+    kubectl get configmap -n newrelic otel-collector-config -o yaml
 
     # Validate YAML syntax
-    kubectl get configmap -n kafka otel-kafka-config -o yaml | kubectl apply --dry-run=client -f -
+    kubectl get configmap -n newrelic otel-collector-config -o yaml | kubectl apply --dry-run=client -f -
+
+    # For Helm deployments, check the values
+    helm get values <release-name> -n newrelic
     ```
 
-    **RBAC 권한**: 서비스 계정에 적절한 클러스터 역할 바인딩이 있는지 확인하십시오.
+    **3. RBAC 권한**: 서비스 계정에 적절한 클러스터 역할 바인딩이 있는지 확인합니다.
 
     ```bash
     # Check ServiceAccount
-    kubectl get serviceaccount -n kafka otel-collector
+    kubectl get serviceaccount -n newrelic otel-collector
 
-    # Check ClusterRoleBinding
-    kubectl get clusterrolebinding otel-collector-binding -o yaml
+    # Check ClusterRole and ClusterRoleBinding
+    kubectl get clusterrole otel-collector -o yaml
+    kubectl get clusterrolebinding otel-collector -o yaml
     ```
 
-    **리소스 제약 조건**: 파드가 OOMKilled 오류가 발생하거나 리소스 제한에 걸렸는지 확인합니다.
+    **4. 리소스 제약 조건**: 파드가 OOMKilled 상태인지 또는 리소스 제한에 도달했는지 확인합니다.
 
     ```bash
     # Check resource usage
-    kubectl top pods -n kafka -l app=otel-collector
+    # For Helm:
+    kubectl top pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+    # For Manifest:
+    kubectl top pods -n newrelic -l app=otel-collector
 
     # Check for resource limits
-    kubectl describe pod -n kafka -l app=otel-collector | grep -A 5 "Limits\|Requests"
+    # For Helm:
+    kubectl describe pod -n newrelic -l app.kubernetes.io/name=opentelemetry-collector | grep -A 5 "Limits\|Requests"
+    # For Manifest:
+    kubectl describe pod -n newrelic -l app=otel-collector | grep -A 5 "Limits\|Requests"
+    ```
+
+    **5. 비밀번호를 찾을 수 없음**: 뉴럴릭 자격 증명과 비밀번호가 존재하는지 확인하십시오.
+
+    ```bash
+    # Check if secret exists
+    kubectl get secret -n newrelic newrelic-otlp-secret
+
+    # Verify secret has required keys
+    kubectl get secret -n newrelic newrelic-otlp-secret -o jsonpath='{.data}' | jq 'keys'
     ```
   </Collapser>
 
-  <Collapser id="no-jmx-metrics" title="JMX 메트릭이 수집되지 않았습니다.">
-    **JMX 활성화 여부 확인**: Strimzi Kafka 리소스에 JMX가 구성되어 있는지 확인하십시오.
+  <Collapser id="no-metrics-collected" title="Kafka 메트릭이 수집되지 않았습니다.">
+    **1. JMX Exporter 활성화 여부 확인**: Strimzi Kafka 리소스에 JMX Exporter가 구성되어 있는지 확인하십시오.
 
     ```bash
-    # Check Kafka resource configuration
-    kubectl get kafka -n kafka -o yaml | grep -A 5 jmxOptions
+    # Check Kafka resource configuration for JMX Exporter
+    kubectl get kafka -n kafka -o yaml | grep -A 10 jmxPrometheusExporter
+
+    # Should show something like:
+    # jmxPrometheusExporter:
+    #   lowercaseOutputName: true
     ```
 
-    **파드 레이블 확인**: Kafka 파드에 검색을 위한 올바른 레이블이 지정되어 있는지 확인하십시오.
+    **2. JMX 익스포터 포트 확인**: 익스포터가 9404 포트에서 수신 대기 중인지 확인합니다.
+
+    ```bash
+    # Check if port 9404 is exposed on Kafka pods
+    kubectl get pods -n kafka -l strimzi.io/name=<cluster-name>-kafka -o yaml | grep -A 3 "containerPort: 9404"
+
+    # Test connectivity from collector pod
+    # For Helm:
+    kubectl exec -it -n newrelic deployment/kafka-monitoring-opentelemetry-collector -- sh -c "curl -s http://<kafka-pod-ip>:9404/metrics" | head -10
+    # For Manifest:
+    kubectl exec -it -n newrelic deployment/otel-collector -- sh -c "curl -s http://<kafka-pod-ip>:9404/metrics" | head -10
+    ```
+
+    **3. Prometheus 수신기가 메트릭을 수집할 수 있는지 확인합니다**.
+
+    ```bash
+    # Check collector logs for Prometheus scraping
+    # For Helm:
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector | grep -i "prometheus\|scrape"
+    # For Manifest:
+    kubectl logs -n newrelic -l app=otel-collector | grep -i "prometheus\|scrape"
+
+    # Look for successful scrape messages or errors
+    # For Helm:
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector | grep "prometheus/kafka-jmx"
+    # For Manifest:
+    kubectl logs -n newrelic -l app=otel-collector | grep "prometheus/kafka-jmx"
+    ```
+
+    **4. Kubernetes 서비스 검색 확인**: 파드 레이블이 relabel\_configs와 일치하는지 확인합니다.
 
     ```bash
     # Verify Kafka pod labels
-    kubectl get pods -n kafka -l strimzi.io/kind=Kafka --show-labels
+    kubectl get pods -n kafka -l strimzi.io/name=<cluster-name>-kafka --show-labels
 
-    # Check if receiver_creator can discover pods
-    kubectl logs -n kafka -l app=otel-collector | grep "discovered"
+    # Should include labels like:
+    # strimzi.io/cluster=<cluster-name>
+    # strimzi.io/name=<cluster-name>-kafka
     ```
 
-    **관찰자 로그 검토**: 수집기 로그에서 파드 발견 메시지를 찾습니다.
+    **5. 수동 스크래핑 테스트**: 메트릭이 사용 가능한지 확인합니다.
 
     ```bash
-    # Filter for k8s observer logs
-    kubectl logs -n kafka -l app=otel-collector | grep -i "observer\|discovery"
+    # Get Kafka broker pod IP
+    kubectl get pods -n kafka -o wide
+
+    # Curl metrics endpoint
+    # For Helm:
+    kubectl exec -it -n newrelic deployment/kafka-monitoring-opentelemetry-collector -- curl http://<kafka-pod-ip>:9404/metrics
+    # For Manifest:
+    kubectl exec -it -n newrelic deployment/otel-collector -- curl http://<kafka-pod-ip>:9404/metrics
     ```
 
-    **JMX 연결 테스트**: Kafka 브로커와의 네트워크 연결을 확인합니다.
+    **6. Kafkametrics 수신기 오류를 확인하십시오**.
 
     ```bash
-    # Get Kafka broker pod IPs
-    kubectl get pods -n kafka -l strimzi.io/kind=Kafka -o wide
+    # Look for kafkametrics connection issues
+    # For Helm:
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector | grep "kafkametrics"
+    # For Manifest:
+    kubectl logs -n newrelic -l app=otel-collector | grep "kafkametrics"
 
-    # Test JMX port connectivity from collector pod
-    kubectl exec -it -n kafka deployment/otel-collector -- sh -c "nc -zv <kafka-broker-pod-ip> 9999"
-
-    # Check if JMX port is listening on Kafka pods
-    kubectl exec -it -n kafka <kafka-pod-name> -- netstat -tlnp | grep :9999
-    ```
-
-    **수신기 설정 유효성 검사**: JMX 수신기가 올바르게 구성되었는지 확인합니다.
-
-    ```bash
-    # Check collector configuration
-    kubectl logs -n kafka -l app=otel-collector | grep -i "jmx\|kafka"
+    # Common errors:
+    # - Connection refused: Check broker address is correct
+    # - Timeout: Check network policies allow access
+    # - Authentication failed: Remove TLS configuration if using plaintext
     ```
   </Collapser>
 
   <Collapser id="high-memory-usage" title="높은 메모리 사용량">
-    **리소스 사용량 모니터링**:
+    **1. 리소스 사용량 모니터링**:
 
     ```bash
     # Check current memory usage
-    kubectl top pods -n kafka -l app=otel-collector
+    # For Helm:
+    kubectl top pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+    # For Manifest:
+    kubectl top pods -n newrelic -l app=otel-collector
 
     # Watch memory usage over time
-    watch kubectl top pods -n kafka -l app=otel-collector
+    # For Helm:
+    watch kubectl top pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+    # For Manifest:
+    watch kubectl top pods -n newrelic -l app=otel-collector
     ```
 
-    **모니터링 주제 축소**: 필수적인 주제만 수집하도록 제한
-
-    ```bash
-    # Update ConfigMap to filter topics
-    kubectl patch configmap -n kafka otel-kafka-config --patch '
-    data:
-      config.yaml: |
-        # Add topic filtering to kafkametrics receiver
-        kafkametrics/cluster:
-          topic_match: "^(important-topic-1|important-topic-2)$"
-    '
-    ```
-
-    **수집 간격 늘리기**: 수집 빈도 줄이기
+    **2. 모니터링 대상 주제 축소**: 필수적인 주제만 수집하도록 제한
 
     ```yaml
-    # In your ConfigMap, update intervals:
+    # In your values.yaml (Helm) or ConfigMap (manifest), add topic filtering:
     receivers:
       kafkametrics/cluster:
-        collection_interval: 45s  # Increase from 30s to 45s
-      receiver_creator:
-        receivers:
-          jmx:
-            config:
-              collection_interval: 45s  # Increase from 30s to 45s (max 59s supported)
+        brokers:
+          - "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
+        collection_interval: 30s
+        scrapers:
+          - brokers
+          - topics  # Consider removing if not needed
+          - consumers  # Consider removing if not needed
+        topic_match: "^(important-topic-1|important-topic-2)$"  # Filter specific topics
     ```
 
-    **일괄 처리 최적화**: 일괄 처리기 설정을 조정합니다.
+    **3. 수집 간격 늘리기**: 수집 빈도 줄이기
 
     ```yaml
-    # In your ConfigMap:
+    receivers:
+      kafkametrics/cluster:
+        collection_interval: 60s  # Increase from 30s to 60s
+
+      prometheus/kafka-jmx:
+        config:
+          scrape_configs:
+            - job_name: 'kafka-jmx-metrics'
+              scrape_interval: 60s  # Increase from 30s to 60s
+    ```
+
+    **4. 일괄 처리 최적화**: 일괄 처리기 설정을 조정합니다.
+
+    ```yaml
     processors:
-      batch/aggregation:
-        timeout: 30s
+      batch/export:
+        timeout: 60s  # Increase from 30s
         send_batch_size: 512  # Reduce from 1024
     ```
 
-    **메모리 제한 설정**: OOM(메모리 부족)을 방지하기 위해 리소스 제한을 추가하세요.
+    **5. 메모리 제한 조정**: 메모리 제한 프로세서를 조정합니다.
+
+    ```yaml
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75  # Reduce from 80
+        spike_limit_percentage: 20  # Reduce from 30
+    ```
+
+    **6. 리소스 제한 업데이트**: Helm 구현, 배포, 값 업데이트의 경우.yaml
+
+    ```yaml
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 250m
+      limits:
+        memory: 1Gi  # Adjust as needed
+        cpu: 500m
+    ```
+
+    매니페스트 구현, 배포의 경우 구현, 배포를 직접 업데이트합니다.
 
     ```bash
-    # Update deployment with memory limits
-    kubectl patch deployment -n kafka otel-collector --patch '
+    kubectl patch deployment -n newrelic otel-collector --patch '
     spec:
       template:
         spec:
@@ -1109,112 +2067,178 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
           - name: otel-collector
             resources:
               limits:
-                memory: "512Mi"
+                memory: "1Gi"
               requests:
-                memory: "256Mi"
+                memory: "512Mi"
     '
     ```
 
-    **변경 후 수집기를 다시 시작하세요**.
+    **7. 변경 후 수집기를 다시 시작하십시오**.
 
     ```bash
-    kubectl rollout restart deployment -n kafka otel-collector
+    # For Helm:
+    kubectl rollout restart deployment -n newrelic kafka-monitoring-opentelemetry-collector
+    # For Manifest:
+    kubectl rollout restart deployment -n newrelic otel-collector
     ```
   </Collapser>
 
-  <Collapser id="jmx-subprocess-error" title="JMX 수신기 하위 프로세스 오류">
-    **로그에 기록된 오류 메시지**:
-
-    ```
-    error subprocess/subprocess.go:XXX subprocess died
-    otelcol.component.id: "jmx/kafka_broker-X"
-    error: "unexpected shutdown: exit status 1"
-    ```
-
-    **JMX 인증 자격 증명을 확인하십시오**. 잘못된 사용자 이름 또는 암호는 하위 프로세스 오류의 일반적인 원인입니다.
-
-    JMX 수신기 설정에 올바른 자격 증명이 포함되어 있는지 확인하십시오.
-
-    ```yaml
-    receivers:
-      receiver_creator:
-        receivers:
-          jmx:
-            config:
-              jar_path: /opt/opentelemetry/opentelemetry-jmx-scraper.jar
-              endpoint: 'service:jmx:rmi:///jndi/rmi://`endpoint`:`port`/jmxrmi'
-              target_system: kafka
-              username: ${env:JMX_USERNAME}  # Must match Kafka JMX credentials
-              password: ${env:JMX_PASSWORD}  # Must match Kafka JMX credentials
-              collection_interval: 30s
-              jmx_configs: /conf-jmx/jmx-kafka-config.yaml
-    ```
-
-    **자격 증명이 일치하는지 확인하세요**.
+  <Collapser id="prometheus-scrape-errors" title="프로메테우스 스크래핑 오류">
+    **1. 네트워크 연결 확인**: 수집기가 Kafka 브로커에 도달할 수 있는지 확인합니다.
 
     ```bash
-    # Check secret credentials
-    kubectl get secret kafka-jmx-credentials -n kafka -o jsonpath='{.data.username}' | base64 -d && echo
-    kubectl get secret kafka-jmx-credentials -n kafka -o jsonpath='{.data.password}' | base64 -d && echo
-
-    # Check deployment environment variables reference the correct secret
-    kubectl get deployment otel-collector -n kafka -o yaml | grep -A 5 "JMX_USERNAME\|JMX_PASSWORD"
-    ```
-
-    **JMX 수집 간격을 확인하세요**. JMX 스크래퍼가 포함된 JMX 수신기는 최대 59초의 수집 간격만 지원합니다.
-
-    ConfigMap을 업데이트하세요:
-
-    ```yaml
-    receivers:
-      receiver_creator:
-        receivers:
-          jmx:
-            config:
-              jar_path: /opt/opentelemetry/opentelemetry-jmx-scraper.jar
-              target_system: kafka
-              collection_interval: 59s  # Must be 59s or less, NOT 60s or higher
-              jmx_configs: /etc/otel/jmx-kafka-config.yaml
-    ```
-
-    **JMX 스크래퍼가 다운로드되었는지 확인하십시오**.
-
-    ```bash
-    # Check init container logs
-    kubectl logs -n kafka -l app=otel-collector -c download-jmx-scraper
-
-    # Verify file exists in running pod
-    kubectl exec -it -n kafka deployment/otel-collector -- ls -lh /opt/opentelemetry/opentelemetry-jmx-scraper.jar
-    ```
-
-    **화면을 사용할 수 있는지 확인하세요**. JMX 스크래퍼에는 화면 런타임이 필요합니다.
-
-    ```bash
-    # Check Java in collector pod
-    kubectl exec -it -n kafka deployment/otel-collector -- java -version
-    ```
-
-    **JMX 엔드포인트에 액세스할 수 있는지 확인**: 수집기에서 Kafka 브로커까지의 연결성을 테스트합니다.
-
-    ```bash
-    # Get Kafka broker pod IP
+    # Get Kafka broker pod IPs
     kubectl get pods -n kafka -l strimzi.io/kind=Kafka -o wide
 
-    # Test JMX port from collector pod
-    kubectl exec -it -n kafka deployment/otel-collector -- timeout 5 sh -c "</dev/tcp/<kafka-broker-pod-ip>/9999" && echo "JMX accessible" || echo "JMX not accessible"
+    # Test connectivity from collector pod
+    # For Helm:
+    kubectl exec -it -n newrelic deployment/kafka-monitoring-opentelemetry-collector -- curl -m 5 http://<kafka-pod-ip>:9404/metrics | head -20
+    # For Manifest:
+    kubectl exec -it -n newrelic deployment/otel-collector -- curl -m 5 http://<kafka-pod-ip>:9404/metrics | head -20
     ```
 
-    **자세한 오류 내용은 수집기 로그를 확인하세요**.
+    **2. JMX Exporter 실행 여부 확인**: Kafka 브로커에서 JMX Exporter가 활성화되어 있는지 확인합니다.
 
     ```bash
-    # View recent logs
-    kubectl logs -n kafka -l app=otel-collector --tail=100 | grep -i "jmx\|error"
+    # Check Kafka pod for JMX Exporter container
+    kubectl get pods -n kafka -o yaml | grep -A 5 "jmx-exporter"
+
+    # Check if port 9404 is listening
+    kubectl exec -n kafka <kafka-pod-name> -- netstat -tlnp | grep :9404
+
+    # Or test from within the pod
+    kubectl exec -n kafka <kafka-pod-name> -- curl -s localhost:9404/metrics | head
+    ```
+
+    **3. relabel\_configs가 레이블과 일치하는지 확인**: Prometheus 수신기가 Kafka를 검색할 수 있는지 확인합니다.
+
+    ```bash
+    # Verify pod labels match the relabel_configs in your configuration
+    kubectl get pods -n kafka -l strimzi.io/kind=Kafka --show-labels
+
+    # Should show labels like:
+    # strimzi.io/cluster=my-cluster
+    # strimzi.io/name=my-cluster-kafka
+    ```
+
+    **4. 라벨스페이스 설정 확인**: Prometheus 수신기가 올바른 라벨스페이스를 찾고 있는지 확인하세요.
+
+    ```yaml
+    # In your configuration, verify namespace matches where Kafka is deployed
+    receivers:
+      prometheus/kafka-jmx:
+        config:
+          scrape_configs:
+            - job_name: 'kafka-jmx-metrics'
+              kubernetes_sd_configs:
+                - role: pod
+                  namespaces:
+                    names:
+                      - kafka  # Must match your Kafka namespace
+    ```
+
+    **5. RBAC 권한 확인**: ClusterRole이 파드 검색을 허용하는지 확인합니다.
+
+    ```bash
+    # Check ClusterRole has pod list/watch permissions
+    kubectl get clusterrole otel-collector -o yaml | grep -A 3 "pods"
+
+    # Should include:
+    # - apiGroups: [""]
+    #   resources: ["pods", "nodes"]
+    #   verbs: ["get", "list", "watch"]
+    ```
+
+    **6. 스크래핑 타임아웃 늘리기**: 메트릭 엔드포인트의 응답 속도가 느린 경우
+
+    ```yaml
+    receivers:
+      prometheus/kafka-jmx:
+        config:
+          scrape_configs:
+            - job_name: 'kafka-jmx-metrics'
+              scrape_interval: 30s
+              scrape_timeout: 20s  # Increase from default 10s
+    ```
+
+    **7. 스크래핑 세부 정보를 확인하려면 수집기 로그를 확인하세요**.
+
+    ```bash
+    # View Prometheus receiver logs
+    # For Helm:
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector | grep "prometheus/kafka-jmx"
+    # For Manifest:
+    kubectl logs -n newrelic -l app=otel-collector | grep "prometheus/kafka-jmx"
+
+    # Look for discovered targets
+    # For Helm:
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector | grep -i "target\|scrape"
+    # For Manifest:
+    kubectl logs -n newrelic -l app=otel-collector | grep -i "target\|scrape"
+    ```
+  </Collapser>
+
+  <Collapser id="missing-metrics" title="일부 지표가 누락되었습니다.">
+    **1. 필터 프로세서 확인**: 의도치 않게 메트릭을 필터링하고 있지 않은지 확인하십시오.
+
+    ```yaml
+    # Review your filter configurations:
+    processors:
+      filter/scrape-overhead:
+        metrics:
+          exclude:
+            match_type: regexp
+            metric_names:
+              - "^jmx_.*"  # These are excluded
+              - "^process_.*"
+              - "^jvm_.*"
+    ```
+
+    **2. Kafka JMX 메트릭 이름이 변환됩니다**. OpenTelemetry 표준을 준수하기 위해 밑줄이 점으로 대체됩니다.
+
+    설정은 JMX Exporter(1단계에서 정의됨)의 이름을 OpenTelemetry 의미 규칙에 맞게 자동으로 변환합니다. 예를 들어:
+
+    * `kafka_topic_io` 되다 `kafka.topic.io`
+    * `kafka_broker_leader_count` 되다 `kafka.broker.leader.count`
+
+    뉴렐릭에서 &apos;도&apos;를 검색할 때는 밑줄 대신 점을 사용하여 변환된 이름을 사용하세요.
+
+    ```yaml
+    # This transformation is applied automatically:
+    processors:
+      transform/metric-naming:
+        metric_statements:
+          - context: metric
+            statements:
+              - replace_pattern(name, "_", ".")
+    ```
+
+    **3. 상세 로깅 활성화**: 어떤 메트릭이 처리되는지 정확하게 확인하세요.
+
+    ```yaml
+    exporters:
+      debug:
+        verbosity: detailed
+        sampling_initial: 100  # Log first 100 metrics to see what's available
+
+    service:
+      pipelines:
+        metrics/broker:
+          exporters: [debug, otlp/backend]
+    ```
+
+    **4. 지표 이름에 대한 쿼리 뉴렐릭**: 실제로 수신되는 지표가 무엇인지 확인합니다.
+
+    ```sql
+    FROM Metric SELECT uniques(metricName)
+    WHERE kafka.cluster.name = 'my-cluster'
+    SINCE 1 hour ago
     ```
   </Collapser>
 </CollapserGroup>
 
 ## 다음 단계 [#next-steps]
 
-* **[Kafka 메트릭 살펴보기](/docs/opentelemetry/integrations/kafka/metrics-reference)** - 전체 메트릭 참조 자료를 확인하세요
-* **[맞춤형 대시보드 만들기](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)** - Kafka 데이터에 대한 시각화 구축
-* **[알림 설정](/docs/opentelemetry/integrations/kafka/metrics-reference/#alerting)** - 소비자 지연 및 복제되지 않은 파티션과 같은 중요한 지표를 모니터링합니다.
+* [Kafka 메트릭 살펴보기](/docs/opentelemetry/integrations/kafka/metrics-reference) - 전체 메트릭 참조 자료를 확인하세요
+* [맞춤형 대시보드 만들기](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) - Kafka 데이터에 대한 시각화 구축
+* [알림 설정](/docs/opentelemetry/integrations/kafka/metrics-reference/#alerting) - 소비자 지연 및 복제되지 않은 파티션과 같은 중요한 지표를 모니터링합니다.
