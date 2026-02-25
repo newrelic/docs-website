@@ -3,7 +3,7 @@ title: "Intelligent Workloads: Bridge the gap between system health and business
 summary: "Intelligent Workloads redefines observability by linking your underlying technical architecture directly to the business metrics that matter most. Automate service grouping, leverage AI for root-cause analysis, and finally see how system performance impacts your bottom line."
 releaseDate: "2026-02-24"
 learnMoreLink: "https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/intelligent-workload-ui/"
-getStartedLink: "https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/create-intelligent-workload/"
+getStartedLink: "https://newrelic.com/platform/product-preview"
 ---
 
 In today's rapidly evolving, AI-driven cloud environments, a simple "system up" indicator on a dashboard can be misleading. SREs and DevOps teams are swimming in telemetry data, yet they often lack the context needed to answer the most critical question: Is this technical issue actually impacting our customers or revenue? A minor database latency spike might seem harmless in a vacuum, but if it is quietly blocking user registrations or draining transaction volume, the cost is immense.
@@ -33,9 +33,9 @@ Moving from reactive monitoring to proactive, business-aligned observability is 
 3. **Attach Business Logic**: Link your underlying technical health to the financial or user-experience KPIs that leadership cares about.
 4. **Activate AI Insights**: Allow the Command Center to analyze your new workload and serve up immediate optimization recommendations.
 
-Explore the [Intelligent Workloads Documentation](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster/) for in-depth setup instructions.
+Explore the [Intelligent Workloads Documentation](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/create-intelligent-workload/) for in-depth setup instructions.
 
 ## Additional resources
 
-- [Intelligent Workloads Overview](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/create-intelligent-workload/)
+- [Intelligent Workloads Overview](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/intelligent-workload-ui/)
 - [Setting up Business KPIs in New Relic](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/intelligent-workload-kpis/)
