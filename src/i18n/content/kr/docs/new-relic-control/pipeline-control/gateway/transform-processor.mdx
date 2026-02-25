@@ -1,0 +1,466 @@
+---
+title: 변환 프로세서
+metaDescription: 'Use the transform processor to modify, enrich, and parse telemetry data using OTTL (OpenTelemetry Transformation Language).'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+변환 프로세서는 OTTL(OpenTelemetry Transformation Language)을 사용하여 텔레메트리 데이터를 수정, 보강 또는 구문 분석합니다. 이 기능을 사용하여 데이터가 네트워크를 벗어나기 전에 컨텍스트를 추가하고, 스키마를 정규화하고, 비정형 데이터를 구문 분석하거나, 민감한 정보를 난독화할 수 있습니다.
+
+## 변환 프로세서를 사용하는 시점
+
+다음과 같은 경우에 변환 프로세서를 사용하십시오.
+
+* **조직의 메타데이터로 텔레메트리를 강화하세요**: 환경, 지역, 팀, 비용 센터 추가 태그
+* **비정형 로그 메시지 구문 분석**: 정규 표현식, Grok 패턴 또는 JSON 구문 분석을 사용하여 구조화된 속성을 추출합니다.
+* **속성 이름 및 값 스키마 정규화**: 서비스 또는 에이전트 간에 서로 다른 명명 규칙을 표준화합니다(`level` → `severity.text`, `env` → `environment`).
+* **민감한 데이터 해시 또는 수정**: 개인 식별 정보(PII), 자격 증명 또는 기타 민감한 정보가 네트워크를 벗어나기 전에 제거하십시오.
+* **문자열에서 값 추출**: 로그 메시지에서 HTTP 상태 코드, 지속 시간 또는 기타 데이터를 추출합니다.
+* **지표 집계 또는 척도**: 지표 값을 수정하거나 여러 지표를 결합합니다.
+
+## OTTL 컨텍스트
+
+OTTL은 텔레메트리 유형에 따라 서로 다른 맥락에서 작동합니다.
+
+* **로그**: `log` 컨텍스트 - 액세스 로그 본문, 속성, 심각도
+* **트레이스**: `trace` 컨텍스트 - 액세스 범위 속성, 기간, 상태
+* **지표**: `metric` 및 `datapoint` 컨텍스트 - 액세스 지표 이름, 값, 속성
+
+## 구성
+
+파이프라인에 변환 프로세서를 추가하세요.
+
+```yaml
+transform/Logs:
+  description: Transform and process logs
+  config:
+    log_statements:
+      - context: log
+        name: add new field to attribute
+        description: for otlp-test-service application add otlp source type field
+        conditions:
+          - resource.attributes["service.name"] == "otlp-java-test-service"
+        statements:
+          - set(resource.attributes["source.type"],"otlp")
+```
+
+**설정 필드**:
+
+* `log_statements`: 로그 변환을 위한 OTTL 문의 포함(컨텍스트: 로그)
+* `metric_statements`: 지표 변환에 대한 OTTL 문의 포함(컨텍스트: 지표)
+* `trace_statements`: 트레이스 변환을 위한 OTTL 문의 일부분(컨텍스트: 트레이스)
+
+/\* - \`conditions\`: 문장이 평가될지 여부를 결정하는 부울 OTTL 조건의 목록 \*/
+
+## OTTL의 주요 기능
+
+### 세트()
+
+속성 값을 설정합니다.
+
+```yaml
+- set(attributes["environment"], "production")
+- set(attributes["team"], "platform")
+- set(severity.text, "ERROR") where severity.number >= 17
+```
+
+### delete\_key()
+
+속성을 제거합니다.
+
+```yaml
+- delete_key(attributes, "internal_debug_info")
+- delete_key(attributes, "temp_field")
+```
+
+### replace\_pattern()
+
+정규 표현식 패턴과 일치하는 텍스트를 바꿉니다.
+
+```yaml
+  # Redact email addresses
+- replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
+
+  # Mask passwords
+- replace_pattern(attributes["password"], ".+", "password=***REDACTED***")
+
+  # Obfuscate all non-whitespace (extreme)
+- replace_pattern(body, "[^\\s]*(\\s?)", "****")
+```
+
+### 해시시()
+
+가명화를 위해 값을 해시합니다.
+
+```yaml
+- set(attributes["user_id_hash"], Hash(attributes["user_id"]))
+- delete_key(attributes, "user_id")
+```
+
+### ParseJSON()
+
+JSON 문자열에서 속성을 추출합니다.
+
+```yaml
+  # Parse JSON body into attributes
+- merge_maps(attributes, ParseJSON(body), "upsert") where IsString(body)
+```
+
+### ExtractGrokPatterns()
+
+Grok 패턴을 사용하여 구조화된 데이터를 분석합니다.
+
+```yaml
+  # Parse JSON log format
+- ExtractGrokPatterns(body, "\\{\"timestamp\":\\s*\"%{TIMESTAMP_ISO8601:extracted_timestamp}\",\\s*\"level\":\\s*\"%{WORD:extracted_level}\",\\s*\"message\":\\s*\"Elapsed time:\\s*%{NUMBER:elapsed_time}ms\"\\}")
+
+  # Parse custom format with custom pattern
+- ExtractGrokPatterns(attributes["custom_field"], "%{USERNAME:user.name}:%{PASSWORD:user.password}", true, ["PASSWORD=%{GREEDYDATA}"])
+```
+
+### 단조롭게 하다()
+
+중첩된 맵 속성을 평면화합니다.
+
+```yaml
+  # Flatten nested map to top-level attributes
+- flatten(attributes["map.attribute"])
+```
+
+### 한계()
+
+지정된 우선순위 키를 유지하면서 속성 개수를 제한합니다.
+
+```yaml
+  # Keep only 3 attributes, prioritizing "array.attribute"
+- limit(attributes, 3, ["array.attribute"])
+```
+
+## 완전한 예시
+
+### 예시 1: 환경 메타데이터 추가
+
+```yaml
+transform/Logs:
+  description: "Enrich logs with environment context"
+  config:
+    log_statements:
+      - context: log
+        name: enrich-with-environment-metadata
+        description: Add environment, region, team, and cost center metadata to all logs
+        statements:
+          - set(attributes["environment"], "production")
+          - set(attributes["region"], "us-east-1")
+          - set(attributes["team"], "platform-engineering")
+          - set(attributes["cost_center"], "eng-infra")
+```
+
+### 예시 2: 심각도 수준 정규화
+
+각 서비스마다 심각도 기준이 다릅니다. 표준화하세요:
+
+```yaml
+transform/Logs:
+  description: "Normalize severity naming"
+  config:
+    log_statements:
+      - context: log
+        name: convert-level-to-severity
+        description: Convert custom level attribute to severity_text
+        conditions:
+          - attributes["level"] != nil
+        statements:
+          - set(severity_text, attributes["level"])
+      
+      - context: log
+        name: delete-level-attribute
+        description: Remove the redundant level attribute after conversion
+        statements:
+          - delete_key(attributes, "level")
+      
+      - context: log
+        name: normalize-error-case
+        description: Normalize error severity to uppercase ERROR
+        conditions:
+          - severity_text == "error"
+        statements:
+          - set(severity_text, "ERROR")
+      
+      - context: log
+        name: normalize-warning-case
+        description: Normalize warning severity to uppercase WARN
+        conditions:
+          - severity_text == "warning"
+        statements:
+          - set(severity_text, "WARN")
+      
+      - context: log
+        name: normalize-info-case
+        description: Normalize info severity to uppercase INFO
+        conditions:
+          - severity_text == "info"
+        statements:
+          - set(severity_text, "INFO")
+```
+
+### 예제 3: JSON 로그 본문 파싱
+
+JSON 형식 로그 메시지에서 구조화된 속성을 추출합니다.
+
+```yaml
+transform/Logs:
+  description: "Parse JSON logs into attributes"
+  config:
+    log_statements:
+      - context: log
+        name: parse-json-body-to-attributes
+        description: Parse JSON log body and merge into attributes
+        conditions:
+          - IsString(body)
+        statements:
+          - merge_maps(attributes, ParseJSON(body), "upsert")
+```
+
+**이전** : `body = '{"timestamp": "2025-03-01T12:12:14Z", "level":"INFO", "message":"Elapsed time: 10ms"}'`
+
+**이후**: 추출된 속성: `timestamp`, `level`, `message`
+
+### 예제 4: HTTP 상태 코드 추출
+
+로그 메시지에서 상태 코드를 추출합니다.
+
+```yaml
+transform/Logs:
+  description: "Extract HTTP status from message"
+  config:
+    log_statements:
+      - context: log
+        name: extract-http-status-code
+        description: Extract HTTP status code from log body using regex pattern
+        statements:
+          - ExtractPatterns(body, "status=(\\d+)")
+          - set(attributes["http.status_code"], body)
+```
+
+### 예시 5: 개인 식별 정보 삭제
+
+데이터가 네트워크를 통해 전송되기 전에 민감한 정보를 제거하십시오.
+
+```yaml
+transform/Logs:
+  description: "Redact PII for compliance"
+  config:
+    log_statements:
+      - context: log
+        name: redact-email-addresses
+        description: Redact email addresses from user_email attribute
+        conditions:
+          - attributes["user_email"] != nil
+        statements:
+          - replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
+      
+      - context: log
+        name: mask-passwords
+        description: Mask password attribute values
+        conditions:
+          - attributes["password"] != nil
+        statements:
+          - replace_pattern(attributes["password"], ".+", "***REDACTED***")
+      
+      - context: log
+        name: hash-user-ids
+        description: Hash user IDs and remove original value
+        conditions:
+          - attributes["user_id"] != nil
+        statements:
+          - set(attributes["user_id_hash"], SHA256(attributes["user_id"]))
+          - delete_key(attributes, "user_id")
+      
+      - context: log
+        name: mask-credit-cards-in-body
+        description: Mask credit card numbers in log body
+        statements:
+          - replace_pattern(body, "\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}", "****-****-****-****")
+```
+
+### 예제 6: NGINX 액세스 로그 파싱
+
+NGINX 통합 로그 형식에서 구조화된 필드를 추출합니다.
+
+```yaml
+transform/Logs:
+  description: "Parse and enrich NGINX access logs"
+  config:
+    log_statements:
+      - context: log
+        name: extract-nginx-fields
+        description: Parse NGINX access log format into structured attributes
+        statements:
+          - ExtractGrokPatterns(body, "%{IPORHOST:client.ip} - %{USER:client.user} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:http.method} %{URIPATHPARAM:http.path} HTTP/%{NUMBER:http.version}\" %{NUMBER:http.status_code} %{NUMBER:http.response_size}")
+      
+      - context: log
+        name: set-severity-for-server-errors
+        description: Set severity to ERROR for 5xx server errors
+        conditions:
+          - attributes["http.status_code"] >= "500"
+        statements:
+          - set(severity_text, "ERROR")
+      
+      - context: log
+        name: set-severity-for-client-errors
+        description: Set severity to WARN for 4xx client errors
+        conditions:
+          - attributes["http.status_code"] >= "400"
+          - attributes["http.status_code"] < "500"
+        statements:
+          - set(severity_text, "WARN")
+      
+      - context: log
+        name: set-severity-for-success
+        description: Set severity to INFO for successful requests
+        conditions:
+          - attributes["http.status_code"] >= "200"
+          - attributes["http.status_code"] < "400"
+        statements:
+          - set(severity_text, "INFO")
+```
+
+### 예제 7: 중첩된 속성 평면화
+
+중첩 구조를 평면 속성으로 변환합니다.
+
+```yaml
+transform/Logs:
+  description: "Flatten nested map attributes"
+  config:
+    log_statements:
+      - context: log
+        name: flatten-kubernetes-attributes
+        description: Flatten nested kubernetes attributes into dot notation
+        conditions:
+          - attributes["kubernetes"] != nil
+        statements:
+          - flatten(attributes["kubernetes"])
+      
+      - context: log
+        name: flatten-cloud-provider-attributes
+        description: Flatten nested cloud provider attributes into dot notation
+        conditions:
+          - attributes["cloud.provider"] != nil
+        statements:
+          - flatten(attributes["cloud.provider"])
+```
+
+**이전** : `attributes["kubernetes"] = {"pod": {"name": "my-app-123", "uid": "abc-xyz"},"namespace": {"name": "production"}}`
+
+**이후**: 속성 평면화됨: `kubernetes.pod.name`, `kubernetes.pod.uid`, `kubernetes.namespace.name`
+
+### 예제 8: 조건부 변환
+
+조건이 충족될 때만 변환을 적용합니다.
+
+```yaml
+transform/Logs:
+  description: "Conditional enrichment"
+  config:
+    log_statements:
+      - context: log
+        name: tag-critical-services
+        description: Add business criticality tag for checkout and payment services
+        conditions:
+          - resource.attributes["service.name"] == "checkout" or resource.attributes["service.name"] == "payment"
+        statements:
+          - set(attributes["business_criticality"], "HIGH")
+      
+      - context: log
+        name: normalize-production-environment
+        description: Normalize production environment names to standard format
+        conditions:
+          - attributes["env"] == "prod" or attributes["environment"] == "prd"
+        statements:
+          - set(attributes["deployment.environment"], "production")
+      
+      - context: log
+        name: normalize-staging-environment
+        description: Normalize staging environment names to standard format
+        conditions:
+          - attributes["env"] == "stg" or attributes["environment"] == "stage"
+        statements:
+          - set(attributes["deployment.environment"], "staging")
+      
+      - context: log
+        name: cleanup-legacy-env-fields
+        description: Remove old environment attribute fields after normalization
+        statements:
+          - delete_key(attributes, "env")
+          - delete_key(attributes, "environment")
+```
+
+### 예제 9: 데이터 유형 변환
+
+속성을 다른 유형으로 변환합니다.
+
+```yaml
+transform/Logs:
+  description: "Convert data types"
+  config:
+    log_statements:
+      - context: log
+        name: convert-error-flag-to-boolean
+        description: Convert string error_flag to boolean is_error attribute
+        conditions:
+          - attributes["error_flag"] != nil
+        statements:
+          - set(attributes["is_error"], Bool(attributes["error_flag"]))
+      
+      - context: log
+        name: set-success-boolean
+        description: Set success attribute to boolean true
+        statements:
+          - set(attributes["success"], Bool("true"))
+      
+      - context: log
+        name: convert-retry-count-to-int
+        description: Convert retry_count_string to integer retry_count
+        conditions:
+          - attributes["retry_count_string"] != nil
+        statements:
+          - set(attributes["retry_count"], Int(attributes["retry_count_string"]))
+```
+
+### 예제 10: 제한 카디널리티
+
+비용 관리를 위해 속성 개수를 줄이세요:
+
+```yaml
+transform/Logs:
+  description: "Limit high-cardinality attributes"
+  config:
+    log_statements:
+      - context: log
+        name: limit-attribute-cardinality
+        description: Keep only the 5 most important attributes
+        statements:
+          - limit(attributes, 5, ["service.name", "environment", "severity_text"])
+      
+      - context: log
+        name: generalize-user-api-paths
+        description: Replace user ID in path with wildcard to reduce cardinality
+        conditions:
+          - IsMatch(attributes["http.path"], "/api/users/\\d+")
+        statements:
+          - set(attributes["http.path"], "/api/users/*")
+```
+
+## OTTL 함수 참조
+
+OTTL 함수, 연산자 및 구문의 전체 목록은 다음과 같습니다.
+
+* [OTTL 함수 참조](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md)
+* [변환 프로세서 문서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+
+## 다음 단계
+
+* 원치 않는 데이터를 제거하는 [필터 프로세서](/docs/new-relic-control/pipeline-control/gateway/filter-processor) 에 대해 알아보세요.
+* 볼륨 감소에 대해서는 [샘플링 프로세서를](/docs/new-relic-control/pipeline-control/gateway/sampling-processor) 참조하십시오.
+* 전체 구문은 [YAML 설정 참조를](/docs/new-relic-control/pipeline-control/gateway/yaml-overview) 확인하세요.
