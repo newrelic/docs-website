@@ -11,14 +11,132 @@ translationType: machine
 
 O New Relic pode analisar formatos de log comuns de acordo com regras integradas, para que você não precise criar suas próprias regras de análise. Aqui estão as regras de análise de log, seus padrões [Grok](https://github.com/thekrakken/java-grok/tree/master/src/main/resources/patterns) e quais campos são analisados.
 
-* Para ativar a análise de log integrada, consulte nossa documentação para [adicionar o `logtype` atributo](/docs/logs/ui-data/parsing#logtype).
-* Para gerenciar suas regras de análise de forma programática, use NerdGraph, nossa API no formato GraphQL, em [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql). Para obter mais informações, consulte o [tutorial do NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial) para criar, consultar e excluir suas regras de análise.
+## Exemplo de análise [#parsing-example]
+
+Um bom exemplo é um log de acesso NGINX padrão contendo texto não estruturado. É útil para pesquisar, mas não muito mais. Aqui está um exemplo de uma linha típica:
+
+```
+127.180.71.3 - - [10/May/1997:08:05:32 +0000] "GET /downloads/product_1 HTTP/1.1" 304 0 "-" "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+```
+
+Em um formato não analisado, você precisaria fazer uma pesquisa de texto completo para responder à maioria das perguntas. Após a análise, o log é organizado em atributos, como `response code` e `request URL`:
+
+```json
+{
+  "remote_addr":"93.180.71.3",
+  "time":"1586514731",
+  "method":"GET",
+  "path":"/downloads/product_1",
+  "version":"HTTP/1.1",
+  "response":"304",
+  "bytesSent": 0,
+  "user_agent": "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+}
+```
+
+A análise torna mais fácil criar [consultas personalizadas](/docs/using-new-relic/data/understand-data/query-new-relic-data) relacionadas a esses valores. Isso ajuda você a entender a distribuição dos códigos de resposta por URL de solicitação e a encontrar rapidamente páginas problemáticas.
+
+## Adicione o `logtype` [#logattr]
+
+Ao agregar logs, é importante fornecer metadados que facilitem a organização, a pesquisa e a análise desses logs. Uma maneira simples de fazer isso é adicionar o atributo `logtype` às mensagens de log quando elas são enviadas. [Regras de parsing integradas](/docs/logs/ui-data/built-log-parsing-rules) são aplicadas por padrão a determinados valores de `logtype`.
+
+<Callout variant="tip">
+  Os campos `logType`, `logtype` e `LOGTYPE` são todos suportados para regras integradas. Para facilitar a pesquisa, recomendamos que você alinhe uma única sintaxe em sua organização.
+</Callout>
+
+Aqui estão alguns exemplos de como adicionar `logtype` ao registro enviado por alguns dos nossos [métodos de envio suportados](/docs/logs/enable-new-relic-logs).
 
 <CollapserGroup>
-  <Collapser
-    id="apache"
-    title="Apache"
-  >
+  <Collapser className="freq-link" id="infrastructure-log-forwarder-example" title="Exemplo de agente New Relic Infrastructure">
+    Adicione `logtype` como um [`attribute`](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent#attributes). Você deve configurar o tipo de log para cada origem nomeada.
+
+    ```yml
+    logs:
+      - name: file-simple
+        file: /path/to/file
+        attributes:
+          logtype: fileRaw
+      - name: nginx-example
+        file: /var/log/nginx.log
+        attributes:
+          logtype: nginx
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="fluentd-example" title="Exemplo Fluentd">
+    Adicione um bloco de filtro ao arquivo `.conf` , que usa um `record_transformer` para adicionar um novo campo. Neste exemplo, usamos um `logtype` de `nginx` para acionar a regra de análise NGINX integrada. Confira outros [exemplos do Fluentd](https://github.com/newrelic/fluentd-examples).
+
+    ```apacheconf
+    <filter containers>
+      @type record_transformer
+      enable_ruby true
+      <record>
+        #Add logtype to trigger a built-in parsing rule for nginx access logs
+        logtype nginx
+        #Set timestamp from the value contained in the field "time"
+        timestamp record["time"]
+        #Add hostname and tag fields to all records
+        hostname "#{Socket.gethostname}"
+        tag ${tag}
+      </record>
+    </filter>
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="fluentbit-example" title="Exemplo de Bit Fluente">
+    Adicione um bloco de filtro ao arquivo `.conf` que usa um `record_modifier` para adicionar um novo campo. Neste exemplo, usamos um `logtype` de `nginx` para acionar a regra de análise NGINX integrada. Confira outros [exemplos do Fluent Bit](https://github.com/newrelic/fluentbit-examples).
+
+    ```ini
+    [FILTER]
+        Name   record_modifier
+        Match  *
+        Record logtype nginx
+        Record hostname ${HOSTNAME}
+        Record service_name Sample-App-Name
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="logstash-example" title="Exemplo de logstash">
+    Adicione um bloco de filtro à configuração do Logstash que usa um filtro de mutação `add_field` para adicionar um novo campo. Neste exemplo, usamos um `logtype` de `nginx` para acionar a regra de análise NGINX integrada. Confira outros [exemplos do Logstash](https://github.com/newrelic/logstash-examples).
+
+    ```ini
+    filter {
+      mutate {
+        add_field => {
+          "logtype" => "nginx"
+          "service_name" => "myservicename"
+          "hostname" => "%{host}"
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="api-example" title="Exemplo API de registro">
+    Você pode adicionar um atributo à solicitação JSON enviada para New Relic. Neste exemplo, adicionamos um atributo `logtype` de valor `nginx` para acionar a regra de análise NGINX integrada. Saiba mais sobre como usar a [API Logs](/docs/logs/new-relic-logs/log-api/introduction-log-api).
+
+    ```
+    POST /log/v1 HTTP/1.1
+    Host: log-api.newrelic.com
+    Content-Type: application/json
+    X-License-Key: YOUR_LICENSE_KEY
+    Accept: */*
+    Content-Length: 133
+    {
+      "timestamp": TIMESTAMP_IN_UNIX_EPOCH,
+      "message": "User 'xyz' logged in",
+      "logtype": "nginx",
+      "service": "login-service",
+      "hostname": "login.example.com"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Para gerenciar suas regras de análise de forma programática, use NerdGraph, nossa API no formato GraphQL, em [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql). Para obter mais informações, consulte o [tutorial do NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial) para criar, consultar e excluir suas regras de análise.
+
+<CollapserGroup>
+  <Collapser id="apache" title="Apache">
     <DNT>**Source:**</DNT> `logtype = 'apache'`
 
     <DNT>
@@ -45,10 +163,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `agent`: o agente do usuário do cliente
   </Collapser>
 
-  <Collapser
-    id="apache_error"
-    title="Erro Apache"
-  >
+  <Collapser id="apache_error" title="Erro Apache">
     <DNT>**Source:**</DNT> `logtype = 'apache_error'`
 
     <DNT>
@@ -75,10 +190,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `apache_error.message`: A mensagem de erro
   </Collapser>
 
-  <Collapser
-    id="application-load-balancer"
-    title="Aplicativo Balanceador de carga"
-  >
+  <Collapser id="application-load-balancer" title="Aplicativo Balanceador de carga">
     <DNT>**Source:**</DNT> `logtype = 'alb'`
 
     <DNT>
@@ -437,10 +549,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     </table>
   </Collapser>
 
-  <Collapser
-    id="cassandra"
-    title="Cassandra"
-  >
+  <Collapser id="cassandra" title="Cassandra">
     Fonte: `logtype = 'cassandra'`
 
     Grok
@@ -459,10 +568,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `cassandra.message`: A mensagem cassandra bruta
   </Collapser>
 
-  <Collapser
-    id="cloudfront"
-    title="CloudFront (registro padrão)"
-  >
+  <Collapser id="cloudfront" title="CloudFront (registro padrão)">
     <DNT>**Source:**</DNT> `logtype = 'cloudfront-web'`
 
     <DNT>
@@ -529,7 +635,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
           </td>
 
           <td>
-            O método de solicitação HTTP&#x3A; `DELETE`, `GET`, `HEAD`, `OPTIONS`, `PATCH`, `POST` ou `PUT`.
+            O método de solicitação HTTP: `DELETE`, `GET`, `HEAD`, `OPTIONS`, `PATCH`, `POST` ou `PUT`.
           </td>
         </tr>
 
@@ -871,10 +977,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     </table>
   </Collapser>
 
-  <Collapser
-    id="cloudfront-rtl"
-    title="CloudFront (registro de tempo real)"
-  >
+  <Collapser id="cloudfront-rtl" title="CloudFront (registro de tempo real)">
     <DNT>**Source:**</DNT> `logtype = 'cloudfront-rtl'`
 
     <DNT>
@@ -1371,10 +1474,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     </table>
   </Collapser>
 
-  <Collapser
-    id="elastic-load-balancer"
-    title="Balanceador de carga elástico"
-  >
+  <Collapser id="elastic-load-balancer" title="Balanceador de carga elástico">
     <DNT>**Source:**</DNT> `logtype = 'elb'`
 
     <DNT>
@@ -1439,7 +1539,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
           </td>
 
           <td>
-            O método de solicitação HTTP&#x3A; `DELETE`, `GET`, `HEAD`, `OPTIONS`, `PATCH`, `POST` ou `PUT`.
+            O método de solicitação HTTP: `DELETE`, `GET`, `HEAD`, `OPTIONS`, `PATCH`, `POST` ou `PUT`.
           </td>
         </tr>
 
@@ -1780,10 +1880,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     </table>
   </Collapser>
 
-  <Collapser
-    id="haproxy"
-    title="HAProxy"
-  >
+  <Collapser id="haproxy" title="HAProxy">
     <DNT>**Source:**</DNT> `logtype = 'haproxy_http'`
 
     <DNT>
@@ -1829,10 +1926,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `captured_response_headers`: Cabeçalho capturado da resposta
   </Collapser>
 
-  <Collapser
-    id="ktranslate-health"
-    title="KTranslate Saúde"
-  >
+  <Collapser id="ktranslate-health" title="KTranslate Saúde">
     <DNT>**Source:**</DNT> `logtype = 'ktranslate-health'`
 
     <DNT>
@@ -1853,10 +1947,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `message`: o campo de mensagem contém uma mensagem de formato livre que fornece informações sobre o evento
   </Collapser>
 
-  <Collapser
-    id="linux_cron"
-    title="Cron do Linux (/var/log/cron)"
-  >
+  <Collapser id="linux_cron" title="Cron do Linux (/var/log/cron)">
     <DNT>**Source:**</DNT> `logtype = 'linux_cron'`
 
     <DNT>
@@ -1879,10 +1970,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `linux_cron.message`: A mensagem do log
   </Collapser>
 
-  <Collapser
-    id="linux_messages"
-    title="Mensagens Linux (/var/mensagem do log)"
-  >
+  <Collapser id="linux_messages" title="Mensagens Linux (/var/mensagem do log)">
     <DNT>**Source:**</DNT> `logtype = 'linux_messages'`
 
     <DNT>
@@ -1904,10 +1992,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `linux_messages.message`: A mensagem do log
   </Collapser>
 
-  <Collapser
-    id="iis"
-    title="Microsoft IIS"
-  >
+  <Collapser id="iis" title="Microsoft IIS">
     <DNT>**Source:**</DNT> `logtype = 'iis_w3c'`
 
     <DNT>
@@ -1922,13 +2007,10 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
       **Results:**
     </DNT>
 
-    O IIS permite diversas [opções de configuração](https://docs.microsoft.com/en-us/previous-versions/iis/6.0-sdk/ms524877(v=vs.90)). Se você configurou alguma opção fora do padrão, nosso padrão Grok não analisará seu log. Nesse caso, recomendamos que você use [a análise personalizada](/docs/logs/ui-data/parsing/#custom-parsing).
+    O IIS permite diversas [opções de configuração](https://docs.microsoft.com/en-us/previous-versions/iis/6.0-sdk/ms524877\(v=vs.90\)). Se você configurou alguma opção fora do padrão, nosso padrão Grok não analisará seu log. Nesse caso, recomendamos que você use [a análise personalizada](/docs/logs/ui-data/parsing/#custom-parsing).
   </Collapser>
 
-  <Collapser
-    id="mongodb"
-    title="Mongodb"
-  >
+  <Collapser id="mongodb" title="Mongodb">
     <DNT>**Source:**</DNT> `logtype = 'mongodb'`
 
     <DNT>
@@ -1950,10 +2032,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `mongodb.message`: A mensagem bruta do mongodb
   </Collapser>
 
-  <Collapser
-    id="monit"
-    title="Monitorar"
-  >
+  <Collapser id="monit" title="Monitorar">
     <DNT>**Source:**</DNT> `logtype = 'monit'`
 
     <DNT>
@@ -1972,10 +2051,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `message`: A mensagem
   </Collapser>
 
-  <Collapser
-    id="mysql-error"
-    title="Erro MySQL"
-  >
+  <Collapser id="mysql-error" title="Erro MySQL">
     <DNT>**Source:**</DNT> `logtype = 'mysql-error'`
 
     <DNT>
@@ -1993,10 +2069,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `log_level`: A gravidade da linha de log
   </Collapser>
 
-  <Collapser
-    id="nginx"
-    title="NGINX"
-  >
+  <Collapser id="nginx" title="NGINX">
     <DNT>**Source:**</DNT> `logtype = 'nginx'`
 
     <DNT>
@@ -2023,10 +2096,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `agent`: o agente do usuário do cliente
   </Collapser>
 
-  <Collapser
-    id="nginx-error"
-    title="Erro NGINX"
-  >
+  <Collapser id="nginx-error" title="Erro NGINX">
     <DNT>**Source:**</DNT> `logtype = 'nginx-error'`
 
     <DNT>
@@ -2052,10 +2122,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `referrer`: O referenciador HTTP
   </Collapser>
 
-  <Collapser
-    id="postgresql"
-    title="Postgresql"
-  >
+  <Collapser id="postgresql" title="Postgresql">
     Fonte: `logtype = 'postgresql'`
 
     Grok:
@@ -2072,10 +2139,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `postgresql.message`: A mensagem do log
   </Collapser>
 
-  <Collapser
-    id="rabbitmq"
-    title="Coelhomq"
-  >
+  <Collapser id="rabbitmq" title="Coelhomq">
     <DNT>**Source:**</DNT> `logtype = 'rabbitmq'`
 
     <DNT>
@@ -2096,10 +2160,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `rabbitmq.message`: A mensagem de erro RabbitMQ
   </Collapser>
 
-  <Collapser
-    id="redis"
-    title="Redis"
-  >
+  <Collapser id="redis" title="Redis">
     <DNT>**Source:**</DNT> `logtype = 'redis'`
 
     <DNT>
@@ -2121,10 +2182,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `redis.message`: A mensagem de erro Redis
   </Collapser>
 
-  <Collapser
-    id="route53"
-    title="Rota 53"
-  >
+  <Collapser id="route53" title="Rota 53">
     <DNT>**Source:**</DNT> `logtype = 'route-53'`
 
     <DNT>
@@ -2150,10 +2208,7 @@ O New Relic pode analisar formatos de log comuns de acordo com regras integradas
     * `edns_client_subnet`: um endereço IP parcial para o cliente de origem da solicitação, se disponível no resolvedor DNS.
   </Collapser>
 
-  <Collapser
-    id="syslog-rfc5424"
-    title="Syslog RFC-5424"
-  >
+  <Collapser id="syslog-rfc5424" title="Syslog RFC-5424">
     <DNT>**Source:**</DNT> `logtype = 'syslog-rfc5424'`
 
     <DNT>
