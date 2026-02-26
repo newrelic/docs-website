@@ -37,7 +37,7 @@ By default, the collector doesn't emit its [internal telemetry](https://opentele
 #### Download the configuration file
 
 ```bash
-curl -L https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml \
+curl 'https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/heads/main/examples/internal-telemetry-config.yaml' \
   --silent --output internal-telemetry-config.yaml
 ```
 
@@ -90,6 +90,26 @@ The tag <DNT>`newrelic.service.type: otel_collector`</DNT> acts as an opt-in to 
 ### Customizing configuration [#customize]
 
 The default configuration exposes additional environment variables of the form `INTERNAL_TELEMETRY_...` to tweak common options such as detail levels and sampling. Refer to the [configuration itself](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) for more details.
+
+We recommend using the default configuration to monitor your collector. However, you can modify the example configuration to meet your needs, such as reducing sampling or data collection rates. Refer to the [official documentation](https://opentelemetry.io/docs/collector/internal-telemetry/) for more details. Keep in mind that changes to the configuration may cause certain parts of the UI to not display data. Also refer to [Limitations](#limitations). The collector's internal telemetry configuration options change as the OTel community evolves. You have full control over your configuration, including whether to use the provided defaults.
+
+#### Overhead considerations
+
+Like all telemetry, the collector's internal telemetry increases your data ingest. The overhead depends on your workload and configuration. Here are the key factors to consider:
+
+##### Metrics
+Creates constant overhead for the collector and all active components, regardless of throughput. Metrics are emitted at a constant interval (60 seconds by default). Any component can emit custom metrics, as indicated by the respective [metadata.yaml](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/filterprocessor/metadata.yaml#L20), which may add to the overhead.
+
+##### Logs
+Has minimal impact during normal operation. Higher overhead can occur when error logs increase rapidly, but this is reduced because logs are sampled by default. The sampling algorithm allows a constant number of logs per defined interval and then samples at a static rate. Refer to [service::telemetry::logs::sampling](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml).
+
+##### Traces
+Disabled by default due to:
+- Limited maturity of traces. Not all components are instrumented, see this [github issue](https://github.com/open-telemetry/opentelemetry-collector/issues/8804).
+- Unpredictable overhead that varies with workload and batching configuration from upstream agents and collectors.
+- No adaptive sampling algorithm available. This makes it impossible to provide a universal sampling recommendation that doesn't risk unexpected costs for certain use cases.
+
+When traces become more mature, they will provide valuable insight into how much time the collector spends processing data at the component level. To experiment with traces as they develop, set <DNT>`INTERNAL_TELEMETRY_TRACE_LEVEL=info`</DNT> and start with a low sampling rate such as <DNT>`INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO=0.001`</DNT> (0.1%) while monitoring your ingest volume and adjusting as needed.
 
 ## View your collector in the UI [#view-ui]
 
@@ -149,69 +169,26 @@ Monitor network communication with the HTTP/RPC page:
   src="/images/otel_collector_o11y-httprpc.webp"
 />
 
-Note: These charts are only populated if your collector uses components that communicate via HTTP or gRPC (like OTLP receivers or exporters).
+Note: These charts are only populated if your collector uses components that communicate via HTTP or gRPC (like OTLP receivers or exporters) and requires <DNT>`INTERNAL_TELEMETRY_METRICS_LEVEL=detailed`</DNT>.
 
 ## Configuration examples [#examples]
 
-For detailed configuration examples and customization options, refer to the [internal telemetry configuration](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) in the NRDOT Collector releases repository.
+This section contains examples of how the above step-by-step guide translates to different use cases involving the collector.
 
-The configuration exposes environment variables of the form `INTERNAL_TELEMETRY_...` to customize options such as detail levels and sampling.
+### Simple collector with internal telemetry enabled
 
-### Deployment examples [#deployment-examples]
+[Minimal example](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry) of a collector running with docker compose.
 
-For real-world deployment scenarios, see these example configurations:
+### Populate infrastructure relationships (optional, experimental)
 
-* **[Kubernetes deployment](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector)**: Example of running a collector in Kubernetes with internal telemetry enabled
-* **[Docker deployment](https://github.com/newrelic/nrdot-collector-releases/tree/main/examples)**: Example Docker configurations for various collector setups with monitoring enabled
-
-## Billing and data overhead [#billing-overhead]
-
-Collector Observability generates additional telemetry data that counts toward your data ingest. Understanding the data volume helps you plan for costs and optimize your configuration.
-
-### Data generated [#data-generated]
-
-Collector Observability generates the following types of telemetry:
-
-* **Metrics**: Component-level insights into receivers, processors, and exporters
-* **Logs**: Sampled logs with minimal overhead during normal operation
-* **Traces**: Optional experimental support for deep pipeline analysis
-
-### Expected data volume [#expected-volume]
-
-The amount of data generated depends on your collector's configuration:
-
-* **Baseline metrics**: A collector with standard components (receiver, processor, exporter) generates approximately **1-2 KB/minute** of metric data
-* **Logs**: With default sampling (1% of log statements), expect **0.5-1 KB/minute** during normal operation. During errors or high verbosity, this can increase significantly
-* **Traces** (optional): If enabled, expect **5-10 KB/minute** depending on pipeline complexity
-
-For a typical collector processing telemetry 24/7:
-* **Monthly metric ingest**: ~2.5-5 MB
-* **Monthly log ingest**: ~1.5-3 MB (normal operation)
-* **Monthly trace ingest**: ~10-20 MB (if enabled)
-
-### Controlling data overhead [#controlling-overhead]
-
-You can adjust telemetry generation using environment variables:
-
-* <DNT>**`INTERNAL_TELEMETRY_METRICS_LEVEL`**</DNT>: Set to `none` to disable metrics, `normal` (default), or `detailed`
-* <DNT>**`INTERNAL_TELEMETRY_LOGS_LEVEL`**</DNT>: Set to `info` (default), `warn`, or `error` to reduce log volume
-* <DNT>**`INTERNAL_TELEMETRY_LOGS_SAMPLING`**</DNT>: Adjust sampling rate (default: 1%)
-* <DNT>**`INTERNAL_TELEMETRY_TRACES_ENABLED`**</DNT>: Set to `false` to disable traces (disabled by default)
-
-For configuration details, see the [customizing configuration](#customize) section above.
+As shown above, APM can show infrastructure metrics for the infrastructure the collector is running on but only if your infrastructure is instrumented and [a relationship](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#related-entities) can be formed. The relationship is driven by additional attributes on the collector's internal telemetry. You can read more about this topic in our [OTel documentation](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/#service-to-infra-otel-collector).
+The steps to set this up heavily depend on your exact infrastructure. For the common choice of Kubernetes we created [an example](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry-k8s-container-relationships) that showcases how to achieve container-to-service relationships based on our [OTel for Kubernetes solution](https://docs.newrelic.com/docs/kubernetes-pixie/k8s-otel/intro/).
 
 ## Limitations [#limitations]
 
-* **Certain common APM features** don't seamlessly translate to the collector and its stream-processing nature and have been hidden from the Summary page and side navigation. We'll take a look at each of them for General Availability to determine if and how we can best integrate them. Examples are:
-  * Apdex score
-  * Meaningful `apm.%` metrics
-  * Error Rate
-  * Transactions
-
 * **Collector telemetry isn't stable yet**:
-  * The latest supported version of telemetry emitted by collector components is the component version in our NRDOT distributions (see [manifest](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/manifest.yaml) for reference).
+  * The supported version of internal telemetry is implicitly defined by the [core collector version](https://github.com/open-telemetry/opentelemetry-collector) we use to build NRDOT, see version of the otlpreceiver in [manifest of nrdot-collector](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/manifest.yaml).
   * If the emitted telemetry changes during Public Preview, we reserve the right to only support the most recent version. For example, we support <DNT>`http.client.request.duration`</DNT> (collector version >=0.128.0, NRDOT version >=1.2.0, nr-k8s-otel-collector >=0.8.37) but not <DNT>`http.request.duration`</DNT>.
-  * With General Availability, we'll start providing backwards compatibility if metric names continue to change.
 
 * **Export format requirements**: The collector UI expects telemetry in the format exported by the <DNT>`otlpexporter`</DNT>. It doesn't support metrics exported via Prometheus. For example, <DNT>`http.client.request.duration`</DNT> is supported, but <DNT>`http_client_request_duration`</DNT> isn't.
 
