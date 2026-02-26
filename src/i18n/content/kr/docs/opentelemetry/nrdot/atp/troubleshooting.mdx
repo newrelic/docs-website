@@ -1,0 +1,189 @@
+---
+title: ATP 모니터링 및 문제 해결
+metaDescription: 'Learn how to monitor ATP performance, verify data filtering effectiveness, and troubleshoot common configuration issues.'
+tags:
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - NRDOT
+  - Adaptive Telemetry Processor
+  - ATP
+  - Monitoring
+  - Troubleshooting
+  - Performance
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+ATP가 올바르게 작동하는지 확인하는 방법과 호스트 및 Kubernetes 환경 전반에서 발생하는 일반적인 설정 문제를 해결하는 방법을 알아보세요.
+
+## ATP가 제대로 작동하는지 확인하십시오. [#verify-atp]
+
+ATP를 설치한 후 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/) 에서 다음 쿼리를 실행하여 뉴렐릭이 프로세스 데이터를 수신하는지 확인하세요.
+
+<CollapserGroup>
+  <Collapser id="host-verification" title="호스트 환경">
+    * 최근 처리 과정을 보려면 다음을 참조하십시오.
+
+    ```sql
+    FROM Metric SELECT *
+    WHERE metricName LIKE 'process.%'
+    LIMIT 100
+    ```
+
+    * 고유한 프로세스 유형을 계산하려면:
+
+    ```sql
+    FROM Metric SELECT uniqueCount(metricName)
+    WHERE metricName LIKE 'process.%'
+    ```
+  </Collapser>
+
+  <Collapser id="kubernetes-verification" title="Kubernetes 환경">
+    * 클러스터의 최근 프로세스 메트릭을 보려면 다음을 수행하십시오.
+
+    ```sql
+    FROM Metric SELECT *
+    WHERE k8s.cluster.name='your-cluster-name'
+    AND metricName LIKE 'process.%'
+    LIMIT 100
+    ```
+
+    * 클러스터의 고유 프로세스 메트릭 유형을 계산하려면 다음 단계를 따르세요.
+
+    ```sql
+    FROM Metric SELECT uniqueCount(metricName)
+    WHERE k8s.cluster.name='your-cluster-name'
+    AND metricName LIKE 'process.%'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## ATP 문제 해결 [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="atp-filtering" title="ATP가 필터링되지 않은 지표">
+    **문제**: 모든 프로세스 경로가 필터링되지 않고 전송되고 있습니다.
+
+    <CollapserGroup>
+      <Collapser id="host-atp-filtering" title="호스트 환경 솔루션">
+        1. 파이프라인 프로세서 목록에 ATP가 있는지 확인하십시오.
+        2. `metric_thresholds` 구성되어 있는지 확인하십시오.
+        3. 프로세스 관련 데이터가 수집되고 있는지 확인하십시오.
+        4. ATP 초기화 오류에 대해서는 수집기 로그를 검토하십시오.
+      </Collapser>
+
+      <Collapser id="kubernetes-atp-filtering" title="Kubernetes 환경 솔루션">
+        1. ATP가 활성화되어 있는지 확인하십시오.
+
+           ```bash
+           kubectl get configmap -n newrelic nr-k8s-otel-collector-daemonset-config -o yaml | grep adaptivetelemetry
+           ```
+
+        2. ATP가 파이프라인에 있는지 확인하세요: `metrics/nr` 파이프라인에서 `adaptivetelemetry` 찾으세요
+
+        3. 올바른 수집기 이미지를 사용하고 있는지 확인하십시오.
+
+           ```bash
+           kubectl get daemonset -n newrelic nr-k8s-otel-collector-daemonset -o yaml | grep "image:"
+           ```
+
+           예상값: `newrelic/nrdot-collector:11.0` (또는 그 이후)\
+           **아니다**: `newrelic/nrdot-collector-k8s:1.11.0`
+
+        4. `values.yaml` 또는 ConfigMap에서 **`enable_atp` `true`로 설정되어 있는지 확인하십시오.**
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser id="high-memory" title="높은 메모리 사용량">
+    **문제**: Collector 메모리는 시간이 지남에 따라 증가합니다.
+
+    **해결 방법**: 보존 설정을 조정하세요.
+
+    ```yaml
+    processors:
+      adaptivetelemetry:
+        retention_minutes: 15  # Reduce from default 30
+    ```
+  </Collapser>
+
+  <Collapser id="missing-processes" title="캡처되지 않는 프로세스">
+    **문제**: 텔레메트리에서 예상되는 프로세스가 누락되었습니다.
+
+    **해결 방법**: 포함 목록에 프로세스를 추가하려면 전체 경로를 사용해야 합니다. 경로 구분 기호가 없는 항목은 어떤 프로세스와도 일치하지 않습니다. 예를 들어:
+
+    ```yaml
+    processors:
+      adaptivetelemetry:
+        include_process_list:
+          - "/usr/bin/myapp"  # Always captured regardless of thresholds
+    ```
+  </Collapser>
+
+  <Collapser id="data-stopped" title="ATP 데이터 표시가 중단되었습니다.">
+    **문제**: 이전에는 ATP 데이터가 표시되었지만 지금은 표시되지 않습니다. 이는 카디널리티 제한에 도달했기 때문일 수 있습니다. ATP는 텔레메트리 용량을 줄이기 위해 많은 프로세스를 필터링하지만, 고유 프로세스 수가 매우 많으면 여전히 제한에 걸릴 수 있습니다. 이를 추적하려면 [카디널리티 사용량을 모니터링](/docs/data-apis/ingest-apis/metric-api/monitor-cardinality/) 할 수 있습니다.
+
+    **해결책**:
+
+    문제를 해결하려면 뉴렐릭의 [카디널리티 관리 페이지](/docs/data-apis/ingest-apis/metric-api/cardinality-management/#per-metric-limit-adjustment) 로 이동하여 카디널리티 제한에 도달했는지 확인하십시오. 제한을 초과한 경우 [카디널리티 제한을](/docs/data-apis/ingest-apis/metric-api/cardinality-management/#per-metric-limit-adjustment) 늘릴 수 있습니다.
+
+    <Callout variant="tip">
+      이것이 반복되는 문제인 경우 ATP의 `metric_thresholds` 값을 늘려 더 많은 프로세스를 필터링하고 수신되는 메트릭의 양을 줄일 수도 있습니다. 이렇게 하면 향후 카디널리티 제한에 걸리는 것을 방지하는 데 도움이 될 것입니다. 예를 들어, CPU 및 메모리 사용률을 높여 리소스 집약적인 프로세스만 포착하도록 설정할 수 있습니다.
+
+      ```yaml
+      processors:
+        adaptivetelemetry:
+          metric_thresholds:
+            process.cpu.utilization: 0.10  # Increase from 0.05 to 0.10 (10% CPU)
+            process.memory.utilization: 0.10  # Filter out more processes
+      ```
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## 설정 요구 사항 [#config-requirements]
+
+<CollapserGroup>
+  <Collapser id="persistence-file" title="영구 저장 파일 기능을 활성화합니다.">
+    ATP의 영구 저장 파일 기능을 활성화하려면 관리자 권한으로 바이너리를 실행해야 합니다.
+
+    Helm 차트의 `daemonset.yaml` 파일에 다음 내용을 추가하세요.
+
+    ```yaml
+    hostPID: true
+    ```
+  </Collapser>
+
+  <Collapser id="disk-io" title="disk.io 데이터 활성화">
+    OpenTelemetry 호스트메트릭스 수신기를 통해 `disk.io` 데이터 수집을 활성화하려면 `/proc/[PID]/io` 에 저장된 io 데이터에 루트 사용자 액세스가 필요하므로 권한 상승이 필요합니다. 이는 ATP의 필수 요건이 아닙니다. ATP는 OpenTelemetry에서 이미 수집한 데이터만 처리합니다.
+
+    Helm 차트에 다음 보안 컨텍스트를 추가하세요.
+
+    ```yaml
+    securityContext:
+      allowPrivilegeEscalation: true
+      privileged: true
+      readOnlyRootFilesystem: false
+      runAsNonRoot: false
+      runAsUser: 0
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 관련 리소스 [#related-resources]
+
+<DocTiles>
+  <DocTile title="고급 기능" path="/docs/opentelemetry/nrdot/atp/advanced-features">
+    ATP 구현, 배포에 대한 고급 기능을 활성화하는 방법을 알아보세요.
+  </DocTile>
+
+  <DocTile title="데이터 쿼리" path="/docs/opentelemetry/nrdot/atp/query">
+    NRQL 사용하여 뉴렐릭에서 ATP 데이터를 조회하는 방법을 알아보세요.
+  </DocTile>
+</DocTiles>
