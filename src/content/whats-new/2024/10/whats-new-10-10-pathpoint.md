@@ -6,7 +6,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/business-obse
 getStartedLink: 'https://onenr.io/0oQDP60y7Qy'
 ---
 
-New Relic has released a new version of Pathpoint, built on an entirely new code base that features significant enhancements and AI capabilities. First introduced in January 2024, our new version of New Relic Pathpoint helps different teams understand business health, from frontline teams like customer support and product managers to business analysts and C-level executives.  New Relic Pathpoint provides deep business insights and a more intuitive user experience so you can visualize the stages, steps, and signals for different business journeys in complex environments. ```
+New Relic has released a new version of Pathpoint, built on an entirely new code base that features significant enhancements and AI capabilities. First introduced in January 2024, our new version of New Relic Pathpoint helps different teams understand business health, from frontline teams like customer support and product managers to business analysts and C-level executives.  New Relic Pathpoint provides deep business insights and a more intuitive user experience so you can visualize the stages, steps, and signals for different business journeys in complex environments.
 
 New features include:
 
