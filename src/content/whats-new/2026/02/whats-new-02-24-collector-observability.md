@@ -2,7 +2,7 @@
 title: 'Collector Observability Public Preview'
 summary: 'Confidently scale OTel adoption through first-class Collector Observability'
 releaseDate: '2026-02-24'
-learnMoreLink: 'https://docs.newrelic.com/docs/opentelemetry/get-started/tbd'
+learnMoreLink: 'https://docs.newrelic.com/docs/opentelemetry/collector-observability/collector-observability/'
 ---
 
 New Relic’s Collector Observability provides customers with a dedicated, first-class experience for monitoring the health and performance of their OTel Collectors, a proxy that acts as the ‘middleware’ for a business’s observability data. Operating OTel Collectors can leave engineers flying blind because it’s a challenge to distinguish between resource saturation, configuration errors, or connectivity issues. New Relic’s Collector Observability capability reduces these barriers and provides real-time visibility into collector health and performance. This empowers customers to resolve bottlenecks before they lead to data loss, ensuring a seamless and scalable path to OTel adoption.
