@@ -1,0 +1,207 @@
+---
+title: OpenTelemetry Collector 모니터링
+metaDescription: Monitor your OpenTelemetry collector's health and performance using its internal telemetry in a dedicated APM UI experience.
+freshnessValidatedDate: '2025-05-27T00:00:00.000Z'
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+전용 APM UI 환경을 통해 [OpenTelemetry 수집기의](https://opentelemetry.io/docs/collector/) 상태와 성능을 모니터링하세요. 수집기가 실패하거나 오작동할 경우 옵저버빌리티 데이터가 정전되거나 영구적인 데이터 손실 또는 왜곡된 인사이트가 발생할 수 있습니다. 그래서 저희는 수집기가 수행하는 스트리밍 작업에 최적화된 APM 환경인 Collector 옵저버빌리티를 개발했습니다. 수집기의 [내부 텔레메트리를](https://opentelemetry.io/docs/collector/internal-telemetry/) 활용하면 수집기의 각 구성 요소가 어떻게 작동하는지 한눈에 확인할 수 있으므로, 문제가 발생하기 전에 이를 파악하여 옵저버빌리티 파이프라인에 영향을 미치지 않도록 할 수 있습니다.
+
+## 수집기 모니터링을 설정하세요 [#setup]
+
+<Callout variant="important" title="청구">
+  Collector 옵저버빌리티 사용은 귀하의 계정에 연결된 가격 모델 및 아래에 정의된 내용에 따라 주문에 의거하여 미리보기 기간 동안 요금이 부과됩니다.
+
+  이 기능과 관련된 비용은 귀하의 계정에 적용된 가격 모델에 따라 다음과 같은 요소에 의해 결정됩니다.
+
+  **코어 컴퓨트**: 코어 CCU로 측정되는 요약 페이지는 미리보기 기간 동안 요금이 부과됩니다. 프로세스 페이지와 HTTP/RPC 페이지는 미리보기 기간 동안 요금이 부과되지 않습니다.
+
+  **데이터 수집**: 내부 텔레메트리에서 추가되는 데이터(GB 단위)는 미리 보기 기간 동안 요금이 부과됩니다.
+
+  이 기능이 일반 사용자에게 제공될 경우, 사용료는 주문 내용에 따라 청구됩니다.
+</Callout>
+
+### 수집기에 대한 내부 텔레메트리 활성화 [#enable-telemetry]
+
+기본적으로 수집기는 [내부 텔레메트리를](https://opentelemetry.io/docs/collector/internal-telemetry/) 내보내지 않으므로 먼저 활성화해야 합니다.
+
+#### 설정 파일 다운로드
+
+```bash
+curl -L https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml \
+  --silent --output internal-telemetry-config.yaml
+```
+
+#### 환경 변수 설정
+
+* <DNT>`INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY`</DNT>: 내부 텔메트리 계정에 대한 Ingest 키가 전송되어야 합니다. 이 키는 수집기가 뉴렐릭에게 일반 데이터를 보낼 때 사용하는 키(예: 아래 예시의 <DNT>`NEW_RELIC_LICENSE_KEY`</DNT> 와 다를 수 있습니다.
+* <DNT>`INTERNAL_TELEMETRY_SERVICE_NAME`</DNT>: 기본값은 `otel-collector` 이며, 편집 이름을 뉴렐릭으로 결정합니다.
+* <DNT>`INTERNAL_TELEMETRY_OTLP_ENDPOINT`</DNT>: 기본값은 미국 `https://otlp.nr-data.net` 입니다. EU에 거주하는 경우 이 값을 설정하세요. `https://otlp.eu01.nr-data.net`
+
+#### 병합된 설정으로 수집기 실행
+
+구성 요소 및 파이프라인에 대한 일반 설정(다음 예 `--config=/etc/nrdot-collector/config.yaml`) 외에도 두 설정을 병합하는 두 번째 인수 `--config` 를 추가합니다.
+
+```bash
+docker run \
+  -e INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY='...' \
+  -e NEW_RELIC_LICENSE_KEY='...' \
+  -e INTERNAL_TELEMETRY_SERVICE_NAME='demo-collector' \
+  -v './internal-telemetry-config.yaml:/etc/nrdot-collector/config-internal.yaml' \
+  newrelic/nrdot-collector:1.10.0 --config=/etc/nrdot-collector/config.yaml \
+  --config='/etc/nrdot-collector/config-internal.yaml'
+```
+
+<Callout variant="important">
+  `service::telemetry` 노드 아래에 기존 설정이 있는 경우 `--config` 인수의 순서가 중요합니다. 수집기는 설정과 구성의 특정 부분(예: 리스트, 리프 노드)는 병합할 수 없으므로 마지막 `--config` 인수로 덮어쓰여집니다.
+</Callout>
+
+#### 대안 (생산에는 권장하지 않음)
+
+안정성 문제 때문에 권장하지는 않지만, 테스트 목적으로 설정을 직접 참조할 수도 있으며, 그러면 수집기가 시작 시 해당 설정을 가져옵니다.
+
+```bash
+docker run \
+  -e INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY='...' \
+  -e NEW_RELIC_LICENSE_KEY='...' \
+  -e INTERNAL_TELEMETRY_SERVICE_NAME='demo-collector' \
+  newrelic/nrdot-collector:1.10.0 --config=/etc/nrdot-collector/config.yaml \
+  --config='https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml'
+```
+
+### 엔티티 태그 추가 [#add-tag]
+
+태그 <DNT>`newrelic.service.type: otel_collector`</DNT> 은 UI 수준에서 해당 경험에 대한 선택적 참여 역할을 합니다. 다음 옵션 중 하나를 선택하십시오.
+
+* **옵션 1**: 위에서 제공된 예시 설정(옵션 2의 설정이 포함되어 있음)을 사용합니다.
+* **옵션 2**: 수집기에 인수 <DNT>`--config=yaml:service::telemetry::resource::newrelic.service.type: otel_collector`</DNT> 을 추가합니다. 그러면 속성이 리소스 속성으로 추가되고 뉴렐릭은 수집 시 태그를 수행합니다. 이 옵션을 제거하면 태그가 만료되는 데 하루가 걸립니다.
+* **옵션 3**: APM UI를 통해 태그를 추가합니다(페이지 상단, 엔티티 이름 옆). UI를 통해서도 이 설정을 제거하여 다시 원래대로 되돌릴 수 있습니다.
+
+### 설정 사용자 정의 [#customize]
+
+기본 설정에서는 세부 수준 및 샘플링과 같은 일반적인 옵션을 조정하기 위해 `INTERNAL_TELEMETRY_...` 형식의 추가 환경 변수를 노출합니다. 자세한 내용은 [해당 설정 파일](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) 을 참조하십시오.
+
+## UI에서 컬렉션을 확인하세요 [#view-ui]
+
+### APM UI에서 내부 텔레메트리를 살펴보세요. [#explore-ui]
+
+수집기의 내부 텔레메트리를 보려면 <DNT>**APM &amp; Services &gt; Services - OpenTelemetry &gt; your\_collector\_name**</DNT> 으로 이동하여 수집기의 부품을 탐색하세요.
+
+수집기에 사용되는 구성 요소에 따라 일부 차트가 표시되지 않을 수 있습니다. 예를 들어 gRPC를 통해 OTLP 데이터를 수신하거나 내보내지 않으면 RPC 차트가 비어 있게 됩니다.
+
+### 요약 페이지 [#summary-page]
+
+요약 페이지에서는 수집기의 상태 및 성능에 대한 개요를 확인할 수 있습니다.
+
+* 종합 수집기 건강지표
+* 수신자, 처리자, 수출자 및 배치 처리([배치 프로세서](https://github.com/open-telemetry/opentelemetry-collector/tree/v0.128.0/processor/batchprocessor) 필요) 동작에 대한 차트
+* [메모리 제한기](https://github.com/open-telemetry/opentelemetry-collector/tree/v0.128.0/processor/memorylimiterprocessor) 의 고유한 오류 모드 때문에 전용 차트가 필요합니다.
+
+<img title="Screenshot showing new Summary Page" alt="Screenshot showing new Summary Page" src="/images/otel_collector_o11y-summary.webp" />
+
+* 관계 및 지표(구성된 경우 [설정 예](#examples) 참조)
+
+<img title="Screenshot showing related infrastructure telemetry in the new Summary Page" alt="Screenshot showing related infrastructure telemetry in the new Summary Page" src="/images/otel_collector_o11y-infra.webp" />
+
+### 처리 페이지 [#process-page]
+
+프로세스 페이지를 통해 시스템 수준의 리소스 사용량을 추적하세요.
+
+* CPU 사용률 및 추세
+* 메모리 사용량 및 패턴
+* 프로세스 수준 성능 지표
+
+<img title="Screenshot showing new Process Page" alt="Screenshot showing new Process Page" src="/images/otel_collector_o11y-process.webp" />
+
+### HTTP/RPC 페이지 [#http-rpc-page]
+
+HTTP/RPC 페이지와의 네트워크 통신을 모니터링합니다.
+
+* HTTP 클라이언트 및 서버 요청 메트릭
+* gRPC 통신 통계
+* 네트워크 지연 시간 및 오류
+
+<img title="Screenshot showing new HTTP/RPC Page" alt="Screenshot showing new HTTP/RPC Page" src="/images/otel_collector_o11y-httprpc.webp" />
+
+참고: 이 차트는 수집기가 HTTP 또는 gRPC를 통해 통신하는 구성 요소(예: OTLP 수신기 또는 내보내기)를 사용하는 경우에만 표시됩니다.
+
+## 설정 예 [#examples]
+
+자세한 설정 예 및 사용자 정의 옵션은 NRDOT Collector 릴리스의 [내부 텔리메트리 설정을](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) 참조하세요.
+
+설정은 세부 수준 및 샘플링과 같은 옵션을 사용자 지정하기 위해 `INTERNAL_TELEMETRY_...` 형식의 환경 변수를 노출합니다.
+
+### 구현, 배포 예 [#deployment-examples]
+
+실제 구현, 배포 시나리오의 경우 다음 예제 설정을 참조하세요.
+
+* **[Kubernetes 구현, 배포](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector)**: 내부 쉘메트리가 활성화된 Kubernetes 에서 수집기를 실행하는 예
+* **[도커 구현, 배포](https://github.com/newrelic/nrdot-collector-releases/tree/main/examples)**: 모델링이 활성화된 다양한 수집기 설정에 대한 도커 설정 예
+
+## 청구 및 데이터 오버헤드 [#billing-overhead]
+
+Collector 옵저버빌리티는 데이터 수집에 포함되는 추가 텔레메트리 데이터를 생성합니다. 데이터 용량을 이해하면 비용을 계획하고 설정을 최적화하는 데 도움이 됩니다.
+
+### 생성된 데이터 [#data-generated]
+
+Collector 옵저버빌리티는 다음과 같은 유형의 텔레메트리를 생성합니다.
+
+* **지표**: 수신자, 처리자, 수출자로 구성요소 수준의 인사이트
+* **로그**: 정상 작동 중 오버헤드가 최소화된 샘플링된 로그
+* **트레이스**: 심층 파이프라인 분석을 위한 선택적 실험적 지원
+
+### 예상 데이터 용량 [#expected-volume]
+
+생성되는 데이터의 양은 수집기 설정에 따라 다릅니다.
+
+* **기준 지표**: 표준 구성 요소(수신자, 프로세서, 내보내기자)가 포함된 수집기는 분당 약 **1-2KB** 의 지표 데이터를 생성합니다.
+* **로그**: 기본 샘플링(로그 문의 1%)을 사용하면 정상 작동 시 **분당 0.5-1KB의** 처리량이 예상됩니다. 오류가 발생하거나 출력 내용이 지나치게 장황할 경우, 이 수치가 크게 증가할 수 있습니다.
+* **전송** (선택 사항): 활성화된 경우 파이프라인 복잡성에 따라 **분당 5-10KB가** 소요될 것으로 예상됩니다.
+
+일반적인 수집기 처리의 경우 텔레메트리 24/7:
+
+* **월간 지표 수집**: -2.5-5 MB
+* **월간 로그 수집량**: 약 1.5-3MB (정상 작동 시)
+* **월간 트레이스 수집량**: 약 10-20MB (활성화된 경우)
+
+### 데이터 오버헤드 제어 [#controlling-overhead]
+
+환경 변수를 사용하여 텔레메트리 생성 방식을 조정할 수 있습니다.
+
+* <DNT>**`INTERNAL_TELEMETRY_METRICS_LEVEL`**</DNT>: 메트릭을 비활성화하려면 `none` 으로 설정하고, 기본값은 `normal` 입니다. `detailed`
+* <DNT>**`INTERNAL_TELEMETRY_LOGS_LEVEL`**</DNT>로그 볼륨을 줄이려면 `info` (기본값), `warn` 또는 `error` 로 설정하세요.
+* <DNT>**`INTERNAL_TELEMETRY_LOGS_SAMPLING`**</DNT>샘플링 속도를 조정합니다(기본값: 1%).
+* <DNT>**`INTERNAL_TELEMETRY_TRACES_ENABLED`**</DNT>: `false` 으로 설정하면 트레이스가 비활성화됩니다(기본적으로 비활성화됨).
+
+자세한 설정 방법은 위의 [사용자 지정 설정](#customize) 섹션을 참조하십시오.
+
+## 제한 사항 [#limitations]
+
+* **일부 일반적인 APM 기능은** 수집기와 그 스트림 처리 특성에 원활하게 적용되지 않아 요약 페이지와 측면 탐색 메뉴에서 숨겨져 있습니다. 일반 출시를 앞두고 각 기능을 살펴보고, 어떻게 통합하는 것이 가장 좋을지 판단할 예정입니다. 예시는 다음과 같습니다.
+
+  * Apdex 점수
+  * 의미 있는 `apm.%` 지표
+  * 오류율
+  * 업무
+
+* **Collector 텔레메트리는 아직 안정적이지 않습니다**.
+
+  * 수집기 구성 요소에서 출력되는 최신 지원 텔레메트리 버전은 NRDOT 배포판에 포함된 구성 요소 버전입니다(참조는 [매니페스트를](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/manifest.yaml) 참조하세요).
+  * 공개 미리보기 기간 동안 배포되는 텔레메트리가 변경될 경우, 당사는 최신 버전만 지원할 권리를 보유합니다. 예를 들어, 저희는 <DNT>`http.client.request.duration`</DNT> (수집기 버전 &gt;=0.128.0)을 지원합니다. NRDOT 버전 &gt;=1.2.0, nr-k8s-otel-수집기 &gt;=0.8.37) 그러나 <DNT>`http.request.duration`</DNT> 아닙니다.
+  * 정식 출시 후에는 메트릭 이름이 계속 변경될 경우 하위 호환성을 제공할 예정입니다.
+
+* **내보내기 형식 요구 사항**: 수집기 UI <DNT>`otlpexporter`</DNT> 에서 내보낸 형식의 텔레메트리를 기대합니다. 이 프로그램은 Prometheus를 통해 내보낸 메트릭을 지원하지 않습니다. 예를 들어, <DNT>`http.client.request.duration`</DNT> 은 지원되지만 <DNT>`http_client_request_duration`</DNT> 지원되지 않습니다.
+
+* **사용자 정의 구성 요소**: 내부 텔레 [메트리 문서](https://opentelemetry.io/docs/collector/internal-telemetry/) 에 나열되지 않은 내부 텔레메트리는 아직 지원되지 않습니다. 사용자 정의 또는 [기여 구성 요소는](https://github.com/open-telemetry/opentelemetry-collector-contrib) 표준 메트릭을 내보내지만 자체 메트릭을 정의할 수도 있습니다. 우리는 맞춤형 대시보드를 작성하지 않고도 인사이트를 얻을 수 있도록 돕는 방법을 계속 연구하고 있습니다.
+
+* **OTel 컨테이너용 골든 메트릭**: 아직 완벽하게 지원되지 않으므로 인프라 패널의 일부 열에 컨테이너 관련 데이터가 표시되지 않을 수 있습니다.
