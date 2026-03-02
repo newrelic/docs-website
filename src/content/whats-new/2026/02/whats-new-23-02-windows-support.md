@@ -31,23 +31,23 @@ Fleet Control allows you to group Windows hosts into logical fleets by environme
 
 - **Cross-platform consistency:** Apply fine-grained RBAC, configuration templates, and deployment strategies to your fleets regardless of the operating system.
 
-- **Bulk operations:** Roll out a configuration change to thousands of Windows servers as easily as you would to a single cluster.
+- **Bulk operations:** Roll out a configuration change to thousands of Windows servers just as you would to a single cluster.
 
 ## Advanced modular configurations
 
 This release introduces multi-configuration support, allowing for a more modular approach to instrumentation.
 
-- **Reusable templates:** Define a standard Windows configuration once and apply it consistently across multiple fleets to streamline governance.
+- **Reusable templates:** Define a standard Windows configuration once and apply it consistently across many fleets to streamline governance.
 
 - **Reduced sprawl:** Keep your environment organized by inheriting global settings while allowing for specific overrides where necessary.
 
 ## Enterprise-grade security
 
-Security is at the core of New Relic Control, and this release includes several key additional protections.
+Security is at the core of New Relic Control, and this release adds more security protections.
 
 - **Secure secrets management:** Native integration with secure secrets providers like HashiCorp Vault, AWS Secrets Manager, and Kubernetes Secrets ensures that license keys and credentials are never stored in plain text.
 
-- **Validated packages:** All Windows agent packages distributed via Fleet Control are signed and validated to maintain the integrity of your production environments.
+- **Validated packages:** New Relic signs and validates all Windows agent packages distributed via Fleet Control to keep your production environments secure.
 
 ## Get started with Public Preview
 
