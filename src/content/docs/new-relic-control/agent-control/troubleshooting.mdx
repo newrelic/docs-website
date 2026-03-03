@@ -5,7 +5,7 @@ freshnessValidatedDate: never
 ---
 
 <Callout variant="important">
-  Agent Control and New Relic Control are now **generally available** for Kubernetes! Support for Linux hosts is also in **public preview** program, pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+  Agent Control and New Relic Control are now **generally available** for Kubernetes! Support for Linux hosts and Windows hosts is also in **public preview** program, pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
 This document covers the steps to troubleshoot common issues when installing or operating Agent Control. It is organized by environment.
@@ -418,3 +418,136 @@ This document covers the steps to troubleshoot common issues when installing or 
     </table>
   </Collapser>
 </CollapserGroup>
+
+## Windows hosts troubleshooting
+
+If Agent Control is not running or healthy, follow these diagnostic steps in order:
+
+**1. Verify service status:**
+```powershell
+Get-Service -Name newrelic-agent-control
+```
+Expected: `Status : Running`. If stopped or missing, proceed to step 2.
+
+**2. Check service logs:**
+
+View the most recent log file (log files include date suffixes like `newrelic-agent-control.log.2026-02-09-11`):
+```powershell
+Get-ChildItem "C:\ProgramData\New Relic\newrelic-agent-control\logs\" -Filter "newrelic-agent-control.log.*" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | Get-Content -Tail 50
+```
+
+<Callout variant="tip">
+  **File logging configuration:** Agent Control requires explicit configuration to enable file logging. If no log files exist, add this to your `local_config.yaml`:
+  ```yaml
+  log:
+    file:
+      enabled: true
+  ```
+  Then restart the service for logs to appear.
+</Callout>
+
+**3. Test manual execution:**
+
+Run Agent Control from command line to bypass service-specific issues:
+```powershell
+cd "C:\Program Files\New Relic\newrelic-agent-control"
+.\newrelic-agent-control.exe --config "C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml"
+```
+
+If it runs successfully from command line but not as a service, this indicates antivirus or permission issues.
+
+**4. Verify fleet type:**
+
+Ensure the fleet is type **"Host - Windows"**. Using "Host - Linux" will cause failures. Check in Fleet Control UI under fleet details.
+
+**5. Check for port conflicts:**
+
+Agent Control uses port `51200` for its health endpoint:
+```powershell
+netstat -ano | findstr :51200
+```
+
+If another process is using this port, identify it:
+```powershell
+Get-Process -Id (Get-NetTCPConnection -LocalPort 51200).OwningProcess
+```
+
+**6. Verify network connectivity:**
+
+Test connection to Fleet Control:
+```powershell
+Test-NetConnection -ComputerName fleet-control.newrelic.com -Port 443
+Test-NetConnection -ComputerName download.newrelic.com -Port 443
+```
+
+Both should show `TcpTestSucceeded : True`.
+
+**7. Review configuration syntax:**
+
+Check for YAML syntax errors:
+```powershell
+Get-Content "C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml"
+```
+
+Look for common issues: incorrect indentation, missing colons, unquoted special characters.
+
+**8. Check for conflicting agents:**
+
+Verify existing New Relic agents are uninstalled:
+```powershell
+Get-Service -Name newrelic-infra -ErrorAction SilentlyContinue
+Get-Process -Name newrelic-infra -ErrorAction SilentlyContinue
+```
+
+If either command returns results, uninstall the Infrastructure Agent before proceeding.
+
+**9. Verify Administrator privileges:**
+
+Confirm PowerShell is running as Administrator:
+```powershell
+([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+```
+
+Should return `True`.
+
+**10. Restart the service:**
+
+After addressing issues, restart the service:
+```powershell
+Restart-Service -Name newrelic-agent-control
+Start-Sleep -Seconds 30
+Get-Service -Name newrelic-agent-control
+Invoke-WebRequest -Uri "http://localhost:51200/status" -UseBasicParsing
+```
+
+### Common error messages
+
+| Error/Symptom | Likely Cause | Solution |
+|---------------|--------------|----------|
+| `Error 1067: The process terminated unexpectedly` | Antivirus blocking, configuration error, or missing dependencies | Add antivirus exclusions, verify config syntax, check service logs for details |
+| Service starts then stops immediately | Configuration file error or invalid credentials | Review `local_config.yaml`, verify license key and fleet credentials |
+| `Port 51200 already in use` | Port conflict with another application | Identify process using port with `netstat`, stop conflicting service |
+| `Failed to connect to Fleet Control` | Network/firewall blocking, or incorrect fleet configuration | Test connectivity with `Test-NetConnection`, verify fleet ID and type |
+| `Invalid fleet type` error in logs | Fleet type is not "Host - Windows" | Recreate fleet with correct type in Fleet Control UI |
+| Service won't start, runs fine from command line | Antivirus or Windows security policy blocking service | Add exclusions for executables and directories, check with security team |
+| `License key validation failed` | Incorrect, expired, or missing license key | Verify license key in config file, ensure it's valid for your account |
+| No data appearing in UI after 10+ minutes | Agent not deployed or configuration not synced | Check Fleet Control UI for deployment status, verify fleet configuration |
+
+<Callout variant="tip" title="Getting Additional Help">
+  If troubleshooting doesn't resolve your issue:
+
+  1. Enable debug logging by editing `local_config.yaml`:
+     ```yaml
+     log:
+       level: debug
+     ```
+
+  2. Restart the service and reproduce the issue
+
+  3. Collect logs for support:
+     ```powershell
+     Get-ChildItem "C:\ProgramData\New Relic\newrelic-agent-control\logs\" -Filter "newrelic-agent-control.log.*" | Sort-Object LastWriteTime -Descending | ForEach-Object { Get-Content $_.FullName } | Out-File -FilePath "$env:USERPROFILE\Desktop\agent-control-debug.log"
+     ```
+
+  4. Contact New Relic Support with the collected logs
+</Callout>
