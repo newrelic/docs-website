@@ -1,0 +1,127 @@
+---
+title: Sampler configuration examples
+tags:
+  - Samplers
+  - Distributed tracing
+  - Partial granularity
+  - Full granularity
+  - Configuring distributed tracing
+metaDescription: Control what transactions are sampled.
+freshnessValidatedDate: never
+---
+
+While the default sampling configuration works for all services, it may not be optimal. APM agents provide sampling configuration options to customize sampling needs to a particular service. This page walks through some real world examples of different types of services and how the sampling configuration can be modified to fit the needs of those services. 
+
+
+## Example 1: Poor distribution of endpoints captured due to upstream sampling
+The default configuration uses the adaptive sampler. This means that any incoming trace that was sampled by an upstream service will also be sampled by the current service. Sometimes this can lead to one particular endpoint being sampled a lot while other endpoints are neglected and barely sampled.
+
+### Solution 1: Use the ratio sampler to sample traces sampled by an upstream service.
+The following configuration will fix this issue by sampling any incoming trace that was sampled by an upstream service only 10% of the time. This makes room for other endpoints to be sampled by not filling up the span reservoir with traces that were sampled by an upstream service.
+
+```json
+{
+    distributed_tracing: {
+        sampler: {
+            remote_parent_sampled: {
+                trace_ratio_id_based: {
+                    ratio: .1
+                }
+            }
+        }
+    }
+}
+```
+
+### Solution 2: Use the ratio sampler to capture a portion of traces sampled by an upstream service as full granularty and capture the rest as partial granularity.
+If there is a need to still capture minimal information about a trace when it is sampled by an upstream service, then the following configuration can be used instead. This configuration captures 5% of all traces sampled by an upstream service as full granularity and the rest as partial granularity. By capturing the majority of traces sampled by an upstream service as partial granularity, the span reservoir does not fill up as quickly and leaves room for other endpoints to be sampled.
+
+```json
+{
+    distributed_tracing:{
+        sampler: {
+            remote_parent_sampled: {
+                trace_ratio_id_based: {
+                    ratio: .5
+                }
+            }
+            partial_granularity: {
+                enabled: true,
+                type: "compact",  # If capturing AI data set this to "essential"
+                remote_parent_sampled: always_on
+            }
+        }
+    }
+}
+```
+
+## Example 2: Poor distribution of endpoints captured due to some endpoints being rarely called 
+The default configuration uses the adaptive sampler. This means it captures about 10 traces per minute. Due to random probability, the adaptive sampler will be more likely to capture endpoint calls that occurr more frequently. This means that endpoints that are rarely called are more likely to be missed and not sampled.
+
+### Solution 1: Use partial granularity to minimize the size of transactions and capture more per minute.
+The following configuration will capture 100% of transactions originating from the current service as partial granularity increasing the chances of sampling the endpoint that is rarely called.
+
+```json
+{
+    distributed_tracing: {
+        sampler: {
+            partial_granularity: {
+                enabled: true,
+                type: "compact",  # If capturing AI data set this to "essential"
+                root: {
+                    trace_ratio_id_based: {
+                        ratio: 1
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+## Example 3: Fragmentation due to transaction with too many spans.
+When transactions have 100s of spans the agent's span reservoir (the amount of spans cached between harvest cycles) can fill up very quickly. When the span reservoir fills up, spans are dropped randomly creating gaps in the distributed trace-particularly if those spans that are dropped represent connections to other services.
+
+### Solution 1: Use partial granularity to minimize the size of transactions and sample spans that connect to other services.
+The following configuration will capture 10% of transactions originating from the current service and all transactions that were sampled by an upstream service as partial granularity-minimimzing the amount of spans captured per transaction to only capture spans that represent connections to other services. Note in this configuration full granularity tracing is disabled. During an incident it may be turned back on for debug purposes to capture all the spans within a transaction.
+
+```json
+{
+    distributed_tracing: {
+        sampler: {
+            full_granularity: {
+                enabled: False
+            },
+            partial_granularity: {
+                enabled: true,
+                type: "compact",  # If capturing AI data set this to "essential"
+                root: {
+                    trace_ratio_id_based: {
+                        ratio: .1
+                    }
+                },
+                remote_parent_sampled: always_on
+            }
+        }
+    }
+}
+```
+
+## Example 4: Recomended configuration for Hybrid agent
+The typical configuration when using the Hybrid agent is to sample when the upstream service samples, sample a portion of transactions that originate from the current service, and to not sample when the upstream service does not sample.
+
+```json
+{
+    distributed_tracing: {
+        sampler: {
+            root: {
+                trace_ratio_id_based: {
+                    ratio: .1
+                }
+            },
+            remote_parent_sampled: always_on,
+            remote_parent_not_sampled: always_off
+        }
+    }
+}
+```
