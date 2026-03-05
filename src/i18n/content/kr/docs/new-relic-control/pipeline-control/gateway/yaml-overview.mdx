@@ -1,0 +1,244 @@
+---
+title: 게이트웨이 YAML 설정 참조
+metaDescription: YAML configuration syntax reference for creating custom Pipeline Control Gateway configurations.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+이 참조는 사용자 정의 게이트웨이 설정을 생성하는 고급 사용자를 위한 YAML 구문을 다룹니다. 개념적인 정보는 [게이트웨이 개요를](/docs/new-relic-control/pipeline-control/gateway/overview) 참조하십시오. 안내형 환경을 원하시면 [게이트웨이 UI를](/docs/new-relic-control/pipeline-control/gateway/ui-guide) 사용하세요. 대부분의 사용자에게는 게이트웨이 UI 권장되지만 YAML 설정은 텔레메트리 파이프라인 구조에 대한 완전한 제어를 제공합니다.
+
+## 완전한 YAML 구조
+
+게이트웨이 설정은 선언적 YAML 형식을 사용합니다.
+
+```yaml
+version: 2.0.0
+autoscaling:
+  minReplicas: 6
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+configuration:
+  simplified/v1:
+    troubleshooting:
+      proxy: false
+      requestTraceLogs: false
+    steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          log_statements:
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+      nrexporter/newrelic:
+        description: Export to New Relic
+```
+
+### 최상위 구조
+
+* `version`: 설정 형식 버전 (현재 `"2.0.0"`)
+* `autoscaling`: 게이트웨이 복제본 확장 설정
+* `configuration.simplified/v1`텔레메트리 파이프라인 정의를 위한 간소화된 추상화 계층
+* `troubleshooting`디버그 설정
+
+## 설정 계층
+
+게이트웨이 설정은 방향성 비순환 그래프(DAG) 구조를 따르며, 각 단계는 자체 동작을 정의하고 출력 필드를 사용하여 파이프라인의 다음 단계를 가리킵니다. 이는 명확한 데이터 흐름을 생성합니다. 데이터는 수신자를 통해 입력되고, 처리자(변환, 필터링, 샘플링)를 거쳐 내보내기 장치를 통해 출력됩니다.
+
+### 단계 명명 규칙
+
+* 수신자: `receivelogs`, `receivemetrics`, `receivetraces`
+
+* 프로세서: `processortype/TelemetryType` 형식:
+
+  * 변환: `transform/Logs`, `transform/Metrics`, `transform/Traces`
+  * 필터: `filter/Logs`, `filter/Metrics`, `filter/Traces`
+  * 샘플링: `probabilistic_sampler/Logs`, `probabilistic_sampler/Traces`
+
+* 수출업체: `nrexporter`
+
+### 프로세서 설정
+
+게이트웨이는 스프레드시트 데이터 변환, 필터링 및 샘플링을 위한 세 가지 기본 프로세서 유형을 지원합니다.
+
+#### 변환 프로세서
+
+OTTL(OpenTelemetry Transformation Language)을 사용하여 텔레메트리를 수정, 보강 또는 구문 분석하는 데 사용됩니다.
+
+설정 필드:
+
+* metric\_statements: 지수 변환에 대한 추가(컨텍스트: 지수)
+* log\_statements: 로그 변환을 위해 추가(컨텍스트: 로그)
+* Trace\_statements: 트레이스 변환에 대해 포함(컨텍스트: 범위)
+
+#### 필터 프로세서
+
+불리언 표현식을 기반으로 텔레메트리 레코드를 삭제하는 데 사용됩니다.
+
+설정 필드:
+
+* 로그: 로그 필터링을 위한 OTTL 부울 표현식의 로그
+* 범위: 지표/트레이스 필터링을 위한 OTTL 부울 표현식의 제외
+
+#### 샘플링 프로세서
+
+확률적 샘플링 로직을 구현하는 데 사용됩니다.
+
+설정 필드:
+
+* global\_sampling\_percentage: 기본 샘플링 비율(0-100)
+
+* 조건부 샘플링 규칙: 조건부 규칙의
+
+  * 이름: 규칙 식별자
+  * 설명: 사람이 읽을 수 있는 설명
+  * sampling\_percentage: 일치하는 데이터에 대한 샘플링 비율(0-100)
+  * source\_of\_randomness: 무작위성을 위해 사용할 필드(일반적으로 트레이스.id)
+  * 조건: 속성 일치 표현식
+
+## 필드 참조
+
+### 최상위 필드
+
+| 들                          | 유형 | 필수의 | 기본값 |
+| -------------------------- | -- | --- | --- |
+| 버전                         | 끈  | 네   | -   |
+| 자동 스케일링.최소복제본              | 정수 | 아니요 | 6   |
+| 자동 스케일링.maxReplicas        | 정수 | 아니요 | 10  |
+| 자동 스케일링.타겟CPU사용률           | 정수 | 아니요 | 60  |
+| 구성.간소화된/v1                 | 물체 | 네   | -   |
+| 문제 해결, 해결.proxy            | 부울 | 아니요 | 잘못된 |
+| 문제 해결, 해결.requestTraceLogs | 부울 | 아니요 | 잘못된 |
+
+### 단계 필드
+
+| 들           | 유형 | 필수의   | 설명                                        |
+| ----------- | -- | ----- | ----------------------------------------- |
+| description | 끈  | 추천    | 사람이 읽을 수 있는 설명                            |
+| 구성          | 물체 | 가정 어구 | 처리업체의 경우 필수 항목이며, 수신업체/수출업체의 경우 생략 가능합니다. |
+| 산출          | 정렬 | 네     | 다음 단계 이름 (수출업체의 경우 빈 \[])                 |
+
+## 필드 명명 규칙
+
+* 예제의 대소문자를 정확히 따라 쓰세요 (YAML은 대소문자를 구분합니다).
+
+각 단계의 출력은 다음 단계를 지정합니다.
+
+## 유효성 검사 및 구현, 배포
+
+1. YAML 린터를 사용하여 구문을 검증합니다.
+2. 구현하다, 배포하다, 운영 환경을 먼저 고려합니다.
+3. 델메트리가 뉴렐릭에 올바르게 도달했는지 확인하세요.
+4. 게이트웨이 UI 통해 설정을 업로드합니다.
+
+## 추가 리소스
+
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor)

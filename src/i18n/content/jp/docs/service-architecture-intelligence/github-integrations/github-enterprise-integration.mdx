@@ -1,0 +1,567 @@
+---
+title: GitHub Enterprise によるService Architecture Intelligence (オンプレミス)
+tags:
+  - New Relic integrations
+  - GitHub Enterprise integration
+metaDescription: Integrate your on-premise GitHub Enterprise (GHE) environment with New Relic using a secure collector service and GitHub App for automated data ingestion.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="PREVIEW">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
+</Callout>
+
+オンプレミスの GitHub Enterprise アカウントのデータを活用して、サービス アーキテクチャーにインサイトをさらに深く組み込むことを検討していますか? New Relic GitHub Enterprise 統合は、プライベート ネットワーク内の安全なコレクター サービス デプロイを使用して、リポジトリとチームをNew Relicプラットフォームに直接インポートします。
+
+新しい選択的データ取得機能を使用すると、チーム、リポジトリとプルリクエスト、またはその両方など、どのデータ タイプをインポートするかを正確に選択できます。 この統合 AI モニタリングにより、 New Relic内の[チーム](/docs/service-architecture-intelligence/teams/teams)、[カタログ](/docs/service-architecture-intelligence/catalogs/catalogs)、[スコアカード](/docs/service-architecture-intelligence/scorecards/getting-started)の管理と可視性が強化されます。 詳細については、 [Service Architecture Intelligence機能](/docs/service-architecture-intelligence/getting-started)を参照してください。
+
+**前提条件**
+
+* 組織アドミニストレーター権限を持つ GitHub Enterprise オンプレミス アカウント。
+* GitHub Enterprise ネットワーク内でコレクター サービスを実行するための Docker 環境。
+* 統合を作成するための適切な権限を持つNew Relicアカウント。
+
+## セキュリティに関する懸念事項
+
+この統合はセキュリティベストプラクティスに従っています:
+
+* 最小限の権限でGitHub App認証を使用する
+* Webhook イベントは秘密鍵を使用して認証されます
+* すべてのデータ転送はHTTPS経由で行われます
+* ユーザーの資格情報は保存も送信もされません
+* リポジトリとチームのデータのみがインポートされます
+
+**GitHub Enterprise 統合をセットアップするには:**
+
+<Steps>
+  <Step>
+    ## GitHub アプリを作成して設定する
+
+    GHE インスタンスで、 **Settings → Developer Settings → GitHub Apps → New GitHub App**に移動します。GitHub アプリを作成する詳細な手順については、 [GitHub アプリの登録に関する GitHub ドキュメント](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)を参照してください。
+
+    ### 権限を設定する
+
+    アプリの権限を正確に構成して、初期同期中のシームレスなデータ取得と、その後の Webhook イベントの効率的なリッスンを保証します。アプリの権限は、GitHub 上のさまざまなリポジトリおよび組織リソースに対するアプリケーションのアクセス範囲を定義します。これらの権限をカスタマイズすることで、セキュリティを強化し、露出を最小限に抑えながらアプリケーションが必要なデータにのみアクセスできるようにすることができます。適切な設定により、スムーズな初期データ同期と信頼性の高いイベント処理が容易になり、アプリケーションと GitHub のエコシステムとの統合が最適化されます。
+
+    GitHub アプリの権限に関する詳細なガイダンスについては、 [GitHub アプリの権限設定に関する GitHub ドキュメント](https://docs.github.com/en/apps/creating-github-apps/setting-up-a-github-app/choosing-permissions-for-a-github-app)を参照してください。
+
+    #### 必要なリポジトリ権限
+
+    データ同期を有効にするには、次のリポジトリ レベルの権限を示されているとおりに構成します。
+
+    * **管理**: 読み取り専用 ✓
+    * **チェック**: 読み取り専用 ✓
+    * **コミットステータス**: 選択済み✓
+    * **内容**：選択済み✓
+    * **カスタムプロパティ**: 選択済み✓
+    * **デプロイメント**: 読み取り専用 ✓
+    * **メタデータ**: 読み取り専用（必須）✓
+    * **プルリクエスト**: 選択済み✓
+    * **Webhooks** : 読み取り専用 ✓
+
+    #### 必要な組織権限
+
+    次の組織レベルの権限を、示されているとおりに構成します。
+
+    * **管理**: 読み取り専用 ✓
+    * **カスタム組織ロール**: 読み取り専用 ✓
+    * **カスタムプロパティ**: 読み取り専用 ✓
+    * **カスタムリポジトリロール**: 読み取り専用 ✓
+    * **イベント**: 読み取り専用 ✓
+    * **メンバー**: 読み取り専用 ✓
+    * **Webhooks** : 読み取り専用 ✓
+
+    #### Webhook イベントのサブスクリプション
+
+    リアルタイム同期と監視のために、次の Webhook イベントを示されているとおりに正確に選択します。
+
+    **✓ 次のイベントを選択します:**
+
+    * `check_run` - 実行ステータスの更新を確認する
+    * `check_suite` - スイートの完了を確認する
+    * `commit_comment` - コミットへのコメント
+    * `create` - ブランチまたはタグの作成
+    * `custom_property` - チーム割り当てのカスタムプロパティの変更
+    * `custom_property_values` - カスタムプロパティ値の変更
+    * `delete` - ブランチまたはタグの削除
+    * `deployment` - デプロイメント活動
+    * `deployment_review` - デプロイメントのレビュープロセス
+    * `deployment_status` - デプロイメントステータスの更新
+    * `fork` - リポジトリフォークイベント
+    * `installation_target` - GitHub アプリのインストレーションの変更
+    * `label` - 問題とプルリクエストのラベル変更
+    * `member` - メンバープロフィールの変更
+    * `membership` - メンバーの追加と削除
+    * `meta` - GitHub アプリのメタデータの変更
+    * `milestone` - マイルストーンの変更
+    * `organization` - 組織レベルの変更
+    * `public` - リポジトリの可視性の変更
+    * `pull_request` - プルリクエスト活動
+    * `pull_request_review` - プルリクエストのレビュー活動
+    * `pull_request_review_comment` - コメント活動のレビュー
+    * `pull_request_review_thread` - プルリクエストレビュースレッドのアクティビティ
+    * `push` - コードのプッシュとコミット
+    * `release` - 出版物とアップデートのリリース
+    * `repository` - リポジトリの作成、削除、変更
+    * `star` - リポジトリスターイベント
+    * `status` - コミットステータスの更新
+    * `team` - チームの作成と変更
+    * `team_add` - チームメンバーの追加
+    * `watch` - リポジトリ監視イベント
+
+    <Callout variant="tip">
+      **セキュリティのベストプラクティス**: セキュリティの危険を軽減するには、最小特権アクセスの原則に従い、統合のニーズに必要な最小限のアクセス許可のみを有効にします。
+    </Callout>
+
+    ### Webhookを設定する
+
+    Webhook URL を設定し、安全な通信のためにカスタムイベント シークレットを作成します。
+
+    * **Webhook URL** : コレクター サービスのデプロイメントに基づいて次の形式を使用します。
+
+      * HTTPの場合: `http://your-domain-name/github/sync/webhook`
+      * HTTPSの場合: `https://your-domain-name/github/sync/webhook`
+
+      **例**: コレクター サービスが`collector.yourcompany.com`にデプロイされている場合、Webhook URL は次のようになります。 `https://collector.yourcompany.com/github/sync/webhook`
+
+    * **イベント シークレット**: Webhook 認証用の安全なランダム文字列 (32 文字以上) を生成します。この値は`GITHUB_APP_WEBHOOK_SECRET`環境変数に必要となるため保存してください。
+
+    ### キーの生成と変換
+
+    1. GitHub アプリを作成したら、秘密鍵を生成する必要があります。GitHub アプリの設定で、 **Generate a private key** \[秘密鍵を生成]をクリックします。アプリは、一意のアプリ ID と秘密キー ファイル (.pem 形式) を自動的に生成してダウンロードします。これらはコレクターサービスの設定に必要となるため、安全に保存してください。
+
+    2. ダウンロードした秘密鍵ファイルを DER 形式に変換し、Base64 でエンコードします。
+
+       **ステップ1: .pemをDER形式に変換する**
+
+       ```bash
+       openssl rsa -outform der -in private-key.pem -out output.der
+       ```
+
+       **ステップ2: DERファイルをBase64でエンコードする**
+
+       ```bash
+       # For Linux/macOS
+       base64 -i output.der -o outputBase64
+       cat outputBase64  # Copy this output
+
+       # For Windows (using PowerShell)
+       [Convert]::ToBase64String([IO.File]::ReadAllBytes("output.der"))
+
+       # Alternative for Windows (using certutil)
+       certutil -encode output.der temp.b64 && findstr /v /c:- temp.b64
+       ```
+
+       結果の Base64 文字列をコピーし、コレクター設定の`GITHUB_APP_PRIVATE_KEY`環境変数の値として使用します。
+
+    **✓ 成功指標:**
+
+    * Githubアプリが正常に作成されました
+    * アプリIDと秘密鍵は安全に保存されます
+    * Webhook URLが設定され、アクセス可能
+  </Step>
+
+  <Step>
+    ## 環境変数を準備する
+
+    コレクター サービスをデプロイする前に、次の情報を収集してください。
+
+    ### 必要な環境変数
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            変数
+          </th>
+
+          <th>
+            ソース
+          </th>
+
+          <th>
+            入手方法
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `NR_API_KEY`
+          </td>
+
+          <td>
+            ニューレリック
+          </td>
+
+          <td>
+            New RelicダッシュボードからAPIキーを生成します。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NR_LICENSE_KEY`
+          </td>
+
+          <td>
+            ニューレリック
+          </td>
+
+          <td>
+            New Relicダッシュボードからライセンスキーを生成します。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `GHE_BASE_URL`
+          </td>
+
+          <td>
+            GHEサーバー
+          </td>
+
+          <td>
+            GHE サーバーのベース URL (例: 
+
+            `https://source.datanot.us`
+
+            )。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `GITHUB_APP_ID`
+          </td>
+
+          <td>
+            GitHubアプリ
+          </td>
+
+          <td>
+            GitHub アプリを作成したときに生成された一意のアプリ ID。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `GITHUB_APP_PRIVATE_KEY`
+          </td>
+
+          <td>
+            GitHubアプリ
+          </td>
+
+          <td>
+            秘密鍵 (
+
+            `.pem`
+
+            ) ファイルの内容が Base64 文字列に変換されました。変換手順については手順 1 を参照してください。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `GITHUB_APP_WEBHOOK_SECRET`
+          </td>
+
+          <td>
+            GitHubアプリ
+          </td>
+
+          <td>
+            GitHub アプリの作成時に設定したカスタムイベント シークレットの値。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### オプションのSSL環境変数
+
+    以下は、API を HTTPS にするためのオプションの環境変数です。
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            オプション変数
+          </th>
+
+          <th>
+            ソース
+          </th>
+
+          <th>
+            入手方法
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `SERVER_SSL_KEY_STORE`
+          </td>
+
+          <td>
+            SSL設定
+          </td>
+
+          <td>
+            HTTPS設定用のSSLキーストアファイルへのパス。 以下のSSL証明書の設定手順を参照してください。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `SERVER_SSL_KEY_STORE_PASSWORD`
+          </td>
+
+          <td>
+            SSL設定
+          </td>
+
+          <td>
+            SSL キーストア ファイルのパスワード。これは、PKCS12 キーストアを作成するときに設定したパスワードです。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `SERVER_SSL_KEY_STORE_TYPE`
+          </td>
+
+          <td>
+            SSL設定
+          </td>
+
+          <td>
+            SSL キーストアのタイプ (例: PKCS12、JKS)。以下の SSL セットアップ手順に従う場合は、PKCS12 を使用してください。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `SERVER_SSL_KEY_ALIAS`
+          </td>
+
+          <td>
+            SSL設定
+          </td>
+
+          <td>
+            キーストア内の SSL キーのエイリアス。これは、キーストアを作成するときに指定する名前です。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `SERVER_PORT`
+          </td>
+
+          <td>
+            SSL設定
+          </td>
+
+          <td>
+            HTTPS 通信用のサーバー ポート。HTTPSの場合は8443を使用します。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### SSL証明書の設定手順
+
+    HTTPS 設定の信頼された認証局 (CA) から SSL 証明書を取得するには、次の手順に従います。
+
+    1. **秘密鍵と証明書署名要求 (CSR) を生成します**。
+
+       ```bash
+       openssl req -new -newkey rsa:2048 -nodes -keyout mycert.key -out mycert.csr
+       ```
+
+    2. **選択した CA に CSR を送信します**: 選択した証明機関 (DigiCert、Let&apos;s Encrypt、GoDaddy など) に`mycert.csr`ファイルを送信します。
+
+    3. **ドメイン検証を完了する**: CA の指示に従って、必要なドメイン検証手順を完了します。
+
+    4. **証明書をダウンロード**: CA から発行された証明書ファイル (通常は`.crt`または`.pem`ファイル) をダウンロードします。
+
+    5. **PKCS12 キーストアを作成する**: 証明書と秘密鍵を PKCS12 キーストアに結合します。
+
+       ```bash
+       openssl pkcs12 -export -in mycert.crt -inkey mycert.key -out keystore.p12 -name mycert
+       ```
+
+    6. **キーストアの使用**: 生成された`keystore.p12`ファイルをDocker設定の`SERVER_SSL_KEY_STORE`の値として使用します。
+  </Step>
+
+  <Step>
+    ## コレクターサービスをデプロイする
+
+    コレクター サービスは Docker イメージとして提供されます。デプロイメントは、次の 2 つの方法のいずれかで実行できます。
+
+    ### オプション A: Docker Compose を使用する (推奨)
+
+    サービスのダウンロードとデプロイメントを自動化するDocker Compose ファイルを作成します。
+
+    1. 次の内容の`docker-compose.yml`ファイルを作成します。
+
+       ```yaml
+       version: '3.9'
+
+       services:
+         nr-ghe-collector:
+           image: newrelic/nr-ghe-collector:tag # use latest tag available in dockerhub starting with v*
+           container_name: nr-ghe-collector
+           restart: unless-stopped
+           ports:
+             - "8080:8080"     # HTTP port, make 8443 in case of HTTPS
+           environment:
+             # Required environment variables
+             - NR_API_KEY=${NR_API_KEY:-DEFAULT_VALUE}
+             - NR_LICENSE_KEY=${NR_LICENSE_KEY:-DEFAULT_VALUE}
+             - GHE_BASE_URL=${GHE_BASE_URL:-DEFAULT_VALUE}
+             - GITHUB_APP_ID=${GITHUB_APP_ID:-DEFAULT_VALUE}
+             - GITHUB_APP_PRIVATE_KEY=${GITHUB_APP_PRIVATE_KEY:-DEFAULT_VALUE}
+             - GITHUB_APP_WEBHOOK_SECRET=${GITHUB_APP_WEBHOOK_SECRET:-DEFAULT_VALUE}
+
+             # Optional SSL environment variables (uncomment and configure if using HTTPS)
+             # - SERVER_SSL_KEY_STORE=${SERVER_SSL_KEY_STORE}
+             # - SERVER_SSL_KEY_STORE_PASSWORD=${SERVER_SSL_KEY_STORE_PASSWORD}
+             # - SERVER_SSL_KEY_STORE_TYPE=${SERVER_SSL_KEY_STORE_TYPE}
+             # - SERVER_SSL_KEY_ALIAS=${SERVER_SSL_KEY_ALIAS}
+             # - SERVER_PORT=8443
+           #volumes: # Uncomment the line below if using SSL keystore
+           #  - ./keystore.p12:/app/keystore.p12 # path to your keystore file
+           network_mode: bridge
+
+       networks:
+         nr-network:
+           driver: bridge
+       ```
+
+    2. Docker Compose ファイル内の`DEFAULT_VALUE`プレースホルダーを実際の値に置き換えて環境変数を設定するか、コマンドを実行する前にシステムに環境変数を作成してください。
+
+    <Callout variant="caution">
+      秘密を含む環境ファイルをバージョン管理にコミットしないでください。運用環境では安全な秘密管理プラクティスを使用します。
+    </Callout>
+
+    3. サービスを開始するには、次のコマンドを実行します。
+
+       ```bash
+       docker-compose up -d
+       ```
+
+    ### オプションB: Dockerイメージの直接実行
+
+    Dockerイメージを[Docker Hub レジストリ](https://hub.docker.com/r/newrelic/nr-ghe-collector)から直接ダウンロードし、組織の推奨するCI/CDパイプラインまたはデプロイメント方法を使用して実行できます。 カスタマーは、コレクター サービスの開始時に、上記のすべての環境変数を渡す必要があることに注意してください。
+
+    **✓ 成功指標:**
+
+    * Collectorサービスは実行されており、構成されたポートでアクセス可能です
+    * Dockerコンテナのログにエラーなしの正常な起動が表示される
+    * サービスはヘルスチェックに応答します（設定されている場合）
+  </Step>
+
+  <Step>
+    ## 組織にGitHubアプリをインストールする
+
+    コレクター サービスが実行されたら、統合する特定の組織に GitHub アプリをインストールする必要があります。
+
+    1. GitHub Enterprise インスタンスに移動します。
+    2. **Settings** → **Developer Settings** → **GitHub Apps**に移動します。
+    3. 手順 1 で作成した GitHub アプリを見つけてクリックします。
+    4. 左側のサイドバーで、 **Install App** \[アプリをインストール] をクリックします。
+    5. アプリをインストールする組織を選択します。
+    6. すべてのリポジトリにインストールするか、特定のリポジトリを選択するかを選択します。
+    7. **Install** \[インストール]をクリックしてインストールを完了します。
+
+    **✓ 成功指標:**
+
+    * Webhookの配信はGitHubアプリの設定に表示される
+    * コレクターサービスログに認証エラーはありません
+  </Step>
+
+  <Step>
+    ## New Relic UIで統合セットアップを完了する
+
+    コレクター サービスが実行され、GitHub アプリが GHE 組織にインストールされたら、 New Relic UIの指示に従って統合セットアップを完了します。
+
+    1. 対応する GHE 組織が New Relic UI に表示されます。
+
+    2. 初期データ同期を開始するには、 **First time sync** \[初回同期]をクリックします。
+
+    3. *(オプション)*データを手動で同期するには、 **On-demand sync** \[オンデマンド同期]をクリックします。
+
+       <Callout variant="tip" title="ヒント">
+         4 時間ごとにデータを手動で同期できます。 過去 4 時間以内に同期が行われた場合、**On-demand sync** \[オンデマンド同期]ボタンは無効のままになります。
+       </Callout>
+
+    4. 同期が開始されたというメッセージが表示されたら、 **Continue** \[続行]をクリックします。**GitHub Enterprise Integration** \[GitHub Enterprise連携]画面には、チーム数とリポジトリ数が表示され、5秒ごとに更新されます。すべてのデータの完全なインポートには 15 ～ 30 分かかります (時間はリポジトリの数によって異なります)。
+
+       <img title="GitHub Enterprise Integration" alt="GitHub Enterprise Integration dashboard showing integration progress" src="/images/github-enterprise-integration-progress.webp" />
+
+    ### データの表示
+
+    **GitHub Enterprise Integration** \[GitHub Enterprise 統合]画面で:
+
+    * [Teams](/docs/service-architecture-intelligence/teams/teams)にインポートされたチーム情報を表示するには、 **Go to Teams** \[Teams に移動]をクリックします。
+    * インポートされたリポジトリ情報を[Catalogs](/docs/service-architecture-intelligence/catalogs/catalogs) \[カタログ]で表示するには、 **Go to Repositories** \[リポジトリに移動]をクリックします。
+  </Step>
+
+  <Step>
+    ## チームの割り当てを構成する（オプション）
+
+    GitHub Enterprise でカスタム プロパティとして`teamOwningRepo`追加することで、GitHub リポジトリをチームに自動的に割り当てることができます。
+
+    1. 組織レベルでカスタム プロパティを作成し、リポジトリ レベルでカスタム プロパティの値を割り当てます。さらに、組織レベルで複数のリポジトリに対して同時にカスタム プロパティを設定することもできます。
+    2. 次に、New Relic Teams で[自動所有権](/docs/service-architecture-intelligence/teams/manage-teams/#assign-ownership)機能を有効にし、 `team`タグ キーとして使用するようにします。
+
+    これを設定すると、New Relic は各リポジトリを適切なチームに自動的に一致させます。
+
+    カスタム プロパティの作成の詳細については、 [GitHub ドキュメント](https://docs.github.com/en/organizations/managing-organization-settings/managing-custom-properties-for-repositories-in-your-organization)を参照してください。
+  </Step>
+</Steps>
+
+## トラブルシューティング
+
+### よくある問題と解決策
+
+**Webhook 配信の失敗:**
+
+* コレクターサービスが実行されており、GitHub Enterpriseからアクセスできることを確認します。
+* ファイアウォールの設定とネットワーク接続を確認する
+
+**認証エラー:**
+
+* GitHub App IDと秘密鍵が正しく設定されていることを確認する
+* 秘密鍵がDER形式に正しく変換され、Base64でエンコードされていることを確認する
+* GitHub Appとコレクター設定間でWebhookシークレットが一致していることを確認します
+
+**同期の失敗:**
+
+* GitHub アプリに必要な権限があることを確認する
+* アプリが正しい組織にインストールされていることを確認する
+* 特定のエラーメッセージについては、コレクター サービス ログを確認してください。
+
+**ネットワーク接続の問題:**
+
+* コレクター サービスが GitHub Enterprise インスタンスに到達できることを確認する
+* HTTPSを使用している場合はSSL証明書が適切に設定されていることを確認します
+* GitHub Enterprise ドメインの DNS 解決を確認する
+
+## アンインストール
+
+GitHub Enterprise 統合をアンインストールするには:
+
+1. GitHub Enterprise UI に移動します。
+2. アプリがインストールされている組織の設定に移動します。
+3. GitHub Enterprise インターフェースから直接 GitHub App をアンインストールします。このアクションにより、バックエンド プロセスがトリガーされ、データ収集が停止されます。
+4. Docker 環境からコレクター サービスを停止して削除します。

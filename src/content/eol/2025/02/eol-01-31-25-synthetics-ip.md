@@ -28,9 +28,15 @@ We will be migrating the IP address range for the New Relic service used by Synt
 
   * `64.251.192.0/20`
 
-* After **May 28, 2025**, remove the old IP ranges from the allowlist. Failure to do so may result in failed connections and trigger alerts.
+* The following IP ranges will remain in use for the `us-east-1` region:
+  * 44.202.178.0/24
+  * 44.202.180.0/23
+  * 44.210.68.0/24
+  * 44.210.110.0/25
 
-**Old IP ranges to remove:** The following table list the old IP ranges however, it is recommended not to remove the old IP ranges until notified.
+* After **September 30, 2025**, remove the old IP ranges from the allowlist. Failure to do so may result in failed connections and trigger alerts.
+
+**Old IP ranges to remove:** The following table list the old IP ranges that you must remove before September 30, 2025.
 
 <table>
   <thead>
@@ -41,11 +47,6 @@ We will be migrating the IP address range for the New Relic service used by Synt
     </tr>
   </thead>
   <tbody>
-    <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br>44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
     <tr>
       <td>us-east-2</td>
       <td>Columbus, OH, USA</td>

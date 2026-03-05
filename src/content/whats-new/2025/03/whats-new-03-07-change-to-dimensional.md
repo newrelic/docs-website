@@ -11,17 +11,25 @@ We’re changing the behavior of `count(*)` when used in [dimensional metric](ht
 
 ## What’s changing?
 
-Currently, when executing a query such as `FROM Metric SELECT count(*)`**, the result returned is the count of the number of data points processed by the query.
+Currently, when executing a query such as `FROM Metric SELECT count(*)`, the result returned is the count of the number of data points processed by the query.
 
 After the change, `count` will always return the sum of the count field, which is in line with how `count(*)` behaves when querying other data types.
 
 For example, the `newrelic.goldenmetrics.apm.application.errorCount` metric is a dimensional metric that records the number of errors seen by an application. To know how many errors have been reported across all applications in the last hour, the following query can be used:
 
-`FROM Metric SELECT count(*) WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorCount' SINCE 1 hour ago`
+```sql
+FROM Metric SELECT count(*)
+WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorCount'
+SINCE 1 hour ago
+```
 
 To know how many times this metric was reported over the last hour, the `datapointCount()` function can be used:
 
-`FROM Metric SELECT datapointCount() WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorCount' SINCE 1 hour ago`
+```sql
+FROM Metric SELECT datapointCount()
+WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorCount'
+SINCE 1 hour ago
+```
 
 
 ***NOTE: This change only applies to queries using `count(*)` on the **metric event type**. All other uses of the count function with dimensional metrics, such as `count(metricName)`, were unambiguous and will continue to behave as they do today.***
@@ -35,7 +43,11 @@ To know how many times this metric was reported over the last hour, the `datapoi
 
 **For ad hoc queries and dashboards**: To identify queries or dashboards that are using `count(*)` against dimensional metric data, run a query like the following against the NrdbQuery event to get a list of uses:
 
-`FROM NrdbQuery SELECT uniques(query), latest(source.name), latest(source.dashboardId), latest(user) WHERE query.eventType = 'Metric' AND query LIKE '%count(*)%' SINCE 1 day ago LIMIT MAX`
+```sql
+FROM NrdbQuery SELECT uniques(query), latest(source.name), latest(source.dashboardId), latest(user)
+WHERE query.eventType = 'Metric' AND query LIKE '%count(*)%'
+SINCE 1 day ago LIMIT MAX
+```
 
 **For alert conditions**: To identify alerts using `count(*)`, use the **Alerts > Alert Conditions** page within the New Relic UI to view and search for New Relic Query Language (NRQL) queries associated with alert conditions. Then compare the query with the same query using `count(%)` either within the alert condition builder or the New Relic query builder to determine whether it’s needed to modify the query or make changes to alert thresholds.
 
@@ -102,4 +114,4 @@ To know how many times this metric was reported over the last hour, the `datapoi
 
 ## Additional Support
 
-We understand that these changes may require some adjustments to your routine. Please know that we’re committed to supporting you throughout this process. If you have any questions or need further assistance, please don't hesitate to [reach out to our support team](https://docs.newrelic.com/docs/new-relic-solutions/solve-common-issues/find-help-get-support/).
+We understand that these changes may require some adjustments to your routine. Please know that we’re committed to supporting you throughout this process. If you have any questions or need further assistance, please don't hesitate to [reach out to our support team](/docs/new-relic-solutions/solve-common-issues/find-help-get-support/).

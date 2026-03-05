@@ -83,7 +83,7 @@ const HomePageLayout = ({ children, pageContext }) => {
             <Layout.Footer
               fileRelativePath={pageContext.fileRelativePath}
               css={css`
-                height: 60px;
+                height: 70px;
               `}
             />
           </Layout>

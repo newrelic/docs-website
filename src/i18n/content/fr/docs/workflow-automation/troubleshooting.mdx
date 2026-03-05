@@ -1,0 +1,525 @@
+---
+title: Dépannage de l'automatisation des workflows
+tags:
+  - workflow automation
+  - troubleshooting
+  - workflow errors
+metaDescription: 'Common issues and solutions for Workflow Automation including AWS credentials, workflow execution, and dashboard problems.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cette page propose des solutions aux problèmes courants que vous pourriez rencontrer lors de l&apos;utilisation de l&apos;automatisation des workflows. Pour obtenir de l&apos;aide supplémentaire, consultez le [forum d&apos;assistance de New Relic](https://discuss.newrelic.com/) ou contactez [l&apos;assistance de New Relic](https://support.newrelic.com/).
+
+## Identifiants et authentification AWS
+
+### Erreurs d&apos;accès refusé [#access-denied-errors]
+
+**Problème :** Votre workflow échoue en raison d’une erreur d’autorisation AWS.
+
+**Solutions :**
+
+1. **Vérifiez l&apos;identifiant de votre compte :** assurez-vous d&apos;avoir utilisé `253490767857` (et non `754728514883`) dans la politique de confiance. L&apos;ID du compte cloud d&apos;intégration (`754728514883`) est différent de l&apos;ID du compte d&apos;automatisation workflow.
+
+2. **Vérifiez l&apos;ID externe :** assurez-vous que l&apos;ID externe de votre politique de confiance correspond exactement à l&apos;ID de votre compte New Relic (disponible dans [les paramètres du compte](/docs/accounts/accounts-billing/account-structure/account-id)).
+
+3. **Vérifier les autorisations :** Assurez-vous que votre rôle ou utilisateur IAM dispose des autorisations AWS spécifiques requises par votre workflow. Consultez le tableau [Autorisations requises](/docs/workflow-automation/setup-and-configure/set-up-aws-credentials#required-permissions).
+
+4. **Testez avec l&apos;interface de ligne de commande AWS :** exécutez `aws sts assume-role` localement pour vérifier que le rôle peut être assumé :
+
+   ```yaml
+      aws sts assume-role \
+      --role-arn "arn:aws:iam::YOUR_ACCOUNT:role/NewRelicWorkflowAutomationRole" \
+      --role-session-name "TestSession" \
+      --external-id "YOUR_NR_ACCOUNT_ID"
+   ```
+
+### Jeton non valide ou informations d&apos;identification expirées
+
+**Problème :** le workflow a échoué en raison d’erreurs d’expiration Jeton.
+
+**Solutions :**
+
+1. **Pour les jetons de session :** vérifiez la durée d&apos;expiration — les jetons de session durent généralement de 1 à 12 heures. Générez-en de nouveaux avant leur expiration en utilisant :
+
+   ```yaml
+      aws sts assume-role \
+      --role-arn "arn:aws:iam::YOUR_ACCOUNT:role/YOUR_ROLE" \
+      --role-session-name "WorkflowAutomationSession"
+   ```
+
+2. **Pour les clés d&apos;accès :** Vérifiez que l&apos;ID de clé d&apos;accès et la clé d&apos;accès secrète sont correctement stockés dans le [gestionnaire de secrets](/docs/workflow-automation/limitations-and-faq/workflow-best-practices#secure-credentials). Vérifiez à nouveau les valeurs dans [l&apos;explorateur NerdGraph GraphiQL](https://one.newrelic.com/nerdgraph-graphiql).
+
+3. **Vérifiez la syntaxe des secrets :** assurez-vous d’utiliser le format `${{ :secrets:keyName }}` et non `${{ secrets.keyName }}`. Le préfixe deux-points (`:secrets:`) est requis.
+
+### Impossible de trouver mon rôle ARN
+
+**Problème :** Vous avez besoin de l’ARN mais vous ne parvenez pas à le localiser dans AWS.
+
+**Solution:**
+
+1. Connectez-vous à la [console AWS IAM](https://console.aws.amazon.com/iam/)
+2. Choisissez **Roles** dans le menu de navigation
+3. Recherchez le nom de votre rôle (par exemple, `NewRelicWorkflowAutomationRole`)
+4. Sélectionnez le rôle — l’ARN apparaît dans la section Résumé
+5. Le format ARN est : `arn:aws:iam::<YOUR_AWS_ACCOUNT>:role/<ROLE_NAME>`
+
+### Le workflow ne peut pas accéder à certaines ressources AWS.
+
+**Problème :** Votre rôle dispose des autorisations nécessaires, mais le workflow ne peut toujours pas accéder à certaines ressources.
+
+**Solutions :**
+
+1. **Autorisations au niveau des ressources :** vérifiez si votre stratégie IAM restreint l’accès à des ARN de ressources spécifiques. Vous devrez peut-être ajouter un caractère générique (`*`) pour les tests, puis limiter l&apos;accès à des ressources spécifiques.
+
+   ```json
+   {
+      "Effect": "Allow",
+      "Action": "ec2:DescribeInstances",
+      "Resource": "*"  // Change from specific ARN to * for testing
+   }
+   ```
+
+2. **Politiques de contrôle des services (SCP) :** si vous êtes dans une organisation AWS, les SCP peuvent bloquer certaines actions. Contactez votre administrateur AWS pour consulter les politiques de votre organisation.
+
+3. **Incompatibilité de région :** assurez-vous que vos autorisations IAM spécifient la région AWS correcte où se trouvent vos ressources. Mettez à jour le paramètre `awsRegion` du workflow pour qu&apos;il corresponde à l&apos;emplacement de votre ressource.
+
+## problèmes d&apos;exécution du workflow
+
+### Guide de dépannage rapide
+
+**Commencez ici :** Utilisez cette référence rapide pour diagnostiquer les problèmes courants.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Symptôme
+      </th>
+
+      <th>
+        Vérifier
+      </th>
+
+      <th>
+        Solution
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Le workflow échoue à une étape spécifique
+      </td>
+
+      <td>
+        Consultez les logs d&apos;exécution pour obtenir le message d&apos;erreur.
+      </td>
+
+      <td>
+        Corrigez la configuration, les identifiants ou les données d&apos;entrée pour cette action.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Le workflow s&apos;exécute mais produit des résultats incorrects
+      </td>
+
+      <td>
+        Vérifier le passage des données entre les étapes
+      </td>
+
+      <td>
+        Vérifier la syntaxe du modèle `${{ .steps.name.outputs.field }}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        workflow planifié ne s&apos;exécute pas.
+      </td>
+
+      <td>
+        Consultez l&apos;historique d&apos;exécution pour les exécutions ignorées.
+      </td>
+
+      <td>
+        Vérifier configuration de la planification et l&apos;état workflow (Actif)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Le workflow expire
+      </td>
+
+      <td>
+        Vérifier la durée d&apos;exécution
+      </td>
+
+      <td>
+        Réduisez la fréquence d&apos;interrogation ou divisez le workflow en plus petits
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Les modifications ne sont pas prises en compte.
+      </td>
+
+      <td>
+        Consulter l&apos;historique des versions
+      </td>
+
+      <td>
+        Mettez à jour les exécutions planifiées pour utiliser la nouvelle version.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Pour des instructions détaillées sur la visualisation de l&apos;état et de l&apos;historique d&apos;exécution des workflows, consultez [Voir les workflows](/docs/workflow-automation/manage-workflows/managing-workflow#view-workflows).
+
+### Le workflow affiche l&apos;état « Échec ».
+
+**Problème :** Un workflow apparaît avec le statut « Échec » dans le dashboard.
+
+**Étapes de diagnostic :**
+
+1. Vérifiez l&apos;historique d&apos;exécution :
+
+   * Accédez à **All Capabilities &gt; Workflow Automation**
+   * Cliquez sur le nom workflow
+   * Voir l&apos;**Run history**
+
+2. Examiner les logs d&apos;exécution :
+
+   * Cliquez sur **View logs** sur l&apos;exécution échouée
+   * Identifier l&apos;action spécifique qui a échoué
+
+**Causes courantes :**
+
+* **Identifiants non valides** - Jetons expirés ou syntaxe des secrets incorrecte
+* **Permissions manquantes** - Permissions IAM ou accès API insuffisants
+* **Ressources supprimées** - Les instances EC2, les canaux Slack ou les bases de données n&apos;existent plus
+* **Limites de débit** - Trop de requêtes vers AWS, Slack ou d&apos;autres services
+* **Délais d&apos;attente** - Les API externes ne répondent pas assez rapidement
+
+**Étape suivante :** Corrigez le problème, puis [déclenchez manuellement le workflow](/docs/workflow-automation/workflow-automation-apis/start-workflow-run) pour vérifier qu&apos;il fonctionne.
+
+### L&apos;exécution du workflow prend trop de temps.
+
+**Problème :** les exécutions du workflow dépassent la durée prévue ou expirent.
+
+**Solutions :**
+
+1. **Analyse de la séquence d&apos;actions**: Consultez les logs pour identifier les actions lentes. Recherchez les actions dont le temps d&apos;exécution est supérieur à 30 secondes.
+
+2. **Optimisation des requêtes**: Si vous utilisez des requêtes NRQL, optimisez-les pour de meilleures performances :
+
+   * Ajoutez des plages horaires spécifiques au lieu d&apos;interroger toutes les données.
+   * Utilisez `LIMIT` pour réduire la taille de l&apos;ensemble de résultats
+   * Filtrer tôt avec des clauses `WHERE`
+
+3. **Vérifiez les API externes**: des réponses lentes des services intégrés (AWS, Slack) peuvent retarder l’exécution. Tester séparément les temps de réponse de l&apos;API.
+
+4. **Tenez compte des limites workflow **: examinez [les limitesworkflow ](/docs/workflow-automation/limitations-and-faq/workflow-limits)pour les contraintes de délai d&apos;expiration (généralement 15 minutes par workflow).
+
+5. **Décomposez les workflows en processus plus courts**: Divisez les workflows complexes en automatisations plus petites et ciblées pouvant s’exécuter en parallèle.
+
+### Les modifications apportées au workflow ne sont pas prises en compte.
+
+**Problème :** Vous avez modifié un workflow, mais les modifications ne sont pas prises en compte lors de son exécution.
+
+**Solutions :**
+
+1. **Vérifiez que vous avez enregistré**: Assurez-vous d&apos;avoir cliqué sur **Save** après avoir modifié la configuration workflow.
+
+2. **Vérifiez la version**:
+
+   * Accéder aux détails workflow
+   * Cliquez sur l&apos;onglet **Version history**
+   * Assurez-vous que vos dernières modifications apparaissent comme une nouvelle version
+   * Vérifiez que cette version est bien active.
+
+3. **Mise à jour des exécutions planifiées**: si le workflow s’exécute selon une planification, mettez à jour cette planification pour utiliser la nouvelle version :
+
+   * Accédez à **All Capabilities &gt; Workflow Automation**
+   * Trouver les courses programmées
+   * Mettez à jour le planning pour qu&apos;il prenne en compte la nouvelle version workflow
+
+## Problèmes dashboard du workflow
+
+### Impossible de trouver un workflow dans le dashboard
+
+**Problème :** Le workflow que vous avez créé n’apparaît pas dans la liste dashboard.
+
+**Solutions :**
+
+1. **Vérifier les filtres**:
+
+   * Cliquez sur la liste déroulante des filtres
+   * Sélectionnez « Tous » pour les filtres d&apos;état
+   * Effacer la barre de recherche
+
+2. **Vérifier le compte**: Confirmez que vous êtes connecté au compte New Relic correct sur lequel le workflow a été créé. Consultez le sélecteur de compte en haut à droite.
+
+3. **Vérifiez les autorisations**: assurez-vous que votre rôle d&apos;utilisateur a accès à la visualisation du workflow. Contactez votre administrateur New Relic si vous avez besoin d&apos;autorisations d&apos;accès workflow.
+
+4. **Actualisez la page**: la mise en cache Browser peut parfois masquer les modifications récentes. Essayez une actualisation forcée (Ctrl+Maj+R ou Cmd+Maj+R).
+
+### Impossible de supprimer un workflow
+
+**Problème :** L’option Supprimer est grisée ou la suppression échoue.
+
+**Solutions :**
+
+1. **Vérifier les autorisations**: Vérifiez que votre rôle d&apos;utilisateur dispose des autorisations de suppression pour le workflow. Contactez l&apos;administrateur de votre compte si nécessaire.
+
+2. **Arrêter les exécutions planifiées**: Annulez toutes les exécutions planifiées actives avant de les supprimer :
+
+   * Accédez aux détails workflow
+   * Accédez à l&apos;onglet **Scheduled runs**
+   * Annuler tous les horaires actifs
+
+3. **Vérification des dépendances**: certains workflows ne peuvent pas être supprimés si d’autres automatisations en dépendent. Vérifiez si le workflow est référencé par :
+
+   * D&apos;autres workflows l&apos;appellent ainsi.
+   * règle d&apos;alerte qui le déclenche
+   * Système externe qui le démarre via API
+
+4. **Contactez l&apos;assistance**: Si le problème persiste après avoir essayé les solutions ci-dessus, contactez [l&apos;assistance New Relic](https://support.newrelic.com/) pour obtenir de l&apos;aide.
+
+### Désactivation de l&apos;automatisation des workflows (FCM)
+
+**Problème :** Vous désactivez Workflow Automation via Feature Control Management (FCM) et devez garantir un arrêt propre.
+
+<Callout variant="important">
+  **Pour les clients désactivant FCM**: Assurez-vous que tous les futurs workflows programmés soient supprimés avant de désactiver Workflow Automation. Cela évite toute confusion et des alertes inutiles une fois la fonctionnalité désactivée.
+</Callout>
+
+**Solutions :**
+
+1. **Supprimez d&apos;abord tous les workflows planifiés**: si vous avez désactivé FCM, assurez-vous que tous les futurs workflows planifiés soient supprimés pour éviter toute confusion ou alerte :
+
+   * Accédez à **All Capabilities &gt; Workflow Automation**
+   * Passez en revue chaque workflow et vérifiez les planifications actives
+   * Cliquez sur les workflows avec des planifications pour afficher leurs détails.
+   * Accédez à l&apos;onglet **Scheduled runs**
+   * Supprimez toutes les planifications actives à l&apos;aide de l&apos;[API DeleteSchedule](/docs/workflow-automation/workflow-automation-apis/delete-schedule)
+
+2. **Vérifiez que toutes les planifications sont supprimées**: confirmez qu&apos;aucune exécution planifiée ne reste active avant de désactiver FCM
+
+3. **Désactiver FCM**: une fois toutes les planifications supprimées, vous pouvez désactiver Workflow Automation en toute sécurité via les paramètres FCM
+
+<Callout variant="important">
+  **Pourquoi supprimer des plannings ?** Les workflows planifiés ne peuvent pas s&apos;exécuter lorsque Workflow Automation est désactivé via FCM. Les planifications actives restant dans le système peuvent prêter à confusion ou générer des alertes inutiles.
+</Callout>
+
+## Problèmes spécifiques à l&apos;intégration
+
+### La notification Slack ne s&apos;affiche pas
+
+**Problème :** le workflow s&apos;exécute correctement, mais les messages Slack n&apos;apparaissent pas.
+
+**Solutions :**
+
+1. **Vérifiez l&apos;ID du canal**: Assurez-vous d&apos;utiliser l&apos; **ID** du canal Slack (par exemple, `C01234ABCD`), et non le nom du canal. Trouvez l&apos;identifiant dans Slack :
+
+   * Faites un clic droit sur le nom de la chaîne
+   * Sélectionnez **View channel details**.
+   * Copiez l&apos;identifiant de la chaîne en bas.
+
+2. **Vérifiez les autorisations du bot**: assurez-vous que votre bot Slack dispose des autorisations suivantes :
+
+   * `chat:write` - Publier des messages
+   * `channels:read` - Consulter les chaînes publiques
+   * `groups:read` - Afficher les chaînes privées (le cas échéant)
+
+3. **Vérifier que le bot est dans le canal**: Ajouter le bot au canal cible :
+
+   * Tapez `/invite @YourBotName` dans le canal
+   * Vérifiez que le bot figure bien dans la liste des membres.
+
+4. **Vérifier le jeton dans les secrets**: Vérifiez que le jeton Slack stocké dans le [gestionnaire de secrets](/docs/workflow-automation/limitations-and-faq/workflow-best-practices#secure-credentials) est correct et n&apos;a pas expiré.
+
+### Les opérations AWS système Manager échouent
+
+**Problème :** Les documents ou commandes d’automatisation SSM ne s’exécutent pas.
+
+**Solutions :**
+
+1. **Vérifiez les autorisations SSM**: ajoutez ces autorisations à votre stratégie de rôle IAM :
+
+   ```yaml
+   {
+     "Effect": "Allow",
+     "Action": [
+       "ssm:CreateDocument",
+       "ssm:DeleteDocument",
+       "ssm:StartAutomationExecution",
+       "ssm:GetAutomationExecution"
+     ],
+     "Resource": "*"
+   }
+   ```
+
+2. **Vérification de l&apos;agent SSM**: assurez-vous que l&apos;agent SSM est installé et en cours d&apos;exécution sur les instances EC2 cibles :
+
+   `aws ssm describe-instance-information --region us-east-1`
+
+3. **Vérifiez le profil de l&apos;instance**: les instances EC2 nécessitent un profil d&apos;instance IAM avec des autorisations SSM pour exécuter des commandes.
+
+4. **Vérifier l&apos;existence du document**: Si vous utilisez un document SSM existant, vérifiez qu&apos;il existe dans votre compte AWS et votre région.
+
+### Création de workflows personnalisés
+
+**Canal Slack introuvable :** Utilisez l&apos;**ID** du canal Slack (`C01234ABCD`), et non le nom du canal. Retrouvez-le dans les détails du canal Slack.
+
+**Les actions AWS échouent silencieusement :** Assurez-vous que les identifiants AWS disposent des permissions `ec2:StopInstances`, `ec2:ModifyInstanceAttribute`, `ec2:StartInstances` et `ssm:*`. Les permissions manquantes échouent silencieusement.
+
+**Délai d&apos;attente SSM dépassé mais instance toujours en transition :** Si le délai d&apos;attente SSM est dépassé, l&apos;instance EC2 est peut-être encore en transition entre les états. Consultez la console AWS pour vérifier l&apos;état réel de l&apos;instance avant de relancer.
+
+**Fuites de ressources et frais imprévus :** effectuez toujours un nettoyage. Structurez les workflows de sorte que le nettoyage s&apos;exécute même si les étapes précédentes échouent. Cela permet d&apos;éviter les fuites de ressources et des frais AWS imprévus.
+
+## Problèmes spécifiques au modèle
+
+### GUID d&apos;entité introuvable
+
+**Problème :** Les modèles échouent avec `Entity not found` erreurs.
+
+**Solutions :**
+
+1. **Trouver le GUID d&apos;entité correct**:
+
+   * Accédez à la page de ressources du moniteur dans New Relic
+   * Vérifiez l&apos;URL ou les métadonnées de l&apos;entité pour le GUID
+   * Utilisez [la recherche d&apos;entité](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic#find) pour localiser l&apos;entité
+
+2. **Vérifiez que l&apos;entité existe dans le compte approprié**: assurez-vous d&apos;utiliser l&apos;entité du même compte que celui où le workflow est déployé.
+
+3. **Vérifiez les données de l&apos;entité**: assurez-vous que l&apos;entité affiche **Last seen** récente (une entité obsolète a peut-être été supprimée).
+
+4. **Pour l&apos;entité AWS**: Assurez-vous que [les intégrations](/docs/infrastructure/amazon-integrations/get-started/introduction-aws-integrations) sont actives
+
+<Callout variant="tip">
+  **Les GUID d&apos;entité sont spécifiques à chaque compte.** Le déplacement du workflow entre les comptes nécessite la mise à jour de tous les GUID d&apos;entité.
+</Callout>
+
+### La requête NRQL ne renvoie aucun résultat
+
+**Problème :** Les modèles utilisant la requête NRQL s’exécutent correctement mais renvoient des ensembles de données vides.
+
+**Solutions :**
+
+1. **Testez d&apos;abord la requête**: utilisez [le générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) pour valider la requête avant de l&apos;ajouter aux modèles
+
+2. **Vérifiez le type de données et les noms des événements**:
+
+   * Utilisez `FROM Transaction`, et non `FROM Transactions`
+   * Vérifier que les noms des attributs correspondent exactement (sensible à la casse).
+
+3. **Ajuster les plages horaires**: Pour les données éparses, élargir la fenêtre temporelle :
+
+   * Ajoutez `SINCE 1 hour ago` pour les données récentes
+   * Utilisez `SINCE 1 day ago` pour les tendances
+
+4. **Simplifiez et testez progressivement**: commencez par une requête de base, puis ajoutez les filtres un par un.
+
+5. **Vérifier [la syntaxe NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)**: s’assurer que la structure de la requête correspond aux exigences NRQL
+
+### Le déploiement du modèle échoue
+
+**Problème :** Le modèle ne se déploie pas ou affiche des erreurs lors du déploiement.
+
+**Solutions :**
+
+1. **Vérifiez toutes les informations requises**: assurez-vous d’avoir rempli tous les champs obligatoires (identifiants, GUID, requête).
+2. **Vérifiez le format des informations d&apos;identification**: les secrets doivent utiliser le format `${{ :secrets:keyName }}` avec le préfixe deux-points.
+3. **Testez les identifiants indépendamment**: avant le déploiement, testez les identifiants AWS avec l’interface de ligne de commande AWS et l’API Slack.
+4. **Exigences relatives aux modèles de vérification**: Chaque modèle énumère des prérequis spécifiques ; assurez-vous qu’ils sont tous respectés.
+5. **Vérifiez la présence de caractères spéciaux**: certains champs (noms de canaux, requêtes) peuvent ne pas fonctionner correctement avec des caractères spéciaux ; utilisez des caractères alphanumériques lorsque cela est possible.
+
+### Le flux d&apos;approbation ne répond pas.
+
+**Problème :** les modèles nécessitant une approbation Slack (restauration d’API Gateway, redimensionnement d’EC2) ne détectent pas les réactions.
+
+**Solutions :**
+
+1. **Vérifier les portées des jetons du bot**:
+
+   * `reactions:read`- Nécessaire pour détecter les réactions aux émojis
+   * `chat:write`- Obligatoire pour publier les messages d&apos;approbation
+
+2. **Vérifier le format de la réaction**: Utilisez l&apos;emoji exact spécifié dans le workflow (par exemple, `thumbsup` pour l&apos;approbation)
+
+3. **Vérifiez les paramètres de délai d&apos;expiration**: requests d&apos;approbation expirent après le délai configuré (généralement 5 à 10 minutes).
+
+4. **Assurez-vous que le bot puisse lire les messages**: le bot doit être présent dans le canal et avoir l’autorisation de consulter l’historique des messages.
+
+5. **Test avec une approbation simple**: Créez un workflow de test avec uniquement la logique d’approbation pour isoler le problème.
+
+### Problèmes de gestion des instances EC2
+
+**Problème :** le modèle EC2 ne parvient pas à redimensionner ou à gérer l’instance.
+
+**Solutions :**
+
+1. **Vérifiez que [les flux de métriques CloudWatch](/install/aws-cloudwatch/) sont configurés**: requis pour les métriques EC2 en temps réel.
+2. **Vérifier que l&apos;[intégration de monitoring EC2](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-ec2-monitoring-integration#activate) est active**: garantit que les données de l&apos;instance sont transmises à New Relic
+3. **Vérifier l&apos;état instance **: l&apos;instance doit être à l&apos;état `running` ou `stopped` ; les états transitoires (en attente, en cours d&apos;arrêt) entraînent des échecs.
+4. **Vérifiez la compatibilité instance de type d&apos;**: toutes instance de type d&apos; ne prennent pas en charge toutes les opérations de redimensionnement. Consultez [la documentation AWS relative aux instance de type d&apos;](https://aws.amazon.com/ec2/instance-types/).
+5. **Vérifiez les autorisations d&apos;arrêt/démarrage**: le rôle IAM nécessite `ec2:StopInstances` et `ec2:StartInstances` en plus de `ec2:ModifyInstanceAttribute`
+
+### Le modèle d&apos;analyse JSON ne consigne pas les données.
+
+**Problème :** le modèle d’analyse JSON s’exécute correctement, mais aucune donnée n’apparaît dans les logs New Relic.
+
+**Solutions :**
+
+1. **Vérifier les points de terminaison d&apos;API**: Tester l&apos;URL de la page d&apos;état dans un navigateur – s&apos;assurer qu&apos;elle renvoie un JSON valide
+2. **Vérifiez la structure JSON**: le modèle attend un format spécifique ; assurez-vous que les champs d’état des composants correspondent à la structure attendue.
+3. **Vérifiez les filtres log **: assurez-vous que l’action de logging utilise le type d’événement et l’attribut corrects.
+4. **Tester avec un point de terminaison simple**: Utilisez un point de terminaison JSON de base (comme [https://httpbin.org/json](https://httpbin.org/json)) pour vérifier le fonctionnement de la mécanique du modèle
+5. **Vérifier les autorisations du compte**: s’assurer que workflow est autorisé à écrire les logs dans New Relic.
+
+### Modèles de dépannage
+
+Si votre workflow échoue ou ne se comporte pas comme prévu :
+
+1. **Consultez l&apos;historique d&apos;exécution**: accédez à **Workflow Automation &gt; \[Votre workflow] &gt; Run History** pour afficher les logs d&apos;exécution et le message d&apos;erreur.
+
+2. **Consultez les problèmes courants**: voir [la section « Automatisation du workflow de dépannage »](/docs/workflow-automation/troubleshooting) pour trouver des solutions.
+
+   * Erreurs d&apos;identification et d&apos;autorisation AWS
+   * Problèmes d&apos;intégration Slack
+   * Problèmes liés aux GUID d&apos;entité
+   * échecs des requêtes NRQL
+   * délai d&apos;expiration du workflow
+   * dépannage spécifique au modèle
+
+<Callout variant="important">
+  **Testez les modèles en toute sécurité**: testez toujours d&apos;abord dans un environnement hors production. Les modèles modifiant l&apos;infrastructure (EC2, API Gateway) peuvent avoir un impact sur la disponibilité s&apos;ils sont mal configurés.
+</Callout>
+
+## Sujets connexes [#related-topics]
+
+<DocTiles>
+  <DocTile title="Bonnes pratiques pour les workflows" path="/docs/workflow-automation/limitations-and-faq/workflow-best-practices">
+    Gestion des erreurs et stratégies de test pour prévenir les problèmes
+  </DocTile>
+
+  <DocTile title="Configurer les identifiants AWS" path="/docs/workflow-automation/setup-and-configure/set-up-aws-credentials">
+    Corriger les erreurs d&apos;authentification et d&apos;autorisation AWS
+  </DocTile>
+
+  <DocTile title="Créer des destinations" path="/docs/workflow-automation/setup-and-configure/create-destinations">
+    Configurer correctement les intégrations Slack et de notification
+  </DocTile>
+
+  <DocTile title="Limites de workflow" path="/docs/workflow-automation/limitations-and-faq/workflow-limits">
+    Comprendre les contraintes système et les délais d&apos;attente
+  </DocTile>
+</DocTiles>

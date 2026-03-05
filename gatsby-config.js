@@ -162,12 +162,10 @@ module.exports = {
         // https://github.com/mdx-js/mdx/issues/1283
         //
         // If this is addressed in MDX v2, we can safely remove this.
-        remarkPlugins: [],
+        remarkPlugins: [require('remark-math')],
         rehypePlugins: [
-          [
-            require('./rehype-plugins/gatsby-inline-images'),
-            { spacing: '0.5rem' },
-          ],
+          require('rehype-katex'),
+          [require('./rehype-plugins/gatsby-inline-images'), { spacing: '0.5rem' }],
         ],
         gatsbyRemarkPlugins: [
           {
@@ -485,11 +483,13 @@ module.exports = {
             '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
         newRelicRequestingServicesHeader: 'docs-website',
-        segment: {
+        // Segment analytics commented out to avoid costs and unnecessary data collection
+        // Uncomment if Segment tracking is needed again
+        /* segment: {
           segmentWriteKey: 'noviNOFjASOSPcSEAkwoRxOt0Y1719KD',
           section: 'docs',
           platform: 'docs_pages',
-        },
+        }, */
       },
     },
   ],

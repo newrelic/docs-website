@@ -1,0 +1,244 @@
+---
+title: Référence de configuration YAML du gateway
+metaDescription: YAML configuration syntax reference for creating custom Pipeline Control Gateway configurations.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cette référence couvre la syntaxe YAML pour les utilisateurs avancés créant des configurations de gateway personnalisées. Pour des informations conceptuelles, consultez [Présentation du gateway](/docs/new-relic-control/pipeline-control/gateway/overview). Pour une expérience guidée, utilisez [l&apos;interface utilisateur Gateway](/docs/new-relic-control/pipeline-control/gateway/ui-guide). Bien que l&apos;interface utilisateur de la Gateway soit recommandée pour la plupart des utilisateurs, la configuration YAML offre un contrôle total sur la structure du pipeline de télémétrie.
+
+## Structure YAML complète
+
+Les configurations du gateway utilisent un format YAML déclaratif :
+
+```yaml
+version: 2.0.0
+autoscaling:
+  minReplicas: 6
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+configuration:
+  simplified/v1:
+    troubleshooting:
+      proxy: false
+      requestTraceLogs: false
+    steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          log_statements:
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+      nrexporter/newrelic:
+        description: Export to New Relic
+```
+
+### Structure de niveau supérieur
+
+* `version`: Version du format de configuration (actuellement `"2.0.0"`)
+* `autoscaling`: Configuration de la mise à l&apos;échelle des réplicas du gateway
+* `configuration.simplified/v1`: Couche d&apos;abstraction simplifiée pour définir des pipelines de télémétrie
+* `troubleshooting`: Paramètres de débogage
+
+## Hiérarchie de configuration
+
+La configuration du gateway suit une structure de graphe orienté acyclique (DAG) où chaque étape définit son comportement et pointe vers l&apos;étape suivante du pipeline à l&apos;aide du champ output. Cela crée un flux de données explicite : les données entrent par les récepteurs, passent par les processeurs (transformer, filtrer, échantillonner) et sortent par les exportateurs.
+
+### Conventions de nommage des étapes
+
+* Récepteurs : `receivelogs`, `receivemetrics`, `receivetraces`
+
+* Processeurs : format `processortype/TelemetryType` :
+
+  * Transformation : `transform/Logs`, `transform/Metrics`, `transform/Traces`
+  * Filtre : `filter/Logs`, `filter/Metrics`, `filter/Traces`
+  * Échantillonnage : `probabilistic_sampler/Logs`, `probabilistic_sampler/Traces`
+
+* Exportateurs : `nrexporter`
+
+### Configurations du processeur
+
+Gateway prend en charge trois principaux types de processeurs pour transformer, filtrer et échantillonner les données de télémétrie.
+
+#### Transformateur de processeur
+
+Utilisé pour modifier, enrichir ou analyser la télémétrie à l&apos;aide d&apos;OTTL (OpenTelemetry Transformation Language).
+
+Champs de configuration :
+
+* metric\_statements : Tableau pour les transformations de métriques (contexte : métrique)
+* log\_statements : Tableau pour les transformations de logs (contexte : log)
+* trace\_statements : Tableau pour les transformations de trace (contexte : span)
+
+#### Processeur de filtre
+
+Utilisé pour supprimer des enregistrements de télémétrie en fonction d&apos;expressions booléennes.
+
+Champs de configuration :
+
+* logs : Tableau d&apos;expressions booléennes OTTL pour le filtrage des logs
+* spans : Tableau d&apos;expressions booléennes OTTL pour le filtrage des métriques/traces
+
+#### Processeur d&apos;échantillonnage
+
+Utilisé pour implémenter une logique d&apos;échantillonnage probabiliste.
+
+Champs de configuration :
+
+* global\_sampling\_percentage : Taux d&apos;échantillonnage par défaut (0-100)
+
+* conditionalSamplingRules : Tableau de règles conditionnelles
+
+  * nom : Identifiant de la règle
+  * description : Description lisible par l&apos;humain
+  * sampling\_percentage : Taux d&apos;échantillonnage pour les données correspondantes (0-100)
+  * source\_of\_randomness : Champ à utiliser pour l&apos;aléatoire (généralement trace.id)
+  * condition : Expression de correspondance d&apos;attribut
+
+## Référence des champs
+
+### Champs de premier niveau
+
+| Champ                                      | Type    | Requis | Défaut |
+| ------------------------------------------ | ------- | ------ | ------ |
+| version                                    | chaîne  | Oui    | -      |
+| autoscaling.minReplicas                    | entier  | Non    | 6      |
+| autoscaling.maxReplicas                    | entier  | Non    | 10     |
+| autoscaling.targetCPUUtilizationPercentage | entier  | Non    | 60     |
+| configuration.simplified/v1                | objet   | Oui    | -      |
+| dépannage.proxy                            | booléen | Non    | false  |
+| troubleshooting.requestTraceLogs           | booléen | Non    | false  |
+
+### Champs de l&apos;étape
+
+| Champ         | Type     | Requis       | Description                                                           |
+| ------------- | -------- | ------------ | --------------------------------------------------------------------- |
+| description   | chaîne   | Recommandé   | Description lisible par l&apos;homme                                  |
+| configuration | objet    | Conditionnel | Requis pour les processeurs, omettre pour les récepteurs/exportateurs |
+| sortie        | éventail | Oui          | Noms des étapes suivantes (vide \[] pour les exportateurs)            |
+
+## Conventions de nommage des champs
+
+* Respectez la casse exacte des exemples (YAML est sensible à la casse).
+
+Le tableau de sortie de chaque étape spécifie la ou les étapes suivantes.
+
+## Validation et déploiement
+
+1. Validez la syntaxe avec un linter YAML.
+2. Déployez d&apos;abord dans un environnement de non-production.
+3. Confirmez que la télémétrie atteint correctement New Relic.
+4. Téléversez la configuration via l&apos;interface utilisateur du gateway.
+
+## Ressources supplémentaires
+
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor)

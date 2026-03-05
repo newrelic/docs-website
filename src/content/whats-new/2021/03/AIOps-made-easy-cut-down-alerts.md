@@ -15,11 +15,6 @@ In addition to correlating alerts using time-based clustering and context from a
 
 ![decisions-topology-correlation.png](/images/decisions-topology-correlation.webp 'The decisions topology correlation UI.')
 
-## Anomalies correlated within issues
-
-Applied Intelligence [automatically detects anomalies](https://one.nr/01qwL999rR5) based on golden signals like throughput, errors, and latency across all applications and services. And now you can correlate proactively detected anomalies along with alerts and events from any source together, to paint the most complete picture of the issue at hand, reducing time to understand and act.
-
-![issues-timeline.png](/images/issues-timeline.webp 'The issues timeline UI.')
 
 ## Create correlation decisions faster with correlation assistant
 

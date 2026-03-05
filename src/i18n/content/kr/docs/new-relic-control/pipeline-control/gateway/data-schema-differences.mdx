@@ -1,0 +1,817 @@
+---
+title: 게이트웨이 데이터 스키마 차이점
+metaDescription: 'Learn about schema differences between gateway processing and NRDB, including which attributes are available at the gateway level.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+게이트웨이 프로세서는 텔레메트리 데이터가 뉴렐릭에 도달하기 전에 작동합니다. 이는 NRDB에서 사용할 수 있는 일부 속성을 아직 게이트웨이에서 사용할 수 없음을 의미합니다. 필터, 변환 및 샘플링 프로세서에 대한 OTTL 표현식을 작성할 때 이러한 차이점을 이해하는 것이 매우 중요합니다.
+
+## 스키마가 서로 다른 이유는 무엇일까요?
+
+### 데이터 흐름 및 보강
+
+텔레메트리 데이터가 뉴렐릭의 플랫폼을 통해 흐르는 경우:
+
+1. **게이트웨이 처리** - 게이트웨이는 에이전트 및 기타 소스로부터 원시 텔레메트리를 받습니다.
+2. **강화** - 뉴렐릭은 속성(예: `entity.guid`, `appName`)을 추가하고 일부 기존 속성의 이름을 바꿉니다.
+3. **클라우드 규칙 처리** - NRQL기반 cloud 규칙은 보강된 데이터를 기반으로 작동합니다.
+4. **저장 방식** - 모든 보강 처리가 적용된 데이터는 NRDB에 저장됩니다.
+
+### 게이트웨이 프로세서에 미치는 영향
+
+**게이트웨이 프로세서는 사전 보강 데이터를 볼 수 있습니다**. 즉, 다음과 같습니다.
+
+* 일부 속성은 아직 존재하지 않습니다(예: `entity.guid`, `appName`, `entityGuid`).
+* 속성 이름은 NRDB에서 보이는 것과 다를 수 있습니다.
+* 필터 및 변환 로직은 이러한 축소된 속성 집합을 고려해야 합니다.
+
+**클라우드 규칙은 보강 후 데이터를 참조합니다**. 즉, 다음과 같습니다.
+
+* 모든 강화 속성을 사용할 수 있습니다.
+* NRQL 쿼리는 게이트웨이에 존재하지 않는 속성을 참조할 수 있습니다.
+
+## 데이터 소스
+
+게이트웨이는 다음으로부터 텔레메트리를 수신합니다.
+
+* [뉴렐릭 APM 에이전트](/docs/new-relic-control/pipeline-control/gateway/modify-agent-configuration) (다국어 지원)
+* 뉴렐릭 인프라 에이전트
+* OpenTelemetry 수집기
+* 뉴렐릭 API (이벤트 API, 로그인 API, 트레이스 API, 지표 API)
+* 기타 OTLP 호환 소스
+
+<Callout variant="important">
+  게이트웨이 구현, 배포에 지원되는 에이전트 및 버전을 확인하려면 [에이전트 설정 문서를](/docs/new-relic-control/pipeline-control/gateway/modify-agent-configuration) 참조하세요.
+</Callout>
+
+모든 데이터는 수많은 속성을 가진 복잡하고 다중 중첩된 JSON 형식으로 제공됩니다.
+
+## 게이트웨이 프로세서용 OTTL 표현식 작성
+
+### 속성 가용성
+
+OTTL 필터 조건 또는 변환문을 작성할 때:
+
+**사용 가능한 속성:**
+
+* 에이전트/수집기에서 보낸 코어 텔레메트리 속성
+* 측정 속성, 도구가 직접 추가
+* 표준 OTLP 속성(예: `span_id`, `trace_id`, `severity.number`)
+
+**사용 불가능한 속성(정보 보강 중에 추가됨):**
+
+* `entity.guid`, `entityGuid`
+* `appId`, `appName`
+* `host` (대부분의 경우)
+* `realAgentId`
+* 다양한 NR 관련 메타데이터 속성
+
+자세한 내용은 아래 [속성 참조표를](#attribute-reference-by-data-type) 참조하십시오.
+
+### 모범 사례
+
+**실제 데이터로 테스트:** 복잡한 필터를 작성하기 전에 게이트웨이의 모니터링 데이터를 사용하여 델메트리에 어떤 속성이 있는지 확인하세요.
+
+**사용 가능한 속성을 활용하세요:**
+
+```yaml
+# ✓ Works - span_id exists in raw telemetry
+filter/Spans:
+  config:
+    spans:
+      - 'span_id.string == "abc123"'
+
+# ✗ May not work - entity.guid added during enrichment
+filter/Spans:
+  config:
+    spans:
+      - 'attributes["entity.guid"] == "xyz789"'
+```
+
+**강화된 속성에 대한 cloud 규칙을 고려하십시오.** 필터링 로직에 강화된 속성(예: `appName` 또는 `entity.guid`)이 필요한 경우 게이트웨이 프로세서 대신 cloud 규칙을 사용하십시오.
+
+**참조표를 확인하세요.** 필터 또는 변환에서 속성을 사용하기 전에 아래 표에서 해당 속성이 &quot;게이트웨이에서 사용할 수 없음&quot;으로 표시되어 있지 않은지 확인하십시오.
+
+## 데이터 유형별 속성 참조
+
+다음 표에서는 각 텔넷리 데이터 유형에 대해 게이트웨이 수준에서 사용할 수 없는 속성을 보여줍니다. 이러한 속성을 기준으로 필터링하거나 변환해야 하는 경우 cloud 규칙을 사용하는 것을 고려해 보세요.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        데이터 형식
+      </th>
+
+      <th>
+        게이트웨이에서 사용할 수 없는 속성
+      </th>
+
+      <th>
+        예시 필터 표현식(OTTL)
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        프로세서(APM)
+      </td>
+
+      <td>
+        `appId`
+
+        , 
+
+        `appName`
+
+        , 
+
+        `containerId`
+
+        , 
+
+        `entity.guid`
+
+        , 
+
+        `entityGuid`
+
+        , 
+
+        `host`
+
+        , 
+
+        `realAgentId`
+
+        , 
+
+        `transactionSubType`
+
+        , 
+
+        `transactionType`
+      </td>
+
+      <td>
+        `attributes["guid"] == "c2906c2e8b9f11ff"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        맞춤 이벤트
+      </td>
+
+      <td>
+        `appId`
+
+        , 
+
+        `appName`
+
+         , 
+
+        `containerId`
+
+         , 
+
+        `entityGuid`
+
+         , 
+
+        `host`
+
+         , 
+
+        `realAgentId`
+      </td>
+
+      <td>
+        `attributes["myFloat"] == 0.603`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        오류 추적
+      </td>
+
+      <td>
+        `aggregateFacet`
+
+        , 
+
+        `appId`
+
+        , 
+
+        `appName`
+
+        , 
+
+        `applicationIds`
+
+        , 
+
+        `count`
+
+        , 
+
+        `entity.guid`
+
+        , 
+
+        `entityGuid`
+
+        , 
+
+        `error.class`
+
+        , 
+
+        `message`
+
+        , 
+
+        `path`
+
+        , 
+
+        `exceptionClass`
+
+        , 
+
+        `fingerprint`
+
+        , 
+
+        `id`
+
+        , 
+
+        `message`
+
+        , 
+
+        `realAgentId`
+
+        , 
+
+        `storageId`
+
+        , 
+
+        `timestamp`
+
+        , 
+
+        `transactionName`
+
+        , 
+
+        `transactionUiName`
+      </td>
+
+      <td>
+        `attributes["traceId"] == "b366efe772fa6d1c8e0852558026c40e"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        트랜잭션 오류
+      </td>
+
+      <td>
+        `aggregateFacet`
+
+        , 
+
+        `appId`
+
+        , 
+
+        `appName`
+
+        , 
+
+        `containerId`
+
+        , 
+
+        `entity.guid`
+
+        , 
+
+        `entityGuid`
+
+        , 
+
+        `host`
+
+        , 
+
+        `realAgentId`
+
+        , 
+
+        `transactionUiName`
+      </td>
+
+      <td>
+        `attributes["error.message"] == "my expected error message"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        연구소
+      </td>
+
+      <td>
+        `entity.guids`
+
+        , 
+
+        `messageId`
+
+         , 
+
+        `newrelic.logPattern`
+
+         , 
+
+        `newrelic.logs.batchIndex`
+
+         , 
+
+        `newrelic.source`
+      </td>
+
+      <td>
+        `span_id == "8b583de97341d094"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        지표슬라임)
+      </td>
+
+      <td>
+        `appId`
+
+        , 
+
+        `appName`
+
+        , 
+
+        `entity.guid`
+
+        , 
+
+        `entityGuid`
+
+        , 
+
+        `language`
+
+        , 
+
+        `metricName`
+
+        , 
+
+        `metricTimesliceName`
+
+        , 
+
+        `newrelic.timeslice.value`
+
+        , 
+
+        `scope`
+
+        , 
+
+        `timestamp`
+      </td>
+
+      <td>
+        차원적 규칙 또는 cloud 규칙을 사용하세요
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        스팬(분산 추적)
+      </td>
+
+      <td>
+        `appId`
+
+        , 
+
+        `appName`
+
+        , 
+
+        `containerId`
+
+        , 
+
+        `duration.ms`
+
+        , 
+
+        `entity.guid`
+
+        , 
+
+        `entity.name`
+
+        , 
+
+        `entityGuid`
+
+        , 
+
+        `host`
+
+        , 
+
+        `id`
+
+        , 
+
+        `process.id`
+
+        , 
+
+        `realAgentId`
+
+        , 
+
+        `trace.id`
+      </td>
+
+      <td>
+        `name == "WebTransaction/Go/GET /log"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        SQL추적
+      </td>
+
+      <td>
+        `applicationIds`
+
+        , 
+
+        `callCount`
+
+        , 
+
+        `databaseMetricName`
+
+        , 
+
+        `entity.guid`
+
+        , 
+
+        `id`
+
+        , 
+
+        `maxCallTime`
+
+        , 
+
+        `minCallTime`
+
+        , 
+
+        `path`
+
+        , 
+
+        `realAgentId`
+
+        , 
+
+        `sql`
+
+        , 
+
+        `sqlId`
+
+        , 
+
+        `storageId`
+
+        , 
+
+        `timestamp`
+
+        , 
+
+        `totalCallTime`
+
+        , 
+
+        `uri`
+      </td>
+
+      <td>
+        `attributes["uri"] == "Custom/Simple/sqlTransaction"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        거래 추적
+      </td>
+
+      <td>
+        `storageId`
+
+        , 
+
+        `uri`
+
+        , 
+
+        `path`
+
+        , 
+
+        `agentRunId`
+
+        , 
+
+        `applicationIds`
+
+        , 
+
+        `duration`
+
+        , 
+
+        `entity.guid`
+
+        , 
+
+        `guid`
+
+        , 
+
+        `id`
+
+        , 
+
+        `protocolVersion`
+
+        , 
+
+        `realAgentId`
+
+        , 
+
+        `timestamp`
+      </td>
+
+      <td>
+        원시 트레이스 데이터에서 사용 가능한 속성 사용
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        지표 (게이지)
+      </td>
+
+      <td>
+        `newrelic.source`
+
+         (값: 
+
+        `metricAPI`
+
+        ), 
+
+        `metricName`
+
+        : 
+
+        `{type, count, latest, max, min, sum}`
+      </td>
+
+      <td>
+        `name == "redis_aof_rewrite_in_progress" and value < 100`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        기준(요약)
+      </td>
+
+      <td>
+        `newrelic.source`
+
+         (값: 
+
+        `metricAPI`
+
+        ), 
+
+        `metricName`
+
+        : 
+
+        `{type, count, max, min, sum}`
+      </td>
+
+      <td>
+        `attributes["scrapedTargetKind"] == "user_provided"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        지표(개수)
+      </td>
+
+      <td>
+        `newrelic.source`
+
+         (값: 
+
+        `metricAPI`
+
+        ), 
+
+        `metricName`
+
+        : 
+
+        `{type, count}`
+      </td>
+
+      <td>
+        `attributes["instrumentation.name"] == "nri-prometheus"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        시스템 샘플(인프라)
+      </td>
+
+      <td>
+        없음
+      </td>
+
+      <td>
+        `attributes["entityKey"] == "vagrant"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        스토리지샘플(인프라)
+      </td>
+
+      <td>
+        `entityAndMountPoint`
+      </td>
+
+      <td>
+        `attributes["inodesUsed"] == 161604`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        네트워크 샘플(인프라)
+      </td>
+
+      <td>
+        `entityAndInterface`
+      </td>
+
+      <td>
+        `attributes["entityKey"] == "vagrant"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        프로세스샘플(인프라)
+      </td>
+
+      <td>
+        `entityAndPid`
+      </td>
+
+      <td>
+        `attributes["entityKey"] == "vagrant"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        컨테이너 샘플(인프라)
+      </td>
+
+      <td>
+        `entityGuid`
+
+        , 
+
+        `entityType`
+
+         , 
+
+        `entityId`
+      </td>
+
+      <td>
+        `attributes["agentName"] == "ContainerSampleAgent"`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 일반적인 시나리오
+
+### 엔티티별 필터링
+
+**문제:** 엔티티별로 스팬을 필터링하려고 하는데, 게이트웨이에 `entity.guid` 존재하지 않습니다.
+
+**해결 방법:** 원시 텔레메트리에 존재하는 서비스 이름 또는 기타 식별 속성을 사용합니다.
+
+```yaml
+filter/Spans:
+  config:
+    spans:
+      - 'attributes["service.name"] == "my-service"'
+```
+
+### 애플리케이션 이름으로 필터링
+
+**문제:** APM 트랜잭션에서 게이트웨이에 `appName` 없습니다.
+
+**해결 방법:** 속성을 사용하여 직접 세트를 구성하거나 cloud 규칙을 사용하여 보강 후 필터링을 적용합니다.
+
+### 엔티티 정보 추가
+
+**문제:** 게이트웨이에서 텔레메트리에 정보 컨텍스트를 추가하려고 합니다.
+
+**해결책:** 게이트웨이에서 `entity.guid` 에 접근할 수는 없지만, 사용자 식별 메타데이터를 추가할 수 있습니다.
+
+```yaml
+transform/Logs:
+  config:
+    log_statements:
+      - set(attributes["deployment"], "production-us-east")
+      - set(attributes["cluster"], "k8s-prod-01")
+```
+
+## 문제점 해결
+
+### 필터가 예상 데이터와 일치하지 않습니다.
+
+필터 프로세서가 예상과 다른 데이터를 반환하는 경우:
+
+1. **속성 가용성 확인** - 게이트웨이에 해당 속성이 존재하는지 확인합니다(NRDB에만 존재하는 것이 아님).
+2. **실제 텔레메트리 검사** - 게이트웨이 모니터링을 사용하여 실제로 어떤 속성이 존재하는지 확인
+3. **속성 접근 권한 테스트** - 속성에 간단한 필터를 적용하여 존재하는지 확인해 보세요.
+   ```yaml
+   filter/Test:
+     config:
+       logs:
+         - 'attributes["entity.guid"] != ""'  # Will match nothing if attribute doesn't exist
+   ```
+
+### 변환이 예상 값을 설정하지 않음
+
+속성이 추가되거나 수정되지 않는 경우:
+
+1. **속성 이름을 확인하십시오** - 사전 보강 속성 이름은 NRDB와 다를 수 있습니다.
+2. **데이터 유형을 확인하세요** - 속성에 올바르게 접근하고 있는지 확인하십시오 (예: `attributes["key"]` 사용 여부와 필드 직접 접근 여부).
+3. **프로세서 실행 순서를 검토하고** 변환 작업이 해당 변환에 의존하는 필터보다 먼저 실행되도록 하십시오.
+
+## 다음 단계
+
+* [필터 프로세서 참조](/docs/new-relic-control/pipeline-control/gateway/filter-processor) - OTTL 필터 구문 학습
+* [변환 프로세서 참조](/docs/new-relic-control/pipeline-control/gateway/transform-processor) - OTTL 변환 명령문 학습
+* [클라우드 규칙 문서](/docs/new-relic-control/pipeline-control/cloud-rules/create-pipeline-rules) - 보강된 데이터에 NRQL 사용하기

@@ -1,0 +1,499 @@
+---
+title: フィルタープロセッサ
+metaDescription: Use the filter processor to drop unwanted telemetry data or attributes using OTTL boolean expressions.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+フィルター プロセッサは、OTTL (OpenTelemetry Transformation Language) ブール式に基づいてテレメトリー レコードまたは特定のプロパティを削除します。 これを使用して、テスト データ、デバッグ ログ、ヘルス チェック、または低価値のテレメトリーをネットワークから離れる前に削除します。
+
+## フィルタープロセッサを使用する場合
+
+次の場合にフィルター プロセッサを使用します。
+
+* **個人情報またはテスト環境データの削除**: ネットワークから流出すべきでないデータを削除します
+* **本番環境からデバッグレベルのログを削除する**: 重大度でフィルタリングしてノイズを減らす
+* **ヘルスチェックrequestsをフィルタリングする**: 反復的で価値の低い監視トラフィックをドロップする
+* **特定のプレフィックスまたはパターンを持つメトリクスを削除**: 不要なメトリクス ストリームを削除します
+* **プロパティに基づいて価値の低いテレメトリーを削除**: サービス名、環境、またはカスタム タグでフィルターします。
+
+## フィルタープロセッサの仕組み
+
+フィルタ プロセッサは、各テレメトリ レコードに対して OTTL ブール式を評価します。 **条件が`true`と評価されると、レコードは削除されます。**
+
+これは、 `WHERE status = 'ERROR'` 「エラーを保持する」ことを意味する多くのクエリ言語とは逆です。フィルタ プロセッサでは、 `status == 'ERROR'` 「エラーをドロップする」ことを意味します。
+
+## 構成
+
+パイプラインにフィルター プロセッサを追加します。
+
+```yaml
+filter/Logs:
+  description: Apply drop rules and data processing for logs
+  output:
+    - transform/Logs
+  config:
+    error_mode: ignore
+    logs:
+      rules:
+        - name: drop the log records
+          description: drop all records which has severity text INFO
+          value: log.severity_text == "INFO"
+```
+
+**設定フィールド**:
+
+* `logs`: ログフィルタリング用の OTTL ブール式の配列
+* `span`、 `span_event` : トレーススパンフィルタリングのOTTLブール式の配列
+* `metric`、 `datapoint` : メトリクス フィルタリングの OTTL ブール式の配列
+
+**複数の条件**: 配列に複数の式を指定すると、それらは OR ロジックで評価されます。**いずれかの**条件が真の場合、レコードは削除されます。
+
+## OTTLブール演算子
+
+### 比較演算子
+
+* `==` - 等しい
+* `!=` - 等しくない
+* `<` - 未満
+* `<=` - 以下
+* `>` - より大きい
+* `>=` - より大きいか等しい
+
+### 論理演算子
+
+* `and` - 両方の条件が満たされている必要があります
+* `or` - いずれかの条件が満たされている必要があります
+* `not` - 条件を否定する
+
+### パターンマッチング
+
+* `matches` - 正規表現パターンマッチング
+
+```yaml
+logs:
+  - 'body matches ".*health.*"'
+  - 'attributes["http.url"] matches ".*\\/api\\/v1\\/health.*"'
+```
+
+## 完全な例
+
+### 例1: 落下試験環境データ
+
+テスト環境と開発環境からすべてのテレメトリを削除します。
+
+```yaml
+filter/Logs:
+  description: "Drop non-production environments"
+  config:
+    error_mode: ignore
+    logs:
+      rules:
+        - name: drop-test-environment
+          description: Drop logs from test environment
+          value: resource.attributes["environment"] == "test"
+   
+        - name: drop-dev-environment
+          description: Drop logs from dev environment
+          value: resource.attributes["environment"] == "dev"
+        
+        - name: drop-local-environment
+          description: Drop logs from local environment
+          value: resource.attributes["environment"] == "local"
+```
+
+### 例2: 本番環境でデバッグログを削除する
+
+本番環境では意味のあるログレベルのみを保持します。
+
+```yaml
+filter/Logs:
+  description: "Drop debug and trace logs"
+  config:
+    error_mode: ignore
+    logs:
+      rules:
+        - name: drop-debug-logs
+          description: Drop all DEBUG severity logs
+          value: severity_text == "DEBUG"
+        
+        - name: drop-trace-logs
+          description: Drop all TRACE severity logs
+          value: severity_text == "TRACE"
+        
+        - name: drop-low-severity-logs
+          description: Drop INFO and below severity logs
+          value: severity_number < 9
+```
+
+**重大度番号参照**:
+
+* トレース = 1-4
+* デバッグ = 5-8
+* 情報 = 9-12
+* 警告 = 13-16
+* エラー = 17-20
+* 致命的 = 21-24
+
+### 例3: ヘルスチェックスパンを削除する
+
+診断価値を追加しないヘルスチェック トラフィックを削除します。
+
+```yaml
+filter/Traces:
+  description: "Drop health check spans"
+  config:
+    error_mode: ignore
+    span:
+      rules:
+        - name: drop-health-endpoint
+          description: Drop spans from /health endpoint
+          value: attributes["http.path"] == "/health"
+        
+        - name: drop-healthz-endpoint
+          description: Drop spans from /healthz endpoint
+          value: attributes["http.path"] == "/healthz"
+        
+        - name: drop-ping-endpoint
+          description: Drop spans from /ping endpoint
+          value: attributes["http.path"] == "/ping"
+        
+        - name: drop-health-check-spans
+          description: Drop spans named health_check
+          value: name == "health_check"
+```
+
+### 例4: サービス名でドロップする
+
+特定のサービスまたはサービス パターンをフィルターします。
+
+```yaml
+filter/Logs:
+  description: "Drop deprecated services"
+  config:
+    error_mode: ignore
+    logs:
+      rules:
+        - name: drop-legacy-api
+          description: Drop logs from legacy API v1 service
+          value: resource.attributes["service.name"] == "legacy-api-v1"
+        
+        - name: drop-canary-services
+          description: Drop logs from canary deployment services
+          value: IsMatch(resource.attributes["service.name"], ".*-canary")
+```
+
+### 例 5: 特定のプレフィックスを持つメトリクスを削除する
+
+不要なメトリクス ストリームを削除します。
+
+```yaml
+filter/Metrics:
+  description: "Drop internal metrics"
+  config:
+    error_mode: ignore
+    metric:
+      rules:
+        - name: drop-internal-metrics
+          description: Drop metrics with internal prefix
+          value: IsMatch(name, "^internal\\.")    
+        - name: drop-test-metrics
+          description: Drop metrics with test prefix
+          value: IsMatch(name, "^test_")     
+        - name: drop-debug-metrics
+          description: Drop metrics marked as debug type in resource attributes
+          value: resource.attributes["metric.type"] == "debug"   
+    datapoint:
+      rules:
+        - name: drop-debug-datapoints
+          description: Drop datapoints marked as debug type
+          value: attributes["metric.type"] == "debug"
+```
+
+### 例6: ANDを使用した条件の組み合わせ
+
+複数の条件が満たされる場合にのみドロップします。
+
+```yaml
+filter/Logs:
+  description: "Drop debug logs from specific service in test environment"
+  config:
+    error_mode: ignore
+    logs:
+      rules:
+        - name: drop-debug-logs-from-test
+          description: Drop DEBUG logs from background-worker service in test environment
+          value: |
+            severity_text == "DEBUG" and 
+            resource.attributes["service.name"] == "background-worker" and 
+            resource.attributes["environment"] == "test"
+```
+
+### 例7: エラーを保持し、その他はすべて削除する
+
+ロジックを反転して、貴重なデータのみを保持します。
+
+```yaml
+filter/Logs:
+  description: "Drop non-error logs"
+  config:
+    error_mode: ignore
+    logs:
+      rules:
+        - name: drop-non-error-logs
+          description: Drop everything below ERROR severity level
+          value: severity_number < 17
+```
+
+または NOT ロジックを使用します。
+
+```yaml
+filter/Logs:
+  description: "Drop non-errors"
+  config:
+    error_mode: ignore
+    logs:
+      rules:
+        - name: drop-non-error-logs
+          description: Drop logs that are not ERROR or FATAL
+          value: not (severity_text == "ERROR" or severity_text == "FATAL")
+```
+
+### 例8: ログ本文のパターンマッチング
+
+特定のパターンを含むログをドロップします。
+
+```yaml
+filter/Logs:
+  description: "Drop health check logs by body content"
+  config:
+    error_mode: ignore
+    logs:
+      rules:
+        - name: drop-health-check-logs
+          description: Drop logs with health check in body
+          value: IsMatch(body, ".*health check.*")    
+        - name: drop-status-endpoint-logs
+          description: Drop logs with GET /status in body
+          value: IsMatch(body, ".*GET /status.*")     
+        - name: drop-monitor-ok-logs
+          description: Drop logs with 200 OK monitor in body
+          value: IsMatch(body, ".*200 OK.*monitor.*")
+```
+
+### 例9: 大量で価値の低いスパンを削除する
+
+頻繁に発生するがあまり価値のないスパンを削除します。
+
+```yaml
+filter/Traces:
+  description: "Drop fast, successful cache hits"
+  config:
+    error_mode: ignore
+    span:
+      rules:
+        - name: drop-fast-cache-hits
+          description: Drop cache hit operations faster than 1ms
+          value: |
+            attributes["db.operation"] == "get" and 
+            end_time_unix_nano - start_time_unix_nano < 1000000 and 
+            attributes["cache.hit"] == true
+```
+
+### 例10: HTTPステータスに基づいてドロップする
+
+成功したrequestsフィルタリングし、エラーを保持します:
+
+```yaml
+filter/Traces:
+  description: "Drop successful HTTP requests"
+  config:
+    error_mode: ignore
+    span:
+      rules:
+        - name: drop-successful-requests
+          description: Drop HTTP requests with status code less than 400
+          value: attributes["http.status_code"] < 400
+```
+
+### 例11: ORを使用した複数条件
+
+いずれかの条件に一致する場合はドロップします:
+
+```yaml
+filter/Logs:
+  description: "Drop test data, health checks, or debug logs"
+  config:
+    error_mode: ignore
+    logs:
+      rules:
+        - name: drop-test-health-debug
+          description: Drop logs from test environment, health checks, or debug severity
+          value: |
+            resource.attributes["environment"] == "test" or 
+            IsMatch(body, ".*health.*") or 
+            severity_text == "DEBUG"
+```
+
+## データのドロップと属性のドロップ
+
+フィルター プロセッサは、レコード全体を削除したり (上記を参照)、保持されているレコードから特定の属性を削除したりできます。
+
+レコードを保持したまま属性を削除するには、フィルター プロセッサではなく、変換プロセッサの`delete_key()`関数を使用する必要があります。フィルター プロセッサはレコード全体のみを削除します。
+
+**間違ったアプローチ**（これは機能しません）:
+
+```yaml
+filter/Logs:
+  config:
+    logs:
+      - 'delete attributes["sensitive_field"]'  # This is not valid
+```
+
+**正しいアプローチ**(代わりに変換プロセッサを使用する):
+
+```yaml
+transform/Logs:
+  description: "Remove sensitive attribute"
+  config:
+    log_statements:
+      - delete_key(attributes, "sensitive_field")
+  output: ["filter/Logs"]
+```
+
+## パフォーマンスに関する考慮事項
+
+* **順序が重要**: フィルタープロセッサをパイプラインの早い段階に配置して、高価な処理の前に不要なデータを削除します。
+* **条件を組み合わせる**: 複数のフィルター プロセッサを連結するのではなく、単一の式で`and` / `or`ロジックを使用します。
+* **正規表現のパフォーマンス**: `matches`を使用したパターン マッチングは、正確な等価性チェックよりもコストがかかります。可能な場合は`==`を使用してください。
+
+**効率的な順序付けの例**:
+
+```yaml
+steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          log_statements:
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+```
+
+## OTTLブール式リファレンス
+
+完全な OTTL 構文と追加の演算子については、以下を参照してください。
+
+* [OTTLブール式](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/README.md)
+* [フィルタープロセッサのドキュメント](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor)
+
+## 次のステップ
+
+* フィルタリング前にデータを変更するための[変換プロセッサ](/docs/new-relic-control/pipeline-control/gateway/transform-processor)について学習します
+* 確率的ボリューム削減については[サンプリングプロセッサ](/docs/new-relic-control/pipeline-control/gateway/sampling-processor)を参照してください
+* 完全な構文については、 [YAML 設定リファレンス](/docs/new-relic-control/pipeline-control/gateway/yaml-overview)を参照してください。

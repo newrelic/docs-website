@@ -1,0 +1,479 @@
+---
+title: サンプリングプロセッサ
+metaDescription: Use the sampling processor to reduce telemetry data volume with intelligent probabilistic sampling strategies.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+サンプリング プロセッサは確率的サンプリングを実装し、信号を保持しながらデータ量を削減します。これを使用すると、すべてのエラーと遅いrequestsを維持しながら、日常的な成功ケースを積極的にサンプリングし、診断価値を失うことなくコストを削減できます。
+
+## サンプリングプロセッサを使用する場合
+
+次のような場合にサンプリング プロセッサを使用します。
+
+* **成功例をサンプリングしながらエラーを100%維持**: すべての診断データを保存し、通常のトラフィックをドロップします
+* **大量サービスをより積極的にサンプリングする**：サービスまたは重要度に応じて異なるサンプリング率
+* **遅いrequests /trace を保持しながら、速いリクエストをサンプリングします**。分析のためにパフォーマンスの予想値を維持します。
+* **環境またはサービスごとに異なるサンプリング レートを適用します**。本番環境では 10%、ステージング環境では 50%、テスト環境では 100% です。
+* **分散システムからのトレース ボリュームの削減**: 完全なトレースのためのテールベースサンプリングの決定
+
+## サンプリングの仕組み
+
+サンプリング プロセッサは、条件付きルールを使用して**確率的サンプリングを**使用します。
+
+1. **デフォルトのサンプリング率**: 条件ルールに一致しないすべてのデータに適用されるデフォルトのレート
+2. **条件付きサンプリングルール**: 特定の条件が一致する場合にデフォルトのレートを上書きします
+3. **ランダム性のソース**: 一貫性のあるフィールド(`trace_id`など)により、関連するデータが一緒にサンプリングされます
+
+**評価順序**: 条件ルールは定義された順序で評価されます。最初に一致するルールによってサンプリング レートが決定されます。一致するルールがない場合は、デフォルトのサンプリング率が適用されます。
+
+## 構成
+
+パイプラインにサンプリング プロセッサを追加します。
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Keep errors, sample success"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "preserve-errors"
+        description: "Keep all error logs"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+```
+
+**設定フィールド**:
+
+* `global_sampling_percentage`: 条件ルールに一致しないデータのデフォルトのサンプリングレート（0～100）
+
+* `conditionalSamplingRules`: 条件ルールの配列（順番に評価される）
+
+  * `name`: ルール識別子
+  * `description`: 人間が読める説明
+  * `samplingPercentage`: 一致したデータのサンプリングレート（0-100）
+  * `sourceOfRandomness`: サンプリング決定に使用するフィールド（通常は`trace_id` ）
+  * `condition`: テレメトリーに一致する OTTL 式
+
+## サンプリング戦略
+
+### 貴重なデータを維持し、日常的なトラフィックを削減
+
+最も一般的なパターン: すべての診断データ (エラー、遅いrequests) を保存し、日常的な成功ケースを積極的にサンプリングします。
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Intelligent log sampling"
+  config:
+    global_sampling_percentage: 5  # Sample 5% of everything else
+    conditionalSamplingRules:
+      - name: "preserve-errors"
+        description: "Keep all errors and fatals"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+
+      - name: "preserve-warnings"
+        description: "Keep most warnings"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "WARN"'
+```
+
+**結果**: エラー 100% + 警告 50% + その他 5%
+
+### サービス別サンプル ティア
+
+サービスの重要度に応じて異なるサンプリング レート:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Service tier sampling"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "critical-services"
+        description: "Keep most traces from critical services"
+        sampling_percentage: 80
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["service.name"] == "checkout" or resource.attributes["service.name"] == "payment"'
+
+      - name: "standard-services"
+        description: "Medium sampling for standard services"
+        sampling_percentage: 30
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["service.tier"] == "standard"'
+```
+
+### 環境別サンプル
+
+テスト環境ではサンプリングを多く、本番環境ではサンプリングを少なくする:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Environment-based sampling"
+  config:
+    global_sampling_percentage: 10  # Production default
+    conditionalSamplingRules:
+      - name: "test-environment"
+        description: "Keep all test data"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["environment"] == "test"'
+
+      - name: "staging-environment"
+        description: "Keep half of staging data"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["environment"] == "staging"'
+```
+
+### 遅いrequestsを保存する
+
+分析のためにパフォーマンスの外れ値を保持します。
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Preserve important logs"
+  config:
+    global_sampling_percentage: 1  # Sample 1% of routine logs
+    conditionalSamplingRules:
+      - name: "critical-logs"
+        description: "Keep all error and fatal logs"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+
+      - name: "warning-logs"
+        description: "Keep half of warning logs"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "WARN"'
+      
+      - name: "traced-logs"
+        description: "Keep logs with trace context"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'trace_id != nil and trace_id.string != "00000000000000000000000000000000"'
+```
+
+**注**: 期間はナノ秒単位です (1 秒 = 1,000,000,000 ns)。
+
+## 完全な例
+
+### 例 1: ディストリビューティッド（分散）トレーシング用のインテリジェントトレースサンプリング
+
+トレースの場合、グローバル サンプリング パーセンテージのみを変更できます。以下に例をいくつか挙げます。
+
+```yaml
+probabilistic_sampler/Traces:
+  description: Probabilistic sampling for traces
+  config:
+    global_sampling_percentage: 55
+```
+
+### 例2: ログボリュームの削減
+
+診断データを保持しながらログの量を大幅に削減します。
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Aggressive log sampling, preserve errors"
+  config:
+    global_sampling_percentage: 2  # Keep 2% of routine logs
+    conditionalSamplingRules:
+      - name: "keep-errors-fatals"
+        description: "Keep all errors and fatals"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 17'  # ERROR and above
+
+      - name: "keep-some-warnings"
+        description: "Keep 25% of warnings"
+        sampling_percentage: 25
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 13 and severity_number < 17'  # WARN
+```
+
+### 例3: HTTPステータスコードによるサンプル
+
+すべての失敗 (100%) をサンプリングし、成功の一部 (5%) をサンプリングします。
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Sample by HTTP response status"
+  config:
+    global_sampling_percentage: 5  # 5% of successes
+    conditionalSamplingRules:
+      - name: "keep-server-errors"
+        description: "Keep all 5xx errors"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'attributes["http.status_code"] >= 500'
+
+      - name: "keep-client-errors"
+        description: "Keep all 4xx errors"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'attributes["http.status_code"] >= 400 and attributes["http.status_code"] < 500'
+```
+
+### 例 4: マルチティア サービスのサンプリング
+
+重要度レベルに応じて異なるレート:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Business criticality sampling"
+  config:
+    global_sampling_percentage: 1
+    conditionalSamplingRules:
+      # Critical business services: keep 80%
+      - name: "critical-services"
+        description: "High sampling for critical services"
+        sampling_percentage: 80
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "critical"'
+
+      # Important services: keep 40%
+      - name: "important-services"
+        description: "Medium sampling for important services"
+        sampling_percentage: 40
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "important"'
+
+      # Standard services: keep 10%
+      - name: "standard-services"
+        description: "Low sampling for standard services"
+        sampling_percentage: 10
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "standard"'
+```
+
+### 例5: 時間ベースのサンプリング（オフピーク削減）
+
+営業時間中のサンプリング頻度の増加（外部属性のタグ付けが必要）:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Time-based sampling (requires time attribute)"
+  config:
+    global_sampling_percentage: 5  # Off-peak default
+    conditionalSamplingRules:
+      - name: "business-hours"
+        description: "Higher sampling during business hours"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'attributes["is_business_hours"] == true'
+```
+
+### 例6: エンドポイントパターンによるサンプル
+
+すべての管理エンドポイントを維持し、パブリック API を積極的にサンプリングします。
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Endpoint-based sampling"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "admin-endpoints"
+        description: "Keep all admin traffic"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'IsMatch(attributes["http.path"], "^/admin/.*")'
+
+      - name: "api-endpoints"
+        description: "Sample public API"
+        sampling_percentage: 5
+        source_of_randomness: "trace.id"
+        condition: 'IsMatch(attributes["http.path"], "^/api/.*")'
+```
+
+## ランダム性の源
+
+`sourceOfRandomness`フィールドは、一貫したサンプリングの決定を行うために使用する属性を決定します。
+
+**共通の値**:
+
+* `trace_id`: ディストリビューティッド（分散）トレースの場合（トレース内のすべてのスパンが一緒にサンプリングされるようにします）
+* `span_id`：個別スパンサンプリング用（ディストリビューティッド（分散）トレーシングには非推奨）
+* カスタムアトリビュート: ランダム性を提供する任意のプロパティ
+
+**重要性**: `trace_id`使用すると、トレースをサンプリングするときに、ランダムな個々のスパンだけではなく、そのトレースのすべてのスパンが取得されるようになります。これは分散トランザクションを理解する上で重要です。
+
+## パフォーマンスに関する考慮事項
+
+* **頻度順にルールを並べる**: 最も頻繁に一致する条件を先頭にして評価時間を短縮します
+* **ランダム性パフォーマンスのソース**: `trace_id`はすでに利用可能であるため、使用するのは非常に効率的です
+* **サンプリングは他のプロセッサの後に行われます**。サンプリングをパイプラインの最後近くに配置して、破棄されるデータにCPUを浪費しないようにします。
+
+**効率的なパイプライン順序付け**:
+
+```yaml
+steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          log_statements:
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+```
+
+## コスト影響の例
+
+### 例: 1TB/日 → 100GB/日
+
+**サンプリング前**：
+
+* 1日あたり1TBのログ
+* 90%はINFOレベルの日常業務です
+* 8%は警告
+* 2%はエラー/致命的
+
+**インテリジェントサンプリング機能**：
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Sample logs by severity level"
+  config:
+    global_sampling_percentage: 2  # Sample 2% of INFO and below
+    conditionalSamplingRules:
+      - name: "errors"
+        description: "Keep all error logs"
+        sampling_percentage: 100  # Keep 100% of errors
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 17'
+      
+      - name: "warnings"
+        description: "Keep quarter of warning logs"
+        sampling_percentage: 25  # Keep 25% of warnings
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 13 and severity_number < 17'
+```
+
+**サンプリング後**：
+
+* 情報: 900GB × 2% = 18GB
+* 警告: 80GB × 25% = 20GB
+* エラー/致命的: 20GB × 100% = 20GB
+* **合計: 約58GB/日 (94%削減)**
+* **トラブルシューティングのためにすべてのエラーが保存されます**
+
+## OpenTelemetryリソース
+
+* [確率的サンプラープロセッサ](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor)
+* [条件のOTTL構文](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/README.md)
+
+## 次のステップ
+
+* サンプリング前のデータ強化のための[変換プロセッサ](/docs/new-relic-control/pipeline-control/gateway/transform-processor)について学習します
+* 不要なデータを削除するには、[フィルタプロセッサ](/docs/new-relic-control/pipeline-control/gateway/filter-processor)を参照してください。
+* 完全な構文については、 [YAML 設定リファレンス](/docs/new-relic-control/pipeline-control/gateway/yaml-overview)を参照してください。
