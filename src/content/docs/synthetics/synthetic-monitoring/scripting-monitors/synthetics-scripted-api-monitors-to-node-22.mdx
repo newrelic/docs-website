@@ -1,0 +1,411 @@
+---
+title: Transition Guide: Upgrading Scripted API Monitors to Latest Node.js Runtime
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Scripting monitors
+  - API monitoring
+translate:
+  - jp
+metaDescription: Guide for upgrading scripted API monitors to the latest Node.js runtime (Node.js 22), including important changes and migration steps.
+freshnessValidatedDate: never
+---
+
+We are introducing our latest scripted API monitor runtime, featuring the **Latest** Node.js version (currently Node.js 22). The "Latest" runtime automatically uses the most current Node.js release that New Relic supports, ensuring your API monitors run in an environment that matches modern Node.js standards, providing enhanced security, stability, and performance.
+
+**Important note:** As part of the upgrade from Node.js 16 to Node.js 22, the runtime is stricter about process lifecycles. If your monitor scripts contain unhandled "open handles" (such as unresolved promises, lingering timers, or unclosed network connections), you might begin to see monitor failures. We strongly recommend validating your scripts against the new runtime to handle these changes.
+
+<Callout variant="important">
+  ## Node 22 Upgrade Impact
+
+  With the update to the Latest Node.js runtime (currently Node.js 22), customers might experience monitor failures if their scripts contain unhandled open handles (e.g., hanging promises, lingering network requests, or unclosed timers).
+
+  To avoid interruptions, validate your monitor scripts against the latest runtime to ensure all handles are properly closed before the script finishes executing. Failed validations will appear in the Runtime Upgrades UI.
+</Callout>
+
+## What is "Latest"?
+
+The "Latest" runtime option in the monitor create/upgrade dropdown automatically uses the most recent Node.js version that New Relic supports. Instead of pinning to a specific Node.js version (like Node.js 16 or Node.js 20), "Latest" ensures your monitors always run on the newest available Node.js release with the latest features, performance improvements, and security updates.
+
+## How to upgrade via NerdGraph
+
+To upgrade your monitor runtimes programmatically, use the following NerdGraph mutation. You will need to supply your monitor's specific entity GUID.
+
+### For Scripted API Monitors
+
+```graphql
+mutation {
+  syntheticsUpdateScriptApiMonitor(
+    guid: "YOUR_MONITOR_GUID",
+    monitor: {
+      runtime: {
+        runtimeType: "NODE_API",
+        runtimeTypeVersion: "LATEST",
+        scriptLanguage: "JAVASCRIPT"
+      }
+    }
+  ) {
+    errors {
+      description
+      type
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  For Scripted Browser monitors, use `runtimeType: "CHROME_BROWSER"` and `runtimeTypeVersion: "LATEST"` instead.
+</Callout>
+
+## The automated upgrade process
+
+To make the transition to the Latest Node.js runtime as smooth as possible, New Relic performs proactive testing on your existing monitors. Here is the process we follow:
+
+### 1. Backend validation
+
+We automatically test your existing scripted API monitors against the new Latest Node.js runtime (currently Node.js 22) in the backend.
+
+<Callout variant="tip">
+  This validation does not consume your synthetic checks or affect your production results.
+</Callout>
+
+### 2. Automatic upgrades
+
+If your monitor script validates successfully against the latest version without any breaking changes, we will directly upgrade the monitor to the newest runtime on your behalf.
+
+### 3. Handling failures
+
+If the validation fails (often due to the strictness of Node.js 22 regarding open handles), we will not force the upgrade. Instead, monitors that failed validation will be flagged and displayed in the **Runtime Upgrades** feature in your Synthetics Nerdlet UI.
+
+You can review the failures there, troubleshoot your script syntax, and manually validate and upgrade the monitor once the script is fixed.
+
+## Common issues and solutions
+
+### Unhandled open handles
+
+The most common issue when upgrading to Node.js 22 is unhandled open handles. These include:
+
+- **Unresolved promises**: Ensure all promises are properly awaited or handled
+- **Lingering timers**: Clear all `setTimeout` and `setInterval` calls
+- **Unclosed connections**: Close all network connections, HTTP requests, database connections, and file handles
+- **Event listeners**: Remove event listeners when they're no longer needed
+
+### Example: Unhandled promises
+
+```javascript
+// ❌ Problematic code - Promise not awaited
+const $http = require('request');
+
+$http.get('https://api.example.com/data', (error, response, body) => {
+  console.log('Response:', body);
+  // Script ends before response is processed
+});
+```
+
+Fix by properly awaiting the response:
+
+```javascript
+// ✅ Better approach - Using async/await
+const $http = require('request');
+const { promisify } = require('util');
+const httpGet = promisify($http.get);
+
+async function checkAPI() {
+  try {
+    const response = await httpGet('https://api.example.com/data');
+    console.log('Response:', response.body);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+await checkAPI();
+```
+
+### Example: Consume the data event (http/https)
+
+When using `http` or `https`, you must listen to the `data` event. Otherwise, the HTTPS connection may remain open.
+
+```javascript
+const https = require('https');
+
+https.get('https://example.com/api/data', (res) => {
+  console.log('Status Code:', res.statusCode);
+  // It is necessary to consume the response data
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+}).on('error', (e) => {
+  console.error('Error:', e);
+});
+```
+
+### Example: Disable keepAlive
+
+Set the `keepAlive` option to `false` to close HTTP connections after the request is complete.
+
+```javascript
+const https = require('https');
+const { Agent } = require('https'); // or http for HTTP requests
+
+const options = {
+  hostname: 'api.example.com',
+  path: '/users',
+  method: 'GET',
+  agent: new Agent({ keepAlive: false }), // Disable Keep-Alive for this request
+};
+
+const req = https.request(options, (res) => {
+  console.log(`Status: ${res.statusCode}`);
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+});
+
+req.on('error', (e) => {
+  console.error(e);
+});
+
+req.end();
+```
+
+### Example: Stream cleanup
+
+Always clean up streams in a `finally` block to ensure proper resource disposal.
+
+```javascript
+const got = require('got');
+
+let downloadStream = got.stream("https://api.example.com/download/data.json");
+
+try {
+  // Your stream processing logic here
+  downloadStream.on('data', (chunk) => {
+    console.log('Received chunk:', chunk.length);
+  });
+} finally {
+  if (downloadStream) {
+    downloadStream.destroy();
+  }
+}
+```
+
+### Example: HTTPS request cleanup with certificate check
+
+When working with sockets, ensure they are properly destroyed in all code paths.
+
+```javascript
+const https = require('https');
+
+// ❌ Problematic code - Socket not closed in success case
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      resolve({ validTo: validTo });
+    } else {
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+Fix by adding cleanup functionality for all code paths:
+
+```javascript
+// ✅ Better approach - Proper cleanup in all cases
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    // Always destroy the response and socket
+    const cleanup = () => {
+      try {
+        res.destroy();
+        if (res.socket && !res.socket.destroyed) {
+          res.socket.destroy();
+        }
+      } catch (e) {
+        console.log("Cleanup warning:", e.message);
+      }
+    };
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      cleanup();
+      resolve({ validTo: validTo });
+    } else {
+      cleanup();
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+### Example: Lingering timers
+
+```javascript
+// ❌ Problematic code - Timer not cleared
+setTimeout(() => {
+  console.log('This might cause issues');
+}, 5000);
+// Script ends but timer is still active
+```
+
+Make sure to clear timers or use them properly:
+
+```javascript
+// ✅ Better approach - Clear timer when done
+const timerId = setTimeout(() => {
+  console.log('This is properly handled');
+}, 1000);
+
+// Clear it if needed
+clearTimeout(timerId);
+
+// Or use async/await for delays
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+await sleep(1000);
+console.log('Delay completed');
+```
+
+### Example: Unclosed HTTP connections
+
+```javascript
+// ❌ Problematic code - Connection pool not cleaned up
+const $http = require('request');
+
+// Multiple requests without cleanup
+for (let i = 0; i < 10; i++) {
+  $http.get(`https://api.example.com/item/${i}`);
+}
+```
+
+Properly await and handle connections:
+
+```javascript
+// ✅ Better approach - Properly handle connections
+const $http = require('request');
+const { promisify } = require('util');
+const httpGet = promisify($http.get);
+
+async function fetchItems() {
+  const promises = [];
+
+  for (let i = 0; i < 10; i++) {
+    promises.push(httpGet(`https://api.example.com/item/${i}`));
+  }
+
+  try {
+    const results = await Promise.all(promises);
+    console.log('All requests completed');
+  } catch (error) {
+    console.error('Request failed:', error);
+  }
+}
+
+await fetchItems();
+```
+
+## Node.js 22 breaking changes
+
+In addition to stricter open handle management, Node.js 22 includes other changes you should be aware of:
+
+### Updated module support
+
+- **ES Modules**: Better support for ES modules, but ensure your imports are properly configured
+- **CommonJS**: CommonJS modules still work but may have stricter validation
+
+### Deprecated APIs
+
+Some APIs deprecated in earlier Node.js versions have been removed in Node.js 22. Check the [Node.js 22 changelog](https://nodejs.org/en/blog/release/) for details on removed features.
+
+### Performance improvements
+
+Node.js 22 includes performance improvements that may affect timing-sensitive tests. Consider reviewing timeouts if your monitors rely on specific timing behavior.
+
+## Best practices for Node.js 22
+
+To ensure your scripted API monitors work smoothly with Node.js 22:
+
+1. **Use async/await**: Convert callback-based code to async/await for better error handling
+2. **Clean up resources**: Always close connections, clear timers, and remove event listeners
+3. **Handle all promises**: Never create a promise without awaiting it or handling its result
+4. **Set appropriate timeouts**: Use reasonable timeouts for API calls to prevent hanging
+5. **Test locally**: Test your scripts with Node.js 22 locally before upgrading production monitors
+
+### Example: Complete API monitor
+
+```javascript
+const assert = require('assert');
+const $http = require('request');
+const { promisify } = require('util');
+
+// Promisify request methods
+const httpGet = promisify($http.get);
+const httpPost = promisify($http.post);
+
+async function runAPITest() {
+  try {
+    // 1. Test GET endpoint
+    console.log('Testing GET endpoint...');
+    const getResponse = await httpGet('https://api.example.com/users');
+    assert.equal(getResponse.statusCode, 200, 'GET request failed');
+
+    // 2. Parse and validate response
+    const users = JSON.parse(getResponse.body);
+    assert(Array.isArray(users), 'Response is not an array');
+    assert(users.length > 0, 'No users returned');
+
+    // 3. Test POST endpoint
+    console.log('Testing POST endpoint...');
+    const postResponse = await httpPost({
+      url: 'https://api.example.com/users',
+      json: true,
+      body: {
+        name: 'Test User',
+        email: 'test@example.com'
+      }
+    });
+    assert.equal(postResponse.statusCode, 201, 'POST request failed');
+
+    console.log('All tests passed!');
+  } catch (error) {
+    console.error('Test failed:', error.message);
+    throw error; // Fail the monitor
+  }
+}
+
+// Run the test
+await runAPITest();
+```
+
+## Need help?
+
+If you encounter issues during the upgrade process:
+
+1. Check the Runtime Upgrades UI in your Synthetics Nerdlet for specific error messages
+2. Review your monitor scripts for unhandled promises and open connections
+3. Test your scripts locally with Node.js 22 before upgrading
+4. Use `console.log()` statements to debug timing and execution flow
+5. Contact New Relic Support if you need assistance troubleshooting validation failures
+
+## Related documentation
+
+For more information about scripted API monitors, see:
+- [Write synthetic API tests](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests)
+- [Import Node.js modules](/docs/synthetics/synthetic-monitoring/scripting-monitors/import-nodejs-modules)
+- [Scripted monitor runtime environment](/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment)
+- [Synthetic monitor runtime upgrades](/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui/)

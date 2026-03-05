@@ -1,0 +1,256 @@
+---
+title: Transition Guide: Upgrading Synthetic Monitors to Chrome Latest version and Node.js 22
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Scripting monitors
+translate:
+  - jp
+metaDescription: Guide for upgrading synthetic monitors to Chrome Latest Version and Node.js 22, including important changes and migration steps.
+redirects:
+  - /docs/synthetics/new-relic-synthetics/scripting-monitors/synthetics-scripted-browser-monitors-to-chrome-latest
+freshnessValidatedDate: never
+---
+
+We are introducing our latest synthetic monitor runtime, featuring the **Latest** Chrome version and Node.js 22. The "Latest" runtime automatically uses the most current Chrome release, ensuring your scripted monitors run in an environment that matches modern browser standards, providing enhanced security, stability, and performance.
+
+**Important note:** As part of the upgrade from Chrome 134 to Chrome Latest Version, the backend Node version is moving from Node.js 16 to Node.js 22. This newer runtime is stricter about process lifecycles. If your monitor scripts contain unhandled "open handles" (such as unresolved promises, lingering timers, or unclosed network connections), you might begin to see monitor failures. We strongly recommend validating your scripts against the new runtime to handle these changes.
+
+<Callout variant="important">
+  ## Node 22 Upgrade Impact
+
+  With the update to the Latest Chrome runtime, the backend Node version is changing from Node 16 to Node 22. Customers might experience monitor failures if their scripts contain unhandled open handles (e.g., hanging promises or lingering network requests).
+
+  To avoid interruptions, validate your monitor scripts against the latest runtime to ensure all handles are properly closed before the script finishes executing. Failed validations will appear in the Runtime Upgrades UI.
+</Callout>
+
+## What is "Latest"?
+
+The "Latest" runtime option in the monitor create/upgrade dropdown automatically uses the most recent Chrome version that New Relic supports. Instead of pinning to a specific Chrome version (like Chrome 134 or Chrome 145), "Latest" ensures your monitors always run on the newest available Chrome release with the latest features and security updates.
+
+## How to upgrade via NerdGraph
+
+To upgrade your monitor runtimes programmatically, use the following NerdGraph mutation. You will need to supply your monitor's specific entity GUID.
+
+### For Scripted Browser Monitors
+
+```graphql
+mutation {
+  syntheticsUpdateScriptBrowserMonitor(
+    guid: "YOUR_MONITOR_GUID",
+    monitor: {
+      runtime: {
+        runtimeType: "CHROME_BROWSER",
+        runtimeTypeVersion: "LATEST",
+        scriptLanguage: "JAVASCRIPT"
+      }
+    }
+  ) {
+    errors {
+      description
+      type
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  For Scripted API monitors, use `runtimeType: "NODE_API"` and `runtimeTypeVersion: "LATEST"` instead of `"CHROME_BROWSER"`.
+</Callout>
+
+## The automated upgrade process
+
+To make the transition to the Latest Chrome runtime as smooth as possible, New Relic performs proactive testing on your existing monitors. Here is the process we follow:
+
+### 1. Backend validation
+
+We automatically test your existing monitors against the new Latest Chrome / Node.js 22 runtime in the backend.
+
+<Callout variant="tip">
+  This validation does not consume your synthetic checks or affect your production results.
+</Callout>
+
+### 2. Automatic upgrades
+
+If your monitor script validates successfully against the latest version without any breaking changes, we will directly upgrade the monitor to the newest runtime on your behalf.
+
+### 3. Handling failures
+
+If the validation fails (often due to the strictness of Node 22 regarding open handles), we will not force the upgrade. Instead, monitors that failed validation will be flagged and displayed in the **Runtime Upgrades** feature in your Synthetics Nerdlet UI.
+
+You can review the failures there, troubleshoot your script syntax, and manually validate and upgrade the monitor once the script is fixed.
+
+## Common issues and solutions
+
+### Unhandled open handles
+
+The most common issue when upgrading to Node.js 22 is unhandled open handles. These include:
+
+- **Unresolved promises**: Ensure all promises are properly awaited or handled
+- **Lingering timers**: Clear all `setTimeout` and `setInterval` calls
+- **Unclosed connections**: Close all network connections, database connections, and file handles
+- **HTTP/HTTPS connections**: Properly consume response data and close connections
+
+### Example 1: Consume the data event
+
+When using `http` or `https`, you must listen to the `data` event. Otherwise, the HTTPS connection may remain open.
+
+```javascript
+const https = require('https');
+
+https.get('https://example.com', (res) => {
+  console.log('Status Code:', res.statusCode);
+  // It is necessary to consume the response data
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+}).on('error', (e) => {
+  console.error('Error:', e);
+});
+```
+
+### Example 2: Disable keepAlive
+
+Set the `keepAlive` option to `false` to close HTTP connections after the request is complete.
+
+```javascript
+const https = require('https');
+const { Agent } = require('https'); // or http for HTTP requests
+
+const options = {
+  hostname: 'example.com',
+  path: '/',
+  method: 'GET',
+  agent: new Agent({ keepAlive: false }), // Disable Keep-Alive for this request
+};
+
+const req = https.request(options, (res) => {
+  console.log(`Status: ${res.statusCode}`);
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+});
+
+req.on('error', (e) => {
+  console.error(e);
+});
+
+req.end();
+```
+
+### Example 3: Stream cleanup
+
+Always clean up streams in a `finally` block to ensure proper resource disposal.
+
+```javascript
+const got = require('got');
+
+let downloadStream = got.stream("https://example.com/test.txt");
+
+try {
+  // Your stream processing logic here
+} finally {
+  if (downloadStream) {
+    downloadStream.destroy();
+  }
+}
+```
+
+### Example 4: HTTPS request cleanup
+
+When working with sockets, ensure they are properly destroyed in all code paths.
+
+```javascript
+// ❌ Problematic code - Socket not closed in success case
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      resolve({ validTo: validTo });
+    } else {
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+Fix by adding cleanup functionality for all code paths:
+
+```javascript
+// ✅ Better approach - Proper cleanup in all cases
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    // Always destroy the response and socket
+    const cleanup = () => {
+      try {
+        res.destroy();
+        if (res.socket && !res.socket.destroyed) {
+          res.socket.destroy();
+        }
+      } catch (e) {
+        console.log("Cleanup warning:", e.message);
+      }
+    };
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      cleanup();
+      resolve({ validTo: validTo });
+    } else {
+      cleanup();
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+### Example 5: Timer cleanup
+
+If you have code that creates a timer but doesn't clean it up:
+
+```javascript
+// ❌ Problematic code
+setTimeout(() => {
+  console.log('This might cause issues');
+}, 5000);
+```
+
+Make sure to clear it or await completion:
+
+```javascript
+// ✅ Better approach
+const timerId = setTimeout(() => {
+  console.log('This is properly handled');
+}, 1000);
+
+// Clear it when done
+clearTimeout(timerId);
+```
+
+## Need help?
+
+If you encounter issues during the upgrade process:
+
+1. Check the Runtime Upgrades UI in your Synthetics Nerdlet for specific error messages
+2. Review your monitor scripts for unhandled promises and open connections
+3. Test your scripts locally with Node.js 22 before upgrading
+4. Contact New Relic Support if you need assistance troubleshooting validation failures
+
+For more information about scripted monitors, see:
+- [Introduction to scripted browser monitors](/docs/synthetics/synthetic-monitoring/scripting-monitors/introduction-scripted-browser-monitors)
+- [Scripted monitor runtime environment](/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment)
+- [Synthetic monitor runtime upgrades](/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui/)
