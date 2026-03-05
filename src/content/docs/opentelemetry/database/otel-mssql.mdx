@@ -28,7 +28,7 @@ This OTEL-based approach complements our existing On-Host Integration (OHI) by l
 Before you begin, ensure you have the following:
 
 * Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
-
+* Supported database versions: SQL Server 2017 or later
 * SQL Server database setup:
   * Administrative access to your SQL Server instance (`sysadmin` role or equivalent)
   * Microsoft SQL Server that supports on-premises managed instances
@@ -40,7 +40,7 @@ Before you begin, ensure you have the following:
   * SSL preference
 
 * System requirements:
-  * Windows system to run the OpenTelemetry Collector
+  * Windows or Linux system to run the OpenTelemetry Collector
   * Network connectivity to New Relic's OTLP endpoint
 
 {/* ## How OTEL database monitoring differs from OHI
@@ -90,114 +90,474 @@ To install & configure the NRDOT Collector, follow these steps:
 
   <Step>
 
-### Configure the collector [#configure-collector]
+### Setup the NRDOT Collector [#setup-collector]
 
-1. Create a `config.yaml` file, add the following code snippet:
+Install the collector based on your operating system and architecture.
+
+#### **Windows**
+
+Download and run the installer by pasting this URL into your browser to download the installer for New Relic's NRDOT Collector integration.
+
+```
+https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-windows-amd64-latest.msi
+```
+
+**Install NRDOT Collector:** Locate your downloaded file and double-click it to install the NRDOT Collector.
+
+#### **Linux (AMD64)**
+
+```bash
+# Debian/Ubuntu
+curl -L -o nrdot.deb https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-amd64-latest.deb
+sudo dpkg -i nrdot.deb
+
+# RHEL/CentOS
+curl -L -o nrdot.rpm https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-amd64-latest.rpm
+sudo rpm -ivh nrdot.rpm
+```
+
+#### **Linux (ARM64)**
+
+```bash
+# Debian/Ubuntu
+curl -L -o nrdot-arm.deb https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-arm64-latest.deb
+sudo dpkg -i nrdot-arm.deb
+
+# RHEL/CentOS
+curl -L -o nrdot-collector-host-linux-arm64-latest.rpm https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-arm64-latest.rpm
+sudo rpm -ivh nrdot-collector-host-linux-arm64-latest.rpm
+```
+
+  </Step>
+
+  <Step>
+
+### Configure database user [#configure-user]
+
+Run the following script as a `root user/sysadmin` to create the `newrelic` monitoring user and grant global read permissions.
+
+#### **Windows:**
+
+Run below script in SSMS:
+
+```sql
+USE [master];
+GO
+CREATE LOGIN [newrelic] WITH PASSWORD = 'YourSecurePassword';
+GO
+-- Instance-level permissions
+GRANT VIEW SERVER STATE TO [newrelic];
+GRANT VIEW ANY DEFINITION TO [newrelic];
+GRANT VIEW ANY DATABASE TO [newrelic];
+GO
+-- Grant read access privileges to all user databases
+DECLARE @name SYSNAME;
+DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+SELECT [name]
+FROM [master].[sys].[databases]
+WHERE [name] NOT IN ('master', 'msdb', 'tempdb', 'model', 'rdsadmin', 'distribution')
+AND [state] = 0; -- Only online databases
+OPEN db_cursor;
+FETCH NEXT FROM db_cursor INTO @name;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+BEGIN TRY
+PRINT 'Processing database: ' + @name;
+EXEC('USE [' + @name + '];
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+BEGIN
+CREATE USER [newrelic] FOR LOGIN [newrelic];
+END;
+GRANT VIEW DATABASE STATE TO [newrelic];
+GRANT VIEW DEFINITION TO [newrelic];
+ALTER ROLE db_datareader ADD MEMBER [newrelic];');
+PRINT 'Success: ' + @name;
+END TRY
+BEGIN CATCH
+PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+END CATCH
+FETCH NEXT FROM db_cursor INTO @name;
+END
+CLOSE db_cursor;
+DEALLOCATE db_cursor;
+GO
+```
+
+#### **Linux**
+
+Create a file named `nr-grant-permission.sql` on your Linux instance with the following content:
+
+```sql
+USE [master];
+GO
+CREATE LOGIN [newrelic] WITH PASSWORD = 'YourSecurePassword';
+GO
+-- Instance-level permissions
+GRANT VIEW SERVER STATE TO [newrelic];
+GRANT VIEW ANY DEFINITION TO [newrelic];
+GRANT VIEW ANY DATABASE TO [newrelic];
+GO
+-- Grant read access privileges to all user databases
+DECLARE @name SYSNAME;
+DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+SELECT [name]
+FROM [master].[sys].[databases]
+WHERE [name] NOT IN ('master', 'msdb', 'tempdb', 'model', 'rdsadmin', 'distribution')
+AND [state] = 0; -- Only online databases
+OPEN db_cursor;
+FETCH NEXT FROM db_cursor INTO @name;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+BEGIN TRY
+PRINT 'Processing database: ' + @name;
+EXEC('USE [' + @name + '];
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+BEGIN
+CREATE USER [newrelic] FOR LOGIN [newrelic];
+END;
+GRANT VIEW DATABASE STATE TO [newrelic];
+GRANT VIEW DEFINITION TO [newrelic];
+ALTER ROLE db_datareader ADD MEMBER [newrelic];');
+PRINT 'Success: ' + @name;
+END TRY
+BEGIN CATCH
+PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+END CATCH
+FETCH NEXT FROM db_cursor INTO @name;
+END
+CLOSE db_cursor;
+DEALLOCATE db_cursor;
+GO
+```
+
+**Execute the SQL Script**
+
+Run the following command to execute the script. Replace `<Your_SA_Password>` with your SQL Server administrator password:
+
+```bash
+sqlcmd -S localhost -U sa -P '<Your_SA_Password>' -C -i nr-grant-permission.sql
+```
+
+**Verify User Permissions (Optional)**
+
+To verify that the user was created successfully and has the correct permissions, run the following command. Replace `<Your_SA_Password>` with your SQL Server administrator password:
+
+```bash
+sqlcmd -S localhost -U sa -P '<Your_SA_Password>' -C -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = 'newrelic';"
+```
+
+**Expected Output:**
+
+```
+User Permission_Granted
+---------------------------------------------------------------------------------------------
+<your_username> CONNECT SQL
+<your_username> VIEW ANY DEFINITION
+<your_username> VIEW ANY DATABASE
+<your_username> VIEW SERVER STATE
+```
+
+This output confirms that your user has been created successfully with the required server-level permissions.
+
+  </Step>
+
+  <Step>
+
+### Configure NRDOT Collector [#configure-collector]
+
+Replace your `config.yaml` with the below content:
+
+* **Windows:** `C:\Program Files (x86)\NRDOT Collector Host\config.yaml`
+* **Linux:** `/etc/nrdot-collector-host/config.yaml`
+
+#### **Configuration Snippet**
 
     <Callout variant="important">
 
       If you're an existing NRDOT Collector user, ensure to merge the above configuration with your existing `config.yaml` file. This includes adding the new receivers, processors, and exporters for MSSQL Database monitoring while retaining your current configurations.
-    </Callout>
+    </Callout> 
 
 ```yaml
-# OpenTelemetry Collector Configuration for New Relic SQL Server Integration
+# NRDOT Collector Configuration for New Relic SQL Server Integration
 # SQL Server On-Premises/VM Configuration
-
+extensions:
+  health_check:
 receivers:
   newrelicsqlserver:
     hostname: "<YOUR_DB_HOST>"
     port: "<YOUR_DB_PORT>"
-    username: "<YOUR_DB_USERNAME>"
-    password: "<YOUR_DB_PASSWORD>"
+    username: "<USERNAME>"
+    password: "<PASSWORD>"
     monitored_databases: []
     timeout: 600s
     collection_interval: 30s
-    query_monitoring_fetch_interval: 30 #Should be greater than or equal to collection_interval
+    query_monitoring_fetch_interval: 30
     enable_query_monitoring: true
-    enable_active_running_queries: true 
-    query_monitoring_response_time_threshold: 0 #Capture all queries (including fast ones)
-    query_monitoring_count_threshold: 20
-    query_monitoring_text_truncate_limit: 4094
+    query_monitoring_response_time_threshold: 500
+    query_monitoring_count_threshold: 30
     enable_interval_based_averaging: true
     interval_calculator_cache_ttl_minutes: 10
+    # Metric Category Toggles - Enable/disable entire categories of metrics
+    enable_instance_metrics: false
+    enable_database_metrics: false
+    enable_user_connection_metrics: false
+    enable_wait_time_metrics: false
+    enable_failover_cluster_metrics: false
+    enable_database_principals_metrics: false
+    enable_database_role_membership_metrics: false
+    enable_security_metrics: false
+    enable_lock_metrics: false
+    enable_thread_pool_metrics: false
+    enable_tempdb_metrics: false
 
 processors:
   memory_limiter:
     check_interval: 1s
-    limit_mib: 256
-    spike_limit_mib: 64
-  
+    limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
   batch:
-    timeout: 10s
-    send_batch_size: 1024
-  
+  # Transform to clear description and unit fields
+  transform/clear_metadata:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(metric.description, "")
+          - set(metric.unit, "")
+  # Filter to only include execution plan and event metrics (for logs conversion)
+  filter/exec_plan_include:
+    metrics:
+      include:
+        match_type: strict
+        metric_names:
+          - sqlserver.slowquery.query_details
+          - sqlserver.execution.plan
+          - sqlserver.blocking_query.details
+  # Filter to exclude execution plan and event metrics (from main metrics pipeline)
+  filter/exec_plan_exclude:
+    metrics:
+      exclude:
+        match_type: strict
+        metric_names:
+          - sqlserver.slowquery.query_details
+          - sqlserver.execution.plan
+          - sqlserver.blocking_query.details
   cumulativetodelta:
-  
+    max_staleness: 5m
+    include:
+      match_type: strict
+      metrics:
+        # Wait stats (sys.dm_os_wait_stats)
+        - sqlserver.wait_stats.latch.wait_time_ms
+        - sqlserver.wait_stats.latch.waiting_tasks_count
+        - sqlserver.wait_stats.wait_time_ms
+        - sqlserver.wait_stats.waiting_tasks_count
+        # Instance stats (sys.dm_os_performance_counters)
+        - sqlserver.stats.sql_compilations_per_sec
+        - sqlserver.stats.sql_recompilations_per_sec
+        - sqlserver.stats.lock_waits_per_sec
+        - sqlserver.stats.deadlocks_per_sec
+        - sqlserver.stats.user_errors_per_sec
+        - sqlserver.stats.kill_connection_errors_per_sec
+        - sqlserver.access.page_splits_per_sec
+        - sqlserver.buffer.checkpoint_pages_per_sec
+        - sqlserver.bufferpool.batch_requests_per_sec
+        - sqlserver.instance.transactions_per_sec
+        - sqlserver.instance.forced_parameterizations_per_sec
+        - sqlserver.instance.full_scans_rate
+        - sqlserver.instance.lock_timeouts_rate
+        # Database log (sys.dm_os_performance_counters)
+        - sqlserver.database.log.flushes_per_sec
+        - sqlserver.database.log.bytes_flushed_per_sec
+        - sqlserver.database.log.flush_waits_per_sec
+        # Failover cluster
+        - sqlserver.failover_cluster.log_bytes_received_per_sec
+        # User connections
+        - sqlserver.user_connections.authentication.logins_per_sec
   deltatorate:
     metrics:
-      - sqlserver.user_connections.authentication.failed_login_events
       - sqlserver.wait_stats.latch.wait_time_ms
       - sqlserver.wait_stats.latch.waiting_tasks_count
       - sqlserver.wait_stats.wait_time_ms
       - sqlserver.wait_stats.waiting_tasks_count
+      - sqlserver.stats.sql_compilations_per_sec
+      - sqlserver.stats.sql_recompilations_per_sec
+      - sqlserver.stats.lock_waits_per_sec
+      - sqlserver.stats.deadlocks_per_sec
+      - sqlserver.stats.user_errors_per_sec
+      - sqlserver.stats.kill_connection_errors_per_sec
+      - sqlserver.access.page_splits_per_sec
+      - sqlserver.buffer.checkpoint_pages_per_sec
+      - sqlserver.bufferpool.batch_requests_per_sec
+      - sqlserver.instance.transactions_per_sec
+      - sqlserver.instance.forced_parameterizations_per_sec
+      - sqlserver.instance.full_scans_rate
+      - sqlserver.instance.lock_timeouts_rate
+      - sqlserver.database.log.flushes_per_sec
+      - sqlserver.database.log.bytes_flushed_per_sec
+      - sqlserver.database.log.flush_waits_per_sec
+      - sqlserver.failover_cluster.log_bytes_received_per_sec
+      - sqlserver.user_connections.authentication.logins_per_sec
+  resourcedetection/db_safe:
+    detectors: ["system"]
+    override: false
+    system:
+      hostname_sources: ["os"]
+      resource_attributes:
+        host.id:
+          enabled: true
+  resourcedetection/cloud:
+    detectors: ["gcp", "ec2", "azure"]
+    timeout: 2s
+    override: true
+  resourcedetection/env:
+    detectors: ["env"]
+    timeout: 2s
+    override: true
+
+connectors:
+  metricsaslogs:
+    include_resource_attributes: true
+    include_scope_info: true
 
 exporters:
-  otlphttp:
-    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>" # OTLP endpoint of EU/US region. Refer New Relic OTLP docs at https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/
-    headers:
-      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
-    tls:
-      insecure: false
-    retry_on_failure:
-      enabled: true
-      initial_interval: 1s
-      max_interval: 30s
-      max_elapsed_time: 300s
-    sending_queue:
-      enabled: true
-      num_consumers: 2
-      queue_size: 100
-    compression: gzip
-    timeout: 30s
-  
-  otlphttp/logs:
-    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>" # refer New Relic OTLP docs at https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/
-    headers:
-      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
-    tls:
-      insecure: false
-    retry_on_failure:
-      enabled: true
-      initial_interval: 1s
-      max_interval: 30s
-      max_elapsed_time: 300s
-    sending_queue:
-      enabled: true
-      num_consumers: 2
-      queue_size: 100
-    compression: gzip
-    timeout: 30s
-  
   debug:
     verbosity: detailed
+  otlphttp:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_API_KEY>"
+    compression: gzip
 
 service:
   pipelines:
     metrics:
       receivers: [newrelicsqlserver]
-      processors: [memory_limiter, cumulativetodelta, deltatorate, batch]
+      processors: [memory_limiter, resourcedetection/db_safe, resourcedetection/cloud, resourcedetection/env, filter/exec_plan_exclude, batch]
+      exporters: [otlphttp]
+    logs:
+      receivers: [metricsaslogs]
+      processors: [memory_limiter, resourcedetection/db_safe, resourcedetection/cloud, resourcedetection/env, batch]
       exporters: [otlphttp, debug]
-    logs:
+    metrics/exec_plan_to_logs:
       receivers: [newrelicsqlserver]
-      processors: [memory_limiter, batch]
-      exporters: [otlphttp/logs, debug]
-  
-  telemetry:
-    logs:
-      level: debug
-    metrics:
-      level: none
+      processors: [memory_limiter, resourcedetection/db_safe, resourcedetection/cloud, resourcedetection/env, filter/exec_plan_include, batch]
+      exporters: [metricsaslogs]
+  extensions: [health_check]
 ```
+
+#### **Configuration parameters**
+
+The following table describes the key configuration parameters for the `newrelicsqlserver` receiver:
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`<YOUR_DB_HOST>`</td>
+    <td>Enter your SQL Server hostname or IP address</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_DB_PORT>`</td>
+    <td>Enter your SQL Server port number (default: 1433)</td>
+  </tr>
+  <tr>
+    <td>`<USERNAME>`</td>
+    <td>Enter your database username for authentication</td>
+  </tr>
+  <tr>
+    <td>`<PASSWORD>`</td>
+    <td>Enter your database password for authentication</td>
+  </tr>
+  <tr>
+    <td>`monitored_databases`</td>
+    <td>List of specific databases to monitor. Empty array `[]` monitors all accessible databases</td>
+  </tr>
+  <tr>
+    <td>`timeout`</td>
+    <td>Query timeout duration (default: 600s)</td>
+  </tr>
+  <tr>
+    <td>`collection_interval`</td>
+    <td>Interval between metric collections (default: 30s)</td>
+  </tr>
+  <tr>
+    <td>`enable_query_monitoring`</td>
+    <td>Enable collection of slow query performance data (default: true)</td>
+  </tr>
+  <tr>
+    <td>`query_monitoring_fetch_interval`</td>
+    <td>Interval in seconds for fetching query monitoring data (default: 30)</td>
+  </tr>
+  <tr>
+    <td>`query_monitoring_response_time_threshold`</td>
+    <td>Minimum response time in milliseconds to consider a query as slow (default: 500)</td>
+  </tr>
+  <tr>
+    <td>`query_monitoring_count_threshold`</td>
+    <td>Minimum execution count to include a query in monitoring (default: 30)</td>
+  </tr>
+  <tr>
+    <td>`enable_interval_based_averaging`</td>
+    <td>Enable interval-based averaging for performance counters (default: true)</td>
+  </tr>
+  <tr>
+    <td>`interval_calculator_cache_ttl_minutes`</td>
+    <td>Cache TTL in minutes for interval calculations (default: 10)</td>
+  </tr>
+  <tr>
+    <td>`enable_instance_metrics`</td>
+    <td>Enable collection of SQL Server instance-level metrics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_database_metrics`</td>
+    <td>Enable collection of database-level metrics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_user_connection_metrics`</td>
+    <td>Enable collection of user connection metrics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_wait_time_metrics`</td>
+    <td>Enable collection of wait time statistics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_failover_cluster_metrics`</td>
+    <td>Enable collection of failover cluster metrics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_database_principals_metrics`</td>
+    <td>Enable collection of database principals (users/roles) metrics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_database_role_membership_metrics`</td>
+    <td>Enable collection of database role membership metrics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_security_metrics`</td>
+    <td>Enable collection of security-related metrics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_lock_metrics`</td>
+    <td>Enable collection of lock-related metrics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_thread_pool_metrics`</td>
+    <td>Enable collection of thread pool metrics (default: false)</td>
+  </tr>
+  <tr>
+    <td>`enable_tempdb_metrics`</td>
+    <td>Enable collection of TempDB-specific metrics (default: false)</td>
+  </tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+The metric category toggles (`enable_*_metrics`) allow you to selectively enable specific metric categories. Set these to `true` to collect additional detailed metrics for your monitoring needs. Keep in mind that enabling more metrics will increase data ingestion and storage costs.
+</Callout>
 
   </Step>
 
@@ -1728,6 +2088,90 @@ For more detailed information about New Relic OTLP endpoint configuration and Op
 
   </Step>
 
+  <Step>
+
+### NRDOT collector service management [#service-management]
+
+After updating your configuration, use these commands to manage the NRDOT collector service:
+
+<table>
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Windows (Admin CMD)</th>
+      <th>Linux</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Restart Service</strong> (<em>needed after config updates</em>)</td>
+      <td>
+        ```
+        net stop nrdot-collector-host
+        net start nrdot-collector-host
+        ```
+      </td>
+      <td>
+        ```bash
+        sudo systemctl restart nrdot-collector-host
+        ```
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Check Status</strong></td>
+      <td>
+        ```
+        sc query nrdot-collector-host
+        ```
+      </td>
+      <td>
+        ```bash
+        sudo systemctl status nrdot-collector-host
+        ```
+      </td>
+    </tr>
+    <tr>
+      <td><strong>View Logs</strong></td>
+      <td>
+        1. Type "Event Viewer" in the search bar and select it<br/>
+        2. On the left-hand sidebar, expand the folder named Windows Logs<br/>
+        3. Click on Application to load the application-specific events into the center pane<br/>
+        4. Look for events with source type = nrdot-collector-host
+      </td>
+      <td>
+        ```bash
+        sudo journalctl -u nrdot-collector-host -f
+        ```
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Delete Service</strong></td>
+      <td>
+        ```
+        sc delete nrdot-collector-host
+        ```
+        <br/>Then uninstall via "Add/Remove Programs"
+      </td>
+      <td>
+        ```bash
+        sudo systemctl stop nrdot-collector-host
+        sudo apt purge nrdot-collector-host
+        sudo systemctl disable nrdot-collector-host
+        sudo rm -rf /etc/nrdot-collector-host/
+        sudo systemctl daemon-reload
+        ```
+        <br/>To verify deletion: `dpkg -l | grep nrdot-collector-host`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+Always restart the NRDOT collector service after making configuration changes to ensure the new settings take effect.
+</Callout>
+
+  </Step>
+
 <Step>
 
 ### Verify data collection [#verify-data]
@@ -2203,7 +2647,7 @@ The OpenTelemetry Collector for SQL Server monitoring collects a comprehensive s
         </tr>
         <tr>
           <td>`sqlserver.database.log.flushes_per_sec`</td>
-          <td>Number of log flush operations per second</td>
+          <td>Number of log flush operations per second. This is a mandatory metric.</td>
         </tr>
         <tr>
           <td>`sqlserver.database.log.transaction_growth`</td>
@@ -2464,11 +2908,11 @@ The OpenTelemetry Collector for SQL Server monitoring collects a comprehensive s
         </tr>
         <tr>
           <td>`sqlserver.instance.blocked_processes_count`</td>
-          <td>Number of blocked processes</td>
+          <td>Number of blocked processes. This is a mandatory metric.</td>
         </tr>
         <tr>
           <td>`sqlserver.instance.buffer_pool_hit_percent`</td>
-          <td>Buffer pool hit percentage</td>
+          <td>Buffer pool hit percentage. This is a mandatory metric.</td>
         </tr>
         <tr>
           <td>`sqlserver.instance.buffer_pool_size`</td>
@@ -2480,7 +2924,7 @@ The OpenTelemetry Collector for SQL Server monitoring collects a comprehensive s
         </tr>
         <tr>
           <td>`sqlserver.instance.connections_active`</td>
-          <td>Number of active connections</td>
+          <td>Number of active connections. This is a mandatory metric.</td>
         </tr>
         <tr>
           <td>`sqlserver.instance.disk_in_bytes`</td>
@@ -2512,7 +2956,7 @@ The OpenTelemetry Collector for SQL Server monitoring collects a comprehensive s
         </tr>
         <tr>
           <td>`sqlserver.instance.memory_utilization_percent`</td>
-          <td>Percentage of memory utilization</td>
+          <td>Percentage of memory utilization. This is a mandatory metric.</td>
         </tr>
         <tr>
           <td>`sqlserver.instance.page_splits_per_batch`</td>
@@ -2548,7 +2992,7 @@ The OpenTelemetry Collector for SQL Server monitoring collects a comprehensive s
         </tr>
         <tr>
           <td>`sqlserver.instance.transactions_per_sec`</td>
-          <td>Transactions per second</td>
+          <td>Transactions per second. This is a mandatory metric.</td>
         </tr>
       </tbody>
     </table>
@@ -2935,7 +3379,7 @@ The following `sqlserver.access` metrics are available for page access system:
       <tbody>
         <tr>
           <td>`sqlserver.stats.connections`</td>
-          <td>Current user connections</td>
+          <td>Current user connections. This is a mandatory metric.</td>
         </tr>
         <tr>
           <td>`sqlserver.stats.deadlocks_per_sec`</td>
@@ -2951,11 +3395,11 @@ The following `sqlserver.access` metrics are available for page access system:
         </tr>
         <tr>
           <td>`sqlserver.stats.sql_compilations_per_sec`</td>
-          <td>SQL compilations per second</td>
+          <td>SQL compilations per second. This is a mandatory metric.</td>
         </tr>
         <tr>
           <td>`sqlserver.stats.sql_recompilations_per_sec`</td>
-          <td>SQL recompilations per second</td>
+          <td>SQL recompilations per second. This is a mandatory metric.</td>
         </tr>
         <tr>
           <td>`sqlserver.stats.user_errors_per_sec`</td>
