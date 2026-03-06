@@ -12,7 +12,13 @@ translationType: machine
 
 Monitorez votre cluster Apache Kafka auto-hébergé en installant le collecteur OpenTelemetry directement sur les hôtes Linux.
 
-## Installation et configuration [#installation-configuration]
+## Architecture [#architecture-overview]
+
+Le diagramme suivant illustre l&apos;architecture de monitoring et le flux de données vers New Relic.
+
+<img title="Self-hosted Kafka monitoring architecture with OpenTelemetry" src="/images/otel-kafka-self-host-architecture.webp" alt="Self-hosted Kafka monitoring architecture with OpenTelemetry" />
+
+## Étapes d&apos;installation [#installation-steps]
 
 Suivez ces étapes pour configurer un monitoring complet de Kafka en installant l&apos;agent Java OpenTelemetry sur vos brokers et en déployant un collecteur pour récupérer et envoyer des métriques à New Relic.
 
@@ -1148,6 +1154,98 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     ```bash
     # From Kafka broker machine, test connection to collector
     timeout 5 bash -c "</dev/tcp/COLLECTOR_HOST/4317" 2>/dev/null && echo "Can reach collector" || echo "Cannot reach collector"
+    ```
+  </Collapser>
+
+  <Collapser id="high-memory-usage" title="Utilisation élevée de la mémoire">
+    **1. Surveiller l&apos;utilisation de la mémoire du collecteur**:
+
+    ```bash
+    # Check memory usage of the collector process
+    ps aux | grep -E "[n]rdot-collector|[o]telcol" | awk '{print $1, $2, $4, $11}'
+
+    # Watch memory usage over time (refresh every 2 seconds)
+    watch -n 2 'ps aux | grep -E "[n]rdot-collector|[o]telcol" | awk "{print \$1, \$2, \$4, \$11}"'
+
+    # Check overall system memory
+    free -h
+    ```
+
+    **2. Réduire les topics monitorés**: limiter la collecte aux topics essentiels uniquement
+
+    ```yaml
+    receivers:
+      kafkametrics:
+        brokers: ${env:KAFKA_BOOTSTRAP_BROKER_ADDRESSES}
+        collection_interval: 30s
+        scrapers:
+          - brokers
+          - topics  # Consider removing if not needed
+          - consumers  # Consider removing if not needed
+        topic_match: "^(important-topic-1|important-topic-2)$"  # Filter specific topics
+    ```
+
+    **3. Réduire la fréquence de collecte**: Augmenter les intervalles pour collecter moins souvent
+
+    Pour le récepteur de métriques Kafka du collecteur :
+
+    ```yaml
+    receivers:
+      kafkametrics:
+        collection_interval: 60s  # Increase from 30s to 60s
+    ```
+
+    Pour les métriques JMX de l&apos;Agent Java, mettez à jour la commande de démarrage du broker :
+
+    ```bash
+    -Dotel.metric.export.interval=60000  # Increase from 30000ms to 60000ms
+    ```
+
+    **4. Optimiser le traitement par lots**: Réduire la taille des lots en mémoire
+
+    ```yaml
+    processors:
+      batch/aggregation:
+        send_batch_size: 512  # Reduce from 1024
+        timeout: 60s
+    ```
+
+    **5. Ajouter un limiteur de mémoire**: Empêcher le collecteur de dépasser un seuil de mémoire
+
+    ```yaml
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 512       # Hard limit in MiB — drop data if exceeded
+        spike_limit_mib: 128 # Allowed spike above limit before dropping
+
+      batch/aggregation:
+        send_batch_size: 512
+        timeout: 60s
+
+    service:
+      pipelines:
+        metrics/broker:
+          receivers: [otlp, kafkametrics]
+          processors: [memory_limiter, resourcedetection, resource, filter/exclude_cluster_metrics, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
+          exporters: [otlp/newrelic]
+        metrics/cluster:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, batch/aggregation]
+          exporters: [otlp/newrelic]
+    ```
+
+    **6. Redémarrer le collecteur après les modifications**:
+
+    ```bash
+    # Find the collector process ID and stop it
+    pkill -f "kafka-config.yaml"
+
+    # Restart NRDOT Collector
+    nrdot-collector --config ~/opentelemetry/kafka-config.yaml
+
+    # Or restart OpenTelemetry Collector
+    otelcol-contrib --config ~/opentelemetry/kafka-config.yaml
     ```
   </Collapser>
 </CollapserGroup>
