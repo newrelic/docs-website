@@ -12,7 +12,13 @@ translationType: machine
 
 OpenTelemetry Collector Linux 호스트에 직접 설치하여 자체 호스팅 Kafka 클러스터를 모니터링하세요.
 
-## 설치 및 구성 [#installation-configuration]
+## 아키텍처 [#architecture-overview]
+
+다음 다이어그램은 뉴렐릭에 대한 모델링 및 데이터 흐름을 보여줍니다.
+
+<img title="Self-hosted Kafka monitoring architecture with OpenTelemetry" src="/images/otel-kafka-self-host-architecture.webp" alt="Self-hosted Kafka monitoring architecture with OpenTelemetry" />
+
+## 설치 단계 [#installation-steps]
 
 다음 단계에 따라 브로커 및 구현하다, 배포하다 수집기에 OpenTelemetry 이온 에이전트를 설치하여 지표를 수집하고 뉴렐릭으로 보내는 방식으로 포괄적인 Kafka 모니터링을 설정하세요.
 
@@ -1148,6 +1154,98 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     ```bash
     # From Kafka broker machine, test connection to collector
     timeout 5 bash -c "</dev/tcp/COLLECTOR_HOST/4317" 2>/dev/null && echo "Can reach collector" || echo "Cannot reach collector"
+    ```
+  </Collapser>
+
+  <Collapser id="high-memory-usage" title="높은 메모리 사용량">
+    **1. 수집기 메모리 사용량을 모니터링합니다**.
+
+    ```bash
+    # Check memory usage of the collector process
+    ps aux | grep -E "[n]rdot-collector|[o]telcol" | awk '{print $1, $2, $4, $11}'
+
+    # Watch memory usage over time (refresh every 2 seconds)
+    watch -n 2 'ps aux | grep -E "[n]rdot-collector|[o]telcol" | awk "{print \$1, \$2, \$4, \$11}"'
+
+    # Check overall system memory
+    free -h
+    ```
+
+    **2. 모니터링 대상 주제 축소**: 필수적인 주제만 수집하도록 제한
+
+    ```yaml
+    receivers:
+      kafkametrics:
+        brokers: ${env:KAFKA_BOOTSTRAP_BROKER_ADDRESSES}
+        collection_interval: 30s
+        scrapers:
+          - brokers
+          - topics  # Consider removing if not needed
+          - consumers  # Consider removing if not needed
+        topic_match: "^(important-topic-1|important-topic-2)$"  # Filter specific topics
+    ```
+
+    **3. 수집 빈도 줄이기**: 수집 간격을 늘려 수집 횟수를 줄입니다.
+
+    수집기의 Kafka 메트릭 수신기의 경우:
+
+    ```yaml
+    receivers:
+      kafkametrics:
+        collection_interval: 60s  # Increase from 30s to 60s
+    ```
+
+    저항 에이전트의 JMX 지표의 경우 브로커 시작 명령을 업데이트합니다.
+
+    ```bash
+    -Dotel.metric.export.interval=60000  # Increase from 30000ms to 60000ms
+    ```
+
+    **4. 배치 처리 최적화**: 메모리 내 배치 크기 축소
+
+    ```yaml
+    processors:
+      batch/aggregation:
+        send_batch_size: 512  # Reduce from 1024
+        timeout: 60s
+    ```
+
+    **5. 메모리 리미터 추가**: 수집기가 메모리 청년값을 초과하는 것을 방지합니다.
+
+    ```yaml
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 512       # Hard limit in MiB — drop data if exceeded
+        spike_limit_mib: 128 # Allowed spike above limit before dropping
+
+      batch/aggregation:
+        send_batch_size: 512
+        timeout: 60s
+
+    service:
+      pipelines:
+        metrics/broker:
+          receivers: [otlp, kafkametrics]
+          processors: [memory_limiter, resourcedetection, resource, filter/exclude_cluster_metrics, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
+          exporters: [otlp/newrelic]
+        metrics/cluster:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, batch/aggregation]
+          exporters: [otlp/newrelic]
+    ```
+
+    **6. 변경 후 수집기를 다시 시작하십시오**.
+
+    ```bash
+    # Find the collector process ID and stop it
+    pkill -f "kafka-config.yaml"
+
+    # Restart NRDOT Collector
+    nrdot-collector --config ~/opentelemetry/kafka-config.yaml
+
+    # Or restart OpenTelemetry Collector
+    otelcol-contrib --config ~/opentelemetry/kafka-config.yaml
     ```
   </Collapser>
 </CollapserGroup>
