@@ -38,7 +38,7 @@ De forma predeterminada, el recopilador no emite su [telemetría interna](https:
 #### Descargar el archivo de configuración
 
 ```bash
-curl -L https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml \
+curl 'https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/heads/main/examples/internal-telemetry-config.yaml' \
   --silent --output internal-telemetry-config.yaml
 ```
 
@@ -91,6 +91,24 @@ La etiqueta <DNT>`newrelic.service.type: otel_collector`</DNT> actúa como una o
 
 La configuración predeterminada expone variables de entorno adicionales de la forma `INTERNAL_TELEMETRY_...` para ajustar opciones comunes, como los niveles de detalle y el muestreo. Consulte la [configuración en sí](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) para obtener más detalles.
 
+Recomendamos utilizar la configuración predeterminada para monitorear su colector. Sin embargo, puede modificar la configuración de ejemplo para satisfacer sus necesidades, como reducir las tasas de muestreo o de recopilación de datos. Consulte la [documentación oficial](https://opentelemetry.io/docs/collector/internal-telemetry/) para más detalles. Tenga en cuenta que los cambios en la configuración pueden hacer que ciertas partes de la interfaz de usuario no muestren datos. Consulte también [Limitaciones](#limitations). Las opciones de configuración de telemetría interna del recopilador cambian a medida que la comunidad de OTel evoluciona. Tiene control total sobre su configuración, incluido si desea utilizar los valores predeterminados proporcionados.
+
+#### Consideraciones de sobrecarga
+
+Al igual que toda telemetría, la telemetría interna del colector aumenta su ingesta de datos. La sobrecarga depende de su carga de trabajo y configuración. Estos son los factores clave a tener en cuenta:
+
+**Métricas** Genera una sobrecarga constante para el recopilador y todos los componentes activos, independientemente del rendimiento. Las métricas se emiten en un intervalo constante (60 segundos por defecto). Cualquier componente puede emitir métricas personalizadas, como lo indica el respectivo [metadata.yaml](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/filterprocessor/metadata.yaml#L20), lo que puede aumentar la sobrecarga.
+
+**Logs** Tiene un impacto mínimo durante la operación normal. Puede ocurrir una mayor sobrecarga cuando los logs de errores aumentan rápidamente, pero esto se reduce porque los logs se muestrean de forma predeterminada. El algoritmo de muestreo permite un número constante de logs por intervalo definido y luego muestrea a una tasa estática. Consulte [service::telemetry::logs::sampling](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml).
+
+**Trazas** Deshabilitado por defecto debido a:
+
+* Madurez limitada de las trazas. No todos los componentes están instrumentados, consulte este [problema de GitHub](https://github.com/open-telemetry/opentelemetry-collector/issues/8804).
+* Sobrecarga impredecible que varía con la carga de trabajo y la configuración de lotes de los agentes y recopiladores ascendentes.
+* No hay algoritmo de muestreo adaptativo disponible. Esto hace imposible proporcionar una recomendación de muestreo universal que no conlleve el riesgo de costos inesperados para ciertos casos de uso.
+
+Cuando las trazas maduren, proporcionarán información valiosa sobre cuánto tiempo dedica el colector a procesar datos a nivel de componente. Para experimentar con las trazas a medida que se desarrollan, configure <DNT>`INTERNAL_TELEMETRY_TRACE_LEVEL=info`</DNT> y comience con una tasa de muestreo baja como <DNT>`INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO=0.001`</DNT> (0.1%) mientras monitorea su volumen de ingesta y ajusta según sea necesario.
+
 ## Ver su colector en la interfaz de usuario [#view-ui]
 
 ### Explore la telemetría interna en la UI de APM [#explore-ui]
@@ -133,72 +151,26 @@ Monitoree la comunicación de red con la página HTTP/RPC:
 
 <img title="Screenshot showing new HTTP/RPC Page" alt="Screenshot showing new HTTP/RPC Page" src="/images/otel_collector_o11y-httprpc.webp" />
 
-Nota: Estos gráficos solo se completan si su colector utiliza componentes que se comunican mediante HTTP o gRPC (como receptores o exportadores OTLP).
+Nota: Estos gráficos solo se completan si su recopilador utiliza componentes que se comunican a través de HTTP o gRPC (como receptores o exportadores OTLP) y requiere <DNT>`INTERNAL_TELEMETRY_METRICS_LEVEL=detailed`</DNT>.
 
 ## Ejemplos de configuración [#examples]
 
-Para obtener ejemplos detallados de configuración y opciones de personalización, consulte la [configuración de telemetría interna](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) en el repositorio de lanzamientos de NRDOT Collector.
+Esta sección contiene ejemplos de cómo la guía paso a paso anterior se traduce a diferentes casos de uso que involucran al colector.
 
-La configuración expone variables de entorno de la forma `INTERNAL_TELEMETRY_...` para personalizar opciones como niveles de detalle y muestreo.
+### Colector simple con telemetría interna habilitada
 
-### Ejemplos de despliegue [#deployment-examples]
+[Ejemplo mínimo](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry) de un colector ejecutándose con docker compose.
 
-Para escenarios de implementación del mundo real, consulte estas configuraciones de ejemplo:
+### Poblar relaciones de infraestructura (opcional, experimental)
 
-* **[Implementación de Kubernetes](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector)**: Ejemplo de ejecución de un recopilador en Kubernetes con telemetría interna habilitada
-* **[Despliegue de Docker](https://github.com/newrelic/nrdot-collector-releases/tree/main/examples)**: Configuraciones de ejemplo de Docker para diversas configuraciones de recopiladores con monitoreo habilitado
-
-## Facturación y sobrecarga de datos [#billing-overhead]
-
-Collector Observability genera datos de telemetría adicionales que cuentan para su ingesta de datos. Entender el volumen de datos le ayuda a planificar los costos y optimizar su configuración.
-
-### Datos generados [#data-generated]
-
-La observabilidad del recopilador genera los siguientes tipos de telemetría:
-
-* **Métricas**: Información a nivel de componente sobre receptores, procesadores y exportadores
-* **Logs**: Logs muestreados con una sobrecarga mínima durante el funcionamiento normal
-* **Trazas**: Soporte experimental opcional para el análisis profundo de pipelines
-
-### Volumen de datos esperado [#expected-volume]
-
-La cantidad de datos generados depende de la configuración de su colector:
-
-* **Métricas de línea base**: Un colector con componentes estándar (receptor, procesador, exportador) genera aproximadamente **1-2 KB/minuto** de datos de métricas
-* **Logs**: Con el muestreo predeterminado (1% de las declaraciones de logs), espere **0.5-1 KB/minuto** durante la operación normal. Durante errores o alta verbosidad, esto puede aumentar significativamente
-* **Trazas** (opcional): Si se habilita, espere **5-10 KB/minuto** dependiendo de la complejidad del pipeline
-
-Para un colector típico que procesa telemetría 24/7:
-
-* **Ingesta mensual de métricas**: -2.5-5 MB
-* **Ingesta mensual de logs**: -1.5-3 MB (funcionamiento normal)
-* **Ingesta mensual de trazas**: -10-20 MB (si está habilitada)
-
-### Controlar la sobrecarga de datos [#controlling-overhead]
-
-Puede ajustar la generación de telemetría usando variables de entorno:
-
-* <DNT>**`INTERNAL_TELEMETRY_METRICS_LEVEL`**</DNT>: Establecer en `none` para deshabilitar las métricas, `normal` (predeterminado), o `detailed`
-* <DNT>**`INTERNAL_TELEMETRY_LOGS_LEVEL`**</DNT>: Establecer en `info` (predeterminado), `warn` o `error` para reducir el volumen de logs
-* <DNT>**`INTERNAL_TELEMETRY_LOGS_SAMPLING`**</DNT>: Ajustar la tasa de muestreo (predeterminado: 1%)
-* <DNT>**`INTERNAL_TELEMETRY_TRACES_ENABLED`**</DNT>: Establecer en `false` para deshabilitar las trazas (deshabilitado por defecto)
-
-Para obtener detalles de configuración, consulte la sección [personalización de la configuración](#customize) más arriba.
+Como se muestra arriba, APM puede mostrar métricas de infraestructura para la infraestructura en la que se ejecuta el colector, pero solo si su infraestructura está instrumentada y se puede establecer [una relación](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#related-entities). La relación está determinada por atributos adicionales en la telemetría interna del colector. Puede leer más sobre este tema en nuestra [documentación de OTel](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/#service-to-infra-otel-collector). Los pasos para configurar esto dependen en gran medida de su infraestructura exacta. Para la opción común de Kubernetes, creamos [un ejemplo](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry-k8s-container-relationships) que muestra cómo lograr relaciones entre contenedores y servicios basado en nuestra [solución de OTel para Kubernetes](https://docs.newrelic.com/docs/kubernetes-pixie/k8s-otel/intro/).
 
 ## Limitaciones [#limitations]
 
-* **Ciertas funciones comunes de APM** no se trasladan perfectamente al colector y su naturaleza de procesamiento de flujos, y se han ocultado de la página de Resumen y de la navegación lateral. Analizaremos cada uno de ellos para la Disponibilidad General a fin de determinar si podemos integrarlos y cómo hacerlo de la mejor manera. Los ejemplos son:
-
-  * Puntuación Apdex
-  * Métricas significativas de `apm.%`
-  * Tasa de errores
-  * Transacción
-
 * **La telemetría del recopilador aún no es estable**:
 
-  * La última versión admitida de telemetría emitida por los componentes del colector es la versión del componente en nuestras distribuciones NRDOT (consulte el [manifiesto](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/manifest.yaml) como referencia).
+  * La versión admitida de telemetría interna se define implícitamente por la [versión del recopilador principal](https://github.com/open-telemetry/opentelemetry-collector) que usamos para construir NRDOT; consulte la versión del otlpreceiver en el [manifiesto de nrdot-collector](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/manifest.yaml).
   * Si la telemetría emitida cambia durante la Vista previa pública, nos reservamos el derecho de admitir solo la versión más reciente. Por ejemplo, admitimos <DNT>`http.client.request.duration`</DNT> (versión del recopilador &gt;=0.128.0, versión de NRDOT &gt;=1.2.0, nr-k8s-otel-collector &gt;=0.8.37) pero no <DNT>`http.request.duration`</DNT>.
-  * Con la Disponibilidad general, comenzaremos a brindar retrocompatibilidad si los nombres de las métricas continúan cambiando.
 
 * **Requisitos de formato de exportación**: La interfaz de usuario del recopilador espera telemetría en el formato exportado por el <DNT>`otlpexporter`</DNT>. No admite métricas exportadas a través de Prometheus. Por ejemplo, <DNT>`http.client.request.duration`</DNT> es compatible, pero <DNT>`http_client_request_duration`</DNT> no.
 
