@@ -58,12 +58,12 @@ const processor = unified()
       code: handlers.CodeBlock.serialize,
     },
   })
-  .use(format)
-  .use(rehypeStringify)
   .use(addClasses, {
     // adds notranslate class to <code> elements
     code: 'notranslate',
-  });
+  })
+  .use(format)
+  .use(rehypeStringify);
 
 const serializeMDX = async (mdx) => {
   const vfile = await processor.process(mdx);
