@@ -8,7 +8,6 @@ import remark2rehype from 'remark-rehype10';
 import remarkGfm from 'remark-gfm';
 import addClasses from 'rehype-add-classes';
 import rehypeStringify from 'rehype-stringify10';
-import format from 'rehype-format';
 import customHeadingIds from '../../plugins/gatsby-remark-custom-heading-ids/utils/visitor.js';
 
 import { inspect } from 'util';
@@ -58,7 +57,6 @@ const processor = unified()
       code: handlers.CodeBlock.serialize,
     },
   })
-  .use(format)
   .use(rehypeStringify)
   .use(addClasses, {
     // adds notranslate class to <code> elements
