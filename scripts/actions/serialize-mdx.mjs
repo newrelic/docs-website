@@ -11,8 +11,6 @@ import rehypeStringify from 'rehype-stringify10';
 import format from 'rehype-format';
 import customHeadingIds from '../../plugins/gatsby-remark-custom-heading-ids/utils/visitor.js';
 
-import { inspect } from 'util';
-
 const mdxElement = (state, node) => {
   const handler = handlers[node.name];
 
@@ -40,6 +38,35 @@ const mdxSpanExpression = (h, node) => {
   return h.handlers.text(h, node);
 };
 
+// Handle MDX flow expressions (e.g., JSX comments like {/* ... */})
+// Serialize them using the same pattern as imports/frontmatter - data attributes with base64
+const mdxFlowExpression = (_h, node) => {
+  // Check if this is a comment (starts with /* and ends with */)
+  if (node.value && node.value.trim().match(/^\/\*[\s\S]*?\*\/$/)) {
+    // Use the mdxComment handler for JSX comments
+    return handlers.mdxComment.serialize(null, node);
+  }
+
+  // For non-comment expressions, convert to text (default behavior)
+  return {
+    type: 'text',
+    value: `{${node.value}}`,
+  };
+};
+
+// Handle MDX text expressions (inline expressions like {value})
+const mdxTextExpression = (_h, node) => {
+  // Check if this is a comment
+  if (node.value && node.value.trim().match(/^\/\*[\s\S]*?\*\/$/)) {
+    return handlers.mdxComment.serialize(null, node);
+  }
+
+  return {
+    type: 'text',
+    value: `{${node.value}}`,
+  };
+};
+
 
 const processor = unified()
   .use(toMDAST)
@@ -55,6 +82,8 @@ const processor = unified()
       mdxJsxTextElement: mdxElement,
       mdxJsxFlowElement: mdxElement,
       mdxSpanExpression,
+      mdxFlowExpression,
+      mdxTextExpression,
       code: handlers.CodeBlock.serialize,
     },
   })
