@@ -59,6 +59,37 @@ export default {
       };
     },
   },
+  mdxComment: {
+    deserialize: (_state, node) => {
+      const value = Buffer.from(node.properties.dataValue, 'base64').toString();
+
+      return {
+        type: 'mdxFlowExpression',
+        value,
+        data: {
+          estree: {
+            type: 'Program',
+            body: [],
+            sourceType: 'module',
+            comments: [{
+              type: 'Block',
+              value: value.slice(2, -2), // Remove /* and */
+            }],
+          },
+        },
+      };
+    },
+    serialize: (_state, node) => {
+      return {
+        type: 'element',
+        tagName: 'div',
+        properties: {
+          'data-type': 'mdxComment',
+          'data-value': Buffer.from(node.value).toString('base64'),
+        },
+      };
+    },
+  },
   frontmatter: {
     deserialize: (_state, node) => {
       const data = deserializeJSValue(node.properties.dataValue);
