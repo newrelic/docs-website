@@ -1,0 +1,932 @@
+---
+title: Monitorear RabbitMQ autoalojado con OpenTelemetry
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - RabbitMQ
+metaDescription: Install and configure RabbitMQ OpenTelemetry monitoring for Linux hosts.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Monitoree RabbitMQ en hosts Linux usando el [NRDOT Collector](https://github.com/newrelic/nrdot-collector-releases/releases/latest) (recomendado) o el [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) para enviar métricas y datos de telemetría a New Relic. Esta guía completa lo guía a través de la instalación, configuración y verificación para los sistemas Debian, Ubuntu, RHEL y CentOS.
+
+## Pasos de instalación [#install]
+
+Siga estos pasos para configurar el monitoreo de su instancia autohospedada de RabbitMQ.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot">
+      NRDOT Collector (Recomendado)
+    </TabsBarItem>
+
+    <TabsBarItem id="otelcol">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot">
+      <Steps>
+        <Step>
+          ### Antes de que empieces [#requirements-nrdot]
+
+          Asegúrese de que su entorno cumpla con estos requisitos:
+
+          <CollapserGroup>
+            <Collapser id="rabbitmq-reqs" title="Requisitos de RabbitMQ">
+              * **Versión**: RabbitMQ 3.8 o superior
+              * **Plugin de gestión**: Debe estar habilitado para exponer la API de métricas
+              * **Cuenta de usuario**: Usuario administrador con permisos para acceder a la API de gestión
+            </Collapser>
+
+            <Collapser id="system-reqs" title="Requisito del sistema">
+              * **Sistema operativo**: Debian, Ubuntu, RHEL o CentOS
+              * **Acceso a Shell**: Usuario con privilegios sudo
+              * **Red**: Conectividad HTTPS saliente al [endpoint OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)de New Relic
+              * **Recursos**: Mínimo 512 MB de RAM y 1 núcleo de CPU disponibles para el colector
+            </Collapser>
+
+            <Collapser id="newrelic-reqs" title="Requisitos de New Relic">
+              * **Cuenta**: Cuenta activa de New Relic
+              * **Clave de licencia**: [Clave de licencia de New Relic](/docs/apis/intro-apis/new-relic-api-keys/#license-key) para su cuenta
+            </Collapser>
+
+            <Collapser id="software-reqs" title="Requisitos de software">
+              * **NRDOT Collector**: [Última versión](https://github.com/newrelic/nrdot-collector-releases/releases/latest) (distribución de OpenTelemetry de New Relic)
+              * **Paquetes del sistema**: `wget`, `systemd` (generalmente preinstalados)
+            </Collapser>
+          </CollapserGroup>
+
+          <Callout variant="tip">
+            Si falla algún paso de verificación, instale los componentes faltantes antes de continuar. ¿Necesitas ayuda para instalar el NRDOT Collector? Consulte la [sección de instalación](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#installation) del repositorio nrdot-collector-releases.
+
+            Nota: Durante la instalación use `export collector_distro="nrdot-collector"`
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Habilite el plugin de administración de RabbitMQ [#enable-plugin]
+
+          El plugin de gestión expone la API que el OpenTelemetry Collector recopila:
+
+          ```bash
+          sudo rabbitmq-plugins enable rabbitmq_management
+          ```
+
+          Verifique que esté funcionando:
+
+          ```bash
+          curl -I -u admin:password http://localhost:15672/api/overview
+          ```
+
+          Debería ver `HTTP/1.1 200 OK` en la respuesta.
+        </Step>
+
+        <Step>
+          ### Instalar el NRDOT Collector [#install-nrdot-collector]
+
+          Descarga e instala el NRDOT Collector para tu sistema operativo host desde los [lanzamientos de NRDOT Collector](https://github.com/newrelic/nrdot-collector-releases/releases/latest). Consulte la [guía de instalación](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#installation) para obtener instrucciones específicas de la distribución.
+
+          Nota: Durante la instalación use `export collector_distro="nrdot-collector"`
+        </Step>
+
+        <Step>
+          ### Configurar el recolector [#configure-nrdot]
+
+          Cree su archivo de configuración del colector en `/etc/nrdot-collector/rabbitmq-config.yaml`:
+
+          ```yaml
+          receivers:
+            rabbitmq:
+              endpoint: http://localhost:15672
+              username: admin
+              password: password
+              collection_interval: 30s
+              metrics:
+                # Queue Metrics (essential for message flow and backlog)
+                rabbitmq.consumer.count:
+                  enabled: true
+                rabbitmq.message.delivered:
+                  enabled: true
+                rabbitmq.message.published:
+                  enabled: true
+                rabbitmq.message.acknowledged:
+                  enabled: true
+                rabbitmq.message.dropped:
+                  enabled: true
+                rabbitmq.message.current:
+                  enabled: true # Crucial for monitoring queue backlog, includes 'ready' and 'unacknowledged' states
+
+                # Node Health Metrics (critical for server resource monitoring)
+                rabbitmq.node.disk_free:
+                  enabled: true
+                rabbitmq.node.disk_free_limit:
+                  enabled: true
+                rabbitmq.node.disk_free_alarm:
+                  enabled: true
+                rabbitmq.node.mem_used:
+                  enabled: true
+                rabbitmq.node.mem_limit:
+                  enabled: true
+                rabbitmq.node.mem_alarm:
+                  enabled: true
+                rabbitmq.node.mem_used_details.rate:
+                  enabled: true
+                rabbitmq.node.fd_used:
+                  enabled: true
+                rabbitmq.node.fd_total:
+                  enabled: true
+                rabbitmq.node.sockets_used:
+                  enabled: true
+                rabbitmq.node.sockets_total:
+                  enabled: true
+                rabbitmq.node.proc_used:
+                  enabled: true
+                rabbitmq.node.proc_total:
+                  enabled: true
+                rabbitmq.node.uptime:
+                  enabled: true
+                rabbitmq.node.run_queue:
+                  enabled: true
+                rabbitmq.node.processors:
+                  enabled: true
+                rabbitmq.node.context_switches_details.rate:
+                  enabled: true
+                rabbitmq.node.gc_num_details.rate:
+                  enabled: true
+                rabbitmq.node.gc_bytes_reclaimed_details.rate:
+                  enabled: true
+
+                # I/O Metrics (important for understanding disk and network activity)
+                rabbitmq.node.io_read_count_details.rate:
+                  enabled: true
+                rabbitmq.node.io_read_bytes_details.rate:
+                  enabled: true
+                rabbitmq.node.io_read_avg_time_details.rate:
+                  enabled: true
+                rabbitmq.node.io_write_count_details.rate:
+                  enabled: true
+                rabbitmq.node.io_write_bytes_details.rate:
+                  enabled: true
+                rabbitmq.node.io_write_avg_time_details.rate:
+                  enabled: true
+                rabbitmq.node.io_sync_count_details.rate:
+                  enabled: true
+                rabbitmq.node.io_sync_avg_time_details.rate:
+                  enabled: true
+                rabbitmq.node.io_seek_count_details.rate:
+                  enabled: true
+                rabbitmq.node.io_seek_avg_time_details.rate:
+                  enabled: true
+                rabbitmq.node.io_reopen_count_details.rate:
+                  enabled: true
+
+                # Mnesia and Store Metrics (for internal database and message storage)
+                rabbitmq.node.mnesia_ram_tx_count_details.rate:
+                  enabled: true
+                rabbitmq.node.mnesia_disk_tx_count_details.rate:
+                  enabled: true
+                rabbitmq.node.msg_store_read_count_details.rate:
+                  enabled: true
+                rabbitmq.node.msg_store_write_count_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_index_write_count_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_index_read_count_details.rate:
+                  enabled: true
+
+                # Connection/Channel/Queue Lifecycle Metrics
+                rabbitmq.node.connection_created_details.rate:
+                  enabled: true
+                rabbitmq.node.connection_closed_details.rate:
+                  enabled: true
+                rabbitmq.node.channel_created_details.rate:
+                  enabled: true
+                rabbitmq.node.channel_closed_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_declared_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_created_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_deleted_details.rate:
+                  enabled: true
+
+          # processors: Process data before exporting.
+          processors:
+            resourcedetection:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+            resource:
+              attributes:
+                - key: instrumentation.provider
+                  value: opentelemetry
+                  action: upsert
+                - key: rabbitmq.deployment.name
+                  value: my-rabbitmq-server  # Replace with your server name
+                  action: upsert
+            batch:
+              send_batch_size: 1024
+              timeout: 30s
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+
+          exporters:
+            otlp_http:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT:-https://otlp.nr-data.net}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          service:
+            pipelines:
+              metrics:
+                receivers: [rabbitmq]
+                processors: [resourcedetection, resource, batch, transform/metadata_nullify]
+                exporters: [otlp_http]
+          ```
+
+          Actualice estos valores en la configuración:
+
+          * `endpoint`: Su URL de la API de administración de RabbitMQ (predeterminado: `http://localhost:15672`)
+          * `username` y `password`: Sus credenciales de RabbitMQ
+          * `rabbitmq.deployment.name`: Un nombre único para esta instancia de RabbitMQ
+          * `collection_interval`: Con qué frecuencia recolectar métricas (predeterminado: 30 segundos)
+        </Step>
+
+        <Step>
+          ### Configurar el ambiente y actualizar la ruta de configuración [#set-environment-nrdot]
+
+          Actualice la configuración del NRDOT Collector para utilizar su archivo de configuración de RabbitMQ y establezca el endpoint OTLP.
+
+          <Callout variant="important">
+            Su clave de licencia ya se configuró en `/etc/nrdot-collector/nrdot-collector.conf` durante la instalación. Solo necesita actualizar la ruta del archivo de configuración y el endpoint OTLP.
+          </Callout>
+
+          Determine su endpoint OTLP según su región de New Relic. Consulte [Configurar endpoint, puerto y protocolo](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) para obtener la lista completa de endpoints.
+
+          ```bash
+          export collector_distro="nrdot-collector"
+          export otlp_endpoint="https://otlp.nr-data.net"  # Replace with your region's endpoint
+
+          # Update the config file path to point to rabbitmq-config.yaml
+          sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/rabbitmq-config.yaml"|' /etc/${collector_distro}/${collector_distro}.conf
+
+          # Add the OTLP endpoint
+          echo "OTEL_EXPORTER_OTLP_ENDPOINT=${otlp_endpoint}" | sudo tee -a /etc/${collector_distro}/${collector_distro}.conf > /dev/null
+          ```
+
+          Recargue systemd y reinicie el recopilador:
+
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl restart nrdot-collector.service
+          ```
+        </Step>
+
+        <Step>
+          ### Verifique sus datos en New Relic [#verify-nrdot]
+
+          Verifique el estado del servicio:
+
+          ```bash
+          sudo systemctl status nrdot-collector.service
+          ```
+
+          Debería ver `active (running)` en la salida.
+
+          Ver registros recientes:
+
+          ```bash
+          sudo journalctl -u nrdot-collector.service -n 50 --no-pager
+          ```
+
+          Busque mensajes que indiquen una recopilación de métricas exitosa:
+
+          ```
+          INFO    RabbitmqReceiver        Successfully scraped rabbitmq metrics
+          ```
+
+          Verificar las métricas en New Relic:
+
+          Espere de 2 a 3 minutos para que aparezcan los datos, luego ejecute esta consulta en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder):
+
+          ```sql
+          SELECT count(*)
+          FROM Metric
+          WHERE metricName LIKE 'rabbitmq.%'
+            AND instrumentation.provider = 'opentelemetry'
+            AND rabbitmq.deployment.name = 'my-rabbitmq-server'
+          FACET metricName
+          SINCE 10 minutes ago
+          ```
+
+          Debería ver nombres de métricas como:
+
+          * `rabbitmq.queue.count` - Número de colas
+          * `rabbitmq.queue.message.count` - Total de mensajes en las colas
+          * `rabbitmq.connection.count` - Conexiones activas
+          * `rabbitmq.consumer.count` - Consumidores activos
+
+          <Callout variant="tip">
+            Si no ve datos después de 5 minutos, consulte la [sección de solución de problemas](#troubleshoot) a continuación.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### (Opcional) Reenviar logs de RabbitMQ a New Relic [#logs]
+
+          Además de las métricas, puedes enviar los logs de la aplicación RabbitMQ a New Relic para una observabilidad integral. Esto ayuda a correlacionar problemas entre métricas y registros.
+
+          <Callout variant="important">
+            El reenvío de logs requiere configuración adicional y permisos del sistema. Asegúrese de tener el acceso necesario antes de continuar.
+          </Callout>
+
+          **Actualice `/etc/nrdot-collector/rabbitmq-config.yaml`** para agregar el receptor filelog:
+
+          ```yaml
+          receivers:
+            rabbitmq:
+              # ... existing rabbitmq config ...
+
+            # Add filelog receiver for RabbitMQ logs
+            filelog/rabbitmq:
+              include:
+                - /var/log/rabbitmq/*.log
+                - /var/log/rabbitmq/**/*.log
+              include_file_path: true
+              include_file_name: false
+              operators:
+                - type: regex_parser
+                  regex: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) \[(?P<level>\w+)\] <(?P<pid>[^>]+)> (?P<message>.*)$'
+                  timestamp:
+                    parse_from: attributes.timestamp
+                    layout: '%Y-%m-%d %H:%M:%S.%L'
+                  severity:
+                    parse_from: attributes.severity
+
+          processors:
+            # ... existing processors ...
+
+            transform/rabbitmq_logs:
+              log_statements:
+                - context: resource
+                  statements:
+                    - set(attributes["rabbitmq.display.name"], Concat(["server", attributes["rabbitmq.deployment.name"]], ":"))
+
+          service:
+            pipelines:
+              metrics:
+                receivers: [rabbitmq]
+                processors: [resourcedetection, resource, batch, transform/metadata_nullify]
+                exporters: [otlp_http]
+
+              logs/rabbitmq:
+                receivers: [filelog]
+                processors: [batch, resource, transform/rabbitmq_logs]
+                exporters: [otlp_http]
+          ```
+
+          Otorgue al recopilador permiso para leer registros. Seleccione un método:
+
+          Agregar al grupo rabbitmq:
+
+          ```bash
+          sudo usermod -a -G rabbitmq nrdot-collector
+          ```
+
+          O configure los permisos de archivo:
+
+          ```bash
+          sudo chmod 644 /var/log/rabbitmq/*.log
+          ```
+
+          Reinicie el colector:
+
+          ```bash
+          sudo systemctl restart nrdot-collector.service
+          ```
+
+          Verifique que los logs se estén recopilando en New Relic:
+
+          ```sql
+          SELECT count(*)
+          FROM Log
+          WHERE service.name = 'rabbitmq'
+            AND rabbitmq.deployment.name = 'my-rabbitmq-server'
+          SINCE 10 minutes ago
+          ```
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol">
+      <Steps>
+        <Step>
+          ### Antes de que empieces [#requirements-otelcol]
+
+          Asegúrese de que su entorno cumpla con estos requisitos:
+
+          <CollapserGroup>
+            <Collapser id="rabbitmq-reqs-otelcol" title="Requisitos de RabbitMQ">
+              * **Versión**: RabbitMQ 3.8 o superior
+              * **Plugin de gestión**: Debe estar habilitado para exponer la API de métricas
+              * **Cuenta de usuario**: Usuario administrador con permisos para acceder a la API de gestión
+            </Collapser>
+
+            <Collapser id="system-reqs-otelcol" title="Requisito del sistema">
+              * **Sistema operativo**: Debian, Ubuntu, RHEL o CentOS
+              * **Acceso a Shell**: Usuario con privilegios sudo
+              * **Red**: Conectividad HTTPS saliente al [endpoint OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)de New Relic
+              * **Recursos**: Mínimo 512 MB de RAM y 1 núcleo de CPU disponibles para el colector
+            </Collapser>
+
+            <Collapser id="newrelic-reqs-otelcol" title="Requisitos de New Relic">
+              * **Cuenta**: Cuenta activa de New Relic
+              * **Clave de licencia**: [Clave de licencia de New Relic](/docs/apis/intro-apis/new-relic-api-keys/#license-key) para su cuenta
+            </Collapser>
+
+            <Collapser id="software-reqs-otelcol" title="Requisitos de software">
+              * **OpenTelemetry Collector Contrib**: [Última versión](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest)
+              * **Paquetes del sistema**: `wget`, `systemd` (generalmente preinstalados)
+            </Collapser>
+          </CollapserGroup>
+
+          <Callout variant="tip">
+            Si algún paso de verificación falla, instale los componentes faltantes antes de continuar. ¿Necesita ayuda para instalar el Collector? Consulte la [guía de instalación de OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib).
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Habilite el plugin de administración de RabbitMQ [#enable-plugin-otelcol]
+
+          El plugin de gestión expone la API que el OpenTelemetry Collector recopila:
+
+          ```bash
+          sudo rabbitmq-plugins enable rabbitmq_management
+          ```
+
+          Verifique que esté funcionando:
+
+          ```bash
+          curl -I -u admin:password http://localhost:15672/api/overview
+          ```
+
+          Debería ver `HTTP/1.1 200 OK` en la respuesta.
+        </Step>
+
+        <Step>
+          ### Instalar el OpenTelemetry Collector [#install-otelcol-collector]
+
+          Descargue e instale el binario de OpenTelemetry Collector Contrib para el sistema operativo de su host desde las [versiones de OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest).
+        </Step>
+
+        <Step>
+          ### Configurar el recolector [#configure-otelcol]
+
+          Crear o reemplazar `/etc/otelcol-contrib/config.yaml`:
+
+          ```yaml
+          receivers:
+            rabbitmq:
+              endpoint: http://localhost:15672
+              username: admin
+              password: password
+              collection_interval: 30s
+              metrics:
+                # Queue Metrics (essential for message flow and backlog)
+                rabbitmq.consumer.count:
+                  enabled: true
+                rabbitmq.message.delivered:
+                  enabled: true
+                rabbitmq.message.published:
+                  enabled: true
+                rabbitmq.message.acknowledged:
+                  enabled: true
+                rabbitmq.message.dropped:
+                  enabled: true
+                rabbitmq.message.current:
+                  enabled: true
+
+                # Node Health Metrics (critical for server resource monitoring)
+                rabbitmq.node.disk_free:
+                  enabled: true
+                rabbitmq.node.disk_free_limit:
+                  enabled: true
+                rabbitmq.node.disk_free_alarm:
+                  enabled: true
+                rabbitmq.node.mem_used:
+                  enabled: true
+                rabbitmq.node.mem_limit:
+                  enabled: true
+                rabbitmq.node.mem_alarm:
+                  enabled: true
+                rabbitmq.node.mem_used_details.rate:
+                  enabled: true
+                rabbitmq.node.fd_used:
+                  enabled: true
+                rabbitmq.node.fd_total:
+                  enabled: true
+                rabbitmq.node.sockets_used:
+                  enabled: true
+                rabbitmq.node.sockets_total:
+                  enabled: true
+                rabbitmq.node.proc_used:
+                  enabled: true
+                rabbitmq.node.proc_total:
+                  enabled: true
+                rabbitmq.node.uptime:
+                  enabled: true
+                rabbitmq.node.run_queue:
+                  enabled: true
+                rabbitmq.node.processors:
+                  enabled: true
+                rabbitmq.node.context_switches_details.rate:
+                  enabled: true
+                rabbitmq.node.gc_num_details.rate:
+                  enabled: true
+                rabbitmq.node.gc_bytes_reclaimed_details.rate:
+                  enabled: true
+
+                # I/O Metrics (important for understanding disk and network activity)
+                rabbitmq.node.io_read_count_details.rate:
+                  enabled: true
+                rabbitmq.node.io_read_bytes_details.rate:
+                  enabled: true
+                rabbitmq.node.io_read_avg_time_details.rate:
+                  enabled: true
+                rabbitmq.node.io_write_count_details.rate:
+                  enabled: true
+                rabbitmq.node.io_write_bytes_details.rate:
+                  enabled: true
+                rabbitmq.node.io_write_avg_time_details.rate:
+                  enabled: true
+                rabbitmq.node.io_sync_count_details.rate:
+                  enabled: true
+                rabbitmq.node.io_sync_avg_time_details.rate:
+                  enabled: true
+                rabbitmq.node.io_seek_count_details.rate:
+                  enabled: true
+                rabbitmq.node.io_seek_avg_time_details.rate:
+                  enabled: true
+                rabbitmq.node.io_reopen_count_details.rate:
+                  enabled: true
+
+                # Mnesia and Store Metrics (for internal database and message storage)
+                rabbitmq.node.mnesia_ram_tx_count_details.rate:
+                  enabled: true
+                rabbitmq.node.mnesia_disk_tx_count_details.rate:
+                  enabled: true
+                rabbitmq.node.msg_store_read_count_details.rate:
+                  enabled: true
+                rabbitmq.node.msg_store_write_count_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_index_write_count_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_index_read_count_details.rate:
+                  enabled: true
+
+                # Connection/Channel/Queue Lifecycle Metrics
+                rabbitmq.node.connection_created_details.rate:
+                  enabled: true
+                rabbitmq.node.connection_closed_details.rate:
+                  enabled: true
+                rabbitmq.node.channel_created_details.rate:
+                  enabled: true
+                rabbitmq.node.channel_closed_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_declared_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_created_details.rate:
+                  enabled: true
+                rabbitmq.node.queue_deleted_details.rate:
+                  enabled: true
+
+          # processors: Process data before exporting.
+          processors:
+            resourcedetection:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+            resource:
+              attributes:
+                - key: instrumentation.provider
+                  value: opentelemetry
+                  action: upsert
+                - key: rabbitmq.deployment.name
+                  value: my-rabbitmq-server  # Replace with your server name
+                  action: upsert
+            batch:
+              send_batch_size: 1024
+              timeout: 30s
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+
+          exporters:
+            otlphttp/newrelic:
+              endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEWRELIC_LICENSE_KEY}
+              compression: gzip
+
+          service:
+            pipelines:
+              metrics:
+                receivers: [rabbitmq]
+                processors: [resourcedetection, resource, batch, transform/metadata_nullify]
+                exporters: [otlphttp/newrelic]
+          ```
+
+          Actualice estos valores en la configuración:
+
+          * `endpoint`: Su URL de la API de administración de RabbitMQ (predeterminado: `http://localhost:15672`)
+          * `username` y `password`: Sus credenciales de RabbitMQ
+          * `rabbitmq.deployment.name`: Un nombre único para esta instancia de RabbitMQ
+          * `collection_interval`: Con qué frecuencia recolectar métricas (predeterminado: 30 segundos)
+        </Step>
+
+        <Step>
+          ### Establecer variables de entorno [#env-vars-otelcol]
+
+          Cree un archivo de anulación de systemd para las variables de entorno:
+
+          ```bash
+          sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+          ```
+
+          Selecciona tu región de New Relic:
+
+          <Tabs>
+            <TabsBar>
+              <TabsBarItem id="us-otelcol">Región de EE. UU.</TabsBarItem> <TabsBarItem id="eu-otelcol">Región de la UE</TabsBarItem>
+            </TabsBar>
+
+            <TabsPages>
+              <TabsPageItem id="us-otelcol">
+                ```bash
+                cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+                [Service]
+                Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+                Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+                EOF
+                ```
+
+                Reemplaza `YOUR_LICENSE_KEY` por tu [clave de licencia de New Relic](/docs/apis/intro-apis/new-relic-api-keys/#license-key).
+              </TabsPageItem>
+
+              <TabsPageItem id="eu-otelcol">
+                ```bash
+                cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+                [Service]
+                Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.eu01.nr-data.net:4318"
+                Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+                EOF
+                ```
+
+                Reemplaza `YOUR_LICENSE_KEY` por tu [clave de licencia de New Relic](/docs/apis/intro-apis/new-relic-api-keys/#license-key).
+              </TabsPageItem>
+            </TabsPages>
+          </Tabs>
+
+          Recargue systemd y reinicie el recopilador:
+
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl restart otelcol-contrib
+          ```
+        </Step>
+
+        <Step>
+          ### Verifique sus datos en New Relic [#verify-otelcol]
+
+          Verifique el estado del servicio:
+
+          ```bash
+          sudo systemctl status otelcol-contrib
+          ```
+
+          Debería ver `active (running)` en la salida.
+
+          Ver registros recientes:
+
+          ```bash
+          sudo journalctl -u otelcol-contrib -n 50 --no-pager
+          ```
+
+          Busque mensajes que indiquen una recopilación de métricas exitosa:
+
+          ```
+          INFO    RabbitmqReceiver        Successfully scraped rabbitmq metrics
+          ```
+
+          Verificar las métricas en New Relic:
+
+          Espere de 2 a 3 minutos para que aparezcan los datos, luego ejecute esta consulta en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder):
+
+          ```sql
+          SELECT count(*)
+          FROM Metric
+          WHERE metricName LIKE 'rabbitmq.%'
+            AND instrumentation.provider = 'opentelemetry'
+            AND rabbitmq.deployment.name = 'my-rabbitmq-server'
+          FACET metricName
+          SINCE 10 minutes ago
+          ```
+
+          <Callout variant="tip">
+            Si no ve datos después de 5 minutos, consulte la [sección de solución de problemas](#troubleshoot) a continuación.
+          </Callout>
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Encuentra tus datos [#find-data]
+
+Después de unos minutos, sus métricas de RabbitMQ deberían aparecer en New Relic. Consulta [Busca y consulta tus datos](/docs/opentelemetry/integrations/rabbitmq/find-and-query-data) para obtener instrucciones detalladas sobre cómo explorar tus métricas de RabbitMQ en las diferentes vistas de la UI de New Relic.
+
+También puede consultar sus datos con NRQL:
+
+```sql
+FROM Metric SELECT * WHERE rabbitmq.deployment.name = 'my-rabbitmq-server'
+```
+
+## Resolución de problemas [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="no-data" title="No aparecen datos en New Relic">
+    Si no ve métricas en New Relic después de la instalación:
+
+    **1. Verifique que el plugin de gestión esté habilitado:**
+
+    ```bash
+    sudo rabbitmq-plugins list | grep management
+    ```
+
+    Debería ver `[E*] rabbitmq_management` indicando que está habilitado y en ejecución.
+
+    **2. Pruebe la API de gestión:**
+
+    ```bash
+    curl -u admin:password http://localhost:15672/api/overview
+    ```
+
+    Esto debería devolver datos JSON sobre su instancia de RabbitMQ. De lo contrario, el plugin de administración no está funcionando correctamente.
+
+    **3. Revise los registros del colector en busca de errores:**
+
+    ```bash
+    sudo journalctl -u nrdot-collector.service -f
+    ```
+
+    Buscar:
+
+    * Errores de autenticación (nombre de usuario/contraseña incorrectos)
+    * Tiempos de espera de conexión (problemas de red)
+    * Errores de análisis (problemas de sintaxis de configuración)
+
+    **4. Verifique que el servicio del colector se esté ejecutando:**
+
+    ```bash
+    sudo systemctl status nrdot-collector.service
+    ```
+
+    Debería mostrar `active (running)`. De lo contrario, consulte los registros para ver por qué no se pudo iniciar.
+
+    **5. Verifique su clave de licencia:**
+
+    ```bash
+    sudo cat /etc/nrdot-collector/nrdot-collector.conf
+    ```
+
+    Asegúrese de que `NEW_RELIC_LICENSE_KEY` esté configurado correctamente y no tenga espacios ni comillas adicionales.
+  </Collapser>
+
+  <Collapser id="connection-refused" title="Errores de conexión rechazada">
+    Si ve `connection refused` en los registros del recopilador:
+
+    **Verifique que RabbitMQ esté escuchando en el puerto 15672:**
+
+    ```bash
+    sudo netstat -tlnp | grep 15672
+    ```
+
+    Debería ver RabbitMQ escuchando. De lo contrario, el plugin de administración no está habilitado o no se está vinculando al puerto esperado.
+
+    **Verificar las reglas del firewall:**
+
+    ```bash
+    sudo iptables -L -n | grep 15672
+    ```
+
+    Asegúrese de que ninguna regla de firewall esté bloqueando el puerto 15672.
+
+    **Verifique la configuración del endpoint:**\
+    Asegúrese de que el `endpoint` en `/etc/nrdot-collector/rabbitmq-config.yaml` coincida con su configuración de RabbitMQ (nombre de host, puerto).
+  </Collapser>
+
+  <Collapser id="auth-failures" title="Fallas de autenticación (401 No autorizado)">
+    Si ve errores `401 Unauthorized`:
+
+    **Verifique las credenciales:**\
+    Compruebe que el nombre de usuario y la contraseña en `/etc/nrdot-collector/rabbitmq-config.yaml` coincidan con su usuario de RabbitMQ.
+
+    **Asegúrese de tener privilegios de administrador:**
+
+    ```bash
+    sudo rabbitmqctl list_users
+    ```
+
+    Su usuario debe tener la etiqueta `[administrator]`. De lo contrario, otorgue privilegios de administrador:
+
+    ```bash
+    sudo rabbitmqctl set_user_tags your-username administrator
+    ```
+  </Collapser>
+
+  <Collapser id="high-memory" title="Alto uso de memoria o CPU">
+    Si el colector consume recursos excesivos:
+
+    **Reduzca el tamaño del lote:**\
+    En el procesador `batch`, reduzca `send_batch_size` de 512 a 256 o menos.
+
+    **Aumentar el intervalo de recolección:**\
+    Cambie `collection_interval` de 30s a 60s o más para realizar scraping con menos frecuencia.
+
+    **Deshabilite las métricas innecesarias:**\
+    Comente las métricas que no necesite en la configuración del receptor `rabbitmq`.
+
+    Ejemplo:
+
+    ```yaml
+    receivers:
+      rabbitmq:
+        collection_interval: 60s  # Increased
+        metrics:
+          rabbitmq.queue.message.count:
+            enabled: true
+          # Disable less critical metrics
+          # rabbitmq.queue.count:
+          #   enabled: false
+    ```
+  </Collapser>
+
+  <Collapser id="log-permissions" title="Permiso denegado para los registros">
+    Si observa errores de permisos al recopilar registros:
+
+    **Probar el acceso a archivos:**
+
+    ```bash
+    sudo -u nrdot-collector cat /var/log/rabbitmq/rabbit@$(hostname).log
+    ```
+
+    Si esto falla, el usuario del recopilador no puede leer los archivos de registro.
+
+    **Verifique los permisos del archivo:**
+
+    ```bash
+    ls -la /var/log/rabbitmq/
+    ```
+
+    **Corrija los permisos:**\
+    Agregue el usuario collector al grupo rabbitmq:
+
+    ```bash
+    sudo usermod -a -G rabbitmq nrdot-collector
+    sudo systemctl restart nrdot-collector.service
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Próximos pasos [#next-steps]
+
+Ahora que tiene configurado el monitoreo de RabbitMQ, puede mejorar su observabilidad:
+
+**Explore sus datos:**
+
+* [Busca y consulta tus datos](/docs/opentelemetry/integrations/rabbitmq/find-and-query-data) - Navega por la interfaz de usuario de New Relic y escribe consultas NRQL
+* [Explorar métricas de RabbitMQ](/docs/opentelemetry/integrations/rabbitmq/metrics-reference) - Referencia completa de métricas con recomendaciones de alertas
+
+**Mejorar el monitoreo:**
+
+* [Crear alertas](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-alerts) - Configura alertas para la profundidad de las colas y la acumulación de mensajes
+* [Crear paneles](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) - Cree paneles personalizados para visualizar sus métricas de RabbitMQ

@@ -1,0 +1,622 @@
+---
+title: Instalar la integración de Docker OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Docker
+metaDescription: Install OpenTelemetry Collector on Linux hosts to monitor self-hosted Docker containers with comprehensive metrics and logging.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Monitoree sus contenedores Docker instalando un OpenTelemetry Collector directamente en hosts Linux. Esta guía proporciona instrucciones completas de configuración para recopilar métricas de contenedores y la recolección opcional de logs utilizando el New Relic NRDOT Collector (recomendado) o el OpenTelemetry Collector Contrib.
+
+## Antes de que empieces [#prerequisites]
+
+* Una [cuenta de New Relic](https://newrelic.com/signup) con un<InlinePopover type="licenseKey" />
+
+* Docker Engine (versión de API 1.25+) instalado y en ejecución
+
+* Acceso al socket de Docker (típicamente `/var/run/docker.sock`)
+
+* Uno de los siguientes recopiladores instalados en un host Linux:
+
+  * [NRDOT Collector](https://github.com/newrelic/nrdot-collector-releases) (recomendado: distribución de OpenTelemetry de New Relic), o
+  * [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) (opción alternativa)
+
+* Acceso a la red desde el host de Linux a:
+
+  * Socket de Docker Engine
+  * Uno de los endpoints de [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+* Para la recopilación de logs: Permisos de lectura para el directorio `/var/lib/docker/containers/` (típicamente requiere root o membresía en el grupo docker)
+
+### Verifique su configuración
+
+<CollapserGroup>
+  <Collapser id="check-docker-version" title="Verificar la versión de Docker y la API">
+    ```bash
+    docker version --format '{{.Client.APIVersion}}'
+    ```
+
+    Salida esperada: `1.25` o superior
+  </Collapser>
+
+  <Collapser id="test-docker-socket" title="Probar el acceso al socket de Docker">
+    ```bash
+    docker info
+    ```
+
+    Salida esperada: información del sistema Docker (confirma el acceso al socket)
+  </Collapser>
+
+  <Collapser id="test-network-connectivity" title="Probar la conectividad de red">
+    ```bash
+    # For US region
+    curl -I https://otlp.nr-data.net
+
+    # For EU region
+    curl -I https://otlp.eu01.nr-data.net
+    ```
+
+    Salida esperada: respuesta HTTP/2 200
+  </Collapser>
+</CollapserGroup>
+
+## Pasos de integración [#integration-steps]
+
+Siga estos pasos para configurar el monitoreo de contenedores Docker con OpenTelemetry. Seleccione su tipo de colector a continuación:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot">
+      Colector NRDOT
+    </TabsBarItem>
+
+    <TabsBarItem id="otelcol">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot">
+      <Steps>
+        <Step>
+          ### Instalar NRDOT Collector [#nrdot-install]
+
+          El NRDOT Collector es la distribución de OpenTelemetry de New Relic con configuraciones predefinidas optimizadas para New Relic.
+
+          <Callout variant="tip">
+            Si ya tiene instalado NRDOT Collector, puede pasar al [Paso 2](#nrdot-configure) para configurarlo para el monitoreo de Docker.
+          </Callout>
+
+          **Instalación DEB (Debian/Ubuntu):**
+
+          ```bash
+          # Example version - check releases for latest: https://github.com/newrelic/nrdot-collector-releases/releases
+          export collector_version="1.10.0"
+          export collector_arch="amd64"  # or arm64
+
+          curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${collector_version}/nrdot-collector_${collector_version}_linux_${collector_arch}.deb" -o collector.deb
+          sudo dpkg -i collector.deb
+
+          # Disable auto-start until configuration is complete
+          sudo systemctl disable nrdot-collector
+          sudo systemctl stop nrdot-collector
+          ```
+
+          **Instalación de RPM (RHEL/CentOS/Fedora):**
+
+          ```bash
+          # Example version - check releases for latest: https://github.com/newrelic/nrdot-collector-releases/releases
+          export collector_version="1.10.0"
+          export collector_arch="x86_64"  # or arm64
+
+          curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${collector_version}/nrdot-collector_${collector_version}_linux_${collector_arch}.rpm" -o collector.rpm
+          sudo rpm -i collector.rpm
+
+          # Disable auto-start until configuration is complete
+          sudo systemctl disable nrdot-collector
+          sudo systemctl stop nrdot-collector
+          ```
+
+          **Otras distribuciones de Linux**: Para instalaciones de archivo u otros métodos, consulta la [guía de instalación de NRDOT](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#installation).
+
+          **Verificar la instalación:**
+
+          ```bash
+          nrdot-collector --version
+          ```
+
+          Salida esperada: Información de la versión
+        </Step>
+
+        <Step>
+          ### Configure el colector para el monitoreo de Docker [#nrdot-configure]
+
+          Para NRDOT Collector, cree un archivo de configuración de monitoreo de Docker independiente que reemplace la configuración predeterminada.
+
+          <Callout variant="important">
+            **Monitoreo independiente vs. combinado**: Esta configuración monitorea únicamente contenedores Docker. Si también necesita métricas de host (CPU, memoria, disco) o logs del sistema, use la [configuración predeterminada](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/config.yaml) del NRDOT Collector, que incluye los receptores `hostmetrics` y `filelog`, y agregue el receptor `docker_stats`.
+          </Callout>
+
+          Cree `/etc/nrdot-collector/docker-stats-config.yaml` con el siguiente contenido:
+
+          ```yaml
+
+          receivers:
+            # Docker Stats Receiver - collects container metrics
+            docker_stats:
+              endpoint: unix:///var/run/docker.sock
+              collection_interval: 15s
+              timeout: 5s
+              api_version: "1.25"
+              # Most metrics required for New Relic UI are enabled by default:
+              # CPU: container.cpu.usage.total, container.cpu.utilization
+              # Memory: container.memory.usage.total, container.memory.percent
+              # Network: container.network.io.usage.tx_bytes, container.network.io.usage.rx_bytes
+              #          container.network.io.usage.tx_dropped, container.network.io.usage.rx_dropped
+              # Storage: container.blockio.io_service_bytes_recursive
+              #
+              # The following metrics need to be explicitly enabled:
+              metrics:
+                # Required for New Relic UI
+                container.pids.count:
+                  enabled: true
+                # Additional network error metrics
+                container.network.io.usage.tx_errors:
+                  enabled: true
+                container.network.io.usage.rx_errors:
+                  enabled: true
+
+          processors:
+            # Batch processor optimizes data transmission
+            batch:
+              timeout: 10s
+              send_batch_size: 1024
+
+            # Transform processor - removes descriptions and units
+            transform:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+          exporters:
+            otlp_http:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT:-https://otlp.nr-data.net}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+              compression: gzip
+
+          service:
+            pipelines:
+              metrics/docker:
+                receivers: [docker_stats]
+                processors: [transform, batch]
+                exporters: [otlp_http]
+
+          ```
+        </Step>
+
+        <Step>
+          ### Configurar los permisos del socket de Docker [#nrdot-permissions]
+
+          El colector necesita acceso al socket de Docker para recopilar métricas de contenedores. Otorgue al usuario del recopilador acceso al grupo de Docker.
+
+          ```bash
+          # Add nrdot-collector user to docker group
+          sudo usermod -aG docker nrdot-collector
+
+          # Verify the user was added
+          groups nrdot-collector
+
+          # Restart Docker to apply group changes
+          sudo systemctl restart docker
+
+          # Test Docker socket access
+          sudo -u nrdot-collector docker ps
+          ```
+
+          Si el comando de prueba se ejecuta correctamente y muestra sus contenedores, los permisos están configurados correctamente.
+        </Step>
+
+        <Step>
+          ### Opcional - Configurar la recopilación de logs [#nrdot-logs]
+
+          También puede recopilar logs de sus contenedores Docker usando el [creador de receptores](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) de OpenTelemetry con la extensión de [observador de Docker](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/observer/dockerobserver).
+
+          <Callout variant="important">
+            **Requisitos para la recolección de logs:**
+
+            * El proceso del recopilador debe tener permisos de lectura en el directorio `/var/lib/docker/containers/`. Por lo general, esto requiere ejecutar el colector como root o agregar el usuario del colector al grupo docker.
+            * Los puertos del contenedor deben estar expuestos para que el creador del receptor descubra y extraiga logs de los contenedores.
+          </Callout>
+
+          Agregue la configuración de recolección de logs a su docker-stats-config.yaml existente.
+
+          ```yaml
+          extensions:
+            # Docker observer - discovers running containers
+            docker_observer:
+              endpoint: unix:///var/run/docker.sock
+              use_hostname_if_present: true
+
+          receivers:
+            # Your existing dockerstats receiver...
+
+            # Receiver creator - dynamically creates filelog receivers for discovered containers
+            receiver_creator:
+              watch_observers: [docker_observer]
+              receivers:
+                filelog:
+                  rule: type == "container"
+                  config:
+                    include:
+                      - /var/lib/docker/containers/`container_id`/`container_id`-json.log
+                    poll_interval: 200ms
+                    start_at: end
+                    include_file_name: false
+                    include_file_path: false
+                    operators:
+                      - id: container-parser
+                        type: container
+                        format: docker
+                        add_metadata_from_filepath: false
+
+          processors:
+            # Your existing processors...
+
+            # Add entity type attribute for logs (required for New Relic entity correlation)
+            attributes/logs:
+              actions:
+                - key: nr.entity_type
+                  value: CONTAINER
+                  action: upsert
+
+          service:
+            extensions: [docker_observer]
+            pipelines:
+            # Your existing metrics pipeline...
+
+              logs:
+                receivers: [receiver_creator]
+                processors: [attributes/logs, batch]
+                exporters: [otlp_http]
+          ```
+        </Step>
+
+        <Step>
+          ### Configurar la autenticación e iniciar el colector [#nrdot-start]
+
+          Configure la autenticación agregando su punto final de New Relic <InlinePopover type="licenseKey" />y OTLP al servicio del recopilador.
+
+          **Variables de entorno del Colector NRDOT:**
+
+          | Variable                      | Descripción                                  | Por defecto                          | Requerido |
+          | ----------------------------- | -------------------------------------------- | ------------------------------------ | --------- |
+          | `NEW_RELIC_LICENSE_KEY`       | Tu clave de licencia de ingesta de New Relic | Ninguno                              | Sí        |
+          | `OTEL_EXPORTER_OTLP_ENDPOINT` | Endpoint OTLP de New Relic para su región    | `https://otlp.nr-data.net` (EE. UU.) | No        |
+
+          **Configuración del endpoint:**
+
+          * **Región de EE. UU.**: `https://otlp.nr-data.net` (predeterminado)
+          * **Región de la UE**: `https://otlp.eu01.nr-data.net`
+
+          Para más opciones de endpoint, consulta la [documentación de OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+
+          **Configure el servicio systemd:**
+
+          Ahora configurará el servicio NRDOT Collector para utilizar su configuración de monitoreo de Docker y las credenciales de autenticación. Esto implica crear una anulación de systemd para especificar el archivo de configuración personalizado y las variables de entorno.
+
+          1. Crea un directorio de anulación de systemd:
+
+             ```bash
+             sudo mkdir -p /etc/systemd/system/nrdot-collector.service.d
+             ```
+
+          2. Cree una configuración de anulación para utilizar la configuración de estadísticas de Docker. Reemplaza `YOUR_LICENSE_KEY` por tu clave de licencia de New Relic y `YOUR_OTLP_ENDPOINT` por el endpoint adecuado para tu región:
+
+             ```bash
+             cat <<EOF | sudo tee /etc/systemd/system/nrdot-collector.service.d/override.conf
+             [Service]
+             Environment="NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+             Environment="OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT"
+             ExecStart=
+             ExecStart=/usr/bin/nrdot-collector --config=/etc/nrdot-collector/docker-stats-config.yaml
+             EOF
+             ```
+
+          3. Recargue systemd, habilite e inicie el colector:
+
+             ```bash
+             sudo systemctl daemon-reload
+             sudo systemctl enable nrdot-collector
+             sudo systemctl start nrdot-collector
+
+             # Verify the collector is running
+             sudo systemctl status nrdot-collector
+
+             # Check logs for any errors
+             journalctl -u nrdot-collector -f
+             ```
+
+          <Callout variant="tip">
+            La línea `ExecStart=` vacía borra el comando predeterminado antes de establecer el nuevo. Esto garantiza que el colector utilice únicamente la configuración de estadísticas de Docker en lugar de la configuración predeterminada.
+          </Callout>
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol">
+      <Steps>
+        <Step>
+          ### Instalar OpenTelemetry Collector Contrib [#otelcol-install]
+
+          Descargue e instale el OpenTelemetry Collector Contrib siguiendo la [guía de instalación oficial](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest).
+
+          <Callout variant="tip">
+            Si ya tiene instalado OpenTelemetry Collector Contrib, puede pasar al [Paso 2](#otelcol-configure) para configurarlo para el monitoreo de Docker.
+          </Callout>
+
+          **Verificar la instalación:**
+
+          ```bash
+          otelcol-contrib --version
+          ```
+
+          Salida esperada: Información de la versión (mínimo v0.88.0 recomendado)
+        </Step>
+
+        <Step>
+          ### Configure el colector para el monitoreo de Docker [#otelcol-configure]
+
+          Para OpenTelemetry Collector Contrib, fusione los receptores, procesadores, exportadores y pipelines de servicio en su archivo de configuración (generalmente `/etc/otelcol-contrib/config.yaml`).
+
+          ```yaml
+          receivers:
+            # Docker Stats Receiver - collects container metrics
+            docker_stats:
+              endpoint: unix:///var/run/docker.sock
+              collection_interval: 15s
+              timeout: 5s
+              api_version: "1.25"
+              # Most metrics required for New Relic UI are enabled by default:
+              # CPU: container.cpu.usage.total, container.cpu.utilization
+              # Memory: container.memory.usage.total, container.memory.percent
+              # Network: container.network.io.usage.tx_bytes, container.network.io.usage.rx_bytes
+              #          container.network.io.usage.tx_dropped, container.network.io.usage.rx_dropped
+              # Storage: container.blockio.io_service_bytes_recursive
+              #
+              # The following metrics need to be explicitly enabled:
+              metrics:
+                # Required for New Relic UI
+                container.pids.count:
+                  enabled: true
+                # Additional network error metrics
+                container.network.io.usage.tx_errors:
+                  enabled: true
+                container.network.io.usage.rx_errors:
+                  enabled: true
+
+          processors:
+            # Resource detection - adds host metadata
+            resourcedetection:
+              detectors: [system, docker]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+            # Batch processor - optimizes data transmission
+            batch:
+              timeout: 30s
+              send_batch_size: 512
+            # Transform processor - removes descriptions and units
+            transform:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+          expor
+          exporters:
+            # New Relic OTLP Exporter
+            otlp_http/newrelic:
+              endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEWRELIC_LICENSE_KEY}
+              compression: gzip
+              timeout: 30s
+              retry_on_failure:
+                enabled: true
+                initial_interval: 5s
+                max_interval: 30s
+                max_elapsed_time: 300s
+
+          service:
+            pipelines:
+              metrics:
+                receivers: [docker_stats]
+                processors: [resourcedetection, transform, batch]
+                exporters: [otlp_http/newrelic]
+          ```
+
+          Guarde el archivo y asegúrese de que el usuario del sistema `otelcol-contrib` pueda leerlo.
+        </Step>
+
+        <Step>
+          ### Configurar los permisos del socket de Docker [#otelcol-permissions]
+
+          El colector necesita acceso al socket de Docker para recopilar métricas de contenedores. Otorgue al usuario del recopilador acceso al grupo de Docker.
+
+          ```bash
+          # Add otelcol-contrib user to docker group
+          sudo usermod -aG docker otelcol-contrib
+
+          # Verify the user was added
+          groups otelcol-contrib
+
+          # Restart Docker to apply group changes
+          sudo systemctl restart docker
+
+          # Test Docker socket access
+          sudo -u otelcol-contrib docker ps
+          ```
+
+          Si el comando de prueba se ejecuta correctamente y muestra sus contenedores, los permisos están configurados correctamente.
+        </Step>
+
+        <Step>
+          ### Opcional - Configurar la recopilación de logs [#otelcol-logs]
+
+          También puede recopilar logs de sus contenedores Docker usando el [creador de receptores](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) de OpenTelemetry con la extensión de [observador de Docker](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/observer/dockerobserver).
+
+          <Callout variant="important">
+            **Requisitos para la recolección de logs:**
+
+            * El proceso del recopilador debe tener permisos de lectura en el directorio `/var/lib/docker/containers/`. Por lo general, esto requiere ejecutar el colector como root o agregar el usuario del colector al grupo docker.
+            * Los puertos del contenedor deben estar expuestos para que el creador del receptor descubra y extraiga logs de los contenedores.
+          </Callout>
+
+          Fusione la siguiente configuración con su archivo de configuración existente en `/etc/otelcol-contrib/config.yaml`.
+
+          ```yaml
+          extensions:
+            # Docker observer - discovers running containers
+            docker_observer:
+              endpoint: unix:///var/run/docker.sock
+              use_hostname_if_present: true
+
+          receivers:
+            # Your existing dockerstats receiver...
+
+            # Receiver creator - dynamically creates filelog receivers for discovered containers
+            receiver_creator:
+              watch_observers: [docker_observer]
+              receivers:
+                filelog:
+                  rule: type == "container"
+                  config:
+                    include:
+                      - /var/lib/docker/containers/`container_id`/`container_id`-json.log
+                    poll_interval: 200ms
+                    start_at: end
+                    include_file_name: false
+                    include_file_path: false
+                    operators:
+                      - id: container-parser
+                        type: container
+                        format: docker
+                        add_metadata_from_filepath: false
+
+          processors:
+            # Your existing processors...
+
+            # Add entity type attribute for logs (required for New Relic entity correlation)
+            attributes/logs:
+              actions:
+                - key: nr.entity_type
+                  value: CONTAINER
+                  action: upsert
+
+          service:
+            extensions: [docker_observer]
+            pipelines:
+            # Your existing metrics pipeline...
+
+              logs:
+                receivers: [receiver_creator]
+                processors: [attributes/logs]
+                exporters: [otlp_http/newrelic]
+          ```
+        </Step>
+
+        <Step>
+          ### Configurar la autenticación e iniciar el colector [#otelcol-start]
+
+          Configure la autenticación agregando su punto final de New Relic <InlinePopover type="licenseKey" />y OTLP al servicio del recopilador.
+
+          **Variables de entorno de OpenTelemetry Collector Contrib:**
+
+          | Variable                 | Descripción                                  | Requerido |
+          | ------------------------ | -------------------------------------------- | --------- |
+          | `NEWRELIC_LICENSE_KEY`   | Tu clave de licencia de ingesta de New Relic | Sí        |
+          | `NEWRELIC_OTLP_ENDPOINT` | Endpoint OTLP de New Relic para su región    | Sí        |
+
+          **Configuración del endpoint:**
+
+          * **Región de EE. UU.**: `https://otlp.nr-data.net:4318`
+          * **Región de la UE**: `https://otlp.eu01.nr-data.net:4318`
+
+          Para más opciones de endpoint, consulta la [documentación de OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+
+          **Configure el servicio systemd:**
+
+          Ahora configurará el servicio OpenTelemetry Collector Contrib con sus credenciales de autenticación. Esto implica configurar variables de entorno para su clave de licencia de New Relic y el endpoint OTLP.
+
+          1. Crea un directorio de anulación de systemd:
+
+             ```bash
+             sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+             ```
+
+          2. Cree `environment.conf` con su configuración. Reemplace `YOUR_LICENSE_KEY` con su clave de licencia de New Relic y `YOUR_OTLP_ENDPOINT` con el endpoint adecuado para su región:
+
+             ```bash
+             cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+             [Service]
+             Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+             Environment="NEWRELIC_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT"
+             EOF
+             ```
+
+          3. Recargue systemd y reinicie el recopilador:
+
+             ```bash
+             sudo systemctl daemon-reload
+             sudo systemctl restart otelcol-contrib
+
+             # Verify the collector is running
+             sudo systemctl status otelcol-contrib
+
+             # Check logs for any errors
+             journalctl -u otelcol-contrib -f
+             ```
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Ver tus datos en New Relic [#view-data]
+
+Una vez que se complete la integración y el recopilador esté en ejecución, debería empezar a ver datos en New Relic en unos pocos minutos:
+
+1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; All entities**</DNT>.
+2. Busque su host de Docker por nombre de host o nombre de contenedor.
+3. Haga clic en su entidad para ver las métricas y los detalles del contenedor Docker.
+4. Explore la página **Summary** para ver las métricas de rendimiento, el uso de recursos y la salud de los contenedores.
+
+Las métricas de contenedores Docker se adjuntan al [tipo de evento](/docs/data-apis/understand-data/new-relic-data-types/) `Metric`. Puede [consultar estos datos](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) para la resolución de problemas o para crear gráficos y dashboards personalizados.
+
+## Resolución de problemas [#troubleshooting]
+
+Si tiene problemas durante la configuración, consulte la [guía de solución de problemas de monitoreo de Docker](/docs/opentelemetry/integrations/docker-monitoring/troubleshooting) para obtener pasos de diagnóstico detallados y soluciones a problemas comunes, incluyendo:
+
+* Problemas de inicio y configuración del colector
+* Métricas faltantes o problemas de conectividad de datos
+* Errores de permiso denegado
+* Optimización del rendimiento
+* Solución de problemas de recopilación de logs
+
+## Próximos pasos [#next-steps]
+
+Ahora que tiene configurado el monitoreo de contenedores Docker, puede mejorar su pila de observabilidad:
+
+* **Crea dashboards personalizados**: Construye [dashboards personalizados](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) usando NRQL para analizar patrones de rendimiento de contenedores
+* **Configura alertas**: Crea un monitoreo proactivo con [condiciones de alerta](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) para métricas críticas de contenedores
+* **Explora las métricas**: Consulta la [referencia completa de métricas de Docker](/docs/opentelemetry/integrations/docker-monitoring/metrics-reference) para obtener descripciones detalladas de las métricas y recomendaciones de alertas
+* **Fundamentos de OpenTelemetry**: Profundice su comprensión con [OpenTelemetry en New Relic](/docs/opentelemetry/opentelemetry-introduction/)
+* Explore ejemplos adicionales de configuración de Docker OpenTelemetry en el [repositorio de ejemplos de New Relic OpenTelemetry](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/docker)

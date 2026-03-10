@@ -2,7 +2,7 @@
 title: 'Office 365 connectors for Microsoft Teams End-of-life'
 summary: 'Microsoft is retiring Office 365 connectors within Microsoft Teams '
 releaseDate: '2025-01-23'
-learnMoreLink: 'https://forum.newrelic.com/s/hubtopic/aAXPh0000008Rz7OAE/upcoming-endoflife-microsoft-teams-connectors-integration'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAXPh0000008Rz7OAE/upcoming-endoflife-microsoft-teams-connectors-integration'
 ---
 
 Microsoft has announced the [retirement of the Office 365 connectors feature for Microsoft Teams](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/). This change could impact the New Relic accounts that use these connectors for outbound notifications. The transition to a new URL structure is required as part of [Microsoft's service hardening updates](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/). 

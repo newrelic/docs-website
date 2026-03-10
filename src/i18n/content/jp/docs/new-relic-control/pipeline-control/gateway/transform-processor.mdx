@@ -1,0 +1,466 @@
+---
+title: 変換プロセッサ
+metaDescription: 'Use the transform processor to modify, enrich, and parse telemetry data using OTTL (OpenTelemetry Transformation Language).'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+変換プロセッサは、OTTL (OpenTelemetry Transformation Language) を使用してテレメトリーデータを変更、強化、または解析します。 これを使用して、データがネットワークから送信される前に、コンテキストを追加したり、スキーマを正規化したり、非構造化データを解析したり、機密情報を難読化したりすることができます。
+
+## 変換プロセッサを使用する場合
+
+次の場合に変換プロセッサを使用します。
+
+* **組織のメタデータでテレメトリーを強化する**: 環境、地域、チーム、またはコストセンターのタグを追加します。
+* **非構造化ログメッセージを解析する**: 正規表現、Grokパターン、またはJSON解析を使用して構造化属性を抽出します。
+* **属性名と値のスキーマを正規化する**: サービスまたはエージェント間で異なる命名規則を標準化します (`level` → `severity.text` 、 `env` → `environment`)
+* **機密データをハッシュ化または編集**: PII、認証情報、その他の機密情報がネットワークから送信される前に削除します
+* **文字列から値を抽出する**: HTTP ステータス コード、期間、またはその他のデータをログメッセージから取得します。
+* **メトリクスの集計またはスケール**: メトリクス値を変更するか、複数のメトリクスを結合します。
+
+## OTTLコンテキスト
+
+OTTL は、テレメトリの種類に応じて異なるコンテキストで動作します。
+
+* **ログ**: `log` context - アクセスログの本文、プロパティ、重大度
+* **トレース**: `trace`コンテキスト - アクセス スパン属性、期間、ステータス
+* **メトリクス**: `metric`および`datapoint`コンテキスト - メトリクスの名前、値、プロパティにアクセスします
+
+## 構成
+
+パイプラインに変換プロセッサを追加します。
+
+```yaml
+transform/Logs:
+  description: Transform and process logs
+  config:
+    log_statements:
+      - context: log
+        name: add new field to attribute
+        description: for otlp-test-service application add otlp source type field
+        conditions:
+          - resource.attributes["service.name"] == "otlp-java-test-service"
+        statements:
+          - set(resource.attributes["source.type"],"otlp")
+```
+
+**設定フィールド**:
+
+* `log_statements`: ログ変換用の OTTL ステートメントの配列 (コンテキスト: ログ)
+* `metric_statements`: メトリクス変換の OTTL ステートメントの配列 (コンテキスト: メトリクス)
+* `trace_statements`: トレース変換用の OTTL ステートメントの配列 (コンテキスト: トレース)
+
+/\* - \`conditions\`: 文が評価されるかどうかを決定するブールOTTL条件の配列 \*/
+
+## 主なOTTL機能
+
+### セット（）
+
+属性値を設定します。
+
+```yaml
+- set(attributes["environment"], "production")
+- set(attributes["team"], "platform")
+- set(severity.text, "ERROR") where severity.number >= 17
+```
+
+### 削除キー()
+
+属性を削除します。
+
+```yaml
+- delete_key(attributes, "internal_debug_info")
+- delete_key(attributes, "temp_field")
+```
+
+### パターンを置き換えます()
+
+正規表現パターンに一致するテキストを置き換えます。
+
+```yaml
+  # Redact email addresses
+- replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
+
+  # Mask passwords
+- replace_pattern(attributes["password"], ".+", "password=***REDACTED***")
+
+  # Obfuscate all non-whitespace (extreme)
+- replace_pattern(body, "[^\\s]*(\\s?)", "****")
+```
+
+### ハッシュ（）
+
+仮名化のために値をハッシュします。
+
+```yaml
+- set(attributes["user_id_hash"], Hash(attributes["user_id"]))
+- delete_key(attributes, "user_id")
+```
+
+### JSON を解析する()
+
+JSON 文字列から属性を抽出します。
+
+```yaml
+  # Parse JSON body into attributes
+- merge_maps(attributes, ParseJSON(body), "upsert") where IsString(body)
+```
+
+### 抽出Grokパターン()
+
+Grok パターンを使用して構造化データを解析します。
+
+```yaml
+  # Parse JSON log format
+- ExtractGrokPatterns(body, "\\{\"timestamp\":\\s*\"%{TIMESTAMP_ISO8601:extracted_timestamp}\",\\s*\"level\":\\s*\"%{WORD:extracted_level}\",\\s*\"message\":\\s*\"Elapsed time:\\s*%{NUMBER:elapsed_time}ms\"\\}")
+
+  # Parse custom format with custom pattern
+- ExtractGrokPatterns(attributes["custom_field"], "%{USERNAME:user.name}:%{PASSWORD:user.password}", true, ["PASSWORD=%{GREEDYDATA}"])
+```
+
+### フラット化()
+
+ネストされたマップ属性をフラット化します。
+
+```yaml
+  # Flatten nested map to top-level attributes
+- flatten(attributes["map.attribute"])
+```
+
+### 制限()
+
+指定された優先キーを維持しながら、属性の数を制限します。
+
+```yaml
+  # Keep only 3 attributes, prioritizing "array.attribute"
+- limit(attributes, 3, ["array.attribute"])
+```
+
+## 完全な例
+
+### 例1: 環境メタデータを追加する
+
+```yaml
+transform/Logs:
+  description: "Enrich logs with environment context"
+  config:
+    log_statements:
+      - context: log
+        name: enrich-with-environment-metadata
+        description: Add environment, region, team, and cost center metadata to all logs
+        statements:
+          - set(attributes["environment"], "production")
+          - set(attributes["region"], "us-east-1")
+          - set(attributes["team"], "platform-engineering")
+          - set(attributes["cost_center"], "eng-infra")
+```
+
+### 例2: 重大度レベルを正規化する
+
+サービスごとに異なる重大度規則が使用されます。標準化します。
+
+```yaml
+transform/Logs:
+  description: "Normalize severity naming"
+  config:
+    log_statements:
+      - context: log
+        name: convert-level-to-severity
+        description: Convert custom level attribute to severity_text
+        conditions:
+          - attributes["level"] != nil
+        statements:
+          - set(severity_text, attributes["level"])
+      
+      - context: log
+        name: delete-level-attribute
+        description: Remove the redundant level attribute after conversion
+        statements:
+          - delete_key(attributes, "level")
+      
+      - context: log
+        name: normalize-error-case
+        description: Normalize error severity to uppercase ERROR
+        conditions:
+          - severity_text == "error"
+        statements:
+          - set(severity_text, "ERROR")
+      
+      - context: log
+        name: normalize-warning-case
+        description: Normalize warning severity to uppercase WARN
+        conditions:
+          - severity_text == "warning"
+        statements:
+          - set(severity_text, "WARN")
+      
+      - context: log
+        name: normalize-info-case
+        description: Normalize info severity to uppercase INFO
+        conditions:
+          - severity_text == "info"
+        statements:
+          - set(severity_text, "INFO")
+```
+
+### 例 3: JSON ログ本文を解析する
+
+JSON 形式のログメッセージから構造化プロパティを抽出します:
+
+```yaml
+transform/Logs:
+  description: "Parse JSON logs into attributes"
+  config:
+    log_statements:
+      - context: log
+        name: parse-json-body-to-attributes
+        description: Parse JSON log body and merge into attributes
+        conditions:
+          - IsString(body)
+        statements:
+          - merge_maps(attributes, ParseJSON(body), "upsert")
+```
+
+**Before**: `body = '{"timestamp": "2025-03-01T12:12:14Z", "level":"INFO", "message":"Elapsed time: 10ms"}'`
+
+**後**: 抽出された属性: `timestamp` 、 `level` 、 `message`
+
+### 例4: HTTPステータスコードを抽出する
+
+ログメッセージからステータス コードを取得します。
+
+```yaml
+transform/Logs:
+  description: "Extract HTTP status from message"
+  config:
+    log_statements:
+      - context: log
+        name: extract-http-status-code
+        description: Extract HTTP status code from log body using regex pattern
+        statements:
+          - ExtractPatterns(body, "status=(\\d+)")
+          - set(attributes["http.status_code"], body)
+```
+
+### 例5: 個人情報の編集
+
+データがネットワークから出る前に機密情報を削除します。
+
+```yaml
+transform/Logs:
+  description: "Redact PII for compliance"
+  config:
+    log_statements:
+      - context: log
+        name: redact-email-addresses
+        description: Redact email addresses from user_email attribute
+        conditions:
+          - attributes["user_email"] != nil
+        statements:
+          - replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
+      
+      - context: log
+        name: mask-passwords
+        description: Mask password attribute values
+        conditions:
+          - attributes["password"] != nil
+        statements:
+          - replace_pattern(attributes["password"], ".+", "***REDACTED***")
+      
+      - context: log
+        name: hash-user-ids
+        description: Hash user IDs and remove original value
+        conditions:
+          - attributes["user_id"] != nil
+        statements:
+          - set(attributes["user_id_hash"], SHA256(attributes["user_id"]))
+          - delete_key(attributes, "user_id")
+      
+      - context: log
+        name: mask-credit-cards-in-body
+        description: Mask credit card numbers in log body
+        statements:
+          - replace_pattern(body, "\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}", "****-****-****-****")
+```
+
+### 例6: NGINXアクセスログを解析する
+
+NGINX 結合ログ形式から構造化フィールドを抽出します。
+
+```yaml
+transform/Logs:
+  description: "Parse and enrich NGINX access logs"
+  config:
+    log_statements:
+      - context: log
+        name: extract-nginx-fields
+        description: Parse NGINX access log format into structured attributes
+        statements:
+          - ExtractGrokPatterns(body, "%{IPORHOST:client.ip} - %{USER:client.user} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:http.method} %{URIPATHPARAM:http.path} HTTP/%{NUMBER:http.version}\" %{NUMBER:http.status_code} %{NUMBER:http.response_size}")
+      
+      - context: log
+        name: set-severity-for-server-errors
+        description: Set severity to ERROR for 5xx server errors
+        conditions:
+          - attributes["http.status_code"] >= "500"
+        statements:
+          - set(severity_text, "ERROR")
+      
+      - context: log
+        name: set-severity-for-client-errors
+        description: Set severity to WARN for 4xx client errors
+        conditions:
+          - attributes["http.status_code"] >= "400"
+          - attributes["http.status_code"] < "500"
+        statements:
+          - set(severity_text, "WARN")
+      
+      - context: log
+        name: set-severity-for-success
+        description: Set severity to INFO for successful requests
+        conditions:
+          - attributes["http.status_code"] >= "200"
+          - attributes["http.status_code"] < "400"
+        statements:
+          - set(severity_text, "INFO")
+```
+
+### 例7: ネストされた属性をフラット化する
+
+ネストされた構造をフラットな属性に変換します。
+
+```yaml
+transform/Logs:
+  description: "Flatten nested map attributes"
+  config:
+    log_statements:
+      - context: log
+        name: flatten-kubernetes-attributes
+        description: Flatten nested kubernetes attributes into dot notation
+        conditions:
+          - attributes["kubernetes"] != nil
+        statements:
+          - flatten(attributes["kubernetes"])
+      
+      - context: log
+        name: flatten-cloud-provider-attributes
+        description: Flatten nested cloud provider attributes into dot notation
+        conditions:
+          - attributes["cloud.provider"] != nil
+        statements:
+          - flatten(attributes["cloud.provider"])
+```
+
+**Before**: `attributes["kubernetes"] = {"pod": {"name": "my-app-123", "uid": "abc-xyz"},"namespace": {"name": "production"}}`
+
+**後**: 属性がフラット化されました: `kubernetes.pod.name` 、 `kubernetes.pod.uid` 、 `kubernetes.namespace.name`
+
+### 例8: 条件付き変換
+
+条件が満たされた場合にのみ変換を適用します。
+
+```yaml
+transform/Logs:
+  description: "Conditional enrichment"
+  config:
+    log_statements:
+      - context: log
+        name: tag-critical-services
+        description: Add business criticality tag for checkout and payment services
+        conditions:
+          - resource.attributes["service.name"] == "checkout" or resource.attributes["service.name"] == "payment"
+        statements:
+          - set(attributes["business_criticality"], "HIGH")
+      
+      - context: log
+        name: normalize-production-environment
+        description: Normalize production environment names to standard format
+        conditions:
+          - attributes["env"] == "prod" or attributes["environment"] == "prd"
+        statements:
+          - set(attributes["deployment.environment"], "production")
+      
+      - context: log
+        name: normalize-staging-environment
+        description: Normalize staging environment names to standard format
+        conditions:
+          - attributes["env"] == "stg" or attributes["environment"] == "stage"
+        statements:
+          - set(attributes["deployment.environment"], "staging")
+      
+      - context: log
+        name: cleanup-legacy-env-fields
+        description: Remove old environment attribute fields after normalization
+        statements:
+          - delete_key(attributes, "env")
+          - delete_key(attributes, "environment")
+```
+
+### 例9: データ型の変換
+
+属性を異なるタイプに変換します。
+
+```yaml
+transform/Logs:
+  description: "Convert data types"
+  config:
+    log_statements:
+      - context: log
+        name: convert-error-flag-to-boolean
+        description: Convert string error_flag to boolean is_error attribute
+        conditions:
+          - attributes["error_flag"] != nil
+        statements:
+          - set(attributes["is_error"], Bool(attributes["error_flag"]))
+      
+      - context: log
+        name: set-success-boolean
+        description: Set success attribute to boolean true
+        statements:
+          - set(attributes["success"], Bool("true"))
+      
+      - context: log
+        name: convert-retry-count-to-int
+        description: Convert retry_count_string to integer retry_count
+        conditions:
+          - attributes["retry_count_string"] != nil
+        statements:
+          - set(attributes["retry_count"], Int(attributes["retry_count_string"]))
+```
+
+### 例10: カーディナリティの制限
+
+コストを管理するために属性のカーディナリティを減らします。
+
+```yaml
+transform/Logs:
+  description: "Limit high-cardinality attributes"
+  config:
+    log_statements:
+      - context: log
+        name: limit-attribute-cardinality
+        description: Keep only the 5 most important attributes
+        statements:
+          - limit(attributes, 5, ["service.name", "environment", "severity_text"])
+      
+      - context: log
+        name: generalize-user-api-paths
+        description: Replace user ID in path with wildcard to reduce cardinality
+        conditions:
+          - IsMatch(attributes["http.path"], "/api/users/\\d+")
+        statements:
+          - set(attributes["http.path"], "/api/users/*")
+```
+
+## OTTL関数リファレンス
+
+OTTL 関数、演算子、構文の完全なリストについては、以下を参照してください。
+
+* [OTTL関数リファレンス](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md)
+* [変換プロセッサのドキュメント](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+
+## 次のステップ
+
+* 不要なデータを削除する[フィルタープロセッサ](/docs/new-relic-control/pipeline-control/gateway/filter-processor)について学ぶ
+* 音量を下げるには[サンプリングプロセッサ](/docs/new-relic-control/pipeline-control/gateway/sampling-processor)を参照してください
+* 完全な構文については、 [YAML 設定リファレンス](/docs/new-relic-control/pipeline-control/gateway/yaml-overview)を参照してください。

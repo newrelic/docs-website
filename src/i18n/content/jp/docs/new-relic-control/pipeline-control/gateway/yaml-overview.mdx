@@ -1,0 +1,244 @@
+---
+title: ゲートウェイ YAML 設定リファレンス
+metaDescription: YAML configuration syntax reference for creating custom Pipeline Control Gateway configurations.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このリファレンスでは、上級ユーザーがカスタム ゲートウェイ設定を作成するための YAML 構文について説明します。 概念情報については、 [「ゲートウェイの概要」](/docs/new-relic-control/pipeline-control/gateway/overview)を参照してください。ガイド付きのエクスペリエンスの場合は、 [Gateway UI を](/docs/new-relic-control/pipeline-control/gateway/ui-guide)使用します。ゲートウェイUIはほとんどのユーザーに推奨されますが、YAML 設定はテレメトリー パイプライン構造を完全に制御できます。
+
+## 完全なYAML構造
+
+ゲートウェイ設定では宣言型 YAML 形式を使用します。
+
+```yaml
+version: 2.0.0
+autoscaling:
+  minReplicas: 6
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+configuration:
+  simplified/v1:
+    troubleshooting:
+      proxy: false
+      requestTraceLogs: false
+    steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          log_statements:
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+      nrexporter/newrelic:
+        description: Export to New Relic
+```
+
+### トップレベルの構造
+
+* `version`: 設定形式のバージョン (現在`"2.0.0"`)
+* `autoscaling`: ゲートウェイレプリカスケーリング設定
+* `configuration.simplified/v1`: テレメトリーパイプラインを定義するための簡素化された抽象化レイヤー
+* `troubleshooting`: デバッグ設定
+
+## 設定階層
+
+ゲートウェイ設定は、各ステップがその動作を定義し、出力フィールドを使用してパイプラインの次のステップを指す有向非巡回グラフ (DAG) 構造に従います。 これにより、明示的なデータ フローが作成されます。データはレシーバーを介して入力され、プロセッサ (変換、フィルター、サンプリング) を介して流れ、エクスポーターを介して出力されます。
+
+### ステップの命名規則
+
+* 受信者: `receivelogs` 、 `receivemetrics` 、 `receivetraces`
+
+* プロセッサ: `processortype/TelemetryType`形式:
+
+  * 変換: `transform/Logs` 、 `transform/Metrics` 、 `transform/Traces`
+  * フィルター: `filter/Logs` 、 `filter/Metrics` 、 `filter/Traces`
+  * サンプリング: `probabilistic_sampler/Logs` 、 `probabilistic_sampler/Traces`
+
+* 輸出業者: `nrexporter`
+
+### プロセッサーの設定
+
+Gateway は、テレメトリー データの変換、フィルタリング、サンプリングのために 3 つの主要なプロセッサ タイプをサポートしています。
+
+#### 変換プロセッサ
+
+OTTL (OpenTelemetry Transformation Language) を使用してテレメトリーを変更、拡充、または解析するために使用されます。
+
+設定フィールド:
+
+* metric\_statements: メトリクス変換の配列 (コンテキスト: メトリクス)
+* log\_statements: ログ変換の配列 (コンテキスト: ログ)
+* trace\_statements: トレース変換の配列 (コンテキスト: span)
+
+#### フィルタープロセッサ
+
+ブール式に基づいてテレメトリー レコードを削除するために使用されます。
+
+設定フィールド:
+
+* ログ: ログ フィルタリング用の OTTL ブール式の配列
+* スパン: メトリクス/トレース フィルタリング用の OTTL ブール式の配列
+
+#### サンプリングプロセッサ
+
+確率的サンプリング ロジックを実装するために使用されます。
+
+設定フィールド:
+
+* global\_sampling\_percentage: デフォルトのサンプリングレート（0～100）
+
+* conditionalSamplingRules: 条件付きルールの配列
+
+  * 名前: ルール識別子
+  * 説明: 人間が読める説明
+  * サンプリング率: 一致したデータのサンプリング率 (0-100)
+  * source\_of\_randomness: ランダム性に使用するフィールド (通常はトレース.id)
+  * 条件: 属性一致式
+
+## フィールド参照
+
+### トップレベルフィールド
+
+| フィールド                        | タイプ   | 必須  | デフォルト |
+| ---------------------------- | ----- | --- | ----- |
+| version                      | ストリング | はい  | -     |
+| 自動スケーリング.minReplicas         | 整数    | いいえ | 6     |
+| 自動スケーリング.maxReplicas         | 整数    | いいえ | 10    |
+| 自動スケーリング.targetCPU使用率        | 整数    | いいえ | 60    |
+| 構成.simplified/v1             | 物体    | はい  | -     |
+| トラブルシューティング.プロキシ             | ブール値  | いいえ | false |
+| トラブルシューティング.requestTraceLogs | ブール値  | いいえ | false |
+
+### ステップフィールド
+
+| フィールド       | タイプ   | 必須   | 説明                        |
+| ----------- | ----- | ---- | ------------------------- |
+| description | ストリング | 推奨   | 人間が読める説明                  |
+| コンフィグ       | 物体    | 条件付き | 加工業者の場合は必須、受取人/輸出業者の場合は省略 |
+| 出力          | アレイ   | はい   | 次のステップ名（エクスポーターの場合は空の\[]） |
+
+## フィールドの命名規則
+
+* 例の大文字と小文字を正確に使用してください (YAML は大文字と小文字を区別します)。
+
+各ステップの出力配列は次のステップを指定します。
+
+## 検証とデプロイメント
+
+1. YAML リンターを使用して構文を検証します。
+2. まずは本番環境以外の環境へのデプロイ。
+3. テレメトリーがNew Relicに正しく到達することを確認します。
+4. ゲートウェイUIを通じて設定をアップロードします。
+
+## 追加リソース
+
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor)
