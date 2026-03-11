@@ -1,0 +1,287 @@
+---
+title: Install Synthetics for Dual Stack using Kubernetes
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: 'Install and configure New Relic Synthetics for Dual Stack environments using Kubernetes to support both IPv4 and IPv6 testing.'
+freshnessValidatedDate: never
+---
+
+This guide covers the configuration and deployment of the New Relic Synthetics job manager to support Dual Stack (IPv4 and IPv6) networking in your Kubernetes environment.
+
+## Prerequisites [#prerequisites]
+
+Before you begin, ensure you have:
+
+* <DNT>**Kubernetes cluster**</DNT>: A running Kubernetes cluster (version 1.20 or higher recommended) with Dual Stack support enabled
+* <DNT>**Helm**</DNT>: Helm 3.x installed on your machine
+* <DNT>**kubectl**</DNT>: kubectl installed and configured to communicate with your cluster
+* <DNT>**Docker**</DNT>: Docker installed and running with Dual Stack support (if using Minikube or similar local clusters)
+* <DNT>**Permissions**</DNT>: Cluster admin permissions to create namespaces and deploy resources
+* <DNT>**Private location key**</DNT>: Your New Relic private location key from the UI
+* <DNT>**Custom images**</DNT>: Dual Stack-enabled runtime images for synthetics job manager:
+  * Job manager image
+  * Ping runtime image
+  * Node API runtime image
+  * Node browser runtime image
+
+## Validate your infrastructure [#validate-infrastructure]
+
+Before proceeding, verify that your Kubernetes cluster and underlying infrastructure support Dual Stack networking.
+
+1. Test IPv6 connectivity from your host:
+
+   ```bash
+   ping -6 ipv6.google.com
+   ```
+
+2. Verify Kubernetes cluster Dual Stack support:
+
+   ```bash
+   kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+   ```
+
+   This should return both IPv4 and IPv6 addresses if your cluster is Dual Stack-enabled.
+
+3. Check Docker Dual Stack configuration (if applicable):
+
+   ```bash
+   docker network inspect bridge | grep IPv6
+   ```
+
+<Callout variant="important">
+  If validation fails, ensure your network infrastructure, VPC, subnets, and security groups are configured to allow both IPv4 and IPv6 traffic. Your Kubernetes cluster must be configured with Dual Stack support before continuing.
+</Callout>
+
+## Configure Docker for Dual Stack [#configure-docker]
+
+If your Kubernetes cluster runs on Docker (such as Minikube, kind, or Docker Desktop), ensure Docker is configured for Dual Stack support.
+
+1. Edit the Docker daemon configuration file:
+
+   ```bash
+   sudo vi /etc/docker/daemon.json
+   ```
+
+2. Add or update the file with the following configuration:
+
+   ```json
+   {
+     "ipv6": true,
+     "fixed-cidr-v6": "fd00:db8:1::/64",
+     "experimental": true,
+     "ip6tables": true
+   }
+   ```
+
+3. Restart Docker to apply the changes:
+
+   ```bash
+   sudo systemctl restart docker
+   ```
+
+## Prepare custom runtime images [#prepare-images]
+
+Load your Dual Stack-enabled runtime images into your cluster. The method depends on your Kubernetes setup.
+
+### For Minikube [#minikube-images]
+
+1. Tag your images:
+
+   ```bash
+   docker tag <job-manager-image>:<source-tag> <job-manager-image>:<your-tag>
+   docker tag <ping-runtime-image>:<source-tag> <ping-runtime-image>:<your-tag>
+   docker tag <node-api-runtime-image>:<source-tag> <node-api-runtime-image>:<your-tag>
+   docker tag <node-browser-runtime-image>:<source-tag> <node-browser-runtime-image>:<your-tag>
+   ```
+
+2. Load images into Minikube:
+
+   ```bash
+   minikube image load <job-manager-image>:<your-tag>
+   minikube image load <ping-runtime-image>:<your-tag>
+   minikube image load <node-api-runtime-image>:<your-tag>
+   minikube image load <node-browser-runtime-image>:<your-tag>
+   ```
+
+### For other Kubernetes clusters [#other-k8s-images]
+
+Push your images to a container registry accessible by your cluster:
+
+```bash
+docker tag <job-manager-image>:<source-tag> <your-registry>/<job-manager-image>:<your-tag>
+docker push <your-registry>/<job-manager-image>:<your-tag>
+```
+
+Repeat for all runtime images.
+
+## Install with Helm [#install-helm]
+
+Deploy the Synthetics job manager using the New Relic Helm chart.
+
+1. Add the New Relic Helm repository:
+
+   ```bash
+   helm repo add newrelic https://helm-charts.newrelic.com
+   helm repo update
+   ```
+
+2. Create a `values.yaml` file to configure Dual Stack support:
+
+   ```yaml
+   # Use your custom Dual Stack-enabled images
+   image:
+     repository: <your-job-manager-image>
+     tag: <your-tag>
+     pullPolicy: IfNotPresent
+
+   # Critical for Dual Stack connectivity
+   hostNetwork: true
+   dnsPolicy: ClusterFirstWithHostNet
+
+   # Configure custom runtimes
+   synthetics:
+     privateLocationKey: YOUR_PRIVATE_LOCATION_KEY
+     vsePassphrase: YOUR_VSE_PASSPHRASE
+
+   # Specify custom runtime images
+   node-api-runtime:
+     image:
+       repository: <your-node-api-runtime-image>
+       tag: <your-tag>
+       pullPolicy: IfNotPresent
+
+   node-browser-runtime:
+     image:
+       repository: <your-node-browser-runtime-image>
+       tag: <your-tag>
+       pullPolicy: IfNotPresent
+
+   synthetics-ping-runtime:
+     image:
+       repository: <your-ping-runtime-image>
+       tag: <your-tag>
+       pullPolicy: IfNotPresent
+   ```
+
+<Callout variant="important">
+  The `hostNetwork: true` and `dnsPolicy: ClusterFirstWithHostNet` settings are essential for Dual Stack connectivity. Without these, pods cannot access IPv6 addresses.
+</Callout>
+
+3. Install the Synthetics job manager:
+
+   ```bash
+   helm install YOUR_JOB_MANAGER_NAME newrelic/synthetics-job-manager \
+     -n YOUR_NAMESPACE \
+     --create-namespace \
+     -f values.yaml
+   ```
+
+   Replace:
+   - `YOUR_JOB_MANAGER_NAME` with a name for your deployment
+   - `YOUR_NAMESPACE` with your desired Kubernetes namespace
+   - `YOUR_PRIVATE_LOCATION_KEY` in `values.yaml` with your actual private location key
+   - `YOUR_VSE_PASSPHRASE` with your verified script execution passphrase (optional)
+
+4. Confirm the pods are up and running:
+
+   ```bash
+   kubectl get -n YOUR_NAMESPACE pods
+   ```
+
+## Configure runtime networking [#configure-networking]
+
+Ensure all runtime deployments and CronJobs have the required networking configuration for Dual Stack support.
+
+1. Verify and patch runtime deployments if needed:
+
+   ```bash
+   kubectl patch deployment <deployment-name> -n YOUR_NAMESPACE \
+     -p '{"spec":{"template":{"spec":{"hostNetwork":true,"dnsPolicy":"ClusterFirstWithHostNet"}}}}'
+   ```
+
+2. For CronJobs (API and browser runtimes), verify the configuration includes:
+
+   ```yaml
+   spec:
+     jobTemplate:
+       spec:
+         template:
+           spec:
+             hostNetwork: true
+             dnsPolicy: ClusterFirstWithHostNet
+   ```
+
+   Edit CronJobs if needed:
+
+   ```bash
+   kubectl edit cronjob <cronjob-name> -n YOUR_NAMESPACE
+   ```
+
+<Callout variant="tip">
+  You can list all CronJobs in your namespace with: `kubectl get cronjobs -n YOUR_NAMESPACE`
+</Callout>
+
+## Verify installation [#verify-installation]
+
+Confirm that your Synthetics job manager can access both IPv4 and IPv6 resources.
+
+1. Check pod status:
+
+   ```bash
+   kubectl get pods -n YOUR_NAMESPACE
+   ```
+
+   All pods should show a `Running` status.
+
+2. View job manager logs:
+
+   ```bash
+   kubectl logs -n YOUR_NAMESPACE <job-manager-pod-name>
+   ```
+
+3. Test Dual Stack connectivity from within a pod:
+
+   ```bash
+   # Test IPv6
+   kubectl exec -n YOUR_NAMESPACE <pod-name> -- curl -6 -v http://ipv6.google.com
+
+   # Test IPv4
+   kubectl exec -n YOUR_NAMESPACE <pod-name> -- curl -4 -v http://google.com
+   ```
+
+   If both curl commands succeed, your Dual Stack configuration is working correctly.
+
+4. Verify the private location status in the New Relic UI by going to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Synthetic monitoring > Private locations**</DNT>. Your private location should show as healthy.
+
+## Troubleshooting [#troubleshooting]
+
+If you encounter issues with your Dual Stack configuration:
+
+* **Pods cannot reach IPv6 addresses**:
+  - Verify that `hostNetwork: true` is set on all runtime deployments and CronJobs
+  - Check if your Kubernetes cluster has Dual Stack support enabled
+  - Ensure security groups and network policies allow both IPv4 and IPv6 traffic
+
+* **Images not found**:
+  - Verify images are loaded correctly using `kubectl describe pod <pod-name> -n YOUR_NAMESPACE`
+  - Check image pull policies and registry access
+
+* **DNS resolution issues**:
+  - Verify `dnsPolicy: ClusterFirstWithHostNet` is set alongside `hostNetwork: true`
+  - Check that cluster DNS is configured for Dual Stack
+
+* **Job manager not connecting**:
+  - Verify your private location key is correct
+  - Check job manager logs for connection errors: `kubectl logs -n YOUR_NAMESPACE <job-manager-pod-name>`
+
+For additional troubleshooting guidance, see [Troubleshoot private locations](/docs/synthetics/synthetic-monitoring/private-locations/troubleshoot-private-locations).
+
+## What's next? [#whats-next]
+
+After setting up your Dual Stack-enabled private location with Kubernetes, you can:
+
+* [Create synthetic monitors](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors) that test both IPv4 and IPv6 endpoints using your private location
+* [Configure job manager settings](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration) for advanced options
+* [Monitor your private location](/docs/synthetics/synthetic-monitoring/private-locations/monitor-private-locations) health and performance
