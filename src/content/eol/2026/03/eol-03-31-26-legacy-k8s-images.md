@@ -9,7 +9,7 @@ In February 2020, New Relic replaced some individual Kubernetes container images
 
 At the same time, the older images were deprecated, along with a deletion notice on Docker Hub:
 
-> "This image is now deprecated and will be removed in January 2024. Alternatively, use the New Relic Infrastructure Bundle image [...]"
+![Screenshot of Docker Hub deprecation notice for legacy Kubernetes images](/images/eol_k8.webp "Docker Hub deprecation notice")
 
 **Note:** The images were left for an additional 2 years more, to give customers time to migrate.
 
