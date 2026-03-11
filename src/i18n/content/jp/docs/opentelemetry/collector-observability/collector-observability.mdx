@@ -38,7 +38,7 @@ translationType: machine
 #### 設定ファイルをダウンロードする
 
 ```bash
-curl -L https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml \
+curl 'https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/heads/main/examples/internal-telemetry-config.yaml' \
   --silent --output internal-telemetry-config.yaml
 ```
 
@@ -91,6 +91,24 @@ docker run \
 
 デフォルトの設定では、詳細レベルやサンプリングなどの一般的なオプションを微調整するための形式`INTERNAL_TELEMETRY_...`の追加の環境変数が公開されます。 詳細については[設定自体](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml)を参照してください。
 
+コレクターを監視するにはデフォルトの設定を使用することをお勧めします。 ただし、サンプリングやデータ収集レートを下げるなど、ニーズに合わせて設定例を変更することができます。 詳細については、[公式ドキュメント](https://opentelemetry.io/docs/collector/internal-telemetry/)を参照してください。設定を変更すると、 UIの特定の部分にデータが表示されない場合があることに注意してください。 [制限事項](#limitations)も参照してください。コレクターの内部テレメトリー設定オプションは、OTel コミュニティの進化に応じて変化します。 提供されているデフォルトを使用するかどうかを含め、設定を完全に制御できます。
+
+#### オーバーヘッドの考慮
+
+すべてのテレメトリーと同様、コレクターの内部テレメトリーによりデータの取り込みが増加します。 オーバーヘッドはワークロードと設定によって異なります。 考慮すべき重要な要素は次のとおりです。
+
+**メトリクスは**、スループットに関係なく、コレクターとすべてのアクティブなコンポーネントに対して一定のオーバーヘッドを作成します。メトリクスは一定の間隔 (デフォルトでは 60 秒) で放射されます。 それぞれの[メタデータ.yaml](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/filterprocessor/metadata.yaml#L20)で示されているように、どのコンポーネントでもカスタムメトリックを発行できます。 これによりオーバーヘッドが増加する可能性があります。
+
+**ログ**通常の操作中は影響は最小限です。エラー ログが急増するとオーバーヘッドが大きくなる可能性がありますが、ログはデフォルトでサンプリングされるため、オーバーヘッドは軽減されます。サンプリング アルゴリズムでは、定義された間隔ごとに一定数のログが許可され、その後、静的なレートでサンプリングが行われます。[service::テレメトリー::ログ::sampling](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml)を参照してください。
+
+**トレースは**デフォルトで無効になっています。理由:
+
+* トレースの成熟度は限られています。 すべてのコンポーネントがインストゥルメント化されているわけではありません。この[github issue を](https://github.com/open-telemetry/opentelemetry-collector/issues/8804)参照してください。
+* 上流エージェントやコレクターからのワークロードやバッチ設定によって異なる、予測できないオーバーヘッド。
+* 適応サンプリング アルゴリズムは使用できません。このため、特定のユースケースで予期しないコストが発生するリスクがない、普遍的なサンプリング推奨事項を提供することは不可能になります。
+
+トレースがさらに成熟すると、コレクターがコンポーネント レベルでのデータ処理にどれだけの時間を費やしたかについて貴重なインサイトを提供するようになるでしょう。 トレースの作成中に実験するには、 <DNT>`INTERNAL_TELEMETRY_TRACE_LEVEL=info`</DNT>を設定し、 <DNT>`INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO=0.001`</DNT> (0.1%) などの低いサンプリング レートから開始して、取り込みボリュームを監視し、必要に応じて調整します。
+
 ## UIでコレクターを表示する [#view-ui]
 
 ### APM UIで内部テレメトリーを探索する [#explore-ui]
@@ -133,72 +151,26 @@ HTTP/RPC ページとのネットワーク通信を監視します。
 
 <img title="Screenshot showing new HTTP/RPC Page" alt="Screenshot showing new HTTP/RPC Page" src="/images/otel_collector_o11y-httprpc.webp" />
 
-注: これらのチャートは、コレクターが HTTP または gRPC 経由で通信するコンポーネント (OTLP レシーバーやエクスポーターなど) を使用している場合にのみ表示されます。
+注: これらのチャートは、コレクターが HTTP または gRPC 経由で通信するコンポーネント (OTLP レシーバーやエクスポーターなど) を使用し、 <DNT>`INTERNAL_TELEMETRY_METRICS_LEVEL=detailed`</DNT>必要とする場合にのみ表示されます。
 
 ## 設定例 [#examples]
 
-詳細な設定例とカスタマイズ オプションについては、NRDOT Collectorリリースのリポジトリの[内部テレメトリー設定](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml)を参照してください。
+このセクションには、上記のステップバイステップ ガイドをコレクターが関与するさまざまなユース ケースにどのように適用するかを示す例が含まれています。
 
-設定では、詳細レベルやサンプリングなどのオプションをカスタマイズするために、 `INTERNAL_TELEMETRY_...`形式の環境変数が公開されます。
+### 内部テレメトリーを有効にしたシンプルなコレクター
 
-### デプロイメントの例 [#deployment-examples]
+docker compose を使用して実行されるコレクターの[最小限の例](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry)。
 
-実際のデプロイメント シナリオについては、次の設定例を参照してください。
+### インフラストラクチャ関係を設定する（オプション、実験的）
 
-* **[Kubernetesデプロイメント](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector)**: 内部テレメトリーを有効にしてKubernetesでコレクターを実行する例
-* **[Docker デプロイメント](https://github.com/newrelic/nrdot-collector-releases/tree/main/examples)**: 監視を有効にしたさまざまなコレクター設定の Docker 構成の例
-
-## 課金とデータのオーバーヘッド [#billing-overhead]
-
-Collector 、データ取り込みにカウントされる追加のテレメトリー データを生成します。 データ量を理解することで、コストを計画し、設定を最適化するのに役立ちます。
-
-### 生成されたデータ [#data-generated]
-
-Collectorオブザーバビリティは、次のタイプのテレメトリーを生成します。
-
-* **メトリクス**: コンポーネントレベルのインサイトをレシーバー、プロセッサー、エクスポーターに統合
-* **ログ**: 通常動作時のオーバーヘッドを最小限に抑えたサンプリングされたログ
-* **トレース**: 深いパイプライン解析のためのオプションの実験的サポート
-
-### 予想されるデータ量 [#expected-volume]
-
-生成されるデータの量はコレクターの設定によって異なります。
-
-* **ベースライン メトリクス**: 標準コンポーネント (レシーバー、プロセッサー、エクスポーター) を備えたコレクターは、約**1 ～ 2 KB/分**のメトリクス データを生成します
-* **ログ**: デフォルトのサンプリング (ログ ステートメントの 1%) では、通常の操作中に**0.5 ～ 1 KB/分が**予想されます。 エラーが発生したり冗長度が高かったりすると、この値が大幅に増加する可能性があります
-* **トレース**（オプション）：有効にした場合、パイプラインの複雑さに応じて**5～10 KB/分**が予想されます。
-
-テレメトリーを 24 時間 365 日処理する典型的なコレクターの場合:
-
-* **月間メトリクス取り込み**: -2.5-5 MB
-* **月間ログ取り込み量**: 約1.5～3 MB (通常動作時)
-* **月間トレース取り込み**: -10～20 MB (有効な場合)
-
-### データオーバーヘッドの制御 [#controlling-overhead]
-
-環境変数を使用してテレメトリ生成を調整できます。
-
-* <DNT>**`INTERNAL_TELEMETRY_METRICS_LEVEL`**</DNT>: メトリクスを無効にする場合は`none` 、 `normal` (デフォルト)、または `detailed`
-* <DNT>**`INTERNAL_TELEMETRY_LOGS_LEVEL`**</DNT>: ログの量を減らすには、 `info` （デフォルト）、 `warn` 、または`error`に設定します
-* <DNT>**`INTERNAL_TELEMETRY_LOGS_SAMPLING`**</DNT>: サンプリングレートを調整します（デフォルト: 1%）
-* <DNT>**`INTERNAL_TELEMETRY_TRACES_ENABLED`**</DNT>: トレースを無効にするには`false`に設定します (デフォルトでは無効)
-
-設定の詳細については、上記の[設定のカスタマイズの](#customize)セクションを参照してください。
+上に示したように、 APMコレクターが実行されているインフラストラクチャのインフラストラクチャ メトリクスを表示できますが、それはインフラストラクチャがインストゥルメントされ、 [関係](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#related-entities)を形成できる場合に限られます。 この関係は、コレクターの内部テレメトリーの追加プロパティによって駆動されます。 このトピックの詳細については、 [OTel ドキュメント](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/#service-to-infra-otel-collector)をご覧ください。これを設定する手順は、実際のインフラストラクチャによって大きく異なります。Kubernetes の一般的な選択については、[例](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry-k8s-container-relationships)を作成しました。これは、[Kubernetes 向け OTel ソリューション](https://docs.newrelic.com/docs/kubernetes-pixie/k8s-otel/intro/)に基づいてコンテナーとサービスの関係を実現する方法を紹介します。
 
 ## 制限 [#limitations]
 
-* **特定の一般的な APM 機能は、**コレクターとそのストリーム処理の性質にシームレスに変換されないため、概要ページとサイド ナビゲーションから非表示になっています。一般提供に向けてそれぞれを検討し、それらを最適に統合できるかどうか、またどのように統合できるかを判断します。例:
-
-  * Apdexスコア
-  * 意味のある`apm.%`メトリクス
-  * エラーレート
-  * トランザクション
-
 * **Collectorテレメトリーはまだ安定していません**:
 
-  * コレクター コンポーネントによって生成されるテレメトリーのサポートされている最新バージョンは、NRDOT ディストリビューションのコンポーネント バージョンです ([マニフェスト](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/manifest.yaml)を参照してください)。
+  * 内部テレメトリーのサポートされているバージョンは、NRDOT の構築に使用する[コア コレクター バージョン](https://github.com/open-telemetry/opentelemetry-collector)によって暗黙的に定義されます。nrdot- [コレクターのマニフェスト](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/manifest.yaml)にある otlpreceiver のバージョンを参照してください。
   * パブリック プレビュー中に送信されるテレメトリが変更された場合、当社は最新バージョンのみをサポートする権利を留保します。 たとえば、 <DNT>`http.client.request.duration`</DNT> （コレクターバージョン &gt;=0.128.0、NRDOT バージョン &gt;=1.2.0、nr-k8s-otel-collectors &gt;=0.8.37) ですが、 <DNT>`http.request.duration`</DNT>ではありません。
-  * 一般提供開始に伴い、メトリック名が引き続き変更される場合でも、下位互換性の提供を開始します。
 
 * **エクスポート形式の要件**: コレクターUI 、 <DNT>`otlpexporter`</DNT>によってエクスポートされる形式のテレメトリーを想定しています。 Prometheus 経由でエクスポートされたメトリクスはサポートされていません。 たとえば、 <DNT>`http.client.request.duration`</DNT>はサポートされていますが、 <DNT>`http_client_request_duration`</DNT>はサポートされていません。
 

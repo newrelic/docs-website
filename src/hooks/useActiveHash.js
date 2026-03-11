@@ -33,7 +33,7 @@ const useActiveHash = (ids) => {
 
       if (element && element.id !== activeHashRef.current) {
         setActiveHash(element.id);
-        activeHashRef.current = element.idj;
+        activeHashRef.current = element.id;
       }
     };
 
