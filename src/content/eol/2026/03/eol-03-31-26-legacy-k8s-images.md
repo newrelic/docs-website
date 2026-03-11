@@ -2,7 +2,7 @@
 title: 'Permanent deletion notice: Legacy (pre-2020) Kubernetes images'
 summary: 'Legacy Kubernetes container images deprecated in 2020 will be permanently removed due to security concerns.'
 publishDate: '2026-03-01'
-eolEffectiveDate: '2026-03-31'
+eolEffectiveDate: '2024-01-31'
 ---
 
 In February 2020, New Relic replaced some individual Kubernetes container images for NR On-Host Integrations with one single container image called `newrelic/infrastructure-bundle`.
@@ -21,7 +21,7 @@ To continue monitoring these services and ensure you are using the latest securi
 
 ## Affected images
 
-The following images will be permanently removed on **March 31, 2026**:
+The following images will be permanently removed on **March 12, 2026**:
 
 * `newrelic/k8s-nri-mongodb`
 * `newrelic/k8s-nri-kafka`
@@ -35,7 +35,7 @@ The following images will be permanently removed on **March 31, 2026**:
 
 ## What happens if you don't migrate?
 
-If you are still using any of these legacy images after **March 31, 2026**, your deployments will fail to pull the images, resulting in service monitoring disruptions.
+If you are still using any of these legacy images after **March 12, 2026**, your deployments will fail to pull the images, resulting in service monitoring disruptions.
 
 ## Additional support
 
