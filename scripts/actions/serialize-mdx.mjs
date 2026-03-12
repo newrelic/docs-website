@@ -8,7 +8,6 @@ import remark2rehype from 'remark-rehype10';
 import remarkGfm from 'remark-gfm';
 import addClasses from 'rehype-add-classes';
 import rehypeStringify from 'rehype-stringify10';
-import format from 'rehype-format';
 import customHeadingIds from '../../plugins/gatsby-remark-custom-heading-ids/utils/visitor.js';
 
 const mdxElement = (state, node) => {
@@ -91,7 +90,6 @@ const processor = unified()
     // adds notranslate class to <code> elements
     code: 'notranslate',
   })
-  .use(format)
   .use(rehypeStringify);
 
 const serializeMDX = async (mdx) => {
