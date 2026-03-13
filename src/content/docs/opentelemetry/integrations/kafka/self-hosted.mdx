@@ -256,7 +256,7 @@ rules:
       CollectionUsage.used:
         metric: jvm.memory.pool.used_after_last_gc
         desc: Memory used after last GC (shows retained memory baseline)
-  
+
   - bean: kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec
     mapping:
       Count:
@@ -543,7 +543,8 @@ receivers:
       - topics
       - consumers
     collection_interval: 30s
-    topic_match: ".*"
+    # Exclude internal Kafka topics (prefixed with __) at the source
+    topic_match: "^[^_].*$"
     metrics:
       kafka.topic.min_insync_replicas:
         enabled: true
@@ -593,6 +594,17 @@ processors:
           - delete_matching_keys(attributes, "^telemetry\\..*")
           - delete_key(attributes, "host.arch")
           - delete_key(attributes, "os.description")
+          - delete_key(attributes, "host.image.id")
+          - delete_key(attributes, "host.type")
+          - delete_matching_keys(attributes, "^cloud\\..*")
+          - delete_key(attributes, "service.instance.id") where IsMatch(attributes["service.name"], "^unknown_service:")
+          - delete_key(attributes, "service.name") where IsMatch(attributes["service.name"], "^unknown_service:")
+
+  # Filter internal Kafka topics as a safety net (kafkametrics topic_match handles the receiver side)
+  filter/internal_topics:
+    metrics:
+      datapoint:
+        - 'attributes["topic"] != nil and IsMatch(attributes["topic"], "^__.*")'
 
   filter/include_cluster_metrics:
     metrics:
@@ -636,7 +648,7 @@ processors:
           - action: aggregate_labels
             label_set: [topic]
             aggregation_type: sum
-      
+
       - include: kafka.partition.replicas
         action: insert
         new_name: kafka.partition.replicas.total
@@ -665,13 +677,43 @@ service:
     # Broker metrics pipeline (excludes cluster-level metrics)
     metrics/broker:
       receivers: [otlp, kafkametrics]
-      processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
+      processors:
+        - resourcedetection
+        - resource
+        - filter/exclude_cluster_metrics
+        - filter/internal_topics
+        - transform/remove_extra_attributes
+        - transform/des_units
+        - cumulativetodelta
+        - metricstransform/kafka_topic_sum_aggregation
+        - filter/remove_partition_level_replicas
+        - batch/aggregation
       exporters: [otlp/newrelic]
 
     # Cluster metrics pipeline (only cluster-level metrics, no broker.id)
     metrics/cluster:
       receivers: [otlp]
-      processors: [resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, batch/aggregation]
+      processors:
+        - resourcedetection
+        - resource
+        - filter/include_cluster_metrics
+        - transform/remove_broker_id
+        - transform/remove_extra_attributes
+        - transform/des_units
+        - cumulativetodelta
+        - batch/aggregation
+      exporters: [otlp/newrelic]
+
+    # APM traces pipeline (producer + consumer spans via OTel Java Agent)
+    traces/apps:
+      receivers: [otlp]
+      processors: [resourcedetection, resource, batch/aggregation]
+      exporters: [otlp/newrelic]
+
+    # APM logs pipeline (producer + consumer logs via OTel Java Agent)
+    logs/apps:
+      receivers: [otlp]
+      processors: [resourcedetection, resource, batch/aggregation]
       exporters: [otlp/newrelic]
 ```
 
@@ -718,7 +760,7 @@ Replace:
 * `YOUR_LICENSE_KEY` with your New Relic license key
 * `my-kafka-cluster` with a unique name for your Kafka cluster
 * `localhost:9092` with your Kafka bootstrap broker address(es). For multiple brokers, use comma-separated list: `broker1:9092,broker2:9092,broker3:9092`
-* OTLP endpoint: Uses `https://otlp.nr-data.net:4317` (US region) or `https://otlp.eu01.nr-data.net:4317` (EU region). 
+* OTLP endpoint: Uses `https://otlp.nr-data.net:4317` (US region) or `https://otlp.eu01.nr-data.net:4317` (EU region).
 For other endpoint configurations, see [Configure your OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
 
 </Step>
@@ -854,7 +896,7 @@ Replace:
 
 <Callout variant="tip">
   The configuration above sends telemetry to an OpenTelemetry Collector running on localhost:4317.
-  
+
   <CollapserGroup>
     <Collapser
       id="app-collector-config"
@@ -920,7 +962,7 @@ To collect Kafka broker logs and send them to New Relic, configure the filelog r
     ```yaml
     receivers:
       # ... existing receivers (otlp, kafkametrics) ...
-      
+
       # File log receiver for Kafka broker logs
       filelog/kafka_broker_1:
         include:
@@ -938,7 +980,7 @@ To collect Kafka broker logs and send them to New Relic, configure the filelog r
     service:
       pipelines:
         # ... existing pipelines (metrics/broker, metrics/cluster) ...
-        
+
         # Logs pipeline for Kafka broker logs
         logs:
           receivers: [filelog/kafka_broker_1]
@@ -1016,14 +1058,14 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     ```bash
     # Check if port 4317 is listening (best indicator collector is running)
     ss -tlnp | grep 4317
-    
+
     # Search for collector process (using bracket trick to exclude grep itself)
     ps aux | grep "[k]afka-config.yaml"
-    
+
     # Or search for common collector names
     ps aux | grep -E "[n]rdot-collector|[o]telcol"
     ```
-    
+
     If no results appear, the collector is not running. Start it following Step 6.
 
     **Check if Java Agent is attached to Kafka brokers**:
@@ -1031,7 +1073,7 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     # Search for Kafka processes with Java agent attached
     ps aux | grep "[o]pentelemetry-javaagent"
     ```
-    
+
     **Note**: This command shows the full Java process with classpath, which can be very long (3+ lines per broker). This is expected. Look for `-javaagent:/path/to/opentelemetry-javaagent.jar` in the output.
 
     **Test port connectivity**:
@@ -1120,7 +1162,7 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     ```bash
     # Look for errors in collector output
     tail -n 100 ~/logs/collector.log | grep -i "error\|fail\|refuse"
-    
+
     # Check for OTLP receiver activity
     tail -n 100 ~/logs/collector.log | grep -i "otlp\|metric"
     ```
@@ -1136,11 +1178,11 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     ```bash
     # Find Kafka log directory (common locations)
     find ~ -name "server.log" -path "*/kafka/logs/*" 2>/dev/null
-    
+
     # Check the log file for OpenTelemetry messages
     # Replace with your actual Kafka log path
     tail -100 ~/kafka/logs/server.log 2>/dev/null | grep -i "otel\|jmx" || echo "Log file not found or no OTel messages"
-    
+
     # Check directory where you started Kafka for nohup.out
     ls -lh nohup.out 2>/dev/null && tail -100 nohup.out | grep -i "otel\|jmx" || echo "No nohup.out file found"
     ```
@@ -1150,7 +1192,7 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     # Check if broker was started with correct Java agent parameters
     ps aux | grep "[o]pentelemetry-javaagent" | grep -o "Dotel\.[^ ]*"
     ```
-    
+
     This should show all `-Dotel.*` parameters. Verify:
     - `-Dotel.jmx.enabled=true`
     - `-Dotel.jmx.config=<path>`
