@@ -20,12 +20,13 @@ const getSitesToBuild = (files) => {
   files.forEach((file) => {
     if (
       file.status === 'added' &&
-      !LOCALES.every((locale) => file.raw_url.includes(`/docs/${locale}/`))
+      !LOCALES.every((locale) => file.raw_url.includes(`/i18n/content/${locale}/`))
     ) {
       LOCALES.forEach((locale) => sites.add(locale));
     } else if (file.status === 'modified' || file.status === 'added') {
       LOCALES.forEach((locale) => {
-        if (file.raw_url.includes(`/docs/${locale}/`)) {
+        // Check for i18n translation files path
+        if (file.raw_url.includes(`/i18n/content/${locale}/`)) {
           sites.add(locale);
         }
       });
