@@ -1,96 +1,86 @@
-name: Final Netlify build manual deploy comment #temp name
+name: Final Netlify build manual deploy comment
 
 on:
   issue_comment:
     types: [created]
+  # This is the new trigger that allows testing from a PR branch
+  pull_request:
+    types: [opened, synchronize]
 
 jobs:
   deploy-preview:
-    # when a contributor comments 'netlify build',
-    # but only on pull requests, not issues.
+    # This 'if' now runs for the 'netlify build' comment OR any 'pull_request' event
     if: |
-      github.event.comment.body == 'netlify build'
-      && github.event.issue.pull_request
+      (github.event.comment.body == 'netlify build' && github.event.issue.pull_request)
+      || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
-      # New step to check if the PR is from a forked repository.
-      # If the PR is from a fork, doesn't run. Only runs for branches in the main repo.
-      - name: Check if PR is from a fork
+      # We use `jq` to parse the GH API response
+      - name: Setup jq
+        uses: dcarbone/install-jq-action@v2
+
+      # This step is new. It gets all the PR info we need from EITHER trigger.
+      - name: Get PR Info
+        id: pr_info
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_URL="${{ github.event.issue.pull_request.url }}"
-          IS_FORK=$(gh api "$PR_URL" --jq '.head.repo.fork')
+          # Get PR API URL from either 'issue_comment' or 'pull_request' event
+          gh_api_url=$(echo ${{ github.event.issue.pull_request.url || github.event.pull_request.url }} | sed 's/https:\/\/api.github.com\///')
+          gh_api_response=$(gh api $gh_api_url)
+          
+          branch_name=$(echo $gh_api_response | jq -r .head.ref)
+          sha=$(echo $gh_api_response | jq -r .head.sha)
+          pr_number=$(echo $gh_api_response | jq -r .number)
+          repo_full_name=$(echo $gh_api_response | jq -r .head.repo.full_name)
+          
+          echo "branch=$branch_name" >> $GITHUB_OUTPUT
+          echo "sha=$sha" >> $GITHUB_OUTPUT
+          echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+          echo "repo_full_name=$repo_full_name" >> $GITHUB_OUTPUT
 
-          if [[ "$IS_FORK" == "true" ]]; then
-            echo "🛑 Halting: This workflow only runs for branches in the main repository, not for forks."
-            exit 1
-          else
-            echo "✅ PR is not from a fork. Proceeding with the job."
-          fi
-
-      - name: Check for member permission
+      # This step only runs if the trigger was a comment, to do the fork and perm checks.
+      - name: Check Permissions (if triggered by comment)
+        if: github.event_name == 'issue_comment'
         env:
-          GH_TOKEN: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
-        id: check_permission
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PERM_CHECK_TOKEN: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+          github-token: ${{ env.PERM_CHECK_TOKEN }}
           script: |
+            // 1. Check for forks
+            const pr_url = "${{ github.event.issue.pull_request.url }}";
+            const pr_response = await github.request(`GET ${pr_url}`);
+            const is_fork = pr_response.data.head.repo.fork;
+
+            if (is_fork) {
+              core.setFailed("🛑 Halting: This workflow only runs for branches in the main repository, not for forks.");
+              return;
+            }
+            console.log("✅ PR is not from a fork.");
+
+            // 2. Check for member permission
             const commenter = context.payload.comment.user.login;
             const org = context.repo.owner;
             const team_slugs = ['doc', 'DOCS-ENG']; // <-- add your team slugs here
-
-            console.log(`Organization: ${org}`);
-            console.log(`Commenter: ${commenter}`);
-
-            try {
-              const user = await github.rest.users.getAuthenticated();
-              console.log('Authenticated as:', user.data.login);
-              
-              const scopes = await github.request('GET /user');
-              console.log('Token scopes:', scopes.headers['x-oauth-scopes']);
-            } catch (error) {
-              console.log('Auth check failed:', error.message);
-            }
-
-            // List all teams where the commenter is a member
-            async function listUserTeams() {
-              try {
-                const teams = await github.paginate(github.rest.teams.listForAuthenticatedUser, {});
-                const userTeams = teams.filter(team => team.organization.login.toLowerCase() === org.toLowerCase());
-                if (userTeams.length === 0) {
-                  console.log(`${commenter} is not a member of any team in org ${org}.`);
-                } else {
-                  console.log(`${commenter} is a member of the following teams in ${org}:`);
-                  userTeams.forEach(team => {
-                    console.log(`- ${team.slug} (${team.name})`);
-                  });
-                }
-              } catch (err) {
-                console.log(`Could not list teams for user ${commenter}: ${err.message}`);
-              }
-            }
-
-            await listUserTeams();
+            
+            console.log(`Checking permissions for ${commenter} in ${org}...`);
 
             async function isMemberOfAnyTeam() {
               for (const team_slug of team_slugs) {
-                console.log(`Checking team_slug: ${team_slug}`);
                 try {
                   const response = await github.rest.teams.getMembershipForUserInOrg({
                     org,
                     team_slug,
                     username: commenter,
                   });
-                  console.log(`API response for team_slug ${team_slug}:`, JSON.stringify(response.data, null, 2));
                   if (response.data.state === 'active') {
-                    console.log(`${commenter} is an active member of the ${team_slug} team.`);
+                    console.log(`✅ ${commenter} is an active member of the ${team_slug} team.`);
                     return true;
                   }
                 } catch (error) {
-                  console.log(`Error object for team_slug ${team_slug}:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
                   if (error.status !== 404) {
                     console.log(`Error checking team_slug ${team_slug}: ${error.message}`);
                     core.setFailed(`Could not verify team membership for ${team_slug}: ${error.message}`);
@@ -103,50 +93,135 @@ jobs:
               return false;
             }
 
-            // Properly await the async function
             const isMember = await isMemberOfAnyTeam();
             if (!isMember) {
               core.setFailed(`${commenter} is not a member of any required team (${team_slugs.join(', ')})`);
             } else {
               console.log(`✅ ${commenter} is authorized to trigger builds`);
             }
-        
-      # we use `jq` to parse the GH API response
-      - name: setup jq
-        uses: dcarbone/install-jq-action@v2
 
-      - name: send request to Netlify build hook
-        id: netlify_build
-        env: 
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh_api_url=$(echo ${{ github.event.issue.pull_request.url || github.event.pull_request.url }} | sed 's/https:\/\/api.github.com//')
-          gh_api_response=$(gh api $gh_api_url)
-          branch_name=$(echo $gh_api_response | jq -r .head.ref)
-          sha=$(echo $gh_api_response | jq -r .head.sha)
-          pr_number=$(echo $gh_api_response | jq -r .number)
-
-          echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
-
-          curl -X POST \
-          "https://api.netlify.com/build_hooks/${{ secrets.NETLIFY_BUILD_HOOK_ID }}?trigger_branch=$branch_name"'&trigger_title=Manual+deploy+preview+for+PR+%23'"$pr_number"'+-+'"$sha"
-
-      # This step gets the branch name and replaces any non-alpha-numeric characters with '-' to match Netlify's URL format and capital letters to small case
-      - name: Sanitize branch name for Netlify URL
-        id: sanitize_branch
-        run: |
-          # Replace all non-alphanumeric characters with '-' and convert to lowercase
-          SANITIZED_BRANCH_NAME=$(echo "${{ steps.netlify_build.outputs.branch_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr 'A-Z' 'a-z')
-          echo "name=$SANITIZED_BRANCH_NAME" >> $GITHUB_OUTPUT
-
-      # This step now posts a comment with the dynamically constructed preview URL.
-      - name: Add PR comment with preview URL
+      # This is your new "pending" comment step, with a log link.
+      - name: Post "Pending" Comment
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
-            ### <span aria-hidden="true">🚀</span> Netlify Preview Building!
+            ### <span aria-hidden="true">⏳</span> Netlify Preview Deployment In Progress
+            
+            Building preview for PR #${{ steps.pr_info.outputs.pr_number }} at commit `${{ steps.pr_info.outputs.sha }}`.
+            This comment will auto-update when the build is complete.
 
-            If the build is successful, the preview for this pull request will be available at the following URL (usually takes 10-20 minutes):
-
-            **[https://${{ steps.sanitize_branch.outputs.name }}--docs-website-netlify.netlify.app](https://${{ steps.sanitize_branch.outputs.name }}--docs-website-netlify.netlify.app)**
+            You can follow the build live [here](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          # This tag is CRUCIAL. It lets the final step find and replace this comment.
           comment_tag: manual-build-comment
+          # THIS IS THE FIX for the pending comment
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # We must check out the actual code from the PR head
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pr_info.outputs.repo_full_name }}
+          ref: ${{ steps.pr_info.outputs.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Set this to the Node.js version your docs site uses
+          node-version: '18' 
+
+      - name: Install Dependencies
+        run: |
+          if [ -f yarn.lock ]; then
+            echo "Detected yarn.lock, using yarn install"
+            yarn install --frozen-lockfile
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "Detected pnpm-lock.yaml, using pnpm install"
+            pnpm install --frozen-lockfile
+          elif [ -f package-lock.json ]; then
+            echo "Detected package-lock.json, using npm ci"
+            npm ci
+          else
+            echo "No lockfile detected, using npm install"
+            npm install
+          fi
+
+      - name: Install Netlify CLI
+        run: npm install -g netlify-cli
+
+      # THIS STEP IS NOW SEPARATED INTO BUILD AND DEPLOY
+      - name: Build and Deploy Preview
+        id: netlify_deploy
+        # This is CRUCIAL! It lets the next step run even if this one fails.
+        continue-on-error: true 
+        env:
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          # Step 1: Run the build. This WILL stream logs.
+          # If this fails, the 'continue-on-error' will catch it, and the
+          # 'Update PR comment' step will report the failure.
+          echo "Running Netlify Build... (logs will stream)"
+          netlify build
+          
+          # Step 2: If build succeeded, deploy the site.
+          # This is fast and can safely use --json.
+          echo "Deploying to Netlify..."
+          deploy_output=$(netlify deploy --json --alias="deploy-preview-${{ steps.pr_info.outputs.pr_number }}" --message="Deploy preview for PR #${{ steps.pr_info.outputs.pr_number }}")
+          
+          # Save the full output for debugging
+          echo "NETLIFY_DEPLOY_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "$deploy_output" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          # Parse the JSON to get the URL
+          deploy_url=$(echo "$deploy_output" | jq -r .deploy_url)
+          
+          # Pass the URL to the next step
+          echo "deploy_url=$deploy_url" >> $GITHUB_OUTPUT
+          
+          # Check if 'deploy_url' is null or empty, which indicates a build failure
+          if [ -z "$deploy_url" ] || [ "$deploy_url" == "null" ]; then
+            echo "Build failed or deploy_url not found!"
+            # This ensures the 'outcome' of this step is 'failure'
+            exit 1
+          fi
+
+      # This final step UPDATES the "pending" comment with the result
+      - name: Update PR comment with Build Status
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          # This tag finds the "pending" comment and replaces it
+          comment_tag: manual-build-comment
+          # THIS IS THE FIX for the final comment
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # This logic posts a different message based on the build step's outcome
+          message: |
+            ${{ steps.netlify_deploy.outcome == 'success' && format('### <span aria-hidden="true">✅</span> Build Succeeded: Preview Ready!
+
+            Your deploy preview for PR #{0} is ready:
+            **Deploy URL: {1}**
+
+            > You can view the full build log for this deployment [here]({2}/{3}/actions/runs/{4}).', steps.pr_info.outputs.pr_number, steps.netlify_deploy.outputs.deploy_url, github.server_url, github.repository, github.run_id) || '' }}
+
+            ${{ steps.netlify_deploy.outcome != 'success' && format('### :rotating_light: **BUILD FAILED** :rotating_light:
+
+            :stop_sign: **DO NOT MERGE THIS PULL REQUEST.** :stop_sign:
+
+            The Netlify preview build failed for PR #{0} (commit `{1}`). Merging this **will** break the `develop` branch and cause downstream build failures.
+
+            **Action Required:**
+            1.  **[Click here to view the full build log]({2}/{3}/actions/runs/{4})**
+            2.  Click the **`deploy-preview`** job on the left.
+            3.  Expand the **`Build and Deploy Preview`** step to see the error.
+            
+            Please review the logs, push a fix, and then trigger a new build by pushing your fix (or commenting `netlify build` if this is merged).
+
+            ---
+            <details>
+            <summary>Raw Error Output (if available)</summary>
+
+            ```
+            {5}
+            ```
+            </details>
+            ', steps.pr_info.outputs.pr_number, steps.pr_info.outputs.sha, github.server_url, github.repository, github.run_id, env.NETLIFY_DEPLOY_OUTPUT) || '' }}
