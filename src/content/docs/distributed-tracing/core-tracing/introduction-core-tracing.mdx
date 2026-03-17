@@ -11,7 +11,7 @@ freshnessValidatedDate: never
 
 Distributed tracing is powerful for understanding your system, but you might face incomplete trace coverage, fragmented service maps, or an all-or-nothing dilemma where you either capture everything or nothing from each service.
 
-APM agents give you precise control over your distributed tracing data. You can instrument all services—including non-business-critical ones—to get a complete picture of your system while managing data volumes effectively. These aren't separate products—they're configuration options you set in your APM agent files.
+Partial granularity distributed traces provide controlled ingestion, allowing you to capture data that really matters in a large distributed system—the spans and attributes that represent entity connections. APM agents give you precise control over your distributed tracing data. You can instrument all services—including non-business-critical ones—to get a complete picture of your system while managing data volumes effectively. These aren't separate products—they're configuration options you set in your APM agent files.
 
 ## Common distributed tracing challenges [#challenges]
 
@@ -37,7 +37,7 @@ This approach lets you instrument entities that aren't business-critical but are
 
 ## Three configuration options [#options]
 
-APM agents provide three sequential configuration levels called **partial granularity** options. Each option includes the previous level's reductions plus additional filtering:
+APM agents provide three sequential configuration levels called **partial granularity distributed traces** options. Each option includes the previous level's reductions plus additional filtering:
 
 ### Reduced granularity: Remove in-process spans
 
@@ -133,57 +133,21 @@ All three options preserve the fundamentals you need for troubleshooting distrib
 
 **Key insight:** You maintain the "what" and "where" of your system behavior while reducing the "how" details.
 
-## When to use these configurations [#when-to-use]
+## When to use partial granularity distributed traces [#when-to-use]
 
-Consider these configurations if you're facing any of these situations:
+Partial granularity distributed traces target customers who:
 
-<CollapserGroup>
-  <Collapser
-    id="fragmented-traces"
-    title="You have gaps in your trace coverage (PRIMARY USE CASE)"
-  >
-    This is the most important problem partial granularity solves: reducing fragmentation by instrumenting all services to get a complete picture of your system. Use essential or reduced granularity on non-business-critical services that aren't currently instrumented. You'll get complete end-to-end traces and service maps without the data volume of full instrumentation everywhere. This fixes broken-looking service maps and incomplete trace paths.
+1. **Have turned distributed tracing off because it is too expensive** - Use essential or compact granularity to re-enable tracing at lower data volumes
 
-    **Recommended approach:** Essential or reduced granularity on previously uninstrumented supporting services
+2. **Have gaps in their service map** due to some traces occurring with a very low probability and limits on number of traces per minute - Increase sampling with partial granularity to fill gaps
 
-    **Result:** Complete service visibility across your entire system, including non-business-critical entities, while managing data volumes effectively
-  </Collapser>
+3. **Only want to capture a complete service map** and don't care about the details of everything that happened within that trace - Use essential or compact granularity
 
-  <Collapser
-    id="large-deployment"
-    title="You have many microservices generating lots of span data"
-  >
-    Use reduced granularity on non-business-critical services with deep call stacks (especially Java and .NET). This dramatically reduces span volume while maintaining service-to-service visibility for the complete picture. Apply this to supporting services where you rarely need internal method detail.
+4. **Want to capture both a complete service map AND still have the ability to deep dive** into a trace to root cause a performance issue - Use hybrid sampling (see [Hybrid sampling strategy](#hybrid-sampling))
 
-    **Recommended approach:** Reduced granularity on high-span-count supporting services
+5. **Want to capture low cost traces until the service encounters an issue** and then start capturing full granularity traces for a short time to debug the issue - Use partial granularity by default (future capability: error-based sampling)
 
-    **Example:** Java services with 10+ spans per request drop to 2-3 spans while maintaining complete connectivity
-  </Collapser>
-
-  <Collapser
-    id="new-customer"
-    title="You're new to distributed tracing and want complete coverage"
-  >
-    Start with essential granularity across all services to get a complete picture of your entire system immediately. You'll see complete traces and service maps for all services, including non-business-critical supporting services. Then upgrade business-critical services to full tracing as needed, or consider a hybrid sampling approach.
-
-    **Recommended approach:** Start with essential granularity everywhere, expand selectively for critical services
-
-    **Benefit:** Complete system visibility from day one while managing data volumes
-  </Collapser>
-
-  <Collapser
-    id="data-volume-optimization"
-    title="You need to optimize data volumes while maintaining visibility"
-  >
-    Prioritize your services and apply different configurations based on business importance. Keep full distributed tracing on business-critical customer-facing transactions, use reduced granularity on important APIs, and essential/compact granularity on non-business-critical supporting services to maintain the complete picture.
-
-    **Recommended approach:** Tiered strategy based on service priority
-
-    **Example:** 20% business-critical services keep full tracing, 30% important services use reduced granularity, 50% supporting services use essential granularity
-
-    **Expected outcome:** Complete system visibility with optimized data volumes customized to your needs
-  </Collapser>
-</CollapserGroup>
+6. **Have gaps in their service map and distributed tracing** due to hitting the max reservoir size and dropping spans - Use compact granularity to reduce span count
 
 ## Understanding span types [#span-types]
 
@@ -305,6 +269,45 @@ You can enable **both full and partial granularity tracing** on the same applica
 
 This hybrid approach is ideal when you need occasional detailed traces but can't justify full granularity for all requests. See your agent's configuration documentation for how to implement sampling strategies alongside partial granularity options.
 
+## Adaptive sampling configuration [#adaptive-sampling]
+
+Partial granularity distributed traces and adaptive sampling help users ingest data in a controlled manner.
+
+### Enhanced adaptive sampling target configuration
+
+Core tracing allows for configuration of the adaptive sampling target for each `root`, `remote_parent_sampled`, and `remote_parent_not_sampled` section. Previously, the adaptive sampling target could only be configured at the global level.
+
+**The problem this solves:**
+
+When the global adaptive sampling target is shared between root and remote parent, if the number of remote parent traces sampled is greater than or equal to the adaptive sampling target, only remote parent traces will be sampled. This happens because remote parent sampling decisions set the priority to greater than 2 and root sampling decisions set the priority to less than 2.
+
+**The solution:**
+
+Configure an adaptive sampling target under `root`, `remote_parent_sampled`, and `remote_parent_not_sampled` to ensure that remote parent sampling decisions do not cause all root spans to be dropped if the sampled remote parent traces exceed the adaptive sampling target threshold.
+
+**Configuration example:**
+
+```yaml
+distributed_tracing:
+  sampler:
+    adaptive_sampling_target: 10  # Global target
+    root:
+      trace_id_ratio_based:
+        ratio: 0.2  # 20% for important traces
+    remote_parent_sampled:
+      adaptive:
+        sampling_target: 20  # Per-section target
+```
+
+**Available sampling options:**
+
+- `adaptive` – use adaptive sampling
+- `always_on` – always sample
+- `always_off` – never sample
+- `trace_id_ratio_based` – use ratio/percent based sampling
+
+**Note:** The sampling target budget of 20 won't be used until there is an upstream sampled trace that does not have a trusted account ID.
+
 ## Requirements [#requirements]
 
 To use these configuration options, you need:
@@ -315,6 +318,12 @@ To use these configuration options, you need:
 * **Configuration file access:** You'll modify your agent's configuration file (typically YAML format).
 
 When services with different configurations communicate, trace context propagates correctly—you can mix configuration levels across your architecture (some services with Option 1, others with full tracing, etc.).
+
+**Important limitations:**
+
+* **Infinite tracing is not supported** for partial granularity distributed traces. Partial granularity traces are only supported in standard distributed tracing.
+* **Full granularity always takes precedence** over partial granularity when it comes to sampling and reservoir space.
+* **OTEL instrumentation**: When using OTEL bridge, spans generated by OTEL instrumentation will also be subject to the same rules of partial granularity tracing.
 
 **Note:** You can also adjust adaptive sampling rates independently of these options to further control how many traces are captured per minute.
 
