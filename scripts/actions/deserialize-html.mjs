@@ -214,10 +214,56 @@ const processor = unified()
   .use(stripTranslateFrontmatter)
   .use(replaceTildesWithHyphens);
 
+/**
+ * Fix indented code blocks inside JSX components.
+ * MDX doesn't properly parse code fences that are indented inside JSX elements.
+ * This function removes the leading whitespace from code fence lines to ensure
+ * they start at column 0.
+ */
+const fixIndentedCodeBlocks = (mdx) => {
+  // Match indented code fences (``` with leading whitespace) and their content
+  // This regex finds code blocks where the opening ``` is indented
+  const lines = mdx.split('\n');
+  const result = [];
+  let inCodeBlock = false;
+  let codeBlockIndent = '';
+
+  for (const line of lines) {
+    // Check for opening code fence with indentation
+    const openMatch = line.match(/^(\s+)(```\w*)\s*$/);
+    if (openMatch && !inCodeBlock) {
+      inCodeBlock = true;
+      codeBlockIndent = openMatch[1];
+      // Output code fence without indentation
+      result.push(openMatch[2]);
+      continue;
+    }
+
+    // Check for closing code fence
+    if (inCodeBlock && line.match(/^\s*```\s*$/)) {
+      inCodeBlock = false;
+      result.push('```');
+      codeBlockIndent = '';
+      continue;
+    }
+
+    // If inside code block, remove the indentation
+    if (inCodeBlock && line.startsWith(codeBlockIndent)) {
+      result.push(line.slice(codeBlockIndent.length));
+    } else {
+      result.push(line);
+    }
+  }
+
+  return result.join('\n');
+};
+
 const deserializeHTML = async (html) => {
   const vfile = await processor.process(html);
-  
-  return vfile.toString().trim();
+  const mdx = vfile.toString().trim();
+
+  // Fix indented code blocks inside JSX components
+  return fixIndentedCodeBlocks(mdx);
 };
 
 export default deserializeHTML;
