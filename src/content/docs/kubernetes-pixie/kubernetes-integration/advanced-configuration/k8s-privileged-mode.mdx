@@ -47,8 +47,75 @@ global:
   privileged: false
 ```
 
-### Windows in unprivileged mode
+### Windows nodes
 
-Standard Windows containers cannot directly access host infrastructure due to container isolation. HostProcess containers could provide this access but introduce additional security risks and are not currently used by the New Relic Kubernetes integration. Therefore, Windows DaemonSets run only in unprivileged mode; privileged mode is not supported for Windows nodes.
+Windows nodes support both privileged and unprivileged modes. Unlike Linux, where privileged mode operates via the container security context, **Windows privileged mode uses HostProcess containers** — the Windows-native mechanism for granting a container direct access to host resources.
 
-For more details on what metrics are collected in this mode, see [Limitations to the Kubernetes integration for Windows](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows/#k8-windows-limitations).
+#### What are HostProcess containers?
+
+When you deploy with `windows.privileged=true` (the default for Windows nodes), the monitoring containers run as Windows HostProcess containers. This is a fundamentally different execution model from standard Windows container isolation:
+
+- The container's processes run directly in the **Windows host OS process space** — they are visible in Task Manager on the node, not isolated in a container namespace.
+- `hostNetwork: true` is automatically applied, giving the process access to all network interfaces on the node.
+- The container has access to the **host filesystem and registry**.
+- It runs as `NT AUTHORITY\Local Service`, a built-in Windows account with limited local privileges but the ability to authenticate to network resources as the computer account.
+
+HostProcess mode is required to collect host metrics — CPU, memory, disk, and network interfaces — from the Windows node itself.
+
+#### Unprivileged mode for Windows
+
+When you set `windows.privileged=false`, containers run as standard `ContainerUser` without host network access. The agent operates in `NRIA_IS_SECURE_FORWARD_ONLY=true` mode — it forwards data from the kubelet integration scraper but does not directly access host resources. Node-level samples (`SystemSample`, `StorageSample`, `NetworkSample`, `ProcessSample`) are not collected in this mode.
+
+Many node-related metrics are still available in unprivileged mode via the K8sNodeSample event. For the full list of metrics unavailable in unprivileged mode, see [Limitations to the Kubernetes integration for Windows](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows/#k8-windows-limitations).
+
+#### Security considerations for Windows privileged mode
+
+Because HostProcess containers run with direct access to the host OS, New Relic recommends the following practices when using `windows.privileged=true`:
+
+- **Enable fine-grained kubelet authorization** to restrict RBAC to the specific read-only endpoints the integration uses, rather than the broader `nodes/proxy` subresource. This requires Kubernetes 1.26+ with the `KubeletFineGrainedAuthz` feature gate.
+
+In the newrelic-infrastructure Helm chart:
+
+  ```yaml
+  rbac:
+    kubeletFineGrainedAuth: true
+  ```
+
+- **Store the license key as a Kubernetes Secret** rather than embedding it in `values.yaml` or passing it via `--set`, where it would be visible in shell history and `helm get values`:
+
+  ```bash
+  kubectl create secret generic newrelic-license \
+    --namespace newrelic \
+    --from-literal=licenseKey=<YOUR_KEY>
+  ```
+
+  ```yaml
+  global:
+    customSecretName: newrelic-license
+    customSecretLicenseKey: licenseKey
+  ```
+
+- **Pin the DaemonSet to designated nodes** using `kubelet.windowsNodeSelector`. If your cluster has Windows nodes with different workload classifications, you can restrict monitoring to only those nodes you intend to monitor.
+
+- **Enforce network egress at the node level** using Windows Defender Firewall rules or a proxy. Kubernetes `NetworkPolicy` objects do not apply to HostProcess pods, because `hostNetwork: true` bypasses pod networking entirely. If you use a proxy:
+
+  ```yaml
+  global:
+    proxy: "http://your-proxy:3128"
+  ```
+
+- **Set resource limits** to protect node stability, since HostProcess containers compete for node resources directly. Windows resources are set by the newrelic-infrastructure Helm chart by default - you may keep these or set your own:
+
+  ```yaml
+  kubelet:
+    windows:
+      agent:
+        resources:
+          limits:
+            cpu: 200m
+            memory: 300Mi
+  ```
+
+- **Run the monitoring stack in a dedicated namespace** and restrict who can create or modify resources in it. Because HostProcess pods run with direct host access, lateral access to this namespace should be treated as equivalent to node access.
+
+- **Ensure your existing Windows security monitoring covers these nodes.** HostProcess container processes run directly in the host OS process space and are visible to the host like any other process — they appear in `Get-Process` output and, with process creation auditing enabled, in Security log events 4688 (process creation) and 4689 (process exit). The identifiable signal for a HostProcess container launch in the Security log is `containerd-shim-runhcs-v1.exe` as the Creator Process spawning `cmd.exe` as `NT AUTHORITY\Local Service`, followed by the agent processes (`newrelic-infra.exe` and `nri-kubernetes`) further down the chain. Note that process creation auditing is disabled by default on Windows and requires Administrator or SYSTEM privileges to enable and to read the Security log — it cannot be configured from within the New Relic container itself. If your organization uses a SIEM, Windows Event Forwarding, or an EDR tool to collect event logs from Windows hosts, make sure that coverage extends to your Kubernetes Windows nodes.
