@@ -1,0 +1,303 @@
+---
+    2 title: Install Synthetics for Dual Stack using Podman
+    3 tags:
+    4   - Synthetics
+    5   - Synthetic monitoring
+    6   - Private locations
+    7 metaDescription: 'Install and configure New Relic Synthetics for Dual Stack environments using Podman to support both IPv4 and IPv6 testing.'
+    8 freshnessValidatedDate: never
+    9 ---
+   10
+   11 This guide covers the infrastructure validation, Podman configuration, and image deployment required to support Dual Stack (IPv4 and IPv6) testing in your private locati
+      on environment using Podman.
+   12
+   13 ## Prerequisites [#prerequisites]
+   14
+   15 Before you begin, ensure you have the following:
+   16
+   17 * <DNT>**Podman**</DNT>: Podman must be installed and running on your host instance (version 5.4.x or higher recommended). Visit our [Podman Dependencies Guide](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-dependencies) for installation instructions
+   18 * <DNT>**slirp4netns**</DNT>: Required for IPv6 support in rootless containers (version 1.0.0 or higher, typically installed with Podman)
+   19 * <DNT>**Permissions**</DNT>: You must have appropriate access to run rootless containers and configure systemd user services
+   20 * <DNT>**Custom images**</DNT>: Dual Stack-enabled runtime images for synthetics job manager:
+   21   * Job manager image (`.tar` or `.tar.gz`)
+   22   * Ping runtime image (`.tar` or `.tar.gz`)
+   23   * Node API runtime image (`.tar` or `.tar.gz`)
+   24   * Node browser runtime image (`.tar` or `.tar.gz`)
+   25
+   26 ## Validate your infrastructure [#validate-infrastructure]
+   27
+   28 Before proceeding, verify that your host machine and network are configured for Dual Stack networking.
+   29
+   30 Test IPv6 connectivity by running:
+   31
+   32 ```bash
+   33 # Test from host
+   34 curl -6 -I https://ipv6.google.com --connect-timeout 10
+   35
+   36 # Test from Podman with IPv6-enabled networking
+   37 podman run --rm --network slirp4netns:enable_ipv6=true \
+   38   curlimages/curl:latest curl -6 -I https://ipv6.google.com --connect-timeout 10
+   39 ```
+   40
+   41 <Callout variant="important">
+   42   If either test fails, ensure your VPC, subnet, and security groups are configured to allow IPv6 traffic before continuing with this installation. Your environment must
+       support both IPv4 and IPv6 for Dual Stack operation.
+   43 </Callout>
+   44
+   45 Verify slirp4netns is installed:
+   46
+   47 ```bash
+   48 which slirp4netns
+   49 slirp4netns --version
+   50 ```
+   51
+   52 ## Configure Podman API service [#configure-podman-api]
+   53
+   54 The Synthetics job manager requires the Podman API to manage runtime containers. Set up a persistent systemd service to ensure the API is always available.
+   55
+   56 1. Create the systemd service directory:
+   57
+   58    ```bash
+   59    mkdir -p ~/.config/systemd/user
+   60    ```
+   61
+   62 2. Create the Podman API service file:
+   63
+   64    ```bash
+   65    cat > ~/.config/systemd/user/podman-api.service << 'EOF'
+   66    [Unit]
+   67    Description=Podman API Service
+   68    After=default.target
+   69
+   70    [Service]
+   71    Type=simple
+   72    ExecStart=/usr/bin/podman system service -t 0 tcp:0.0.0.0:8000
+   73    Restart=on-failure
+   74
+   75    [Install]
+   76    WantedBy=default.target
+   77    EOF
+   78    ```
+   79
+   80 3. Enable and start the service:
+   81
+   82    ```bash
+   83    systemctl --user daemon-reload
+   84    systemctl --user enable --now podman-api.service
+   85    ```
+   86
+   87 4. Enable user lingering to keep the service running when logged out:
+   88
+   89    ```bash
+   90    sudo loginctl enable-linger $USER
+   91    ```
+   92
+   93 5. Verify the service is active:
+   94
+   95    ```bash
+   96    systemctl --user status podman-api.service
+   97    ss -tulpn | grep 8000
+   98    ```
+   99
+  100 ## Load custom runtime images [#load-runtime-images]
+  101
+  102 Upload the provided Dual Stack-enabled image files to your host instance, then import them into Podman.
+  103
+  104 Load each runtime image using the following commands:
+  105
+  106 ```bash
+  107 podman load -i <job-manager-image>.tar
+  108 podman load -i <node-api-runtime-image>.tar
+  109 podman load -i <node-browser-runtime-image>.tar
+  110 podman load -i <ping-runtime-image>.tar
+  111 ```
+  112
+  113 Replace the placeholders with your actual image filenames.
+  114
+  115 Verify the images are loaded:
+  116
+  117 ```bash
+  118 podman images | grep -E "synthetics-job-manager|browser-runtime|node-api|ping"
+  119 ```
+  120
+  121 ## Create Podman pod with Dual Stack support [#create-pod]
+  122
+  123 Create a Podman pod with IPv6-enabled networking to host the Synthetics job manager and runtime containers.
+  124
+  125 1. Get your host IP address:
+  126
+  127    ```bash
+  128    HOST_IP=$(hostname -I | awk '{print $1}')
+  129    echo "Host IP: $HOST_IP"
+  130    ```
+  131
+  132 2. Create the pod with Dual Stack networking:
+  133
+  134    ```bash
+  135    podman pod create \
+  136      --network slirp4netns:enable_ipv6=true \
+  137      --name SYNTHETICS \
+  138      --add-host=host.containers.internal:$HOST_IP \
+  139      --publish 8080:8080 \
+  140      --publish 8082:8082
+  141    ```
+  142
+  143 <Callout variant="tip">
+  144   The `enable_ipv6=true` flag enables IPv6 support in the pod's network namespace, allowing containers to make both IPv4 and IPv6 connections.
+  145 </Callout>
+  146
+  147 ## Launch the Synthetics job manager [#launch-job-manager]
+  148
+  149 Run the Synthetics job manager container with the Dual Stack-enabled runtimes in the pod you created.
+  150
+  151 <Callout variant="tip">
+  152   Replace `<YOUR_PRIVATE_LOCATION_KEY>` with your actual private location key from the New Relic UI, and update image names to match the images you loaded in the previou
+      s step.
+  153 </Callout>
+  154
+  155 ```bash
+  156 podman run -d \
+  157   --name synthetics-job-manager \
+  158   --pod SYNTHETICS \
+  159   --restart unless-stopped \
+  160   -e PRIVATE_LOCATION_KEY="<YOUR_PRIVATE_LOCATION_KEY>" \
+  161   -e CONTAINER_ENGINE="PODMAN" \
+  162   -e PODMAN_API_SERVICE_HOST="host.containers.internal" \
+  163   -e PODMAN_API_SERVICE_PORT="8000" \
+  164   -e PODMAN_API_VERSION="v5.0.0" \
+  165   -e PODMAN_POD_NAME="SYNTHETICS" \
+  166   -e DOCKER_REGISTRY="docker.io" \
+  167   -e DOCKER_REPOSITORY="library" \
+  168   -e 'DESIRED_RUNTIMES=["docker.io/library/<browser-runtime-image>:latest","docker.io/library/<node-api-runtime-image>:latest","docker.io/library/<ping-runtime-image>:la
+      test"]' \
+  169   docker.io/library/<job-manager-image>:latest
+  170 ```
+  171
+  172 ### Environment variables explained [#environment-variables]
+  173
+  174 | Variable | Description |
+  175 |----------|-------------|
+  176 | `PRIVATE_LOCATION_KEY` | Your New Relic private location key |
+  177 | `CONTAINER_ENGINE` | Must be set to `PODMAN` |
+  178 | `PODMAN_API_SERVICE_HOST` | Hostname for Podman API (use `host.containers.internal`) |
+  179 | `PODMAN_API_SERVICE_PORT` | Port where Podman API listens (default: `8000`) |
+  180 | `PODMAN_API_VERSION` | Podman API version (use `v5.0.0` for Podman 5.x) |
+  181 | `PODMAN_POD_NAME` | Name of the pod created in previous step (must be `SYNTHETICS`) |
+  182 | `DOCKER_REGISTRY` | Registry for custom images (use `docker.io`) |
+  183 | `DOCKER_REPOSITORY` | Repository path for custom images (use `library`) |
+  184 | `DESIRED_RUNTIMES` | JSON array of Dual Stack-enabled runtime images |
+  185
+  186 The Synthetics job manager will now be running with Dual Stack support enabled, allowing your monitors to test both IPv4 and IPv6 endpoints.
+  187
+  188 ## Verify installation [#verify-installation]
+  189
+  190 To confirm your Synthetics job manager is running correctly:
+  191
+  192 1. Check the container status:
+  193
+  194    ```bash
+  195    podman ps | grep synthetics-job-manager
+  196    ```
+  197
+  198 2. View the job manager logs:
+  199
+  200    ```bash
+  201    podman logs -f synthetics-job-manager
+  202    ```
+  203
+  204    You should see output similar to:
+  205    ```
+  206    INFO  c.n.s.j.SyntheticsJobManagerApplication - Running in private mode
+  207    INFO  c.n.s.j.l.r.PersistentRuntimeLifecycleManager - Starting Persistent Runtime: ping-runtime
+  208    INFO  c.n.s.j.s.HordePollingService - Successfully connected to Horde
+  209    INFO  c.n.s.j.h.JobFetchHandler - Polling for jobs...
+  210    ```
+  211
+  212 3. Check the health endpoint:
+  213
+  214    ```bash
+  215    curl http://localhost:8082/healthcheck
+  216    ```
+  217
+  218 4. Verify the pod and all containers:
+  219
+  220    ```bash
+  221    podman pod ps
+  222    podman ps --filter "pod=SYNTHETICS"
+  223    ```
+  224
+  225 5. In the New Relic UI, go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Synthetic monitoring > Private locations**</DNT>
+      and verify your private location shows as healthy.
+  226
+  227 When monitors are assigned to your private location, you'll see runtime containers automatically start:
+  228
+  229 ```bash
+  230 # Runtime containers appear when jobs are received
+  231 podman ps --filter "pod=SYNTHETICS"
+  232 ```
+  233
+  234 ## Troubleshooting [#troubleshooting]
+  235
+  236 ### Job manager container exits immediately [#container-exits]
+  237
+  238 Check the logs for errors:
+  239
+  240 ```bash
+  241 podman logs synthetics-job-manager
+  242 ```
+  243
+  244 Common issue: "SYNTHETICS Pod not present on host"
+  245
+  246 Verify Podman API connectivity:
+  247
+  248 ```bash
+  249 # Test from host
+  250 curl http://localhost:8000/v5.0.0/libpod/pods/json
+  251
+  252 # Test from job manager container
+  253 podman exec synthetics-job-manager \
+  254   curl -s http://host.containers.internal:8000/v5.0.0/libpod/pods/json
+  255 ```
+  256
+  257 ### IPv6 tests failing [#ipv6-tests-fail]
+  258
+  259 Verify IPv6 is enabled in the pod:
+  260
+  261 ```bash
+  262 podman pod inspect SYNTHETICS | grep -i network
+  263 ```
+  264
+  265 Test IPv6 from within the pod:
+  266
+  267 ```bash
+  268 podman run --rm --pod SYNTHETICS \
+  269   curlimages/curl:latest curl -6 -I https://ipv6.google.com --connect-timeout 10
+  270 ```
+  271
+  272 ### Runtime containers not starting [#runtimes-not-starting]
+  273
+  274 Verify images are available:
+  275
+  276 ```bash
+  277 curl -s http://localhost:8000/v5.0.0/libpod/images/json | \
+  278   jq '.[].RepoTags[]' | \
+  279   grep -E "browser-runtime|node-api|ping"
+  280 ```
+  281
+  282 Check image architecture matches host:
+  283
+  284 ```bash
+  285 # Check host architecture
+  286 uname -m
+  287
+  288 # Check image architecture (should match)
+  289 podman inspect docker.io/library/<ping-runtime-image>:latest | grep -i architecture
+  290 ```
+  291
+  292 ## What's next? [#whats-next]
+  293
+  294 After setting up your Dual Stack-enabled private location, you can:
+  295
+  296 * [Create synthetic monitors](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors) that test both IPv4 and IPv6 endpoints using your private location
+  297 * [Configure job manager settings](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration) for advanced options
+  298 * [Monitor your private location](/docs/synthetics/synthetic-monitoring/private-locations/monitor-private-locations) health and performance
