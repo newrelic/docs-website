@@ -11,7 +11,17 @@ freshnessValidatedDate: never
 
 Monitor your self-hosted Apache Kafka cluster by installing the OpenTelemetry Collector directly on Linux hosts.
 
-## Installation and configuration [#installation-configuration]
+## Architecture [#architecture-overview]
+
+The following diagram illustrates the monitoring architecture and data flow to New Relic.
+
+<img
+  title="Self-hosted Kafka monitoring architecture with OpenTelemetry"
+  src="/images/otel-kafka-self-host-architecture.webp"
+  alt="Self-hosted Kafka monitoring architecture with OpenTelemetry"
+/>
+
+## Installation steps [#installation-steps]
 
 Follow these steps to set up comprehensive Kafka monitoring by installing the OpenTelemetry Java Agent on your brokers and deploying a collector to gather and send metrics to New Relic.
 
@@ -159,23 +169,12 @@ rules:
         desc: total number of collections that have occurred
         metricAttribute:
           name: param(name)
-      CollectionTime:
-        metric: jvm.gc.collections.elapsed
-        type: counter
-        unit: ms
-        desc: the approximate accumulated collection elapsed time in milliseconds
-        metricAttribute:
-          name: param(name)
 
   - bean: java.lang:type=Memory
     unit: By
     prefix: jvm.memory.
     dropNegativeValues: true
     mapping:
-      HeapMemoryUsage.committed:
-        metric: heap.committed
-        desc: current heap usage
-        type: gauge
       HeapMemoryUsage.max:
         metric: heap.max
         desc: current heap usage
@@ -197,56 +196,12 @@ rules:
     prefix: jvm.
     dropNegativeValues: true
     mapping:
-      SystemLoadAverage:
-        metric: system.cpu.load_1m
-        type: gauge
-        unit: "{run_queue_item}"
-        desc: System load average (1 minute) - alert if > CPU count
-      AvailableProcessors:
-        metric: cpu.count
-        type: gauge
-        unit: "{cpu}"
-        desc: Number of processors available
-      ProcessCpuLoad:
-        metric: cpu.recent_utilization
-        type: gauge
-        unit: '1'
-        desc: Recent CPU utilization for JVM process (0.0 to 1.0)
       SystemCpuLoad:
         metric: system.cpu.utilization
         type: gauge
         unit: '1'
         desc: Recent CPU utilization for whole system (0.0 to 1.0)
-      OpenFileDescriptorCount:
-        metric: file_descriptor.count
-        type: gauge
-        unit: "{file_descriptor}"
-        desc: Number of open file descriptors - alert if > 80% of ulimit
 
-  - bean: java.lang:type=ClassLoading
-    mapping:
-      LoadedClassCount:
-        metric: jvm.class.count
-        type: gauge
-        unit: "{class}"
-        desc: Currently loaded class count
-
-  - bean: java.lang:type=MemoryPool,name=*
-    type: gauge
-    unit: By
-    metricAttribute:
-      name: param(name)
-    mapping:
-      Usage.used:
-        metric: jvm.memory.pool.used
-        desc: Memory pool usage by generation (G1 Old Gen, Eden, Survivor)
-      Usage.max:
-        metric: jvm.memory.pool.max
-        desc: Maximum memory pool size
-      CollectionUsage.used:
-        metric: jvm.memory.pool.used_after_last_gc
-        desc: Memory used after last GC (shows retained memory baseline)
-  
   - bean: kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec
     mapping:
       Count:
@@ -303,22 +258,10 @@ rules:
       type: param(request)
     unit: ms
     mapping:
-      Count:
-        metric: kafka.request.time.total
-        type: counter
-        desc: The total time the broker has taken to service requests
-      50thPercentile:
-        metric: kafka.request.time.50p
-        type: gauge
-        desc: The 50th percentile time the broker has taken to service requests
       99thPercentile:
         metric: kafka.request.time.99p
         type: gauge
         desc: The 99th percentile time the broker has taken to service requests
-      Mean:
-        metric: kafka.request.time.avg
-        type: gauge
-        desc: The average time the broker has taken to service requests
 
   - bean: kafka.network:type=RequestChannel,name=RequestQueueSize
     mapping:
@@ -436,6 +379,30 @@ rules:
         desc: Unclean leader election count - increasing indicates broker failures
         unit: "{election}"
 
+  # ── Additional metrics — remove this section to reduce data ingest ───────────
+
+  # Request latency: total count, 50th percentile, and average (99p kept above)
+  - beans:
+      - kafka.network:type=RequestMetrics,name=TotalTimeMs,request=Produce
+      - kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchConsumer
+      - kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchFollower
+    metricAttribute:
+      type: param(request)
+    unit: ms
+    mapping:
+      Count:
+        metric: kafka.request.time.total
+        type: counter
+        desc: The total time the broker has taken to service requests
+      50thPercentile:
+        metric: kafka.request.time.50p
+        type: gauge
+        desc: The 50th percentile time the broker has taken to service requests
+      Mean:
+        metric: kafka.request.time.avg
+        type: gauge
+        desc: The average time the broker has taken to service requests
+
   - bean: kafka.log:type=LogFlushStats,name=LogFlushRateAndTimeMs
     unit: ms
     type: gauge
@@ -452,6 +419,80 @@ rules:
       99thPercentile:
         metric: time.99p
         desc: Log flush time - 99th percentile
+
+  # GC elapsed time (cumulative collection time in ms)
+  - bean: java.lang:type=GarbageCollector,name=*
+    mapping:
+      CollectionTime:
+        metric: jvm.gc.collections.elapsed
+        type: counter
+        unit: ms
+        desc: the approximate accumulated collection elapsed time in milliseconds
+        metricAttribute:
+          name: param(name)
+
+  # JVM class loading
+  - bean: java.lang:type=ClassLoading
+    mapping:
+      LoadedClassCount:
+        metric: jvm.class.count
+        type: gauge
+        unit: "{class}"
+        desc: Currently loaded class count
+
+  # JVM heap committed (in addition to heap.used and heap.max)
+  - bean: java.lang:type=Memory
+    unit: By
+    prefix: jvm.memory.
+    dropNegativeValues: true
+    mapping:
+      HeapMemoryUsage.committed:
+        metric: heap.committed
+        desc: Committed heap memory
+        type: gauge
+
+  # Additional JVM CPU and system metrics
+  - bean: java.lang:type=OperatingSystem
+    prefix: jvm.
+    dropNegativeValues: true
+    mapping:
+      SystemLoadAverage:
+        metric: system.cpu.load_1m
+        type: gauge
+        unit: "{run_queue_item}"
+        desc: System load average (1 minute) - alert if > CPU count
+      AvailableProcessors:
+        metric: cpu.count
+        type: gauge
+        unit: "{cpu}"
+        desc: Number of processors available
+      ProcessCpuLoad:
+        metric: cpu.recent_utilization
+        type: gauge
+        unit: '1'
+        desc: Recent CPU utilization for JVM process (0.0 to 1.0)
+      OpenFileDescriptorCount:
+        metric: file_descriptor.count
+        type: gauge
+        unit: "{file_descriptor}"
+        desc: Number of open file descriptors - alert if > 80% of ulimit
+
+  # JVM memory pool breakdown (by generation: G1 Old Gen, Eden, Survivor, etc.)
+  - bean: java.lang:type=MemoryPool,name=*
+    type: gauge
+    unit: By
+    metricAttribute:
+      name: param(name)
+    mapping:
+      Usage.used:
+        metric: jvm.memory.pool.used
+        desc: Memory pool usage by generation (G1 Old Gen, Eden, Survivor)
+      Usage.max:
+        metric: jvm.memory.pool.max
+        desc: Maximum memory pool size
+      CollectionUsage.used:
+        metric: jvm.memory.pool.used_after_last_gc
+        desc: Memory used after last GC (shows retained memory baseline)
 ```
 
 </Step>
@@ -533,7 +574,8 @@ receivers:
       - topics
       - consumers
     collection_interval: 30s
-    topic_match: ".*"
+    # Exclude internal Kafka topics (prefixed with __) at the source
+    topic_match: "^[^_].*$"
     metrics:
       kafka.topic.min_insync_replicas:
         enabled: true
@@ -583,6 +625,17 @@ processors:
           - delete_matching_keys(attributes, "^telemetry\\..*")
           - delete_key(attributes, "host.arch")
           - delete_key(attributes, "os.description")
+          - delete_key(attributes, "host.image.id")
+          - delete_key(attributes, "host.type")
+          - delete_matching_keys(attributes, "^cloud\\..*")
+          - delete_key(attributes, "service.instance.id") where IsMatch(attributes["service.name"], "^unknown_service:")
+          - delete_key(attributes, "service.name") where IsMatch(attributes["service.name"], "^unknown_service:")
+
+  # Filter internal Kafka topics as a safety net (kafkametrics topic_match handles the receiver side)
+  filter/internal_topics:
+    metrics:
+      datapoint:
+        - 'attributes["topic"] != nil and IsMatch(attributes["topic"], "^__.*")'
 
   filter/include_cluster_metrics:
     metrics:
@@ -626,7 +679,7 @@ processors:
           - action: aggregate_labels
             label_set: [topic]
             aggregation_type: sum
-      
+
       - include: kafka.partition.replicas
         action: insert
         new_name: kafka.partition.replicas.total
@@ -642,6 +695,19 @@ processors:
         metric_names:
           - kafka.partition.replicas_in_sync
 
+  groupbyattrs/cluster:
+    keys: [kafka.cluster.name]
+
+  metricstransform/cluster_max:
+    transforms:
+      - include: "kafka\\.partition\\.offline|kafka\\.leader\\.election\\.rate|kafka\\.unclean\\.election\\.rate|kafka\\.partition\\.non_preferred_leader|kafka\\.broker\\.fenced\\.count|kafka\\.cluster\\.partition\\.count|kafka\\.cluster\\.topic\\.count"
+        match_type: regexp
+        action: update
+        operations:
+          - action: aggregate_labels
+            aggregation_type: max
+            label_set: []
+
 exporters:
   otlp/newrelic:
     endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
@@ -655,13 +721,45 @@ service:
     # Broker metrics pipeline (excludes cluster-level metrics)
     metrics/broker:
       receivers: [otlp, kafkametrics]
-      processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
+      processors:
+        - resourcedetection
+        - resource
+        - filter/exclude_cluster_metrics
+        - filter/internal_topics
+        - transform/remove_extra_attributes
+        - transform/des_units
+        - cumulativetodelta
+        - metricstransform/kafka_topic_sum_aggregation
+        - filter/remove_partition_level_replicas
+        - batch/aggregation
       exporters: [otlp/newrelic]
 
     # Cluster metrics pipeline (only cluster-level metrics, no broker.id)
     metrics/cluster:
       receivers: [otlp]
-      processors: [resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, batch/aggregation]
+      processors:
+        - resourcedetection
+        - resource
+        - filter/include_cluster_metrics
+        - transform/remove_broker_id
+        - transform/remove_extra_attributes
+        - transform/des_units
+        - cumulativetodelta
+        - groupbyattrs/cluster
+        - metricstransform/cluster_max
+        - batch/aggregation
+      exporters: [otlp/newrelic]
+
+    # APM traces pipeline (producer + consumer spans via OTel Java Agent)
+    traces/apps:
+      receivers: [otlp]
+      processors: [resourcedetection, resource, batch/aggregation]
+      exporters: [otlp/newrelic]
+
+    # APM logs pipeline (producer + consumer logs via OTel Java Agent)
+    logs/apps:
+      receivers: [otlp]
+      processors: [resourcedetection, resource, batch/aggregation]
       exporters: [otlp/newrelic]
 ```
 
@@ -708,7 +806,7 @@ Replace:
 * `YOUR_LICENSE_KEY` with your New Relic license key
 * `my-kafka-cluster` with a unique name for your Kafka cluster
 * `localhost:9092` with your Kafka bootstrap broker address(es). For multiple brokers, use comma-separated list: `broker1:9092,broker2:9092,broker3:9092`
-* OTLP endpoint: Uses `https://otlp.nr-data.net:4317` (US region) or `https://otlp.eu01.nr-data.net:4317` (EU region). 
+* OTLP endpoint: Uses `https://otlp.nr-data.net:4317` (US region) or `https://otlp.eu01.nr-data.net:4317` (EU region).
 For other endpoint configurations, see [Configure your OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
 
 </Step>
@@ -844,7 +942,7 @@ Replace:
 
 <Callout variant="tip">
   The configuration above sends telemetry to an OpenTelemetry Collector running on localhost:4317.
-  
+
   <CollapserGroup>
     <Collapser
       id="app-collector-config"
@@ -910,7 +1008,7 @@ To collect Kafka broker logs and send them to New Relic, configure the filelog r
     ```yaml
     receivers:
       # ... existing receivers (otlp, kafkametrics) ...
-      
+
       # File log receiver for Kafka broker logs
       filelog/kafka_broker_1:
         include:
@@ -928,7 +1026,7 @@ To collect Kafka broker logs and send them to New Relic, configure the filelog r
     service:
       pipelines:
         # ... existing pipelines (metrics/broker, metrics/cluster) ...
-        
+
         # Logs pipeline for Kafka broker logs
         logs:
           receivers: [filelog/kafka_broker_1]
@@ -1006,14 +1104,14 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     ```bash
     # Check if port 4317 is listening (best indicator collector is running)
     ss -tlnp | grep 4317
-    
+
     # Search for collector process (using bracket trick to exclude grep itself)
     ps aux | grep "[k]afka-config.yaml"
-    
+
     # Or search for common collector names
     ps aux | grep -E "[n]rdot-collector|[o]telcol"
     ```
-    
+
     If no results appear, the collector is not running. Start it following Step 6.
 
     **Check if Java Agent is attached to Kafka brokers**:
@@ -1021,7 +1119,7 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     # Search for Kafka processes with Java agent attached
     ps aux | grep "[o]pentelemetry-javaagent"
     ```
-    
+
     **Note**: This command shows the full Java process with classpath, which can be very long (3+ lines per broker). This is expected. Look for `-javaagent:/path/to/opentelemetry-javaagent.jar` in the output.
 
     **Test port connectivity**:
@@ -1085,7 +1183,7 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
 
         metrics/cluster:
           receivers: [otlp]
-          processors: [resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/des_units, cumulativetodelta, batch/aggregation]
+          processors: [resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/des_units, cumulativetodelta, groupbyattrs/cluster, metricstransform/cluster_max, batch/aggregation]
           exporters: [debug, otlp/newrelic]  # Add debug exporter
     ```
 
@@ -1110,7 +1208,7 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     ```bash
     # Look for errors in collector output
     tail -n 100 ~/logs/collector.log | grep -i "error\|fail\|refuse"
-    
+
     # Check for OTLP receiver activity
     tail -n 100 ~/logs/collector.log | grep -i "otlp\|metric"
     ```
@@ -1126,11 +1224,11 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     ```bash
     # Find Kafka log directory (common locations)
     find ~ -name "server.log" -path "*/kafka/logs/*" 2>/dev/null
-    
+
     # Check the log file for OpenTelemetry messages
     # Replace with your actual Kafka log path
     tail -100 ~/kafka/logs/server.log 2>/dev/null | grep -i "otel\|jmx" || echo "Log file not found or no OTel messages"
-    
+
     # Check directory where you started Kafka for nohup.out
     ls -lh nohup.out 2>/dev/null && tail -100 nohup.out | grep -i "otel\|jmx" || echo "No nohup.out file found"
     ```
@@ -1140,7 +1238,7 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     # Check if broker was started with correct Java agent parameters
     ps aux | grep "[o]pentelemetry-javaagent" | grep -o "Dotel\.[^ ]*"
     ```
-    
+
     This should show all `-Dotel.*` parameters. Verify:
     - `-Dotel.jmx.enabled=true`
     - `-Dotel.jmx.config=<path>`
@@ -1179,6 +1277,129 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     # From Kafka broker machine, test connection to collector
     timeout 5 bash -c "</dev/tcp/COLLECTOR_HOST/4317" 2>/dev/null && echo "Can reach collector" || echo "Cannot reach collector"
     ```
+  </Collapser>
+
+  <Collapser
+    id="high-memory-usage"
+    title="High memory usage"
+  >
+    **1. Monitor collector memory usage**:
+    ```bash
+    # Check memory usage of the collector process
+    ps aux | grep -E "[n]rdot-collector|[o]telcol" | awk '{print $1, $2, $4, $11}'
+
+    # Watch memory usage over time (refresh every 2 seconds)
+    watch -n 2 'ps aux | grep -E "[n]rdot-collector|[o]telcol" | awk "{print \$1, \$2, \$4, \$11}"'
+
+    # Check overall system memory
+    free -h
+    ```
+
+    **2. Reduce monitored topics**: Limit collection to essential topics only
+    ```yaml
+    receivers:
+      kafkametrics:
+        brokers: ${env:KAFKA_BOOTSTRAP_BROKER_ADDRESSES}
+        collection_interval: 30s
+        scrapers:
+          - brokers
+          - topics  # Consider removing if not needed
+          - consumers  # Consider removing if not needed
+        topic_match: "^(important-topic-1|important-topic-2)$"  # Filter specific topics
+    ```
+
+    **3. Reduce collection frequency**: Increase intervals to collect less often
+
+    For the collector's Kafka metrics receiver:
+    ```yaml
+    receivers:
+      kafkametrics:
+        collection_interval: 60s  # Increase from 30s to 60s
+    ```
+
+    For JMX metrics from the Java Agent, update the broker startup command:
+    ```bash
+    -Dotel.metric.export.interval=60000  # Increase from 30000ms to 60000ms
+    ```
+
+    **4. Optimize batch processing**: Reduce in-memory batch size
+    ```yaml
+    processors:
+      batch/aggregation:
+        send_batch_size: 512  # Reduce from 1024
+        timeout: 60s
+    ```
+
+    **5. Add a memory limiter**: Prevent the collector from exceeding a memory threshold
+    ```yaml
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 512       # Hard limit in MiB — drop data if exceeded
+        spike_limit_mib: 128 # Allowed spike above limit before dropping
+
+      batch/aggregation:
+        send_batch_size: 512
+        timeout: 60s
+
+    service:
+      pipelines:
+        metrics/broker:
+          receivers: [otlp, kafkametrics]
+          processors: [memory_limiter, resourcedetection, resource, filter/exclude_cluster_metrics, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
+          exporters: [otlp/newrelic]
+        metrics/cluster:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, groupbyattrs/cluster, metricstransform/cluster_max, batch/aggregation]
+          exporters: [otlp/newrelic]
+    ```
+
+    **6. Restart the collector after changes**:
+    ```bash
+    # Find the collector process ID and stop it
+    pkill -f "kafka-config.yaml"
+
+    # Restart NRDOT Collector
+    nrdot-collector --config ~/opentelemetry/kafka-config.yaml
+
+    # Or restart OpenTelemetry Collector
+    otelcol-contrib --config ~/opentelemetry/kafka-config.yaml
+    ```
+  </Collapser>
+
+  <Collapser
+    id="ingest-optimization"
+    title="Reduce data ingest"
+  >
+    The configuration includes an **Additional metrics** section for comprehensive monitoring. Removing it does not affect core New Relic UI functionality - broker health, consumer lag, cluster overview, and JVM dashboards all continue to work.
+
+    **1. Remove the Additional metrics section from the JMX config**
+
+    In `~/opentelemetry/jmx-custom-config.yaml`, delete everything below this comment (through the end of the file):
+
+    ```yaml
+    # ── Additional metrics — remove this section to reduce data ingest ───────────
+    # Request latency: total count, 50th percentile, and average (99p kept above)
+    - beans:
+    ...
+    ```
+
+    **2. Disable consumer offset metrics in the kafkametrics receiver**
+
+    In `~/opentelemetry/kafka-config.yaml`, add to the `kafkametrics` receiver `metrics` section:
+
+    ```yaml
+    receivers:
+      kafkametrics:
+        # ...existing config...
+        metrics:
+          kafka.consumer_group.offset:
+            enabled: false
+          kafka.consumer_group.offset_sum:
+            enabled: false
+    ```
+
+    Consumer lag metrics (`kafka.consumer_group.lag`, `kafka.consumer_group.lag_sum`) remain enabled. These are what the New Relic Kafka UI uses for consumer monitoring views.
   </Collapser>
 </CollapserGroup>
 

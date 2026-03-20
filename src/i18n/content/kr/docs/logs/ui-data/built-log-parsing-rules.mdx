@@ -11,14 +11,132 @@ translationType: machine
 
 New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문 분석할 수 있으므로 고유한 구문 분석 규칙을 만들 필요가 없습니다. 다음은 로그 구문 분석 규칙, 해당 [Grok](https://github.com/thekrakken/java-grok/tree/master/src/main/resources/patterns) 패턴 및 구문 분석되는 필드입니다.
 
-* 기본 제공 로그 구문 분석을 활성화하려면 [`logtype` 속성 추가에](/docs/logs/ui-data/parsing#logtype) 대한 설명서를 참조하세요.
-* 구문 분석 규칙을 프로그래밍 방식으로 관리하려면 api.newrelic.com/graphiql에서 GraphQL 형식 API인 [NerdGraph](https://api.newrelic.com/graphiql) 를 사용하십시오. 자세한 내용은 구문 분석 규칙을 생성, 쿼리 및 삭제하는 [NerdGraph 자습서](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial) 를 참조하세요.
+## 파싱 예시 [#parsing-example]
+
+좋은 예는 정형화되지 않은 텍스트를 포함하는 기본 NGINX 액세스 로그입니다. 검색할 때 유용하지만 그 외에는 그다지 유용하지 않습니다. 다음은 일반적인 라인의 예입니다.
+
+```
+127.180.71.3 - - [10/May/1997:08:05:32 +0000] "GET /downloads/product_1 HTTP/1.1" 304 0 "-" "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+```
+
+구문 분석되지 않은 형식에서는 대부분의 질문에 답하기 위해 전체 텍스트 검색을 수행해야 합니다. 구문 분석 후 로그는 `response code` 및 `request URL` 과 같은 속성으로 구성됩니다.
+
+```json
+{
+  "remote_addr":"93.180.71.3",
+  "time":"1586514731",
+  "method":"GET",
+  "path":"/downloads/product_1",
+  "version":"HTTP/1.1",
+  "response":"304",
+  "bytesSent": 0,
+  "user_agent": "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+}
+```
+
+구문 분석을 사용하면 해당 값에 대해 패싯하는 [사용자 지정 쿼리](/docs/using-new-relic/data/understand-data/query-new-relic-data) 를 더 쉽게 만들 수 있습니다. 이를 통해 요청 URL당 응답 코드 분포를 이해하고 문제가 있는 페이지를 빠르게 찾을 수 있습니다.
+
+## 추가하다 `logtype` [#logattr]
+
+로그를 집계할 때는 로그를 쉽게 정리하고 검색하고 분석할 수 있도록 메타데이터를 제공하는 것이 중요합니다. 이를 위한 간단한 방법 중 하나는 로그 메시지를 전송할 때 `logtype` 속성을 추가하는 것입니다. [내장 구문 분석 규칙은](/docs/logs/ui-data/built-log-parsing-rules) 특정 `logtype` 값에 기본적으로 적용됩니다.
+
+<Callout variant="tip">
+  `logType` , `logtype` 및 `LOGTYPE` 필드는 모두 기본 제공 규칙에 대해 지원됩니다. 검색을 쉽게 하려면 조직의 단일 구문에 맞추는 것이 좋습니다.
+</Callout>
+
+다음은 [지원되는 배송 방법](/docs/logs/enable-new-relic-logs) 중 일부에서 보낸 로그에 `logtype` 을(를) 추가하는 방법의 몇 가지 예입니다.
 
 <CollapserGroup>
-  <Collapser
-    id="apache"
-    title="아파치"
-  >
+  <Collapser className="freq-link" id="infrastructure-log-forwarder-example" title="New Relic 인프라 에이전트 예시">
+    `logtype` 을 [`attribute`](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent#attributes) 로 추가합니다. 명명된 각 소스에 대해 로그 유형을 설정해야 합니다.
+
+    ```yml
+    logs:
+      - name: file-simple
+        file: /path/to/file
+        attributes:
+          logtype: fileRaw
+      - name: nginx-example
+        file: /var/log/nginx.log
+        attributes:
+          logtype: nginx
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="fluentd-example" title="유창한 예">
+    `record_transformer`를 사용하여 새 필드를 추가하는 `.conf` 파일에 필터 블록을 추가합니다. 이 예에서는 `nginx`의 `logtype`을 사용하여 내장 NGINX 구문 분석 규칙을 트리거합니다. 다른 [Fluentd 예제](https://github.com/newrelic/fluentd-examples)들을 확인해 보십시오.
+
+    ```apacheconf
+    <filter containers>
+      @type record_transformer
+      enable_ruby true
+      <record>
+        #Add logtype to trigger a built-in parsing rule for nginx access logs
+        logtype nginx
+        #Set timestamp from the value contained in the field "time"
+        timestamp record["time"]
+        #Add hostname and tag fields to all records
+        hostname "#{Socket.gethostname}"
+        tag ${tag}
+      </record>
+    </filter>
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="fluentbit-example" title="Fluent Bit 예제">
+    `record_modifier` 을 사용하여 새 필드를 추가하는 필터 블록을 `.conf` 파일에 추가합니다. 이 예에서는 `nginx` 의 `logtype` 를 사용하여 기본 제공 NGINX 구문 분석 규칙을 트리거합니다. 다른 [Fluent Bit 예제](https://github.com/newrelic/fluentbit-examples) 를 확인하십시오.
+
+    ```ini
+    [FILTER]
+        Name   record_modifier
+        Match  *
+        Record logtype nginx
+        Record hostname ${HOSTNAME}
+        Record service_name Sample-App-Name
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="logstash-example" title="로그스태시 예시">
+    `add_field` mutate 필터를 사용하여 새 필드를 추가하는 필터 블록을 Logstash 구성에 추가합니다. 이 예에서는 `nginx` 의 `logtype` 을 사용하여 기본 제공 NGINX 구문 분석 규칙을 트리거합니다. 다른 [Logstash 예제](https://github.com/newrelic/logstash-examples) 를 확인하십시오.
+
+    ```ini
+    filter {
+      mutate {
+        add_field => {
+          "logtype" => "nginx"
+          "service_name" => "myservicename"
+          "hostname" => "%{host}"
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="api-example" title="로그 API 예시">
+    New Relic으로 전송된 JSON 요청에 속성을 추가할 수 있습니다. 이 예에서는 값이 `nginx` 인 `logtype` 속성을 추가하여 기본 제공 NGINX 구문 분석 규칙을 트리거합니다. [Logs API](/docs/logs/new-relic-logs/log-api/introduction-log-api) 사용에 대해 자세히 알아보세요.
+
+    ```
+    POST /log/v1 HTTP/1.1
+    Host: log-api.newrelic.com
+    Content-Type: application/json
+    X-License-Key: YOUR_LICENSE_KEY
+    Accept: */*
+    Content-Length: 133
+    {
+      "timestamp": TIMESTAMP_IN_UNIX_EPOCH,
+      "message": "User 'xyz' logged in",
+      "logtype": "nginx",
+      "service": "login-service",
+      "hostname": "login.example.com"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+구문 분석 규칙을 프로그래밍 방식으로 관리하려면 api.newrelic.com/graphiql에서 GraphQL 형식 API인 [NerdGraph](https://api.newrelic.com/graphiql) 를 사용하십시오. 자세한 내용은 구문 분석 규칙을 생성, 쿼리 및 삭제하는 [NerdGraph 자습서](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial) 를 참조하세요.
+
+<CollapserGroup>
+  <Collapser id="apache" title="아파치">
     <DNT>**Source:**</DNT> `logtype = 'apache'`
 
     <DNT>
@@ -45,10 +163,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `agent`: 클라이언트의 사용자 에이전트
   </Collapser>
 
-  <Collapser
-    id="apache_error"
-    title="아파치 오류"
-  >
+  <Collapser id="apache_error" title="아파치 오류">
     <DNT>**Source:**</DNT> `logtype = 'apache_error'`
 
     <DNT>
@@ -75,10 +190,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `apache_error.message`: 오류 메시지
   </Collapser>
 
-  <Collapser
-    id="application-load-balancer"
-    title="애플리케이션 로드 밸런서"
-  >
+  <Collapser id="application-load-balancer" title="애플리케이션 로드 밸런서">
     <DNT>**Source:**</DNT> `logtype = 'alb'`
 
     <DNT>
@@ -437,10 +549,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     </table>
   </Collapser>
 
-  <Collapser
-    id="cassandra"
-    title="Cassandra"
-  >
+  <Collapser id="cassandra" title="Cassandra">
     원천: `logtype = 'cassandra'`
 
     그록
@@ -459,10 +568,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `cassandra.message`: 원시 카산드라 메시지
   </Collapser>
 
-  <Collapser
-    id="cloudfront"
-    title="CloudFront(표준 로그)"
-  >
+  <Collapser id="cloudfront" title="CloudFront(표준 로그)">
     <DNT>**Source:**</DNT> `logtype = 'cloudfront-web'`
 
     <DNT>
@@ -792,7 +898,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
           </td>
 
           <td>
-            CloudFront에서 암호화하여 오리진으로 전달한 필드의 수입니다. CloudFront는 데이터를 암호화할 때 처리된 요청을 오리진으로 스트리밍하므로 &#x7B; `fle-status` 값이 오류인 경우에도 `fle-encrypted-fields` 에 값이 있을 수 있습니다.
+            CloudFront에서 암호화하여 오리진으로 전달한 필드의 수입니다. CloudFront는 데이터를 암호화할 때 처리된 요청을 오리진으로 스트리밍하므로 `fle-status` 값이 오류인 경우에도 `fle-encrypted-fields` 에 값이 있을 수 있습니다.
 
             배포에 대해 필드 수준 암호화가 구성되지 않은 경우 `fle-encrypted-fields` 값은 하이픈( `-` )입니다.
           </td>
@@ -871,10 +977,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     </table>
   </Collapser>
 
-  <Collapser
-    id="cloudfront-rtl"
-    title="CloudFront(실시간 로그)"
-  >
+  <Collapser id="cloudfront-rtl" title="CloudFront(실시간 로그)">
     <DNT>**Source:**</DNT> `logtype = 'cloudfront-rtl'`
 
     <DNT>
@@ -1371,10 +1474,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     </table>
   </Collapser>
 
-  <Collapser
-    id="elastic-load-balancer"
-    title="탄력적 로드 밸런서"
-  >
+  <Collapser id="elastic-load-balancer" title="탄력적 로드 밸런서">
     <DNT>**Source:**</DNT> `logtype = 'elb'`
 
     <DNT>
@@ -1701,7 +1801,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
           </td>
 
           <td>
-            CloudFront에서 암호화하여 오리진으로 전달한 필드의 수입니다. CloudFront는 데이터를 암호화할 때 처리된 요청을 오리진으로 스트리밍하므로 &#x7B; `fle_status` 값이 오류인 경우에도 `fle_encrypted_fields` 에 값이 있을 수 있습니다.
+            CloudFront에서 암호화하여 오리진으로 전달한 필드의 수입니다. CloudFront는 데이터를 암호화할 때 처리된 요청을 오리진으로 스트리밍하므로 `fle_status` 값이 오류인 경우에도 `fle_encrypted_fields` 에 값이 있을 수 있습니다.
 
             배포에 대해 필드 수준 암호화가 구성되지 않은 경우 `fle_encrypted_fields` 값은 하이픈( `-` )입니다.
           </td>
@@ -1780,10 +1880,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     </table>
   </Collapser>
 
-  <Collapser
-    id="haproxy"
-    title="HAProxy"
-  >
+  <Collapser id="haproxy" title="HAProxy">
     <DNT>**Source:**</DNT> `logtype = 'haproxy_http'`
 
     <DNT>
@@ -1829,10 +1926,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `captured_response_headers`: 응답에서 캡처된 헤더
   </Collapser>
 
-  <Collapser
-    id="ktranslate-health"
-    title="K번역 건강"
-  >
+  <Collapser id="ktranslate-health" title="K번역 건강">
     <DNT>**Source:**</DNT> `logtype = 'ktranslate-health'`
 
     <DNT>
@@ -1853,10 +1947,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `message`: 메시지 필드에는 이벤트에 대한 정보를 제공하는 자유 형식 메시지가 포함됩니다.
   </Collapser>
 
-  <Collapser
-    id="linux_cron"
-    title="리눅스 크론(/var/log/cron)"
-  >
+  <Collapser id="linux_cron" title="리눅스 크론(/var/log/cron)">
     <DNT>**Source:**</DNT> `logtype = 'linux_cron'`
 
     <DNT>
@@ -1879,10 +1970,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `linux_cron.message`: 로그 메시지
   </Collapser>
 
-  <Collapser
-    id="linux_messages"
-    title="Linux 메시지(/var/log/messages)"
-  >
+  <Collapser id="linux_messages" title="Linux 메시지(/var/log/messages)">
     <DNT>**Source:**</DNT> `logtype = 'linux_messages'`
 
     <DNT>
@@ -1904,10 +1992,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `linux_messages.message`: 로그 메시지
   </Collapser>
 
-  <Collapser
-    id="iis"
-    title="마이크로소프트 IIS"
-  >
+  <Collapser id="iis" title="마이크로소프트 IIS">
     <DNT>**Source:**</DNT> `logtype = 'iis_w3c'`
 
     <DNT>
@@ -1922,13 +2007,10 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
       **Results:**
     </DNT>
 
-    IIS는 여러 [구성 옵션](https://docs.microsoft.com/en-us/previous-versions/iis/6.0-sdk/ms524877(v=vs.90)) 을 허용합니다. 기본값 이외의 옵션을 구성한 경우 Grok 패턴은 로그를 구문 분석하지 않습니다. 이 경우 [사용자 정의 구문 분석](/docs/logs/ui-data/parsing/#custom-parsing) 을 사용하는 것이 좋습니다.
+    IIS는 여러 [구성 옵션](https://docs.microsoft.com/en-us/previous-versions/iis/6.0-sdk/ms524877\(v=vs.90\)) 을 허용합니다. 기본값 이외의 옵션을 구성한 경우 Grok 패턴은 로그를 구문 분석하지 않습니다. 이 경우 [사용자 정의 구문 분석](/docs/logs/ui-data/parsing/#custom-parsing) 을 사용하는 것이 좋습니다.
   </Collapser>
 
-  <Collapser
-    id="mongodb"
-    title="몽고디브"
-  >
+  <Collapser id="mongodb" title="몽고디브">
     <DNT>**Source:**</DNT> `logtype = 'mongodb'`
 
     <DNT>
@@ -1950,10 +2032,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `mongodb.message`: 원시 mongodb 메시지
   </Collapser>
 
-  <Collapser
-    id="monit"
-    title="모니터"
-  >
+  <Collapser id="monit" title="모니터">
     <DNT>**Source:**</DNT> `logtype = 'monit'`
 
     <DNT>
@@ -1972,10 +2051,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `message`: 메시지
   </Collapser>
 
-  <Collapser
-    id="mysql-error"
-    title="MySQL 오류"
-  >
+  <Collapser id="mysql-error" title="MySQL 오류">
     <DNT>**Source:**</DNT> `logtype = 'mysql-error'`
 
     <DNT>
@@ -1993,10 +2069,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `log_level`: 로그 라인의 심각도
   </Collapser>
 
-  <Collapser
-    id="nginx"
-    title="NGINX"
-  >
+  <Collapser id="nginx" title="NGINX">
     <DNT>**Source:**</DNT> `logtype = 'nginx'`
 
     <DNT>
@@ -2023,10 +2096,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `agent`: 클라이언트의 사용자 에이전트
   </Collapser>
 
-  <Collapser
-    id="nginx-error"
-    title="NGINX 오류"
-  >
+  <Collapser id="nginx-error" title="NGINX 오류">
     <DNT>**Source:**</DNT> `logtype = 'nginx-error'`
 
     <DNT>
@@ -2052,10 +2122,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `referrer`: HTTP 리퍼러
   </Collapser>
 
-  <Collapser
-    id="postgresql"
-    title="PostgreSQL"
-  >
+  <Collapser id="postgresql" title="PostgreSQL">
     원천: `logtype = 'postgresql'`
 
     그록:
@@ -2072,10 +2139,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `postgresql.message`: 로그 메시지
   </Collapser>
 
-  <Collapser
-    id="rabbitmq"
-    title="래빗엠큐"
-  >
+  <Collapser id="rabbitmq" title="래빗엠큐">
     <DNT>**Source:**</DNT> `logtype = 'rabbitmq'`
 
     <DNT>
@@ -2096,10 +2160,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `rabbitmq.message`: rabbitmq 오류 메시지
   </Collapser>
 
-  <Collapser
-    id="redis"
-    title="Redis"
-  >
+  <Collapser id="redis" title="Redis">
     <DNT>**Source:**</DNT> `logtype = 'redis'`
 
     <DNT>
@@ -2121,10 +2182,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `redis.message`: redis 오류 메시지
   </Collapser>
 
-  <Collapser
-    id="route53"
-    title="53번 국도"
-  >
+  <Collapser id="route53" title="53번 국도">
     <DNT>**Source:**</DNT> `logtype = 'route-53'`
 
     <DNT>
@@ -2150,10 +2208,7 @@ New Relic은 기본 제공 규칙에 따라 일반적인 로그 형식을 구문
     * `edns_client_subnet`: DNS 해석기에서 사용 가능한 경우 요청이 시작된 클라이언트의 부분 IP 주소입니다.
   </Collapser>
 
-  <Collapser
-    id="syslog-rfc5424"
-    title="시스템 로그 RFC-5424"
-  >
+  <Collapser id="syslog-rfc5424" title="시스템 로그 RFC-5424">
     <DNT>**Source:**</DNT> `logtype = 'syslog-rfc5424'`
 
     <DNT>

@@ -1,0 +1,179 @@
+---
+title: Monitoring de l'OpenTelemetry Collector
+metaDescription: Monitor your OpenTelemetry collector's health and performance using its internal telemetry in a dedicated APM UI experience.
+freshnessValidatedDate: '2025-05-27T00:00:00.000Z'
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+translationType: machine
+---
+
+<Callout title="Aperçu">
+  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
+
+  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Monitorez la santé et les performances de votre [collecteur OpenTelemetry](https://opentelemetry.io/docs/collector/) grâce à une expérience d&apos;interface utilisateur APM dédiée. Lorsque votre collecteur tombe en panne ou fonctionne mal, cela peut entraîner une interruption des données d&apos;observabilité, une perte définitive de données ou des analyses faussées. C&apos;est pourquoi nous avons créé Collector Observability, une expérience APM adaptée au travail de streaming effectué par les collecteurs. Vous pouvez exploiter la [télémétrie interne](https://opentelemetry.io/docs/collector/internal-telemetry/) du collecteur pour voir d&apos;un coup d&apos;œil comment chaque composant de votre collecteur fonctionne, afin de repérer les problèmes avant qu&apos;ils n&apos;impactent votre pipeline d&apos;observabilité.
+
+## Configurer le monitoring du collecteur [#setup]
+
+<Callout variant="important" title="Facturation">
+  Votre utilisation de Collector Observability est facturable pendant la version préliminaire conformément à votre Commande, selon le modèle de tarification associé à votre Compte et tel que défini ci-dessous.
+
+  Les coûts associés à cette fonctionnalité sont déterminés par les facteurs suivants, selon le modèle de tarification associé à votre Compte :
+
+  **Core Compute**: La page de synthèse, mesurée en Core CCU, est facturable pendant la preview. La page Processus et la page HTTP/RPC ne sont pas facturables pendant la version préliminaire.
+
+  **Ingestion de données**: Les données supplémentaires issues de la télémétrie interne, mesurées en Go ingérés, sont facturables pendant la version préliminaire.
+
+  Si cette fonctionnalité devient disponible de manière générale, votre utilisation sera facturable conformément à votre Commande.
+</Callout>
+
+### Activer la télémétrie interne pour votre collecteur [#enable-telemetry]
+
+Par défaut, le collecteur n&apos;émet pas sa [télémétrie interne](https://opentelemetry.io/docs/collector/internal-telemetry/), vous devez donc d&apos;abord l&apos;activer.
+
+#### Télécharger le fichier de configuration
+
+```bash
+curl 'https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/heads/main/examples/internal-telemetry-config.yaml' \
+  --silent --output internal-telemetry-config.yaml
+```
+
+#### Définir les variables d&apos;environnement
+
+* <DNT>`INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY`</DNT>: Clé de licence d&apos;ingestion pour le compte vers lequel la télémétrie interne doit être envoyée. Cette clé peut être différente de la clé que le collecteur utilise pour envoyer des données standard à New Relic, c&apos;est-à-dire <DNT>`NEW_RELIC_LICENSE_KEY`</DNT> dans l&apos;exemple ci-dessous.
+* <DNT>`INTERNAL_TELEMETRY_SERVICE_NAME`</DNT>: Par défaut `otel-collector`, détermine le nom de l&apos;entité dans New Relic
+* <DNT>`INTERNAL_TELEMETRY_OTLP_ENDPOINT`</DNT>: Par défaut US `https://otlp.nr-data.net`; si vous êtes dans l&apos;UE, définissez ceci sur `https://otlp.eu01.nr-data.net`
+
+#### Lancer le collecteur avec la configuration fusionnée
+
+En plus de la configuration normale pour les composants et les pipelines (dans l&apos;exemple suivant `--config=/etc/nrdot-collector/config.yaml`), ajoutez un second argument `--config` qui fusionnera les deux configurations :
+
+```bash
+docker run \
+  -e INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY='...' \
+  -e NEW_RELIC_LICENSE_KEY='...' \
+  -e INTERNAL_TELEMETRY_SERVICE_NAME='demo-collector' \
+  -v './internal-telemetry-config.yaml:/etc/nrdot-collector/config-internal.yaml' \
+  newrelic/nrdot-collector:1.10.0 --config=/etc/nrdot-collector/config.yaml \
+  --config='/etc/nrdot-collector/config-internal.yaml'
+```
+
+<Callout variant="important">
+  L&apos;ordre des arguments `--config` est important si vous avez une configuration préexistante sous le nœud `service::telemetry`. Le collecteur utilise une stratégie du « dernier arrivé gagne » au niveau du nœud lors de la fusion des configurations et de certaines parties de la config (par ex. les listes, les nœuds feuilles) ne peuvent pas être fusionnés, ils sont donc écrasés par le dernier argument `--config`.
+</Callout>
+
+#### Alternative (non recommandée pour la production)
+
+Nous ne recommandons pas cette méthode pour des raisons de fiabilité, mais pour les tests, vous pouvez également référencer la configuration directement et le collecteur la récupérera au démarrage :
+
+```bash
+docker run \
+  -e INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY='...' \
+  -e NEW_RELIC_LICENSE_KEY='...' \
+  -e INTERNAL_TELEMETRY_SERVICE_NAME='demo-collector' \
+  newrelic/nrdot-collector:1.10.0 --config=/etc/nrdot-collector/config.yaml \
+  --config='https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml'
+```
+
+### Ajouter un tag d&apos;entité [#add-tag]
+
+Le tag <DNT>`newrelic.service.type: otel_collector`</DNT> sert d&apos;activation pour l&apos;expérience au niveau de l&apos;interface utilisateur. Choisissez l&apos;une des options suivantes :
+
+* **Option 1**: Utilisez l&apos;exemple de configuration fourni ci-dessus qui contient la configuration de l&apos;option 2.
+* **Option 2**: Ajouter l&apos;argument <DNT>`--config=yaml:service::telemetry::resource::newrelic.service.type: otel_collector`</DNT> au collecteur. Cela ajoute l&apos;attribut en tant qu&apos;attribut de ressource et New Relic effectue l&apos;étiquetage pour vous lors de l&apos;ingestion. Si vous supprimez cette option, il faudra un jour pour que le tag expire.
+* **Option 3**: Ajouter un tag via l&apos;interface APM (en haut de la page, à côté du nom de l&apos;entité). Vous pouvez également le supprimer via l&apos;interface utilisateur pour revenir en arrière.
+
+### Personnalisation de la configuration [#customize]
+
+La configuration par défaut expose des variables d&apos;environnement supplémentaires de la forme `INTERNAL_TELEMETRY_...` pour ajuster des options courantes telles que les niveaux de détail et l&apos;échantillonnage. Consultez la [configuration elle-même](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) pour plus de détails.
+
+Nous vous recommandons d&apos;utiliser la configuration par défaut pour monitorer votre collecteur. Cependant, vous pouvez modifier l&apos;exemple de configuration pour répondre à vos besoins, par exemple en réduisant l&apos;échantillonnage ou les taux de collecte de données. Consultez la [documentation officielle](https://opentelemetry.io/docs/collector/internal-telemetry/) pour plus de détails. Gardez à l&apos;esprit que les modifications de la configuration peuvent empêcher certaines parties de l&apos;interface utilisateur d&apos;afficher des données. Reportez-vous également aux [Limitations](#limitations). Les options de configuration de la télémétrie interne du collecteur changent à mesure que la communauté OTel évolue. Vous avez un contrôle total sur votre configuration, y compris le choix d&apos;utiliser les valeurs par défaut fournies.
+
+#### Considérations relatives au surcoût
+
+Comme toute télémétrie, la télémétrie interne du collecteur augmente votre ingestion de données. La surcharge dépend de votre charge de travail et de votre configuration. Voici les facteurs clés à prendre en compte :
+
+**Métriques** Génère une surcharge constante pour le collecteur et tous les composants actifs, quel que soit le débit. Les métriques sont émises à intervalle constant (60 secondes par défaut). Tout composant peut émettre des métriques personnalisées, comme indiqué par le [metadata.yaml](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/filterprocessor/metadata.yaml#L20) respectif, ce qui peut augmenter la surcharge.
+
+**Logs** A un impact minime lors du fonctionnement normal. Une surcharge plus importante peut survenir lorsque les logs d&apos;erreur augmentent rapidement, mais elle est réduite car les logs sont échantillonnés par défaut. L&apos;algorithme d&apos;échantillonnage autorise un nombre constant de logs par intervalle défini, puis échantillonne à un taux statique. Reportez-vous à [service::telemetry::logs::sampling](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml).
+
+**Traces** Désactivées par défaut en raison de :
+
+* Maturité limitée des traces. Tous les composants ne sont pas instrumentés, voir ce [ticket github](https://github.com/open-telemetry/opentelemetry-collector/issues/8804).
+* Surcharge imprévisible variant en fonction de la charge de travail et de la configuration du traitement par lots des agents et collecteurs en amont.
+* Aucun algorithme d&apos;échantillonnage adaptatif disponible. Cela rend impossible de fournir une recommandation d&apos;échantillonnage universelle sans risquer d&apos;entraîner des coûts imprévus pour certains cas d&apos;utilisation.
+
+Lorsque les traces seront plus matures, elles fourniront des informations précieuses sur le temps que le collecteur passe à traiter les données au niveau des composants. Pour expérimenter avec les traces en cours de développement, définissez <DNT>`INTERNAL_TELEMETRY_TRACE_LEVEL=info`</DNT> et commencez avec un taux d&apos;échantillonnage faible tel que <DNT>`INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO=0.001`</DNT> (0,1 %) tout en monitorant votre volume d&apos;ingestion et en l&apos;ajustant si nécessaire.
+
+## Afficher votre collecteur dans l&apos;interface utilisateur [#view-ui]
+
+### Explorer la télémétrie interne dans l&apos;interface utilisateur APM [#explore-ui]
+
+Pour consulter la télémétrie interne de votre collecteur, accédez à <DNT>**APM &amp; Services &gt; Services - OpenTelemetry &gt; your\_collector\_name**</DNT> pour explorer l&apos;entité du collecteur.
+
+En fonction des composants utilisés par votre collecteur, certains graphiques peuvent ne pas être alimentés. Par exemple, si vous ne recevez ni n&apos;exportez de données OTLP via gRPC, les graphiques RPC seront vides.
+
+### Page de résumé [#summary-page]
+
+La page Résumé vous donne un aperçu de la santé et des performances de votre collecteur :
+
+* Métriques globales de santé du collecteur
+* Graphiques pour le comportement des récepteurs, processeurs, exportateurs et du traitement par lots (nécessite [batchprocessor](https://github.com/open-telemetry/opentelemetry-collector/tree/v0.128.0/processor/batchprocessor))
+* Graphique dédié pour [memorylimiter](https://github.com/open-telemetry/opentelemetry-collector/tree/v0.128.0/processor/memorylimiterprocessor) en raison de son mode de défaillance unique
+
+<img title="Screenshot showing new Summary Page" alt="Screenshot showing new Summary Page" src="/images/otel_collector_o11y-summary.webp" />
+
+* Relations et métriques d&apos;infrastructure (si configurées, voir les [exemples de configuration](#examples))
+
+<img title="Screenshot showing related infrastructure telemetry in the new Summary Page" alt="Screenshot showing related infrastructure telemetry in the new Summary Page" src="/images/otel_collector_o11y-infra.webp" />
+
+### Page des processus [#process-page]
+
+Suivez la consommation de ressources au niveau du système avec la page Processus :
+
+* Utilisation du CPU et tendances
+* Utilisation de la mémoire et schémas
+* Indicateurs de performance au niveau du processus
+
+<img title="Screenshot showing new Process Page" alt="Screenshot showing new Process Page" src="/images/otel_collector_o11y-process.webp" />
+
+### Page HTTP/RPC [#http-rpc-page]
+
+Monitorez les communications réseau avec la page HTTP/RPC :
+
+* Métriques des requêtes HTTP client et serveur
+* Statistiques de communication gRPC
+* Latence réseau et taux d&apos;erreur
+
+<img title="Screenshot showing new HTTP/RPC Page" alt="Screenshot showing new HTTP/RPC Page" src="/images/otel_collector_o11y-httprpc.webp" />
+
+Remarque : ces graphiques ne sont alimentés que si votre collecteur utilise des composants qui communiquent via HTTP ou gRPC (comme les récepteurs ou les exportateurs OTLP) et nécessite <DNT>`INTERNAL_TELEMETRY_METRICS_LEVEL=detailed`</DNT>.
+
+## Exemples de configuration [#examples]
+
+Cette section contient des exemples de la façon dont le guide étape par étape ci-dessus s&apos;applique à différents cas d&apos;utilisation impliquant le collecteur.
+
+### Collecteur simple avec télémétrie interne activée
+
+[Exemple minimal](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry) d&apos;un collecteur s&apos;exécutant avec docker compose.
+
+### Peupler les relations d&apos;infrastructure (facultatif, expérimental)
+
+Comme indiqué ci-dessus, l&apos;APM peut afficher des métriques d&apos;infrastructure pour l&apos;infrastructure sur laquelle le collecteur s&apos;exécute, mais uniquement si votre infrastructure est instrumentée et qu&apos;[une relation](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#related-entities) peut être établie. La relation est pilotée par des attributs supplémentaires sur la télémétrie interne du collecteur. Vous pouvez en savoir plus sur ce sujet dans notre [documentation OTel](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/#service-to-infra-otel-collector). Les étapes de configuration dépendent fortement de votre infrastructure exacte. Pour le choix courant de Kubernetes, nous avons créé [un exemple](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry-k8s-container-relationships) qui présente comment obtenir des relations conteneur-service basées sur notre [solution OTel pour Kubernetes](https://docs.newrelic.com/docs/kubernetes-pixie/k8s-otel/intro/).
+
+## Limites [#limitations]
+
+* **La télémétrie du Collecteur n&apos;est pas encore stable**:
+
+  * La version prise en charge de la télémétrie interne est implicitement définie par la [version du collecteur principal](https://github.com/open-telemetry/opentelemetry-collector) que nous utilisons pour construire NRDOT ; voir la version de l&apos;otlpreceiver dans le [manifeste du nrdot-collector](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/manifest.yaml).
+  * Si la télémétrie émise change pendant la préversion publique, nous nous réservons le droit de ne prendre en charge que la version la plus récente. Par exemple, nous prenons en charge <DNT>`http.client.request.duration`</DNT> (version du collecteur &gt;=0.128.0, version NRDOT &gt;=1.2.0, nr-k8s-otel-collector &gt;=0.8.37) mais pas <DNT>`http.request.duration`</DNT>.
+
+* **Exigences du format d&apos;exportation**: L&apos;interface du collecteur attend la télémétrie au format exporté par le <DNT>`otlpexporter`</DNT>. Il ne prend pas en charge les métriques exportées via Prometheus. Par exemple, <DNT>`http.client.request.duration`</DNT> est pris en charge, mais <DNT>`http_client_request_duration`</DNT> ne l&apos;est pas.
+
+* **Métriques de composants personnalisés**: La télémétrie interne qui n&apos;est pas répertoriée dans la [documentation sur la télémétrie interne](https://opentelemetry.io/docs/collector/internal-telemetry/) n&apos;est pas encore prise en charge. Les composants personnalisés ou les [composants contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib) émettent des métriques standard mais peuvent également définir leurs propres métriques. Nous travaillons toujours sur un moyen de vous aider à en tirer des informations sans créer de dashboards personnalisés.
+
+* **Métriques Golden pour les conteneurs OTel**: Pas encore entièrement pris en charge, ce qui signifie que certaines colonnes du panneau d&apos;infrastructure peuvent ne pas être renseignées pour les conteneurs.
