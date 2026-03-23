@@ -18,8 +18,7 @@ This strategic guide helps you plan and implement partial granularity distribute
 3. Use this guide to plan which services get which configuration
 
 **After planning**, implement your strategy using:
-- [Configure span filtering](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) - Implementation guide for your agent
-- [Configure span attributes](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) - Fine-tune attribute inclusion
+- [Configure partial granularity](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) - Comprehensive implementation guide for your agent
 
 ## Understand your data ingestion [#understand-costs]
 
@@ -27,10 +26,9 @@ Distributed tracing data volumes come from two main factors:
 
 ### Ingest costs
 
-You're charged for the data volume (GB) of span data ingested. Span data includes:
-* Number of spans (controlled by [span filtering configuration](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing))
-* Size of each span (controlled by [span attribute reduction](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing))
-* Sampling rate (controlled by adaptive sampling configuration)
+You're charged for the data volume (GB) of span data ingested. Span data is controlled by:
+* **Partial granularity mode** (reduced, essential, or compact): Controls both the number of spans and the size of each span through combined span filtering and attribute reduction. See [Configure partial granularity](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) for details.
+* **Sampling rate**: Controlled by adaptive sampling configuration, which determines how many traces are captured per minute
 
 ### Compute (CCU) costs
 
@@ -73,151 +71,86 @@ For detailed configuration examples addressing specific scenarios (poor endpoint
 
 ## Controlled ingestion strategies [#strategies]
 
-APM agent configuration for partial granularity distributed traces offers three main options you can apply strategically across your services:
+APM agent configuration for partial granularity distributed traces offers three modes you can apply strategically across your services. For detailed explanations of what each mode captures, configuration instructions, and visual waterfall examples, see [Configure partial granularity distributed tracing](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing).
 
-### Strategy 1: Reduced granularity for services with deep call stacks
+### Strategy 1: Apply the three partial granularity modes based on service needs
 
-**What it does:** Removes in-process spans, keeping only entry and exit spans (AI spans still captured)
-**Results vary by application:** Reduction depends on your service's span structure and call patterns
-**Best for:** Services with deep call stacks, high-throughput services, Java/.NET applications
+Choose the appropriate mode for each service based on your monitoring needs:
 
-Use [reduced granularity (span filtering)](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) to eliminate in-process spans while keeping entry and exit spans. This dramatically reduces span volume without losing service-to-service visibility.
+**Reduced granularity (`type: reduced`):**
+* Removes in-process spans, keeps entry and exit spans with all attributes
+* Preserves LLM/AI monitoring spans
+* Best for: Services with deep call stacks where you need full attribute visibility
 
-**Waterfall view comparison:**
+**Essential granularity (`type: essential`):**
+* Removes in-process spans + reduces attributes to minimal set
+* Preserves LLM/AI monitoring spans
+* Best for: Supporting services where you need connectivity but not detailed diagnostics
 
-Before (Full granularity):
-```
-Service A (entry span)                    [============================] 210ms
-├─ Exit span → Database query            [====] 30ms
-├─ In-process span: validateUser()       [=======] 40ms
-│  └─ In-process span: checkPermissions()[===] 20ms
-├─ Exit span → Service B call            [===========] 70ms
-│  └─ Service B (entry span)             [=========] 65ms
-│     ├─ Exit span → Database query      [====] 25ms
-│     └─ In-process span: processData()  [===] 20ms
-└─ In-process span: formatResponse()     [====] 30ms
-```
+**Compact granularity (`type: compact`):**
+* Removes in-process spans + reduces attributes + compresses duplicate exit spans
+* **NOT compatible with LLM/AI monitoring**
+* Best for: Non-production environments or services where you only need proof of connectivity
 
-After (Reduced granularity):
-```
-Service A (entry span)                    [============================] 210ms
-├─ Exit span → Database query            [====] 30ms
-└─ Exit span → Service B call            [===========] 70ms
-   └─ Service B (entry span)             [=========] 65ms
-      └─ Exit span → Database query      [====] 25ms
-```
+For configuration examples and visual comparisons, see [What data gets captured with each mode](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing#what-data).
 
-**Example scenario:**
-Your Java services generate 5-10 in-process spans per request. Reduced granularity removes these in-process spans while keeping entry and exit spans, resulting in fewer spans per transaction.
+### Strategy 2: Increase adaptive sampling for better coverage
 
-* Enable reduced granularity on all services with deep call stacks
-* Keep full distributed tracing on services where you need method-level visibility
-* **Result:** Cost optimization controls with results that vary by application
-
-### Strategy 2: Essential granularity for supporting services
-
-**What it does:** Removes in-process spans and reduces/removes non-critical span attributes
-**Results vary by application:** Reduction depends on span count and attribute complexity
-**Best for:** Supporting services, internal APIs, background workers
-
-Use [essential granularity](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) on services where you need connectivity data but not detailed metadata. You'll still see service-to-service calls in your flow maps and traces, with minimal span data.
-
-**Waterfall view comparison:**
-
-Before (Full granularity):
-```
-Service A (entry span)                    [============================] 210ms
-├─ Exit span → Database query            [====] 30ms
-│  Attributes: http.method, http.url, db.statement, db.instance, custom attributes
-├─ In-process span: validateUser()       [=======] 40ms
-│  └─ In-process span: checkPermissions()[===] 20ms
-└─ Exit span → Service B call            [===========] 70ms
-   Attributes: http.method, http.url, http.statusCode, custom attributes
-```
-
-After (Essential granularity):
-```
-Service A (entry span)                    [============================] 210ms
-├─ Exit span → Database                  [====] 30ms
-│  Attributes: entity.name, duration, span.id, trace.id
-└─ Exit span → Service B                 [===========] 70ms
-   Attributes: entity.name, duration, span.id, trace.id, http.statusCode
-```
-
-**Example scenario:**
-You have 50 microservices. The 15 most critical handle customer transactions. The other 35 are supporting services (auth, notifications, logging, etc.).
-
-* Keep full distributed tracing on 15 critical services
-* Enable essential granularity on 35 supporting services
-* **Result:** Customized cost optimization based on your needs
-
-### Strategy 3: Compact granularity for non-production or high-volume services
-
-**What it does:** Removes in-process spans, reduces attributes, and compresses duplicate exit spans (for same URLs/databases)
-**Results vary by application:** Maximum reduction achieved through span filtering, attribute reduction, and compression
-**Best for:** Non-production environments, extremely high-volume services, cost-critical situations
-
-Use [compact granularity](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) on services where you only need the "big picture" connectivity without duplicate call tracking.
-
-**Waterfall view comparison:**
-
-Before (Full granularity):
-```
-Service A (entry span)                    [============================] 210ms
-├─ Exit span → Database query 1          [====] 30ms
-│  Attributes: http.method, http.url, db.statement, db.instance, custom attributes
-├─ In-process span: validateUser()       [=======] 40ms
-├─ Exit span → Database query 2          [===] 20ms (same database)
-│  Attributes: http.method, http.url, db.statement, db.instance, custom attributes
-└─ Exit span → Service B call            [===========] 70ms
-   Attributes: http.method, http.url, http.statusCode, custom attributes
-```
-
-After (Compact granularity):
-```
-Service A (entry span)                    [============================] 210ms
-└─ Exit span → Service B                 [===========] 70ms
-   Attributes: entity.name, duration, span.id, trace.id
-
-Note: First database call captured, second duplicate call compressed
-```
-
-**Example scenario:**
-You have extensive staging and development environments that mirror production.
-
-* Production: Full distributed tracing on critical services, reduced granularity on others
-* Staging: Essential or compact granularity on all services
-* Development: Compact granularity on all services
-* **Result:** More optimization controls for non-production environments
-
-### Strategy 4: Adjust adaptive sampling target
-
-**What it does:** Reduces the number of traces captured by lowering the adaptive sampling target
+**What it does:** Increases the number of traces captured by raising the adaptive sampling target
 **Results vary by application:** Impact depends on traffic volume and target adjustment
-**Best for:** Fine-tuning trace volume after implementing span filtering options
+**Best for:** Eliminating service map gaps while using partial granularity to control data volume
 
-Adaptive sampling dynamically adjusts which traces are captured based on the target you set. Lowering the adaptive sampling target reduces the number of traces sampled, which can further reduce data volume.
+The default adaptive sampling target for most agents is 10 traces per minute, with a maximum of 120. When using partial granularity modes, you can significantly increase this target to capture more traces without proportionally increasing costs, since each trace contains less data.
+
+**Common pattern:**
+* Capture 1 full granularity trace per minute (aligns with transaction trace behavior)
+* Capture 60 partial granularity traces per minute to fill service map gaps
+* Result: Complete service map visibility with controlled data volume
 
 **Example scenario:**
-Your service's current adaptive sampling target is capturing more traces than needed for effective monitoring.
+Your service map has gaps because some endpoints are rarely sampled at the default 10 traces/minute target. Using partial granularity, you can increase sampling significantly:
 
-* Lower the adaptive sampling target on non-critical services to reduce trace volume
-* **Result:** Additional data volume reduction on top of span filtering savings
+* Configure partial granularity (essential mode) on supporting services
+* Increase adaptive sampling target from 10 to 60-120 traces/minute
+* Result: Complete service map without gaps, controlled data volume due to essential granularity
 
-### Strategy 5: Hybrid sampling (full + partial granularity)
+For detailed configuration examples, see [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples).
+
+### Strategy 3: Hybrid sampling (full + partial granularity)
 
 **What it does:** Enables both full and partial granularity tracing simultaneously on the same service
 **Results vary by application:** Impact depends on sampling ratios and span characteristics
 **Best for:** Services where you need occasional detailed traces but can't justify full granularity for all requests
 
-Configure a service to sample some traces at full granularity while capturing others at partial granularity (reduced, essential, or compact). This gives you 100% trace coverage with mixed detail levels. When a trace is selected by both full and partial granularity sampling, full granularity always takes precedence and partial granularity is ignored for that trace.
+Configure a service to sample some traces at full granularity while capturing others at partial granularity (reduced, essential, or compact). This gives you complete trace coverage with mixed detail levels. When a trace is selected by both full and partial granularity sampling, full granularity always takes precedence.
+
+**Example configuration:**
+
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # 10% of root traces at full granularity
+  full_granularity:
+    enabled: true
+  partial_granularity:
+    enabled: true
+    type: essential
+    root:
+      trace_id_ratio_based:
+        ratio: 0.9  # Remaining 90% at partial granularity
+```
 
 **Example scenario:**
-Your checkout service is business-critical but generates 50GB/day of trace data. You need detailed traces for troubleshooting but can't afford full detail on every request.
+Your checkout service is business-critical but generates significant trace data. You need detailed traces for troubleshooting but can't afford full detail on every request.
 
 * Configure 10% of traces to use full granularity (complete detail for deep analysis)
 * Configure 90% of traces to use essential granularity (lightweight coverage)
-* **Result:** 100% trace coverage with controlled data ingestion (results vary by application)
+* Result: 100% trace coverage with controlled data ingestion (results vary by application)
+
+For more hybrid sampling scenarios and configuration examples, see [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples).
 
 ## Service prioritization framework [#prioritization]
 
@@ -551,10 +484,9 @@ Agent configuration changes require editing configuration files and restarting y
 
 Ready to implement controlled ingestion?
 
-1. Review [Control distributed tracing data volume](/docs/distributed-tracing/core-tracing/introduction-core-tracing) for an overview of the three configuration options
-2. [Configure span filtering](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) to implement reduced, essential, or compact granularity
-3. [Configure span attributes](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) to fine-tune attribute inclusion for essential or compact granularity
-4. See [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples) for real-world scenarios with copy-paste ready configuration code
+1. Review [Control distributed tracing data volume](/docs/distributed-tracing/core-tracing/introduction-core-tracing) for an overview of the three modes and when to use them
+2. [Configure partial granularity distributed tracing](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) - Comprehensive guide with configuration instructions for all three modes
+3. See [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples) for real-world scenarios with copy-paste ready configuration code
 
 <Callout variant="tip">
   Need help planning your controlled ingestion strategy? Contact your New Relic account team or [New Relic Support](https://support.newrelic.com) for guidance.
