@@ -1,0 +1,561 @@
+---
+title: PHP agent instrumentation overview
+tags:
+  - Agents
+  - PHP agent
+  - Instrumentation
+metaDescription: 'Learn what the PHP agent instruments automatically and how to add custom instrumentation for your specific needs.'
+freshnessValidatedDate: never
+---
+
+The New Relic PHP agent automatically instruments many popular frameworks and libraries. This page explains what's instrumented automatically and how to add custom instrumentation for your specific monitoring needs.
+
+## What's automatically instrumented?
+
+The PHP agent instruments common operations without any code changes:
+
+### Web frameworks
+
+The agent automatically recognizes and instruments:
+
+- **Laravel** - Routes, controllers, middleware, queue jobs
+- **Symfony** - Controllers, console commands, services
+- **Drupal** - Hooks, modules, themes
+- **WordPress** - Hooks, plugins, themes, database queries
+- **Magento** - Controllers, models, blocks
+- **Zend Framework** - MVC components, services
+- **CodeIgniter** - Controllers, models
+- **CakePHP** - Controllers, models, components
+- **Laminas** (formerly Zend) - All MVC components
+- **Slim** - Routes and middleware
+- **Lumen** - Routes and middleware
+- **Yii** - Controllers and components
+
+See complete framework support in [compatibility requirements](/docs/apm/agents/php-agent/getting-started/php-agent-compatibility-requirements#frameworks).
+
+### Database operations
+
+Automatically captured for:
+
+- **MySQL/MariaDB** (via mysqli or PDO)
+- **PostgreSQL**
+- **Oracle**
+- **Microsoft SQL Server**
+- **SQLite**
+- **MongoDB**
+- **Redis**
+- **Memcached**
+- **Predis**
+
+Database queries appear in transaction traces with query details and explain plans for slow queries.
+
+### HTTP clients
+
+External calls are automatically tracked for:
+
+- **Guzzle** (all versions)
+- **cURL**
+- **file_get_contents()** (for HTTP)
+- **fsockopen()**
+- **stream_socket_client()**
+
+See external calls in the External services page and distributed tracing.
+
+### Message queues and async
+
+- **RabbitMQ** (via php-amqplib)
+- **Gearman**
+- **Predis** pub/sub
+
+### Error tracking
+
+Automatically captures:
+
+- **PHP errors** (notices, warnings, fatals)
+- **Exceptions** (caught and uncaught)
+- **Stack traces** with file names and line numbers
+
+## When do you need custom instrumentation?
+
+Add custom instrumentation when you want to:
+
+### 1. Track specific functions or methods
+
+Monitor business-critical functions that aren't in frameworks:
+
+```php
+// Track a custom function
+function processPayment($amount) {
+    // Your payment logic
+}
+```
+
+See [custom instrumentation](/docs/apm/agents/php-agent/features/php-custom-instrumentation).
+
+### 2. Name transactions meaningfully
+
+Override default transaction names:
+
+```php
+// Instead of "/api/endpoint.php"
+newrelic_name_transaction("API/ProcessOrder");
+```
+
+### 3. Add business context
+
+Track business metrics and user attributes:
+
+```php
+newrelic_add_custom_parameter("cart_value", $cart->total);
+newrelic_add_custom_parameter("user_tier", "premium");
+newrelic_add_custom_parameter("promo_code", $promo);
+```
+
+### 4. Track background jobs and CLI scripts
+
+For non-web transactions:
+
+```php
+// Mark as background job
+newrelic_background_job(true);
+
+// Name the transaction
+newrelic_name_transaction("Cron/SendEmails");
+```
+
+### 5. Ignore specific transactions
+
+Exclude health checks or monitoring endpoints:
+
+```php
+// Don't report this transaction
+newrelic_ignore_transaction();
+```
+
+See [ignore transactions](/docs/apm/agents/php-agent/configuration/php-agent-configuration#inivar-ignore-urls).
+
+## Methods of custom instrumentation
+
+### 1. API calls (easiest)
+
+Use the PHP agent API in your code:
+
+```php
+// Start a custom transaction
+newrelic_start_transaction("MyApp", "background");
+
+// Add custom tracer for a function
+newrelic_add_custom_tracer("MyClass::myMethod");
+
+// Record a custom event
+newrelic_record_custom_event("UserPurchase", [
+    "amount" => 99.99,
+    "category" => "electronics"
+]);
+
+// End transaction
+newrelic_end_transaction();
+```
+
+**Pros:**
+- Easy to add
+- No configuration files
+- Dynamic (can use conditions)
+
+**Cons:**
+- Requires code changes
+- Need to deploy code
+
+See [PHP agent API guide](/docs/apm/agents/php-agent/php-agent-api/guide-using-php-agent-api).
+
+### 2. newrelic.transaction_tracer.custom (simple functions)
+
+Add to your INI file to trace specific functions:
+
+```ini
+newrelic.transaction_tracer.custom = "MyClass::myMethod,anotherFunction"
+```
+
+**Pros:**
+- No code changes
+- Quick to test
+
+**Cons:**
+- Limited to function names
+- All-or-nothing (always traces)
+
+See [custom instrumentation configuration](/docs/apm/agents/php-agent/configuration/php-agent-configuration#inivar-tt-custom).
+
+### 3. Framework-specific hooks
+
+Use framework facilities for clean integration:
+
+**Laravel middleware:**
+```php
+public function handle($request, Closure $next)
+{
+    newrelic_name_transaction("Route/" . $request->route()->getName());
+    newrelic_add_custom_parameter("user_id", auth()->id());
+
+    return $next($request);
+}
+```
+
+**WordPress hooks:**
+```php
+add_action('init', function() {
+    newrelic_add_custom_parameter('theme', get_template());
+});
+```
+
+## Common instrumentation patterns
+
+### Pattern 1: Track business transactions
+
+```php
+class CheckoutController
+{
+    public function processOrder(Request $request)
+    {
+        // Name transaction meaningfully
+        newrelic_name_transaction("Checkout/ProcessOrder");
+
+        // Add business context
+        newrelic_add_custom_parameter("cart_items", count($request->items));
+        newrelic_add_custom_parameter("payment_method", $request->payment_type);
+        newrelic_add_custom_parameter("customer_type", $this->getCustomerTier());
+
+        // Your checkout logic
+        $order = $this->createOrder($request);
+
+        // Track the conversion
+        newrelic_record_custom_event("OrderCompleted", [
+            "order_id" => $order->id,
+            "amount" => $order->total,
+            "items" => count($order->items)
+        ]);
+
+        return response()->json($order);
+    }
+}
+```
+
+### Pattern 2: Monitor background jobs
+
+```php
+class EmailQueueWorker
+{
+    public function process(Job $job)
+    {
+        // Mark as background transaction
+        newrelic_background_job(true);
+
+        // Name it appropriately
+        newrelic_name_transaction("Queue/SendEmail");
+
+        // Add context
+        newrelic_add_custom_parameter("email_type", $job->type);
+        newrelic_add_custom_parameter("recipient_count", count($job->recipients));
+
+        try {
+            $this->sendEmails($job);
+
+            // Track success
+            newrelic_record_custom_event("EmailSent", [
+                "type" => $job->type,
+                "count" => count($job->recipients)
+            ]);
+        } catch (Exception $e) {
+            // Error automatically captured, but add context
+            newrelic_add_custom_parameter("failure_reason", $e->getMessage());
+            throw $e;
+        }
+    }
+}
+```
+
+### Pattern 3: API endpoint monitoring
+
+```php
+class ApiController
+{
+    public function handleRequest(Request $request)
+    {
+        // Name by API endpoint
+        $endpoint = $request->route()->getActionMethod();
+        newrelic_name_transaction("API/{$endpoint}");
+
+        // Track API version and client
+        newrelic_add_custom_parameter("api_version", $request->header('API-Version'));
+        newrelic_add_custom_parameter("client_id", $request->header('Client-ID'));
+        newrelic_add_custom_parameter("request_size", strlen($request->getContent()));
+
+        $response = $this->processRequest($request);
+
+        // Track response
+        newrelic_add_custom_parameter("response_size", strlen($response));
+        newrelic_add_custom_parameter("cache_hit", $this->wasCacheHit());
+
+        return $response;
+    }
+}
+```
+
+### Pattern 4: Track specific slow operations
+
+```php
+class ReportGenerator
+{
+    public function generateComplexReport($params)
+    {
+        // Track this specific method
+        newrelic_add_custom_tracer("ReportGenerator::generateComplexReport");
+
+        newrelic_add_custom_parameter("report_type", $params['type']);
+        newrelic_add_custom_parameter("date_range", $params['range']);
+
+        $startTime = microtime(true);
+
+        $report = $this->buildReport($params);
+
+        $duration = microtime(true) - $startTime;
+
+        // Record custom metric
+        newrelic_custom_metric("Custom/ReportGeneration/Duration", $duration);
+        newrelic_custom_metric("Custom/ReportGeneration/RowCount", count($report));
+
+        return $report;
+    }
+}
+```
+
+## Browser monitoring (Real User Monitoring)
+
+Monitor frontend performance by injecting JavaScript:
+
+### Automatic injection
+
+Enable in INI file:
+```ini
+newrelic.browser_monitoring.auto_instrument = true
+```
+
+The agent automatically injects JavaScript into HTML responses.
+
+### Manual injection
+
+For more control, inject manually:
+
+```php
+<!DOCTYPE html>
+<html>
+<head>
+    <?php
+    if (extension_loaded('newrelic')) {
+        echo newrelic_get_browser_timing_header();
+    }
+    ?>
+    <title>My App</title>
+</head>
+<body>
+    <!-- Your content -->
+
+    <?php
+    if (extension_loaded('newrelic')) {
+        echo newrelic_get_browser_timing_footer();
+    }
+    ?>
+</body>
+</html>
+```
+
+See [browser monitoring](/docs/apm/agents/php-agent/features/browser-monitoring-php-agent).
+
+## Advanced instrumentation
+
+### Track external services with distributed tracing
+
+For microservices, propagate trace context:
+
+```php
+// Outgoing request
+$client = new GuzzleHttp\Client();
+$response = $client->get('https://api.example.com/data', [
+    'headers' => [
+        // Automatically added by agent for supported clients
+    ]
+]);
+```
+
+For custom HTTP clients:
+
+```php
+// Get distributed trace headers
+$traceHeaders = [];
+newrelic_insert_distributed_trace_headers($traceHeaders);
+
+// Add to your HTTP request
+$client->request('GET', $url, ['headers' => $traceHeaders]);
+```
+
+See [distributed tracing](/docs/apm/agents/php-agent/configuration/distributed-tracing-php-agent).
+
+### Custom metrics
+
+Track business-specific metrics:
+
+```php
+// Record a metric value
+newrelic_custom_metric("Custom/InventoryLevel", $currentInventory);
+newrelic_custom_metric("Custom/ActiveUsers", $activeUserCount);
+newrelic_custom_metric("Custom/CacheHitRate", $hitRate);
+```
+
+Query these in NRQL:
+```sql
+SELECT average(`Custom/InventoryLevel`) FROM Metric TIMESERIES
+```
+
+### Error grouping
+
+Group similar errors together:
+
+```php
+newrelic_set_error_group_callback(function($error) {
+    // Group by error type and first line of stack trace
+    return $error['type'] . ':' . $error['file'] . ':' . $error['line'];
+});
+```
+
+## Framework-specific guidance
+
+### Laravel
+
+Best practices for Laravel apps:
+
+```php
+// In a service provider or middleware
+public function boot()
+{
+    // Name transactions by route name
+    if (app()->runningInConsole()) {
+        newrelic_background_job(true);
+    } else {
+        Route::matched(function($route) {
+            if ($name = $route->getName()) {
+                newrelic_name_transaction("Route/{$name}");
+            }
+        });
+    }
+
+    // Track authenticated user
+    Auth::login(function($user) {
+        newrelic_add_custom_parameter("user_id", $user->id);
+        newrelic_add_custom_parameter("user_role", $user->role);
+    });
+}
+```
+
+### WordPress
+
+Best practices for WordPress:
+
+```php
+// In your theme's functions.php or a plugin
+add_action('init', function() {
+    if (function_exists('newrelic_name_transaction')) {
+        // Better transaction names
+        if (is_singular()) {
+            newrelic_name_transaction("Post/" . get_post_type());
+        } elseif (is_archive()) {
+            newrelic_name_transaction("Archive/" . get_post_type());
+        }
+
+        // Add context
+        newrelic_add_custom_parameter("theme", get_template());
+        newrelic_add_custom_parameter("plugins", count(get_option('active_plugins')));
+
+        if (is_user_logged_in()) {
+            $user = wp_get_current_user();
+            newrelic_add_custom_parameter("user_role", $user->roles[0] ?? 'none');
+        }
+    }
+});
+```
+
+## Testing instrumentation
+
+After adding instrumentation:
+
+1. **Generate traffic** to trigger the instrumented code
+2. **Check transaction traces** in APM UI (wait 5 minutes)
+3. **Verify custom attributes** appear in trace details
+4. **Query custom events** in query builder:
+
+```sql
+SELECT * FROM UserPurchase SINCE 1 hour ago
+```
+
+5. **Check custom metrics**:
+
+```sql
+SELECT average(`Custom/YourMetric`) FROM Metric SINCE 1 hour ago
+```
+
+## Performance considerations
+
+Be mindful of instrumentation overhead:
+
+- **Don't over-instrument:** Each tracer adds small overhead
+- **Avoid hot loops:** Don't add custom tracers in tight loops
+- **Limit custom attributes:** Keep under 64 attributes per transaction
+- **Watch payload size:** Large attributes can slow down data transmission
+
+## Troubleshooting instrumentation
+
+### Custom parameters not appearing
+
+1. Check attribute limits (64 per transaction)
+2. Verify attribute collection is enabled:
+   ```ini
+   newrelic.attributes.enabled = true
+   ```
+3. Check for attribute exclusion rules
+
+### Transactions not named correctly
+
+1. Ensure `newrelic_name_transaction()` is called early
+2. Only last call takes effect
+3. Check transaction naming is enabled:
+   ```ini
+   newrelic.transaction_tracer.enabled = true
+   ```
+
+### Custom metrics not visible
+
+1. Metrics take 5-10 minutes to appear
+2. Query with correct metric name (case-sensitive)
+3. Check data retention limits
+
+## What's next?
+
+<DocTiles>
+  <DocTile title="PHP agent API" path="/docs/apm/agents/php-agent/php-agent-api/guide-using-php-agent-api">
+    Complete API reference
+  </DocTile>
+
+  <DocTile title="Custom instrumentation" path="/docs/apm/agents/php-agent/features/php-custom-instrumentation">
+    Detailed custom instrumentation guide
+  </DocTile>
+
+  <DocTile title="Browser monitoring" path="/docs/apm/agents/php-agent/features/browser-monitoring-php-agent">
+    Add frontend monitoring
+  </DocTile>
+</DocTiles>
+
+## Related documentation
+
+- [PHP agent API guide](/docs/apm/agents/php-agent/php-agent-api/guide-using-php-agent-api) - Complete API documentation
+- [Custom instrumentation](/docs/apm/agents/php-agent/features/php-custom-instrumentation) - Deep dive into custom instrumentation
+- [PHP agent attributes](/docs/apm/agents/php-agent/attributes/php-agent-attributes) - Attribute configuration
+- [Browser monitoring](/docs/apm/agents/php-agent/features/browser-monitoring-php-agent) - Frontend monitoring setup
