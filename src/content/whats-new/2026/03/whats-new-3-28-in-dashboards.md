@@ -5,7 +5,7 @@ releaseDate: '2026-03-26'
 ---
 
 
-We are releasing new exciting features in Dashboards: 
+We're releasing new exciting features in Dashboards: 
 - Support for urls in widget titles and widgets descriptions 
 - New "visibility" options for Dashboards Template Variables
 - Template Variables now available in markdown widgets and titles
@@ -18,7 +18,7 @@ Are you looking for ways to provide essential context and navigation for your da
 Widget Descriptions: Deliver contextual information and crucial data nuances as simple tooltips that appear only when a user hovers over the widget. This lets you add context (like thresholds, importance, or caveats) without taking up permanent space on your valuable dashboard real estate.
 Widget Links: Turn widget titles into clickable links that guide users directly to related detailed analysis dashboards, external documentation, runbooks, or any other important resource. This creates an efficient, navigable path for stakeholders to dive deeper into the data they need.
 
-By using both features, you create dashboards that are not only informative and visually clean but also highly actionable and easy to navigate.
+By using both features, you create dashboards that aren't only informative and visually clean but also highly actionable and easy to navigate.
 
 
 !["Billboard with a description and url link in title"](/images/widget_link_desc.webp "Billboard with a description and url link in title")
@@ -38,7 +38,7 @@ Hidden variables are template variables that:
 - Don't appear in the variables bar when viewing the dashboard
 - Remain visible in Edit mode, marked with a special icon so editors can identify and manage them
 
-Hidden variables allow the dashboard editor to deliver powerful filtering for the dashboard consumer without burdening them with the selection of variables they don't understand because they are: 
+Hidden variables allow the dashboard editor to deliver powerful filtering for the dashboard consumer without burdening them with the selection of variables they don't understand because they're: 
 - Variables that are used only for calculations or logic
 - Nested variables that support other variables but don't need user input
 - Variables with default values that rarely need changing
