@@ -55,6 +55,6 @@ If you're already part of the New Relic Control Public Preview for Host-based Fl
 
 - [Install Agent Control on Windows](https://docs.newrelic.com/docs/new-relic-control/agent-control/setup/)
 
-- [Windows configuration guide](https://docs.newrelic.com/docs/new-relic-control/agent-control/windows/)
+- [Windows configuration guide](https://docs.newrelic.com/docs/new-relic-control/agent-control/configuration/#windows-configuration)
 
 - [View supported agent types](https://docs.newrelic.com/docs/new-relic-control/agent-control/agent-types/)
