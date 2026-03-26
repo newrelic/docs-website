@@ -7,7 +7,6 @@ const AGENTS = {
   'c-sdk-release-notes': 'sdk',
   'capacitor-release-notes': 'capacitor',
   'cloud-integration-release-notes': 'cloud integration',
-  'containerized-private-minions-release-notes': 'cpm',
   'cordova-release-notes': 'cordova',
   'diagnostics-cli-release-notes': 'diagnostics cli',
   'flutter-release-notes': 'flutter',
