@@ -7,11 +7,11 @@ tags:
   - RabbitMQ
   - Kubernetes
 metaDescription: Install and configure RabbitMQ OpenTelemetry monitoring for Kubernetes.
-freshnessValidatedDate: '2024-12-24T00:00:00.000Z'
+freshnessValidatedDate: never
 translationType: machine
 ---
 
-자동 파드 검색 기능이 있는 [NRDOT Collector](https://github.com/newrelic/nrdot-collector-releases/releases/latest) (권장) 또는 [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) 사용하여 쿠버네티스 클러스터에서 실행 중인 RabbitMQ 모니터링합니다. 이 가이드는 Kubernetes 옵저버 기반의 동적 브로커 감지 기능을 사용하여 Helm 통해 수집기를 구현하고 배포하는 방법을 안내합니다.
+자동 패드 검색 기능이 있는 OpenTelemetry Collector 사용하여 쿠버네티스 클러스터에서 실행 중인 RabbitMQ 모니터링합니다. 이 가이드는 Kubernetes 옵저버 기반의 동적 브로커 감지 기능을 사용하여 Helm 통해 수집기를 구현하고 배포하는 방법을 안내합니다.
 
 <Callout variant="tip">
   Linux 호스트에서 RabbitMQ를 실행하시겠습니까? 가상 머신 또는 베어 메탈 구현, 배포에 대한 [자체 호스팅 설치 가이드를](/docs/opentelemetry/integrations/rabbitmq/self-hosted) 참조하세요.
@@ -44,672 +44,422 @@ translationType: machine
 
 RabbitMQ 모니터링을 사용하여 OpenTelemetry Collector 구현하고 배포하려면 다음 단계를 따르세요.
 
-<Tabs>
-  <TabsBar>
-    <TabsBarItem id="nrdot-k8s">
-      NRDOT Collector (권장)
-    </TabsBarItem>
+<Steps>
+  <Step>
+    ### 시작하기 전에 [#requirements]
 
-    <TabsBarItem id="otelcol-k8s">
-      OpenTelemetry Collector 기여
-    </TabsBarItem>
-  </TabsBar>
+    사용 환경이 다음 요구 사항을 충족하는지 확인하십시오.
 
-  <TabsPages>
-    <TabsPageItem id="nrdot-k8s">
-      <Steps>
-        <Step>
-          ### 시작하기 전에 [#requirements-nrdot]
+    <CollapserGroup>
+      <Collapser id="k8s-reqs" title="쿠버네티스 클러스터 요구 사항">
+        * **Kubernetes 버전**: 1.19 이상
+        * **kubectl 접근**: 구현, 배포, 서비스 및 RBAC 리소스를 생성하기 위한 적절한 RBAC 권한으로 구성되었습니다.
+        * **Helm 버전**: 로컬에 Helm 3.x가 설치됨
+      </Collapser>
 
-          사용 환경이 다음 요구 사항을 충족하는지 확인하십시오.
+      <Collapser id="rabbitmq-reqs" title="RabbitMQ 요구 사항">
+        * **관리 플러그인**: 모든 RabbitMQ 파드에서 활성화해야 합니다.
+        * **서비스 노출**: RabbitMQ 서비스는 관리 API 포트(기본값: 15672)를 노출해야 합니다.
+        * **파드 레이블**: RabbitMQ 파드는 검색을 위해 일관된 레이블(예: `app=rabbitmq`)을 가져야 합니다.
+        * **Credentials**: 관리 API접근할 수 있는 권한을 가진 관리 사용자
+      </Collapser>
 
-          <CollapserGroup>
-            <Collapser id="k8s-reqs-nrdot" title="쿠버네티스 클러스터 요구 사항">
-              * **Kubernetes 버전**: 1.19 이상
-              * **kubectl 접근**: 구현, 배포, 서비스 및 RBAC 리소스를 생성하기 위한 적절한 RBAC 권한으로 구성되었습니다.
-            </Collapser>
+      <Collapser id="newrelic-reqs" title="뉴렐릭 요구 사항">
+        * **계정**: 활성 뉴렐릭 계정
+        * 귀하의 계정에 대한 **클러스터** [키](/docs/apis/intro-apis/new-relic-api-keys/#license-key)
+      </Collapser>
+    </CollapserGroup>
+  </Step>
 
-            <Collapser id="rabbitmq-reqs-nrdot" title="RabbitMQ 요구 사항">
-              * **관리 플러그인**: 모든 RabbitMQ 파드에서 활성화해야 합니다.
-              * **서비스 노출**: RabbitMQ 서비스는 관리 API 포트(기본값: 15672)를 노출해야 합니다.
-              * **파드 레이블**: RabbitMQ 파드는 검색을 위해 일관된 레이블(예: `app=rabbitmq`)을 가져야 합니다.
-              * **Credentials**: 관리 API접근할 수 있는 권한을 가진 관리 사용자
-            </Collapser>
+  <Step>
+    ### 관리 엔드포인트를 확인하세요 [#verify-endpoint]
 
-            <Collapser id="newrelic-reqs-nrdot" title="뉴렐릭 요구 사항">
-              * **계정**: 활성 뉴렐릭 계정
-              * 귀하의 계정에 대한 **클러스터** [키](/docs/apis/intro-apis/new-relic-api-keys/#license-key)
-              * [Kubernetes OpenTelemetry 기본 매니페스트 설치를](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install)완료했습니다.
-            </Collapser>
-          </CollapserGroup>
-        </Step>
+    RabbitMQ 파드에 관리 플러그인이 활성화되어 있는지 확인하십시오.
 
-        <Step>
-          ### 관리 엔드포인트를 확인하세요 [#verify-endpoint-nrdot]
+    ```bash
+    kubectl exec deploy/<your-rabbitmq-deployment> -n <rabbitmq-namespace> -- curl -I -u admin:password http://localhost:15672/api/overview
+    ```
 
-          RabbitMQ 파드에 관리 플러그인이 활성화되어 있는지 확인하십시오.
+    응답에 `HTTP/1.1 200 OK` 표시되어야 합니다.
+  </Step>
 
+  <Step>
+    ### Helm 값 파일을 생성합니다. [#helm-values]
+
+    `otel-collector-values.yaml` 이라는 이름의 파일을 생성하세요. 이 설정은 `receiver_creator` 과 `k8s_observer` 를 사용하여 RabbitMQ 파드를 자동으로 검색합니다.
+
+    다음 플레이스홀더를 업데이트하세요:
+
+    * `my-rabbitmq-cluster`: 쿠버네티스 클러스터 이름
+    * `rabbitmq`RabbitMQ 파드에 대한 `app` 레이블의 값입니다.
+    * `admin`/`password`: RabbitMQ 자격 증명
+    * `15672`: 관리 API 포트
+
+    ```yaml
+    opentelemetry-collector:
+      mode: deployment
+
+      image:
+        repository: otel/opentelemetry-collector-contrib
+        pullPolicy: IfNotPresent
+
+      command:
+        name: otelcol-contrib
+
+      resources:
+        limits:
+          cpu: 500m
+          memory: 300Mi
+        requests:
+          cpu: 100m
+          memory: 100Mi
+
+      extraEnvs:
+        - name: NEWRELIC_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: newrelic-licenses
+              key: NEWRELIC_LICENSE_KEY
+        - name: NEWRELIC_OTLP_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: newrelic-licenses
+              key: NEWRELIC_OTLP_ENDPOINT
+        - name: K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: K8S_CLUSTER_NAME
+          value: my-rabbitmq-cluster
+        - name: RABBITMQ_USERNAME
+          value: admin
+        - name: RABBITMQ_PASSWORD
+          value: password
+
+      clusterRole:
+        create: true
+        rules:
+          - apiGroups: [""]
+            resources: ["pods", "nodes", "nodes/stats", "nodes/proxy"]
+            verbs: ["get", "list", "watch"]
+          - apiGroups: ["apps"]
+            resources: ["replicasets", "deployments", "statefulsets"]
+            verbs: ["get", "list", "watch"]
+
+      clusterRoleBinding:
+        name: ""
+
+      config:
+        extensions:
+          health_check:
+            endpoint: 0.0.0.0:13133
+
+          k8s_observer:
+            auth_type: serviceAccount
+            observe_pods: true
+            observe_nodes: false
+
+        receivers:
+          receiver_creator/rabbitmq:
+            watch_observers: [k8s_observer]
+            receivers:
+              rabbitmq:
+                # Discover pods with label "app=rabbitmq"
+                # Adjust the label selector to match your RabbitMQ pods
+                rule: type == "pod" && labels["app"] == "rabbitmq"
+                config:
+                  endpoint: 'http://`endpoint`:15672'
+                  username: ${env:RABBITMQ_USERNAME}
+                  password: ${env:RABBITMQ_PASSWORD}
+                  collection_interval: 30s
+                  metrics:
+                    # Queue Metrics (essential for message flow and backlog)
+                    rabbitmq.consumer.count:
+                      enabled: true
+                    rabbitmq.message.delivered:
+                      enabled: true
+                    rabbitmq.message.published:
+                      enabled: true
+                    rabbitmq.message.acknowledged:
+                      enabled: true
+                    rabbitmq.message.dropped:
+                      enabled: true
+                    rabbitmq.message.current:
+                      enabled: true # Crucial for monitoring queue backlog, includes 'ready' and 'unacknowledged' states
+
+                    # Node Health Metrics (critical for server resource monitoring)
+                    rabbitmq.node.disk_free:
+                      enabled: true
+                    rabbitmq.node.disk_free_limit:
+                      enabled: true
+                    rabbitmq.node.disk_free_alarm:
+                      enabled: true
+                    rabbitmq.node.mem_used:
+                      enabled: true
+                    rabbitmq.node.mem_limit:
+                      enabled: true
+                    rabbitmq.node.mem_alarm:
+                      enabled: true
+                    rabbitmq.node.mem_used_details.rate:
+                      enabled: true
+                    rabbitmq.node.fd_used:
+                      enabled: true
+                    rabbitmq.node.fd_total:
+                      enabled: true
+                    rabbitmq.node.sockets_used:
+                      enabled: true
+                    rabbitmq.node.sockets_total:
+                      enabled: true
+                    rabbitmq.node.proc_used:
+                      enabled: true
+                    rabbitmq.node.proc_total:
+                      enabled: true
+                    rabbitmq.node.uptime:
+                      enabled: true
+                    rabbitmq.node.run_queue:
+                      enabled: true
+                    rabbitmq.node.processors:
+                      enabled: true
+                    rabbitmq.node.context_switches_details.rate:
+                      enabled: true
+                    rabbitmq.node.gc_num_details.rate:
+                      enabled: true
+                    rabbitmq.node.gc_bytes_reclaimed_details.rate:
+                      enabled: true
+
+                    # I/O Metrics (important for understanding disk and network activity)
+                    rabbitmq.node.io_read_count_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_read_bytes_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_read_avg_time_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_write_count_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_write_bytes_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_write_avg_time_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_sync_count_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_sync_avg_time_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_seek_count_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_seek_avg_time_details.rate:
+                      enabled: true
+                    rabbitmq.node.io_reopen_count_details.rate:
+                      enabled: true
+
+                    # Mnesia and Store Metrics (for internal database and message storage)
+                    rabbitmq.node.mnesia_ram_tx_count_details.rate:
+                      enabled: true
+                    rabbitmq.node.mnesia_disk_tx_count_details.rate:
+                      enabled: true
+                    rabbitmq.node.msg_store_read_count_details.rate:
+                      enabled: true
+                    rabbitmq.node.msg_store_write_count_details.rate:
+                      enabled: true
+                    rabbitmq.node.queue_index_write_count_details.rate:
+                      enabled: true
+                    rabbitmq.node.queue_index_read_count_details.rate:
+                      enabled: true
+
+                    # Connection/Channel/Queue Lifecycle Metrics
+                    rabbitmq.node.connection_created_details.rate:
+                      enabled: true
+                    rabbitmq.node.connection_closed_details.rate:
+                      enabled: true
+                    rabbitmq.node.channel_created_details.rate:
+                      enabled: true
+                    rabbitmq.node.channel_closed_details.rate:
+                      enabled: true
+                    rabbitmq.node.queue_declared_details.rate:
+                      enabled: true
+                    rabbitmq.node.queue_created_details.rate:
+                      enabled: true
+                    rabbitmq.node.queue_deleted_details.rate:
+                      enabled: true
+
+                  resource_attributes:
+                    rabbitmq.server.endpoint: 'http://`endpoint`:15672'
+                    rabbitmq.port: '15672'
+
+        processors:
+          batch:
+            send_batch_size: 1024
+            timeout: 30s
+
+          resource/cluster:
+            attributes:
+              - key: k8s.cluster.name
+                value: ${env:K8S_CLUSTER_NAME}
+                action: upsert
+
+          transform/rabbitmq:
+            metric_statements:
+              - context: resource
+                statements:
+                  # Create a display name combining Kubernetes metadata
+                  - set(attributes["rabbitmq.display.name"], Concat([
+                      "server",
+                      "k8s",
+                      attributes["k8s.cluster.name"],
+                      attributes["k8s.namespace.name"],
+                      "pod",
+                      attributes["k8s.pod.name"],
+                      "rabbitmq",
+                      attributes["rabbitmq.port"]
+                    ], ":"))
+                  # Use pod name as deployment name
+                  - set(attributes["rabbitmq.deployment.name"], attributes["k8s.pod.name"])
+
+        exporters:
+          otlphttp:
+            endpoint: "${NEWRELIC_OTLP_ENDPOINT}"
+            headers:
+              api-key: "${NEWRELIC_LICENSE_KEY}"
+            compression: gzip
+
+        service:
+          extensions: [health_check, k8s_observer]
+          pipelines:
+            metrics/rabbitmq:
+              receivers: [receiver_creator/rabbitmq]
+              processors: [batch, resource/cluster, transform/rabbitmq]
+              exporters: [otlphttp]
+    ```
+
+    <Callout variant="tip">
+      **레이블 선택기 사용자 지정:** RabbitMQ 파드에서 다른 레이블을 사용하는 경우 `rule` 줄을 업데이트하세요. 예를 들어:
+
+      * StatefulSet 파드: `type == "pod" && labels["app.kubernetes.io/name"] == "rabbitmq"`
+      * 연산자 구현, 배포: `type == "pod" && labels["app.kubernetes.io/component"] == "rabbitmq"`
+
+      파드 레이블을 보려면 `kubectl get pods --show-labels -n <namespace>` 실행하세요.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Kubernetes 시크릿을 생성합니다. [#create-secret]
+
+    뉴럴릭 자격 증명을 Kubernetes 시크릿에 저장하세요.
+
+    뉴렐릭 계정과 일치하는 지역을 선택하세요(뉴렐릭에 로그인할 때 브라우저 URL을 확인하세요):
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="us">미국 지역</TabsBarItem> <TabsBarItem id="eu">EU 지역</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="us">
           ```bash
-          kubectl exec deploy/<your-rabbitmq-deployment> -n <rabbitmq-namespace> -- curl -I -u admin:password http://localhost:15672/api/overview
+          kubectl create secret generic newrelic-licenses \
+            --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
+            --from-literal=NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318 \
+            --namespace newrelic
           ```
 
-          응답에 `HTTP/1.1 200 OK` 표시되어야 합니다.
-        </Step>
+          `YOUR_LICENSE_KEY` [뉴렐릭 클러스터](/docs/apis/intro-apis/new-relic-api-keys/#license-key) 키로 바꿉니다.
+        </TabsPageItem>
 
-        <Step>
-          ### NRDOT Collector구성하세요 [#configure-nrdot]
-
-          Kubernetes 매니페스트를 사용하여 NRDOT Collector를 설치할 수 있습니다. Helm 차트 지원 기능이 곧 추가될 예정입니다.
-
-          Kubernetes OpenTelemetry 매니페스트 기본 설치를 완료한 후 다음 단계에 따라 RabbitMQ 모니터링을 구성하십시오.
-
-          1. 수집기 이미지를 NRDOT Collector 사용하도록 업데이트하세요.
-
-             로컬 `rendered` 디렉터리의 [`deployment.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment.yaml) 및 [`daemonset.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/daemonset.yaml) 파일 모두에서 이미지를 다음과 같이 업데이트하십시오.
-
-             ```yaml
-             image: newrelic/nrdot-collector:latest
-             ```
-
-          2. RabbitMQ 모니터링을 위해 [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml) 을 업데이트하세요.
-
-             `deployment-config.yaml` 내용 전체를 RabbitMQ 전용 설정으로 바꾸세요.
-
-             ```yaml
-             extensions:
-               health_check:
-                 endpoint: 0.0.0.0:13133
-               k8s_observer:
-                 auth_type: serviceAccount
-                 observe_pods: true
-                 observe_nodes: true
-
-             receivers:
-               receiver_creator/rabbitmq:
-                 watch_observers: [k8s_observer]
-                 receivers:
-                   rabbitmq:
-                     rule: type == "pod" && labels["app"] == "rabbitmq"
-                     config:
-                       endpoint: 'http://`endpoint`:15672'
-                       username: admin
-                       password: password
-                       collection_interval: 30s
-                       metrics:
-                         rabbitmq.consumer.count:
-                           enabled: true
-                         rabbitmq.message.delivered:
-                           enabled: true
-                         rabbitmq.message.published:
-                           enabled: true
-                         rabbitmq.message.acknowledged:
-                           enabled: true
-                         rabbitmq.message.dropped:
-                           enabled: true
-                         rabbitmq.message.current:
-                           enabled: true
-                         rabbitmq.node.disk_free:
-                           enabled: true
-                         rabbitmq.node.disk_free_limit:
-                           enabled: true
-                         rabbitmq.node.disk_free_alarm:
-                           enabled: true
-                         rabbitmq.node.mem_used:
-                           enabled: true
-                         rabbitmq.node.mem_limit:
-                           enabled: true
-                         rabbitmq.node.mem_alarm:
-                           enabled: true
-                         rabbitmq.node.fd_used:
-                           enabled: true
-                         rabbitmq.node.fd_total:
-                           enabled: true
-                         rabbitmq.node.sockets_used:
-                           enabled: true
-                         rabbitmq.node.sockets_total:
-                           enabled: true
-                         rabbitmq.node.proc_used:
-                           enabled: true
-                         rabbitmq.node.proc_total:
-                           enabled: true
-                         rabbitmq.node.uptime:
-                           enabled: true
-                     resource_attributes:
-                       rabbitmq.server.endpoint: 'http://`endpoint`:15672'
-                       rabbitmq.port: '15672'
-
-             processors:
-               batch:
-                 send_batch_max_size: 1000
-                 timeout: 30s
-                 send_batch_size: 800
-
-               memory_limiter:
-                 check_interval: 1s
-                 limit_percentage: 80
-                 spike_limit_percentage: 25
-
-               resource/cluster:
-                 attributes:
-                   - key: k8s.cluster.name
-                     value: "your-cluster-name"
-                     action: insert
-
-               transform/rabbitmq:
-                 metric_statements:
-                   - context: resource
-                     statements:
-                       - set(attributes["rabbitmq.display.name"], Concat([
-                           "server",
-                           "k8s",
-                           attributes["k8s.cluster.name"],
-                           attributes["k8s.namespace.name"],
-                           "pod",
-                           attributes["k8s.pod.name"],
-                           "rabbitmq",
-                           attributes["rabbitmq.port"]
-                         ], ":"))
-                       - set(attributes["rabbitmq.deployment.name"], attributes["k8s.pod.name"])
-
-               transform/metadata_nullify:
-                 metric_statements:
-                   - context: metric
-                     statements:
-                       - set(description, "")
-                       - set(unit, "")
-
-             exporters:
-               otlp_http/newrelic:
-                 endpoint: "https://otlp.nr-data.net"
-                 headers:
-                   api-key: ${env:NR_LICENSE_KEY}
-
-             service:
-               extensions: [health_check, k8s_observer]
-               pipelines:
-                 metrics/rabbitmq:
-                   receivers: [receiver_creator/rabbitmq]
-                   processors: [batch, resource/cluster, transform/rabbitmq, transform/metadata_nullify, memory_limiter]
-                   exporters: [otlp_http/newrelic]
-             ```
-
-          3. RabbitMQ 설정을 사용자 지정하세요.
-
-             * `rule` 을 RabbitMQ 파드 레이블에 맞게 업데이트하세요.
-             * `admin`/`password` RabbitMQ 자격 증명에 맞게 변경하세요.
-             * `your-cluster-name` 실제 클러스터 이름으로 바꾸세요.
-             * `otlp_http/newrelic` 수출업체 아래의 `endpoint` 을 업데이트하세요. 해당 지역에 적합한 엔드포인트를 선택하려면 OTLP 엔드포인트 설정 [문서를](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 참조하세요.
-
-          4. 업데이트된 매니페스트를 적용하고 구현 및 배포를 다시 시작하십시오.
-
-             ```bash
-             kubectl apply -n newrelic -R -f rendered
-             kubectl rollout restart deployment nr-k8s-otel-collector-deployment -n newrelic
-             ```
-        </Step>
-
-        <Step>
-          ### 구현, 배포, 데이터 흐름 검증 [#verify-nrdot]
-
-          수집기 패드가 실행 중인지 확인합니다.
-
+        <TabsPageItem id="eu">
           ```bash
-          kubectl get pods -n newrelic --watch
+          kubectl create secret generic newrelic-licenses \
+            --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
+            --from-literal=NEWRELIC_OTLP_ENDPOINT=https://otlp.eu01.nr-data.net:4318 \
+            --namespace newrelic
           ```
 
-          패드 검색을 확인하기 위해 수집기 로그 보기:
-
-          ```bash
-          kubectl logs deploy/nr-k8s-otel-collector-deployment -n newrelic --tail=50
-          ```
-
-          뉴렐릭에서 데이터를 확인하세요:
-
-          데이터가 나타날 때까지 2-3분 정도 기다린 후 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) 에서 다음 쿼리를 실행하세요.
-
-          ```sql
-          SELECT count(*)
-          FROM Metric
-          WHERE metricName LIKE 'rabbitmq.%'
-            AND instrumentation.provider = 'opentelemetry'
-            AND k8s.cluster.name = 'your-cluster-name'
-          FACET k8s.pod.name, metricName
-          SINCE 10 minutes ago
-          ```
-
-          <Callout variant="tip">
-            5분 후에도 데이터가 표시되지 않으면 아래 [문제 해결, 해결 섹션을](#troubleshoot) 확인하세요.
-          </Callout>
-        </Step>
-      </Steps>
-    </TabsPageItem>
-
-    <TabsPageItem id="otelcol-k8s">
-      <Steps>
-        <Step>
-          ### 시작하기 전에 [#requirements-otelcol]
-
-          사용 환경이 다음 요구 사항을 충족하는지 확인하십시오.
-
-          <CollapserGroup>
-            <Collapser id="k8s-reqs-otelcol" title="쿠버네티스 클러스터 요구 사항">
-              * **Kubernetes 버전**: 1.19 이상
-              * **kubectl 접근**: 구현, 배포, 서비스 및 RBAC 리소스를 생성하기 위한 적절한 RBAC 권한으로 구성되었습니다.
-              * **Helm 버전**: 로컬에 Helm 3.x가 설치됨
-            </Collapser>
-
-            <Collapser id="rabbitmq-reqs-otelcol" title="RabbitMQ 요구 사항">
-              * **관리 플러그인**: 모든 RabbitMQ 파드에서 활성화해야 합니다.
-              * **서비스 노출**: RabbitMQ 서비스는 관리 API 포트(기본값: 15672)를 노출해야 합니다.
-              * **파드 레이블**: RabbitMQ 파드는 검색을 위해 일관된 레이블(예: `app=rabbitmq`)을 가져야 합니다.
-              * **Credentials**: 관리 API접근할 수 있는 권한을 가진 관리 사용자
-            </Collapser>
-
-            <Collapser id="newrelic-reqs-otelcol" title="뉴렐릭 요구 사항">
-              * **계정**: 활성 뉴렐릭 계정
-              * 귀하의 계정에 대한 **클러스터** [키](/docs/apis/intro-apis/new-relic-api-keys/#license-key)
-            </Collapser>
-          </CollapserGroup>
-        </Step>
-
-        <Step>
-          ### 관리 엔드포인트를 확인하세요 [#verify-endpoint-otelcol]
-
-          RabbitMQ 파드에 관리 플러그인이 활성화되어 있는지 확인하십시오.
-
-          ```bash
-          kubectl exec deploy/<your-rabbitmq-deployment> -n <rabbitmq-namespace> -- curl -I -u admin:password http://localhost:15672/api/overview
-          ```
-
-          응답에 `HTTP/1.1 200 OK` 표시되어야 합니다.
-        </Step>
-
-        <Step>
-          ### Helm 값 파일을 생성합니다. [#helm-values]
-
-          `otel-collector-values.yaml` 이라는 이름의 파일을 생성하세요. 이 설정은 `receiver_creator` 과 `k8s_observer` 를 사용하여 RabbitMQ 파드를 자동으로 검색합니다.
-
-          다음 플레이스홀더를 업데이트하세요:
-
-          * `my-rabbitmq-cluster`: 쿠버네티스 클러스터 이름
-          * `rabbitmq`RabbitMQ 파드에 대한 `app` 레이블의 값입니다.
-          * `admin`/`password`: RabbitMQ 자격 증명
-          * `15672`: 관리 API 포트
-
-          ```yaml
-          opentelemetry-collector:
-            mode: deployment
-
-            image:
-              repository: otel/opentelemetry-collector-contrib
-              pullPolicy: IfNotPresent
-
-            command:
-              name: otelcol-contrib
-
-            resources:
-              limits:
-                cpu: 500m
-                memory: 300Mi
-              requests:
-                cpu: 100m
-                memory: 100Mi
-
-            extraEnvs:
-              - name: NEWRELIC_LICENSE_KEY
-                valueFrom:
-                  secretKeyRef:
-                    name: newrelic-licenses
-                    key: NEWRELIC_LICENSE_KEY
-              - name: NEWRELIC_OTLP_ENDPOINT
-                valueFrom:
-                  secretKeyRef:
-                    name: newrelic-licenses
-                    key: NEWRELIC_OTLP_ENDPOINT
-              - name: K8S_NODE_NAME
-                valueFrom:
-                  fieldRef:
-                    fieldPath: spec.nodeName
-              - name: K8S_CLUSTER_NAME
-                value: my-rabbitmq-cluster
-              - name: RABBITMQ_USERNAME
-                value: admin
-              - name: RABBITMQ_PASSWORD
-                value: password
-
-            clusterRole:
-              create: true
-              rules:
-                - apiGroups: [""]
-                  resources: ["pods", "nodes", "nodes/stats", "nodes/proxy"]
-                  verbs: ["get", "list", "watch"]
-                - apiGroups: ["apps"]
-                  resources: ["replicasets", "deployments", "statefulsets"]
-                  verbs: ["get", "list", "watch"]
-
-            clusterRoleBinding:
-              name: ""
-
-            config:
-              extensions:
-                health_check:
-                  endpoint: 0.0.0.0:13133
-
-                k8s_observer:
-                  auth_type: serviceAccount
-                  observe_pods: true
-                  observe_nodes: false
-
-              receivers:
-                receiver_creator/rabbitmq:
-                  watch_observers: [k8s_observer]
-                  receivers:
-                    rabbitmq:
-                      # Discover pods with label "app=rabbitmq"
-                      # Adjust the label selector to match your RabbitMQ pods
-                      rule: type == "pod" && labels["app"] == "rabbitmq"
-                      config:
-                        endpoint: 'http://`endpoint`:15672'
-                        username: ${env:RABBITMQ_USERNAME}
-                        password: ${env:RABBITMQ_PASSWORD}
-                        collection_interval: 30s
-                        metrics:
-                          # Queue Metrics (essential for message flow and backlog)
-                          rabbitmq.consumer.count:
-                            enabled: true
-                          rabbitmq.message.delivered:
-                            enabled: true
-                          rabbitmq.message.published:
-                            enabled: true
-                          rabbitmq.message.acknowledged:
-                            enabled: true
-                          rabbitmq.message.dropped:
-                            enabled: true
-                          rabbitmq.message.current:
-                            enabled: true # Crucial for monitoring queue backlog, includes 'ready' and 'unacknowledged' states
-
-                          # Node Health Metrics (critical for server resource monitoring)
-                          rabbitmq.node.disk_free:
-                            enabled: true
-                          rabbitmq.node.disk_free_limit:
-                            enabled: true
-                          rabbitmq.node.disk_free_alarm:
-                            enabled: true
-                          rabbitmq.node.mem_used:
-                            enabled: true
-                          rabbitmq.node.mem_limit:
-                            enabled: true
-                          rabbitmq.node.mem_alarm:
-                            enabled: true
-                          rabbitmq.node.mem_used_details.rate:
-                            enabled: true
-                          rabbitmq.node.fd_used:
-                            enabled: true
-                          rabbitmq.node.fd_total:
-                            enabled: true
-                          rabbitmq.node.sockets_used:
-                            enabled: true
-                          rabbitmq.node.sockets_total:
-                            enabled: true
-                          rabbitmq.node.proc_used:
-                            enabled: true
-                          rabbitmq.node.proc_total:
-                            enabled: true
-                          rabbitmq.node.uptime:
-                            enabled: true
-                          rabbitmq.node.run_queue:
-                            enabled: true
-                          rabbitmq.node.processors:
-                            enabled: true
-                          rabbitmq.node.context_switches_details.rate:
-                            enabled: true
-                          rabbitmq.node.gc_num_details.rate:
-                            enabled: true
-                          rabbitmq.node.gc_bytes_reclaimed_details.rate:
-                            enabled: true
-
-                          # I/O Metrics (important for understanding disk and network activity)
-                          rabbitmq.node.io_read_count_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_read_bytes_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_read_avg_time_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_write_count_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_write_bytes_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_write_avg_time_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_sync_count_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_sync_avg_time_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_seek_count_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_seek_avg_time_details.rate:
-                            enabled: true
-                          rabbitmq.node.io_reopen_count_details.rate:
-                            enabled: true
-
-                          # Mnesia and Store Metrics (for internal database and message storage)
-                          rabbitmq.node.mnesia_ram_tx_count_details.rate:
-                            enabled: true
-                          rabbitmq.node.mnesia_disk_tx_count_details.rate:
-                            enabled: true
-                          rabbitmq.node.msg_store_read_count_details.rate:
-                            enabled: true
-                          rabbitmq.node.msg_store_write_count_details.rate:
-                            enabled: true
-                          rabbitmq.node.queue_index_write_count_details.rate:
-                            enabled: true
-                          rabbitmq.node.queue_index_read_count_details.rate:
-                            enabled: true
-
-                          # Connection/Channel/Queue Lifecycle Metrics
-                          rabbitmq.node.connection_created_details.rate:
-                            enabled: true
-                          rabbitmq.node.connection_closed_details.rate:
-                            enabled: true
-                          rabbitmq.node.channel_created_details.rate:
-                            enabled: true
-                          rabbitmq.node.channel_closed_details.rate:
-                            enabled: true
-                          rabbitmq.node.queue_declared_details.rate:
-                            enabled: true
-                          rabbitmq.node.queue_created_details.rate:
-                            enabled: true
-                          rabbitmq.node.queue_deleted_details.rate:
-                            enabled: true
-
-                        resource_attributes:
-                          rabbitmq.server.endpoint: 'http://`endpoint`:15672'
-                          rabbitmq.port: '15672'
-
-              processors:
-                batch:
-                  send_batch_size: 1024
-                  timeout: 30s
-
-                resource/cluster:
-                  attributes:
-                    - key: k8s.cluster.name
-                      value: ${env:K8S_CLUSTER_NAME}
-                      action: upsert
-
-                transform/rabbitmq:
-                  metric_statements:
-                    - context: resource
-                      statements:
-                        # Create a display name combining Kubernetes metadata
-                        - set(attributes["rabbitmq.display.name"], Concat([
-                            "server",
-                            "k8s",
-                            attributes["k8s.cluster.name"],
-                            attributes["k8s.namespace.name"],
-                            "pod",
-                            attributes["k8s.pod.name"],
-                            "rabbitmq",
-                            attributes["rabbitmq.port"]
-                          ], ":"))
-                        # Use pod name as deployment name
-                        - set(attributes["rabbitmq.deployment.name"], attributes["k8s.pod.name"])
-
-                transform/metadata_nullify:
-                  metric_statements:
-                    - context: metric
-                      statements:
-                        - set(description, "")
-                        - set(unit, "")
-
-              exporters:
-                otlp_http/newrelic:
-                  endpoint: "${NEWRELIC_OTLP_ENDPOINT}"
-                  headers:
-                    api-key: "${NEWRELIC_LICENSE_KEY}"
-
-              service:
-                extensions: [health_check, k8s_observer]
-                pipelines:
-                  metrics/rabbitmq:
-                    receivers: [receiver_creator/rabbitmq]
-                    processors: [batch, resource/cluster, transform/rabbitmq, transform/metadata_nullify]
-                    exporters: [otlp_http/newrelic]
-          ```
-
-          <Callout variant="tip">
-            **레이블 선택기 사용자 지정:** RabbitMQ 파드에서 다른 레이블을 사용하는 경우 `rule` 줄을 업데이트하세요. 예를 들어:
-
-            * StatefulSet 파드: `type == "pod" && labels["app.kubernetes.io/name"] == "rabbitmq"`
-            * 연산자 구현, 배포: `type == "pod" && labels["app.kubernetes.io/component"] == "rabbitmq"`
-
-            파드 레이블을 보려면 `kubectl get pods --show-labels -n <namespace>` 실행하세요.
-          </Callout>
-        </Step>
-
-        <Step>
-          ### Kubernetes 시크릿을 생성합니다. [#create-secret]
-
-          뉴럴릭 자격 증명을 Kubernetes 시크릿에 저장하세요.
-
-          뉴렐릭 계정과 일치하는 지역을 선택하세요(뉴렐릭에 로그인할 때 브라우저 URL을 확인하세요):
-
-          <Tabs>
-            <TabsBar>
-              <TabsBarItem id="us-otelcol-k8s">미국 지역</TabsBarItem> <TabsBarItem id="eu-otelcol-k8s">EU 지역</TabsBarItem>
-            </TabsBar>
-
-            <TabsPages>
-              <TabsPageItem id="us-otelcol-k8s">
-                ```bash
-                kubectl create secret generic newrelic-licenses \
-                  --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
-                  --from-literal=NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318 \
-                  --namespace newrelic
-                ```
-
-                `YOUR_LICENSE_KEY` [뉴렐릭 클러스터](/docs/apis/intro-apis/new-relic-api-keys/#license-key) 키로 바꿉니다.
-              </TabsPageItem>
-
-              <TabsPageItem id="eu-otelcol-k8s">
-                ```bash
-                kubectl create secret generic newrelic-licenses \
-                  --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
-                  --from-literal=NEWRELIC_OTLP_ENDPOINT=https://otlp.eu01.nr-data.net:4318 \
-                  --namespace newrelic
-                ```
-
-                `YOUR_LICENSE_KEY` [뉴렐릭 클러스터](/docs/apis/intro-apis/new-relic-api-keys/#license-key) 키로 바꿉니다.
-              </TabsPageItem>
-            </TabsPages>
-          </Tabs>
-        </Step>
-
-        <Step>
-          ### Helm사용하여 구현하다, 배포하다 [#deploy-helm]
-
-          OpenTelemetry Helm 저장소를 추가하세요:
-
-          ```bash
-          helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-          helm repo update
-          ```
-
-          수집기를 설치하거나 업그레이드하세요.
-
-          ```bash
-          helm upgrade --install rabbitmq-otel-collector \
-            open-telemetry/opentelemetry-collector \
-            --namespace newrelic \
-            --create-namespace \
-            --values otel-collector-values.yaml
-          ```
-
-          이렇게 하면 다음과 같은 결과가 생성됩니다.
-
-          * `newrelic` 지우스페이스에 `rabbitmq-otel-collector` 라는 이름의 배포
-          * RBAC 권한을 가진 서비스 계정으로 파드를 감시할 수 있습니다.
-          * 수집기 설정을 포함하는 ConfigMap
-        </Step>
-
-        <Step>
-          ### 구현, 배포, 데이터 흐름 검증 [#verify]
-
-          수집기 패드가 실행 중인지 확인합니다.
-
-          ```bash
-          kubectl get pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
-          ```
-
-          예상 출력:
-
-          ```
-          NAME                                 READY   STATUS    RESTARTS   AGE
-          rabbitmq-otel-collector-6d8c5c5d8d-abc12   1/1     Running   0          2m
-          ```
-
-          패드 검색을 확인하기 위해 수집기 로그 보기:
-
-          ```bash
-          kubectl logs deploy/rabbitmq-otel-collector -n newrelic --tail=50
-          ```
-
-          파드 발견 및 수집 성공을 나타내는 메시지를 찾아보세요.
-
-          ```
-          INFO    k8sobserver/extension.go:150    Discovered pod {"kind": "pod", "name": "rabbitmq-0", "namespace": "default"}
-          INFO    RabbitmqReceiver                Successfully scraped rabbitmq metrics from pod rabbitmq-0
-          ```
-
-          뉴렐릭에서 데이터를 확인하세요:
-
-          데이터가 나타날 때까지 2-3분 정도 기다린 후 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) 에서 다음 쿼리를 실행하세요.
-
-          ```sql
-          SELECT count(*)
-          FROM Metric
-          WHERE metricName LIKE 'rabbitmq.%'
-            AND instrumentation.provider = 'opentelemetry'
-            AND k8s.cluster.name = 'my-rabbitmq-cluster'
-          FACET k8s.pod.name, metricName
-          SINCE 10 minutes ago
-          ```
-
-          Kubernetes 속성이 있는 각 RabbitMQ 파드의 지표가 표시되어야 합니다.
-
-          * `k8s.cluster.name` - 클러스터 식별자
-          * `k8s.namespace.name` - 파드 지우스페이스
-          * `k8s.pod.name` - 개인 파드 이름
-          * `rabbitmq.deployment.name` - 파드 이름에서 유래
-
-          <Callout variant="tip">
-            5분 후에도 데이터가 표시되지 않으면 아래 [문제 해결, 해결 섹션을](#troubleshoot) 확인하세요.
-          </Callout>
-        </Step>
-      </Steps>
-    </TabsPageItem>
-  </TabsPages>
-</Tabs>
+          `YOUR_LICENSE_KEY` [뉴렐릭 클러스터](/docs/apis/intro-apis/new-relic-api-keys/#license-key) 키로 바꿉니다.
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ### Helm사용하여 구현하다, 배포하다 [#deploy-helm]
+
+    OpenTelemetry Helm 저장소를 추가하세요:
+
+    ```bash
+    helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+    helm repo update
+    ```
+
+    수집기를 설치하거나 업그레이드하세요.
+
+    ```bash
+    helm upgrade --install rabbitmq-otel-collector \
+      open-telemetry/opentelemetry-collector \
+      --namespace newrelic \
+      --create-namespace \
+      --values otel-collector-values.yaml
+    ```
+
+    이렇게 하면 다음과 같은 결과가 생성됩니다.
+
+    * `newrelic` 지우스페이스에 `rabbitmq-otel-collector` 라는 이름의 배포
+    * RBAC 권한을 가진 서비스 계정으로 파드를 감시할 수 있습니다.
+    * 수집기 설정을 포함하는 ConfigMap
+  </Step>
+
+  <Step>
+    ### 구현, 배포, 데이터 흐름 검증 [#verify]
+
+    수집기 패드가 실행 중인지 확인합니다.
+
+    ```bash
+    kubectl get pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+    ```
+
+    예상 출력:
+
+    ```
+    NAME                                 READY   STATUS    RESTARTS   AGE
+    rabbitmq-otel-collector-6d8c5c5d8d-abc12   1/1     Running   0          2m
+    ```
+
+    패드 검색을 확인하기 위해 수집기 로그 보기:
+
+    ```bash
+    kubectl logs deploy/rabbitmq-otel-collector -n newrelic --tail=50
+    ```
+
+    파드 발견 및 수집 성공을 나타내는 메시지를 찾아보세요.
+
+    ```
+    INFO    k8sobserver/extension.go:150    Discovered pod {"kind": "pod", "name": "rabbitmq-0", "namespace": "default"}
+    INFO    RabbitmqReceiver                Successfully scraped rabbitmq metrics from pod rabbitmq-0
+    ```
+
+    뉴렐릭에서 데이터를 확인하세요:
+
+    데이터가 나타날 때까지 2-3분 정도 기다린 후 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) 에서 다음 쿼리를 실행하세요.
+
+    ```sql
+    SELECT count(*)
+    FROM Metric
+    WHERE metricName LIKE 'rabbitmq.%'
+      AND instrumentation.provider = 'opentelemetry'
+      AND k8s.cluster.name = 'my-rabbitmq-cluster'
+    FACET k8s.pod.name, metricName
+    SINCE 10 minutes ago
+    ```
+
+    Kubernetes 속성이 있는 각 RabbitMQ 파드의 지표가 표시되어야 합니다.
+
+    * `k8s.cluster.name` - 클러스터 식별자
+    * `k8s.namespace.name` - 파드 지우스페이스
+    * `k8s.pod.name` - 개인 파드 이름
+    * `rabbitmq.deployment.name` - 파드 이름에서 유래
+
+    <Callout variant="tip">
+      5분 후에도 데이터가 표시되지 않으면 아래 [문제 해결, 해결 섹션을](#troubleshoot) 확인하세요.
+    </Callout>
+  </Step>
+</Steps>
 
 ## 문제점 해결 [#troubleshoot]
 

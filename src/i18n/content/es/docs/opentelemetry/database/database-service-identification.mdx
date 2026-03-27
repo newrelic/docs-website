@@ -1,0 +1,152 @@
+---
+title: Identificación del servicio de base de datos con NRDOT
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - NRDOT
+  - Database
+  - APM
+  - Service correlation
+metaDescription: Correlate APM and database performance using service identification and secure credential management with New Relic's Distribution of OpenTelemetry (NRDOT).
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta función se proporciona actualmente como parte de una vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Obtenga una correlación perfecta entre sus aplicaciones y el rendimiento de la base de datos con los comentarios de consultas SQL. Este mecanismo permite que el receptor de base de datos de la Distribución de OpenTelemetry de New Relic (NRDOT) identifique exactamente qué servicio es responsable de la carga específica de la base de datos, las consultas lentas o los eventos de bloqueo.
+
+## Requisitos previos [#prerequisites]
+
+* Agente Java versión `9.1.0` o posterior.
+
+### Habilitar la correlación APM-DB para el agente Java [#enable-correlation]
+
+Para habilitar esta correlación, agregue la propiedad `sql_metadata_comments` a la sección `transaction_tracer` de su archivo de configuración del agente Java (`newrelic.yml`). Para obtener más información, consulte la [documentación de configuración del agente Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/).
+
+```yaml
+transaction_tracer:
+  sql_metadata_comments: nr_service_guid
+```
+
+## Cómo funciona [#how-it-works]
+
+Cuando su aplicación envía una consulta a la base de datos, el agente de APM antepone automáticamente un GUID de entidad de APM en el texto SQL como un comentario. Esta práctica común de la industria no afecta la lógica de ejecución de sus sentencias SQL.
+
+1. **Anteposición de comentarios**: El agente de APM antepone una cadena de comentarios al SQL saliente (por ejemplo, `/* nr_service_guid="MTE2MDAzMTl8QVBNfEFQUExJ" */ SELECT * FROM orders...`).
+2. **Ejecución**: La base de datos ejecuta la consulta como de costumbre. El comentario se almacena en los esquemas de rendimiento internos de la base de datos (como `sys.dm_exec_requests` o `v$session`).
+3. **Extracción**: El receptor de la base de datos recupera estas consultas (activas, lentas o de bloqueo).
+4. **Enriquecimiento**: El receptor analiza el comentario, extrae el `nr_service_guid` y lo adjunta como una dimensión a sus métricas de base de datos.
+
+## Beneficios del etiquetado de servicios [#benefits]
+
+Anteponer metadatos del servicio le brinda visibilidad de alta fidelidad en su ecosistema de bases de datos:
+
+* **Atribución a nivel de servicio**: Vea al instante qué microservicio es responsable de un pico en la CPU o la memoria de la base de datos
+* **Análisis refinado de consultas lentas**: Filtra los logs de consultas lentas por client\_name para entender si un cuello de botella en la base de datos se limita a una versión específica de la aplicación
+* **Resolución de bloqueos e interbloqueos**: Identifique rápidamente al &quot;propietario&quot; de una consulta de bloqueo para agilizar la solución de problemas entre equipos
+
+## Impacto en la seguridad y el rendimiento [#security-performance]
+
+Hemos diseñado este mecanismo para que sea &quot;invisible&quot; para sus operaciones de base de datos:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Característica
+      </th>
+
+      <th>
+        Detalle del impacto
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Lógica de ejecución
+      </td>
+
+      <td>
+        Los comentarios SQL son ignorados por el optimizador del motor de base de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Sobrecarga de base de datos
+      </td>
+
+      <td>
+        La adición de una cadena corta (típicamente menos de 50 caracteres) tiene un impacto insignificante en el ancho de banda de la red o la memoria
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Privacidad de datos
+      </td>
+
+      <td>
+        Solo se inserta el GUID del servicio. No se incluyen datos sensibles de la aplicación ni contexto del usuario en el comentario
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Gestión de secretos [#secret-management]
+
+Puede utilizar dos métodos seguros para gestionar credenciales confidenciales (como contraseñas de bases de datos) en la configuración de NRDOT Collector. Elija el método que mejor se alinee con su infraestructura y políticas de seguridad.
+
+### Cifrado AES (agnóstico de plataforma) [#aes-encryption]
+
+Este método le permite almacenar credenciales cifradas directamente en sus archivos de configuración, admitiendo flujos de trabajo de control de versiones (GitOps).
+
+* **Cómo funciona**: Las cadenas confidenciales se cifran mediante AES-256 (modo GCM) fuera de línea. El colector los descifra en tiempo de ejecución usando una clave maestra almacenada en las variables de entorno del servidor
+* **Beneficio de seguridad**: Los archivos de configuración se pueden compartir de forma segura o confirmar en repositorios sin exponer contraseñas en texto plano
+* **Ideal para**: Entornos híbridos/multinube, desarrollo local o servidores Windows donde la integración con OCI Vault no es factible
+
+#### Configuración de ejemplo
+
+```yaml
+receivers:
+  newrelicoracledb/cdb:
+    endpoint: "10.x.x.36:1521"
+    # Credentials are encrypted using the offline helper tool
+    username: "${aes:YOUR_ENCRYPTED_USERNAME_STRING}"
+    password: "${aes:YOUR_ENCRYPTED_PASSWORD_STRING}"
+    service: "DB1104.privatesubnet.oracledb.oraclevcn.com"
+    collection_interval: 15s
+```
+
+### Administrador de secretos de AWS [#aws-secrets-manager]
+
+Este método le permite recuperar credenciales de forma segura directamente desde AWS Secrets Manager en tiempo de ejecución, eliminando por completo la necesidad de almacenar contraseñas en sus archivos de configuración.
+
+* **Cómo funciona**: El NRDOT Collector utiliza un rol de AWS IAM para autenticarse automáticamente y obtener los secretos necesarios de AWS Secrets Manager durante el inicio
+* **Beneficio de seguridad**: No se almacenan datos sensibles en el disco ni en el control de versiones. El acceso se rige estrictamente por las políticas de AWS IAM y las credenciales de la base de datos se pueden rotar de forma centralizada sin necesidad de actualizar o desplegar nuevos archivos de configuración.
+* **Ideal para**: Entornos de producción que se ejecutan de forma nativa en AWS donde se requiere gestión centralizada de secretos, auditoría de cumplimiento y rotación automatizada
+
+#### Configuración de ejemplo
+
+```yaml
+receivers:
+  newrelicoracledb/pdb:
+    endpoint: "10.x.x.36:1521"
+    # Syntax: ${secretsmanager:SecretName#JSONKey}
+    username: "${secretsmanager:oracle/credentials#username}"
+    password: "${secretsmanager:oracle/credentials#password}"
+    service: "PDBTEST"
+```
+
+**Nota**: Establezca la Región de AWS:
+
+```bash
+export AWS_REGION=your-aws-region
+```
