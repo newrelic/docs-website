@@ -15,8 +15,8 @@ We're releasing new exciting features in Dashboards:
 
 Are you looking for ways to provide essential context and navigation for your dashboard widgets without cluttering the view? Our enhanced widget functionality, featuring Widget Links and Widget Descriptions, is designed to solve exactly that. These tools allow you to seamlessly embed extra information and connectivity, helping you communicate data insights more effectively and ensuring your team can quickly explore related resources.
 
-Widget Descriptions: Deliver contextual information and crucial data nuances as simple tooltips that appear only when a user hovers over the widget. This lets you add context (like thresholds, importance, or caveats) without taking up permanent space on your valuable dashboard real estate.
-Widget Links: Turn widget titles into clickable links that guide users directly to related detailed analysis dashboards, external documentation, runbooks, or any other important resource. This creates an efficient, navigable path for stakeholders to dive deeper into the data they need.
+* **Widget Descriptions:** Deliver contextual information and crucial data nuances as simple tooltips that appear only when a user hovers over the widget. This lets you add context (like thresholds, importance, or caveats) without taking up permanent space on your valuable dashboard real estate.
+* **Widget Links:** Turn widget titles into clickable links that guide users directly to related detailed analysis dashboards, external documentation, runbooks, or any other important resource. This creates an efficient, navigable path for stakeholders to dive deeper into the data they need.
 
 By using both features, you create dashboards that aren't only informative and visually clean but also highly actionable and easy to navigate.
 
@@ -55,7 +55,7 @@ This expansion ensures that your dashboards are fully self-documenting, with tex
 
 ### Dynamic Widget Titles
 
-Widget titles will now dynamically reflect the user's variable selection. For example, a title containing {{products}} will update to "Page views per nerdlet: APM" when the user selects "APM."
+Widget titles will now dynamically reflect the user's variable selection. For example, a title containing `{{products}}` will update to "Page views per nerdlet: APM" when the user selects "APM."
 This feature supports single and multi-select variable choices, providing instant context on the specific data being viewed.
 
 For full details and examples, visit the official [documentation]('https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/#variables-widget-titles')
@@ -63,7 +63,7 @@ For full details and examples, visit the official [documentation]('https://docs.
 
 ### Contextual Markdown Widgets
 
-Insert template variables like {{appName}} or {{environment}} into your Markdown text. The text will dynamically update, allowing you to create contextual notes, documentation, or even dynamic code for visualizations like Mermaid diagrams.
+Insert template variables like `{{appName}}` or `{{environment}}` into your Markdown text. The text will dynamically update, allowing you to create contextual notes, documentation, or even dynamic code for visualizations like Mermaid diagrams.
 This is perfect for creating help text that guides users based on their current variable selection.
 These enhancements work together to provide a clear, professional, and intuitive experience for anyone using your dashboards.
 
