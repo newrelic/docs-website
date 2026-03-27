@@ -11,7 +11,7 @@ We're releasing new exciting features in Dashboards:
 - Template Variables now available in markdown widgets and titles
 
 
-* Widget Links and Widget Descriptions
+## Widget Links and Widget Descriptions
 
 Are you looking for ways to provide essential context and navigation for your dashboard widgets without cluttering the view? Our enhanced widget functionality, featuring Widget Links and Widget Descriptions, is designed to solve exactly that. These tools allow you to seamlessly embed extra information and connectivity, helping you communicate data insights more effectively and ensuring your team can quickly explore related resources.
 
@@ -25,7 +25,7 @@ By using both features, you create dashboards that aren't only informative and v
 
 For detailed instructions, please visit this section of the [documentation]('http://docs.newrelic.com/docs/query-your-data/explore-query-data/use-charts/use-your-charts/#widget-link-description')
 
-* Variables visibility 
+## Variables visibility 
 
 The Variables Visibility feature allows you to control which template variables appear in your dashboard's variables bar. This helps you create cleaner, more focused dashboards by hiding variables that viewers don't need to edit, while keeping them accessible in Edit mode for dashboard creators and editors.
 
@@ -45,20 +45,24 @@ Hidden variables allow the dashboard editor to deliver powerful filtering for th
 
 For detailed instructions, please visit this section of the [documentation]('http://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/#variable-visibility')
 
-* Template Variables Now Available in Markdown Widgets and titles
+## Template Variables Now Available in Markdown Widgets and titles
 
 Your dashboards more dynamic and contextual than ever: you can now use dashboard template variables directly within your widget titles and Markdown widgets.
 
 This expansion ensures that your dashboards are fully self-documenting, with text and titles that automatically update as users interact with template variable filters.
 
-Key Capabilities:
-- Dynamic Widget Titles:
+## Key Capabilities
+
+### Dynamic Widget Titles
+
 Widget titles will now dynamically reflect the user's variable selection. For example, a title containing {{products}} will update to "Page views per nerdlet: APM" when the user selects "APM."
 This feature supports single and multi-select variable choices, providing instant context on the specific data being viewed.
 
 For full details and examples, visit the official [documentation]('https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/#variables-widget-titles')
  
-- Contextual Markdown Widgets:
+
+### Contextual Markdown Widgets
+
 Insert template variables like {{appName}} or {{environment}} into your Markdown text. The text will dynamically update, allowing you to create contextual notes, documentation, or even dynamic code for visualizations like Mermaid diagrams.
 This is perfect for creating help text that guides users based on their current variable selection.
 These enhancements work together to provide a clear, professional, and intuitive experience for anyone using your dashboards.
