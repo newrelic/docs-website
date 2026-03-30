@@ -1,19 +1,93 @@
 ---
 title: Visão geral do Agent Control
-metaDescription: 'Agent Control is a lightweight agent supervisor that manages other New Relic and New Relic distribution of OpenTelemetry agents by communicating with Fleet Control to remotely configure, update, and monitor the health of infrastructure-level instrumentation.'
+metaDescription: 'Agent Control is a lightweight agent supervisor that manages the lifecycle of New Relic and open-source agents by communicating with Fleet Control to remotely configure, update, and monitor the health of infrastructure-level instrumentation.'
 freshnessValidatedDate: never
 translationType: machine
 ---
 
-<Callout title="visualização">
-  Ainda estamos trabalhando nesse recurso, mas adoraríamos que você experimentasse!
-
-  Atualmente, esse recurso é fornecido como parte de um programa de visualização de acordo com nossas [políticas de pré-lançamento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+<Callout variant="important">
+  O Agent Control e o New Relic Control estão **disponíveis para o público geral** para Kubernetes. O suporte para hosts Linux e Windows está no programa de **prévia pública**, conforme nossas [políticas de pré-lançamento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
-O Agent Control é um supervisor de agente leve que gerencia outros agentes New Relic e da distribuição New Relic do OpenTelemetry . Ele se comunica com o Controle de Agentes para configurar, atualizar e monitorar remotamente a integridade da instrumentação em nível de infraestrutura no Kubernetes.
+O Agent Control é um supervisor de agentes leve executado em clusters Kubernetes e hosts para gerenciar o ciclo de vida de agentes de instrumentação da New Relic e de código aberto. Comunicando-se com o Fleet Control, ele configura, atualiza e monitora remotamente a integridade do agente nas frotas.
 
-## Pré-requisitos
+## Visão geral
+
+Gerenciar instrumentação em escala é trabalhoso e propenso a erros. Múltiplos agentes, proliferação de versões e desvio de configuração podem criar pontos cegos de telemetria, risco de conformidade e semanas de coordenação até mesmo para pequenas alterações.
+
+O Agent Control fornece um supervisor único e extensível que você instala uma vez por host ou cluster. Ele mantém todos os seus agentes New Relic e de código aberto saudáveis e atualizados, aplica configuração remota e impõe configurações consistentes sem acessar individualmente cada agente.
+
+<Callout variant="tip" title="Nota sobre custo e ingestão de dados">
+  O Agent Control pode ser instalado em qualquer ambiente suportado e não requer nenhuma licença paga. O próprio supervisor não envia nenhuma nova telemetria para o New Relic. O custo de ingestão dependerá da instrumentação habilitada nos agentes gerenciados (Infraestrutura, APM, Logs).
+</Callout>
+
+## Arquitetura
+
+O Agent Control usa uma abordagem declarativa, semelhante ao GitOps, para o gerenciamento de agentes. Ele trata a configuração remota recebida do Fleet Control como o estado desejado da sua instrumentação, garantindo que o que você implanta na frota seja o que está sendo executado nos seus clusters.
+
+### O mecanismo declarativo: Flux no Kubernetes
+
+No Kubernetes, o Agent Control utiliza o **[Flux](https://fluxcd.io/)**, uma ferramenta de entrega contínua graduada pela CNCF, como seu motor declarativo. Os controladores do Flux implantam e atualizam agentes automaticamente com base na configuração fornecida pelo Agent Control.
+
+O diagrama abaixo mostra como o agente Control se conecta ao New Relic Control (o backend e a interface) e ao Flux (o mecanismo nocluster ) para gerenciar seu agente:
+
+<img title="Agent Control architecture" alt="Agent Control architecture for agent management" src="/images/agent-control-architecture.webp" />
+
+O Agent Control pode usar configurações locais ou remotas. Enquanto as configurações locais são definidas no arquivo de instalação inicial, as configurações remotas são recebidas do New Relic Control e renderizadas diretamente para seus agentes. Isso permite que você gerencie tudo centralmente, incluindo:
+
+* **Credenciais:** O Agent Control pode obter credenciais sensíveis de provedores de segredos externos, como o Vault, injetando-as na configuração do agente em tempo de execução. Isso aumenta a segurança ao manter as credenciais fora da própria configuração.
+* **Configuração do Agente:** O Agent Control converte automaticamente configurações remotas em um formato compatível com o agente subjacente. Isso significa que você pode gerenciar diferentes tipos de agentes, como o agente de infraestrutura do New Relic e o coletor do OpenTelemetry, com um processo único e unificado.
+
+Com o Agent Control instalado em cada cluster e host, sua prática de observabilidade pode escalar:
+
+* **Ações em toda a frota:** Receba configurações e execute operações de ciclo de vida em toda a sua frota de agentes.
+* **Comunicações bidirecionais:** Comunicação autenticada e criptografada com agentes para solução de problemas e diagnósticos em tempo real.
+* **Postura de segurança:** Padronize como as credenciais são obtidas de provedores de segredos para centralizar o gerenciamento, automatizar rotações e reduzir a exposição.
+
+<Callout variant="important">
+  Para habilitar esse nível de controle e comunicação, o Agente Control requer permissões específicas. Ele precisa ser configurado com o acesso necessário para extrair a configuração e interagir com os sistemas locais para gerenciar o ciclo de vida do agente. Ao implantar o agente Control, certifique-se de entender e conceder as permissões necessárias para manter um ambiente seguro e funcional. Consulte a seção a seguir sobre permissões de controle do agente.
+</Callout>
+
+O Agent Control foi projetado para ser um supervisor para gerenciar instrumentação que requer a capacidade de executar ações poderosas em seu ambiente. É fundamental entender e conceder as permissões necessárias.
+
+<Callout variant="tip" title="Principais comportamentos">
+  * **Inicia sem agentes:** O Agent Control é instalado como um supervisor leve, sem agentes gerenciados em execução por padrão. Você define quais agentes implantar por meio do Fleet Control após a instalação.
+  * **Instalação e atualização remotas no Linux:** Em hosts Linux, você pode instalar, configurar e atualizar agentes remotamente por meio do Fleet Control — sem necessidade de intervenção manual em cada host.
+  * **Sem migração automática de agentes:** O Agent Control não migra ou substitui automaticamente as instalações de agentes existentes. Desinstale quaisquer agentes existentes antes de instalar o Agent Control, depois gerencie-os através do Fleet Control. Consulte [Gerenciar instrumentação existente](/docs/new-relic-control/agent-control/reinstrumentation).
+</Callout>
+
+## Permissões de controle do agente
+
+Implantar e gerenciar um agente em um cluster do Kubernetes requer uma compreensão clara das permissões necessárias. Aqui, explicaremos as funções do agente Control e do Flux e como eles interagem para instalar, atualizar e remover o agente com segurança, garantindo que cada agente tenha apenas as permissões necessárias.
+
+### Kubernetes
+
+Em um ambiente Kubernetes, o Agent Control usa o Flux como seu mecanismo de entrega contínua para instalar, atualizar e desinstalar agentes. O Agent Control precisa de permissão para criar e gerenciar recursos do Flux, e o Flux precisa de permissão elevada para criar e atualizar os recursos do Kubernetes que executam os agentes.
+
+* **Permissões para o Agent Control:** O Agent Control requer permissões para criar, ler, atualizar e excluir Custom Resources específicos do Flux, como `HelmRelease` e `HelmRepository`. Isso permite que o Agent Control instrua o Flux sobre o que fazer sem conceder ao próprio Agent Control direitos de administrador em todo o cluster.
+* **Permissões para o Flux:** O Flux requer permissões elevadas, normalmente com um papel `cluster-admin`, para gerenciar o ciclo de vida dos charts Helm para os agentes que ele implanta. Isso inclui criar `Deployments`, `DaemonSets`, `Services`, `ConfigMaps`, `Secrets` e outros recursos do Kubernetes em nome do usuário. Por segurança, é uma prática recomendada garantir que apenas configurações confiáveis e verificadas sejam usadas com o Agent Control.
+
+### Hosts Linux
+
+Para sistemas baseados em host (atualmente em visualização pública), o Agent Control requer permissões elevadas. O supervisor precisa ser executado com privilégios de root, administrador ou equivalentes para realizar tarefas de ciclo de vida do agente, como:
+
+* **Instalando novos agentes:** Copiando binários do agente e arquivos de configuração nos diretórios do sistema.
+* **Gerenciamento de processos do agente:** Iniciar, parar e reiniciar serviços, por exemplo, usando o systemd.
+* **Leitura de dados do sistema:** Acesso a informações do sistema necessárias para a saúde, inventário e diagnósticos, como logs e métricas de desempenho.
+
+Semelhante ao Kubernetes, o Agent Control segue um modelo declarativo nos hosts: ele lê o estado desejado em sua configuração e executa apenas as ações necessárias para alcançar esse estado. Isso foi projetado para limitar as ações que o supervisor pode realizar. Privilégios elevados são usados para configurar, instalar, atualizar e desinstalar agentes, não para executar ações arbitrárias e não aprovadas.
+
+### Permissões específicas do agente
+
+Diferentes tipos de agentes e suas configurações requerem permissões diferentes. Por exemplo, um agente que coleta métrica da API Kubernetes precisa de mais permissões do que um agente que apenas lê logs de arquivos.
+
+O Agent Control foi projetado para gerenciar essas permissões de forma flexível. Embora o Flux exija um alto grau de acesso para funcionar, nosso objetivo é garantir que o Agent Control solicite apenas as **permissões mínimas necessárias** para a combinação específica de agentes que você está gerenciando.
+
+Para obter informações detalhadas sobre as permissões específicas exigidas por cada agente, consulte [Tipos de agentes suportados](/docs/new-relic-control/agent-control/agent-types).
+
+## Requisitos e compatibilidade
+
+### Kubernetes
 
 Antes de começar a implantar o Agent Control no seu cluster do Kubernetes, certifique-se de atender aos seguintes pré-requisitos:
 
@@ -21,13 +95,14 @@ Antes de começar a implantar o Agent Control no seu cluster do Kubernetes, cert
 * **Chave de licença New Relic :** Você precisará de uma chave de licença para reportar telemetria para sua conta New Relic .
 * **Nome do cluster do Kubernetes:** tenha o nome do seu cluster do Kubernetes pronto. Você fará referência a ele durante o processo de instalação.
 * **Gerenciador de domínio de autenticação:** Para configurar o Controle de agente e conectá-lo ao Agent Control, é necessário ter a função Gerenciador de domínio de autenticação. Para obter mais informações, consulte [Conceitos de gerenciamento de usuário](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#admin-settings).
-* **Instrumentação existente:** Se o seu cluster do Kubernetes já estiver instrumentado com New Relic, você deverá desinstalar a instrumentação existente antes de instalar o Agent Control. Após instalar o Agent Control, você pode usar o Controle de Agentes para instalar e gerenciar o agente de infraestrutura e instrumentação no cluster. Para orientação, consulte [Gerenciar instrumentação existente com Agent Control](/docs/new-relic-control/agent-control/reinstrumentation).
 
-<Callout variant="caution" title="aviso">
-  A instalação múltipla do agente Control no mesmo cluster não é suportada.
+<Callout variant="caution" title="Importante: Instrumentação existente">
+  Se o seu cluster do Kubernetes já estiver instrumentado com New Relic, você deverá desinstalar a instrumentação existente antes de instalar o agente Control. Após instalar o agente Control, você pode usar o New Relic Control para instalar e gerenciar todo o agente de infraestrutura no cluster. Para orientação sobre esse processo, consulte [Gerenciar instrumentação existente com agente Control](/docs/new-relic-control/agent-control/reinstrumentation).
 </Callout>
 
-## Compatibilidade
+<Callout variant="caution" title="aviso">
+  A instalação de múltiplas instâncias do Agent Control no mesmo cluster não é suportada.
+</Callout>
 
 Agent Control é compatível com:
 
@@ -39,6 +114,143 @@ Para requisitos do sistema relacionados ao agente de infraestrutura New Relic Ku
 * [Integração Kubernetes : compatibilidade e requisitos](/docs/kubernetes-pixie/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements)
 * [OpenTelemetry para Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-otel)
 
+### Hosts Linux
+
+Antes de instalar o Agent Control, certifique-se de ter uma conta New Relic e de que seu sistema atenda aos requisitos abaixo. Oferecemos suporte a esses sistemas operacionais até o fim da vida útil do fabricante.
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        **Processador arquitetura**
+      </td>
+
+      <td>
+        O Agent Control suporta estas arquiteturas de processador:
+
+        * 64 bits para arquiteturas de processador x86
+        * arquitetura arm64
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Sistema operacional**
+      </td>
+
+      <td>
+        O Agent Control suporta esses sistemas operacionais até o fim da vida útil do fabricante.
+
+        * Amazon Linux versões 2 e 2023
+        * CentOS 8 ou superior
+        * Debian 11 (&quot;Bullseye&quot;) ou superior
+        * Red Hat Enterprise Linux (RHEL) 7 ou superior
+        * Oracle Linux 8 ou superior
+        * SUSE Linux Enterprise Server (SLES) versão 12.5, 15.2, 15.3, 15.4, 15.5
+        * Ubuntu 16.04 ou superior (apenas versões principais de longo prazo)
+
+        Os seguintes sistemas operacionais ainda não são suportados:
+
+        * MacOS
+        * Docker (conteinerizado)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para verificar os detalhes do seu sistema operacional, execute este comando:
+
+```bash
+cat /etc/os-release
+```
+
+### Hosts Windows
+
+Antes de instalar o Agent Control no Windows, certifique-se de que você tem uma conta da New Relic e que seu sistema atende aos requisitos abaixo.
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        **Processador arquitetura**
+      </td>
+
+      <td>
+        O Agent Control suporta estas arquiteturas de processador:
+
+        * 64 bits para arquiteturas de processador x86 (x86\_64)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Sistema operacional**
+      </td>
+
+      <td>
+        O Agent Control suporta estes sistemas operacionais Windows:
+
+        * Windows Server 2016 ou superior
+        * Windows 10 ou superior
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Pré-requisitos**
+      </td>
+
+      <td>
+        * Privilégios de administrador necessários para instalação e execução
+        * PowerShell 5.0 ou superior
+        * Porta 51200 disponível para o endpoint de integridade do Agent Control
+        * Conectividade HTTPS de saída (porta 443) para os serviços da New Relic
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Requisitos de rede**
+      </td>
+
+      <td>
+        O Agent Control requer conectividade HTTPS de saída para:
+
+        * Endpoints da API Fleet Control
+        * Endpoints de ingestão de dados da New Relic (varia por região)
+        * Servidores de download de pacotes
+
+        Se você estiver atrás de um firewall corporativo, certifique-se de que estes domínios da New Relic estejam acessíveis.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para verificar a sua versão do Windows, execute este comando no PowerShell:
+
+```powershell
+Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsHardwareAbstractionLayer
+```
+
+<Callout variant="important" title="Limitações do suporte ao Windows">
+  **Agentes suportados:** Em hosts Windows, o Agent Control atualmente suporta apenas o **New Relic Infrastructure Agent** e o **New Relic OpenTelemetry Collector (NRDOT)**. Outros tipos de agentes (agentes de APM, Fluent Bit, Prometheus, eBPF, etc.) ainda não são suportados.
+
+  **Requisitos mínimos de versão:** O Agent Control no Windows só pode gerenciar agentes que atendam a essas versões mínimas:
+
+  * Agente de infraestrutura: versão 1.71.0 ou superior
+  * NRDOT (OpenTelemetry Collector): versão 1.5.0 ou superior
+
+  Tentar implantar versões mais antigas falhará.
+
+  **Compatibilidade de configuração:** Configurações, modelos e versões do agente de ambientes Linux ou Kubernetes podem não ser compatíveis com o Windows. O suporte ao Windows começa a partir das versões mínimas listadas acima e inclui apenas os recursos disponíveis nessas versões. Aplicar versões mais antigas ou configurações de outros ambientes pode causar falhas na implantação.
+
+  **Sem migração automática:** O Agent Control no Windows não suporta a migração automática de agentes ad-hoc existentes. Se você já tiver agentes instalados em seus hosts Windows, deverá desinstalá-los primeiro e, em seguida, gerenciá-los por meio do Agent Control e do Fleet Control.
+
+  **Requisito de tipo de frota:** Ao configurar o Agent Control no Windows, você deve criar ou usar uma frota do tipo **&quot;Host - Windows&quot;**. Isso é obrigatório para o funcionamento correto em ambientes Windows.
+
+  **Coleta de logs:** A coleta de logs no Windows é suportada por meio do Fluent Bit integrado ao agente de infraestrutura. O pacote do agente de infraestrutura inclui binários do Fluent Bit para Windows, habilitando recursos de encaminhamento de logs por meio da configuração `config_logging`.
+</Callout>
+
 ## Próxima Etapa
 
-Depois de confirmar a compatibilidade e atender a todos os pré-requisitos, você está pronto para [instalar o Agent Control](/docs/new-relic-control/agent-control/setup) no seu cluster do Kubernetes.
+Depois de confirmar a compatibilidade e atender a todos os pré-requisitos, você está pronto para [instalar o Agent Control](/docs/new-relic-control/agent-control/setup).

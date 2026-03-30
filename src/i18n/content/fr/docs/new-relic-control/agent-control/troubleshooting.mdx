@@ -5,133 +5,583 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-<Callout title="Aperçu">
-  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
-
-  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un programme d&apos;aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+<Callout variant="important">
+  Agent Control et New Relic Control sont désormais **disponibles en version générale** pour Kubernetes ! La prise en charge des hôtes Linux et Windows fait également partie du programme **public preview**, conformément à nos [politiques de pré-lancement](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
-Ce document couvre les étapes à suivre pour résoudre les problèmes courants lors de l’installation ou de l’utilisation d’Agent Control.
+Ce document décrit les étapes de dépannage des problèmes courants lors de l&apos;installation ou de l&apos;utilisation d&apos;Agent Control. Il est organisé par environnement.
 
-## Activer la logging de débogage
+## Dépannage Kubernetes
 
-Pour diagnostiquer les erreurs pendant le processus d&apos;installation, vous pouvez augmenter le niveau de log pour Agent Control en ajoutant le paramètre suivant dans votre fichier `values-newrelic.yaml` :
+<CollapserGroup>
+  <Collapser id="k8s-debug-logging" title="Activer la logging de débogage">
+    Pour diagnostiquer les erreurs pendant le processus d&apos;installation, vous pouvez augmenter le niveau de log pour Agent Control en ajoutant le paramètre suivant dans votre fichier `values-newrelic.yaml` :
 
-```yaml
-agent-control-deployment:
-  config:
-    agentControl:
-      content:  
-        log:
-          level: trace
+    ```yaml
+    agentControlDeployment:
+      chartValues:
+        config:
+          log:
+            level: trace
+    ```
+
+    * **Niveau de log par défaut :** `info`.
+    * **Autres niveaux de log pris en charge :** `debug` et `trace`.
+    * **Collecteur de logs OTel :** pour activer les logs de débogage dans le collecteur OpenTelemetry, ajoutez `verboseLog: true`.
+
+    Pour inspecter les logs de contrôle de l&apos;agent, exécutez la commande suivante, en remplaçant `agent-control-***` par le nom de votre pod de contrôle de l&apos;agent :
+
+    ```shell
+    # Find the Agent Control pod name
+    kubectl get pods -n newrelic-agent-control
+
+    # Inspect the logs, replacing `agent-control-***` with your pod's name
+    kubectl logs agent-control-*** -n newrelic-agent-control
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-status-endpoint" title="Point de terminaison d'état">
+    Agent Control expose un point de terminaison d&apos;état local que vous pouvez utiliser pour vérifier l&apos;état d&apos;Agent Control et de ses agents gérés. Ce point de terminaison est activé par défaut sur le port `51200`. Suivez ces étapes pour interroger l’état cluster :
+
+    Transférer un port local vers le pod principal `agent-control` :
+
+    ```shell
+    kubectl port-forward <pod-name> 51200:51200
+    ```
+
+    Demander le statut de l&apos;agent :
+
+    ```shell
+    curl localhost:51200/status
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-helm-failure" title="Helm de la sortie du gouvernail">
+    Lorsque le chart agent-control-bootstrap est installé, un Job est lancé pour installer toutes les ressources et les charts, et l&apos;installation peut échouer avec une erreur BackoffLimitExceeded :
+
+    ```shell
+    [output] Error: UPGRADE FAILED: pre-upgrade hooks failed: job failed: BackoffLimitExceeded
+    ```
+
+    Vous pouvez déboguer les erreurs d&apos;installation en consultant les logs du job d&apos;installation :
+
+    ```shell
+    kubectl logs agent-control-bootstrap-install-job-**** -n newrelic-agent-control
+    ```
+
+    Agent Control nécessite des informations d&apos;authentification valides pour se connecter en toute sécurité au contrôle de la flotte. Initialement, ces informations d&apos;identification sont générées automatiquement via l&apos;interface utilisateur d&apos;installation d&apos;Agent Control et sont représentées par les champs `identityClientId` et `identityClientSecret` dans le fichier de valeurs. Pour des raisons de sécurité, les informations d&apos;identification nécessaires à l&apos;installation d&apos;Agent Control expirent après 12 heures.
+
+    Si l&apos;installation échoue avec une erreur BackoffLimitExceeded, cela indique souvent des informations d&apos;identification expirées ou non valides.
+
+    Vérifiez les logs du travail Kubernetes responsable de la configuration de l&apos;identité du système Agent Control.
+
+    Tout d’abord, identifiez le pod du travail :
+
+    ```shell
+    kubectl describe job agent-control-generate-system-identity -n <your-namespace>
+    ```
+
+    Dans la section `Events` , recherchez les entrées pour le pod spécifique, comme suit :
+
+    ```shell
+    [output] Events:
+    [output]       Type     Reason                Age   From            Message
+    [output]       ----     ------                ----  ----            -------
+    [output]       Normal   SuccessfulCreate      88s   job-controller  Created pod: agent-control-generate-system-identity-jr6cg
+    [output]       Normal   SuccessfulCreate      73s   job-controller  Created pod: agent-control-generate-system-identity-wnx2v
+    [output]       Normal   SuccessfulCreate      50s   job-controller  Created pod: agent-control-generate-system-identity-8zsqd
+    [output]       Normal   SuccessfulCreate      7s    job-controller  Created pod: agent-control-generate-system-identity-btqh7
+    [output]       Warning  BackoffLimitExceeded  1s    job-controller  Job has reached the specified backoff limit
+    ```
+
+    Afficher les logs du pod défaillant :
+
+    ```shell
+    kubectl logs <pod-name> -n <your-namespace>
+    ```
+
+    Exemple:
+
+    ```shell
+    kubectl logs agent-control-generate-system-identity-btqh7 -n newrelic-agent-control
+    ```
+
+    Après avoir examiné les logs, réessayez l&apos;installation à l&apos;aide Helm tout en monitorant les messages d&apos;erreur spécifiques et en vérifiant les logs pour détecter d&apos;éventuels problèmes. Vous trouverez ci-dessous quelques problèmes connus et comment les interpréter :
+
+    * **IdentitéClientId non valide :** `Error getting system identity auth token. The API endpoint returned 404: Failed to find Identity: <identityClientId-value>`
+    * **IdentitéClientSecret non valide :** `Error getting system identity auth token. The API endpoint returned 400: Bad client secret.`
+    * **Identité expirée :** `Error getting system identity auth token. The API endpoint returned 400: Expired client secret.`
+    * **Autorisations requises manquantes :** `Failed to create a New Relic System Identity for Fleet Control communication authentication. Please verify that your User Key is valid and that your Account Organization has the necessary permissions to create a System Identity: Exception while fetching data (/create) : Not authorized to perform this action or the entity is not found.`
+  </Collapser>
+
+  <Collapser id="k8s-nr-license" title="Licence New Relic non valide">
+    Si vous voyez un message d&apos;erreur comme celui ci-dessous dans le log OpenTelemetry du de déploiement du collecteur pod, cela peut indiquer une clé de licence New Relic invalide. Cela empêche le collecteur de pouvoir exporter les données télémétriques vers New Relic :
+
+    ```shell
+    [output] 2024-06-13T13:46:05.898Z error exporterhelper/retry_sender.go:126 Exporting failed. The error is not retryable. Dropping data. {"kind": "exporter", "data_type": "metrics", "name": "otlphttp/newrelic", "error": "Permanent error: error exporting items, request to https://otlp.nr-dat ││ go.opentelemetry.io/collector/exporter/exporterhelper.(*retrySender).send
+    ```
+
+    **Solution**
+
+    Confirmez que vous utilisez une clé de licence New Relic valide dans votre configuration.
+  </Collapser>
+
+  <Collapser id="k8s-helmrelease-agents" title="Échec de HelmRelease pour les agents gérés">
+    Si le pod d&apos;un agent géré n&apos;est pas créé, il peut y avoir un problème avec son HelmRelease.
+
+    Vérifiez l&apos;état de la sortie Helm :
+
+    ```shell
+    kubectl get helmrelease open-telemetry -n newrelic
+    ```
+
+    Une sortie réussie et saine doit afficher `READY: True` et `STATUS: InstallSucceeded`.
+
+    Si la sortie a échoué, les champs `STATUS` et `READY` indiqueront le problème. Selon le type d’erreur, le problème racine peut ne pas être entièrement reflété dans le champ d’état. Pour obtenir plus de détails, utilisez `kubectl` pour décrire la ressource HelmRelease :
+
+    ```shell
+    kubectl describe helmrelease open-telemetry -n newrelic
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-helm-uninstall-logs" title="Afficher les erreurs de désinstallation Helm">
+    Lors de la suppression de agent-control-bootstrap, un job est lancé pour supprimer toutes les ressources et les charts créés.
+
+    Si la désinstallation affiche une erreur comme : `* job agent-control-bootstrap-uninstall-job failed: BackoffLimitExceeded`
+
+    Vous pouvez consulter les logs de la tâche pour déboguer l&apos;erreur.
+
+    ```shell
+    kubectl logs agent-control-bootstrap-uninstall-job-*** -n newrelic-agent-control
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-helm-canceled-uninstall" title="Impossibilité d'installer ou de mettre à jour après une désinstallation annulée">
+    Si la commande helm delete est annulée en cours d&apos;exécution, le job de désinstallation continuera de fonctionner, supprimant les charts et les ressources, mais le secret helm agent-control-bootstrap peut toujours exister. Dans ce cas, vous ne pourrez pas mettre à jour ou installer le chart, et vous obtiendrez l&apos;erreur :
+
+    `Error: UPGRADE FAILED: "agent-control-bootstrap" has no deployed releases`
+
+    Relancer la désinstallation ne fonctionnera pas, les logs de la tâche de désinstallation afficheront une erreur telle que :
+
+    `Error: uninstall: Release not loaded: agent-control-cd: release: not found`
+
+    **Solution**
+
+    Supprimez tous les secrets Helm de votre release (remplacez agent-control-bootstrap par le nom de votre release si ce dernier a été modifié) :
+
+    ```shell
+    kubectl delete secrets -l "name=agent-control-bootstrap"
+    ```
+
+    Vous pouvez ensuite procéder à nouveau à l&apos;installation.
+  </Collapser>
+
+  <Collapser id="k8s-nrdiag" title="Dépannage avec NRDiag">
+    L&apos;outil de diagnostic New Relic `NRDiag` est un utilitaire qui rassemble les ressources et les logs liés au contrôle des agents dans votre cluster à des fins de débogage. Suivez ces étapes pour collecter toutes les données :
+
+    1. Sur votre hôte, installez l&apos;outil `NRDiag` à l&apos;aide du [guide de démarrage](/docs/new-relic-solutions/solve-common-issues/diagnostics-cli-nrdiag/diagnostics-cli-nrdiag/#get-started).
+
+    2. Exécutez la suite K8s Agent Control :
+
+       <Callout variant="tip" title="conseil">
+         Assurez-vous que `kubectl` et `helm` sont installés.
+       </Callout>
+
+       * Exécutez la commande dans l&apos;espace de nommage défini dans le contexte de kubeconfig :
+
+       ```bash
+       ./nrdiag -suites K8s-agent-control
+       ```
+
+       * Spécifiez un espace de nommage différent pour le contrôle de l&apos;agent à l&apos;aide de l&apos;indicateur `--k8s-namespace` :
+
+       ```bash
+       ./nrdiag -suites K8s-agent-control --k8s-namespace=newrelic
+       ```
+
+       * Spécifiez un espace de noms différent pour les sous-agents à l&apos;aide de l&apos;option `ac-agents-namespace` :
+
+       ```bash
+       ./nrdiag -suites K8s-agent-control --k8s-namespace=newrelic-agent-control --ac-agents-namespace=newrelic
+       ```
+
+    3. Le résultat attendu devrait ressembler au rapport suivant :
+
+       ```bash
+       [output] Check Results
+       [output] -------------------------------------------------
+       [output] Info     K8s/Flux/Charts [Successfully collected Flux Helm Charts]
+       [output] Info     K8s/Resources/Config [Successfully collected K8s configMaps ]
+       [output] Info     K8s/AgentControl/agent-control-status-server [Successfully collected K8s agent-control status se...]
+       [output] Info     K8s/Resources/Daemonset [Successfully collected K8s newrelic-infrastructure...]
+       [output] Info     K8s/Resources/Pods [Successfully collected K8s newrelic-infrastructure...]
+       [output] Info     K8s/Flux/Repositories [Successfully collected Flux Helm Repositories]
+       [output] Info     K8s/AgentControl/helm-controller-logs [Successfully collected K8s agent-control helm-cont...]
+       [output] Info     K8s/Env/Version [kubectl version output successfully collected]
+       [output] Info     K8s/Resources/Deploy [Successfully collected K8s newrelic-infrastructure...]
+       [output] Info     K8s/Helm/Releases [Successfully collected the list of helm releases]
+       [output] Info     K8s/AgentControl/agent-control-logs [Successfully collected K8s agent-control agent-con...]
+       [output] Info     K8s/Flux/Releases [Successfully collected Flux Helm Releases]
+       [output] Info     K8s/AgentControl/source-controller-logs [Successfully collected K8s agent-control source-co...]
+       [output] See nrdiag-output.json for full results.
+       ```
+
+    4. Tous les logs et ressources liés à Agent Control sont enregistrés dans le fichier `nrdiag_output.zip` du répertoire courant. Vous pouvez analyser le contenu du fichier zip ou ouvrir un ticket de support auprès du [support New Relic](https://support.newrelic.com) pour obtenir une assistance supplémentaire.
+  </Collapser>
+</CollapserGroup>
+
+## Dépannage des hôtes Linux
+
+<CollapserGroup>
+  <Collapser id="cli-debug" title="Impossible d'installer via New Relic CLI">
+    Si vous recevez le message d&apos;erreur `Installing agent-control (Unsupported)`, veuillez consulter la [configuration requise](/docs/new-relic-control/agent-control/overview/#requirements-and-compatibility) et assurez-vous d&apos;utiliser une version de système d&apos;exploitation prise en charge.
+
+    Si vous voyez `Installing agent-control (Failed)`, suivez ces étapes :
+
+    * Vérifiez les logs fournis avec le script d&apos;installation :
+
+      * Si vous voyez `Error creating an identity`, veuillez vous assurer que votre clé utilisateur appartient à un utilisateur de la plateforme avec le rôle [Admin tous produits](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#standard-roles).
+
+    * Vérifiez l&apos;état du service `newrelic-agent-control` :
+
+      ```bash
+        sudo systemctl status newrelic-agent-control
+      ```
+
+      Si le service apparaît à l&apos;état `failed` ou `stopped`, cela signifie que l&apos;agent a été installé mais qu&apos;un problème empêche son fonctionnement normal. Vérifiez les logs des services de l&apos;Agent avec `journalctl` (ou tout autre outil Linux similaire) :
+
+      ```bash
+        journalctl -u newrelic-agent-control
+      ```
+
+      Si aucune information n&apos;est disponible, vérifiez comment [exécuter l&apos;agent en mode débogage](/docs/new-relic-control/agent-control/troubleshooting/#debug) pour accéder aux logs détaillés expliquant pourquoi le service ne peut pas démarrer.
+
+    * Si le service n&apos;est pas installé, essayez d&apos;ajouter `--debug` à la fin de la commande d&apos;installation CLI de l&apos;[installation guidée](/docs/new-relic-control/agent-control/setup/) et relancez-la. Cela active le logs détaillé pour le script d&apos;installation et peut fournir un contexte supplémentaire expliquant l&apos;erreur.
+
+    * Facultativement, répondez `yes` lorsqu&apos;il vous est demandé d&apos;envoyer des logs à New Relic pour aider au dépannage de l&apos;installation. Une fois soumis, les logs sont accessibles avec la requête NRQL suivante :
+
+      ```sql
+        SELECT * FROM Log WHERE hostname = `your-host-name`
+      ```
+  </Collapser>
+
+  <Collapser id="debug" title="Diagnostiquer les problèmes de logs de l'agent">
+    Pour accéder aux logs, vous devez d&apos;abord activer le logs de l&apos;agent en suivant ces étapes :
+
+    1. Pour activer le logs de fichier, utilisez le paramètre `log` dans le fichier de configuration Agent Control :
+
+    ```yml
+      # Fleet Control connection settings
+      #fleet_control:
+
+      # managed agents settings
+      #agents:
+
+      # agent logging settings
+      log:
+        level: debug
+        file:
+          enable: true
+          # Add a custom path if needed, default path: /var/log/newrelic-agent-control/agent-control.log
+          # path: "/path/to/agent-control.log"
+        # Optional formatting settings
+        format:
+          # Include the target module (disabled by default for better readability)
+          target: true
+          # Custom timestamp format "%Y-%m-%dT%H:%M:%S"
+          timestamp: "%Y"
+
+    ```
+
+    Les valeurs possibles pour le niveau de log sont :
+
+    * `trace`
+    * `debug`
+    * `info` (défaut)
+    * `warning`
+    * `error`
+
+    Les logs de l&apos;agent d&apos;infrastructure sous-jacent et/ou du collecteur OpenTelemetry sont inclus lorsque le niveau est `debug` ou `trace`.
+
+    2. [Redémarrer](#restart-agent) le contrôle de l&apos;Agent.
+    3. Si le journal `file` est activé, vérifiez le fichier local correspondant en fonction du paramètre `path`. Ou utilisez votre outil de dépannage de logs préféré tel que `journalctl -u new-relic-agent-control`.
+  </Collapser>
+
+  <Collapser id="health_check" title="Point de terminaison de l'état de santé local">
+    Pour accéder aux détails de l&apos;état de santé, vous devez d&apos;abord activer le serveur local en suivant ces étapes :
+
+    1. Ajoutez les paramètres suivants dans le [fichier de configuration](/docs/new-relic-agent-control#configure-agent-control) d&apos;Agent Control :
+
+    ```yaml
+      server:
+        enabled: true
+        # default values (change if needed)
+        #host: "127.0.0.1"
+        #port: 51200
+    ```
+
+    2. [Redémarrer](#restart-agent) le contrôle de l&apos;Agent.
+
+    3. Interrogez le point de terminaison de statut à l&apos;aide de la commande suivante :
+
+    ```shell
+      curl 127.0.0.1:51200/status
+    ```
+
+    Le serveur renverra les informations sur l&apos;état de santé au format `json`, exemple :
+
+    ```json
+      {
+      "agent_control": {
+        "healthy": true
+      },
+      "fleet_control": {
+        "enabled": true,
+        "endpoint": "https://opamp.service.newrelic.com/v1/opamp",
+        "reachable": true
+      },
+      "sub_agents": {
+        "nr-otel-collector": {
+          "agent_id": "nr-otel-collector",
+          "agent_type": "newrelic/com.newrelic.opentelemetry.collector:0.1.0",
+          "healthy": true
+        },
+        "nr-infra-agent": {
+          "agent_id": "nr-infra-agent",
+          "agent_type": "newrelic/com.newrelic.infrastructure:0.1.0",
+          "healthy": false,
+          "last_error": "process exited with code: exit status: 1"
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="remote-config-debug" title="Configuration à distance invalide ou inattendue avec Fleet Control">
+    Agent Control effectue certaines validations avant de recevoir et d&apos;appliquer la configuration à distance de Fleet Control. De plus, les configurations peuvent avoir un format valide (par exemple, une structure `.yaml` valide) mais inclure des valeurs inattendues pour certains paramètres (par exemple, un `string` alors qu&apos;un `integer` est attendu). Le tableau suivant présente les erreurs courantes pour les différents agents pris en charge :
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Type d&apos;agent
+          </th>
+
+          <th>
+            Erreur
+          </th>
+
+          <th>
+            Notes de dépannage
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            (Tous les agents)
+          </td>
+
+          <td>
+            Erreur lors de l&apos;application de la configuration à distance : impossible de résoudre la configuration
+          </td>
+
+          <td>
+            Vérifiez le format de votre configuration. La configuration n&apos;est peut-être pas un fichier `.yaml` valide ou des champs obligatoires sont manquants.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            (Tous les agents)
+          </td>
+
+          <td>
+            Configuration invalide : valeurs restreintes détectées
+          </td>
+
+          <td>
+            Vérifiez le contenu de votre configuration. Des paramètres spécifiques peuvent ne pas être disponibles pour le type d&apos;agent cible en fonction de la politique de sécurité.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            (Tous les agents)
+          </td>
+
+          <td>
+            `exit code 1`
+          </td>
+
+          <td>
+            Vérifiez votre configuration. Des valeurs inattendues provoquent l&apos;arrêt de l&apos;agent avec une erreur inattendue.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Agent d&apos;infrastructure
+          </td>
+
+          <td>
+            `exit code 1`
+          </td>
+
+          <td>
+            Vérifiez votre configuration. Des valeurs inattendues provoquent l&apos;arrêt de l&apos;agent d&apos;infrastructure avec une configuration inattendue. Consultez les [paramètres](https://docs.newrelic.com/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/) pris en charge.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Dépannage des hôtes Windows
+
+Si Agent Control n&apos;est pas en cours d&apos;exécution ou sain, suivez ces étapes de diagnostic dans l&apos;ordre :
+
+**1. Vérifier l&apos;état du service :**
+
+```powershell
+Get-Service -Name newrelic-agent-control
 ```
 
-* **Niveau de log par défaut :** `info`.
-* **Autres niveaux de log pris en charge :** `debug` et `trace`.
-* **Collecteur de logs OTel :** pour activer les logs de débogage dans le collecteur OpenTelemetry, ajoutez `verboseLog: true`.
+Attendu : `Status : Running`. S&apos;il est arrêté ou manquant, passez à l&apos;étape 2.
 
-Pour inspecter les logs de contrôle de l&apos;agent, exécutez la commande suivante, en remplaçant `agent-control-***` par le nom de votre pod de contrôle de l&apos;agent :
+**2. Vérifier les logs du service :**
 
-```shell
-kubectl logs agent-control-*** -n agent-control
+Consulter le fichier journal le plus récent (les fichiers logs incluent des suffixes de date comme `newrelic-agent-control.log.2026-02-09-11`) :
+
+```powershell
+Get-ChildItem "C:\ProgramData\New Relic\newrelic-agent-control\logs\" -Filter "newrelic-agent-control.log.*" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | Get-Content -Tail 50
 ```
 
-## Point de terminaison d&apos;état
+<Callout variant="tip">
+  **Configuration du logging de fichier :** Agent Control nécessite une configuration explicite pour activer le logging de fichier. Si aucun fichier de log n&apos;existe, ajoutez ceci à votre `local_config.yaml`:
 
-Agent Control expose un point de terminaison d&apos;état local que vous pouvez utiliser pour vérifier l&apos;état d&apos;Agent Control et de ses agents gérés. Ce point de terminaison est activé par défaut sur le port `52100`. Suivez ces étapes pour interroger l’état cluster :
+  ```yaml
+  log:
+    file:
+      enabled: true
+  ```
 
-Transférer un port local vers le pod de contrôle de l&apos;agent principal :
+  Redémarrez ensuite le service pour que les logs apparaissent.
+</Callout>
 
-```shell
-kubectl port-forward <pod-name> 51200:51200
+**3. Tester l&apos;exécution manuelle :**
+
+Exécutez Agent Control depuis la ligne de commande pour contourner les problèmes spécifiques au service :
+
+```powershell
+cd "C:\Program Files\New Relic\newrelic-agent-control"
+.\newrelic-agent-control.exe --config "C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml"
 ```
 
-Demander le statut de l&apos;agent :
+S&apos;il s&apos;exécute correctement depuis la ligne de commande mais pas en tant que service, cela indique des problèmes d&apos;antivirus ou de permissions.
 
-```shell
-curl localhost:51200/status
+**4. Vérifier le type de flotte :**
+
+Assurez-vous que la flotte est de type **&quot;Host - Windows&quot;**. L&apos;utilisation de &quot;Host - Linux&quot; entraînera des échecs. Vérifiez dans l&apos;interface utilisateur Fleet Control sous les détails de la flotte.
+
+**5. Vérifier les conflits de port :**
+
+Agent Control utilise le port `51200` pour son point de terminaison de santé :
+
+```powershell
+netstat -ano | findstr :51200
 ```
 
-## Helm de la sortie du gouvernail
+Si un autre processus utilise ce port, identifiez-le :
 
-Agent Control nécessite des informations d&apos;authentification valides pour se connecter en toute sécurité au contrôle de la flotte. Initialement, ces informations d&apos;identification sont générées automatiquement via l&apos;interface utilisateur d&apos;installation d&apos;Agent Control et sont représentées par les champs `identityClientId` et `identityClientSecret` dans le fichier de valeurs.
-
-Pour des raisons de sécurité, les informations d&apos;identification nécessaires à l&apos;installation d&apos;Agent Control expirent après 12 heures. Si l&apos;installation échoue avec le message d&apos;erreur ci-dessous, suivez ces étapes de dépannage :
-
-```shell
-Error: UPGRADE FAILED: pre-upgrade hooks failed: job failed: BackoffLimitExceeded
+```powershell
+Get-Process -Id (Get-NetTCPConnection -LocalPort 51200).OwningProcess
 ```
 
-Vérifiez les logs du travail Kubernetes responsable de la configuration de l&apos;identité du système Agent Control.
+**6. Vérifier la connectivité réseau :**
 
-Tout d’abord, identifiez le pod du travail :
+Test de connexion à Fleet Control :
 
-```shell
-kubectl describe job agent-control-system-identity -n <your-namespace>
+```powershell
+Test-NetConnection -ComputerName fleet-control.newrelic.com -Port 443
+Test-NetConnection -ComputerName download.newrelic.com -Port 443
 ```
 
-Dans la section événement, recherchez les entrées pour le pod spécifique, comme suit :
+Les deux devraient afficher `TcpTestSucceeded : True`.
 
-```shell
-Events:
-      Type     Reason                Age   From            Message
-      ----     ------                ----  ----            -------
-      Normal   SuccessfulCreate      88s   job-controller  Created pod: agent-control-system-identity-installer-jr6cg
-      Normal   SuccessfulCreate      73s   job-controller  Created pod: agent-control-system-identity-installer-wnx2v
-      Normal   SuccessfulCreate      50s   job-controller  Created pod: agent-control-system-identity-installer-8zsqd
-      Normal   SuccessfulCreate      7s    job-controller  Created pod: agent-control-system-identity-installer-btqh7
-      Warning  BackoffLimitExceeded  1s    job-controller  Job has reached the specified backoff limit
+**7. Vérifier la syntaxe de configuration :**
+
+Recherchez des erreurs de syntaxe YAML :
+
+```powershell
+Get-Content "C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml"
 ```
 
-Afficher les logs du pod défaillant :
+Recherchez les problèmes courants : indentation incorrecte, deux-points manquants, caractères spéciaux non mis entre guillemets.
 
-```shell
-kubectl logs <pod-name> -n <your-namespace>
+**8. Rechercher des agents en conflit :**
+
+Vérifiez que les agents New Relic existants sont désinstallés :
+
+```powershell
+Get-Service -Name newrelic-infra -ErrorAction SilentlyContinue
+Get-Process -Name newrelic-infra -ErrorAction SilentlyContinue
 ```
 
-Exemple:
+Si l&apos;une des commandes renvoie des résultats, désinstallez l&apos;Agent d&apos;infrastructure avant de continuer.
 
-```shell
-kubectl logs agent-control-system-identity-installer-btqh7 -n newrelic
+**9. Vérifier les privilèges d&apos;administrateur :**
+
+Vérifiez que PowerShell s&apos;exécute en tant qu&apos;administrateur :
+
+```powershell
+([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 ```
 
-Après avoir examiné les logs, réessayez l&apos;installation à l&apos;aide Helm tout en monitorant les messages d&apos;erreur spécifiques et en vérifiant les logs pour détecter d&apos;éventuels problèmes. Vous trouverez ci-dessous quelques problèmes connus et comment les interpréter :
+Devrait renvoyer `True`.
 
-* **IdentitéClientId non valide :** `Error getting system identity auth token. The API endpoint returned 404: Failed to find Identity: <identityClientId-value>`
-* **IdentitéClientSecret non valide :** `Error getting system identity auth token. The API endpoint returned 400: Bad client secret.`
-* **Identité expirée :** `Error getting system identity auth token. The API endpoint returned 400: Expired client secret.`
-* **Autorisations requises manquantes :** `Failed to create a New Relic System Identity for Fleet Control communication authentication. Please verify that your User Key is valid and that your Account Organization has the necessary permissions to create a System Identity: Exception while fetching data (/create) : Not authorized to perform this action or the entity is not found.`
+**10. Redémarrez le service :**
 
-## Licence New Relic non valide
+Après avoir résolu les problèmes, redémarrez le service :
 
-Si vous voyez un message d&apos;erreur comme celui ci-dessous dans le log OpenTelemetry du de déploiement du collecteur pod, cela peut indiquer une clé de licence New Relic invalide. Cela empêche le collecteur de pouvoir exporter les données télémétriques vers New Relic :
-
-```shell
-2024-06-13T13:46:05.898Z error exporterhelper/retry_sender.go:126 Exporting failed. The error is not retryable. Dropping data. {"kind": "exporter", "data_type": "metrics", "name": "otlphttp/newrelic", "error": "Permanent error: error exporting items, request to https://otlp.nr-dat ││ go.opentelemetry.io/collector/exporter/exporterhelper.(*retrySender).send
+```powershell
+Restart-Service -Name newrelic-agent-control
+Start-Sleep -Seconds 30
+Get-Service -Name newrelic-agent-control
+Invoke-WebRequest -Uri "http://localhost:51200/status" -UseBasicParsing
 ```
 
-### Solution
+### Message d&apos;erreur courant
 
-Confirmez que vous utilisez une clé de licence New Relic valide dans votre configuration.
+| Erreur/Symptôme                                                                            | Cause probable                                                                  | Solution                                                                                                                      |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `Error 1067: The process terminated unexpectedly`                                          | Blocage par l&apos;antivirus, erreur de configuration ou dépendances manquantes | Ajoutez des exclusions antivirus, vérifiez la syntaxe de la configuration, consultez les logs du service pour plus de détails |
+| Le service démarre puis s&apos;arrête immédiatement                                        | Erreur de fichier de configuration ou identifiants invalides                    | Examinez `local_config.yaml`, vérifiez la clé de licence et les identifiants de la flotte                                     |
+| `Port 51200 already in use`                                                                | Conflit de port avec une autre application                                      | Identifier le processus utilisant le port avec `netstat`, arrêter le service en conflit                                       |
+| `Failed to connect to Fleet Control`                                                       | Blocage réseau/pare-feu, ou configuration incorrecte de la flotte               | Tester la connectivité avec `Test-NetConnection`, vérifier l&apos;ID et le type de flotte                                     |
+| `Invalid fleet type` erreur dans les logs                                                  | Le type de flotte n&apos;est pas &quot;Host - Windows&quot;                     | Recréez la flotte avec le type correct dans l&apos;interface Fleet Control                                                    |
+| Le service ne démarre pas, fonctionne correctement depuis la ligne de commande             | Antivirus ou stratégie de sécurité Windows bloquant le service                  | Ajoutez des exclusions pour les exécutables et les répertoires, vérifiez auprès de l&apos;équipe de sécurité                  |
+| `License key validation failed`                                                            | Clé de licence incorrecte, expirée ou manquante                                 | Vérifiez la clé de licence dans le fichier de configuration, assurez-vous qu&apos;elle est valide pour votre compte           |
+| Aucune donnée ne s&apos;affiche dans l&apos;interface utilisateur après plus de 10 minutes | Agent non déployé ou configuration non synchronisée                             | Vérifiez le statut du déploiement dans l&apos;interface utilisateur Fleet Control, vérifiez la configuration de la flotte     |
 
-## Pods de collecteur OTel non créés
+<Callout variant="tip" title="Obtenir de l'aide supplémentaire">
+  Si le dépannage ne résout pas votre problème :
 
-Si aucun pod Collecteur OTel n&apos;est créé, il peut y avoir un problème avec la définition de ressource personnalisée (CRD) HelmRelease.
+  1. Activez le logs de débogage en modifiant `local_config.yaml`:
 
-Vérifiez l&apos;état de la sortie Helm :
+     ```yaml
+     log:
+       level: debug
+     ```
 
-```shell
-kubectl get helmrelease open-telemetry -n agent-control
-```
+  2. Redémarrez le service et reproduisez le problème
 
-Une sortie réussie et saine doit afficher `READY: True` et `STATUS: InstallSucceeded`.
+  3. Collecter les logs pour le support :
 
-Si la sortie a échoué, les champs `STATUS` et `READY` indiqueront le problème. Selon le type d’erreur, le problème racine peut ne pas être entièrement reflété dans le champ d’état. Pour obtenir plus de détails, utilisez `kubectl` pour décrire la ressource HelmRelease :
+     ```powershell
+     Get-ChildItem "C:\ProgramData\New Relic\newrelic-agent-control\logs\" -Filter "newrelic-agent-control.log.*" | Sort-Object LastWriteTime -Descending | ForEach-Object { Get-Content $_.FullName } | Out-File -FilePath "$env:USERPROFILE\Desktop\agent-control-debug.log"
+     ```
 
-```shell
-kubectl describe helmrelease open-telemetry -n agent-control
-```
-
-## Support supplémentaire
-
-Si vous rencontrez des problèmes non traités dans cette section, contactez [le support New Relic](https://support.newrelic.com) pour obtenir de l&apos;aide.
+  4. Contactez le support New Relic avec les logs collectés
+</Callout>
