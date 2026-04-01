@@ -26,168 +26,58 @@ You're charged for the data volume (GB) of span data ingested. Span data is cont
 
 Querying and visualizing trace data consumes compute units. While span configuration primarily addresses ingest costs, the volume of data to query impacts CCU costs.
 
-### Measure your baseline
+### Identify services where cost can be reduced
 
-Before optimizing, establish your current costs:
-
-```sql
-SELECT bytecountestimate() / 1e9 as 'Daily Span GB'
-FROM Span
-SINCE 1 day ago
-```
-
-This gives you a starting point to measure improvement against.
-
-## Service prioritization framework [#prioritization]
-
-Not all services need the same level of tracing detail. Choose your configuration based on how frequently you need detailed trace information, whether you rely on custom attributes, and whether you use AI monitoring (LLM) data:
-
-### Sampling
-***Use adaptive sampling to control trace sample rates***
-It's important to capture a good baseline of distributed traces end-to-end across your critical services.
-While the [trace ID ratio based sampling](/docs/distributed-tracing/core-tracing/configure-sampling#trace-id-ratio-based-sampler) guarantees a set percent of transactions will be sampled, the volume of trace data will increase with your throughput.
-[Adaptive sampling](/docs/distributed-tracing/core-tracing/configure-sampling#adaptive-sampler) ensures a specified number of traces per minute from each service, regardless of how throughput changes.
-
-***Use trace ID ratio based sampling to control sample rates based on upstream sampling decisions***
-Use [trace ID ratio based sampling](/docs/distributed-tracing/core-tracing/configure-sampling#trace-id-ratio-based-sampler) to capture a percentage of throughput sampled by upstream services. This may be useful when you cannot limit the volume of traces sampled by upstream services, such as when:
-* An upstream service samples a large portion of its transactions.
-* Distributed traces originating from the current service are being dropped in favor of distributed traces originating from an upstream service by the [adaptive sampler](/docs/distributed-tracing/core-tracing/configure-sampling#adaptive-sampler).
-
-### Distributed tracing granularity
-***Use a hybrid approach of full and partial granularity distributed tracing to decrease cost per transaction***
-When a service is:
-* A high throughput service where you need to capture all distributed traces but only need some distributed traces with full granularity details for debug.
-* Too expensive and not every distributed trace needs full granularity details for debug.
-* Not able to capture enough distributed traces to see a complete service map due to filling up the span reservoir too quickly.
-
-***Use only partial granularity distributed tracing to decrease cost per transaction***
-When a service is:
-* A connecting service where you only need to see service-to-service visibility and can tolerate losing internal function call details.
-* Supporting where you mainly need to see "what calls what" and rarely need detailed diagnostics.
-
-### 
-
-<table>
-  <thead>
-    <tr>
-      <th width={200}>
-        Use case
-      </th>
-      <th>
-        Recommended configuration
-      </th>
-      <th>
-        Key decision factors
-      </th>
-    </tr>
-  </thead>
-
-  <tbody>
-    <tr>
-      <td>
-        **Frequent deep debugging needed**
-
-        Services where you regularly need method-level detail for troubleshooting
-      </td>
-      <td>
-        Full granularity distributed tracing
-      </td>
-      <td>
-        * Need detailed code execution paths
-        * Require all custom attributes
-        * Troubleshoot complex issues frequently
-        * Business-critical services where cost is justified
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        **Occasional deep debugging**
-
-        Services where you sometimes need detail but not always
-      </td>
-      <td>
-        Hybrid Full and Partial granularity distributed tracing
-      </td>
-      <td>
-        * Service-to-service visibility is usually sufficient
-        * Can tolerate losing internal function call details
-        * If custom attributes are required, use reduced mode
-        * May use compact or essential, depending on whether AI monitoring is used
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        **Connectivity tracking only**
-
-        Supporting services where you mainly need to see "what calls what"
-      </td>
-      <td>
-        Partial granularity distributed tracing
-      </td>
-      <td>
-        * Rarely need detailed diagnostics
-        * Don't rely on custom attributes for these services
-        * If custom attributes are required, use reduced mode
-        * May use compact or essential, depending on whether AI monitoring is used
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        **Minimal monitoring**
-
-        Low-priority services, internal tools, or non-production environments
-      </td>
-      <td>
-        Compact granularity
-      </td>
-      <td>
-        * Only need proof that connections exist
-        * Don't need duplicate call tracking
-        * Don't rely on custom attributes
-        * **Cannot use if service has AI monitoring (LLM) data** - compact mode incompatible with LLM spans
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-<Callout variant="tip">
-  **Decision checklist:** Before choosing a configuration:
-  1. How often do you need method-level detail for this service?
-  2. Does your team rely on custom attributes for monitoring or troubleshooting this service?
-  3. Does this service use AI monitoring to track LLM interactions? (If yes, can't use compact mode)
-  4. How critical is this service to your business operations?
-</Callout>
-
-### Create your service inventory
-
-Map your services to these categories:
-
-1. List all services currently sending distributed tracing data
-2. Categorize each service using the framework above
-3. Note current span volume per service:
+1. Identify all accounts where distributed tracing data is being reported
+2. Note current span data volume per service, in each account:
    ```sql
-   SELECT count(*) as 'Span Count'
+   SELECT bytecountestimate() / 1e9 as 'Daily GB', count(*) as 'Span Count'
    FROM Span
    FACET entity.name
+   LIMIT MAX
    SINCE 1 day ago
    ```
+3. Identify services which are reporting a high volume of distributed tracing data, and match against the criteria below to decide which to target for reduction
+
+    Not all services need the same level of tracing detail. Choose your configuration based on how frequently you need detailed trace information, whether you rely on custom attributes, and whether you use AI monitoring (LLM) data:
+
+    ***Sampling***
+    * ***Use adaptive sampling to control trace sample rates***
+      It's important to capture a good baseline of distributed traces end-to-end across your critical services.
+      While the [trace ID ratio based sampling](/docs/distributed-tracing/core-tracing/configure-sampling#trace-id-ratio-based-sampler) guarantees a set percent of transactions will be sampled, the volume of trace data will increase with your throughput.
+      [Adaptive sampling](/docs/distributed-tracing/core-tracing/configure-sampling#adaptive-sampler) ensures a specified number of traces per minute from each service, regardless of how throughput changes.
+
+    * ***Use trace ID ratio based sampling to control sample rates based on upstream sampling decisions***
+      Use [trace ID ratio based sampling](/docs/distributed-tracing/core-tracing/configure-sampling#trace-id-ratio-based-sampler) to capture a percentage of throughput sampled by upstream services. This may be useful when you cannot limit the volume of traces sampled by upstream services, such as when:
+      * An upstream service samples a large portion of its transactions.
+      * You're seeing many distributed traces from upstream services, but not from the current service, and you don't want to increase the overall volume of trace data you're capturing.
+
+    ***Distributed tracing granularity***
+      ***Use a hybrid approach of full and partial granularity distributed tracing to decrease cost per transaction***
+      When a service is:
+      * You are satisfied with the rate of distributed trace sampling, but only need some distributed traces with full granularity details for debug.
+      * Not able to capture enough distributed traces to see a complete service map due to filling up the span reservoir too quickly.
+
+      ***Use only partial granularity distributed tracing to decrease cost per transaction***
+      When a service is:
+      * A connecting service where you only need to see service-to-service visibility and can tolerate losing internal function call details.
+      * Supporting where you mainly need to see "what calls what" and rarely need detailed diagnostics.
+
+    To determine which partial granularity type to use, see [understanding partial granularity tracing modes](/docs/distributed-tracing/core-tracing/#modes)
+
+    <Callout variant="tip">
+      **Decision checklist:** Before choosing a configuration:
+      1. How often do you need method-level detail for this service?
+      2. Does your team rely on custom attributes for monitoring or troubleshooting this service?
+      3. Does this service use AI monitoring to track LLM interactions? (If yes, can't use compact mode)
+      4. How critical is this service to your business operations?
+    </Callout>
+
 4. Prioritize configuration rollout starting with supporting services (lowest risk)
 
 ## Calculate your potential savings [#calculate]
 
 Use this approach to estimate savings before implementing:
-
-### Step 1: Measure current ingest
-
-```sql
-SELECT bytecountestimate() / 1e9 as 'Daily GB',
-       (bytecountestimate() / 1e9) * 30 as 'Monthly GB'
-FROM Span
-SINCE 1 day ago
-```
 
 **Note:** `bytecountestimate()` provides an estimate for planning purposes. For monitoring actual consumption, consider using other metrics that track actual data ingest.
 
