@@ -3,22 +3,14 @@ title: Control distributed tracing data ingestion with APM agents
 tags:
   - Understand dependencies
   - Distributed tracing
-  - Span configuration
   - Cost optimization
+  - Partial granularity configuration
   - APM agents
 metaDescription: Use APM agent configuration options to control distributed tracing data ingestion while maintaining critical system visibility. Partial granularity distributed traces and adaptive sampling provide controlled ingestion customized to your needs.
 freshnessValidatedDate: never
 ---
 
-This strategic guide helps you plan and implement partial granularity distributed traces across your services. You'll learn how to prioritize services, calculate potential impact, and roll out configurations to achieve controlled data ingestion.
-
-**Prerequisites**:
-1. Review [Control distributed tracing data volume](/docs/distributed-tracing/core-tracing/introduction-core-tracing) to understand the three configuration options (reduced, essential, compact)
-2. Understand [adaptive sampling configuration](/docs/distributed-tracing/core-tracing/introduction-core-tracing#adaptive-sampling) for controlled ingestion
-3. Use this guide to plan which services get which configuration
-
-**After planning**, implement your strategy using:
-- [Configure partial granularity](/docs/distributed-tracing/core-tracing/configure-partial-granularity-tracing) - Comprehensive implementation guide for your agent
+This guide helps you plan and implement cost-saving distributed trace sampling strategies across your services. You'll learn how to prioritize services, calculate potential impact, and roll out configurations to achieve controlled data ingestion.
 
 ## Understand your data ingestion [#understand-costs]
 
@@ -27,12 +19,12 @@ Distributed tracing data volumes come from two main factors:
 ### Ingest costs
 
 You're charged for the data volume (GB) of span data ingested. Span data is controlled by:
+* **Sampling rate**: Controlled by [sampling configuration](/docs/distributed-tracing/core-tracing/configure-sampling), which determines the rate of distributed traces captured
 * **Partial granularity mode** (reduced, essential, or compact): Controls both the number of spans and the size of each span through combined span filtering and attribute reduction. See [Configure partial granularity](/docs/distributed-tracing/core-tracing/configure-partial-granularity-tracing) for details.
-* **Sampling rate**: Controlled by adaptive sampling configuration, which determines how many traces are captured per minute
 
 ### Compute (CCU) costs
 
-Querying and visualizing trace data consumes compute units. While span configuration primarily addresses ingest costs, the impact on query performance depends on many variables and may vary by customer.
+Querying and visualizing trace data consumes compute units. While span configuration primarily addresses ingest costs, the volume of data to query impacts CCU costs.
 
 ### Measure your baseline
 
@@ -46,117 +38,20 @@ SINCE 1 day ago
 
 This gives you a starting point to measure improvement against.
 
-## Understanding samplers [#samplers]
-
-Before implementing controlled ingestion strategies, it's important to understand how sampling works in APM agents. Samplers determine **which traces** are captured, while partial granularity modes determine **what data** is captured for those traces.
-
-### Quick overview
-
-APM agents provide four sampler types:
-
-* **Adaptive sampler** (default): Dynamically adjusts to capture a target number of traces per minute (default 10, max 120)
-* **Ratio-based sampler**: Samples a fixed percentage of traces based on trace ID
-* **Always-on sampler**: Captures 100% of matching traces
-* **Always-off sampler**: Captures 0% of matching traces
-
-Sampling can be configured differently for three contexts:
-
-* **Root**: Traces that originate in your service
-* **Remote parent sampled**: Traces already sampled by upstream services
-* **Remote parent not sampled**: Traces rejected by upstream services
-
-<Callout variant="tip">
-  For comprehensive technical documentation about samplers, including adaptive sampling targets, ratio-based sampling with partial granularity, and priority rules, see [Control trace ingest with samplers](/docs/distributed-tracing/core-tracing/configure-sampling).
-
-  For real-world scenarios with copy-paste configuration examples, see [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples).
-</Callout>
-
-## Controlled ingestion strategies [#strategies]
-
-APM agent configuration for partial granularity distributed traces offers three modes you can apply strategically across your services. For detailed explanations of what each mode captures, configuration instructions, and visual waterfall examples, see [Configure partial granularity distributed tracing](/docs/distributed-tracing/core-tracing/configure-partial-granularity-tracing).
-
-### Strategy 1: Apply the three partial granularity modes based on service needs
-
-Choose the appropriate mode for each service based on your monitoring needs:
-
-**Reduced granularity (`type: reduced`):**
-* Removes in-process spans, keeps entry and exit spans with all attributes
-* Preserves LLM/AI monitoring spans
-* Best for: Services with deep call stacks where you need full attribute visibility
-
-**Essential granularity (`type: essential`):**
-* Removes in-process spans + reduces attributes to minimal set
-* Preserves LLM/AI monitoring spans
-* Best for: Supporting services where you need connectivity but not detailed diagnostics
-
-**Compact granularity (`type: compact`):**
-* Removes in-process spans + reduces attributes + compresses duplicate exit spans
-* **NOT compatible with LLM/AI monitoring**
-* Best for: Non-production environments or services where you only need proof of connectivity
-
-For configuration examples and visual comparisons, see [What data gets captured with each mode](/docs/distributed-tracing/core-tracing/configure-partial-granularity-tracing#what-data).
-
-### Strategy 2: Increase adaptive sampling for better coverage
-
-**What it does:** Increases the number of traces captured by raising the adaptive sampling target
-**Results vary by application:** Impact depends on traffic volume and target adjustment
-**Best for:** Eliminating service map gaps while using partial granularity to control data volume
-
-The default adaptive sampling target for most agents is 10 traces per minute, with a maximum of 120. When using partial granularity modes, you can significantly increase this target to capture more traces without proportionally increasing costs, since each trace contains less data.
-
-**Common pattern:**
-* Capture 1 full granularity trace per minute (aligns with transaction trace behavior)
-* Capture 60 partial granularity traces per minute to fill service map gaps
-* Result: Complete service map visibility with controlled data volume
-
-**Example scenario:**
-Your service map has gaps because some endpoints are rarely sampled at the default 10 traces/minute target. Using partial granularity, you can increase sampling significantly:
-
-* Configure partial granularity (essential mode) on supporting services
-* Increase adaptive sampling target from 10 to 60-120 traces/minute
-* Result: Complete service map without gaps, controlled data volume due to essential granularity
-
-For detailed configuration examples, see [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples).
-
-### Strategy 3: Hybrid sampling (full + partial granularity)
-
-**What it does:** Enables both full and partial granularity tracing simultaneously on the same service
-**Results vary by application:** Impact depends on sampling ratios and span characteristics
-**Best for:** Services where you need occasional detailed traces but can't justify full granularity for all requests
-
-Configure a service to sample some traces at full granularity while capturing others at partial granularity (reduced, essential, or compact). This gives you complete trace coverage with mixed detail levels. When a trace is selected by both full and partial granularity sampling, full granularity always takes precedence.
-
-**Example configuration:**
-
-```yaml
-distributed_tracing:
-  enabled: true
-  sampler:
-    root:
-      trace_id_ratio_based:
-        ratio: 0.1  # 10% of root traces at full granularity
-  full_granularity:
-    enabled: true
-  partial_granularity:
-    enabled: true
-    type: essential
-    root:
-      trace_id_ratio_based:
-        ratio: 0.9  # Remaining 90% at partial granularity
-```
-
-**Example scenario:**
-Your checkout service is business-critical but generates significant trace data. You need detailed traces for troubleshooting but can't afford full detail on every request.
-
-* Configure 10% of traces to use full granularity (complete detail for deep analysis)
-* Configure 90% of traces to use essential granularity (lightweight coverage)
-* Result: 100% trace coverage with controlled data ingestion (results vary by application)
-
-For more hybrid sampling scenarios and configuration examples, see [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples).
-
 ## Service prioritization framework [#prioritization]
 
 Not all services need the same level of tracing detail. Choose your configuration based on how frequently you need detailed trace information, whether you rely on custom attributes, and whether you use AI monitoring (LLM) data:
+
+### Sampling
+***Use adaptive sampling to control trace sample rates***
+It's important to capture a good baseline of distributed traces end-to-end across your critical services.
+While the [trace ID ratio based sampling](/docs/distributed-tracing/core-tracing/configure-sampling#trace-id-ratio-based-sampler) guarantees a set percent of transactions will be sampled, the volume of trace data will increase with your throughput.
+[Adaptive sampling](/docs/distributed-tracing/core-tracing/configure-sampling#adaptive-sampler) ensures a specified number of traces per minute from each service, regardless of how throughput changes.
+
+***Use trace ID ratio based sampling to control sample rates based on upstream sampling decisions***
+When you cannot limit the colume of traces sampled by upstream services, such as when a service samples a large portion of its transactions or 
+
+### 
 
 <table>
   <thead>
@@ -181,7 +76,7 @@ Not all services need the same level of tracing detail. Choose your configuratio
         Services where you regularly need method-level detail for troubleshooting
       </td>
       <td>
-        Full distributed tracing (no filtering)
+        Full granularity distributed tracing
       </td>
       <td>
         * Need detailed code execution paths
@@ -198,13 +93,13 @@ Not all services need the same level of tracing detail. Choose your configuratio
         Services where you sometimes need detail but not always
       </td>
       <td>
-        Reduced granularity
+        Hybrid Full and Partial granularity distributed tracing
       </td>
       <td>
         * Service-to-service visibility is usually sufficient
-        * Can tolerate losing internal method details
-        * Still need all custom attributes
-        * May use AI monitoring (LLM data) - reduced granularity preserves AI spans
+        * Can tolerate losing internal function call details
+        * If custom attributes are required, use reduced mode
+        * May use compact or essential, depending on whether AI monitoring is used
       </td>
     </tr>
 
@@ -215,13 +110,13 @@ Not all services need the same level of tracing detail. Choose your configuratio
         Supporting services where you mainly need to see "what calls what"
       </td>
       <td>
-        Essential granularity
+        Partial granularity distributed tracing
       </td>
       <td>
         * Rarely need detailed diagnostics
         * Don't rely on custom attributes for these services
-        * Need complete trace paths for context
-        * May use AI monitoring - essential granularity preserves AI spans
+        * If custom attributes are required, use reduced mode
+        * May use compact or essential, depending on whether AI monitoring is used
       </td>
     </tr>
 
@@ -486,8 +381,7 @@ Agent configuration changes require editing configuration files and restarting y
 
 Ready to implement controlled ingestion?
 
-1. Review [Control distributed tracing data volume](/docs/distributed-tracing/core-tracing/introduction-core-tracing) for an overview of the three modes and when to use them
-2. [Configure partial granularity distributed tracing](/docs/distributed-tracing/core-tracing/configure-partial-granularity-tracing) - Comprehensive guide with configuration instructions for all three modes
+1. [Configure partial granularity distributed tracing](/docs/distributed-tracing/core-tracing/configure-partial-granularity-tracing) - Comprehensive guide with configuration instructions for all three modes
 3. See [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples) for real-world scenarios with copy-paste ready configuration code
 
 <Callout variant="tip">
