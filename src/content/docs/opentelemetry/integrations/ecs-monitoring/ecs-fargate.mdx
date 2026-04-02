@@ -1,0 +1,699 @@
+---
+title: Monitor ECS Fargate with OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Amazon ECS
+  - AWS
+  - Fargate
+  - Containers
+metaDescription: "Install and configure OpenTelemetry monitoring for Amazon ECS tasks running on AWS Fargate."
+freshnessValidatedDate: never
+---
+
+Monitor Amazon ECS tasks running on AWS Fargate by deploying OpenTelemetry Collector Contrib as a sidecar container. This comprehensive guide walks you through creating task definitions, configuring the collector, and deploying monitoring for your serverless ECS workloads.
+
+<Callout variant="important">
+  This integration requires the OpenTelemetry Collector Contrib distribution, which includes the AWS ECS Container Metrics receiver (`awsecscontainermetricsreceiver`). This receiver is not available in NRDOT Collector.
+</Callout>
+
+## Installation steps [#install]
+
+Follow these steps in order to set up monitoring for your ECS Fargate tasks.
+
+<Steps>
+
+<Step>
+
+### Before you begin [#requirements]
+
+Make sure your environment meets these requirements:
+
+<CollapserGroup>
+  <Collapser id="ecs-reqs" title="ECS requirements">
+    * **ECS cluster**: Active ECS cluster (capacity providers not required for Fargate)
+    * **Task definitions**: Existing task definitions you want to monitor
+    * **Launch type**: Fargate launch type
+    * **Platform version**: 1.4.0 or later for Task Metadata Endpoint v4 support
+    * **Network mode**: Must use `awsvpc` network mode (required for Fargate)
+  </Collapser>
+
+  <Collapser id="fargate-reqs" title="Fargate requirements">
+    * **CPU and Memory**: Fargate task sizes (0.25-16 vCPU, 0.5-120 GB RAM)
+    * **Network**: VPC with subnets and security groups configured
+    * **Storage**: Ephemeral storage limits (20-200 GB)
+  </Collapser>
+
+  <Collapser id="aws-reqs" title="AWS permissions">
+    * **Task execution role**: `AmazonECSTaskExecutionRolePolicy` attached
+    * **SSM permissions**: Access to Systems Manager Parameter Store for configuration
+    * **CloudWatch permissions**: For logging (optional but recommended)
+    * **VPC permissions**: If using private subnets, ensure NAT Gateway or VPC endpoints for internet access
+  </Collapser>
+
+  <Collapser id="newrelic-reqs" title="New Relic requirements">
+    * **Account**: Active New Relic account
+    * **License key**: [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key) for your account
+  </Collapser>
+</CollapserGroup>
+
+</Step>
+
+<Step>
+
+### Store your New Relic license key [#store-license-key]
+
+Save your license key as a Systems Manager (SSM) parameter:
+
+```bash
+aws ssm put-parameter \
+  --name "/newrelic-infra/ecs/license-key" \
+  --type SecureString \
+  --description 'New Relic license key for ECS monitoring' \
+  --value "YOUR_NEW_RELIC_LICENSE_KEY"
+```
+
+</Step>
+
+<Step>
+
+### Create IAM policy and execution role [#create-role]
+
+Create an IAM policy to access the license key parameter:
+
+```bash
+aws iam create-policy \
+  --policy-name "NewRelicSSMLicenseKeyReadAccess" \
+  --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ssm:GetParameters"],"Resource":["arn:aws:ssm:*:*:parameter/newrelic-infra/ecs/license-key"]}]}' \
+  --description "Provides read access to the New Relic SSM license key parameter"
+```
+
+Create an IAM role to be used as the task execution role:
+
+```bash
+aws iam create-role \
+  --role-name "NewRelicECSTaskExecutionRole" \
+  --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
+  --description "ECS task execution role for New Relic infrastructure"
+```
+
+Attach the required managed policies to the role:
+
+```bash
+# Attach the standard ECS task execution policy
+aws iam attach-role-policy \
+  --role-name "NewRelicECSTaskExecutionRole" \
+  --policy-arn "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+
+# Attach the New Relic SSM license key read access policy
+aws iam attach-role-policy \
+  --role-name "NewRelicECSTaskExecutionRole" \
+  --policy-arn "arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):policy/NewRelicSSMLicenseKeyReadAccess"
+```
+
+</Step>
+
+<Step>
+
+### Store collector configuration [#store-config]
+
+Store the OpenTelemetry Collector configuration in AWS Systems Manager Parameter Store:
+
+```bash
+aws ssm put-parameter \
+  --name "/ecs/otel-collector/fargate-config" \
+  --type "String" \
+  --value "$(cat <<EOF
+receivers:
+  awsecscontainermetrics:
+    collection_interval: 20s
+  hostmetrics:
+    collection_interval: 20s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.time:
+            enabled: false
+          system.cpu.utilization:
+            enabled: true
+      load:
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      paging:
+        metrics:
+          system.paging.utilization:
+            enabled: false
+          system.paging.faults:
+            enabled: false
+      filesystem:
+        metrics:
+          system.filesystem.utilization:
+            enabled: true
+      disk:
+        metrics:
+          system.disk.merged:
+            enabled: false
+          system.disk.pending_operations:
+            enabled: false
+          system.disk.weighted_io_time:
+            enabled: false
+      network:
+        metrics:
+          system.network.connections:
+            enabled: false
+      processes:
+      process:
+       metrics:
+         process.cpu.utilization:
+           enabled: true
+         process.cpu.time:
+           enabled: false
+
+processors:
+  metricstransform/containers:
+    transforms:
+      - include: container.cpu.utilized
+        action: insert
+        new_name: container.cpu.utilization
+      - include: container.memory.usage
+        action: insert
+        new_name: container.memory.usage.total
+      - include: container.storage.read_bytes
+        action: insert
+        new_name: container.blockio.io_service_bytes_recursive
+        operations:
+          - action: add_label
+            new_label: operation
+            new_value: read
+      - include: container.storage.write_bytes
+        action: insert
+        new_name: container.blockio.io_service_bytes_recursive
+        operations:
+          - action: add_label
+            new_label: operation
+            new_value: write
+  metricstransform:
+    transforms:
+      - include: system.cpu.utilization
+        action: update
+        operations:
+          - action: aggregate_labels
+            label_set: [ state ]
+            aggregation_type: mean
+      - include: system.paging.operations
+        action: update
+        operations:
+          - action: aggregate_labels
+            label_set: [ direction ]
+            aggregation_type: sum
+  filter/exclude_cpu_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == \"system.cpu.utilization\" and attributes[\"state\"] == \"interrupt\"'
+        - 'metric.name == \"system.cpu.utilization\" and attributes[\"state\"] == \"nice\"'
+        - 'metric.name == \"system.cpu.utilization\" and attributes[\"state\"] == \"softirq\"'
+  filter/exclude_memory_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"slab_unreclaimable\"'
+        - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"inactive\"'
+        - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"cached\"'
+        - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"buffered\"'
+        - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"slab_reclaimable\"'
+  filter/exclude_memory_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == \"system.memory.usage\" and attributes[\"state\"] == \"slab_unreclaimable\"'
+        - 'metric.name == \"system.memory.usage\" and attributes[\"state\"] == \"inactive\"'
+  filter/exclude_filesystem_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == \"system.filesystem.utilization\" and attributes[\"type\"] == \"squashfs\"'
+  filter/exclude_filesystem_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == \"system.filesystem.usage\" and attributes[\"type\"] == \"squashfs\"'
+        - 'metric.name == \"system.filesystem.usage\" and attributes[\"state\"] == \"reserved\"'
+  filter/exclude_filesystem_inodes_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == \"system.filesystem.inodes.usage\" and attributes[\"type\"] == \"squashfs\"'
+        - 'metric.name == \"system.filesystem.inodes.usage\" and attributes[\"state\"] == \"reserved\"'
+  filter/exclude_system_disk:
+    metrics:
+      datapoint:
+        - 'metric.name == \"system.disk.operations\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+        - 'metric.name == \"system.disk.merged\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+        - 'metric.name == \"system.disk.io\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+        - 'metric.name == \"system.disk.io_time\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+        - 'metric.name == \"system.disk.operation_time\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+  filter/exclude_system_paging:
+    metrics:
+      datapoint:
+        - 'metric.name == \"system.paging.usage\" and attributes[\"state\"] == \"cached\"'
+        - 'metric.name == \"system.paging.operations\" and attributes[\"type\"] == \"cached\"'
+  filter/exclude_network:
+    metrics:
+      datapoint:
+        - 'IsMatch(metric.name, \"^system.network.*\") == true and attributes[\"device\"] == \"lo\"'
+
+  attributes/exclude_system_paging:
+    include:
+      match_type: strict
+      metric_names:
+        - system.paging.operations
+    actions:
+      - key: type
+        action: delete
+
+  cumulativetodelta:
+
+  transform/host:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(metric.description, \"\")
+          - set(metric.unit, \"\")
+
+  transform:
+    trace_statements:
+      - context: span
+        statements:
+          - truncate_all(span.attributes, 4095)
+          - truncate_all(resource.attributes, 4095)
+    log_statements:
+      - context: log
+        statements:
+          - truncate_all(log.attributes, 4095)
+          - truncate_all(resource.attributes, 4095)
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: \${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+  batch:
+    send_batch_size: 200
+    timeout: 5s
+
+  resource:
+    attributes:
+      - key: ClusterName
+        from_attribute: aws.ecs.cluster.name
+        action: insert
+      - key: ServiceName
+        from_attribute: aws.ecs.service.name
+        action: insert
+      - key: TaskId
+        from_attribute: aws.ecs.task.id
+        action: insert
+      - key: TaskDefinitionFamily
+        from_attribute: aws.ecs.task.family
+        action: insert
+      - key: LaunchType
+        from_attribute: aws.ecs.launch_type
+        action: insert
+      - key: cloud.platform
+        value: \"aws_ecs\"
+        action: upsert
+      - key: docker.host
+        from_attribute: aws.ecs.task.id
+        action: insert
+      - key: docker.imageName
+        from_attribute: container.image.name
+        action: insert
+      - key: docker.containerId
+        from_attribute: container.id
+        action: insert
+      - key: docker.state
+        from_attribute: aws.ecs.container.know_status
+        action: insert
+
+  resourcedetection:
+    detectors:
+      - env
+      - ecs
+      - system
+      - ec2
+    timeout: 2s
+    override: false
+
+exporters:
+  otlphttp:
+    endpoint: https://otlp.nr-data.net:443
+    headers:
+      api-key: \${NEW_RELIC_LICENSE_KEY}
+
+  debug:
+    verbosity: basic
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics/containers:
+      receivers: [awsecscontainermetrics]
+      processors: [metricstransform/containers, resource, batch]
+      exporters: [otlphttp, debug]
+    metrics/host:
+      receivers: [hostmetrics]
+      processors:
+        - memory_limiter
+        - resourcedetection
+        - metricstransform
+        - filter/exclude_cpu_utilization
+        - filter/exclude_memory_utilization
+        - filter/exclude_memory_usage
+        - filter/exclude_filesystem_utilization
+        - filter/exclude_filesystem_usage
+        - filter/exclude_filesystem_inodes_usage
+        - filter/exclude_system_disk
+        - filter/exclude_network
+        - attributes/exclude_system_paging
+        - transform/host
+        - cumulativetodelta
+        - batch
+      exporters: [otlphttp, debug]
+EOF
+)"
+```
+
+</Step>
+
+<Step>
+
+### Create task definition [#create-task-definition]
+
+Create a new ECS task definition for Fargate that includes the OpenTelemetry Collector sidecar container. Choose the appropriate task definition for your container platform:
+
+#### Linux containers
+
+```json
+{
+  "family": "otel-ecs-fargate-metrics",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT:role/NewRelicECSTaskExecutionRole",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "containerDefinitions": [
+    {
+      "name": "busybox",
+      "image": "busybox:latest",
+      "cpu": 512,
+      "memory": 1024,
+      "essential": true,
+      "command": [
+        "sh",
+        "-c",
+        "while true; do echo 'Hello from BusyBox'; sleep 30; done"
+      ],
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "hostPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/busybox-fargate",
+          "awslogs-create-group": "true",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "app"
+        }
+      }
+    },
+    {
+      "name": "otel-collector",
+      "image": "otel/opentelemetry-collector-contrib:latest",
+      "cpu": 1024,
+      "memoryReservation": 2056,
+      "essential": true,
+      "command": ["--config=env:OTEL_CONFIG"],
+      "environment": [
+        {
+          "name": "NRIA_IS_FORWARD_ONLY",
+          "value": "true"
+        },
+        {
+          "name": "NRIA_PASSTHROUGH_ENVIRONMENT",
+          "value": "ECS_CONTAINER_METADATA_URI,ECS_CONTAINER_METADATA_URI_V4,FARGATE"
+        },
+        {
+          "name": "FARGATE",
+          "value": "true"
+        },
+        {
+          "name": "NRIA_OVERRIDE_HOST_ROOT",
+          "value": ""
+        }
+      ],
+      "secrets": [
+        {
+          "name": "OTEL_CONFIG",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_ACCOUNT:parameter/ecs/otel-collector/fargate-config"
+        },
+        {
+          "name": "NEW_RELIC_LICENSE_KEY",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_ACCOUNT:parameter/newrelic-infra/ecs/license-key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/otel-collector-fargate",
+          "awslogs-create-group": "true",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "otel"
+        }
+      }
+    }
+  ]
+}
+```
+
+#### Windows containers
+
+```json
+{
+  "family": "otel-ecs-fargate-metrics-windows",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT:role/NewRelicECSTaskExecutionRole",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "WINDOWS_SERVER_2022_FULL"
+  },
+  "containerDefinitions": [
+    {
+      "name": "busybox",
+      "image": "winamd64/hello-world",
+      "cpu": 512,
+      "memoryReservation": 1024,
+      "essential": true,
+      "entryPoint": ["cmd"],
+      "command": [
+        "/c",
+        "for /L %i in () do @(echo Running... && timeout /t 30 /nobreak >nul)"
+      ],
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "hostPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/aws/ecs/ecs_otel_fargate_windows/server",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    },
+    {
+      "name": "otel-collector",
+      "image": "otel/opentelemetry-collector-contrib:latest-windows-2022-amd64",
+      "cpu": 1024,
+      "memoryReservation": 2056,
+      "essential": true,
+      "entryPoint": ["C:\\otelcol-contrib.exe"],
+      "command": ["--config", "env:OTEL_CONFIG"],
+      "environment": [
+        {
+          "name": "NRIA_IS_FORWARD_ONLY",
+          "value": "true"
+        },
+        {
+          "name": "NRIA_PASSTHROUGH_ENVIRONMENT",
+          "value": "ECS_CONTAINER_METADATA_URI,ECS_CONTAINER_METADATA_URI_V4,FARGATE"
+        },
+        {
+          "name": "FARGATE",
+          "value": "true"
+        },
+        {
+          "name": "NRIA_OVERRIDE_HOST_ROOT",
+          "value": ""
+        }
+      ],
+      "secrets": [
+        {
+          "name": "OTEL_CONFIG",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_ACCOUNT:parameter/ecs/otel-collector/fargate-config-windows"
+        },
+        {
+          "name": "NEW_RELIC_LICENSE_KEY",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_ACCOUNT:parameter/newrelic-infra/ecs/license-key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/otel-collector-fargate-windows",
+          "awslogs-create-group": "true",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "otel"
+        }
+      }
+    }
+  ]
+}
+```
+
+<Callout variant="tip">
+  **Key differences between Linux and Windows Fargate containers:**
+  - **Runtime platform**: Windows requires explicit `operatingSystemFamily: "WINDOWS_SERVER_2022_FULL"`
+  - **Images**: Windows uses specific Windows container images
+  - **Entry point**: Windows collector specifies `C:\\otelcol-contrib.exe` as entry point
+  - **Memory allocation**: Uses `memoryReservation` for flexible memory management
+</Callout>
+
+<Callout variant="important">
+  Replace `YOUR_ACCOUNT` and region values with your actual AWS account ID and AWS region.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Configure networking [#configure-networking]
+
+For Fargate tasks, you need to configure VPC networking:
+
+1. **Security Group**: Create or use a security group that allows:
+   - Outbound HTTPS traffic (port 443) to New Relic endpoints
+   - Any application-specific ports your containers need
+
+2. **Subnets**: Choose public subnets with internet gateways, or private subnets with NAT Gateway/VPC endpoints for internet access
+
+3. **Public IP**: For public subnets, assign public IPs if needed:
+   ```json
+   "networkConfiguration": {
+     "awsvpcConfiguration": {
+       "subnets": ["subnet-12345", "subnet-67890"],
+       "securityGroups": ["sg-abcdef"],
+       "assignPublicIp": "ENABLED"
+     }
+   }
+   ```
+
+</Step>
+
+<Step>
+
+### Deploy and run the task [#deploy-task]
+
+Deploy your task definition to your ECS cluster:
+
+1. **Register the task definition**:
+```bash
+aws ecs register-task-definition --cli-input-json file://task-definition.json
+```
+
+2. **Create a service**:
+```bash
+aws ecs create-service \
+  --cluster your-cluster-name \
+  --service-name otel-monitoring-service \
+  --task-definition otel-ecs-fargate-metrics:1 \
+  --desired-count 1 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-12345,subnet-67890],securityGroups=[sg-abcdef],assignPublicIp=ENABLED}"
+```
+
+</Step>
+
+<Step>
+
+### Verify data collection [#verify-data]
+
+Check that your data is flowing to New Relic:
+
+1. **Check container logs**: Verify the OpenTelemetry Collector is starting successfully:
+   ```bash
+   aws logs get-log-events \
+     --log-group-name "/ecs/otel-collector-fargate" \
+     --log-stream-name "otel/otel-collector/TASK_ID"
+   ```
+
+2. **Verify in New Relic**: Navigate to **[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Infrastructure** and look for your ECS containers.
+
+3. **Check metrics**: Run this NRQL query to verify container metrics are being received:
+   ```sql
+   FROM Metric SELECT latest(container.cpu.utilization) WHERE instrumentation.provider = 'opentelemetry' AND LaunchType = 'FARGATE' FACET ClusterName, ServiceName, TaskId SINCE 10 minutes ago
+   ```
+
+</Step>
+
+</Steps>
+
+## Key features [#key-features]
+
+This Fargate configuration provides:
+
+- **Container metrics**: CPU, memory, network, and storage metrics for each container in your tasks
+- **Task-level metrics**: Fargate-specific resource utilization and process information
+- **ECS metadata**: Automatic tagging with cluster, service, task, and container information
+- **Filtered metrics**: Optimized metric collection to reduce noise and costs
+- **Health monitoring**: Built-in health checks for the collector sidecar
+
+## Configuration differences from EC2 [#fargate-differences]
+
+Key differences when running on Fargate:
+
+- **No host-level access**: Cannot access underlying host metrics like in EC2
+- **Network mode**: Must use `awsvpc` network mode
+- **Resource constraints**: Limited by Fargate CPU/memory combinations
+- **Storage**: Ephemeral storage only, no persistent volumes
+- **Container insights**: Relies on Task Metadata Endpoint v4 for container stats
+
+## Configuration options [#configuration-options]
+
+You can customize the collector configuration by modifying the SSM parameter:
+
+- **Collection intervals**: Adjust `collection_interval` for receivers to change how frequently metrics are collected
+- **Process metrics**: Enable/disable specific process metrics based on your monitoring needs
+- **Memory limits**: Adjust the `memory_limiter` processor based on your Fargate task memory allocation
+- **Export settings**: Configure the OTLP exporter endpoint and authentication
+
+
+## Next steps [#next-steps]
+
+After setting up monitoring, you can:
+
+- Create custom dashboards for your Fargate metrics
+- Set up alerts for container and task-level issues
+- Correlate ECS metrics with application traces and logs
