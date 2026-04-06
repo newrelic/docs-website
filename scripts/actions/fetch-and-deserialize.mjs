@@ -123,9 +123,23 @@ const fetchTranslatedFilesZip = (locale) => {
     }
 
     const buffer = await response.buffer();
-    const zip = new AdmZip(buffer);
 
-    return zip;
+    try {
+      const zip = new AdmZip(buffer);
+      return zip;
+    } catch (zipError) {
+      console.log(
+        `Error encountered creating zip from buffer: ${zipError.message}`
+      );
+      console.log(
+        `The following files were not processed for ${locale}: ${JSON.stringify(
+          fileUris,
+          null,
+          4
+        )}`
+      );
+      return null;
+    }
   };
 };
 
