@@ -1,0 +1,123 @@
+---
+title: OpenTelemetry를 사용하여 AWS Lambda에서 누락된 데이터를 해결하는 방법
+type: troubleshooting
+tags:
+  - Serverless function monitoring
+  - AWS Lambda monitoring
+  - OpenTelemetry
+  - Troubleshooting
+metaDescription: 'Troubleshooting steps if CloudWatch metrics, invocations, or trace data doesn''t appear in New Relic for AWS Lambda functions instrumented with OpenTelemetry.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## 문제: CloudWatch 지표 또는 호출이 표시되지 않음 [#missing-cloudwatch-metrics]
+
+OpenTelemetry 로 AWS Lambda 함수를 계측하고 호출한 후, 뉴럴릭 UI 에 <DNT>**CloudWatch metrics**</DNT> 섹션이나 <DNT>**Invocations**</DNT> 탭이 나타나지 않습니다.
+
+## 해결책 [#solution-cloudwatch]
+
+뉴렐릭은 UI 에서 Lambda 함수를 올바르게 식별하고 표시하기 위해 다음 OpenTelemetry 리소스 속성이 필요합니다.
+
+| 기인하다        | 설명                | 예시 값                                                                |
+| ----------- | ----------------- | ------------------------------------------------------------------- |
+| `faas.name` | Lambda 함수의 이름     | `my-lambda-function`                                                |
+| `faas.id`   | Lambda 함수의 전체 ARN | `arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function` |
+
+이러한 속성이 누락된 경우 `OTEL_RESOURCE_ATTRIBUTES` 환경 변수를 사용하여 설정하십시오.
+
+**SAM 템플릿:**
+
+```yaml
+yourFunctionHere:
+  Type: AWS::Serverless::Function
+  Properties:
+    # ...
+    Environment:
+      Variables:
+        OTEL_RESOURCE_ATTRIBUTES: "faas.name=my-lambda-function,faas.id=arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function"
+```
+
+<Callout variant="important">
+  `my-lambda-function` 과 ARN을 실제 함수 이름과 ARN으로 바꾸세요. ARN은 AWS Lambda 콘솔에 표시된 값과 정확히 일치해야 합니다.
+</Callout>
+
+**AWS Console:**
+
+1. [Lambda 콘솔](https://console.aws.amazon.com/lambda) 에서 함수를 엽니다.
+2. <DNT>**Configuration**</DNT> 선택한 다음 <DNT>**Environment variables**</DNT> 선택합니다.
+3. <DNT>**Edit**</DNT> 선택한 다음 <DNT>**Add environment variable**</DNT> 선택합니다.
+4. <DNT>**Key**</DNT> `OTEL_RESOURCE_ATTRIBUTES` 로, <DNT>**Value**</DNT> `faas.name=my-lambda-function,faas.id=arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function` 으로 설정합니다.
+5. <DNT>**Save**</DNT> 선택합니다.
+
+이미 다른 리소스 속성이 설정되어 있는 경우, 새 값을 쉼표로 구분된 핵심 값 쌍으로 추가하세요.
+
+```
+OTEL_RESOURCE_ATTRIBUTES=service.name=my-service,faas.name=my-lambda-function,faas.id=arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function
+```
+
+## 문제: 트레이스에 요청 ID가 없습니다. [#missing-request-id]
+
+Lambda 트레이스는 뉴렐릭으로 표시되지만 AWS 요청 ID는 루트 범위에 표시되지 않으므로 트레이스와 CloudWatch 로그 항목의 상관 관계를 지정하기가 어렵습니다.
+
+## 해결책 [#solution-request-id]
+
+핸들러 내부의 루트 스팬에 `faas.execution` 속성을 설정하세요. OpenTelemetry 의미론적 규칙은 이 속성을 cloud 공급자의 요청 또는 호출 ID로 정의합니다.
+
+**파이썬:**
+
+```python
+from opentelemetry import trace
+
+def handler(event, context):
+    span = trace.get_current_span()
+    span.set_attribute("faas.execution", context.aws_request_id)
+
+    # Your handler logic here
+    return {"statusCode": 200, "body": "OK"}
+```
+
+**Node.js:**
+
+```js
+const { trace } = require('@opentelemetry/api');
+
+exports.handler = async (event, context) => {
+  const span = trace.getActiveSpan();
+  if (span) {
+    span.setAttribute('faas.execution', context.awsRequestId);
+  }
+
+  // Your handler logic here
+  return { statusCode: 200, body: 'OK' };
+};
+```
+
+**자바:**
+
+```java
+import io.opentelemetry.api.trace.Span;
+
+public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
+        Span span = Span.current();
+        span.setAttribute("faas.execution", context.getAwsRequestId());
+
+        // Your handler logic here
+        return new APIGatewayProxyResponseEvent().withStatusCode(200);
+    }
+}
+```
+
+<Callout variant="tip">
+  뉴렐릭은 트레이스 세부 정보 패널에서 `faas.execution` <DNT>**Request ID**</DNT> 로 표시하여 모든 호출에 대한 해당 CloudWatch 로그 항목을 쉽게 찾을 수 있도록 합니다.
+</Callout>
+
+## 추가 정보 [#more-info]
+
+자세한 내용은 다음을 참조하십시오.
+
+* [OpenTelemetry로 당신의 충전기 Lambda 추적하세요](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-java)
+* [OpenTelemetry로 .NET Lambda 함수 추적](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-dotnet)
+* [뉴렐릭 OpenTelemetry 빠른 시작](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start)
