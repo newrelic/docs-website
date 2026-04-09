@@ -23,7 +23,7 @@ By using both features, you create dashboards that aren't only informative and v
 
 !["Billboard with a description and url link in title"](/images/widget_link_desc.webp "Billboard with a description and url link in title")
 
-For detailed instructions, please visit this section of the [documentation]('http://docs.newrelic.com/docs/query-your-data/explore-query-data/use-charts/use-your-charts/#widget-link-description')
+For detailed instructions, please visit this section of the [documentation]('https://docs.newrelic.com/docs/query-your-data/explore-query-data/use-charts/use-your-charts/#widget-link-description')
 
 ## Variables visibility 
 
@@ -43,7 +43,7 @@ Hidden variables allow the dashboard editor to deliver powerful filtering for th
 - Nested variables that support other variables but don't need user input
 - Variables with default values that rarely need changing
 
-For detailed instructions, please visit this section of the [documentation]('http://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/#variable-visibility')
+For detailed instructions, please visit this section of the [documentation]('https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/#variable-visibility')
 
 ## Template Variables Now Available in Markdown Widgets and titles
 
