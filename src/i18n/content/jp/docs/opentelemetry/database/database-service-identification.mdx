@@ -1,0 +1,152 @@
+---
+title: NRDOT によるデータベース サービスの識別
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - NRDOT
+  - Database
+  - APM
+  - Service correlation
+metaDescription: Correlate APM and database performance using service identification and secure credential management with New Relic's Distribution of OpenTelemetry (NRDOT).
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/)に従ってプレビューの一部として提供されています。
+</Callout>
+
+SQL クエリのコメント機能を使用して、アプリケーションとデータベース パフォーマンス間のシームレスな相関関係を実現します。このメカニズムにより、 New Relicの Distribution of OpenTelemetry (NRDOT) データベース レシーバーは、特定のデータベースの負荷、遅い書き込み、またはブロック イベントの原因となっているサービスを正確に識別できます。
+
+## 前提条件 [#prerequisites]
+
+* Javaエージェントのバージョン`9.1.0`以降。
+
+### JavaエージェントのAPM-DB相関を有効にする [#enable-correlation]
+
+この相関関係を有効にするには、 Javaエージェント設定ファイル (`newrelic.yml`) の`transaction_tracer`セクションに`sql_metadata_comments`プロパティを追加します。 詳細については、 [Javaエージェント設定ドキュメント](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)を参照してください。
+
+```yaml
+transaction_tracer:
+  sql_metadata_comments: nr_service_guid
+```
+
+## 使い方 [#how-it-works]
+
+アプリケーションがデータベースに文章を送信すると、 APMエージェントはAPM GUID をコメントとして SQL テキストの先頭に自動的に追加します。 この一般的な業界慣行は、SQL ステートメントの実行ロジックには影響しません。
+
+1. **コメントの先頭に付加**: APMエージェントは、発信SQLの先頭にコメント文字列を付加します(例: `/* nr_service_guid="MTE2MDAzMTl8QVBNfEFQUExJ" */ SELECT * FROM orders...`)。
+2. **実行**: データベースは通常どおりクエリを実行します。コメントはデータベースの内部パフォーマンス スキーマ (`sys.dm_exec_requests`や`v$session`など) に保存されます。
+3. **抽出**: データベース レシーバーはこれらのクエリ (アクティブ、低速、またはブロッキング) を取得します。
+4. **強化**: 受信者はコメントを解析し、 `nr_service_guid`を抽出し、それをディメンションとしてデータベース メトリクスに添付します。
+
+## サービスタグ付けのメリット [#benefits]
+
+サービス メタデータを先頭に追加すると、データベース エコシステムの高精度な可視性が得られます。
+
+* **サービスレベルの帰属**: データベースのCPUやメモリの急増の原因となっているマイクロサービスを即座に確認
+* **改良されたスロークエリ分析**: スロークエリログを client\_name でフィルタリングして、データベースのボトルネックが特定のアプリケーションバージョンに限定されているかどうかを把握します。
+* **ブロッキングとデッドロックの解決**: ブロッキングクエリの「所有者」を迅速に特定し、チーム間のトラブルシューティングを迅速化します。
+
+## セキュリティとパフォーマンスへの影響 [#security-performance]
+
+このメカニズムは、データベース操作に対して「目に見えない」ように設計されています。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        機能
+      </th>
+
+      <th>
+        衝撃の詳細
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        実行ロジック
+      </td>
+
+      <td>
+        SQLコメントはデータベースエンジンのオプティマイザによって無視されます
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        データベースのオーバーヘッド
+      </td>
+
+      <td>
+        短い文字列（通常50文字未満）を追加しても、ネットワーク帯域幅やメモリへの影響はごくわずかです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        データプライバシー
+      </td>
+
+      <td>
+        サービス GUID のみが挿入されます。コメントには機密性の高いアプリケーションデータやユーザーコンテキストは含まれません
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 秘密管理 [#secret-management]
+
+NRDOT Collector設定では、機密の資格情報 (データベース パスワードなど) を管理するための 2 つの安全な方法を使用できます。 インフラストラクチャとセキュリティ ポリシーに最適な方法を選択してください。
+
+### AES 暗号化 (プラットフォームに依存しない) [#aes-encryption]
+
+この方法では、暗号化された認証情報を設定ファイルに直接保存でき、バージョン管理 (GitOps) ワークフローをサポートします。
+
+* **仕組み**: 機密文字列は、オフラインで AES-256 (GCM モード) を使用して暗号化されます。コレクターは、サーバーの環境変数に保存されているマスターキーを使用して実行時にそれらを復号化します。
+* **セキュリティ上の利点**: 平文のパスワードを公開することなく、設定ファイルを安全に共有したり、リポジトリにコミットしたりできます。
+* **最適な環境**: ハイブリッド/マルチクラウド環境、ローカル開発、またはOCI Vault統合が不可能なWindowsサーバー
+
+#### 構成例
+
+```yaml
+receivers:
+  newrelicoracledb/cdb:
+    endpoint: "10.x.x.36:1521"
+    # Credentials are encrypted using the offline helper tool
+    username: "${aes:YOUR_ENCRYPTED_USERNAME_STRING}"
+    password: "${aes:YOUR_ENCRYPTED_PASSWORD_STRING}"
+    service: "DB1104.privatesubnet.oracledb.oraclevcn.com"
+    collection_interval: 15s
+```
+
+### AWS Secrets Manager [#aws-secrets-manager]
+
+この方法を使用すると、実行時に AWS Secrets Manager から認証情報を安全に直接取得できるため、設定ファイルにパスワードを保存する必要がなくなります。
+
+* **仕組み**: NRDOT Collector は AWS IAM ロールを使用して、起動時に AWS Secrets Manager から必要なシークレットを自動的に認証して取得します。
+* **セキュリティ上の利点**: 機密データはディスクやバージョン管理に保存されません。アクセスはAWS IAM ポリシーによって厳密に管理され、新しい設定ファイルを更新したりデプロイしたりすることなく、データベースの認証情報を一元的にローテーションできます。
+* **最適な用途**: 集中的な秘密管理、コンプライアンス監査、自動ローテーションが必要な、AWS 上でネイティブに実行される本番環境
+
+#### 構成例
+
+```yaml
+receivers:
+  newrelicoracledb/pdb:
+    endpoint: "10.x.x.36:1521"
+    # Syntax: ${secretsmanager:SecretName#JSONKey}
+    username: "${secretsmanager:oracle/credentials#username}"
+    password: "${secretsmanager:oracle/credentials#password}"
+    service: "PDBTEST"
+```
+
+**注**: AWS リージョンを設定します。
+
+```bash
+export AWS_REGION=your-aws-region
+```

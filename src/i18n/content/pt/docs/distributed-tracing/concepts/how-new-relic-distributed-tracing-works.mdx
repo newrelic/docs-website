@@ -28,7 +28,7 @@ Temos algumas estratégias de amostragem disponíveis:
 
 ### Amostragem head-based ( distributed tracing padrão) [#head-based]
 
-Com exceção do nosso recurso [Infinite Tracing](#tail-based) , a maioria de nossas ferramentas de rastreamento usa uma abordagem Amostragem baseada em cabeça. Isso aplica filtros a intervalos individuais antes que todos os intervalos em um trace cheguem, o que significa que as decisões sobre aceitar ou não intervalos são tomadas no início (o &quot;cabeçalho&quot;) do processo de filtragem. Usamos essa estratégia de amostragem para capturar uma amostra representativa da atividade, evitando problemas de armazenamento e desempenho.
+Com exceção do nosso recurso [Infinite Tracing](#tail-based), a maioria das nossas ferramentas de rastreamento usa uma abordagem de amostragem baseada no início. Isso aplica filtros a spans individuais antes que todos os spans em um trace cheguem, o que significa que as decisões sobre aceitar spans são tomadas no início (a &quot;head&quot;) do processo de filtragem. Essa estratégia de amostragem pode ser útil para capturar uma amostra representativa da atividade, evitando problemas de armazenamento e desempenho.
 
 Assim que chega o primeiro intervalo em um trace , uma sessão é aberta e mantida por 90 segundos. A cada chegada subsequente de um novo intervalo para esse trace, o tempo de expiração é redefinido para 90 segundos. O rastreamento que não recebeu um intervalo nos últimos 90 segundos será fechado automaticamente. O resumo trace e os dados de extensão são gravados somente quando um trace é fechado.
 
@@ -36,17 +36,38 @@ Aqui estão alguns detalhes sobre como o Amostragem head-based é implementado e
 
 <CollapserGroup>
   <Collapser id="trace-origin-sampling" title="Agente de linguagem: amostragem adaptativa">
-    Nosso agente de linguagem <InlinePopover type="apm" />usa amostragem adaptativa para capturar uma amostra representativa da atividade do sistema. A seguir está uma explicação de como funciona a amostragem adaptativa.
+    ### Amostragem modernizada e compatibilidade com OpenTelemetry
 
-    As taxas de transferência para o primeiro serviço em um trace são usadas para ajustar a frequência com que as solicitações são amostradas. Isso é explicado com mais detalhes abaixo, e você também pode consultar a documentação do seu agente APM.
+    Nossos agentes de linguagem <InlinePopover type="apm" />utilizam amostragem adaptativa para fornecer visibilidade de alta fidelidade enquanto mantêm o desempenho do sistema. Essa abordagem garante que uma amostra representativa da atividade do sistema seja capturada em diversas arquiteturas, incluindo agentes nativos da New Relic e integrações OpenTelemetry (OTel).
 
-    O primeiro serviço monitor em um distributed trace é chamado de origem do trace . A origem trace escolhe solicitações aleatoriamente para serem rastreadas. Essa decisão se propaga para os serviços downstream afetados por essa solicitação. Quando a solicitação for concluída, os intervalos gerados por essas solicitações serão relatados à New Relic e disponibilizados na interface como um trace completo (embora os limites de intervalo do agente descritos abaixo possam resultar em rastreamento fragmentado).
+    ### Como funciona a Amostragem Adaptativa
 
-    O serviço de trace de origem coleta 10 amostras de rastreamento por minuto. Ele tenta espalhar a coleta desses 10 traços ao longo de um minuto para obter uma amostra representativa ao longo do tempo. A taxa de amostragem exata depende do número de transações no minuto anterior e se adapta às mudanças nas taxas de transferência de transações.
+    O primeiro serviço monitorado em um rastreamento distribuído—a **origem do rastreamento**—é responsável pela decisão de amostragem. Essa decisão se propaga para todos os serviços downstream para garantir um rastreamento completo de ponta a ponta.
 
-    Por exemplo, se houvesse 100 transações no minuto anterior, o agente anteciparia um número semelhante de transações e selecionaria 1 em cada 10 transações para ser amostrada no minuto seguinte.
+    Os agentes do New Relic usam um algoritmo adaptativo &quot;baseado em alvo&quot;. O agente analisa o throughput do minuto anterior para calcular a probabilidade de amostragem para o minuto atual. Por exemplo, se o seu serviço processa 100 transações por minuto e a meta de amostragem é 10, o agente se ajusta dinamicamente para selecionar aproximadamente 1 a cada 10 transações.
 
-    O agente APM tem um limite no número de spans coletados por minuto, com um limite padrão de 2.000 spans coletados por minuto por instância de agente (para saber como ajustar isso, consulte a documentação de configuração do agente APM). Se um agente gerar mais spans do que seu limite configurado em um minuto, alguns dos spans serão descartados, resultando em [rastreamento fragmentado](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/#fragmented-traces) na interface. trace recebem uma prioridade aleatória quando são selecionados para amostragem, portanto, se vários agentes precisarem eliminar spans, eles poderão tentar manter intacto o rastreamento de prioridade mais alta, eliminando primeiro os spans do rastreamento de prioridade mais baixa.
+    Para encontrar a meta de amostragem padrão e os limites de span do seu agente, consulte a documentação específica do agente:
+
+    * [Java](/docs/apm/agents/java-agent/configuration/distributed-tracing-java-agent)
+    * [Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/distributed-tracing-nodejs-agent)
+    * [.NET](/docs/apm/agents/net-agent/configuration/distributed-tracing-net-agent)
+    * [Go](/docs/apm/agents/go-agent/configuration/distributed-tracing-go-agent)
+    * [Python](/docs/apm/agents/python-agent/configuration/distributed-tracing-python-agent)
+    * [Ruby](/docs/apm/agents/ruby-agent/configuration/distributed-tracing-ruby-agent)
+
+    <Callout variant="tip">
+      **Apenas rastreamento distribuído padrão**: Se um agente gerar mais spans do que o limite configurado em um minuto, alguns spans serão descartados, resultando em [rastreamentos fragmentados](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/#fragmented-traces) na interface. Os traces recebem uma prioridade aleatória quando selecionados para amostragem; portanto, se vários agentes precisarem descartar spans, eles podem tentar manter intactos os traces de maior prioridade, descartando primeiro os spans de traces de menor prioridade.
+
+      Isso não se aplica ao Infinite Tracing, que envia todos os dados de rastreamento sem amostragem.
+    </Callout>
+
+    ### Alta Fidelidade e Ambientes Híbridos
+
+    Como parte de nosso compromisso com padrões abertos, as versões mais recentes do agente New Relic são projetadas para **Compatibilidade Híbrida**.
+
+    **Suporte à Taxa de Rastreamento**: Agentes modernos agora podem se alinhar às taxas de amostragem nativas do OTel, permitindo uma lógica de amostragem consistente em ambientes mistos. Consulte [Suporte à API do OpenTelemetry](/docs/apm/agents/manage-apm-agents/opentelemetry-api-support) para detalhes de configuração.
+
+    **Preservação de decisões de upstream**: Em ambientes de &quot;Modo Misto&quot; (onde tanto SDKs do OTel quanto agentes New Relic estão presentes), nossos agentes priorizam a preservação de decisões de rastreamento iniciadas por SDKs do OTel upstream para evitar rastreamentos fragmentados.
   </Collapser>
 
   <Collapser id="lambda-sampling" title="Lambda amostragem de rastreamento">

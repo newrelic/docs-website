@@ -1,0 +1,123 @@
+---
+title: OpenTelemetryを使用してAWS Lambdaのデータ欠落をトラブルシューティングする
+type: troubleshooting
+tags:
+  - Serverless function monitoring
+  - AWS Lambda monitoring
+  - OpenTelemetry
+  - Troubleshooting
+metaDescription: 'Troubleshooting steps if CloudWatch metrics, invocations, or trace data doesn''t appear in New Relic for AWS Lambda functions instrumented with OpenTelemetry.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## 問題: CloudWatchメトリクスまたは呼び出しが表示されない [#missing-cloudwatch-metrics]
+
+OpenTelemetryでAWS Lambda関数をインストルメントして呼び出した後、 New Relic UIに<DNT>**CloudWatch metrics**</DNT>セクションまたは<DNT>**Invocations**</DNT>タブが表示されません。
+
+## 解決 [#solution-cloudwatch]
+
+New RelicがLambda関数をUI上で正しく識別して表示するには、以下のOpenTelemetryリソース属性が必要です。
+
+| 属性          | 説明              | 値の例                                                                 |
+| ----------- | --------------- | ------------------------------------------------------------------- |
+| `faas.name` | Lambda関数の名前     | `my-lambda-function`                                                |
+| `faas.id`   | Lambda関数の完全なARN | `arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function` |
+
+これらの属性が欠落している場合は、環境変数`OTEL_RESOURCE_ATTRIBUTES`を使用して設定してください。
+
+**SAMテンプレート:**
+
+```yaml
+yourFunctionHere:
+  Type: AWS::Serverless::Function
+  Properties:
+    # ...
+    Environment:
+      Variables:
+        OTEL_RESOURCE_ATTRIBUTES: "faas.name=my-lambda-function,faas.id=arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function"
+```
+
+<Callout variant="important">
+  `my-lambda-function`とARNを、実際の関数名とARNに置き換えてください。ARNは、AWS Lambdaコンソールに表示されている値と完全に一致する必要があります。
+</Callout>
+
+**AWS Console:**
+
+1. 作成した関数を [Lambda Console](https://console.aws.amazon.com/lambda) で開きます。
+2. <DNT>**Configuration**</DNT>選択し、次に<DNT>**Environment variables**</DNT>選択します。
+3. <DNT>**Edit**</DNT>選択し、次に<DNT>**Add environment variable**</DNT>選択します。
+4. <DNT>**Key**</DNT> `OTEL_RESOURCE_ATTRIBUTES`に、 <DNT>**Value**</DNT>を`faas.name=my-lambda-function,faas.id=arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function`に設定します。
+5. <DNT>**Save**</DNT>を選択します。
+
+すでに他のリソース プロパティ セットがある場合は、新しい値をコンマ区切りのキーの値のペアとして追加します。
+
+```
+OTEL_RESOURCE_ATTRIBUTES=service.name=my-service,faas.name=my-lambda-function,faas.id=arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function
+```
+
+## 問題：トレースにリクエストIDが欠落している [#missing-request-id]
+
+Lambda関数 トレースはNew Relicに表示されますが、 AWSリクエスト ID はルート スパンに表示されないため、トレースと CloudWatch ログ エントリを関連付けることが困難になります。
+
+## 解決 [#solution-request-id]
+
+ハンドラー内でルートスパンに`faas.execution`属性を設定してください。OpenTelemetryセマンティック規約では、この属性はcloudプロバイダーのリクエストIDまたは呼び出しIDとして定義されています。
+
+**パイソン:**
+
+```python
+from opentelemetry import trace
+
+def handler(event, context):
+    span = trace.get_current_span()
+    span.set_attribute("faas.execution", context.aws_request_id)
+
+    # Your handler logic here
+    return {"statusCode": 200, "body": "OK"}
+```
+
+**Node.js:**
+
+```js
+const { trace } = require('@opentelemetry/api');
+
+exports.handler = async (event, context) => {
+  const span = trace.getActiveSpan();
+  if (span) {
+    span.setAttribute('faas.execution', context.awsRequestId);
+  }
+
+  // Your handler logic here
+  return { statusCode: 200, body: 'OK' };
+};
+```
+
+**Javaです。**
+
+```java
+import io.opentelemetry.api.trace.Span;
+
+public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
+        Span span = Span.current();
+        span.setAttribute("faas.execution", context.getAwsRequestId());
+
+        // Your handler logic here
+        return new APIGatewayProxyResponseEvent().withStatusCode(200);
+    }
+}
+```
+
+<Callout variant="tip">
+  New Relic 、トレース詳細パネルに`faas.execution`が<DNT>**Request ID**</DNT>として表示されるため、あらゆる呼び出しに対応する CloudWatch ログ エントリを簡単に見つけることができます。
+</Callout>
+
+## 詳細情報 [#more-info]
+
+詳細については、以下を参照してください。
+
+* [OpenTelemetryを使用してJava Lambda関数をトレースする](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-java)
+* [OpenTelemetryを使用して.NET Lambda関数をトレースする](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-dotnet)
+* [New Relic OpenTelemetry クイックスタート](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start)

@@ -6,4 +6,4 @@ learnMoreLink: 'https://docs.newrelic.com/docs/accounts/accounts/account-mainten
 ---
 
 
-You can now query login and logout events with NrAuditEvent. For example queries, visit our [Explorers Hub post](https://forum.newrelic.com/s/hubtopic/aAXPh000000AQdxOAG/new-audit-events-login-and-logout).
+You can now query login and logout events with NrAuditEvent. For example queries, visit our [Explorers Hub post](https://support.newrelic.com/s/hubtopic/aAXPh000000AQdxOAG/new-audit-events-login-and-logout).

@@ -1,0 +1,444 @@
+---
+title: 도커 컨테이너 모니터링 문제 해결
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Docker
+  - Troubleshooting
+metaDescription: 'Troubleshoot common issues with Docker container monitoring using OpenTelemetry Collector, including collector problems, missing metrics, and configuration issues.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+도커 모니터링 설정에 문제가 있는 경우, 다음 일반적인 문제 및 해결 방법을 확인하세요.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-troubleshooting">
+      NRDOT Collector
+    </TabsBarItem>
+
+    <TabsBarItem id="otelcol-troubleshooting">
+      OpenTelemetry Collector 기여
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-troubleshooting">
+      <Callout variant="tip">
+        **일반 NRDOT 문제 해결, 해결**: 수집기 시작 문제, 설정 유효성 검사, 네트워크 연결 및 NrIntegrationError 진단에 대해서는 [NRDOT 문제 해결, 해결 가이드를](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/TROUBLESHOOTING.md) 참조하세요. 아래 문제는 도커 모니터링에만 해당됩니다.
+      </Callout>
+
+      <CollapserGroup>
+        <Collapser id="nrdot-no-metrics" title="뉴렐릭에 도커 지표가 표시되지 않습니다.">
+          **문제**: 도커 컨테이너가 실행 중이지만 10분 이상 지나도 뉴렐릭에 도커 지표가 표시되지 않습니다.
+
+          **진단**:
+
+          ```bash
+          # Check Docker daemon accessibility
+          docker info
+
+          # Test Docker socket permissions
+          ls -l /var/run/docker.sock
+
+          # Verify containers are running
+          docker ps
+
+          # Check collector logs for Docker-specific errors
+          journalctl -u nrdot-collector | grep -i "docker"
+          ```
+
+          **솔루션**:
+
+          1. **도커 소켓 액세스**: nrdot-collector 사용자를 docker 그룹에 추가합니다.
+
+             ```bash
+             sudo usermod -aG docker nrdot-collector
+             sudo systemctl restart nrdot-collector
+             ```
+
+          2. **도커 API 버전**: 도커 API 버전이 1.25 이상인지 확인하십시오.
+
+             ```bash
+             docker version --format '{{.Client.APIVersion}}'
+             ```
+        </Collapser>
+
+        <Collapser id="nrdot-permission-errors" title="권한 거부 오류">
+          **문제**: Collector 로그에 도커 소켓 접근 시 &quot;권한 거부됨&quot; 오류가 표시됩니다.
+
+          **진단**:
+
+          ```bash
+          # Check socket ownership and permissions
+          ls -la /var/run/docker.sock
+
+          # Check collector user membership
+          groups nrdot-collector
+
+          # Check collector logs for permission errors
+          journalctl -u nrdot-collector | grep -i "permission denied"
+          ```
+
+          **솔루션**:
+
+          ```bash
+          # Option 1: Add collector user to docker group (recommended)
+          sudo usermod -aG docker nrdot-collector
+          sudo systemctl restart nrdot-collector
+
+          # Option 2: Adjust socket permissions (less secure)
+          sudo chmod 666 /var/run/docker.sock
+
+          # Option 3: Run collector as root (not recommended for production)
+          # Modify systemd service file User= setting
+          ```
+        </Collapser>
+
+        <Collapser id="nrdot-incomplete-metrics" title="컨테이너 메트릭이 불완전하거나 누락되었습니다.">
+          **문제**: 일부 컨테이너는 메트릭을 표시하지만 다른 컨테이너는 표시하지 않거나, 메트릭이 간헐적으로 표시됩니다.
+
+          **진단**:
+
+          ```bash
+          # Check for containers with networking issues
+          docker inspect $(docker ps -q) | grep -A5 "NetworkSettings"
+
+          # Review collector configuration
+          cat /etc/nrdot-collector/docker-stats-config.yaml | grep -A10 "docker_stats:"
+
+          # Check for resource constraints
+          docker stats --no-stream
+
+          # Check collector logs for specific errors
+          journalctl -u nrdot-collector | grep -i "docker_stats"
+          ```
+
+          **솔루션**:
+
+          * **컨테이너 가시성**: 수집기에 구성된 도커 소켓 경로를 통해 모든 컨테이너에 액세스할 수 있는지 확인합니다.
+          * **리소스 제한**: 컨테이너 응답 속도가 느린 경우 수집기 시간 초과 값을 늘리십시오. `/etc/nrdot-collector/docker-stats-config.yaml` 을 수정하세요:
+            ```yaml
+            receivers:
+              docker_stats:
+                timeout: 10s  # Increase from default 5s
+                collection_interval: 30s  # Reduce frequency if needed
+            ```
+          * **네트워크 네임스페이스**: 제한된 네트워크 네임스페이스에 있는 일부 컨테이너는 접근할 수 없을 수 있습니다.
+        </Collapser>
+
+        <Collapser id="nrdot-no-logs" title="로그 수집이 작동하지 않습니다">
+          **문제**: 로그 수집이 구성되었지만 로그 로그가 뉴렐릭에 표시되지 않습니다.
+
+          **진단**:
+
+          ```bash
+          # Check log directory permissions
+          ls -la /var/lib/docker/containers/
+
+          # Verify receiver creator is discovering containers
+          journalctl -u nrdot-collector | grep -i "receiver.*creator\|docker.*observer"
+
+          # Check if containers have exposed ports (required for discovery)
+          docker ps --format 'table {{.Names}}\t{{.Ports}}'
+
+          # Verify logs pipeline is configured
+          journalctl -u nrdot-collector | grep -i "logs"
+          ```
+
+          **솔루션**:
+
+          1. **파일 권한**: 로그 디렉터리 접근 권한 부여:
+
+             ```bash
+             sudo chmod -R 755 /var/lib/docker/containers/
+             # Or add collector to docker group
+             sudo usermod -aG docker nrdot-collector
+             sudo systemctl restart nrdot-collector
+             ```
+
+          2. **컨테이너 포트 노출**: 컨테이너 검색을 위해 포트를 노출합니다.
+
+             ```bash
+             # When running containers, expose at least one port
+             docker run -p 8080:8080 my-app:latest
+             # Or use --expose flag
+             docker run --expose 80 my-app:latest
+             ```
+
+          3. **로그 구성 확인**: 로그 컬렉션 설정이 포함되어 있는지 확인하세요.
+
+             ```bash
+             # Check systemd override
+             sudo systemctl cat nrdot-collector | grep -A2 "ExecStart="
+             # Should point to: --config=/etc/nrdot-collector/docker-stats-config.yaml (or combined config with logs)
+             ```
+
+          4. **뉴렐릭의 로그인 쿼리**:
+
+             ```sql
+             FROM Log SELECT * WHERE newrelic.source='api.logs.otlp' SINCE 1 hour ago
+             ```
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-troubleshooting">
+      <CollapserGroup>
+        <Collapser id="collector-issues" title="Collector 시작되지 않거나 충돌합니다.">
+          **문제**: OpenTelemetry Collector가 시작되지 않거나 즉시 충돌합니다.
+
+          **진단**:
+
+          ```bash
+          # Check collector status
+          sudo systemctl status otelcol-contrib
+
+          # View recent logs
+          journalctl -u otelcol-contrib --since "1 hour ago" -f
+
+          # Test configuration syntax
+          otelcol-contrib --config-validate --config=/etc/otelcol-contrib/config.yaml
+          ```
+
+          **솔루션**:
+
+          * **설정 오류**: YAML 구문 오류를 수정하고 모든 필수 필드가 있는지 확인하십시오.
+          * **권한 누락**: 수집기 사용자에게 설정 파일에 대한 읽기 권한이 있는지 확인하세요.
+          * **환경 변수**: `NEWRELIC_LICENSE_KEY` 과 `NEWRELIC_OTLP_ENDPOINT` 이 올바르게 설정되었는지 확인합니다.
+        </Collapser>
+
+        <Collapser id="no-metrics" title="뉴렐릭에 지표가 표시되지 않습니다.">
+          **문제**: 도커 컨테이너가 실행 중이지만 10분 이상 지나도 뉴렐릭에 지표가 표시되지 않습니다.
+
+          **진단**:
+
+          ```bash
+          # Verify collector is running and processing data
+          journalctl -u otelcol-contrib | grep -i "docker\|error\|export"
+
+          # Check Docker daemon accessibility
+          docker info
+
+          # Test Docker socket permissions
+          ls -l /var/run/docker.sock
+
+          # Verify containers are running
+          docker ps
+          ```
+
+          **솔루션**:
+
+          1. **도커 소켓 액세스**: docker 그룹에 수집기 사용자 추가:
+
+             ```bash
+             sudo usermod -aG docker otelcol-contrib
+             sudo systemctl restart otelcol-contrib
+             ```
+
+          2. **인스턴스 키 문제**: 볼륨 키가 올바르고 적절한 권한을 가지고 있는지 확인하세요.
+
+             ```bash
+             echo $NEWRELIC_LICENSE_KEY
+             # Should be 40-character NRAK-prefixed key for US, or EU equivalent
+             ```
+
+          3. **네트워크 연결성**: OTLP 엔드포인트 접근성 테스트:
+
+             ```bash
+             # For US region
+             curl -v -H "api-key: $NEWRELIC_LICENSE_KEY" https://otlp.nr-data.net/v1/metrics
+
+             # For EU region
+             curl -v -H "api-key: $NEWRELIC_LICENSE_KEY" https://otlp.eu01.nr-data.net/v1/metrics
+             ```
+
+          4. **도커 API 버전**: 도커 API 버전이 1.25 이상인지 확인하십시오.
+
+             ```bash
+             docker version --format '{{.Client.APIVersion}}'
+             ```
+        </Collapser>
+
+        <Collapser id="permission-errors" title="권한 거부 오류">
+          **문제**: Collector 로그에 도커 소켓 접근 시 &quot;권한 거부됨&quot; 오류가 표시됩니다.
+
+          **진단**:
+
+          ```bash
+          # Check socket ownership and permissions
+          ls -la /var/run/docker.sock
+
+          # Check collector user membership
+          groups otelcol-contrib
+          ```
+
+          **솔루션**:
+
+          ```bash
+          # Option 1: Add collector user to docker group (recommended)
+          sudo usermod -aG docker otelcol-contrib
+          sudo systemctl restart otelcol-contrib
+
+          # Option 2: Adjust socket permissions (less secure)
+          sudo chmod 666 /var/run/docker.sock
+
+          # Option 3: Run collector as root (not recommended for production)
+          # Modify systemd service file User= setting
+          ```
+        </Collapser>
+
+        <Collapser id="incomplete-metrics" title="컨테이너 메트릭이 불완전하거나 누락되었습니다.">
+          **문제**: 일부 컨테이너는 메트릭을 표시하지만 다른 컨테이너는 표시하지 않거나, 메트릭이 간헐적으로 표시됩니다.
+
+          **진단**:
+
+          ```bash
+          # Check for containers with networking issues
+          docker inspect $(docker ps -q) | grep -A5 "NetworkSettings"
+
+          # Review collector configuration
+          grep -A20 "docker_stats:" /etc/otelcol-contrib/config.yaml
+
+          # Check for resource constraints
+          docker stats --no-stream
+          ```
+
+          **솔루션**:
+
+          * **컨테이너 가시성**: 수집기에 구성된 도커 소켓 경로를 통해 모든 컨테이너에 액세스할 수 있는지 확인합니다.
+
+          * **리소스 제한**: 컨테이너 응답 속도가 느린 경우 수집기 시간 초과 값을 늘리세요.
+
+            ```yaml
+            docker_stats:
+              timeout: 10s  # Increase from default 5s
+              collection_interval: 30s  # Reduce frequency if needed
+            ```
+
+          * **네트워크 네임스페이스**: 제한된 네트워크 네임스페이스에 있는 일부 컨테이너는 접근할 수 없을 수 있습니다.
+        </Collapser>
+
+        <Collapser id="performance-issues" title="수집기의 메모리 또는 CPU 사용량이 높음">
+          **문제**: OpenTelemetry Collector가 시스템 리소스를 과도하게 소비하고 있습니다.
+
+          **진단**:
+
+          ```bash
+          # Monitor collector resource usage
+          top -p $(pgrep otelcol-contrib)
+
+          # Check metric collection frequency
+          grep -A10 "docker_stats:" /etc/otelcol-contrib/config.yaml
+
+          # Count active containers
+          docker ps --format 'table {{.Names}}\t{{.Status}}' | wc -l
+          ```
+
+          **솔루션**:
+
+          * **수집 간격 조정**: 컨테이너 수가 많은 환경에서는 모니터링 빈도를 줄이세요.
+
+            ```yaml
+            docker_stats:
+              collection_interval: 30s  # Increase from 15s
+            ```
+
+          * **비용이 많이 드는 메트릭 비활성화**: 필요하지 않은 경우 CPU별 메트릭을 끄세요.
+
+            ```yaml
+            docker_stats:
+              metrics:
+                container.cpu.usage.percpu:
+                  enabled: false
+            ```
+
+          * **일괄 처리 구성**: 환경에 맞게 일괄 처리를 최적화하세요.
+
+            ```yaml
+            batch:
+              timeout: 60s
+              send_batch_size: 1024
+            ```
+        </Collapser>
+
+        <Collapser id="no-logs" title="로그 수집이 작동하지 않습니다">
+          **문제**: 로그 수집이 구성되었지만 로그 로그가 뉴렐릭에 표시되지 않습니다.
+
+          **진단**:
+
+          ```bash
+          # Check log directory permissions
+          ls -la /var/lib/docker/containers/
+
+          # Verify receiver creator is discovering containers
+          journalctl -u otelcol-contrib | grep -i "receiver.*creator\|docker.*observer"
+
+          # Check if containers have exposed ports (required for discovery)
+          docker ps --format 'table {{.Names}}\t{{.Ports}}'
+          ```
+
+          **솔루션**:
+
+          1. **파일 권한**: 로그 디렉터리 접근 권한 부여:
+
+             ```bash
+             sudo chmod -R 755 /var/lib/docker/containers/
+             # Or add collector to docker group
+             sudo usermod -aG docker otelcol-contrib
+             ```
+
+          2. **컨테이너 포트 노출**: 컨테이너 검색을 위해 포트를 노출합니다.
+
+             ```bash
+             # When running containers, expose at least one port
+             docker run -p 8080:8080 my-app:latest
+             # Or use --expose flag
+             docker run --expose 80 my-app:latest
+             ```
+
+          3. **관찰자 설정**: 도커 관찰자 설정 확인:
+
+             ```yaml
+             docker_observer:
+               endpoint: unix:///var/run/docker.sock
+               use_hostname_if_present: true
+               use_container_labels: true
+             ```
+        </Collapser>
+
+        <Collapser id="wrong-account" title="데이터가 올바른 뉴렐릭 계정에 표시되지 않습니다">
+          **문제**: 잘못된 뉴렐릭 계정 또는 조직에 지표가 나타납니다.
+
+          **진단**:
+
+          ```bash
+          # Verify license key format and region
+          echo $NEWRELIC_LICENSE_KEY | cut -c1-4
+          # Should show "NRAK" for US accounts
+
+          # Check configured endpoint
+          echo $NEWRELIC_OTLP_ENDPOINT
+          ```
+
+          **솔루션**:
+
+          * **미국 계정**: 사용 `https://otlp.nr-data.net`
+          * **EU 계정**: 사용 `https://otlp.eu01.nr-data.net`
+          * **라이선스 키 확인**: 올바른 계정의 라이선스 키를 사용하고 있는지 확인하십시오.
+        </Collapser>
+      </CollapserGroup>
+
+      지속적인 문제의 경우 [OpenTelemetry Collector 문제 해결, 문제 해결 가이드](https://opentelemetry.io/docs/collector/troubleshooting/) 및 [뉴렐릭 OpenTelemetry 문서를](/docs/opentelemetry/opentelemetry-introduction/) 확인하세요.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 다음 단계 [#next-steps]
+
+문제가 해결되었다면:
+
+* **Get back to setup**: 설정을 완료하려면 [도커 모니터링 설정 가이드](/docs/opentelemetry/integrations/docker-monitoring/self-hosted) 로 돌아가세요.
+* **데이터 탐색**: [지표 참조 가이드를](/docs/opentelemetry/integrations/docker-monitoring/metrics-reference)통해 도커 지표를 조회하고 시각화하는 방법을 알아보세요.
+* **알림 설정**: 중요한 컨테이너 지표에 대한 [공지 조건을](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) 사용하여 사전 모니터링 생성

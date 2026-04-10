@@ -1,0 +1,152 @@
+---
+title: NRDOT와의 데이터베이스 서비스 식별
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - NRDOT
+  - Database
+  - APM
+  - Service correlation
+metaDescription: Correlate APM and database performance using service identification and secure credential management with New Relic's Distribution of OpenTelemetry (NRDOT).
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+SQL 쿼리 주석 기능을 통해 애플리케이션과 데이터베이스 성능 간의 원활한 상관관계를 파악하세요. 이 메커니즘을 통해 뉴렐릭의 NRDOT(Distribution of OpenTelemetry) 데이터베이스 수신기는 특정 데이터베이스 로드, 삭제 쿼리 또는 이벤트 차단을 담당하는 서비스를 정확하게 식별할 수 있습니다.
+
+## 전제 조건 [#prerequisites]
+
+* 대응 버전 `9.1.0` 이상.
+
+### 저항력에 대한 APM-DB 상관관계 활성화 [#enable-correlation]
+
+이 상관 관계를 활성화하려면 로터 설정 파일(`newrelic.yml`)의 `transaction_tracer` 섹션에 `sql_metadata_comments` 속성을 추가하세요. 자세한 내용은 [저항력 설정 문서를](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/) 참조하세요.
+
+```yaml
+transaction_tracer:
+  sql_metadata_comments: nr_service_guid
+```
+
+## 작동 원리 [#how-it-works]
+
+애플리케이션이 데이터베이스에 쿼리를 전송하면 APM 에이전트가 자동으로 APM 엔티티 GUID를 SQL 텍스트 앞에 주석으로 추가합니다. 이러한 일반적인 업계 관행은 SQL 문의 실행 논리에 영향을 미치지 않습니다.
+
+1. **주석 추가**: APM 에이전트는 나가는 SQL 앞에 주석 문자열을 추가합니다(예: `/* nr_service_guid="MTE2MDAzMTl8QVBNfEFQUExJ" */ SELECT * FROM orders...`).
+2. **실행**: 데이터베이스는 평소와 같이 쿼리를 실행합니다. 댓글은 데이터베이스의 내부 성능 스키마(예: `sys.dm_exec_requests` 또는 `v$session`)에 저장됩니다.
+3. **추출**: 데이터베이스 수신기는 이러한 쿼리(활성, 느린 또는 차단)를 가져옵니다.
+4. **보강**: 수신자는 댓글을 구문 분석하고 `nr_service_guid` 을 추출하여 데이터베이스 메트릭에 차원으로 추가합니다.
+
+## 서비스 혜택 [#benefits]
+
+서비스 메타데이터를 앞에 추가하면 데이터베이스 생태계에 대한 높은 수준의 가시성을 확보할 수 있습니다.
+
+* **서비스 수준 원인 파악**: 데이터베이스 CPU 또는 메모리 사용량 급증의 원인이 되는 마이크로서비스를 즉시 확인할 수 있습니다.
+* **정제된 조회 쿼리 분석**: 데이터베이스 병목 현상, 병목지점이 특정 버전으로 격리되어 있는지 이해하기 위해 client\_name으로 필터링 쿼리 로그를 필터링합니다.
+* **블로킹 및 교착 상태 해결**: 블로킹의 &quot;소유자&quot;를 신속하게 식별하여 팀 간 협업을 가속화합니다. 문제 진단, 해결
+
+## 보안 및 성능 영향 [#security-performance]
+
+저희는 이 메커니즘이 데이터베이스 운영에 &quot;보이지 않도록&quot; 설계했습니다.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        기능
+      </th>
+
+      <th>
+        영향 상세 정보
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        실행 논리
+      </td>
+
+      <td>
+        SQL 주석은 데이터베이스 엔진의 최적화 프로그램에 의해 무시됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        데이터베이스 오버헤드
+      </td>
+
+      <td>
+        짧은 문자열(일반적으로 50자 미만)을 추가하는 것은 네트워크 대역폭이나 메모리에 거의 영향을 미치지 않습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        데이터 프라이버시
+      </td>
+
+      <td>
+        서비스 GUID만 삽입됩니다. 댓글에는 민감한 애플리케이션 데이터나 사용자 컨텍스트가 포함되어 있지 않습니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 비밀 관리 [#secret-management]
+
+NRDOT Collector 설정에서 데이터베이스 암호와 같은 민감한 자격 증명을 관리하는 데 사용할 수 있는 두 가지 안전한 방법이 있습니다. 인프라 및 보안 정책에 가장 적합한 방법을 선택하십시오.
+
+### AES 암호화(플랫폼에 구애받지 않음) [#aes-encryption]
+
+이 방법을 사용하면 암호화된 자격 증명을 설정 파일에 직접 저장할 수 있으며 버전 관리(GitOps)를 지원합니다.
+
+* **작동 방식**: 민감한 문자열은 AES-256(GCM 모드)을 사용하여 오프라인으로 암호화됩니다. 수집기는 서버 환경 변수에 저장된 마스터 키를 사용하여 런타임에 암호를 해독합니다.
+* **보안상의 이점**: 설정 파일을 평문 암호 노출 없이 안전하게 공유하거나 저장소에 커밋할 수 있습니다.
+* **최적 사용 환경**: 하이브리드/멀티 클라우드 환경, 로컬 개발 환경 또는 OCI Vault 통합이 불가능한 Windows 서버
+
+#### 구성 예
+
+```yaml
+receivers:
+  newrelicoracledb/cdb:
+    endpoint: "10.x.x.36:1521"
+    # Credentials are encrypted using the offline helper tool
+    username: "${aes:YOUR_ENCRYPTED_USERNAME_STRING}"
+    password: "${aes:YOUR_ENCRYPTED_PASSWORD_STRING}"
+    service: "DB1104.privatesubnet.oracledb.oraclevcn.com"
+    collection_interval: 15s
+```
+
+### AWS 비밀 관리자 [#aws-secrets-manager]
+
+이 방법을 사용하면 런타임에 AWS Secrets Manager에서 자격 증명을 안전하게 직접 가져올 수 있으므로 설정 파일에 암호를 저장할 필요가 완전히 없어집니다.
+
+* **작동 방식**: NRDOT Collector는 AWS IAM 역할을 사용하여 시작 시 AWS Secrets Manager에서 필요한 비밀 키를 자동으로 인증하고 가져옵니다.
+* **보안상의 이점**: 민감한 데이터는 디스크나 버전 관리 시스템에 저장되지 않습니다. 액세스는 AWS IAM 정책에 의해 엄격하게 관리되며 데이터베이스 자격 증명은 새 설정 파일을 업데이트하거나 구현하거나 배포할 필요 없이 중앙에서 순환될 수 있습니다.
+* **최적 사용** 환경: 중앙 집중식 비밀 관리, 규정 준수 감사 및 자동 비밀 키 순환이 필요한 AWS 네이티브 운영 환경
+
+#### 구성 예
+
+```yaml
+receivers:
+  newrelicoracledb/pdb:
+    endpoint: "10.x.x.36:1521"
+    # Syntax: ${secretsmanager:SecretName#JSONKey}
+    username: "${secretsmanager:oracle/credentials#username}"
+    password: "${secretsmanager:oracle/credentials#password}"
+    service: "PDBTEST"
+```
+
+**참고**: AWS 리전을 설정하세요.
+
+```bash
+export AWS_REGION=your-aws-region
+```
