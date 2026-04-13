@@ -1,0 +1,182 @@
+---
+title: 뉴렐릭에서 ATP 데이터 조회
+metaDescription: 'Learn how to query Adaptive Telemetry Processor (ATP) data in New Relic using NRQL to monitor process metrics, track anomalies, and measure filtering efficiency.'
+tags:
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - NRDOT
+  - Adaptive Telemetry Processor
+  - ATP
+  - Process monitoring
+  - New Relic ATP
+  - Infrastructure monitoring
+  - Intelligent telemetry processing
+  - Intelligence ATP
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+ATP는 OpenTelemetry `hostmetricsreceiver` 를 통해 프로세스 메트릭을 수집하고 지능형 필터링 메타데이터로 이를 보강합니다. 이 데이터를 쿼리하여 다음을 수행할 수 있습니다.
+
+* 프로세스 상태를 모니터링하고 `stuck` 또는 문제가 있는 프로세스를 식별합니다.
+* ATP의 동적 레버 값이 워크로드 패턴에 어떻게 적응하는지 추적하세요.
+* 데이터 축소 효과를 파악하기 위해 필터링 효율성을 측정합니다.
+* 이상 징후 및 비정상적인 프로세스 동작을 감지합니다.
+* 중요 프로세스 모니터링을 위한 알림을 설정하세요
+
+모든 프로세스 지표는 뉴렐릭의 `process.*` 지우스페이스에서 확인할 수 있으며, ATP 관련 메타데이터 데이터는 `process.atp` 필드에 저장되어 있습니다.
+
+## 프로세스 상태 모니터링 [#process-state]
+
+<CollapserGroup>
+  <Collapser id="process-count-by-name" title="주별 프로세스 분배">
+    이 쿼리는 호스트에서 실행 중인 모든 프로세스를 실행 상태별로 분류하여 보여줍니다. 이는 `stuck` 프로세스 또는 리소스 고갈을 식별하는 데 필수적입니다.
+
+    ```sql
+    FROM Metric
+    SELECT uniqueCount(process.pid) as 'Process Count'
+    FACET process.state, CASES(
+      WHERE process.state = 'R' AS 'Running',
+      WHERE process.state = 'S' AS 'Sleeping (Interruptible)',
+      WHERE process.state = 'D' AS 'Uninterruptible Sleep (Disk I/O)',
+      WHERE process.state = 'Z' AS 'Zombie',
+      WHERE process.state = 'T' AS 'Stopped',
+      WHERE process.state = 'I' AS 'Idle Kernel Thread',
+      WHERE process.state = 'X' AS 'Dead',
+      WHERE process.state = 'W' AS 'Paging'
+    )
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## ATP 정보 모니터링 [#atp-intelligence]
+
+<CollapserGroup>
+  <Collapser id="dynamic-thresholds" title="동적 레버값, 레일추적">
+    이 쿼리는 실제 프로세스 임계값과 비교한 현재의 동적 임계값을 보여주므로 프로세스가 ATP 작업을 트리거하는 데 얼마나 근접했는지 파악하는 데 도움이 됩니다.
+
+    ```sql
+    FROM Metric
+    SELECT
+      latest(numeric(jparse(`process.atp`)[threshold_details][`process.cpu.utilization`][threshold])) * 100 AS 'Process CPU Utilization',
+      latest(numeric(jparse(`process.atp`)[threshold_details][`process.memory.usage`][threshold])) AS 'Memory Usage'
+    WHERE host.name = 'YOUR_HOST_NAME'
+    TIMESERIES MAX
+    ```
+
+    **이 쿼리를 사용하는 방법:**
+
+    * `YOUR_HOST_NAME` 실제 호스트 이름으로 바꾸세요.
+    * `jparse` 함수에서 지표 이름을 수정하여 다른 지표에 대한 레버 값, 지표를 추적할 수 있습니다.
+    * 실제 값이 지속적으로 임계값에 근접하는 패턴을 주의 깊게 살펴보십시오.
+  </Collapser>
+
+  <Collapser id="filtering-efficiency" title="ATP 여과 효율">
+    이 쿼리는 ATP가 핵심 데이터를 유지하면서 텔레메트리 볼륨을 얼마나 효과적으로 줄이는지 측정합니다.
+
+    ```sql
+    FROM Metric
+    SELECT latest(numeric(jparse(`process.atp`)['filtering_summary']['efficiency_ratio'])) * 100 as 'Filtering Efficiency'
+    WHERE metricName like 'process.%'
+    AND `process.atp` IS NOT NULL
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 이상하게 감지 쿼리 [#anomaly-detection]
+
+<CollapserGroup>
+  <Collapser id="anomaly-overview" title="이상하게 시간이 지남에 따라 계산">
+    이 쿼리는 ATP가 다양한 실행 파일에서 이상 징후를 감지하는 빈도를 시각화하여 어떤 프로세스가 비정상적인 동작을 보일 가능성이 가장 높은지 파악하는 데 도움을 줍니다.
+
+    ```sql
+    FROM Metric
+    SELECT latest(numeric(jparse(`process.atp`, 'filtering_summary.stage_hits.anomaly_detection'))) AS 'Anomaly Count'
+    WHERE metricName like 'process.%'
+    FACET process.executable.name
+    TIMESERIES MAX
+    ```
+  </Collapser>
+
+  <Collapser id="memory-usuage" title="메모리 사용량이 이상하다고">
+    이 쿼리는 ATP에서 감지한 메모리 사용 이상 동작을 경험한 특정 프로세스를 강조합니다.
+
+    ```sql
+    FROM Metric
+    SELECT max(process.memory.usage) as 'Memory Usage'
+    WHERE metricName = 'process.memory.usage'
+    AND numeric(jparse(`process.atp`)['filtering_summary']['stage_hits']['anomaly_detection']) > 0
+    AND process.atp IS NOT NULL
+    FACET process.pid, process.executable.name, host.name
+    TIMESERIES MAX
+    ```
+  </Collapser>
+
+  <Collapser id="cpu-usage" title="CPU 사용량이 이상하게 되네요">
+    이 쿼리는 CPU 사용률이 이상적으로 발생한 프로세스를 보여줍니다.
+
+    ```sql
+    FROM Metric
+    SELECT max(process.cpu.utilization) * 100 as 'CPU Utilization'
+    WHERE metricName like 'process.cpu.utilization'
+    AND numeric(jparse(`process.atp`)['filtering_summary']['stage_hits']['anomaly_detection']) > 0
+    AND process.atp IS NOT NULL
+    FACET process.pid, process.executable.name, host.name
+    TIMESERIES MAX
+    ```
+
+    **참고**: `metricName` 필터를 변경하여 다른 프로세스 지표에서 이러한 쿼리를 모니터 이상 작동으로 수정할 수 있습니다.
+  </Collapser>
+</CollapserGroup>
+
+## 성능 모니터링 [#performance-monitoring]
+
+<CollapserGroup>
+  <Collapser id="context-switches" title="분당 컨텍스트 전환 횟수">
+    이 쿼리는 프로세스별 컨텍스트 전환율을 추적합니다. 컨텍스트 스위치 빈도가 높다는 것은 종종 CPU 경합이나 비효율적인 멀티스레딩을 나타냅니다.
+
+    ```sql
+    SELECT rate(sum(process.context_switches), 1 minute) AS 'Context Switches/min'
+    FROM Metric
+    WHERE metricName = 'process.context_switches'
+    FACET process.executable.name, process.pid
+    TIMESERIES MAX
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 알림 설정하기
+
+<CollapserGroup>
+  <Collapser id="data-alert" title="데이터 격차 공지">
+    이 쿼리를 사용하여 텔레메트리 프로세스가 완전히 흐름을 중지할 때 트리거되어 에이전트 오류 또는 네트워크 문제가 있을 수 있음을 나타내는 공지를 생성합니다. 알림 설정에 대한 자세한 내용은 [알림 조건 생성을](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) 참조하세요.
+
+    ```sql
+    FROM Metric
+    SELECT count(*)
+    WHERE metricName LIKE 'process.%'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 관련 리소스 [#related-resources]
+
+<DocTiles>
+  <DocTile title="호스트용 ATP" path="/docs/opentelemetry/nrdot/atp/host">
+    호스트 환경에 ATP를 설정하는 방법에 대해 알아보세요.
+  </DocTile>
+
+  <DocTile title="Kubernetes용 ATP" path="/docs/opentelemetry/nrdot/atp/k8s">
+    Kubernetes 환경에서 ATP를 설정하는 방법을 알아보세요.
+  </DocTile>
+
+  <DocTile title="고급 기능" path="/docs/opentelemetry/nrdot/atp/advanced-features">
+    ATP 구현, 배포에 대한 고급 기능을 활성화하는 방법을 알아보세요.
+  </DocTile>
+</DocTiles>
