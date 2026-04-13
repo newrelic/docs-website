@@ -326,7 +326,12 @@ const main = async () => {
     const slugStatuses = (
       await Promise.all(
         batchesToDeserialize.map(async (batch) => {
-          return (await fetchAndDeserializeFiles(batch)).map((status) => {
+          return (
+            await fetchAndDeserializeFiles({
+              ...batch,
+              jobId: batch.jobId,
+            })
+          ).map((status) => {
             return { ...status, jobId: batch.jobId };
           });
         })

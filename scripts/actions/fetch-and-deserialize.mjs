@@ -152,17 +152,25 @@ const extractFiles = (locale) => {
    * @returns {HtmlFile[]}
    */
   return (zip) => {
-    return zip.getEntries().map((entry) => {
-      const filepath = entry.entryName.replace(
-        `${locale}/src/content/docs`,
-        ''
+    try {
+      return zip.getEntries().map((entry) => {
+        const filepath = entry.entryName.replace(
+          `${locale}/src/content/docs`,
+          ''
+        );
+        const slug = filepath.replace(`.mdx`, '');
+        return {
+          path: slug,
+          html: zip.readAsText(entry, 'utf8'),
+        };
+      });
+    } catch (extractError) {
+      console.log(
+        `Error extracting files from zip for locale ${locale}: ${extractError.message}`
       );
-      const slug = filepath.replace(`.mdx`, '');
-      return {
-        path: slug,
-        html: zip.readAsText(entry, 'utf8'),
-      };
-    });
+      console.log(extractError);
+      return [];
+    }
   };
 };
 
@@ -223,26 +231,57 @@ const deserializeHtmlToMdx = (locale) => {
  * @param {Object} input
  * @param {String} input.locale - locale associated with fileUris
  * @param {String[]} input.fileUris - list of file paths used for download & deserialization. This will be the complete singular list prior to batching.
+ * @param {String} [input.batchUid] - optional batch UID for tracking purposes
+ * @param {Number} [input.jobId] - optional job ID for tracking purposes
  * @returns {Promise<SlugStatus[]>}
  */
-export const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
-  const batches = createFileUriBatches({ fileUris });
+export const fetchAndDeserializeFiles = async ({
+  locale,
+  fileUris,
+  batchUid,
+  jobId,
+}) => {
+  try {
+    const batches = createFileUriBatches({ fileUris });
 
-  console.log(`Created ${batches.length} batches of files.`);
+    console.log(
+      `[Batch ${batchUid || 'unknown'}] Created ${batches.length} batches of files for locale ${locale}.`
+    );
 
-  const zips = (
-    await Promise.all(batches.map(fetchTranslatedFilesZip(locale)))
-  ).filter(Boolean);
+    const zips = (
+      await Promise.all(batches.map(fetchTranslatedFilesZip(locale)))
+    ).filter(Boolean);
 
-  console.log(`Downloaded ${zips.length} zips`);
+    console.log(`[Batch ${batchUid || 'unknown'}] Downloaded ${zips.length} zips`);
 
-  const files = zips.flatMap(extractFiles(locale));
+    const files = zips.flatMap(extractFiles(locale));
 
-  console.log(`Unzipped ${files.length} total files.`);
+    console.log(
+      `[Batch ${batchUid || 'unknown'}] Unzipped ${files.length} total files.`
+    );
 
-  const slugStatuses = await Promise.all(
-    files.map(deserializeHtmlToMdx(locale))
-  );
+    const slugStatuses = await Promise.all(
+      files.map(deserializeHtmlToMdx(locale))
+    );
 
-  return slugStatuses;
+    return slugStatuses;
+  } catch (error) {
+    console.log(
+      `[Batch ${batchUid || 'unknown'}] Error processing batch for locale ${locale}: ${error.message}`
+    );
+    console.log(error);
+
+    await trackTranslationError({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.JOB,
+      batchUid,
+      jobId,
+      locale,
+      error,
+      errorMessage: `Failed to fetch and deserialize files for batch ${batchUid}`,
+    });
+
+    // Return empty array to allow other batches to continue processing
+    return [];
+  }
 };
