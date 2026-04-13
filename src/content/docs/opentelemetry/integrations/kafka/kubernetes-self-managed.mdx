@@ -173,8 +173,6 @@ config:
       brokers:
         # TODO#1: Replace with your Kafka bootstrap service DNS.
         # Format: <service-name>.<namespace>.svc.cluster.local:<port>
-        # Example assumes Kafka service named "kafka" in "kafka" namespace.
-        # If your collector is in the same namespace as Kafka, you can use just "kafka:9092".
         - "kafka.kafka.svc.cluster.local:9092"
       collection_interval: 30s
       protocol_version: 2.0.0
@@ -317,6 +315,12 @@ config:
 
   service:
     pipelines:
+      # Null out the Helm chart's default pipelines — they reference the jaeger/zipkin
+      # receivers we disabled above, which causes a startup error if left enabled.
+      traces: null
+      logs: null
+      metrics: null
+
       # Broker metrics pipeline (excludes cluster-level metrics)
       metrics/broker:
         receivers: [otlp, kafkametrics]
@@ -3885,11 +3889,6 @@ Broker, topic, partition, consumer group, and JVM metrics are stored in the `Met
 FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster' SINCE 30 minutes ago
 ```
 
-To see all unique metric names arriving for your cluster:
-
-```sql
-FROM Metric SELECT uniques(metricName) WHERE kafka.cluster.name = 'my-kafka-cluster' SINCE 30 minutes ago
-```
 
 **Logs**
 
@@ -3907,16 +3906,10 @@ Producer and consumer spans, including per-message `publish` and `receive` opera
 FROM Span SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster' SINCE 30 minutes ago
 ```
 
-To see throughput by topic and operation:
-
-```sql
-FROM Span SELECT count(*) WHERE kafka.cluster.name = 'my-kafka-cluster'
-FACET messaging.destination.name, messaging.operation SINCE 30 minutes ago
-```
 
 ## Example [#example]
 
-A complete working example with Kafka StatefulSet manifests, Helm values, OTel Collector configuration for both OTel Java Agent and Prometheus JMX Exporter methods, and sample producer/consumer applications is available in the [New Relic OpenTelemetry Examples repository](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/kafka/k8s-self-managed).
+A complete working example with Kafka StatefulSet manifests, Helm values, OTel Collector configuration, and sample producer/consumer applications is available in the [New Relic OpenTelemetry Examples repository](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/kafka/k8s-self-managed).
 
 ## Troubleshooting [#troubleshooting]
 
@@ -3928,9 +3921,17 @@ A complete working example with Kafka StatefulSet manifests, Helm values, OTel C
     Run these commands first to verify your setup. Use the results to identify which specific troubleshooting section to follow.
 
     **Check if collector pod is running**:
+
+    For manifest installs:
     ```bash
     kubectl get pods -n newrelic -l app=otel-collector
     kubectl logs -n newrelic -l app=otel-collector --tail=50
+    ```
+
+    For Helm installs (`helm upgrade ... kafka-monitoring`):
+    ```bash
+    kubectl get pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector --tail=50
     ```
 
     **Check if Kafka broker pods are running with the Java agent**:
@@ -3952,7 +3953,7 @@ A complete working example with Kafka StatefulSet manifests, Helm values, OTel C
 
     **Test connectivity from broker pod to collector service**:
     ```bash
-    kubectl exec -n kafka kafka-0 -- wget -qO- --timeout=5 http://otel-collector.newrelic.svc.cluster.local:4317 || echo "Cannot reach collector"
+    kubectl exec -n kafka kafka-0 -- nc -zv otel-collector.newrelic.svc.cluster.local 4317 && echo "Port reachable" || echo "Cannot reach collector"
     ```
   </Collapser>
 
@@ -3983,8 +3984,6 @@ A complete working example with Kafka StatefulSet manifests, Helm values, OTel C
     exporters:
       debug:
         verbosity: detailed
-        sampling_initial: 5
-        sampling_thereafter: 200
 
       otlp/newrelic:
         endpoint: https://otlp.nr-data.net:4317
@@ -4011,8 +4010,6 @@ A complete working example with Kafka StatefulSet manifests, Helm values, OTel C
     exporters:
       debug:
         verbosity: detailed
-        sampling_initial: 5
-        sampling_thereafter: 200
 
       otlp/backend:
         endpoint: ${NEW_RELIC_OTLP_ENDPOINT}
@@ -4046,20 +4043,22 @@ A complete working example with Kafka StatefulSet manifests, Helm values, OTel C
   >
     **First, run the [Initial system checks](#initial-checks)** to verify the collector pod and broker pods are healthy.
 
-    **Check collector logs for errors**:
+    **Check collector logs for errors** (use the label matching your install method — see [Initial system checks](#initial-checks)):
     ```bash
+    # Manifest
     kubectl logs -n newrelic -l app=otel-collector --tail=100 | grep -i "error\|fail\|refuse"
-    ```
 
-    **Check for incoming OTLP data**:
-    ```bash
-    kubectl logs -n newrelic -l app=otel-collector --tail=100 | grep -i "otlp\|metric"
+    # Helm
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector --tail=100 | grep -i "error\|fail\|refuse"
     ```
 
     **Verify the collector Service exists and has the right port**:
     ```bash
+    # Manifest
     kubectl get svc otel-collector -n newrelic
-    kubectl describe svc otel-collector -n newrelic
+
+    # Helm
+    kubectl get svc -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
     ```
 
     Ensure port `4317` is exposed as a ClusterIP service.
@@ -4132,7 +4131,11 @@ A complete working example with Kafka StatefulSet manifests, Helm values, OTel C
   >
     **Monitor collector pod memory**:
     ```bash
+    # Manifest
     kubectl top pod -n newrelic -l app=otel-collector
+
+    # Helm
+    kubectl top pod -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
     ```
 
     **Reduce monitored topics**:
@@ -4207,7 +4210,7 @@ A complete working example with Kafka StatefulSet manifests, Helm values, OTel C
 
 * [Explore Kafka metrics](/docs/opentelemetry/integrations/kafka/metrics-reference) - View the complete metrics reference
 * [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) - Build visualizations for your Kafka data
-* [Set up alerts](/docs/opentelemetry/integrations/kafka/metrics-reference/#alerting) - Monitor critical metrics like consumer lag and under-replicated partitions
+* [Set up alerts](/docs/opentelemetry/integrations/kafka/find-and-query-data#alerts) - Monitor critical metrics like consumer lag and under-replicated partitions
 
 ## Related resources [#related-resources]
 
