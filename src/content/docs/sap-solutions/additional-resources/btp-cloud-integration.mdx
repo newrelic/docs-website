@@ -1,0 +1,165 @@
+---
+title: "Connect to New Relic via BTP Integration Suite"
+metaDescription: "Configure SAP Cloud Integration as middleware to transmit monitoring data to New Relic."
+freshnessValidatedDate: never
+---
+
+Configure SAP BTP Integration Suite (Cloud Integration) as middleware to transmit monitoring data to New Relic when direct connectivity is not available.
+
+## Overview
+
+The collection manager program provides an option to send data to New Relic using SAP Cloud Integration (SAP CPI) as middleware instead of direct transmission.
+
+| **Method** | **Description** |
+|------------|-----------------|
+| Direct | Direct transmission from SAP to New Relic (standard method) |
+| SAP Cloud Integration | Using SAP CPI as middleware |
+
+## Configuration steps
+
+<Steps>
+  <Step>
+    ## Determine authorization method
+
+    Select the authorization type you will use for the iFlow:
+    - **ClientId/Secret** (OAuth2)
+    - **Certificate**
+    - **External Certificate**
+  </Step>
+
+  <Step>
+    ## Create service instance and key
+
+    1. Create a service instance for **SAP Process Integration Runtime**.
+    2. Assign a service key or certificate using your selected authorization method.
+    3. Download the service key for later use.
+
+    For detailed instructions, see [Obtain Service Key for BTP Monitoring](/docs/sap-solutions/install-and-configure/obtain-service-key/process-integration-runtime).
+  </Step>
+
+  <Step>
+    ## Configure and deploy iFlow
+
+    Use the New Relic delivered iFlow as a template:
+
+    1. Copy the template iFlow.
+    2. Update the authorization method to match your selection from Step 1.
+    3. Ensure the following mappings are configured:
+
+    ### Allowed headers
+
+    Configure allowed headers to contain:
+    ```
+    API-Key|targetURL
+    ```
+
+    ### Authorization method
+
+    - For **ClientId/Secret** or **Certificate**: Select **User Role**
+    - For **External Certificate**: Select **Client Certificate** and add root certificates
+
+    ### Request content modifier
+
+    Configure exchange properties to hold:
+    - `targeturl`
+    - `apikey`
+
+    ### Groovy script
+
+    Add a script to dynamically set headers:
+
+    ```groovy
+    import com.sap.gateway.ip.core.customdev.util.Message;
+    def Message processData(Message message) {
+
+      message.setHeader("API-Key", message.getProperty("apikey"));
+      message.setHeader("Content-Type", "application/json");
+      message.setHeader("Accept", "application/json");
+
+      message.setHeader("CamelHttpUri", message.getProperty("targeturl"));
+
+      def turl = message.getHeader("CamelHttpUri", String);
+
+      def logText = "---Headers---\n";
+
+      message.getHeaders().each { k, v -> logText += "\${k} = \${v}\n" };
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("AllHeaders", logText, "text/plain");
+
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("URL", turl, "text/plain");
+
+      return message;
+    }
+    ```
+
+    ### Response content modifier
+
+    Configure the message body to return:
+    ```json
+    {
+      "statusCode": "\${header.CamelHttpResponseCode}",
+      "response": \${body}
+    }
+    ```
+
+    ### HTTP connection settings
+
+    - **Address**: `\${header.CamelHttpUri}`
+    - **Method**: POST
+    - **Timeout**: 60000 ms
+    - **Request Headers**: `*`
+    - **Response Headers**: `*`
+
+    4. Deploy the iFlow.
+    5. Note the iFlow endpoint URL.
+  </Step>
+
+  <Step>
+    ## Create RFC destination
+
+    1. Use transaction `SM59` to create a new RFC destination.
+    2. Enter the following information:
+       - **RFC Destination**: A descriptive name (e.g., `NR_CPI_ENDPOINT`)
+       - **Connection Type**: `G` (HTTP Connection to External Server)
+       - **Description**: Connection to New Relic via Cloud Integration
+    3. On the **Technical Settings** tab:
+       - **Target Host**: The host from your iFlow endpoint
+       - **Service No.**: 443
+       - **Path Prefix**: The path from your iFlow endpoint
+    4. On the **Logon & Security** tab:
+       - Configure authentication based on your selected method:
+         - For **ClientId/Secret**: Enter ClientId as username and ClientSecret as password
+         - For **Certificate**: Configure the certificate details
+    5. On the **Security Options** tab:
+       - Select **Active** for SSL
+    6. Save the configuration.
+    7. Click **Connection Test** to verify the connection.
+  </Step>
+
+  <Step>
+    ## Configure collection manager
+
+    1. Execute transaction `/NEWR/ONE_COLLECTION` or create a variant for `/NEWR/ABAP_COLLECTION_MANAGERN`.
+    2. In the **Data Transmission to NR** section:
+       - Select **SAP Cloud Integration** instead of **Direct**
+    3. In the **iFlow Endpoint** field:
+       - Enter the RFC destination name created in Step 4 (e.g., `NR_CPI_ENDPOINT`)
+    4. Save the variant.
+    5. Schedule or execute the collection job.
+  </Step>
+</Steps>
+
+## Verify data transmission
+
+1. Execute the collection manager job.
+2. Check the iFlow monitoring in SAP Cloud Integration:
+   - Log in to SAP BTP Integration Suite
+   - Go to **Monitor** > **Integrations**
+   - Verify successful message processing
+3. Check data arrival in New Relic:
+   - Log in to New Relic
+   - Navigate to your SAP dashboards
+   - Verify that monitoring data is being received
+
+<Callout variant="important">
+  If you modify the standard iFlow template, ensure all required mappings and headers are preserved to maintain compatibility with the collection manager program.
+</Callout>
