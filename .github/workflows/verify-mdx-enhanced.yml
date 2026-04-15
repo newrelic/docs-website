@@ -1,0 +1,229 @@
+name: verify mdx files
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+env:
+  NODE_OPTIONS: '--max-old-space-size=4096'
+  CHOKIDAR_USEPOLLING: 1
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  verify-mdx:
+    name: run verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22.4
+
+      - name: Cache dependencies
+        id: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/yarn.lock') }}
+
+      - name: Install dependencies
+        if: steps.yarn-cache.outputs.cache-hit != 'true'
+        run: yarn install --frozen-lockfile
+
+      - name: Run verify-mdx (initial check)
+        id: verify-initial
+        run: |
+          if yarn verify-mdx 2>&1 | tee verify-output.txt; then
+            echo "mdx_errors=false" >> $GITHUB_OUTPUT
+          else
+            echo "mdx_errors=true" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Auto-fix MDX errors
+        id: auto-fix
+        if: steps.verify-initial.outputs.mdx_errors == 'true'
+        run: |
+          echo "🔧 MDX errors detected - attempting auto-fix..."
+
+          # Run the auto-fixer
+          node scripts/fix-mdx-errors.js
+
+          # Check if any files were modified
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "fixes_applied=true" >> $GITHUB_OUTPUT
+            echo "✅ Auto-fix made changes to the following files:"
+            git status --short
+          else
+            echo "fixes_applied=false" >> $GITHUB_OUTPUT
+            echo "❌ Auto-fix couldn't resolve the errors automatically"
+          fi
+
+      - name: Commit auto-fixes
+        if: steps.auto-fix.outputs.fixes_applied == 'true'
+        run: |
+          git config user.name "docs-eng-bot"
+          git config user.email "docs-eng-opensource-bot@newrelic.com"
+
+          git add -A
+          git commit -m "fix: auto-fix MDX syntax errors
+
+          Automatically fixed common MDX syntax errors:
+          - HTML comments around JSX components
+          - Escaped JSX comment delimiters
+          - Block comments in JSX context
+          - Missing frontmatter fields
+
+          🤖 Auto-fixed by verify-mdx workflow"
+
+          git push origin ${{ github.event.pull_request.head.ref }}
+
+      - name: Re-verify after auto-fix
+        id: verify-after-fix
+        if: steps.auto-fix.outputs.fixes_applied == 'true'
+        run: |
+          if yarn verify-mdx 2>&1 | tee verify-output-after.txt; then
+            echo "all_fixed=true" >> $GITHUB_OUTPUT
+          else
+            echo "all_fixed=false" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Comment on PR - All Fixed
+        if: steps.verify-after-fix.outputs.all_fixed == 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ✅ MDX Errors Auto-Fixed
+
+              The verify-mdx check detected errors and **successfully fixed them automatically**.
+
+              ### What was fixed:
+              - HTML comments around JSX components
+              - Escaped JSX comment delimiters
+              - Block comments in JSX context
+              - Missing frontmatter fields
+
+              **A new commit has been pushed with the fixes.** You can continue working - no action needed!
+
+              🤖 *Auto-fixed by docs-eng-bot*`
+            });
+
+      - name: Comment on PR - Partial Fix
+        if: |
+          steps.auto-fix.outputs.fixes_applied == 'true' &&
+          steps.verify-after-fix.outputs.all_fixed == 'false'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('verify-output-after.txt', 'utf8');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ⚠️ MDX Errors Partially Fixed
+
+              The verify-mdx check detected errors and **fixed some automatically**, but **manual fixes are still needed**.
+
+              ### ✅ What was auto-fixed:
+              A commit has been pushed with automatic fixes for:
+              - HTML comments around JSX components
+              - Escaped JSX comment delimiters
+              - Block comments in JSX context
+              - Missing frontmatter fields
+
+              ### ❌ Remaining errors that need manual attention:
+
+              <details>
+              <summary>Click to see error details</summary>
+
+              \`\`\`
+              ${output.substring(0, 5000)}
+              \`\`\`
+
+              </details>
+
+              ### How to fix:
+              1. Pull the latest changes (auto-fixes were committed)
+              2. Run \`yarn verify-mdx\` locally to see remaining errors
+              3. Fix the remaining errors manually
+              4. Push your changes
+
+              Need help? Contact @docs-engineering team in Slack.
+
+              🤖 *Auto-fix attempt by docs-eng-bot*`
+            });
+
+      - name: Comment on PR - No Auto-Fix Possible
+        if: |
+          steps.verify-initial.outputs.mdx_errors == 'true' &&
+          steps.auto-fix.outputs.fixes_applied == 'false'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('verify-output.txt', 'utf8');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ❌ MDX Validation Errors - Manual Fix Required
+
+              The verify-mdx check detected errors that **could not be fixed automatically**.
+
+              <details>
+              <summary>Click to see error details</summary>
+
+              \`\`\`
+              ${output.substring(0, 5000)}
+              \`\`\`
+
+              </details>
+
+              ### How to fix:
+              1. Run \`yarn verify-mdx\` locally to see the errors
+              2. Fix the errors in the reported files
+              3. Run \`yarn verify-mdx\` again to verify
+              4. Push your changes
+
+              ### Common fixes:
+              - Ensure all JSX components use proper comment syntax: \`{/* comment */}\`
+              - Remove HTML comments around JSX: \`<!-- <Component> -->\` → \`<Component>\`
+              - Add required frontmatter fields (e.g., \`releaseDate\`) to release notes
+
+              Need help? Contact @docs-engineering team in Slack.
+
+              🤖 *Detected by verify-mdx workflow*`
+            });
+
+      - name: Final verification check
+        if: steps.verify-initial.outputs.mdx_errors == 'true'
+        run: |
+          echo "::group::Final Verification"
+          if [[ "${{ steps.verify-after-fix.outputs.all_fixed }}" == "true" ]]; then
+            echo "✅ All MDX errors have been fixed!"
+            exit 0
+          else
+            echo "❌ Some MDX errors remain - manual fixes required"
+            exit 1
+          fi
+          echo "::endgroup::"
