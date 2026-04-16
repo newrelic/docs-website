@@ -11,8 +11,8 @@ We're excited to announce that Windows node monitoring for Kubernetes is now **G
 ## What's included
 
 - **Unified Helm chart:** Windows and Linux nodes are now monitored using the same `newrelic-infrastructure` chart, no separate installation needed. A single `enableWindows: true` flag in your `values.yaml` is all it takes.
-- **Per-version DaemonSets:** The chart automatically creates one DaemonSet per supported Windows version (Windows Server 2019, Windows Server 2022), scheduling pods only to nodes with a matching OS build — eliminating empty DaemonSets in your cluster.           
-- **Privileged mode (HostProcess containers):** Full node-level metrics — including CPU, memory, disk, and network — are now collected via Windows HostProcess containers, surfacing `SystemSample`, `StorageSample`, and `NetworkSample` data.
+- **Per-version DaemonSets:** The chart automatically creates one DaemonSet per supported Windows version (Windows Server 2019, Windows Server 2022), scheduling pods only to nodes with a matching OS build, eliminating empty DaemonSets in your cluster.           
+- **Privileged mode (HostProcess containers):** Full node level metrics, including CPU, memory, disk, and network, are now collected via Windows HostProcess containers, surfacing `SystemSample`, `StorageSample`, and `NetworkSample` data.
 - **Guided Install support:** The Kubernetes Guided Install now includes a Windows toggle, enabling Windows monitoring automatically sets the correct flag across Helm, manifest, and other install methods. No manual config editing required.
 
 ## Compatibility
