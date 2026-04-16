@@ -1,7 +1,7 @@
   ---                                                                                                                                                                                              
   title: "Windows node monitoring for Kubernetes is now Generally Available"                                                                                                                       
   summary: "Monitor Windows nodes in your Kubernetes clusters with full production support"                                                                     
-  releaseDate: "2026-04-16"                                                                                                                                                                        
+  releaseDate: '2026-04-16'                                                                                                                                                                     
   learnMoreLink: "https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/windows/"                                                                                    
   getStartedLink: "https://docs.newrelic.com/install/kubernetes/"   
   ---                                                                                                                                                                                              
