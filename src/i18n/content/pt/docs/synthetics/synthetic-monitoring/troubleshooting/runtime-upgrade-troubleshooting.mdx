@@ -6,71 +6,304 @@ tags:
   - Synthetic monitoring
   - Troubleshooting
   - Runtime conversion
-metaDescription: null
+metaDescription: Solutions for common issues when upgrading synthetic monitors to Node.js 22 and newer Chrome runtimes.
 freshnessValidatedDate: never
 translationType: machine
 ---
 
-## Browser com script: tentativas de interagir com elementos falham [#promises]
+## Problemas de atualização do Node.js 22
 
-Ao validar um monitor criado em um tempo de execução mais antigo em relação [ao tempo de execução do Chrome 100 (ou mais recente)](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100), `findElement` e outros métodos para localizar e interagir com elementos na página podem falhar devido a diferenças no tratamento de promessas. Se o monitor passar em um tempo de execução legado, falhar no novo tempo de execução e o elemento estiver presente na captura de tela, talvez seja necessário melhorar sua lógica de tratamento de promessas.
+Os seguintes problemas são específicos da atualização de monitores para o Node.js 22.
+
+### Handles abertos não tratados [#open-handles]
+
+**Sintoma:** O monitor falha durante a validação ou execução **Causa:** O Node.js 22 é mais rigoroso em relação aos ciclos de vida dos processos
+
+O problema mais comum ao atualizar para o Node.js 22 são os open handles não tratados. Se seus scripts de monitor contiverem manipuladores abertos não tratados (como promises não resolvidas, temporizadores pendentes ou conexões de rede não fechadas), seus monitores falharão.
+
+Tipos comuns de handles abertos incluem:
+
+* **Promises não resolvidas**: Certifique-se de que todas as promises sejam devidamente aguardadas ou tratadas
+* **Temporizadores remanescentes**: Limpar todas as chamadas `setTimeout` e `setInterval`
+* **Conexões não fechadas**: Feche todas as conexões de rede, conexões de banco de dados e manipuladores de arquivos
+* **Conexões HTTP/HTTPS**: Consuma adequadamente os dados de resposta e feche as conexões
+
+### As conexões HTTP/HTTPS permanecem abertas [#http-connections]
+
+**Sintoma:** O monitor trava ou esgota o tempo limite **Causa:** Dados de resposta não consumidos ou keepAlive ativado
+
+#### Solução A: Consumir dados de resposta
+
+Para usar `http` ou `https`, ouça o evento `data`. Caso contrário, a conexão HTTPS permanece aberta.
+
+```javascript
+const https = require('https');
+
+https.get('https://example.com', (res) => {
+  console.log('Status Code:', res.statusCode);
+  // Consume the response data
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+}).on('error', (e) => {
+  console.error('Error:', e);
+});
+```
+
+#### Solução B: Desativar keepAlive
+
+Defina a opção `keepAlive` como `false` para fechar as conexões HTTP após a conclusão da requisição.
+
+```javascript
+const https = require('https');
+const { Agent } = require('https'); // or http for HTTP requests
+
+const options = {
+  hostname: 'example.com',
+  path: '/',
+  method: 'GET',
+  agent: new Agent({ keepAlive: false }), // Disable keepAlive
+};
+
+const req = https.request(options, (res) => {
+  console.log(`Status: ${res.statusCode}`);
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+});
+
+req.on('error', (e) => {
+  console.error(e);
+});
+
+req.end();
+```
+
+### Recursos de stream não limpos [#stream-cleanup]
+
+**Sintoma:** Vazamentos de recursos ou monitores travados **Causa:** Streams não destruídos em blocos finally
+
+#### Solução
+
+Limpe os streams em um bloco `finally` para garantir o descarte adequado de recursos.
+
+```javascript
+const got = require('got');
+
+let downloadStream = got.stream("https://example.com/test.txt");
+
+try {
+  // Your stream processing logic here
+} finally {
+  if (downloadStream) {
+    downloadStream.destroy();
+  }
+}
+```
+
+### Sockets não destruídos corretamente [#socket-cleanup]
+
+**Sintoma:** A validação do monitor falha com o erro &quot;open handles&quot; **Causa:** Limpeza de socket ausente nos caminhos de código de sucesso
+
+Destruir os sockets adequadamente em todos os caminhos de código.
+
+#### Código problemático
+
+```javascript
+// ❌ Problematic code - Socket not closed in success case
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      resolve({ validTo: validTo });
+    } else {
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+#### Abordagem recomendada
+
+Adicionar funcionalidade de limpeza para todos os caminhos de código:
+
+```javascript
+// ✅ Better approach - Proper cleanup in all cases
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    // Always destroy the response and socket
+    const cleanup = () => {
+      try {
+        res.destroy();
+        if (res.socket && !res.socket.destroyed) {
+          res.socket.destroy();
+        }
+      } catch (e) {
+        console.log("Cleanup warning:", e.message);
+      }
+    };
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      cleanup();
+      resolve({ validTo: validTo });
+    } else {
+      cleanup();
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+### Temporizadores não limpos [#timers]
+
+**Sintoma:** O monitor não conclui a execução **Causa:** `setTimeout`/`setInterval` não limpo
+
+#### Código problemático
+
+```javascript
+// ❌ Problematic code
+setTimeout(() => {
+  console.log('This might cause issues');
+}, 5000);
+```
+
+#### Abordagem recomendada
+
+Limpar o temporizador quando concluído:
+
+```javascript
+// ✅ Better approach
+const timerId = setTimeout(() => {
+  console.log('This is properly handled');
+}, 1000);
+
+// Clear the timer when done
+clearTimeout(timerId);
+```
+
+### Promises não resolvidas [#unresolved-promises]
+
+**Sintoma:** O script parece terminar, mas a validação falha **Causa:** Promises não aguardadas ou tratadas corretamente
+
+**Solução:** Certifique-se de que todas as promises tenham `.then()`, `.catch()` ou sejam `await`ed.
+
+## Problemas de atualização do runtime do Chrome
+
+Os seguintes problemas são específicos da atualização de monitores de navegador com script para runtimes mais recentes do Chrome.
+
+### Scripted browser: Tentativas de interagir com elementos falham [#promises]
+
+**Sintoma:** `findElement` e outros métodos falham no novo runtime, mas funcionam no runtime legado **Causa:** Diferenças no tratamento de Promises entre as versões do Selenium WebDriver
+
+Ao validar um monitor criado em um runtime mais antigo no [runtime do Chrome 100 (ou mais recente)](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100), `findElement` e outros métodos para encontrar e interagir com elementos na página podem falhar devido a diferenças no tratamento de promises. Se o monitor passar em um runtime legado, falhar no novo runtime e o elemento estiver presente na captura de tela, melhore sua lógica de tratamento de promises.
 
 O gerenciador de promessas e o fluxo de controle Selenium Webdriver permitiram que algumas funções fossem executadas em ordem em tempos de execução substitutos, sem gerenciar promessas. Esse recurso foi removido no Selenium Webdriver 4.0 e não está mais disponível no tempo de execução. Todas as funções e promessas assíncronas precisam ser gerenciadas com `await` ou com a cadeia de promessas `.then` . Isso garantirá que as funções de script sejam executadas na ordem esperada.
 
-Por exemplo, o gerenciador de promessas e o fluxo de controle podem permitir que este script parcial seja concluído com sucesso, mesmo que `$browser.get` retorne uma promessa e a promessa não esteja sendo tratada corretamente:
+#### Código problemático
+
+O gerenciador de promises e o fluxo de controle poderiam permitir que este script parcial seja concluído com sucesso, mesmo que `$browser.get` retorne uma promise e a promise não esteja sendo tratada corretamente:
 
 ```js
+// ❌ Problematic code - Promises not handled
 $browser.get('http://example.com');
 
 $browser.findElement($driver.By.css('h1'));
 ```
 
-No [tempo de execução do Chrome 100 (ou mais recente)](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100), todos os métodos que retornam uma promessa precisam usar a sintaxe await ou `.then` para sequenciar corretamente as etapas. O uso de await é recomendado devido à sintaxe mais limpa e ao uso mais fácil, mas `.then` cadeias de promessas ainda são suportadas.
+#### Abordagem recomendada
+
+No [runtime do Chrome 100 (ou mais recente)](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100), qualquer método que retorne uma promise precisa usar a sintaxe await ou `.then` para sequenciar as etapas corretamente. O uso do await é recomendado devido à sintaxe mais limpa e ao uso mais fácil, mas `.then` cadeias de promises também ainda são suportadas.
 
 ```js
+// ✅ Better approach - Using await
 await $browser.get('http://example.com');
 
 let el = await $browser.findElement($driver.By.css('h1'));
 ```
 
-## API com script: diferenças entre `request` e `got` [#request]
+### Browser com script: Avisos de descontinuação (`$browser` e `$driver` [#deprecations]
+
+**Sintoma:** Avisos de descontinuação aparecem nos logs do monitor **Causa:** Uso de imagem de runtime de navegador Node mais antiga
+
+Avisos de descontinuação para `$browser` e `$driver` foram removidos a partir da versão 2.0.29 ou mais recente do runtime do navegador. Você não recebe mais esses avisos ao usar locais públicos. Atualize a imagem de runtime do seu node browser se você receber esses avisos ao usar locais privados.
+
+### Browser com script: `waitForAndFindElement` e `waitForPendingRequests` [#waitMethods]
+
+**Sintoma:** Métodos não disponíveis ao usar `$selenium` e `$webDriver` **Causa:** Métodos personalizados da New Relic não incluídos nas APIs base do Selenium WebDriver 4.1
+
+Os métodos `waitForAndFindElement` e `waitForPendingRequests` são métodos personalizados da New Relic que são fornecidos nos runtimes de navegador com script do Chrome 72 e anteriores. Eles ainda podem ser usados com `$driver` e `$browser` nos runtimes do Chrome 100 e mais recentes, mas não estão disponíveis ao usar as APIs do Selenium WebDriver 4.1 diretamente com `$selenium` e `$webDriver`. Esta alteração alinha melhor a implementação do Selenium WebDriver da New Relic com a implementação base do Selenium WebDriver.
+
+Para continuar usando `waitForAndFindElement` ou `waitForPendingRequests` no novo runtime, cole os [exemplos de código](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100/#waitForAndFindElement) em seus monitores.
+
+## Problemas de atualização do runtime da API
+
+Os seguintes problemas são específicos da atualização de monitores de API com script para runtimes mais recentes do Node.js.
+
+### API com script: diferenças entre `request` e `got` [#request]
+
+**Sintoma:** Scripts de API usando recursos do módulo `request` falham no novo runtime **Causa:** Migração do módulo `request` descontinuado para o módulo `got`
 
 Os [tempos de execução API com script do Node.js 10 e anteriores](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#dependencies) usavam o módulo `request` Node.js para fornecer um objeto `$http` que poderia ser usado para [testar API](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests-legacy/).
 
-Os [tempos de execução da API com script do Node.js 16 e mais recentes](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#apidependencies) usam `got` em vez de `request`. O módulo `request` foi descontinuado em 2020 e não será mais incluído em novos tempos de execução baseados em API ou browser. O objeto `$http` fornece uma experiência personalizada semelhante a `request` , ao mesmo tempo em que é alimentado por `got` para fornecer compatibilidade com versões anteriores para casos de uso básicos, evitando ainda o uso de um módulo obsoleto. Nem todos os casos de uso avançado de `request` são ou serão suportados. Há [exemplos de script e um guia de conversão](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/) disponíveis.
+Os [runtimes de API com script do Node.js 16 e mais recentes](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#apidependencies) usam `got` em vez de `request`. O módulo `request` foi descontinuado em 2020 e não é mais incluído em novos runtimes de API ou baseados em navegador. O objeto `$http` oferece uma experiência personalizada semelhante a `request`enquanto é alimentado por `got` para fornecer compatibilidade com versões anteriores para casos de uso básicos, ao mesmo tempo em que evita o uso de um módulo obsoleto. Nem todos os casos de uso avançados de `request` são suportados. Há [exemplos de script e um guia de conversão](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/) disponíveis.
 
 <Callout variant="tip">
-  A experiência semelhante a `request`fornecida pelo objeto `$http` também será retornada para todos os clientes que tentarem usar `request` diretamente no Node.js 16 e em tempos de execução de API com script mais recentes.
+  O objeto `$http` também retorna a experiência semelhante a `request`para quaisquer clientes que tentem usar `request` diretamente em runtimes de API com script do Node.js 16 e mais recentes.
 </Callout>
 
-## API com script: tokeninesperado `JSON.parse` [#scripted-api-unexpected]
+### API com script: tokeninesperado `JSON.parse` [#scripted-api-unexpected]
 
-A tentativa de usar a função `JSON.parse` ao interagir com o corpo da resposta pode produzir erros de token inesperados no monitor de API com script usando o Node.js 16 e o ambiente de execução mais recente. Se o cabeçalho de resposta do tipo de conteúdo for `application/json`, o corpo da resposta retornado pelo objeto `$http` será analisado como JSON. Chamadas adicionais que tentarem usar `JSON.parse` para analisar o corpo da resposta falharão com esse erro porque o corpo da resposta já foi analisado.
+**Sintoma:** Erros de token inesperado ao usar `JSON.parse` **Causa:** Corpo da resposta já analisado automaticamente quando o content-type é `application/json`
 
-Se o cabeçalho de resposta do tipo de conteúdo não for `application/json`, o corpo da resposta não será analisado automaticamente e a função `JSON.parse` ainda precisará ser usada.
+Tentar usar a função `JSON.parse` ao interagir com o corpo da resposta produz erros de token inesperado em monitores de API com script que usam o runtime do Node.js 16 e mais recente. Se o cabeçalho de resposta content-type for `application/json`, o objeto `$http` retorna JSON analisado no corpo da resposta. Chamadas adicionais que tentam usar `JSON.parse` para analisar o corpo da resposta falham com este erro porque o corpo da resposta já foi analisado.
 
-## API com script: `HEAD` ou `GET` [#scripted-api-head-get]
+Se o cabeçalho de resposta content-type não for `application/json`, o corpo da resposta não é analisado automaticamente e você deve usar a função `JSON.parse`.
 
-Você não pode incluir um corpo de solicitação com uma solicitação HTTP `HEAD` ou `GET` . O módulo `request` usado pelo tempo de execução do Node 10 e versões anteriores permitia isso, mas isso causará erros no novo tempo de execução. Algumas configurações diferentes podem causar o erro, mas as sugestões mais comuns incluem:
+### API com script: `HEAD` ou `GET` [#scripted-api-head-get]
 
-* Não inclua um corpo na sua solicitação, mesmo que esteja vazio.
+**Sintoma:** As requisições HTTP `HEAD` ou `GET` falham com erros relacionados ao corpo **Causa:** O novo runtime impõe a especificação HTTP que proíbe corpos em requisições `HEAD`/`GET`
+
+Você não pode incluir um corpo de requisição em uma requisição HTTP `HEAD` ou `GET`. O módulo `request` usado pelo runtime do Node 10 e anteriores permitia isso, mas isso causará erros no novo runtime. As sugestões mais comuns incluem:
+
+* Não inclua um corpo na sua requisição, mesmo que ele esteja vazio.
 * Evite opções desnecessárias em sua solicitação `HEAD` ou `GET` , como `json: true`
 
-## API com script: diferenças de string de consulta (qs) [#scripted-api-query]
+### API com script: diferenças de string de consulta (qs) [#scripted-api-query]
 
-Nos tempos de execução do Node 10 ou anteriores, a string de consulta configuração era passada usando a opção `qs:` . Para o tempo de execução do Node 16, use a opção `searchParams:` . Somente o nome da opção precisa mudar. O conteúdo da sequência de consulta não precisa ser atualizado.
+**Sintoma:** Opções de query string não funcionam no novo runtime **Causa:** Nome da opção alterado de `qs:` para `searchParams:`
 
-## API com script: diferenças do cookie jar [#scripted-api-cookie]
+Nos runtimes do Node 10 ou anteriores, as configurações de query string eram passadas usando a opção `qs:`. Para o runtime do Node 16, use a opção `searchParams:` em vez disso. Apenas o nome da opção precisa ser alterado. O conteúdo da query string não precisa ser atualizado.
+
+### API com script: diferenças do cookie jar [#scripted-api-cookie]
+
+**Sintoma:** A manipulação de cookies com `jar: true` não está funcionando **Causa:** A implementação do cookie jar foi alterada no runtime do Node 16
 
 Nos tempos de execução do Node 10 ou anteriores, você pode usar a opção `jar: true` para armazenar cookies em um cookie jar entre as solicitações.
 
 No tempo de execução do Node 16, você deve criar um cookie jar usando o módulo `tough-cookie` e, em seguida, fazer referência a esse cookie jar na sua solicitação. Se você criou um pote de biscoitos chamado cookies, consulte-o em suas opções como `cookieJar: cookies`
 
-## API com script: diferenças de formulário [#scripted-api-form]
+### API com script: diferenças de formulário [#scripted-api-form]
+
+**Sintoma:** Requisições baseadas em formulários falham ou se comportam de maneira diferente **Causa:** Diferenças entre os módulos `request` e `got` para manipulação de formulários
 
 Devido às diferenças entre o módulo `request` usado para o objeto `$http` no Node 10 e em tempos de execução mais antigos e o módulo `got` usado para o objeto `$http` no tempo de execução do Node 16, você pode encontrar problemas com solicitações usando formulários no monitor API .
 
-Se sim, use o módulo `form-data` para criar e incluir seu formulário com sua solicitação, conforme mostrado neste exemplo parcial.
+Se sim, use o módulo `form-data` para criar e incluir seu formulário com sua requisição, conforme mostrado neste exemplo parcial:
 
 ```js
 const FormData = require('form-data');
@@ -88,20 +321,12 @@ let req = {
 }
 ```
 
-## Diferenças de versão do módulo UUID [#uuid-module-version]
+### Diferenças de versão do módulo UUID [#uuid-module-version]
+
+**Sintoma:** Erros de importação de módulo com o módulo `uuid` **Causa:** Sintaxe atualizada do módulo `uuid` no runtime do Node 16
 
 O tempo de execução do Node 16 inclui uma versão mais recente do módulo `uuid` que força o uso da sintaxe `require` atualizada.
 
 Nó 10 e anteriores: `const uuid = require('uuid');`
 
 Nó 16 (assumindo o uso de `uuidv4`): `const { v4: uuidv4 } = require('uuid');`
-
-## Browser com script: Avisos de descontinuação (`$browser` e `$driver` [#deprecations]
-
-Os avisos de descontinuação para `$browser` e `$driver` foram removidos a partir da versão 2.0.29 ou mais recente do tempo de execução do browser. Você não deve mais receber esses avisos ao usar a localização pública. Atualize a imagem de tempo de execução do seu browser Node se estiver recebendo esses avisos ao usar a localização privada.
-
-## Browser com script: `waitForAndFindElement` e `waitForPendingRequests` [#waitMethods]
-
-Os métodos `waitForAndFindElement` e `waitForPendingRequests` são métodos personalizados da New Relic fornecidos no Chrome 72 e em tempos de execução de browser com script mais antigos. Eles ainda podem ser usados com `$driver` e `$browser` no Chrome 100 e em tempos de execução mais recentes, mas não estarão disponíveis ao usar a Selenium Webdriver 4.1 API diretamente com `$selenium` e `$webDriver`. Essa mudança alinhará melhor a implementação do Selenium Webdriver da New Relic com a implementação básica do Selenium Webdriver .
-
-Os clientes que optarem por continuar usando `waitForAndFindElement` ou `waitForPendingRequests` no novo tempo de execução poderão colar [exemplos de código](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100/#waitForAndFindElement) em seus monitores.
