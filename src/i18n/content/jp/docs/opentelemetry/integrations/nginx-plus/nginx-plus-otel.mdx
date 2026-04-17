@@ -5,7 +5,7 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-[OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib)を使用してホスト上で実行されている NGINX Plus サーバーを監視し、メトリクスとテレメトリーデータをNew Relicに送信します。
+[NRDOT コレクター](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest)(推奨) または[OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib)を使用してホスト上で実行されている NGINX Plus サーバーを監視し、メトリクスとテレメトリーデータをNew Relicに送信します。
 
 この統合では、 OpenTelemetry [prometheusreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver)と[nginx-prometheus-exporter](https://github.com/nginx/nginx-prometheus-exporter)を利用して、NGINX Plus のパフォーマンス メトリクス、接続統計、サーバーの健全性を監視します。 NGINX Plus の豊富な HTTP API 、標準の NGINX の基本的なスタブ ステータス モジュールと比較して、はるかに詳細なメトリックを提供します。
 
@@ -17,9 +17,9 @@ translationType: machine
 
 ## あなたが始める前に [#prerequisites]
 
-始める前に、次のものを用意してください。
+以下のものを用意してください:
 
-* [New Relicアカウント](https://newrelic.com/signup)<InlinePopover type="licenseKey" />
+* 有効なNew Relic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
 
 * NGINX Plus バージョン[R13](https://docs.nginx.com/nginx/releases/#r13)以上
 
@@ -27,404 +27,886 @@ translationType: machine
 
 * [NGINX Prometheus エクスポータが](https://github.com/nginx/nginx-prometheus-exporter)インストールされ、NGINX Plus インスタンスと一緒に実行され、HTTP APIメトリクスを Prometheus 形式で公開します
 
-* [OpenTelemetry Collector Contrib が](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest)Linux ホストにインストールされ、実行されている
+* Linux ホストにインストールされている次のいずれかのコレクター:
+
+  * [NRDOT コレクター](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation)(推奨 - New RelicのOpenTelemetryディストリビューション)、または
+  * [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) （代替オプション）
 
 * Linux ホストから次のネットワーク アクセス:
 
   * NGINX Plus HTTP APIエンドポイント
-  * [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)エンドポイントのいずれか
+  * [New Relic OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)エンドポイント
 
-### 設定を確認する
+{/* ### Verify your setup
 
-NGINX Plusのバージョンを確認します。
-
+<CollapserGroup>
+<Collapser
+  id="check-nginx-status-module"
+  title="Check NGINX Plus version"
+>
+Check NGINX Plus version:
 ```bash
 nginx -V 2>&1 | grep -o "nginx/[0-9.]*"
 ```
+Expected output: `nginx/1.25.0` or higher (R13+)
+</Collapser>
 
-期待される出力: `nginx/1.25.0`以上 (R13+)
-
-OpenTelemetry Collector を確認します。
-
-```bash
-otelcol-contrib --version
-```
-
-期待される出力: バージョン情報 (最低 v0.88.0 が必要)
-
-ネットワーク接続をテストします。
-
+<Collapser
+  id="test-network-connectivity"
+  title="Test network connectivity"
+>
+Test network connectivity:
 ```bash
 # For US region
 curl -I https://otlp.nr-data.net:4318/v1/metrics
 # For EU region
 curl -I https://otlp.eu01.nr-data.net:4318/v1/metrics
 ```
-
-期待される出力: `HTTP/2 405` (許可されていないメソッドが期待されます)
-
-## ステップ1: NGINX Plusを構成する [#configure-nginx]
-
-NGINX Plus サーバーからメトリクスを公開するように[HTTP APIモジュール](https://nginx.org/en/docs/http/ngx_http_api_module.html)を構成して有効にします。
-
-<CollapserGroup>
-  <Collapser id="step1-enable-api" title="HTTP APIモジュールを有効にする">
-    HTTP API設定を`nginx.conf`ファイルに追加します。 通常、これを`http`ブロック内に追加します。
-
-    ```nginx
-    server {
-        listen 8080;
-        server_name localhost;
-
-        location /api {
-            api write=on;
-            # Restrict access as needed
-            allow 127.0.0.1;
-            deny all;
-        }
-    }
-    ```
-  </Collapser>
-
-  <Collapser id="step1-test-reload" title="設定をテストしてリロードする">
-    `nginx.conf`を更新した後、サービスをテストして再読み込みします。
-
-    ```bash
-    sudo nginx -t && sudo nginx -s reload
-    ```
-  </Collapser>
-
-  <Collapser id="step1-verify-api" title="APIエンドポイントを確認する">
-    設定内に公開されているAPIエンドポイントのパス(バージョン含む)を確認してください。 完全なAPIエンドポイント パス (先頭のスラッシュを除く) とそれにサービスを提供するポートを記録します。 一般的なデフォルトはポート`8080`の`api/9`です。
-
-    `curl`を使用して、 APIエンドポイントに到達できることを確認します。
-
-    ```bash
-    curl -I http://127.0.0.1:8080/api/9 2>/dev/null | head -n 1 | cut -d$' ' -f1,2
-    ```
-
-    期待される出力:
-
-    ```
-    HTTP/1.1 200
-    ```
-
-    異なる応答が表示された場合は、NGINX Plus の設定を確認し、API モジュールが適切に有効になっていることを確認してください。
-  </Collapser>
-</CollapserGroup>
-
-## ステップ2: OpenTelemetry Collectorを構成する [#configure-collector]
-
-NGINX Plus Prometheus エクスポーターからメトリクスを取得し、 New Relicに送信するようにOpenTelemetry Collector構成します。
-
-<CollapserGroup>
-  <Collapser id="step2-install-exporter" title="NGINX Prometheusエクスポーターをインストールする">
-    [NGINX Prometheus エクスポーターを](https://github.com/nginx/nginx-prometheus-exporter)インストールして構成し、NGINX Plus APIメトリクスを Prometheus 形式で公開します。
-
-    ```bash
-    # Download and install the exporter
-    wget https://github.com/nginx/nginx-prometheus-exporter/releases/latest/download/nginx-prometheus-exporter_linux_amd64.tar.gz
-    tar -xzf nginx-prometheus-exporter_linux_amd64.tar.gz
-    sudo mv nginx-prometheus-exporter /usr/local/bin/
-
-    # Run the exporter (customize the -nginx.scrape-uri as needed)
-    nginx-prometheus-exporter -nginx.scrape-uri=http://127.0.0.1:8080/api
-    ```
-
-    デフォルトでは、エクスポータはポート`9113`で実行され、メトリクスを`/metrics`で公開します。
-  </Collapser>
-
-  <Collapser id="step2-config-collector" title="コレクター設定を構成する">
-    OpenTelemetry Collector設定を更新します (通常は`/etc/otelcol-contrib/config.yaml`にあります)。 以下の設定スニペット内:
-
-    * New Relic アカウントでこの NGINX Plus サーバーを識別するために、 `nginx.deployment.name`値を一意の名前で更新します。
-    * Prometheus エクスポーターのホストとポートに合わせて`targets`値を更新します (デフォルトは`127.0.0.1:9113`です)
-    * APIステータスパスとポートに合わせて`nginx.server.endpoint`値を更新してください
-    * 追加のメトリクスを取り込むには、要件に応じて`filter/nginx_metrics`を更新します。
-
-    以下のスニペットからのレシーバー、プロセッサー、エクスポーター、およびサービス パイプラインを現在の設定にマージします。
-
-    ```yaml
-    receivers:
-      prometheus:
-        config:
-          scrape_configs:
-            - job_name: 'nginx-plus'
-              scrape_interval: 30s
-              static_configs:
-                - targets: ['127.0.0.1:9113']
-    processors:
-      batch:
-        send_batch_size: 1024
-        timeout: 30s
-      filter/nginx_metrics:
-        metrics:
-          include:
-            match_type: regexp
-            metric_names:
-              - "nginxplus_connections_.*"
-              - "nginxplus_http_requests_.*"
-              - "nginxplus_ssl_.*"
-          exclude:
-            match_type: regexp
-            metric_names:
-              - "nginxplus_server_.*"
-              - "nginxplus_location_zone_.*"
-              - "nginxplus_cache_.*"
-              - "nginxplus_stream_server_.*"
-              - "nginxplus_upstream_.*"
-              - "nginxplus_stream_upstream_.*"
-              - "nginxplus_stream_zone_sync_zone_.*"
-              - "nginxplus_resolver_.*"
-              - "nginxplus_limit_request_.*"
-              - "nginxplus_limit_connection_.*"
-              - "nginxplus_stream_limit_connection_.*"
-              - "nginxplus_worker_.*"
-      resource/nginx:
-        attributes:
-          - key: nginx.server.endpoint
-            value: <API_ENDPOINT>
-            action: insert
-          - key: nginx.deployment.name
-            value: <DEPLOYMENT_NAME>
-            action: insert
-      resourcedetection:
-        detectors: [system]
-        system:
-          resource_attributes:
-            host.name:
-              enabled: true
-            host.id:
-              enabled: true
-      transform/nginx:
-        metric_statements:
-          - context: resource
-            statements:
-              - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
-          - context: resource
-            statements:
-              - delete_key(attributes, "service.name")
-      transform/metadata_nullify:
-        metric_statements:
-          - context: metric
-            statements:
-              - set(description, "")
-              - set(unit, "")
-    exporters:
-      otlp_http/newrelic:
-        endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
-        headers:
-          api-key: ${env:NEWRELIC_LICENSE_KEY}
-    service:
-      pipelines:
-        metrics/nginx:
-          receivers: [prometheus]
-          processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx, transform/metadata_nullify]
-          exporters: [otlp_http/newrelic]
-    ```
-
-    ファイルを保存し、 `otelcol-contrib`システム ユーザーが読み取れることを確認します。
-  </Collapser>
-
-  <Collapser id="step2-enable-additional-metrics-otelcol" title="(オプション) 追加のメトリクスを有効にする">
-    デフォルトでは、設定はコア メトリクス (接続、HTTP requests 、および SSL) のみを収集します。 サーバー ゾーン、ロケーション ゾーン、キャッシュ メトリクスなどの追加のメトリクス カテゴリを有効にするには、次の手順を実行します。
-
-    1. 以下の [メトリック リスト](#metrics) から、**有効にするメトリックを特定**します。どのカテゴリに属しているかをメモします (例: HTTP サーバー ゾーン、ロケーション ゾーン、キャッシュ)。
-
-    2. **対応するメトリクス`exclude` `include`** `filter/nginx_metrics`プロセッサの から に移動します。
-
-    **例: HTTP サーバーゾーンを有効にする メトリクス**
-
-    `exclude`セクションで次の行を見つけます。
-
-    ```yaml
-    filter/nginx_metrics:
-      metrics:
-        include:
-        # existing include metrics
-        exclude:
-          match_type: regexp
-          metric_names:
-            - "nginxplus_server_.*"
-    ```
-
-    `include`セクションに移動します:
-
-    ```yaml
-    filter/nginx_metrics:
-      metrics:
-        include:
-          match_type: regexp
-          metric_names:
-            - "nginxplus_connections_.*"
-            - "nginxplus_http_requests_.*"
-            - "nginxplus_ssl_.*"
-            - "nginxplus_server_.*"  # Added to enable server zone metrics
-        exclude:
-          match_type: regexp
-          metric_names:
-            # Remove "nginxplus_server_.*" from here
-            - "nginxplus_location_zone_.*"
-            - "nginxplus_cache_.*"
-            # ... rest of exclude list
-    ```
-
-    3. 変更を加えたら**コレクターを再起動します**。
-       ```bash
-       sudo systemctl restart otelcol-contri.service
-       ```
-  </Collapser>
-</CollapserGroup>
-
-## ステップ3: コレクターの環境変数を設定する [#set-environment]
-
-エクスポーターが認証できるように、New Relic <InlinePopover type="licenseKey" />と OTLP エンドポイントをコレクター サービスに挿入します。
-
-<CollapserGroup>
-  <Collapser id="step3-create-override" title="systemdオーバーライドディレクトリを作成する">
-    systemd オーバーライド ディレクトリを作成します。
-
-    ```bash
-    sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
-    ```
-  </Collapser>
-
-  <Collapser id="step3-set-credentials" title="New Relicの認証情報を設定する">
-    OTLP エンドポイントを使用して`environment.conf`を書き込みます。`YOUR_LICENSE_KEY` New Relicライセンスキーに置き換え、 `YOUR_OTLP_ENDPOINT`地域の適切なエンドポイントに置き換えます。 適切なエンドポイントを選択するには、OTLP エンドポイント設定[ドキュメント](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)を参照してください。
-
-    ```bash
-    cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
-    [Service]
-    Environment="NEWRELIC_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT"
-    Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
-    EOF
-    ```
-  </Collapser>
-
-  <Collapser id="step3-restart-collector" title="コレクターを再起動します">
-    systemd をリロードし、コレクターを再起動します。
-
-    ```bash
-    sudo systemctl daemon-reload
-    sudo systemctl restart otelcol-contrib.service
-    ```
-  </Collapser>
-</CollapserGroup>
-
-## ステップ4: データ収集を確認する [#verify-data]
-
-OpenTelemetry Collector NGINX Plus メトリックを正常に収集し、 New Relicに送信していることを確認します。
-
-<CollapserGroup>
-  <Collapser id="step4-check-logs" title="コレクターログを確認する">
-    コレクター ログを監視して、エラーなしで実行されていることを確認します。
-
-    ```bash
-    sudo journalctl -u otelcol-contrib.service -n 20
-    ```
-
-    **次の成功指標に注目してください。**
-
-    * ✅ `"Everything is ready. Begin running and processing data."`
-    * ✅ `"Scraping metrics"` - Prometheus エクスポーターから正常に収集しました
-    * ✅ `"Exporting metrics"` - New Relic への送信に成功しました
-  </Collapser>
-
-  <Collapser id="step4-test-traffic" title="テストトラフィックを生成する">
-    メトリクスを作成するためのテスト トラフィックを生成します。
-
-    ```bash
-    # Make a few requests to your NGINX Plus server
-    curl http://localhost
-    ```
-  </Collapser>
-
-  <Collapser id="step4-verify-dashboard" title="New Relicでデータを検証する">
-    [NGINX ダッシュボード](/docs/opentelemetry/integrations/nginx/find-and-query-your-data#find-data)にアクセスして、データ収集を確認します。
-  </Collapser>
-</CollapserGroup>
-
-## ステップ 5: (オプション) NGINX ログを転送する [#forward-logs]
-
-メトリクスと一緒にログイベントが必要な場合は、コレクター設定を拡張してアクセスとエラーログを含めます。
-
-### NGINX Plusのログ形式を設定する
-
-ログを転送する前に、構造化されたログ形式を使用するように NGINX Plus を構成します。 アクセス ログとエラー ログの構成に関するガイダンスについては、 [NGINX ログのドキュメント](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/)を参照してください。
-
-### ログ転送用に OpenTelemetry Collector を構成する
-
-1. NGINX アクセスとエラーログファイルへのフルパスをメモします。 デフォルトは通常`/var/log/nginx/access.log`と`/var/log/nginx/error.log`です。
-
-2. `/etc/otelcol-contrib/config.yaml`を更新して、 `filelog`レシーバーとログ パイプラインを追加します。
-
-   ```yaml
-   receivers:
-     prometheus:
-       # existing Prometheus receiver configuration
-     filelog/nginx_access_logs:
-       include:
-         - /var/log/nginx/access.log
-     filelog/nginx_error_logs:
-       include:
-         - /var/log/nginx/error.log
-
-   processors:
-     batch:
-       # existing settings
-     filter/nginx_metrics:
-       # existing settings
-     resourcedetection:
-       # existing settings
-     resource/nginx:
-       # existing settings
-     transform/nginx_metrics:
-       # existing settings
-     transform/nginx_access_logs:
-       log_statements:
-         - context: resource
-           statements:
-             - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
-             - set(attributes["logtype"], "nginx")
-     transform/nginx_error_logs:
-       log_statements:
-         - context: resource
-           statements:
-             - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
-             - set(attributes["logtype"], "nginx-error")
-
-   exporters:
-     # existing exporter setup
-
-   service:
-     pipelines:
-       metrics/nginx:
-         receivers: [prometheus]
-         processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx_metrics, transform/metadata_nullify]
-         exporters: [otlp_http/newrelic]
-       logs/nginx-access:
-         receivers: [filelog/nginx_access_logs]
-         processors: [batch, resource/nginx, transform/nginx_access_logs]
-         exporters: [otlp_http/newrelic]
-       logs/nginx-error:
-         receivers: [filelog/nginx_error_logs]
-         processors: [batch, resource/nginx, transform/nginx_error_logs]
-         exporters: [otlp_http/newrelic]
-   ```
-
-3. `otelcol-contrib`ユーザーにログファイルへの読み取りアクセスを許可します。
-
-   ```bash
-   sudo usermod -a -G adm otelcol-contrib
-   sudo chmod 644 /var/log/nginx/access.log
-   sudo chmod 644 /var/log/nginx/error.log
-   ```
-
-4. 変更を適用するには、コレクターを再起動します。
-
-   ```bash
-   sudo systemctl restart otelcol-contrib
-   ```
+Expected output: HTTP/2 200 response
+
+</Collapser>
+</CollapserGroup> */}
+
+## NGINX Plusの監視を設定する [#setup]
+
+お好みのコレクターを選択し、設定手順に従ってください。
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-prereqs">
+      NRDOTコレクター
+    </TabsBarItem>
+
+    <TabsBarItem id="otelcol-prereqs">
+      OpenTelemetry Collector貢献
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-prereqs">
+      <Callout variant="tip">
+        検証手順のいずれかが失敗した場合は、続行する前に不足しているコンポーネントをインストールしてください。NRDOT コレクターのインストールについてサポートが必要ですか? nrdot [-collectors-releases リポジトリのインストレーション セクション](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation)を確認してください。
+
+        インストレーション使用時 `export collector_distro="nrdot-collector"`
+      </Callout>
+
+      <Steps>
+        <Step>
+          ### NRDOT コレクターを構成する [#configure-nrdot-collector]
+
+          NGINX Plus Prometheus エクスポーターからメトリクスをスクレイピングし、 New Relicに送信するように NRDOT コレクターを構成します。
+
+          <CollapserGroup>
+            <Collapser id="step1-config-collector-nrdot" title="ステップ1：コレクター構成を設定する">
+              NRDOT コレクターの場合は、デフォルトの設定を置き換えるスタンドアロンの NGINX Plus 監視設定ファイルを作成します。
+
+              <Callout variant="important">
+                **スタンドアロン vs. 複合監視**: この設定監視は NGINX Plus サーバーのみです。 ホスト メトリクス (CPU、メモリ、ディスク) またはシステム ログも必要な場合は、 `hostmetrics`および`filelog`レシーバーを含む NRDOT コレクターの[デフォルト設定](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/config.yaml)を使用し、それに`prometheus`レシーバーを追加します。
+              </Callout>
+
+              次の内容で`/etc/nrdot-collector/nginx-plus-config.yaml`を作成します:
+
+              ```yaml
+              receivers:
+                prometheus:
+                  config:
+                    scrape_configs:
+                      - job_name: 'nginx-plus'
+                        scrape_interval: 30s
+                        static_configs:
+                          - targets: ['<YOUR_PROMETHEUS_EXPORTER_ENDPOINT>']
+              processors:
+                batch:
+                  send_batch_size: 1024
+                  timeout: 30s
+                filter/nginx_metrics:
+                  metrics:
+                    include:
+                      match_type: regexp
+                      metric_names:
+                        - "nginxplus_connections_.*"
+                        - "nginxplus_http_requests_.*"
+                        - "nginxplus_ssl_.*"
+                    exclude:
+                      match_type: regexp
+                      metric_names:
+                        - "nginxplus_server_.*"
+                        - "nginxplus_location_zone_.*"
+                        - "nginxplus_cache_.*"
+                        - "nginxplus_stream_server_.*"
+                        - "nginxplus_upstream_.*"
+                        - "nginxplus_stream_upstream_.*"
+                        - "nginxplus_stream_zone_sync_zone_.*"
+                        - "nginxplus_resolver_.*"
+                        - "nginxplus_limit_request_.*"
+                        - "nginxplus_limit_connection_.*"
+                        - "nginxplus_stream_limit_connection_.*"
+                        - "nginxplus_worker_.*"
+                resource/nginx:
+                  attributes:
+                    - key: nginx.server.endpoint
+                      value: "<YOUR_API_STATUS_ENDPOINT>"  # Replace with your endpoint
+                      action: insert
+                    - key: nginx.deployment.name
+                      value: "<DEPLOYMENT_NAME>"                    # Replace with your deployment server name
+                      action: insert
+                resourcedetection:
+                  detectors: [system]
+                  system:
+                    resource_attributes:
+                      host.name:
+                        enabled: true
+                      host.id:
+                        enabled: true
+                transform/nginx:
+                  metric_statements:
+                    - context: resource
+                      statements:
+                        - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                    - context: resource
+                      statements:
+                        - delete_key(attributes, "service.name")
+                transform/metadata_nullify:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(description, "")
+                        - set(unit, "")
+              exporters:
+                otlp_http:
+                  endpoint: ${env:YOUR_NEWRELIC_OTLP_ENDPOINT}
+                  headers:
+                    api-key: ${env:YOUR_NEW_RELIC_LICENSE_KEY}
+              service:
+                pipelines:
+                  metrics/nginx:
+                    receivers: [prometheus]
+                    processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx, transform/metadata_nullify]
+                    exporters: [otlp_http]
+              ```
+
+              #### 設定パラメーター
+
+              次の表では、キー設定について説明します。
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      パラメータ
+                    </th>
+
+                    <th>
+                      説明
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr>
+                    <td>
+                      `<YOUR_PROMETHEUS_EXPORTER_ENDPOINT>`
+                    </td>
+
+                    <td>
+                      Prometheusエクスポーターのエンドポイント（例：「127.0.0.1:9113」）に置き換えてください。
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `<YOUR_API_STATUS_ENDPOINT>`
+                    </td>
+
+                    <td>
+                      NGINX PlusサーバーのAPIステータスエンドポイントに置き換えてください（例：http:/127.0.0.1/api/9）。
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `<DEPLOYMENT_NAME>`
+                    </td>
+
+                    <td>
+                      この NGINX Plus サーバーの一意のデプロイメント名に置き換えてください (例: 
+
+                      `production-web-01`
+
+                       、 
+
+                      `staging-api`
+
+                       、 
+
+                      `prod-lb-01`
+
+                      )。
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `scrape_interval`
+                    </td>
+
+                    <td>
+                      メトリクスを収集する間隔 (秒単位)。 デフォルト値は 
+
+                      `30s`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `send_batch_size`
+                    </td>
+
+                    <td>
+                      送信前にバッチ処理するメトリクスの数。デフォルト値は 
+
+                      `1024`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `timeout`
+                    </td>
+
+                    <td>
+                      バッチ処理されたメトリクスを送信する前に待機するタイムアウト時間（秒）。デフォルト値は 
+
+                      `30s`
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </Collapser>
+
+            <Collapser id="step2-enable-additional-metrics-nrdot" title="ステップ 2: (オプション) 追加のメトリクスを有効にする">
+              デフォルトでは、設定はコア メトリクス (接続、HTTP requests 、および SSL) のみを収集します。 追加のメトリクス カテゴリを有効にするには:
+
+              1. 以下の[メトリクス リスト](#metrics)から有効にするメトリクスを特定し、それらがどのカテゴリに属しているかをメモします。
+
+              2. 対応するメトリクス プレフィックスを`filter/nginx_metrics`プロセッサの`exclude`から`include`に移動します。
+
+              例: HTTP サーバーゾーンを有効にする メトリクス
+
+              1. `exclude`セクションで次の行を見つけます。
+
+              ```yaml
+              filter/nginx_metrics:
+                metrics:
+                  include:
+                  # existing include metrics
+                  exclude:
+                    match_type: regexp
+                    metric_names:
+                      - "nginxplus_server_.*"
+              ```
+
+              2. `include`セクションに移動します:
+
+              ```yaml
+              filter/nginx_metrics:
+                metrics:
+                  include:
+                    match_type: regexp
+                    metric_names:
+                      - "nginxplus_connections_.*"
+                      - "nginxplus_http_requests_.*"
+                      - "nginxplus_ssl_.*"
+                      - "nginxplus_server_.*"  # Added to enable server zone metrics
+                  exclude:
+                    match_type: regexp
+                    metric_names:
+                      # Remove "nginxplus_server_.*" from here
+                      - "nginxplus_location_zone_.*"
+                      - "nginxplus_cache_.*"
+                      # ... rest of exclude list
+              ```
+
+              3. 変更を加えた後は、コレクターを再起動してください。
+                 ```bash
+                 sudo systemctl restart nrdot-collector.service
+                 ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### 環境を構成し、構成パスを更新する [#set-environment-nrdot]
+
+          NRDOT コレクター設定を更新して、NGINX Plus 構成ファイルを使用し、OTLP エンドポイントを設定します。
+
+          New Relicリージョンに基づいて OTLP エンドポイントを決定します。 お住まいの地域でエンドポイントとサポートされているポートの完全なリストについては [、「エンドポイント、ポート、およびプロトコルの構成」を](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)参照してください。
+
+          <Callout variant="important">
+            ライセンスキーはインストール中にすでに`/etc/nrdot-collector/nrdot-collector.conf`に設定されています。 構成ファイルのパスと OTLP エンドポイントを更新するだけで済みます。
+          </Callout>
+
+          コレクター設定ファイルを更新します。
+
+          ```bash
+          export collector_distro="nrdot-collector"
+          export otlp_endpoint="YOUR_NEWRELIC_OTLP_ENDPOINT"  # Replace with your region's endpoint
+
+          # Update the config file path to point to nginx-plus-config.yaml
+          sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/nginx-plus-config.yaml"|' /etc/${collector_distro}/${collector_distro}.conf
+
+          # Add the OTLP endpoint
+          echo "OTEL_EXPORTER_OTLP_ENDPOINT=${otlp_endpoint}" | sudo tee -a /etc/${collector_distro}/${collector_distro}.conf > /dev/null
+          ```
+        </Step>
+
+        <Step>
+          ### (オプション) NGINX ログの転送 [#forward-logs-nrdot]
+
+          メトリクスと一緒にログイベントが必要な場合は、コレクター設定を拡張してアクセスとエラーログを含めます。
+
+          <CollapserGroup>
+            <Collapser id="configure-nginx-log-format" title="ステップ1：NGINX Plusのログフォーマットを設定する">
+              ログを転送する前に、構造化されたログ形式を使用するように NGINX Plus を構成します。 アクセス ログとエラー ログの構成に関するガイダンスについては、 [NGINX ログのドキュメント](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/)を参照してください。
+            </Collapser>
+
+            <Collapser id="configure-nrdot-log-forwarding" title="ステップ 2: ログ転送用に NRDOT コレクターを構成する">
+              1. NGINX アクセスとエラーログファイルへのフルパスをメモします。 デフォルトは通常`/var/log/nginx/access.log`と`/var/log/nginx/error.log`です。
+
+              2. `/etc/nrdot-collector/nginx-plus-config.yaml`を更新して、 `filelog`レシーバーとログ パイプラインを追加します。
+
+                 ```yaml
+                 receivers:
+                   prometheus:
+                     # existing Prometheus receiver configuration
+                   filelog/nginx_access_logs:
+                     include:
+                       - /var/log/nginx/access.log
+                   filelog/nginx_error_logs:
+                     include:
+                       - /var/log/nginx/error.log
+
+                 processors:
+                   batch:
+                     # existing settings
+                   filter/nginx_metrics:
+                     # existing settings
+                   resourcedetection:
+                     # existing settings
+                   resource/nginx:
+                     # existing settings
+                   transform/nginx_metrics:
+                     # existing settings
+                   transform/nginx_access_logs:
+                     log_statements:
+                       - context: resource
+                         statements:
+                           - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                           - set(attributes["logtype"], "nginx")
+                   transform/nginx_error_logs:
+                     log_statements:
+                       - context: resource
+                         statements:
+                           - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                           - set(attributes["logtype"], "nginx-error")
+
+                 exporters:
+                   # existing exporter setup
+
+                 service:
+                   pipelines:
+                     # Your existing metrics pipeline...
+
+                     # Add log pipelines
+                     logs/nginx-access:
+                       receivers: [filelog/nginx_access_logs]
+                       processors: [batch, resource/nginx, transform/nginx_access_logs]
+                       exporters: [otlp_http]
+                     logs/nginx-error:
+                       receivers: [filelog/nginx_error_logs]
+                       processors: [batch, resource/nginx, transform/nginx_error_logs]
+                       exporters: [otlp_http]
+                 ```
+
+              3. コレクター ユーザーにログファイルへの読み取りアクセスを許可します。
+
+                 ```bash
+                 sudo usermod -a -G adm nrdot-collector
+                 sudo chmod 644 /var/log/nginx/access.log
+                 sudo chmod 644 /var/log/nginx/error.log
+                 ```
+
+              4. 変更を適用するには、コレクターを再起動します。
+
+                 ```bash
+                 sudo systemctl restart nrdot-collector
+                 ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### 監視を開始する [#start-monitoring-nrdot]
+
+          すべて設定が完了したら、NRDOTコレクターを起動して、データがNew Relicに流れていることを確認してください。
+
+          <CollapserGroup>
+            <Collapser id="step4-start-collector-nrdot" title="ステップ1：コレクターを起動する">
+              1. 設定の変更を適用します。
+
+                 ```bash
+                 sudo systemctl daemon-reload
+                 sudo systemctl restart nrdot-collector.service
+                 ```
+
+              2. サービスが実行されていることを確認します。
+
+                 ```bash
+                 sudo systemctl status nrdot-collector.service
+                 ```
+
+                 期待される出力: `Active: active (running)` (最近のエラーなし)
+            </Collapser>
+
+            <Collapser id="step4-verify-data-nrdot" title="ステップ2：データ収集を確認する">
+              3. 起動ログを確認します。
+
+                 ```bash
+                 sudo journalctl -u nrdot-collector.service -n 20
+                 ```
+
+              4. テスト トラフィックを生成します (メトリクスを作成するため)。
+
+                 ```bash
+                 # Make a few requests to your NGINX Plus server
+                 curl http://localhost
+                 ```
+
+              5. New Relicに初期データが表示されるまで時間をおいてから、 [NGINX ダッシュボード](#find-data)にアクセスしてデータ収集を確認します。
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-prereqs">
+      <Callout variant="tip">
+        検証手順のいずれかが失敗した場合は、続行する前に不足しているコンポーネントをインストールしてください。コレクターのインストールについてサポートが必要ですか? [OpenTelemetry Collectorインストレーション ガイド](https://github.com/open-telemetry/opentelemetry-collector-contrib)を確認してください。
+      </Callout>
+
+      <Steps>
+        <Step>
+          ### OpenTelemetryコレクターを構成する [#configure-otelcol-collector]
+
+          NGINX Plus Prometheus エクスポーターからメトリクスを取得し、 New Relicに送信するようにOpenTelemetry Collector構成します。
+
+          <CollapserGroup>
+            <Collapser id="step2-config-collector-otelcol" title="ステップ1：コレクター構成を設定する">
+              <Callout variant="important">
+                **編集する前に:**既存の設定をバックアップします: `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
+              </Callout>
+
+              コレクター設定ファイル（通常は`/etc/otelcol-contrib/config.yaml` ）を編集し、以下のセクションを追加してください。既にレシーバー、プロセッサー、またはエクスポーターのセクションがある場合は、これらを既存の設定に統合してください。
+
+              ```yaml
+              receivers:
+                prometheus:
+                  config:
+                    scrape_configs:
+                      - job_name: 'nginx-plus'
+                        scrape_interval: 30s
+                        static_configs:
+                          - targets: ['<YOUR_PROMETHEUS_EXPORTER_ENDPOINT>']
+              processors:
+                batch:
+                  send_batch_size: 1024
+                  timeout: 30s
+                filter/nginx_metrics:
+                  metrics:
+                    include:
+                      match_type: regexp
+                      metric_names:
+                        - "nginxplus_connections_.*"
+                        - "nginxplus_http_requests_.*"
+                        - "nginxplus_ssl_.*"
+                    exclude:
+                      match_type: regexp
+                      metric_names:
+                        - "nginxplus_server_.*"
+                        - "nginxplus_location_zone_.*"
+                        - "nginxplus_cache_.*"
+                        - "nginxplus_stream_server_.*"
+                        - "nginxplus_upstream_.*"
+                        - "nginxplus_stream_upstream_.*"
+                        - "nginxplus_stream_zone_sync_zone_.*"
+                        - "nginxplus_resolver_.*"
+                        - "nginxplus_limit_request_.*"
+                        - "nginxplus_limit_connection_.*"
+                        - "nginxplus_stream_limit_connection_.*"
+                        - "nginxplus_worker_.*"
+                resource/nginx:
+                  attributes:
+                    - key: nginx.server.endpoint
+                      value: "<YOUR_API_STATUS_ENDPOINT>"  # Replace with your endpoint
+                      action: insert
+                    - key: nginx.deployment.name
+                      value: "<DEPLOYMENT_NAME>"                    # Replace with your deployment name
+                      action: insert
+                resourcedetection:
+                  detectors: [system]
+                  system:
+                    resource_attributes:
+                      host.name:
+                        enabled: true
+                      host.id:
+                        enabled: true
+                transform/nginx:
+                  metric_statements:
+                    - context: resource
+                      statements:
+                        - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                    - context: resource
+                      statements:
+                        - delete_key(attributes, "service.name")
+                transform/metadata_nullify:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(description, "")
+                        - set(unit, "")
+              exporters:
+                otlp_http:
+                  endpoint: ${env:YOUR_NEWRELIC_OTLP_ENDPOINT}
+                  headers:
+                    api-key: ${env:YOUR_NEW_RELIC_LICENSE_KEY}
+              service:
+                pipelines:
+                  metrics/nginx:
+                    receivers: [prometheus]
+                    processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx, transform/metadata_nullify]
+                    exporters: [otlp_http]
+              ```
+
+              #### 設定パラメーター
+
+              次の表では、キー設定について説明します。
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      パラメータ
+                    </th>
+
+                    <th>
+                      説明
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr>
+                    <td>
+                      `<YOUR_PROMETHEUS_EXPORTER_ENDPOINT>`
+                    </td>
+
+                    <td>
+                      Prometheusエクスポーターのエンドポイント（例：「127.0.0.1:9113」）に置き換えてください。
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `<YOUR_API_STATUS_ENDPOINT>`
+                    </td>
+
+                    <td>
+                      NGINX PlusサーバーのAPIステータスエンドポイントに置き換えてください（例：http:/127.0.0.1/api/9）。
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `<DEPLOYMENT_NAME>`
+                    </td>
+
+                    <td>
+                      この NGINX Plus サーバーの一意のデプロイメント名に置き換えてください (例: 
+
+                      `production-web-01`
+
+                       、 
+
+                      `staging-api`
+
+                       、 
+
+                      `prod-lb-01`
+
+                      )。
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `scrape_interval`
+                    </td>
+
+                    <td>
+                      メトリクスを収集する間隔。 デフォルト値は 
+
+                      `30s`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `send_batch_size`
+                    </td>
+
+                    <td>
+                      送信前にバッチ処理するメトリクスの数。デフォルト値は 
+
+                      `1024`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `timeout`
+                    </td>
+
+                    <td>
+                      バッチ送信前に待機する最大時間。デフォルト値は 
+
+                      `30s`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `nginx.display.name`
+                    </td>
+
+                    <td>
+                      New RelicにおけるNGINXサーバーの表示名形式（自動生成形式は「server: 
+
+                      `<DEPLOYMENT_NAME>`
+
+                       」）
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </Collapser>
+
+            <Collapser id="step2-enable-additional-metrics-otelcol" title="ステップ 2: (オプション) 追加のメトリクスを有効にする">
+              デフォルトでは、設定はコア メトリクス (接続、HTTP requests 、および SSL) のみを収集します。 サーバー ゾーン、ロケーション ゾーン、キャッシュ メトリクスなどの追加のメトリクス カテゴリを有効にするには、次の手順を実行します。
+
+              1. 以下の[メトリクスリスト](#metrics)から、有効にしたいメトリクスを選択してください。それらがどのカテゴリに属するか（例：HTTPサーバーゾーン、ロケーションゾーン、キャッシュ）をメモしてください。
+
+              2. 対応するメトリクス プレフィックスを`filter/nginx_metrics`プロセッサの`exclude`から`include`に移動します。
+
+              例: HTTP サーバーゾーンを有効にする メトリクス
+
+              `exclude`セクションで次の行を見つけます。
+
+              ```yaml
+              filter/nginx_metrics:
+                metrics:
+                  include:
+                  # existing include metrics
+                  exclude:
+                    match_type: regexp
+                    metric_names:
+                      - "nginxplus_server_.*"
+              ```
+
+              `include`セクションに移動します:
+
+              ```yaml
+              filter/nginx_metrics:
+                metrics:
+                  include:
+                    match_type: regexp
+                    metric_names:
+                      - "nginxplus_connections_.*"
+                      - "nginxplus_http_requests_.*"
+                      - "nginxplus_ssl_.*"
+                      - "nginxplus_server_.*"  # Added to enable server zone metrics
+                  exclude:
+                    match_type: regexp
+                    metric_names:
+                      # Remove "nginxplus_server_.*" from here
+                      - "nginxplus_location_zone_.*"
+                      - "nginxplus_cache_.*"
+                      # ... rest of exclude list
+              ```
+
+              3. 変更を加えた後は、コレクターを再起動してください。
+                 ```bash
+                 sudo systemctl restart otelcol-contri.service
+                 ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### 認証を設定する [#set-environment-otelcol]
+
+          OpenTelemetry Collector が New Relic アカウントにデータを送信できるように、安全な認証を構成します。この手順では、資格情報を安全に保つために環境変数を設定します。
+
+          1. New Relicの認証情報を取得してください：
+
+             * ライセンスキー: [APIキーUIページ](https://one.newrelic.com/admin-portal/api-keys/home)からライセンスキーを取得します。
+             * OTLP エンドポイント: [New Relic OTLP エンド](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)ポイントから地域のエンドポイントを使用します
+
+          2. 認証情報を設定します。
+
+             1. systemd オーバーライド ディレクトリを作成します。
+
+             ```bash
+             export collector_distro="otelcol-contrib"
+             sudo mkdir -p /etc/systemd/system/${collector_distro}.service.d
+             ```
+
+             2. 環境設定ファイルを作成します。
+
+             ```bash
+             cat <<EOF | sudo tee /etc/systemd/system/${collector_distro}.service.d/environment.conf
+             [Service]
+             Environment="NEWRELIC_OTLP_ENDPOINT=<`YOUR_NEWRELIC_OTLP_ENDPOINT>`"
+             Environment="NEWRELIC_LICENSE_KEY=`<YOUR_NEW_RELIC_LICENSE_KEY>`"
+             EOF
+             ```
+        </Step>
+
+        <Step>
+          ### (オプション) NGINX ログの転送 [#forward-logs-otelcol]
+
+          メトリクスと一緒にログイベントが必要な場合は、コレクター設定を拡張してアクセスとエラーログを含めます。
+
+          <CollapserGroup>
+            <Collapser id="configure-nginx-log-format-otelcol" title="ステップ1：NGINX Plusのログフォーマットを設定する">
+              ログを転送する前に、構造化されたログ形式を使用するように NGINX Plus を構成します。 アクセス ログとエラー ログの構成に関するガイダンスについては、 [NGINX ログのドキュメント](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/)を参照してください。
+            </Collapser>
+
+            <Collapser id="configure-otelcol-log-forwarding" title="ステップ 2: 転送ログ用にOpenTelemetry Collectorを構成する">
+              1. NGINX アクセスとエラーログファイルへのフルパスをメモします。 デフォルトは通常`/var/log/nginx/access.log`と`/var/log/nginx/error.log`です。
+
+              2. `/etc/otelcol-contrib/config.yaml`を更新して、 `filelog`レシーバーとログ パイプラインを追加します。
+
+                 ```yaml
+                 receivers:
+                   prometheus:
+                     # existing Prometheus receiver configuration
+                   filelog/nginx_access_logs:
+                     include:
+                       - /var/log/nginx/access.log
+                   filelog/nginx_error_logs:
+                     include:
+                       - /var/log/nginx/error.log
+
+                 processors:
+                   batch:
+                     # existing settings
+                   filter/nginx_metrics:
+                     # existing settings
+                   resourcedetection:
+                     # existing settings
+                   resource/nginx:
+                     # existing settings
+                   transform/nginx_metrics:
+                     # existing settings
+                   transform/nginx_access_logs:
+                     log_statements:
+                       - context: resource
+                         statements:
+                           - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                           - set(attributes["logtype"], "nginx")
+                   transform/nginx_error_logs:
+                     log_statements:
+                       - context: resource
+                         statements:
+                           - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                           - set(attributes["logtype"], "nginx-error")
+
+                 exporters:
+                   # existing exporter setup
+
+                 service:
+                   pipelines:
+                     # Your existing metrics pipeline...
+
+                     # Add log pipelines
+                     logs/nginx-access:
+                       receivers: [filelog/nginx_access_logs]
+                       processors: [batch, resource/nginx, transform/nginx_access_logs]
+                       exporters: [otlp_http]
+                     logs/nginx-error:
+                       receivers: [filelog/nginx_error_logs]
+                       processors: [batch, resource/nginx, transform/nginx_error_logs]
+                       exporters: [otlp_http]
+                 ```
+
+              3. `otelcol-contrib`ユーザーにログファイルへの読み取りアクセスを許可します。
+
+                 ```bash
+                 sudo usermod -a -G adm otelcol-contrib
+                 sudo chmod 644 /var/log/nginx/access.log
+                 sudo chmod 644 /var/log/nginx/error.log
+                 ```
+
+              4. 変更を適用するには、コレクターを再起動します。
+
+                 ```bash
+                 sudo systemctl restart otelcol-contrib
+                 ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### 監視を開始する [#start-monitoring-otelcol]
+
+          すべての設定が完了したら、OpenTelemetry Collector を起動し、データが New Relic に流れていることを確認します。
+
+          <CollapserGroup>
+            <Collapser id="step4-start-collector-otelcol" title="ステップ1：コレクターを起動する">
+              1. 設定の変更を適用します。
+
+                 ```bash
+                 sudo systemctl daemon-reload
+                 sudo systemctl restart otelcol-contrib.service
+                 ```
+
+              2. サービスが実行されていることを確認します。
+
+                 ```bash
+                 sudo systemctl status otelcol-contrib.service
+                 ```
+
+                 期待される出力: `Active: active (running)` (最近のエラーなし)
+            </Collapser>
+
+            <Collapser id="step4-verify-data-otelcol" title="ステップ2：データ収集を確認する">
+              3. 起動ログを確認します。
+                 ```bash
+                 sudo journalctl -u otelcol-contrib.service -n 20
+                 ```
+              4. テスト トラフィックを生成します (メトリクスを作成するため)。
+                 ```bash
+                 # Make a few requests to your NGINX Plus server
+                 curl http://localhost
+                 ```
+              5. New Relicに初期データが表示されるまで時間をおいてから、 [NGINX ダッシュボード](#find-data)にアクセスしてデータ収集を確認します。
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
 
 ## データを見つけて使用する [#find-data]
 
@@ -636,7 +1118,7 @@ OpenTelemetry Collector 、 [NGINX Prometheus エクスポーター](https://git
 
   <Collapser id="plus-server-zone" title="HTTP サーバーゾーン">
     <Callout variant="important">
-      **注:**これらのメトリクスはデフォルトでは無効になっています。 それらを有効にするには、「(オプション) OpenTelemetry Collector Contrib の[追加のメトリクスを有効にする」を](#step2-enable-additional-metrics-otelcol)参照してください。
+      **注:**これらのメトリクスはデフォルトでは無効になっています。 これらを有効にするには、 [「(オプション) NRDOT コレクターの追加メトリクスを有効にする」](#step2-enable-additional-metrics-nrdot)または「(オプション) OpenTelemetry Collector Contrib の[追加のメトリクスを有効にする」を](#step2-enable-additional-metrics-otelcol)参照してください。
     </Callout>
 
     <table>
@@ -802,7 +1284,7 @@ OpenTelemetry Collector 、 [NGINX Prometheus エクスポーター](https://git
 
   <Collapser id="plus-location-zones" title="ロケーションゾーン">
     <Callout variant="important">
-      **注:**これらのメトリクスはデフォルトでは無効になっています。 それらを有効にするには、「(オプション) OpenTelemetry Collector Contrib の[追加のメトリクスを有効にする」を](#step2-enable-additional-metrics-otelcol)参照してください。
+      **注:**これらのメトリクスはデフォルトでは無効になっています。 これらを有効にするには、 [「(オプション) NRDOT コレクターの追加メトリクスを有効にする」](#step2-enable-additional-metrics-nrdot)または「(オプション) OpenTelemetry Collector Contrib の[追加のメトリクスを有効にする」を](#step2-enable-additional-metrics-otelcol)参照してください。
     </Callout>
 
     <table>
@@ -912,7 +1394,7 @@ OpenTelemetry Collector 、 [NGINX Prometheus エクスポーター](https://git
 
   <Collapser id="plus-cache" title="キャッシュ">
     <Callout variant="important">
-      **注:**これらのメトリクスはデフォルトでは無効になっています。 それらを有効にするには、「(オプション) OpenTelemetry Collector Contrib の[追加のメトリクスを有効にする」を](#step2-enable-additional-metrics-otelcol)参照してください。
+      **注:**これらのメトリクスはデフォルトでは無効になっています。 これらを有効にするには、 [「(オプション) NRDOT コレクターの追加メトリクスを有効にする」](#step2-enable-additional-metrics-nrdot)または「(オプション) OpenTelemetry Collector Contrib の[追加のメトリクスを有効にする」を](#step2-enable-additional-metrics-otelcol)参照してください。
     </Callout>
 
     <table>
@@ -1381,7 +1863,7 @@ OpenTelemetry Collector 、 [NGINX Prometheus エクスポーター](https://git
           </td>
 
           <td>
-            収集されるログのタイプ (ログのみに適用されます)。 New Relic の組み込み[解析ルール](https://docs.newrelic.com/docs/logs/ui-data/built-log-parsing-rules/#nginx)によって使用されます。この属性は、ログ転送が有効になっている場合にのみ使用できます。
+            収集されるログのタイプ (ログのみに適用されます)。 New Relic の組み込み[解析ルール](/docs/logs/ui-data/built-log-parsing-rules/#nginx)で使用されます。この属性は、ログ転送が有効になっている場合にのみ利用可能です。
           </td>
 
           <td>
@@ -1405,10 +1887,3 @@ OpenTelemetry Collector 、 [NGINX Prometheus エクスポーター](https://git
 
 * [OpenTelemetryを使用したセルフホスト NGINX のモニター](/docs/opentelemetry/integrations/nginx/nginx-otel-host/)- 標準 NGINX デプロイメント用
 * [モニター NGINX on Kubernetes with OpenTelemetry](/docs/opentelemetry/integrations/nginx/nginx-otel-kubernetes/) - コンテナ環境向け
-* [NGINX OpenTelemetry概要](/docs/opentelemetry/integrations/nginx/nginx-otel-overview/)- 収集されたメトリクス、プロパティ、およびユースケースを理解する
-* [OpenTelemetryのベストプラクティス](/docs/opentelemetry/best-practices/opentelemetry-otlp/)- OpenTelemetryの設定を最適化する
-
-**NGINX Plus リソース:**
-
-* [NGINX Prometheus エクスポーターのドキュメント](https://github.com/nginx/nginx-prometheus-exporter?tab=readme-ov-file#metrics-for-nginx-plus)- 技術的な詳細と高度な設定
-* [NGINX Plus APIドキュメント](https://docs.nginx.com/nginx/admin-guide/monitoring/live-activity-monitoring/)- 完全なAPIリファレンスと機能
