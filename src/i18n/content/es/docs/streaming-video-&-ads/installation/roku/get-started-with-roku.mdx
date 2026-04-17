@@ -1,7 +1,7 @@
 ---
 title: Comience a emplear el agente Roku
 tags: null
-metaDescription: 'Learn how to deploy the Roku agent for monitoring in New Relic, including UI, copy/paste, and API options.'
+metaDescription: Learn how to install and configure the Roku agent for monitoring in New Relic.
 freshnessValidatedDate: never
 translationType: machine
 ---
@@ -16,18 +16,21 @@ El agente Roku New Relic está diseñado para monitorear el comportamiento de la
 
 ## Requisitos previos
 
-Para inicializar el agente Roku de New Relic, necesitas:
+Antes de instalar el agente de Streaming Video &amp; Ads para Roku, asegúrese de tener:
 
 * Su [ID de cuenta](/docs/accounts-partnerships/accounts/account-setup/account-id)de New Relic
-* Tu New Relic <InlinePopover type="licenseKey" />.
+* Tu New Relic<InlinePopover type="licenseKey" />
+* Revisó los [requisitos de compatibilidad del agente de Streaming Video &amp; Ads](/docs/streaming-video-&-ads/installation/compatibility-requirements)
 
-## Instalar y configurar el agente Roku
+## Instalar el agente de Roku
 
 <Steps>
   <Step>
+    ### Descargar y extraer el paquete
+
     Descargue el paquete del agente de Roku Video y descomprímalo para acceder a la siguiente estructura de archivos:
 
-    ```
+    ```brightscript
     components/NewRelicAgent/
         NRAgent.brs
         NRAgent.xml
@@ -39,16 +42,168 @@ Para inicializar el agente Roku de New Relic, necesitas:
   </Step>
 
   <Step>
+    ### Copia archivos a tu proyecto
+
     Copie la carpeta `NewRelicAgent` al directorio `components` y el archivo `NewRelicAgent.brs` al directorio `source` de su proyecto de aplicación Roku.
   </Step>
 
   <Step>
-    **Inicializar el agente**: abra el archivo BrightScript principal (por ejemplo, `Main.brs`). Inicialice el agente New Relic llamando a la función `NewRelic` con sus `ACCOUNT ID`, <InlinePopover type="licenseKey" />, `APP NAME`, `APPLICATION TOKEN` y `ENDPOINT`.
+    ### Inicializar el agente
 
-    Para configurar el agente para que emplee diferentes extremos según el entorno, modifique el archivo `Main.brs` . El valor de configuración predeterminado es `US`, pero se puede cambiar a `EU` o `staging` según el entorno que desee emplear.
+    Inicializa el agente de New Relic en tu archivo principal de BrightScript (por ejemplo, `Main.brs`):
 
     ```brightscript
-    m.nr = NewRelic("ACCOUNT ID", "LICENSE KEY", "APP NAME", "APPLICATION TOKEN", "US", true)
+    m.nr = NewRelic("ACCOUNT ID", "LICENSE KEY")
+    ```
+
+    <Callout variant="tip">
+      **Configuración avanzada**: Opcionalmente, puede especificar el nombre de la aplicación, el token de la aplicación, la región del endpoint y el logging:
+
+      ```brightscript
+      m.nr = NewRelic("ACCOUNT ID", "LICENSE KEY", "APP NAME", "APPLICATION TOKEN", "US", true)
+      ```
+
+      El endpoint predeterminado es `US`. Para los centros de datos de la UE, utilice `EU`.
+    </Callout>
+  </Step>
+</Steps>
+
+## Habilitar capturas de eventos
+
+El agente de medios de New Relic para dispositivos Roku captura los eventos que ocurren durante la reproducción de contenido de video. Para habilitar la captura automática de eventos, agregue estas llamadas a su aplicación:
+
+<Steps>
+  <Step>
+    ### Registrar el inicio de la aplicación
+
+    Después de inicializar el agente, registre el evento de inicio de la aplicación:
+
+    ```brightscript
+    nrAppStarted(m.nr, aa)
+    ```
+  </Step>
+
+  <Step>
+    ### Habilitar el seguimiento del sistema y de video
+
+    Activar el seguimiento de eventos del sistema y de video:
+
+    ```brightscript
+    m.syslog = NewRelicSystemStart(m.port)
+    ```
+
+    Para el seguimiento de video, llama a `NewRelicVideoStart(m.nr, m.video)` en tu componente de escena.
+  </Step>
+
+  <Step>
+    ### Procesar mensajes en bucle de espera
+
+    Maneje los eventos del sistema en su bucle de espera principal:
+
+    ```brightscript
+    if nrProcessMessage(m.nr, msg) = false
+        ' Process other messages
+    end if
     ```
   </Step>
 </Steps>
+
+## Ejemplo completo
+
+A continuación se muestra un ejemplo completo de cómo integrar el agente de New Relic en una aplicación de Roku:
+
+### Principal.brs
+
+```brightscript
+sub Main(aa as Object)
+    screen = CreateObject("roSGScreen")
+    m.port = CreateObject("roMessagePort")
+    screen.setMessagePort(m.port)
+
+    'Create the main scene that contains a video player
+    scene = screen.CreateScene("VideoScene")
+    screen.show()
+
+    'Init New Relic Agent
+    m.nr = NewRelic("ACCOUNT ID", "LICENSE KEY")
+
+    'Send APP_STARTED event
+    nrAppStarted(m.nr, aa)
+
+    'Pass NewRelicAgent object to the main scene
+    scene.setField("nr", m.nr)
+
+    'Activate system tracking
+    m.syslog = NewRelicSystemStart(m.port)
+
+    while (true)
+        msg = wait(0, m.port)
+        if nrProcessMessage(m.nr, msg) = false
+            'It is not a system message captured by New Relic Agent
+            if type(msg) = "roPosterScreenEvent"
+                if msg.isScreenClosed()
+                    exit while
+                end if
+            end if
+        end if
+    end while
+end sub
+```
+
+### VideoEscena.xml
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="VideoScene" extends="Scene">
+	<interface>
+		<!-- Field used to pass the NewRelicAgent object to the scene -->
+		<field id="nr" type="node" onChange="nrRefUpdated" />
+	</interface>
+
+	<children>
+		<Video
+			id="myVideo"
+			translation="[0,0]"
+		/>
+	</children>
+
+	<!-- New Relic Agent Interface -->
+	<script type="text/brightscript" uri="pkg:/source/NewRelicAgent.brs"/>
+
+	<script type="text/brightscript" uri="pkg:/components/VideoScene.brs"/>
+</component>
+```
+
+### VideoEscena.brs
+
+```brightscript
+sub init()
+    m.top.setFocus(true)
+    setupVideoPlayer()
+end sub
+
+function nrRefUpdated()
+    m.nr = m.top.nr
+
+    'Activate video tracking
+    NewRelicVideoStart(m.nr, m.video)
+end function
+
+function setupVideoPlayer()
+    videoUrl = "http://..."
+    videoContent = createObject("RoSGNode", "ContentNode")
+    videoContent.url = videoUrl
+    videoContent.title = "Any Video"
+    m.video = m.top.findNode("myVideo")
+    m.video.content = videoContent
+    m.video.control = "play"
+end function
+```
+
+## ¿Que sigue?
+
+Después de instalar el agente de Roku, explore estos recursos para aprovechar al máximo su monitoreo de video en streaming:
+
+* [Referencia de la API del agente de Roku](/docs/streaming-video-&-ads/installation/roku/agent-api/api-agent): Explore la API completa para eventos personalizados, métricas y configuración avanzada
+* [Seguimiento de anuncios para Roku](/docs/streaming-video-&-ads/installation/roku/ad-tracking): Configura el monitoreo para eventos de anuncios de RAF y Google IMA
+* [Ver tus datos en New Relic](/docs/streaming-video-&-ads/view-data-in-newrelic/streaming-video-&-ads-features): Explora la telemetría de reproducción de video y anuncios en todas las plataformas
