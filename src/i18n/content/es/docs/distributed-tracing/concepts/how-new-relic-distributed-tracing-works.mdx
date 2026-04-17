@@ -28,7 +28,7 @@ Tenemos algunas estrategias de muestreo disponibles:
 
 ### Muestreo head-based (rastreo distribuido estándar) [#head-based]
 
-Con la excepción de nuestra característica [Infinite Tracing](#tail-based) , la mayoría de nuestras herramientas de rastreo utilizan un enfoque de muestreo head-based. Esto aplica filtros a tramos individuales antes de que lleguen todos los tramos de una traza, lo que significa que las decisiones sobre si se aceptan tramos se toman al principio (el &quot;cabezal&quot;) del proceso de filtrado. Utilizamos esta estrategia de muestreo para capturar una muestra representativa de la actividad y al mismo tiempo evitar problemas de almacenamiento y rendimiento.
+A excepción de nuestra funcionalidad de [Infinite Tracing](#tail-based), la mayoría de nuestras herramientas de rastreo utilizan un enfoque de muestreo basado en la cabecera. Esto aplica filtros a spans individuales antes de que lleguen todos los spans de una traza, lo que significa que las decisiones sobre si aceptar spans se toman al principio (la &quot;cabecera&quot;) del proceso de filtrado. Esta estrategia de muestreo puede ser útil para capturar una muestra representativa de la actividad, evitando problemas de almacenamiento y rendimiento.
 
 Una vez que llega el primer tramo de una traza, se abre una sesión y se mantiene durante 90 segundos. Con cada llegada subsiguiente de un nuevo tramo para esa traza, el tiempo de expiración se restablece a 90 segundos. traza que no recibió un span en los últimos 90 segundos se cerrará automáticamente. El resumen de traza y los datos de tramo solo se escriben cuando se cierra una traza.
 
@@ -36,17 +36,38 @@ Aquí hay algunos detalles sobre cómo se implementa muestreo head-based en nues
 
 <CollapserGroup>
   <Collapser id="trace-origin-sampling" title="Agente de lenguaje: muestreo adaptativo">
-    Nuestro agente de lenguaje <InlinePopover type="apm" />utiliza muestreo adaptativo para capturar una muestra representativa de la actividad del sistema. A continuación se explica cómo funciona el muestreo adaptativo.
+    ### Muestreo modernizado y compatibilidad con OpenTelemetry
 
-    El rendimiento del primer servicio en una traza se utiliza para ajustar la frecuencia con la que se muestrean las solicitudes. Esto se explica con más detalle a continuación, y también puedes consultar la documentación de tu agente APM.
+    Nuestros agentes de lenguaje <InlinePopover type="apm" />utilizan muestreo adaptativo para proporcionar visibilidad de alta fidelidad mientras mantienen el rendimiento del sistema. Este enfoque garantiza que se capture una muestra representativa de la actividad del sistema en diversas arquitecturas, incluidos los agentes nativos de New Relic y las integraciones de OpenTelemetry (OTel).
 
-    El primer servicio que monitor en un rastreo distribuido se llama traza origen. El origen de la traza elige solicitudes al azar para ser traza. Esta decisión se propaga a los servicios posteriores afectados por dicha solicitud. Cuando se completa la solicitud, los intervalos generados por estas solicitudes se informan a New Relic y se ponen a disposición en la UI como una traza completa (aunque los límites de intervalo del agente que se describen a continuación pueden dar lugar a una traza fragmentada).
+    ### Cómo funciona el muestreo adaptativo
 
-    El servicio de origen de trazas muestrea 10 trazas por minuto. Se intenta distribuir la recolección de estas 10 trazas a lo largo de un minuto para obtener una muestra representativa a lo largo del tiempo. La frecuencia de ejemplificación exacta depende del número de transacciones del minuto anterior y se adapta a los cambios en el rendimiento de las transacciones.
+    El primer servicio monitoreado en una traza distribuida—el **origen de la traza**—es responsable de la decisión de muestreo. Esta decisión se propaga a todos los servicios descendentes para garantizar una traza completa de extremo a extremo.
 
-    Por ejemplo, si hubo 100 transacciones en el minuto anterior, el agente anticiparía un número similar de transacciones y seleccionaría 1 de cada 10 transacciones para muestrear durante el siguiente minuto.
+    Los agentes de New Relic utilizan un algoritmo adaptativo &quot;basado en objetivos&quot;. El agente analiza el rendimiento del minuto anterior para calcular la probabilidad de muestreo para el minuto actual. Por ejemplo, si su servicio procesa 100 transacciones por minuto y el objetivo de muestreo es 10, el agente se ajusta dinámicamente para seleccionar aproximadamente 1 de cada 10 transacciones.
 
-    Agente APM tiene un límite en la cantidad de intervalos recopilados por minuto, con un límite predeterminado de 2000 intervalos recopilados por minuto por instancia de agente (para saber cómo ajustar esto, consulte la documentación de configuración de agente APM). Si un agente genera más intervalos que su límite configurado en un minuto, algunos de los intervalos se eliminarán, lo que dará como resultado [una traza fragmentada](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/#fragmented-traces) en la UI. A las trazas se les asigna una prioridad aleatoria cuando se seleccionan para el muestreo, por lo que si varios agentes necesitan eliminar tramos, pueden intentar mantener intacta la traza de mayor prioridad eliminando primero los tramos de la traza de menor prioridad.
+    Para encontrar el objetivo de muestreo predeterminado y los límites de span para su agente, consulte la documentación específica del agente:
+
+    * [Java](/docs/apm/agents/java-agent/configuration/distributed-tracing-java-agent)
+    * [Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/distributed-tracing-nodejs-agent)
+    * [.NET](/docs/apm/agents/net-agent/configuration/distributed-tracing-net-agent)
+    * [Go](/docs/apm/agents/go-agent/configuration/distributed-tracing-go-agent)
+    * [Python](/docs/apm/agents/python-agent/configuration/distributed-tracing-python-agent)
+    * [Ruby](/docs/apm/agents/ruby-agent/configuration/distributed-tracing-ruby-agent)
+
+    <Callout variant="tip">
+      **Solo rastreo distribuido estándar**: Si un agente genera más spans que su límite configurado en un minuto, se descartarán algunos spans, lo que resultará en [trazas fragmentadas](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/#fragmented-traces) en la IU. A las trazas se les asigna una prioridad aleatoria cuando se seleccionan para el muestreo; por lo tanto, si varios agentes necesitan descartar spans, pueden intentar mantener intactas las trazas de mayor prioridad descartando primero los spans de las trazas de menor prioridad.
+
+      Esto no se aplica a Infinite Tracing, que envía todos los datos de trazas sin muestreo.
+    </Callout>
+
+    ### Alta fidelidad y entornos híbridos
+
+    Como parte de nuestro compromiso con los estándares abiertos, las últimas versiones del agente de New Relic están diseñadas para la **compatibilidad híbrida**.
+
+    **Soporte para la proporción de rastreo**: Los agentes modernos ahora pueden alinearse con las proporciones de muestreo nativas de OTel, lo que permite una lógica de muestreo consistente en entornos mixtos. Consulta [Soporte de la API de OpenTelemetry](/docs/apm/agents/manage-apm-agents/opentelemetry-api-support) para obtener detalles de configuración.
+
+    **Preservación de decisiones ascendentes**: En entornos de &quot;Modo mixto&quot; (donde están presentes tanto los SDK de OTel como los agentes de New Relic), nuestros agentes priorizan preservar las decisiones de traza iniciadas por los SDK de OTel ascendentes para evitar trazas fragmentadas.
   </Collapser>
 
   <Collapser id="lambda-sampling" title="Lambda muestreo de trazas">

@@ -2,7 +2,7 @@
 title: 'Upcoming End-of-Life: Google Core Web Vital (FID)'
 summary: 'How will I be impacted?'
 releaseDate: '2024-08-01'
-learnMoreLink: 'https://forum.newrelic.com/s/hubtopic/aAXPh0000002q8z/upcoming-endoflife-google-core-web-vital-fid' 
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAXPh0000002q8z/upcoming-endoflife-google-core-web-vital-fid' 
 ---
 
 <Callout variant="important">

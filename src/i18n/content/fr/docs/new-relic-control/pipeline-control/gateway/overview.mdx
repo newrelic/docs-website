@@ -1,0 +1,334 @@
+---
+title: Gateway de contrôle de pipeline
+metaDescription: 'Pipeline Control gateway filters noisy telemetry data, reduces ingestion costs, and improves signal-to-noise ratio using OpenTelemetry-based processing in your infrastructure.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Le gateway Pipeline Control est un pipeline de traitement de données basé sur OpenTelemetry qui s&apos;exécute dans votre infrastructure. Il traite les données de télémétrie avant de les envoyer à New Relic, vous donnant le contrôle sur les coûts des données, la qualité du signal et la gestion des données.
+
+## Quels problèmes le gateway Pipeline Control résout-il ?
+
+Les organisations sont submergées par des données de télémétrie parasites et non pertinentes en raison d&apos;un manque de visibilité et de contrôle granulaire sur la façon dont les données sont traitées. Cela rend difficile l&apos;obtention d&apos;informations exploitables et la gestion efficace des données, et entraîne des coûts plus élevés ainsi qu&apos;une observabilité moins efficace.
+
+### Filtrer les données bruitées
+
+**Problème :** Les logs de débogage, les données d&apos;environnement de test et les vérifications de l&apos;état inondent votre système d&apos;informations non pertinentes, rendant difficile la détection des problèmes critiques.
+
+**Solution avec gateway :**
+
+* Filtrer tous les logs DEBUG des environnements de production
+* Supprimez toute la télémétrie des environnements de test avant qu&apos;elle ne quitte votre réseau
+* Supprimez les logs de contrôle de santé qui génèrent des millions d&apos;entrées chaque jour
+* Filtrer par niveau de log, environnement, nom de service ou tout attribut
+
+**Résultat :** Un rapport signal/bruit amélioré facilite l&apos;identification des anomalies critiques et des tendances.
+
+### Réduire les coûts d&apos;ingestion de données
+
+**Problème :** Votre facture d&apos;observabilité est de 80 000 $/mois, dont 70 % proviennent de l&apos;ingestion de logs de routine. Les données à fort volume et à faible valeur augmentent les coûts sans fournir d&apos;informations exploitables.
+
+**Solution avec gateway :**
+
+* Échantillonnez 95 % des logs INFO tout en conservant 100 % des logs ERROR et WARN
+* Supprimez les métriques spécifiques aux utilisateurs pour les utilisateurs non payants (80 % de votre base d&apos;utilisateurs)
+* Filtrez la télémétrie redondante ou inutile à la source
+* Gérez les données à un niveau granulaire en fonction de la valeur métier
+
+**Résultat :** réduisez le volume de données de 85 %, faisant passer votre facture mensuelle de 80 000 $ à 12 000 $ tout en conservant toutes les données critiques.
+
+### Ajouter du contexte et enrichir les données
+
+**Problème :** Vos microservices utilisent différents frameworks de logging. Logs du Service A `level=ERROR`, logs du Service B `severity=error`, logs du Service C `log_level=3`. Vous ne pouvez pas créer de dashboards unifiés ou d&apos;alertes.
+
+**Solution avec gateway :**
+
+* Normaliser les noms d&apos;attributs : Transformer toutes les variantes en `severity.text=ERROR`
+* Ajouter des métadonnées organisationnelles : `team`, `cost_center`, `region` à toute la télémétrie
+* Enrichir avec du contexte métier : ajouter `business_criticality=HIGH` pour les endpoints de paiement
+* Standardiser les noms d&apos;environnement : `env`, `environment`, `deploy_env` → `deployment.environment`
+
+**Résultat :** Une seule requête fonctionne sur tous les services. Les dashboards unifiés affichent des métriques inter-services précises sans nécessiter de modification du code de l&apos;application.
+
+### À qui s&apos;adresse ce produit ?
+
+Le gateway Pipeline Control vous sera utile si vous :
+
+* Êtes submergé par des données de télémétrie bruyantes et non pertinentes
+* Besoin de réduire les coûts d&apos;ingestion de données
+* Vous souhaitez améliorer le rapport signal/bruit pour détecter les problèmes critiques plus rapidement
+* Besoin d&apos;ajouter un contexte organisationnel aux données de télémétrie
+* Vous souhaitez structurer des données de log non structurées pour optimiser les requêtes
+* Besoin de se conformer aux réglementations sur la confidentialité des données
+* Vous souhaitez contrôler les données qui sortent de votre réseau
+
+## Concepts de base
+
+### Types de télémétrie
+
+Le gateway traite quatre types de télémétrie indépendamment :
+
+* **Métriques**: Mesures numériques (utilisation du CPU, taux de requêtes, consommation de mémoire)
+* **Événements**: Occurrences discrètes (déploiements, inscriptions d&apos;utilisateurs, erreurs)
+* **Logs**: Enregistrements textuels de l&apos;activité de l&apos;application
+* **Traces**: Flux de requêtes distribués entre microservices (spans individuels)
+
+Chaque type circule dans son propre pipeline avec ses propres processeurs.
+
+### Processeur
+
+Les processeurs sont les briques élémentaires de votre pipeline. Chaque type de processeur a une fonction spécifique :
+
+<Callout variant="tip">
+  Gateway Processeur utilise **OTTL (OpenTelemetry Transformation Language)** pour écrire des instructions de transformation et des conditions booléennes. OTTL est un langage puissant, sans fournisseur associé, doté d&apos;un riche ensemble de fonctions. Pour en savoir plus, consultez la [documentation OpenTelemetry OTTL](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/README.md).
+</Callout>
+
+**Les processeurs de transformation** modifient les données à l&apos;aide d&apos;OTTL :
+
+* Ajouter, mettre à jour ou supprimer des attributs
+* Analyser les chaînes avec des motifs regex
+* Dériver de nouveaux champs à partir de données existantes
+* Hacher les attributs à haute cardinalité
+* Exemples de fonctions : `set()`, `replace_pattern()`, `delete_key()`, `Hash()`
+
+Les **processeurs de filtrage** suppriment les données à l&apos;aide d&apos;expressions booléennes OTTL :
+
+* Supprimer l&apos;intégralité des enregistrements correspondant aux conditions
+* Filtrer selon plusieurs conditions combinées
+* Exemples d&apos;expressions : `attributes["http.url"] matches ".*health.*"`, `duration < 100000000`
+
+**Les processeurs d&apos;échantillonnage** réduisent intelligemment le volume de données :
+
+* Définir le pourcentage d&apos;échantillonnage par défaut (par exemple, échantillonner 10 % de toutes les données)
+* Définir des règles conditionnelles (par exemple, conserver 100 % des erreurs, échantillonner 5 % des succès)
+* Contrôler l&apos;échantillonnage par valeurs d&apos;attributs ou motifs
+
+<Callout variant="important">
+  L&apos;échantillonnage par taux est pris en charge pour les logs/événements et les traces, mais l&apos;échantillonnage conditionnel est pris en charge uniquement pour les logs/événements.
+</Callout>
+
+### Configuration basée sur YAML
+
+La configuration du gateway utilise des fichiers YAML avec une structure déclarative :
+
+```yaml
+version: 2.0.0
+autoscaling:
+  minReplicas: 6
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+configuration:
+  simplified/v1:
+    troubleshooting:
+      proxy: false
+      requestTraceLogs: false
+    steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          log_statements:
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+      nrexporter/newrelic:
+        description: Export to New Relic
+```
+
+Caractéristiques clés :
+
+* Déclaration de version : version : `2.0.0` spécifie le schéma de configuration
+* Nommage de l&apos;étape : le format est typeprocesseur/TypeTélémétrie (par exemple, `transform/Logs`, `filter/Metrics`)
+* Chaînage des sorties : chaque étape déclare ses cibles de sortie, créant le pipeline de traitement
+
+### Flux du pipeline
+
+Le gateway organise les données en trois pipelines indépendants : métriques, événements et logs, et traces. Cette isolation garantit qu&apos;un volume élevé de logs, par exemple, n&apos;interfère pas avec le traitement ou la livraison des traces de performance critiques.
+
+Chaque pipeline se compose de trois étapes fonctionnelles :
+
+1. Récepteurs (Ingress) Les récepteurs sont les points d&apos;entrée de vos données. Le gateway écoute automatiquement la télémétrie entrante provenant de :
+
+* **OpenTelemetry (OTLP) :** Données standard provenant des SDK et collecteurs OTel.
+
+* **Agents New Relic :** Agents de télémétrie propriétaires.
+
+2. Processeurs (Logique et transformation) C&apos;est ici que vos règles personnalisées sont appliquées. Vous définissez la façon dont les données sont traitées à l&apos;aide de trois principaux types de processeurs :
+
+* **Échantillonnage :** Réduisez le volume via un échantillonnage probabiliste ou conditionnel
+
+* **Filtre :** Supprimez des enregistrements ou des attributs spécifiques selon des conditions.
+
+* **Transformer :** Utilisez le langage de transformation OpenTelemetry (OTTL) pour analyser les logs, renommer les attributs ou enrichir les données avec des métadonnées.
+
+3. Exportateurs (Sortie) Une fois les données traitées, filtrées et échantillonnées, l&apos;exportateur transmet de manière sécurisée la télémétrie de haute valeur restante au cloud New Relic.
+
+Lors de la définition de votre pipeline en YAML, vous associerez vos processeurs à des types de télémétrie spécifiques. Pour garder votre configuration organisée, nous utilisons un modèle de nommage standard : `processor_type/telemetry_type`.
+
+**Exemples :**
+
+* **transformer/logs :** Applique une logique de transformation spécifiquement aux données de logs.
+
+* **filtrer/metrics :** Applique des règles de suppression spécifiquement aux métriques.
+
+* **sampling/traces :** Gère le volume des traces distribuées.
+
+**Remarque :**
+
+* Contrairement aux règles cloud (qui sont spécifiques au compte), les règles de gateway s&apos;appliquent à l&apos;ensemble de votre organisation.
+* Les processeurs n&apos;affectent que le type de télémétrie spécifié dans leur nom. Une règle de filtre/Logs ne supprimera jamais accidentellement vos métriques ou vos traces.
+
+## Méthodes de configuration
+
+### Configuration via l&apos;interface utilisateur
+
+L&apos;interface utilisateur du gateway fournit une interface basée sur des formulaires pour créer des règles sans écrire de YAML :
+
+* **Règles de transformation :** Ajouter/modifier des attributs à l&apos;aide du générateur d&apos;instructions OTTL guidé
+* **Règles de suppression :** Créez des règles de filtrage basées sur le NRQL avec des constructeurs de conditions
+* **Règles de taux d&apos;échantillonnage :** Définissez des pourcentages d&apos;échantillonnage globaux et conditionnels avec des curseurs
+
+L&apos;interface utilisateur génère une configuration YAML en arrière-plan et fournit un aperçu en temps réel. Consultez le [guide de l&apos;interface utilisateur](/docs/new-relic-control/pipeline-control/gateway/ui-guide) pour des instructions détaillées.
+
+### Configuration YAML
+
+Pour les utilisateurs avancés ou les workflows d&apos;infrastructure-as-code, modifiez directement les fichiers de configuration YAML :
+
+* Contrôle total sur l&apos;ordre des processeurs et la structure du pipeline
+* Gestion de versions avec Git
+* Déploiement automatisé via CI/CD
+* Accès aux fonctions OTTL avancées non exposées dans l&apos;interface utilisateur
+
+Consultez [l&apos;aperçu YAML](/docs/new-relic-control/pipeline-control/gateway/yaml-overview) pour la référence de configuration.
+
+### Déploiement de la configuration
+
+Le gateway utilise un modèle de configuration unifié :
+
+1. **Vous créez** un fichier de configuration YAML définissant toutes les étapes de traitement
+2. **Vous déployez** via l&apos;interface utilisateur (téléversement YAML) sur votre cluster
+3. **Le gateway applique** la configuration à tous les clusters de gateways de votre organisation
+4. **Tous les clusters** traitent les données de manière identique en utilisant les mêmes règles
+
+**Gestion des versions :**
+
+* Chaque changement de configuration crée une nouvelle version
+* Consultez l&apos;historique des versions et revenez en arrière si nécessaire
+* Le badge « Déploiement requis » indique des modifications en attente
+
+## Prochaines étapes
+
+Choisissez votre parcours :
+
+* **Configuration visuelle**: [Utiliser l&apos;interface utilisateur Gateway](/docs/new-relic-control/pipeline-control/gateway/ui-guide)
+* **Configuration YAML**: [En savoir plus sur la structure YAML](/docs/new-relic-control/pipeline-control/gateway/yaml-overview)
+
+Ou explorez des types de processeurs spécifiques :
+
+* [Processeur de transformation](/docs/new-relic-control/pipeline-control/gateway/transform-processor) - modifiez, enrichissez et analysez les données à l&apos;aide d&apos;OTTL
+* [Processeur de filtrage](/docs/new-relic-control/pipeline-control/gateway/filter-processor) - supprimez les données indésirables à l&apos;aide de conditions OTTL
+* [Processeur d&apos;échantillonnage](/docs/new-relic-control/pipeline-control/gateway/sampling-processor) - réduisez le volume de données avec un échantillonnage conditionnel basé sur le taux

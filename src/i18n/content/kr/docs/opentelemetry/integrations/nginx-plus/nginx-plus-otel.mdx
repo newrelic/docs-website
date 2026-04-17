@@ -1,0 +1,1889 @@
+---
+title: OpenTelemetry를 사용하여 자체 호스팅 NGINX Plus를 모니터링하세요.
+metaDescription: Send your NGINX Plus metrics to New Relic using the OpenTelemetry contrib collector.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[NRDOT 수집기](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) (권장) 또는 [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) 사용하여 호스트에서 실행 중인 NGINX Plus 서버를 모니터링하여 지표 및 셸메트리 데이터를 뉴렐릭으로 보냅니다.
+
+이 통합은 OpenTelemetry [prometheusreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver) 및 [nginx-prometheus-exporter를](https://github.com/nginx/nginx-prometheus-exporter) 활용하여 NGINX Plus 성능 지표, 연결 통계 및 서버 상태를 모니터링합니다. NGINX Plus의 풍부한 HTTP API는 표준 NGINX의 기본 스텁 상태 모듈에 비해 훨씬 더 자세한 메트릭을 제공합니다.
+
+<img title="NGINX dashboard" alt="Image of the NGINX dashboard" src="/images/opentelemetry_screenshot-nginx-dashboard.webp" />
+
+<figcaption>
+  대시보드는 [뉴렐릭 NGINX OpenTelemetry Monitor 퀵스타트를](https://newrelic.com/instant-observability/nginx-opentelemetry) 통해 사용할 수 있습니다.
+</figcaption>
+
+## 시작하기 전에 [#prerequisites]
+
+다음 사항을 확인하십시오:
+
+* 유효한 뉴렐릭 [클러스터](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+
+* NGINX Plus 버전 [R13](https://docs.nginx.com/nginx/releases/#r13) 이상
+
+* [HTTP API](https://nginx.org/en/docs/http/ngx_http_api_module.html) 모듈이 활성화된 NGINX Plus
+
+* NGINX Plus 인스턴스와 함께 [NGINX Prometheus 익스포터를](https://github.com/nginx/nginx-prometheus-exporter) 설치 및 실행하여 HTTP API 메트릭을 Prometheus 형식으로 노출합니다.
+
+* Linux 호스트에 다음 수집기 중 하나가 설치되어 있어야 합니다.
+
+  * [NRDOT 수집기](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation) (권장 - 뉴렐릭의 OpenTelemetry 배포판) 또는
+  * [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) (대체 옵션)
+
+* Linux 호스트에서 네트워크 액세스 대상:
+
+  * NGINX Plus HTTP API 엔드포인트
+  * A [뉴렐릭 OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 엔드포인트
+
+{/* ### Verify your setup
+
+<CollapserGroup>
+<Collapser
+  id="check-nginx-status-module"
+  title="Check NGINX Plus version"
+>
+Check NGINX Plus version:
+```bash
+nginx -V 2>&1 | grep -o "nginx/[0-9.]*"
+```
+Expected output: `nginx/1.25.0` or higher (R13+)
+</Collapser>
+
+<Collapser
+  id="test-network-connectivity"
+  title="Test network connectivity"
+>
+Test network connectivity:
+```bash
+# For US region
+curl -I https://otlp.nr-data.net:4318/v1/metrics
+# For EU region
+curl -I https://otlp.eu01.nr-data.net:4318/v1/metrics
+```
+Expected output: HTTP/2 200 response
+
+</Collapser>
+</CollapserGroup> */}
+
+## NGINX Plus 모니터링 설정 [#setup]
+
+선호하는 수집기를 선택하고 설정 단계를 따르세요.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-prereqs">
+      NRDOT 수집기
+    </TabsBarItem>
+
+    <TabsBarItem id="otelcol-prereqs">
+      OpenTelemetry Collector 기여
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-prereqs">
+      <Callout variant="tip">
+        검증 단계에서 오류가 발생하면 누락된 구성 요소를 설치한 후 계속 진행하십시오. NRDOT 수집기 설치에 도움이 필요하신가요? nrdot-수집기-releases의 [설치 섹션을](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation) 확인하세요.
+
+        설치 중 사용 `export collector_distro="nrdot-collector"`
+      </Callout>
+
+      <Steps>
+        <Step>
+          ### NRDOT 수집기를 구성합니다. [#configure-nrdot-collector]
+
+          NGINX Plus Prometheus exporter에서 데이터를 스크랩하여 뉴렐릭으로 보내도록 NRDOT 수집기를 구성하십시오.
+
+          <CollapserGroup>
+            <Collapser id="step1-config-collector-nrdot" title="1단계: 수집기 구성 설정">
+              NRDOT 수집기의 경우 기본 설정을 대체하는 독립형 NGINX Plus 모니터링 설정 파일을 생성합니다.
+
+              <Callout variant="important">
+                **Standalone vs. Combined 모델**: 이 설정은 NGINX Plus 서버에만 적용됩니다. 호스트 대역폭(CPU, 메모리, 디스크) 또는 시스템 로그도 필요한 경우 `hostmetrics` 및 `filelog` 수신기가 포함된 NRDOT 수집기의 [기본 설정을](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/config.yaml) 사용하고 `prometheus` 수신기를 추가하십시오.
+              </Callout>
+
+              다음 내용으로 `/etc/nrdot-collector/nginx-plus-config.yaml` 생성하세요:
+
+              ```yaml
+              receivers:
+                prometheus:
+                  config:
+                    scrape_configs:
+                      - job_name: 'nginx-plus'
+                        scrape_interval: 30s
+                        static_configs:
+                          - targets: ['<YOUR_PROMETHEUS_EXPORTER_ENDPOINT>']
+              processors:
+                batch:
+                  send_batch_size: 1024
+                  timeout: 30s
+                filter/nginx_metrics:
+                  metrics:
+                    include:
+                      match_type: regexp
+                      metric_names:
+                        - "nginxplus_connections_.*"
+                        - "nginxplus_http_requests_.*"
+                        - "nginxplus_ssl_.*"
+                    exclude:
+                      match_type: regexp
+                      metric_names:
+                        - "nginxplus_server_.*"
+                        - "nginxplus_location_zone_.*"
+                        - "nginxplus_cache_.*"
+                        - "nginxplus_stream_server_.*"
+                        - "nginxplus_upstream_.*"
+                        - "nginxplus_stream_upstream_.*"
+                        - "nginxplus_stream_zone_sync_zone_.*"
+                        - "nginxplus_resolver_.*"
+                        - "nginxplus_limit_request_.*"
+                        - "nginxplus_limit_connection_.*"
+                        - "nginxplus_stream_limit_connection_.*"
+                        - "nginxplus_worker_.*"
+                resource/nginx:
+                  attributes:
+                    - key: nginx.server.endpoint
+                      value: "<YOUR_API_STATUS_ENDPOINT>"  # Replace with your endpoint
+                      action: insert
+                    - key: nginx.deployment.name
+                      value: "<DEPLOYMENT_NAME>"                    # Replace with your deployment server name
+                      action: insert
+                resourcedetection:
+                  detectors: [system]
+                  system:
+                    resource_attributes:
+                      host.name:
+                        enabled: true
+                      host.id:
+                        enabled: true
+                transform/nginx:
+                  metric_statements:
+                    - context: resource
+                      statements:
+                        - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                    - context: resource
+                      statements:
+                        - delete_key(attributes, "service.name")
+                transform/metadata_nullify:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(description, "")
+                        - set(unit, "")
+              exporters:
+                otlp_http:
+                  endpoint: ${env:YOUR_NEWRELIC_OTLP_ENDPOINT}
+                  headers:
+                    api-key: ${env:YOUR_NEW_RELIC_LICENSE_KEY}
+              service:
+                pipelines:
+                  metrics/nginx:
+                    receivers: [prometheus]
+                    processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx, transform/metadata_nullify]
+                    exporters: [otlp_http]
+              ```
+
+              #### 구성 매개변수
+
+              다음 표에서는 주요 설정 시위에 대해 설명합니다.
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      매개변수
+                    </th>
+
+                    <th>
+                      설명
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr>
+                    <td>
+                      `<YOUR_PROMETHEUS_EXPORTER_ENDPOINT>`
+                    </td>
+
+                    <td>
+                      프로메테우스 익스포터 엔드포인트(예: &apos;127.0.0.1:9113&apos;)로 바꾸세요.
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `<YOUR_API_STATUS_ENDPOINT>`
+                    </td>
+
+                    <td>
+                      NGINX Plus 서버의 API 상태 엔드포인트로 교체하십시오(예: http:/127.0.0.1/api/9).
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `<DEPLOYMENT_NAME>`
+                    </td>
+
+                    <td>
+                      이 NGINX Plus 서버에 대한 고유한 구현 및 배포 이름으로 대체하십시오(예: 
+
+                      `production-web-01`
+
+                      , 
+
+                      `staging-api`
+
+                      , 
+
+                      `prod-lb-01`
+
+                      ).
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `scrape_interval`
+                    </td>
+
+                    <td>
+                      수집 간격(초). 기본값은 다음과 같이 설정되어 있습니다. 
+
+                      `30s`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `send_batch_size`
+                    </td>
+
+                    <td>
+                      전송하기 전에 일괄 처리할 메트릭 수입니다. 기본값은 다음과 같이 설정되어 있습니다. 
+
+                      `1024`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `timeout`
+                    </td>
+
+                    <td>
+                      일괄 처리된 메트릭을 전송하기 전에 대기할 시간 제한(초)입니다. 기본값은 다음과 같이 설정되어 있습니다. 
+
+                      `30s`
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </Collapser>
+
+            <Collapser id="step2-enable-additional-metrics-nrdot" title="2단계: (선택 사항) 추가 기능을 활성화합니다.">
+              기본적으로 설정은 핵심 정보(연결, HTTP requests 및 SSL)만 수집합니다. 추가 경로 카테고리를 활성화하려면:
+
+              1. 아래 [열거형 목록](#metrics) 에서 활성화하려는 열거형을 선택하고 해당 열거형이 속하는 범주를 기록해 두십시오.
+
+              2. `filter/nginx_metrics` 프로세서에서 해당 메트릭 접두사를 `exclude` 에서 `include` 로 이동합니다.
+
+              예시: HTTP 서버 영역 메트릭 활성화
+
+              1. `exclude` 섹션에서 이 줄을 찾으세요:
+
+              ```yaml
+              filter/nginx_metrics:
+                metrics:
+                  include:
+                  # existing include metrics
+                  exclude:
+                    match_type: regexp
+                    metric_names:
+                      - "nginxplus_server_.*"
+              ```
+
+              2. `include` 섹션으로 이동하세요:
+
+              ```yaml
+              filter/nginx_metrics:
+                metrics:
+                  include:
+                    match_type: regexp
+                    metric_names:
+                      - "nginxplus_connections_.*"
+                      - "nginxplus_http_requests_.*"
+                      - "nginxplus_ssl_.*"
+                      - "nginxplus_server_.*"  # Added to enable server zone metrics
+                  exclude:
+                    match_type: regexp
+                    metric_names:
+                      # Remove "nginxplus_server_.*" from here
+                      - "nginxplus_location_zone_.*"
+                      - "nginxplus_cache_.*"
+                      # ... rest of exclude list
+              ```
+
+              3. 변경 사항을 적용한 후에는 수집기를 다시 시작하십시오.
+                 ```bash
+                 sudo systemctl restart nrdot-collector.service
+                 ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### 환경을 구성하고 구성 경로를 업데이트합니다. [#set-environment-nrdot]
+
+          NRDOT 수집기 구성을 업데이트하여 NGINX Plus 구성 파일을 사용하고 OTLP 엔드포인트를 설정하십시오.
+
+          귀하의 뉴렐릭 지역을 기준으로 OTLP 포인트를 결정하세요. 해당 지역에 대해 지원되는 엔드포인트 및 포트의 전체 목록은 [엔드포인트, 포트 및 프로토콜 구성을](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 참조하세요.
+
+          <Callout variant="important">
+            라이선스 키는 설치 중에 `/etc/nrdot-collector/nrdot-collector.conf` 에 이미 구성되었습니다. 설정 파일 경로와 OTLP 엔드포인트만 업데이트하면 됩니다.
+          </Callout>
+
+          수집기 설정 파일을 업데이트합니다.
+
+          ```bash
+          export collector_distro="nrdot-collector"
+          export otlp_endpoint="YOUR_NEWRELIC_OTLP_ENDPOINT"  # Replace with your region's endpoint
+
+          # Update the config file path to point to nginx-plus-config.yaml
+          sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/nginx-plus-config.yaml"|' /etc/${collector_distro}/${collector_distro}.conf
+
+          # Add the OTLP endpoint
+          echo "OTEL_EXPORTER_OTLP_ENDPOINT=${otlp_endpoint}" | sudo tee -a /etc/${collector_distro}/${collector_distro}.conf > /dev/null
+          ```
+        </Step>
+
+        <Step>
+          ### (선택 사항) NGINX 로그 전달 [#forward-logs-nrdot]
+
+          지표와 함께 로그 이벤트를 원할 경우 액세스 및 오류 로그를 포함하도록 수집기 설정을 확장하세요.
+
+          <CollapserGroup>
+            <Collapser id="configure-nginx-log-format" title="1단계: NGINX Plus 로그 형식 구성">
+              로그를 전달하기 전에 구조화된 로그인 형식을 사용하도록 NGINX Plus를 구성하세요. 액세스 및 오류 로그 구성에 대한 자세한 내용은 [NGINX 로깅 문서를](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/) 참조하십시오.
+            </Collapser>
+
+            <Collapser id="configure-nrdot-log-forwarding" title="2단계: 로그 포워딩을 위한 NRDOT 수집기 구성">
+              1. NGINX 액세스 로그 파일과 오류 로그 파일의 전체 경로를 기록해 두세요. 기본값은 일반적으로 `/var/log/nginx/access.log` 과 `/var/log/nginx/error.log` 입니다.
+
+              2. `/etc/nrdot-collector/nginx-plus-config.yaml` 업데이트하여 `filelog` 수신기와 로그 파이프라인을 추가합니다.
+
+                 ```yaml
+                 receivers:
+                   prometheus:
+                     # existing Prometheus receiver configuration
+                   filelog/nginx_access_logs:
+                     include:
+                       - /var/log/nginx/access.log
+                   filelog/nginx_error_logs:
+                     include:
+                       - /var/log/nginx/error.log
+
+                 processors:
+                   batch:
+                     # existing settings
+                   filter/nginx_metrics:
+                     # existing settings
+                   resourcedetection:
+                     # existing settings
+                   resource/nginx:
+                     # existing settings
+                   transform/nginx_metrics:
+                     # existing settings
+                   transform/nginx_access_logs:
+                     log_statements:
+                       - context: resource
+                         statements:
+                           - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                           - set(attributes["logtype"], "nginx")
+                   transform/nginx_error_logs:
+                     log_statements:
+                       - context: resource
+                         statements:
+                           - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                           - set(attributes["logtype"], "nginx-error")
+
+                 exporters:
+                   # existing exporter setup
+
+                 service:
+                   pipelines:
+                     # Your existing metrics pipeline...
+
+                     # Add log pipelines
+                     logs/nginx-access:
+                       receivers: [filelog/nginx_access_logs]
+                       processors: [batch, resource/nginx, transform/nginx_access_logs]
+                       exporters: [otlp_http]
+                     logs/nginx-error:
+                       receivers: [filelog/nginx_error_logs]
+                       processors: [batch, resource/nginx, transform/nginx_error_logs]
+                       exporters: [otlp_http]
+                 ```
+
+              3. 수집기 사용자에게 로그 파일에 대한 읽기 권한을 부여하십시오.
+
+                 ```bash
+                 sudo usermod -a -G adm nrdot-collector
+                 sudo chmod 644 /var/log/nginx/access.log
+                 sudo chmod 644 /var/log/nginx/error.log
+                 ```
+
+              4. 변경 사항을 적용하려면 수집기를 다시 시작하십시오.
+
+                 ```bash
+                 sudo systemctl restart nrdot-collector
+                 ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### 모니터링 시작 [#start-monitoring-nrdot]
+
+          이제 모든 설정이 완료되었으므로 NRDOT 수집기를 시작하고 데이터가 뉴렐릭으로 전송되는지 확인하십시오.
+
+          <CollapserGroup>
+            <Collapser id="step4-start-collector-nrdot" title="1단계: 수집기를 시작합니다">
+              1. 설정 변경 사항을 적용합니다.
+
+                 ```bash
+                 sudo systemctl daemon-reload
+                 sudo systemctl restart nrdot-collector.service
+                 ```
+
+              2. 서비스가 실행 중인지 확인하십시오.
+
+                 ```bash
+                 sudo systemctl status nrdot-collector.service
+                 ```
+
+                 예상 출력: `Active: active (running)` (최근 오류 없음)
+            </Collapser>
+
+            <Collapser id="step4-verify-data-nrdot" title="2단계: 데이터 수집 검증">
+              3. 시작 로그를 확인하세요:
+
+                 ```bash
+                 sudo journalctl -u nrdot-collector.service -n 20
+                 ```
+
+              4. 테스트 트래픽 생성(생성하기 위해):
+
+                 ```bash
+                 # Make a few requests to your NGINX Plus server
+                 curl http://localhost
+                 ```
+
+              5. 뉴렐릭에 초기 데이터가 나타날 때까지 기다린 후 [NGINX](#find-data) 에 접속하여 데이터 수집을 확인하십시오.
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-prereqs">
+      <Callout variant="tip">
+        검증 단계에서 오류가 발생하면 누락된 구성 요소를 설치한 후 계속 진행하십시오. 수집기 설치에 도움이 필요하신가요? [OpenTelemetry Collector 설치 가이드를](https://github.com/open-telemetry/opentelemetry-collector-contrib) 확인하세요.
+      </Callout>
+
+      <Steps>
+        <Step>
+          ### OpenTelemetry 수집기 구성 [#configure-otelcol-collector]
+
+          OpenTelemetry Collector NGINX Plus Prometheus exporter에서 데이터를 수집하여 뉴렐릭으로 전송하도록 구성하십시오.
+
+          <CollapserGroup>
+            <Collapser id="step2-config-collector-otelcol" title="1단계: 수집기 구성 설정">
+              <Callout variant="important">
+                **편집하기 전에:** 기존 설정을 백업하세요. `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
+              </Callout>
+
+              수집기 설정 파일(일반적으로 `/etc/otelcol-contrib/config.yaml`)을 편집하고 다음 섹션을 추가합니다. 이미 수신자, 처리자 또는 수출자 섹션이 있는 경우 기존 설정과 병합하십시오.
+
+              ```yaml
+              receivers:
+                prometheus:
+                  config:
+                    scrape_configs:
+                      - job_name: 'nginx-plus'
+                        scrape_interval: 30s
+                        static_configs:
+                          - targets: ['<YOUR_PROMETHEUS_EXPORTER_ENDPOINT>']
+              processors:
+                batch:
+                  send_batch_size: 1024
+                  timeout: 30s
+                filter/nginx_metrics:
+                  metrics:
+                    include:
+                      match_type: regexp
+                      metric_names:
+                        - "nginxplus_connections_.*"
+                        - "nginxplus_http_requests_.*"
+                        - "nginxplus_ssl_.*"
+                    exclude:
+                      match_type: regexp
+                      metric_names:
+                        - "nginxplus_server_.*"
+                        - "nginxplus_location_zone_.*"
+                        - "nginxplus_cache_.*"
+                        - "nginxplus_stream_server_.*"
+                        - "nginxplus_upstream_.*"
+                        - "nginxplus_stream_upstream_.*"
+                        - "nginxplus_stream_zone_sync_zone_.*"
+                        - "nginxplus_resolver_.*"
+                        - "nginxplus_limit_request_.*"
+                        - "nginxplus_limit_connection_.*"
+                        - "nginxplus_stream_limit_connection_.*"
+                        - "nginxplus_worker_.*"
+                resource/nginx:
+                  attributes:
+                    - key: nginx.server.endpoint
+                      value: "<YOUR_API_STATUS_ENDPOINT>"  # Replace with your endpoint
+                      action: insert
+                    - key: nginx.deployment.name
+                      value: "<DEPLOYMENT_NAME>"                    # Replace with your deployment name
+                      action: insert
+                resourcedetection:
+                  detectors: [system]
+                  system:
+                    resource_attributes:
+                      host.name:
+                        enabled: true
+                      host.id:
+                        enabled: true
+                transform/nginx:
+                  metric_statements:
+                    - context: resource
+                      statements:
+                        - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                    - context: resource
+                      statements:
+                        - delete_key(attributes, "service.name")
+                transform/metadata_nullify:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(description, "")
+                        - set(unit, "")
+              exporters:
+                otlp_http:
+                  endpoint: ${env:YOUR_NEWRELIC_OTLP_ENDPOINT}
+                  headers:
+                    api-key: ${env:YOUR_NEW_RELIC_LICENSE_KEY}
+              service:
+                pipelines:
+                  metrics/nginx:
+                    receivers: [prometheus]
+                    processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx, transform/metadata_nullify]
+                    exporters: [otlp_http]
+              ```
+
+              #### 구성 매개변수
+
+              다음 표에서는 주요 설정 시위에 대해 설명합니다.
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      매개변수
+                    </th>
+
+                    <th>
+                      설명
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr>
+                    <td>
+                      `<YOUR_PROMETHEUS_EXPORTER_ENDPOINT>`
+                    </td>
+
+                    <td>
+                      프로메테우스 익스포터 엔드포인트(예: &apos;127.0.0.1:9113&apos;)로 바꾸세요.
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `<YOUR_API_STATUS_ENDPOINT>`
+                    </td>
+
+                    <td>
+                      NGINX Plus 서버의 API 상태 엔드포인트로 교체하십시오(예: http:/127.0.0.1/api/9).
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `<DEPLOYMENT_NAME>`
+                    </td>
+
+                    <td>
+                      이 NGINX Plus 서버에 대한 고유한 구현 및 배포 이름으로 대체하십시오(예: 
+
+                      `production-web-01`
+
+                      , 
+
+                      `staging-api`
+
+                      , 
+
+                      `prod-lb-01`
+
+                      ).
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `scrape_interval`
+                    </td>
+
+                    <td>
+                      지표를 수집하는 간격입니다. 기본값은 다음과 같이 설정되어 있습니다. 
+
+                      `30s`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `send_batch_size`
+                    </td>
+
+                    <td>
+                      전송하기 전에 일괄 처리할 메트릭 수입니다. 기본값은 다음과 같이 설정되어 있습니다. 
+
+                      `1024`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `timeout`
+                    </td>
+
+                    <td>
+                      일괄 처리 전 최대 대기 시간. 기본값은 다음과 같이 설정되어 있습니다. 
+
+                      `30s`
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      `nginx.display.name`
+                    </td>
+
+                    <td>
+                      뉴렐릭에서 NGINX 서버의 표시 이름 형식 (자동으로 &quot;server:
+
+                      `<DEPLOYMENT_NAME>`
+
+                      &quot;으로 생성됨)
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </Collapser>
+
+            <Collapser id="step2-enable-additional-metrics-otelcol" title="2단계: (선택 사항) 추가 기능을 활성화합니다.">
+              기본적으로 설정은 핵심 정보(연결, HTTP requests 및 SSL)만 수집합니다. 서버 영역, 위치 영역 또는 캐시 영역과 같은 추가 영역 범주를 활성화하려면 다음을 수행하십시오.
+
+              1. 아래 [목록](#metrics) 에서 활성화할 옵션을 선택하세요. 해당 영역이 어떤 범주에 속하는지 기록해 두세요(예: HTTP 서버 영역, 위치 영역, 캐시).
+
+              2. `filter/nginx_metrics` 프로세서에서 해당 메트릭 접두사를 `exclude` 에서 `include` 로 이동합니다.
+
+              예시: HTTP 서버 영역 메트릭 활성화
+
+              `exclude` 섹션에서 이 줄을 찾으세요:
+
+              ```yaml
+              filter/nginx_metrics:
+                metrics:
+                  include:
+                  # existing include metrics
+                  exclude:
+                    match_type: regexp
+                    metric_names:
+                      - "nginxplus_server_.*"
+              ```
+
+              `include` 섹션으로 이동하세요:
+
+              ```yaml
+              filter/nginx_metrics:
+                metrics:
+                  include:
+                    match_type: regexp
+                    metric_names:
+                      - "nginxplus_connections_.*"
+                      - "nginxplus_http_requests_.*"
+                      - "nginxplus_ssl_.*"
+                      - "nginxplus_server_.*"  # Added to enable server zone metrics
+                  exclude:
+                    match_type: regexp
+                    metric_names:
+                      # Remove "nginxplus_server_.*" from here
+                      - "nginxplus_location_zone_.*"
+                      - "nginxplus_cache_.*"
+                      # ... rest of exclude list
+              ```
+
+              3. 변경 사항을 적용한 후에는 수집기를 다시 시작하십시오.
+                 ```bash
+                 sudo systemctl restart otelcol-contri.service
+                 ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### 인증 설정 [#set-environment-otelcol]
+
+          OpenTelemetry Collector 뉴릭 계정으로 데이터를 전송할 수 있도록 보안 인증을 구성하십시오. 이 단계에서는 자격 증명을 안전하게 보호하기 위한 환경 변수를 설정합니다.
+
+          1. 뉴렐릭 자격증을 취득하세요:
+
+             * 인스턴스 키: [API 키 UI 페이지](https://one.newrelic.com/admin-portal/api-keys/home)에서 인스턴스 키를 가져옵니다.
+             * OTLP 엔드포인트: [뉴렐릭 OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)엔드포인트에서 해당 지역의 엔드포인트를 사용하세요.
+
+          2. 자격 증명을 구성하세요:
+
+             1. systemd 오버라이드 디렉터리를 생성합니다.
+
+             ```bash
+             export collector_distro="otelcol-contrib"
+             sudo mkdir -p /etc/systemd/system/${collector_distro}.service.d
+             ```
+
+             2. 환경 설정 파일을 생성합니다.
+
+             ```bash
+             cat <<EOF | sudo tee /etc/systemd/system/${collector_distro}.service.d/environment.conf
+             [Service]
+             Environment="NEWRELIC_OTLP_ENDPOINT=<`YOUR_NEWRELIC_OTLP_ENDPOINT>`"
+             Environment="NEWRELIC_LICENSE_KEY=`<YOUR_NEW_RELIC_LICENSE_KEY>`"
+             EOF
+             ```
+        </Step>
+
+        <Step>
+          ### (선택 사항) NGINX 로그 전달 [#forward-logs-otelcol]
+
+          지표와 함께 로그 이벤트를 원할 경우 액세스 및 오류 로그를 포함하도록 수집기 설정을 확장하세요.
+
+          <CollapserGroup>
+            <Collapser id="configure-nginx-log-format-otelcol" title="1단계: NGINX Plus 로그 형식 구성">
+              로그를 전달하기 전에 구조화된 로그인 형식을 사용하도록 NGINX Plus를 구성하세요. 액세스 및 오류 로그 구성에 대한 자세한 내용은 [NGINX 로깅 문서를](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/) 참조하십시오.
+            </Collapser>
+
+            <Collapser id="configure-otelcol-log-forwarding" title="2단계: 로그인 포워딩을 위한 OpenTelemetry Collector 구성">
+              1. NGINX 액세스 로그 파일과 오류 로그 파일의 전체 경로를 기록해 두세요. 기본값은 일반적으로 `/var/log/nginx/access.log` 과 `/var/log/nginx/error.log` 입니다.
+
+              2. `/etc/otelcol-contrib/config.yaml` 업데이트하여 `filelog` 수신기와 로그 파이프라인을 추가합니다.
+
+                 ```yaml
+                 receivers:
+                   prometheus:
+                     # existing Prometheus receiver configuration
+                   filelog/nginx_access_logs:
+                     include:
+                       - /var/log/nginx/access.log
+                   filelog/nginx_error_logs:
+                     include:
+                       - /var/log/nginx/error.log
+
+                 processors:
+                   batch:
+                     # existing settings
+                   filter/nginx_metrics:
+                     # existing settings
+                   resourcedetection:
+                     # existing settings
+                   resource/nginx:
+                     # existing settings
+                   transform/nginx_metrics:
+                     # existing settings
+                   transform/nginx_access_logs:
+                     log_statements:
+                       - context: resource
+                         statements:
+                           - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                           - set(attributes["logtype"], "nginx")
+                   transform/nginx_error_logs:
+                     log_statements:
+                       - context: resource
+                         statements:
+                           - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                           - set(attributes["logtype"], "nginx-error")
+
+                 exporters:
+                   # existing exporter setup
+
+                 service:
+                   pipelines:
+                     # Your existing metrics pipeline...
+
+                     # Add log pipelines
+                     logs/nginx-access:
+                       receivers: [filelog/nginx_access_logs]
+                       processors: [batch, resource/nginx, transform/nginx_access_logs]
+                       exporters: [otlp_http]
+                     logs/nginx-error:
+                       receivers: [filelog/nginx_error_logs]
+                       processors: [batch, resource/nginx, transform/nginx_error_logs]
+                       exporters: [otlp_http]
+                 ```
+
+              3. `otelcol-contrib` 사용자에게 로그 파일에 대한 읽기 권한을 부여하십시오.
+
+                 ```bash
+                 sudo usermod -a -G adm otelcol-contrib
+                 sudo chmod 644 /var/log/nginx/access.log
+                 sudo chmod 644 /var/log/nginx/error.log
+                 ```
+
+              4. 변경 사항을 적용하려면 수집기를 다시 시작하십시오.
+
+                 ```bash
+                 sudo systemctl restart otelcol-contrib
+                 ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### 모니터링 시작 [#start-monitoring-otelcol]
+
+          이제 모든 설정이 완료되었으므로 OpenTelemetry Collector 시작하고 데이터가 뉴렐릭으로 제대로 전송되는지 확인하십시오.
+
+          <CollapserGroup>
+            <Collapser id="step4-start-collector-otelcol" title="1단계: 수집기를 시작합니다">
+              1. 설정 변경 사항을 적용합니다.
+
+                 ```bash
+                 sudo systemctl daemon-reload
+                 sudo systemctl restart otelcol-contrib.service
+                 ```
+
+              2. 서비스가 실행 중인지 확인하십시오.
+
+                 ```bash
+                 sudo systemctl status otelcol-contrib.service
+                 ```
+
+                 예상 출력: `Active: active (running)` (최근 오류 없음)
+            </Collapser>
+
+            <Collapser id="step4-verify-data-otelcol" title="2단계: 데이터 수집 검증">
+              3. 시작 로그를 확인하세요:
+                 ```bash
+                 sudo journalctl -u otelcol-contrib.service -n 20
+                 ```
+              4. 테스트 트래픽 생성(생성하기 위해):
+                 ```bash
+                 # Make a few requests to your NGINX Plus server
+                 curl http://localhost
+                 ```
+              5. 뉴렐릭에 초기 데이터가 나타날 때까지 기다린 후 [NGINX](#find-data) 에 접속하여 데이터 수집을 확인하십시오.
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 데이터 찾기 및 사용 [#find-data]
+
+1. **[one.newrelic.com](https://one.newrelic.com) &gt; Integrations &amp; Agents** 로 이동하세요.
+2. **Dashboards** 선택하고 **NGINX OTel overview** \[NGINX OTel 개요] 대시보드를 클릭합니다.
+3. 팝업 창에서 계정을 선택하세요.
+4. 대시보드 보기를 클릭하고 뉴렐릭에서 NGINX Plus 데이터를 확인하세요.
+
+NGINX Plus 메트릭은 `Metric` [이벤트 유형](/docs/using-new-relic/data/understand-data/new-relic-data-types#events-new-relic) 에 연결됩니다. 문제 해결, 해결 목적으로 [이 데이터를 쿼리](/docs/using-new-relic/data/understand-data/query-new-relic-data) 하거나 사용자 정의 차트 및 대시보드를 생성할 수 있습니다.
+
+## 수집된 지표 [#metrics]
+
+OpenTelemetry Collector는 [NGINX Prometheus 익스포터](https://github.com/nginx/nginx-prometheus-exporter) 에서 메트릭을 수집합니다. 이 익스포터는 NGINX Plus HTTP API 메트릭을 Prometheus 형식으로 제공합니다.
+
+다음은 사용 가능한 NGINX Plus 메트릭입니다.
+
+<CollapserGroup>
+  <Collapser id="plus-connections" title="사이">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            미터법
+          </th>
+
+          <th>
+            설명
+          </th>
+
+          <th>
+            유형
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_connections_accepted`
+          </td>
+
+          <td>
+            허용된 클라이언트 연결
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_connections_active`
+          </td>
+
+          <td>
+            활성 클라이언트 연결
+          </td>
+
+          <td>
+            계량기
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_connections_dropped`
+          </td>
+
+          <td>
+            클라이언트 연결이 끊어졌습니다
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_connections_idle`
+          </td>
+
+          <td>
+            유휴 클라이언트 연결
+          </td>
+
+          <td>
+            계량기
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-http" title="HTTP">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            미터법
+          </th>
+
+          <th>
+            설명
+          </th>
+
+          <th>
+            유형
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_http_requests_total`
+          </td>
+
+          <td>
+            총 HTTP requests
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_http_requests_current`
+          </td>
+
+          <td>
+            현재 HTTP requests
+          </td>
+
+          <td>
+            계량기
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-ssl" title="SSL">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            미터법
+          </th>
+
+          <th>
+            설명
+          </th>
+
+          <th>
+            유형
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_ssl_handshakes`
+          </td>
+
+          <td>
+            SSL 핸드셰이크 성공
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_ssl_handshakes_failed`
+          </td>
+
+          <td>
+            SSL 핸드셰이크 실패
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_ssl_session_reuses`
+          </td>
+
+          <td>
+            SSL 핸드셰이크 중 세션 재사용
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-server-zone" title="HTTP 서버 영역">
+    <Callout variant="important">
+      **참고:** 이러한 기능은 기본적으로 비활성화되어 있습니다. 이를 활성화하려면 [(선택 사항) NRDOT 수집기에 대한 추가 메트릭 활성화](#step2-enable-additional-metrics-nrdot) 또는 [(선택 사항) OpenTelemetry Collector Contrib에 대한 추가 메트릭 활성화를](#step2-enable-additional-metrics-otelcol) 참조하십시오.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            미터법
+          </th>
+
+          <th>
+            설명
+          </th>
+
+          <th>
+            유형
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_server_zone_processing`
+          </td>
+
+          <td>
+            현재 처리 중인 고객 requests
+          </td>
+
+          <td>
+            계량기
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_requests`
+          </td>
+
+          <td>
+            총 고객 requests
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_responses`
+          </td>
+
+          <td>
+            고객에게 발송된 총 응답 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_responses_codes`
+          </td>
+
+          <td>
+            코드별로 클라이언트에게 전송된 총 응답 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_discarded`
+          </td>
+
+          <td>
+            응답을 보내지 않고 완료된 요청
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_received`
+          </td>
+
+          <td>
+            클라이언트로부터 수신한 바이트
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_sent`
+          </td>
+
+          <td>
+            클라이언트로 전송된 바이트
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_ssl_handshakes`
+          </td>
+
+          <td>
+            SSL 핸드셰이크 성공
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_ssl_handshakes_failed`
+          </td>
+
+          <td>
+            SSL 핸드셰이크 실패
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_ssl_session_reuses`
+          </td>
+
+          <td>
+            SSL 핸드셰이크 중 세션 재사용
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-location-zones" title="위치 영역">
+    <Callout variant="important">
+      **참고:** 이러한 기능은 기본적으로 비활성화되어 있습니다. 이를 활성화하려면 [(선택 사항) NRDOT 수집기에 대한 추가 메트릭 활성화](#step2-enable-additional-metrics-nrdot) 또는 [(선택 사항) OpenTelemetry Collector Contrib에 대한 추가 메트릭 활성화를](#step2-enable-additional-metrics-otelcol) 참조하십시오.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            미터법
+          </th>
+
+          <th>
+            설명
+          </th>
+
+          <th>
+            유형
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_location_zone_requests`
+          </td>
+
+          <td>
+            총 고객 requests
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_responses`
+          </td>
+
+          <td>
+            고객에게 발송된 총 응답 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_responses_codes`
+          </td>
+
+          <td>
+            코드별로 클라이언트에게 전송된 총 응답 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_discarded`
+          </td>
+
+          <td>
+            응답을 보내지 않고 완료된 요청
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_received`
+          </td>
+
+          <td>
+            클라이언트로부터 수신한 바이트
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_sent`
+          </td>
+
+          <td>
+            클라이언트로 전송된 바이트
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-cache" title="은닉처">
+    <Callout variant="important">
+      **참고:** 이러한 기능은 기본적으로 비활성화되어 있습니다. 이를 활성화하려면 [(선택 사항) NRDOT 수집기에 대한 추가 메트릭 활성화](#step2-enable-additional-metrics-nrdot) 또는 [(선택 사항) OpenTelemetry Collector Contrib에 대한 추가 메트릭 활성화를](#step2-enable-additional-metrics-otelcol) 참조하십시오.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            미터법
+          </th>
+
+          <th>
+            설명
+          </th>
+
+          <th>
+            유형
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_cache_size`
+          </td>
+
+          <td>
+            캐시의 전체 크기
+          </td>
+
+          <td>
+            계량기
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_max_size`
+          </td>
+
+          <td>
+            캐시의 최대 크기
+          </td>
+
+          <td>
+            계량기
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_cold`
+          </td>
+
+          <td>
+            캐시가 콜드 캐시로 간주되나요?
+          </td>
+
+          <td>
+            계량기
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_hit_responses`
+          </td>
+
+          <td>
+            총 리치히트 개수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_hit_bytes`
+          </td>
+
+          <td>
+            리치 히트에서 반환된 총 바이트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_stale_responses`
+          </td>
+
+          <td>
+            부실한 총 개수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_stale_bytes`
+          </td>
+
+          <td>
+            오래된 쿠키에서 반환된 총 바이트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_updating_responses`
+          </td>
+
+          <td>
+            캐시 업데이트 중 총 캐시 히트 횟수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_updating_bytes`
+          </td>
+
+          <td>
+            캐시 업데이트 중 캐시에서 반환된 총 바이트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_revalidated_responses`
+          </td>
+
+          <td>
+            캐시 재검증 총 횟수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_revalidated_bytes`
+          </td>
+
+          <td>
+            캐시 재검증에서 반환된 총 바이트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_miss_responses`
+          </td>
+
+          <td>
+            총 캐시 미스 횟수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_miss_bytes`
+          </td>
+
+          <td>
+            캐시 미스로 인해 반환된 총 바이트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_expired_responses`
+          </td>
+
+          <td>
+            TTL이 만료된 총 리치 히트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_expired_bytes`
+          </td>
+
+          <td>
+            만료된 TTL을 가진 캐시 히트에서 반환된 총 바이트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_expired_responses_written`
+          </td>
+
+          <td>
+            TTL이 만료된 캐시 히트의 총 개수가 캐시에 기록되었습니다.
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_expired_bytes_written`
+          </td>
+
+          <td>
+            TTL이 만료된 쿠키 히트에서 캐시에 쓴 총 바이트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_bypass_responses`
+          </td>
+
+          <td>
+            캐시 바이패스 총 횟수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_bypass_bytes`
+          </td>
+
+          <td>
+            캐시 바이패스에서 반환된 총 바이트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_bypass_responses_written`
+          </td>
+
+          <td>
+            캐시에 기록된 캐시 바이패스의 총 횟수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_bypass_bytes_written`
+          </td>
+
+          <td>
+            캐시 바이패스를 통해 캐시에 기록된 총 바이트 수
+          </td>
+
+          <td>
+            합집합
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-attributes" title="속성">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            기인하다
+          </th>
+
+          <th style={{ width: "350px" }}>
+            설명
+          </th>
+
+          <th>
+            예시 값
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `server_zone`
+          </td>
+
+          <td>
+            서버 영역의 이름(HTTP 서버 영역 메트릭에 적용됨)
+          </td>
+
+          <td>
+            `example.com`, `api.example.com`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `code`
+          </td>
+
+          <td>
+            HTTP 응답 상태 코드(응답에 적용됨)
+          </td>
+
+          <td>
+            `1xx`, `2xx` , `3xx` , `4xx` , `5xx` , `200` , `404` , `500`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `location_zone`
+          </td>
+
+          <td>
+            위치 영역의 이름
+          </td>
+
+          <td>
+            `/api`, `/images` , `/static`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cache`
+          </td>
+
+          <td>
+            캐시의 이름
+          </td>
+
+          <td>
+            `my_cache`, `static_cache`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginx.server.endpoint`
+          </td>
+
+          <td>
+            NGINX Plus API 엔드포인트 URL
+          </td>
+
+          <td>
+            `http://localhost:8080/api`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginx.deployment.name`
+          </td>
+
+          <td>
+            이 NGINX Plus 구현을 식별하는 고유한 이름, 배포
+          </td>
+
+          <td>
+            `production-web-01`, `staging-api`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginx.display.name`
+          </td>
+
+          <td>
+            &quot;서버&quot; 접두사와 구현, 배포 이름을 결합한 보기 편한 이름
+          </td>
+
+          <td>
+            `server:production-web-01`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `host.name`
+          </td>
+
+          <td>
+            NGINX Plus가 실행 중인 시스템의 호스트명
+          </td>
+
+          <td>
+            `web-server-01.example.com`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `host.id`
+          </td>
+
+          <td>
+            호스트 시스템의 고유 식별자
+          </td>
+
+          <td>
+            `i-1234567890abcdef0`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `logtype`
+          </td>
+
+          <td>
+            수집되는 로그 유형 (로그에만 해당). 뉴렐릭의 내장 구문 [분석 규칙](/docs/logs/ui-data/built-log-parsing-rules/#nginx) 에서 사용됩니다. 이 속성은 로그 포워딩이 활성화된 경우에만 사용할 수 있습니다.
+          </td>
+
+          <td>
+            `nginx` (접근 로그용), `nginx-error` (오류 로그용)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## 다음 단계 [#next-steps]
+
+**데이터에 대해 자세히 알아보세요:**
+
+* [NGINX 데이터 찾기 및 쿼리](/docs/opentelemetry/integrations/nginx/find-and-query-your-data/) - 대시보드에 액세스하고 사용자 정의 쿼리를 생성하고 알림 설정
+* [NRQL소개](/docs/nrql/get-started/introduction-nrql-new-relics-query-language/) - 고급 데이터 분석을 위한 뉴렐릭의 쿼리 언어를 알아보세요.
+* [NRQL 공지 조건 생성](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) - NGINX Plus 지표를 기반으로 사용자 정의 알림 설정
+
+**관련 모니터링 정보를 살펴보세요:**
+
+* [OpenTelemetry사용하여 자체 호스팅 NGINX 모니터링](/docs/opentelemetry/integrations/nginx/nginx-otel-host/) - 표준 NGINX 구현의 경우 배포
+* 컨테이너 환경에서 [OpenTelemetry를 사용하여 Kubernetes의 NGINX를 모니터링하세요](/docs/opentelemetry/integrations/nginx/nginx-otel-kubernetes/) -

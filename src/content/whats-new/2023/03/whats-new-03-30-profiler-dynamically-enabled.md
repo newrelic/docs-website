@@ -2,7 +2,7 @@
 title: 'Real-time profiling for Java dynamically enabled'
 summary: 'Dynamically enable and disable our real-time profiling feature on the spot, without bouncing the application'
 releaseDate: '2023-03-30'
-learnMoreLink: 'https://forum.newrelic.com/s/hubtopic/aAX8W00000005W8/on-demand-realtime-profiling-for-java-applications'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W00000005W8/on-demand-realtime-profiling-for-java-applications'
 getStartedLink: 'https://docs.newrelic.com/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/#jfr-real-time-profiling'
 ---
 

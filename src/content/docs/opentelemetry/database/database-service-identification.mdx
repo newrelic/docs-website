@@ -1,0 +1,133 @@
+---
+title: "Database service identification with NRDOT"
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - NRDOT
+  - Database
+  - APM
+  - Service correlation
+metaDescription: Correlate APM and database performance using service identification and secure credential management with New Relic's Distribution of OpenTelemetry (NRDOT).
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+
+</Callout>
+
+Get seamless correlation between your applications and database performance with SQL query commenting. This mechanism allows the New Relic's Distribution of OpenTelemetry (NRDOT) database receiver to identify exactly which service is responsible for specific database load, slow queries, or blocking events.
+
+
+## Prerequisites [#prerequisites]
+
+* Java agent version `9.1.0` or later.
+
+
+### Enable APM-DB correlation for Java agent [#enable-correlation]
+
+To enable this correlation, add the `sql_metadata_comments` property to the `transaction_tracer` section of your your Java agent configuration file (`newrelic.yml`). For more information, refer to the [Java agent configuration documentation](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/).
+
+```yaml
+transaction_tracer:
+  sql_metadata_comments: nr_service_guid
+```
+
+
+## How it works [#how-it-works]
+
+When your application sends a query to the database, the APM agent automatically prepends an APM entity GUID into the SQL text as a comment. This common industry practice doesn't affect the execution logic of your SQL statements.
+
+1. **Comment prepending**: The APM agent prepends a comment string to the outgoing SQL (for example, `/* nr_service_guid="MTE2MDAzMTl8QVBNfEFQUExJ" */ SELECT * FROM orders...`).
+2. **Execution**: The database executes the query as usual. The comment's stored in the database's internal performance schemas (like `sys.dm_exec_requests` or `v$session`).
+3. **Extraction**: The database receiver fetches these queries (active, slow, or blocking).
+4. **Enrichment**: The receiver parses the comment, extracts the `nr_service_guid`, and attaches it as a dimension to your database metrics.
+
+## Benefits of service tagging [#benefits]
+
+Prepending service metadata gives you high-fidelity visibility into your database ecosystem:
+
+* **Service-level attribution**: Instantly see which microservice is responsible for a spike in database CPU or memory
+* **Refined slow query analysis**: Filter slow query logs by client_name to understand if a database bottleneck is isolated to a specific application version
+* **Blocking and deadlock resolution**: Quickly identify the "owner" of a blocking query to expedite cross-team troubleshooting
+
+## Security and performance impact [#security-performance]
+
+We've designed this mechanism to be "invisible" to your database operations:
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Impact detail</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Execution logic</td>
+      <td>SQL comments are ignored by the database engine's optimizer</td>
+    </tr>
+    <tr>
+      <td>Database overhead</td>
+      <td>The addition of a short string (typically less than 50 characters) has negligible impact on network bandwidth or memory</td>
+    </tr>
+    <tr>
+      <td>Data privacy</td>
+      <td>Only the service GUID is inserted. No sensitive application data or user context is included in the comment</td>
+    </tr>
+  </tbody>
+</table>
+
+## Secret management [#secret-management]
+
+You can use two secure methods for managing sensitive credentials (such as database passwords) in the NRDOT Collector configuration. Choose the method that best aligns with your infrastructure and security policies.
+
+### AES encryption (platform agnostic) [#aes-encryption]
+
+This method lets you store encrypted credentials directly in your configuration files, supporting version control (GitOps) workflows.
+
+* **How it works**: Sensitive strings are encrypted using AES-256 (GCM mode) offline. The collector decrypts them at runtime using a master key stored in the server's environment variables
+* **Security benefit**: Configuration files can be safely shared or committed to repositories without exposing plain-text passwords
+* **Best for**: Hybrid/multi-cloud environments, local development, or Windows servers where OCI Vault integration isn't feasible
+
+#### Example configuration
+
+```yaml
+receivers:
+  newrelicoracledb/cdb:
+    endpoint: "10.x.x.36:1521"
+    # Credentials are encrypted using the offline helper tool
+    username: "${aes:YOUR_ENCRYPTED_USERNAME_STRING}"
+    password: "${aes:YOUR_ENCRYPTED_PASSWORD_STRING}"
+    service: "DB1104.privatesubnet.oracledb.oraclevcn.com"
+    collection_interval: 15s
+```
+
+### AWS Secrets Manager [#aws-secrets-manager]
+
+This method lets you securely retrieve credentials directly from AWS Secrets Manager at runtime, completely eliminating the need to store passwords in your configuration files.
+
+* **How it works**: The NRDOT Collector uses an AWS IAM Role to automatically authenticate and fetch the required secrets from AWS Secrets Manager during startup
+* **Security benefit**: No sensitive data is ever stored on disk or in version control. Access is strictly governed by AWS IAM policies, and database credentials can be rotated centrally without needing to update or deploy new configuration files
+* **Best for**: Production environments running natively on AWS where centralized secret management, compliance auditing, and automated rotation are required
+
+#### Example configuration
+
+```yaml
+receivers:
+  newrelicoracledb/pdb:
+    endpoint: "10.x.x.36:1521"
+    # Syntax: ${secretsmanager:SecretName#JSONKey}
+    username: "${secretsmanager:oracle/credentials#username}"
+    password: "${secretsmanager:oracle/credentials#password}"
+    service: "PDBTEST"
+```
+
+**Note**: Set the AWS Region:
+
+```bash
+export AWS_REGION=your-aws-region
+```

@@ -1,0 +1,1341 @@
+---
+title: RabbitMQ OpenTelemetry メトリクスリファレンス
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - RabbitMQ
+metaDescription: Complete reference for RabbitMQ OpenTelemetry metrics with NRQL examples.
+freshnessValidatedDate: '2024-12-24T00:00:00.000Z'
+translationType: machine
+---
+
+この包括的なリファレンスには、 OpenTelemetry Collectorによって収集されたすべてのRabbitMQメトリクスが文書化されています。 各メトリクスには、詳細な説明と実践的なNRQL書き込みの例が含まれています。
+
+<Callout variant="tip">
+  **RabbitMQ監視を初めて使用しますか?** [概要ガイド](/docs/opentelemetry/integrations/rabbitmq/overview)から始めて、統合アーキテクチャーとデプロイメントのオプションを理解してください。
+</Callout>
+
+## RabbitMQメトリクスを理解する [#overview]
+
+RabbitMQ OpenTelemetry統合は、 RabbitMQ管理APIを通じてメトリクスを収集し、メッセージブローカーの健全性とパフォーマンスに対する包括的な可視性を提供します。
+
+**メトリクスのカテゴリ:**
+
+* **ノード メトリクス**- メモリ、ディスク、ファイル記述子、Erlang VM統計などのノード レベルのリソース使用量
+* **キュー メトリクス**- キューごとのメッセージ数、消費者のアクティビティ、およびキューレベルのスループット
+* **メッセージメトリクス**- メッセージの公開、配信、および確認応答率
+* **I/O メトリクス**- ディスクの読み取り/書き込み操作とメッセージ永続化のレイテンシ
+* **接続メトリクス**- 接続とチャネルのライフサイクルイベント
+
+**共通のメトリクス プロパティ:**
+
+すべてのメトリクスには、フィルタリングとグループ化のための次のプロパティが含まれています。
+
+* `instrumentation.provider = 'opentelemetry'` - このインテグレーションからメトリクスを特定します
+* `rabbitmq.deployment.name` - デプロイメント識別子
+* `rabbitmq.server.endpoint` - 管理APIエンドポイント
+* `host.name` - RabbitMQが動作しているホスト名
+
+<Callout variant="important">
+  RabbitMQメトリクスにクエリを実行するときは、この統合からのみデータを取得できるように、WHERE 句に常に`instrumentation.provider = 'opentelemetry'`含めてください。
+</Callout>
+
+## ノードリソースメトリクス [#node-resource-metrics]
+
+ノード リソース メトリクスは、各RabbitMQノードのメモリ、ディスク、ファイル記述子、および Erlang VMリソースを追跡します。
+
+### メモリメトリック
+
+<CollapserGroup>
+  <Collapser id="node-mem-used" title="rabbitmq.node.mem_used">
+    **タイプ**: ゲージ\
+    **単位**: バイト\
+    **説明**: RabbitMQ ノードによって使用される合計メモリ (バイト単位)。
+
+    **使用例**: メモリ不足状態を防ぐためにノードのメモリ消費を監視します。
+
+    **NRQL の例:**
+
+    現在のメモリ使用量を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_used) / 1024 / 1024 AS 'Memory Used (MB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_used'
+    FACET host.name
+    ```
+
+    メモリの傾向を追跡します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_used) / 1024 / 1024 AS 'Memory Used (MB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_used'
+    FACET host.name
+    TIMESERIES
+    ```
+
+    メモリ使用率:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.mem_used) / latest(rabbitmq.node.mem_limit)) * 100 AS 'Memory Utilization %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-mem-limit" title="rabbitmq.node.mem_limit">
+    **タイプ**: ゲージ\
+    **単位**: バイト\
+    **説明**: RabbitMQ ノードに設定されたメモリ制限。
+
+    **使用例**: 使用されたメモリと比較して使用率を計算し、アラームをトリガーします。
+
+    **NRQL の例:**
+
+    メモリ制限を表示します:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_limit) / 1024 / 1024 / 1024 AS 'Memory Limit (GB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_limit'
+    FACET host.name
+    ```
+
+    メモリヘッドルームの計算:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.mem_limit) - latest(rabbitmq.node.mem_used)) / 1024 / 1024 AS 'Available Memory (MB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-mem-alarm" title="rabbitmq.node.mem_alarm">
+    **タイプ**: ゲージ\
+    **単位**: ブール値 (0 または 1)\
+    **説明**: メモリアラームのステータス (0 = アラームなし、1 = アラームがトリガーされました)。
+
+    **ユースケース**: メモリ閾値違反が発生した場合。
+
+    **NRQL の例:**
+
+    アラームのステータスを確認します:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_alarm) AS 'Memory Alarm'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_alarm'
+    FACET host.name
+    ```
+
+    メモリアラームに関するカテゴリ:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_alarm)
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_alarm'
+      AND rabbitmq.node.mem_alarm = 1
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-mem-used-rate" title="rabbitmq.node.mem_used_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: バイト/秒\
+    **説明**: 1 秒あたりのメモリ使用量の変化率。
+
+    **使用例**: メモリ増加率を監視してメモリ リークを検出します。
+
+    **NRQL の例:**
+
+    メモリ増加率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_used_details.rate) / 1024 AS 'Memory Growth Rate (KB/s)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_used_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### ディスクメトリクス
+
+<CollapserGroup>
+  <Collapser id="node-disk-free" title="rabbitmq.node.disk_free">
+    **タイプ**: ゲージ\
+    **単位**: バイト\
+    **説明**: 使用可能なディスク容量 (バイト単位)。
+
+    **使用例**: ディスクの空き容量を監視して、ディスクがいっぱいになるのを防ぎます。
+
+    **NRQL の例:**
+
+    使用可能なディスク容量を表示します:
+
+    ```sql
+    SELECT latest(rabbitmq.node.disk_free) / 1024 / 1024 / 1024 AS 'Disk Free (GB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.disk_free'
+    FACET host.name
+    ```
+
+    ディスク使用率:
+
+    ```sql
+    SELECT 
+      ((latest(rabbitmq.node.disk_free_limit) - latest(rabbitmq.node.disk_free)) / latest(rabbitmq.node.disk_free_limit)) * 100 AS 'Disk Usage %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-disk-free-limit" title="rabbitmq.node.disk_free_limit">
+    **タイプ**: ゲージ\
+    **単位**: バイト\
+    **説明**: ディスク空き容量制限値。
+
+    **使用例**: ディスクの空き容量と比較して使用率を計算します。
+
+    **NRQL の例:**
+
+    ディスク空き容量制限を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.disk_free_limit) / 1024 / 1024 / 1024 AS 'Disk Free Limit (GB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.disk_free_limit'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-disk-free-alarm" title="rabbitmq.node.disk_free_alarm">
+    **タイプ**: ゲージ\
+    **単位**: ブール値 (0 または 1)\
+    **説明**: ディスク空きアラームのステータス (0 = アラームなし、1 = アラームがトリガーされました)。
+
+    **ユースケース**: ディスク容量の閾値違反が発生した場合。
+
+    **NRQL の例:**
+
+    ディスクアラームステータスを確認します:
+
+    ```sql
+    SELECT latest(rabbitmq.node.disk_free_alarm) AS 'Disk Alarm'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.disk_free_alarm'
+    FACET host.name
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### ファイル記述子とソケット メトリクス
+
+<CollapserGroup>
+  <Collapser id="node-fd-used" title="rabbitmq.node.fd_used">
+    **タイプ**: ゲージ\
+    **単位**: ファイル記述子\
+    **説明**: 現在使用中のファイル記述子の数。
+
+    **使用例**: ファイル記述子の使用状況を追跡して枯渇を防止します。
+
+    **NRQL の例:**
+
+    ファイル記述子の使用状況を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.fd_used) AS 'FDs Used'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.fd_used'
+    FACET host.name
+    ```
+
+    ファイル記述子の使用率:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.fd_used) / latest(rabbitmq.node.fd_total)) * 100 AS 'FD Utilization %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-fd-total" title="ラビットmq.node.fd_total">
+    **タイプ**: ゲージ\
+    **単位**: ファイル記述子\
+    **説明**: 使用可能なファイル記述子の合計数。
+
+    **使用例**: 使用率を計算するために使用されるファイル記述子と比較します。
+
+    **NRQL の例:**
+
+    ファイル記述子の制限を表示します:
+
+    ```sql
+    SELECT latest(rabbitmq.node.fd_total) AS 'Total FDs'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.fd_total'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-sockets-used" title="rabbitmq.node.sockets_used">
+    **タイプ**: ゲージ\
+    **単位**: ソケット\
+    **説明**: 現在使用中のネットワーク ソケットの数。
+
+    **使用例**: ソケットの使用状況を監視して、接続アクティビティを追跡します。
+
+    **NRQL の例:**
+
+    ソケットの使用状況を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.sockets_used) AS 'Sockets Used'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.sockets_used'
+    FACET host.name
+    TIMESERIES
+    ```
+
+    ソケット使用率:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.sockets_used) / latest(rabbitmq.node.sockets_total)) * 100 AS 'Socket Utilization %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-sockets-total" title="rabbitmq.node.sockets_total">
+    **タイプ**: ゲージ\
+    **単位**: ソケット\
+    **説明**: 使用可能なソケットの最大数。
+
+    **使用例**: 使用率を計算するために使用されるソケットと比較します。
+
+    **NRQL の例:**
+
+    ソケット制限の表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.sockets_total) AS 'Total Sockets'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.sockets_total'
+    FACET host.name
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Erlang VM メトリクス
+
+<CollapserGroup>
+  <Collapser id="node-proc-used" title="rabbitmq.node.proc_used">
+    **タイプ**: ゲージ\
+    **ユニット**: プロセス\
+    **説明**: 現在使用中の Erlang プロセスの数。
+
+    **使用例**: Erlang プロセスの使用状況を監視して、プロセス制限の枯渇を防ぎます。
+
+    **NRQL の例:**
+
+    Erlang プロセスの使用状況を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.proc_used) AS 'Erlang Processes Used'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.proc_used'
+    FACET host.name
+    ```
+
+    プロセス使用率:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.proc_used) / latest(rabbitmq.node.proc_total)) * 100 AS 'Process Utilization %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-proc-total" title="rabbitmq.node.proc_total">
+    **タイプ**: ゲージ\
+    **ユニット**: プロセス\
+    **説明**: 許可される Erlang プロセスの最大数。
+
+    **使用例**: 使用率を計算するために使用されるプロセスと比較します。
+
+    **NRQL の例:**
+
+    Erlang プロセスの制限を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.proc_total) AS 'Max Erlang Processes'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.proc_total'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-run-queue" title="ラビットmq.node.run_queue">
+    **タイプ**: ゲージ\
+    **ユニット**: プロセス\
+    **説明**: 実行を待機している Erlang プロセスの数。
+
+    **使用例**: Erlang VMスケジューラのキューの長さを監視して、CPU の飽和を検出します。
+
+    **NRQL の例:**
+
+    実行キューの深さを表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.run_queue) AS 'Run Queue Depth'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.run_queue'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-processors" title="rabbitmq.node.processors">
+    **タイプ**: ゲージ\
+    **単位**: プロセッサ\
+    **説明**: ノードで使用可能な CPU プロセッサの数。
+
+    **ユースケース**: 容量計画のためのシステム リソース情報。
+
+    **NRQL の例:**
+
+    CPU 数を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.processors) AS 'CPU Count'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.processors'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-uptime" title="rabbitmq.node.稼働時間">
+    **タイプ**: ゲージ\
+    **単位**：ミリ秒\
+    **説明**: ノードの稼働時間（ミリ秒単位）。
+
+    **使用例**: ノードの安定性を監視し、再起動を検出します。
+
+    **NRQL の例:**
+
+    ノードの稼働時間を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.uptime) / 1000 / 60 / 60 / 24 AS 'Uptime (days)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.uptime'
+    FACET host.name
+    ```
+
+    最近の再起動を検出:
+
+    ```sql
+    SELECT latest(rabbitmq.node.uptime) / 1000 / 60 AS 'Uptime (minutes)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.uptime'
+      AND rabbitmq.node.uptime < 3600000
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-context-switches-rate" title="rabbitmq.node.context_switches_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：スイッチ数/秒\
+    **説明**: 1 秒あたりのコンテキスト切り替えの速度。
+
+    **使用例**: Erlang VMパフォーマンスとスケジューラのアクティビティを監視します。
+
+    **NRQL の例:**
+
+    コンテキストスイッチレートを表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.context_switches_details.rate) AS 'Context Switches/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.context_switches_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### ガベージコレクションのメトリック
+
+<CollapserGroup>
+  <Collapser id="node-gc-num-rate" title="rabbitmq.node.gc_num_details.レート">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりのGC実行回数\
+    **説明**: 1 秒あたりのガベージ コレクション実行の速度。
+
+    **使用例**: GC 周波数を監視してメモリ圧力を検出します。
+
+    **NRQL の例:**
+
+    GC レートを表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.gc_num_details.rate) AS 'GC Runs/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.gc_num_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-gc-bytes-reclaimed-rate" title="rabbitmq.node.gc_bytes_reclaimed_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: バイト/秒\
+    **説明**: 1 秒あたりにガベージ コレクションによって回収されたバイト数。
+
+    **使用例**: GC 効率の監視とメモリ再利用。
+
+    **NRQL の例:**
+
+    GC回収率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.gc_bytes_reclaimed_details.rate) / 1024 / 1024 AS 'GC Reclaimed (MB/s)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.gc_bytes_reclaimed_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## I/Oと永続性メトリクス [#io-metrics]
+
+I/Oメトリクスは、ディスクの読み取り/書き込み操作とメッセージの永続性のためのレイテンシを追跡します。
+
+### ディスクI/O操作
+
+<CollapserGroup>
+  <Collapser id="node-io-read-count-rate" title="rabbitmq.node.io_read_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりの操作数\
+    **説明**: 1 秒あたりの I/O 読み取り操作の速度。
+
+    **使用例**: メッセージ取得のためのディスク読み取りアクティビティを監視します。
+
+    **NRQL の例:**
+
+    読み取り操作率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_read_count_details.rate) AS 'Read Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_read_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-read-bytes-rate" title="rabbitmq.node.io_read_bytes_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: バイト/秒\
+    **説明**: 1 秒あたりの読み取りバイト数。
+
+    **使用例**: モニターディスク読み取りスループット。
+
+    **NRQL の例:**
+
+    読み取りスループットを表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_read_bytes_details.rate) / 1024 / 1024 AS 'Read Throughput (MB/s)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_read_bytes_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-read-avg-time-rate" title="rabbitmq.node.io_read_avg_time_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：ミリ秒\
+    **説明**: 平均 I/O 読み取り時間率。
+
+    **使用例**: パフォーマンスの問題についてレイテンシをモニターで読み取ります。
+
+    **NRQL の例:**
+
+    レイテンシを読む:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_read_avg_time_details.rate) AS 'Avg Read Time (ms)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_read_avg_time_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-write-count-rate" title="rabbitmq.node.io_write_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：1秒あたりの操作数\
+    **説明**: 1 秒あたりの I/O 書き込み操作の速度。
+
+    **使用例**: メッセージの永続性のためのディスク書き込みアクティビティを監視します。
+
+    **NRQL の例:**
+
+    書き込み操作率を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_write_count_details.rate) AS 'Write Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_write_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-write-bytes-rate" title="rabbitmq.node.io_write_bytes_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: バイト/秒\
+    **説明**: 1 秒あたりに書き込まれるバイト数。
+
+    **使用例**: モニターディスク書き込みスループット。
+
+    **NRQL の例:**
+
+    書き込みスループットを表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_write_bytes_details.rate) / 1024 / 1024 AS 'Write Throughput (MB/s)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_write_bytes_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-write-avg-time-rate" title="rabbitmq.node.io_write_avg_time_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：ミリ秒\
+    **説明**: 平均 I/O 書き込み時間率。
+
+    **使用例**: パフォーマンスの問題についてレイテンシをモニターします。
+
+    **NRQL の例:**
+
+    書き込みレイテンシを表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_write_avg_time_details.rate) AS 'Avg Write Time (ms)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_write_avg_time_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-sync-count-rate" title="rabbitmq.node.io_sync_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりの操作数\
+    **説明**: 1 秒あたりの I/O 同期操作の速度。
+
+    **使用例**: 耐久性のある動作のための fsync 周波数を監視します。
+
+    **NRQL の例:**
+
+    同期操作率を表示します:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_sync_count_details.rate) AS 'Sync Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_sync_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-sync-avg-time-rate" title="rabbitmq.node.io_sync_avg_time_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：ミリ秒\
+    **説明**: 平均 I/O 同期時間率。
+
+    **使用例**：耐久性パフォーマンスのためのモニター同期レイテンシ。
+
+    **NRQL の例:**
+
+    同期レイテンシを表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_sync_avg_time_details.rate) AS 'Avg Sync Time (ms)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_sync_avg_time_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-seek-count-rate" title="rabbitmq.node.io_seek_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：1秒あたりの操作数\
+    **説明**: 1 秒あたりの I/O シーク操作の速度。
+
+    **使用例**: ディスクのシーク アクティビティを監視します。
+
+    **NRQL の例:**
+
+    ビューシーク動作率:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_seek_count_details.rate) AS 'Seek Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_seek_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-seek-avg-time-rate" title="rabbitmq.node.io_seek_avg_time_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：ミリ秒\
+    **説明**: 平均 I/O シーク時間率。
+
+    **使用例**：モニターシークレイテンシ。
+
+    **NRQL の例:**
+
+    シークレイテンシを表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_seek_avg_time_details.rate) AS 'Avg Seek Time (ms)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_seek_avg_time_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-reopen-count-rate" title="rabbitmq.node.io_reopen_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりの操作数\
+    **説明**: 1 秒あたりのファイルの再オープン操作の速度。
+
+    **使用例**: ファイル ハンドルのチャーンを監視します。
+
+    **NRQL の例:**
+
+    再開率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_reopen_count_details.rate) AS 'Reopen Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_reopen_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### メッセージストアのメトリクス
+
+<CollapserGroup>
+  <Collapser id="node-msg-store-read-count-rate" title="rabbitmq.node.msg_store_read_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：1秒あたりの操作数\
+    **説明**: 1 秒あたりのメッセージ ストア読み取り操作の速度。
+
+    **使用例**: メッセージ永続読み取りを監視します。
+
+    **NRQL の例:**
+
+    メッセージストアの読み取り率を表示します:
+
+    ```sql
+    SELECT latest(rabbitmq.node.msg_store_read_count_details.rate) AS 'Msg Store Reads/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.msg_store_read_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-msg-store-write-count-rate" title="rabbitmq.node.msg_store_write_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：1秒あたりの操作数\
+    **説明**: 1 秒あたりのメッセージ ストア書き込み操作の速度。
+
+    **使用例**: メッセージの永続書き込みを監視します。
+
+    **NRQL の例:**
+
+    メッセージストアの書き込み速度を表示します:
+
+    ```sql
+    SELECT latest(rabbitmq.node.msg_store_write_count_details.rate) AS 'Msg Store Writes/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.msg_store_write_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-queue-index-read-count-rate" title="rabbitmq.node.queue_index_read_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりの操作数\
+    **説明**: 1 秒あたりのキュー インデックス読み取り操作の速度。
+
+    **使用例**: キューのインデックス読み取りを監視します。
+
+    **NRQL の例:**
+
+    キューインデックスの読み取り速度を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_index_read_count_details.rate) AS 'Queue Index Reads/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_index_read_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-queue-index-write-count-rate" title="rabbitmq.node.queue_index_write_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：1秒あたりの操作数\
+    **説明**: 1 秒あたりのキュー インデックス書き込み操作の速度。
+
+    **使用例**: キューのインデックス書き込みを監視します。
+
+    **NRQL の例:**
+
+    キューインデックスの書き込み速度を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_index_write_count_details.rate) AS 'Queue Index Writes/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_index_write_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Mnesia データベース メトリクス
+
+<CollapserGroup>
+  <Collapser id="node-mnesia-ram-tx-count-rate" title="rabbitmq.node.mnesia_ram_tx_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりのトランザクション数\
+    **説明**: 1 秒あたりの Mnesia RAM トランザクションのレート。
+
+    **使用例**: モニター データベース RAM 活動。
+
+    **NRQL の例:**
+
+    Mnesia RAM トランザクション レートを表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.mnesia_ram_tx_count_details.rate) AS 'Mnesia RAM Tx/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mnesia_ram_tx_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-mnesia-disk-tx-count-rate" title="rabbitmq.node.mnesia_disk_tx_count_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりのトランザクション数\
+    **説明**: 1 秒あたりの Mnesia ディスク トランザクションのレート。
+
+    **使用例**: データベース ディスク上のアクティビティを監視します。
+
+    **NRQL の例:**
+
+    Mnesia ディスクのトランザクション レートを表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.node.mnesia_disk_tx_count_details.rate) AS 'Mnesia Disk Tx/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mnesia_disk_tx_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## キューメトリクス [#queue-metrics]
+
+キュー メトリクスは、キューごとのメッセージ フロー、バックログ、および消費者のアクティビティにインサイトを提供します。
+
+<CollapserGroup>
+  <Collapser id="consumer-count" title="Rabbitmq.消費者.count">
+    **タイプ**: ゲージ\
+    **単位**：消費者\
+    **説明**: キューに接続されている消費者の数。
+
+    **寸法**:
+
+    * `rabbitmq.queue.name`: キューの名前
+
+    **使用例**: 切断を検出するために消費者の接続を監視します。
+
+    **NRQL の例:**
+
+    キューごとの消費者を表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.consumer.count) AS 'Consumers'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.consumer.count'
+    FACET rabbitmq.queue.name
+    ```
+
+    消費者がいないキューを検索します。
+
+    ```sql
+    SELECT latest(rabbitmq.consumer.count)
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.consumer.count'
+      AND rabbitmq.consumer.count = 0
+    FACET rabbitmq.queue.name
+    ```
+  </Collapser>
+
+  <Collapser id="message-current-ready" title="rabbitmq.message.current (状態 = '準備完了')">
+    **タイプ**: ゲージ\
+    **単位**: メッセージ\
+    **説明**: 配信準備が整ったメッセージの数。
+
+    **寸法**:
+
+    * `rabbitmq.queue.name`: キューの名前
+    * `state`: メッセージの状態（準備完了、未確認）
+
+    **使用例**: キューのバックログを監視してメッセージの蓄積を検出します。
+
+    **NRQL の例:**
+
+    キューごとの準備完了メッセージを表示します。
+
+    ```sql
+    SELECT latest(rabbitmq.message.current) AS 'Ready Messages'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.current'
+      AND state = 'ready'
+    FACET rabbitmq.queue.name
+    ```
+
+    準備完了メッセージの傾向を追跡します。
+
+    ```sql
+    SELECT latest(rabbitmq.message.current)
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.current'
+      AND state = 'ready'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="message-current-unacknowledged" title="rabbitmq.message.current (状態 = '未確認')">
+    **タイプ**: ゲージ\
+    **単位**: メッセージ\
+    **説明**: 配信されたがまだ確認されていないメッセージの数。
+
+    **寸法**:
+
+    * `rabbitmq.queue.name`: キューの名前
+    * `state`: メッセージの状態（準備完了、未確認）
+
+    **使用例**: 未確認のメッセージを追跡して、遅い消費者を検出します。
+
+    **NRQL の例:**
+
+    未確認メッセージを表示します:
+
+    ```sql
+    SELECT latest(rabbitmq.message.current) AS 'Unacked Messages'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.current'
+      AND state = 'unacknowledged'
+    FACET rabbitmq.queue.name
+    ```
+  </Collapser>
+
+  <Collapser id="message-current-total" title="rabbitmq.message.current（すべての状態）">
+    **タイプ**: ゲージ\
+    **単位**: メッセージ\
+    **説明**: すべての状態にわたるキュー内のメッセージの合計数。
+
+    **寸法**:
+
+    * `rabbitmq.queue.name`: キューの名前
+
+    **使用例**: 全体的なキューの深さの監視。
+
+    **NRQL の例:**
+
+    キューごとの合計メッセージを表示します。
+
+    ```sql
+    SELECT sum(rabbitmq.message.current) AS 'Total Messages'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.current'
+    FACET rabbitmq.queue.name
+    ```
+  </Collapser>
+
+  <Collapser id="message-published" title="rabbitmq.message.published">
+    **タイプ**: カウンター\
+    **単位**: メッセージ\
+    **説明**: キューに公開されたメッセージの合計数。
+
+    **寸法**:
+
+    * `rabbitmq.queue.name`: キューの名前
+
+    **使用例**: メッセージ取り込み率を監視します。
+
+    **NRQL の例:**
+
+    メッセージの公開率を表示:
+
+    ```sql
+    SELECT rate(sum(rabbitmq.message.published), 1 minute) AS 'Publish Rate (msg/min)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.published'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="message-delivered" title="rabbitmq.メッセージ配信済み">
+    **タイプ**: カウンター\
+    **単位**: メッセージ\
+    **説明**: 消費者に配信されたメッセージの総数。
+
+    **寸法**:
+
+    * `rabbitmq.queue.name`: キューの名前
+
+    **ユースケース**: メッセージ配信スループットを追跡します。
+
+    **NRQL の例:**
+
+    メッセージの配信率を表示:
+
+    ```sql
+    SELECT rate(sum(rabbitmq.message.delivered), 1 minute) AS 'Delivery Rate (msg/min)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.delivered'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="message-acknowledged" title="rabbitmq.message.acknowledged">
+    **タイプ**: カウンター\
+    **単位**: メッセージ\
+    **説明**: 消費者によって確認されたメッセージの総数。
+
+    **寸法**:
+
+    * `rabbitmq.queue.name`: キューの名前
+
+    **使用例**: メッセージ処理の完了を監視します。
+
+    **NRQL の例:**
+
+    承認率を表示:
+
+    ```sql
+    SELECT rate(sum(rabbitmq.message.acknowledged), 1 minute) AS 'Ack Rate (msg/min)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.acknowledged'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="message-dropped" title="rabbitmq.message.dropped">
+    **タイプ**: カウンター\
+    **単位**: メッセージ\
+    **説明**: ドロップされた (拒否された、または期限切れになった) メッセージの数。
+
+    **寸法**:
+
+    * `rabbitmq.queue.name`: キューの名前
+
+    **使用例**: メッセージの損失を特定します。
+
+    **NRQL の例:**
+
+    ドロップされたメッセージを表示します:
+
+    ```sql
+    SELECT sum(rabbitmq.message.dropped) AS 'Dropped Messages'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.dropped'
+    FACET rabbitmq.queue.name
+    SINCE 1 hour ago
+    ```
+
+    トラックドロップ率:
+
+    ```sql
+    SELECT rate(sum(rabbitmq.message.dropped), 1 minute) AS 'Drop Rate (msg/min)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.dropped'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 接続とライフサイクルのメトリクス [#connection-metrics]
+
+接続とライフサイクル メトリクスは、接続、チャネル、キューのライフサイクル イベントを追跡します。
+
+<CollapserGroup>
+  <Collapser id="connection-created-rate" title="rabbitmq.node.connection_created_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりの接続数\
+    **説明**: 1 秒あたりに作成される新しい接続の速度。
+
+    **使用例**: 接続確立パターンを監視します。
+
+    **NRQL の例:**
+
+    接続作成率を表示します:
+
+    ```sql
+    SELECT latest(rabbitmq.node.connection_created_details.rate) AS 'Connections Created/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.connection_created_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="connection-closed-rate" title="rabbitmq.node.connection_closed_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりの接続数\
+    **説明**: 1 秒あたりに閉じられた接続の速度。
+
+    **使用例**: 接続終了パターンの監視。
+
+    **NRQL の例:**
+
+    接続終了率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.connection_closed_details.rate) AS 'Connections Closed/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.connection_closed_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+
+    接続の作成と終了を比較します。
+
+    ```sql
+    SELECT 
+      latest(rabbitmq.node.connection_created_details.rate) AS 'Created',
+      latest(rabbitmq.node.connection_closed_details.rate) AS 'Closed'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="channel-created-rate" title="rabbitmq.node.channel_created_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：1秒あたりのチャンネル数\
+    **説明**: 1 秒あたりに作成されるチャネルのレート。
+
+    **使用例**: チャネルのライフサイクルを監視します。
+
+    **NRQL の例:**
+
+    チャンネル作成率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.channel_created_details.rate) AS 'Channels Created/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.channel_created_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="channel-closed-rate" title="rabbitmq.node.channel_closed_details.rate">
+    **タイプ**: ゲージ\
+    **単位**：1秒あたりのチャンネル数\
+    **説明**: 1 秒あたりに閉じられたチャネルのレート。
+
+    **使用例**: モニターチャネル終端。
+
+    **NRQL の例:**
+
+    チャネル閉鎖率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.channel_closed_details.rate) AS 'Channels Closed/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.channel_closed_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="queue-declared-rate" title="rabbitmq.node.queue_declared_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりのキュー数\
+    **説明**: 1 秒あたりに宣言されたキューのレート。
+
+    **使用例**: キュー宣言アクティビティを監視します。
+
+    **NRQL の例:**
+
+    キュー宣言率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_declared_details.rate) AS 'Queues Declared/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_declared_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="queue-created-rate" title="rabbitmq.node.queue_created_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりのキュー数\
+    **説明**: 1 秒あたりに作成されるキューのレート。
+
+    **ユースケース**: モニターキューの作成。
+
+    **NRQL の例:**
+
+    キュー作成率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_created_details.rate) AS 'Queues Created/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_created_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="queue-deleted-rate" title="rabbitmq.node.queue_deleted_details.rate">
+    **タイプ**: ゲージ\
+    **単位**: 1秒あたりのキュー数\
+    **説明**: 1 秒あたりに削除されるキューのレート。
+
+    **ユースケース**: モニターキューの削除。
+
+    **NRQL の例:**
+
+    キューの削除率を表示:
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_deleted_details.rate) AS 'Queues Deleted/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_deleted_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 次は何ですか？ [#whats-next]
+
+これで、完全な RabbitMQ メトリクス リファレンスが完成したので、この知識を活用しましょう。
+
+**詳細情報：**
+
+* [概要](/docs/opentelemetry/integrations/rabbitmq/overview)- RabbitMQインテグレーションアーキテクチャーおよびデプロイメントオプションについて学びます
+* [データを検索して書き込みます](/docs/opentelemetry/integrations/rabbitmq/find-and-query-data)- New Relic UIに移動してNRQL書き込みを書き込みます
+
+**行動を起こす:**
+
+* [アラートの設定](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-alerts)- キューの深さ、メモリ使用量、ディスク容量に関するアラートを設定します
+* [ダッシュボードの構築](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)- RabbitMQ メトリクスを視覚化するカスタムダッシュボードを作成します

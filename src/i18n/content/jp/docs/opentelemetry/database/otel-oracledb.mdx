@@ -1,0 +1,5077 @@
+---
+title: NRDOTによるOracleデータベース監視
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+metaDescription: New Relic's Oracle Database monitoring integration using NRDOT collector
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/)に従ってプレビューの一部として提供されています。
+</Callout>
+
+New Relicでは、 New Relic Distribution of OpenTelemetry (NRDOT) とNew Relic Relic のデータベース監視機能を使用して、チームがOracleのパフォーマンスを監視できるようになりました。 この統合により、NRDOT コレクターを使用して、包括的なインサイトをデータベース メトリクス、書き込みパフォーマンス、およびシステムの状態に提供します。
+
+この NRDOT ベースのアプローチは、データベース監視のOpenTelemetry標準を活用することで既存のオンホスト インテグレーション (OHI) を補完し、既存の監視スタックとの統合を容易にします。
+
+## 前提条件 [#prerequisites]
+
+始める前に、次のものがあることを確認してください。
+
+* 有効なNew Relic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* サポートされているアーキテクチャー: AMD64 および ARM64 を搭載した Linux
+* New Relicの OTLP エンドポイントへのネットワーク接続
+* Oracleデータベース 19c 以降
+* Oracleデータベースでは、NRDOT コレクターを実行しているマシン上に[Oracle Instant Client](http://www.oracle.com/technetwork/database/database-technologies/instant-client/downloads/index.html)があります。
+
+## Oracleデータベース監視用の NRDOT Collectorセットアップ [#install-collector]
+
+オンホスト (マルチテナント) 環境または RDS 環境で NRDOT Collector使用してOracleデータベース監視を設定できます。 データベース環境に基づいて適切な設定を選択し、手順に従ってください。
+
+<Callout variant="tip">
+  NRDOT Collectorインフラストラクチャとデータベース関連のテレメトリー データの両方を収集するため、 New RelicでOracleデータベース環境の統合された監視ソリューションを実現できます。
+</Callout>
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="host">
+      ホスト側の場合
+    </TabsBarItem>
+
+    <TabsBarItem id="rds">
+      RDSの場合
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="host">
+      オンホスト環境またはマルチテナント環境で NRDOT Collectorを使用してOracleデータベース監視を設定できます。 オンホスト（マルチテナント）環境にNRDOT Collectorインストールするには、以下の手順に従ってください。
+
+      <Steps>
+        <Step>
+          ### 設置方法 [#m-installation]
+
+          Linux 環境に適したインストレーション配布方法を選択します。
+
+          <Callout variant="important">
+            パフォーマンス監視のためにインフラレベルのメトリクスを表示するには、 Oracleデータベース インスタンスと同じホストに NRDOT Collectorインストールすることをお勧めします。
+          </Callout>
+
+          <CollapserGroup>
+            <Collapser title="AMD64向けアーキテクチャー" id="amd">
+              * Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+                ```bash
+                curl -L -o nrdot-collector-host-linux-amd64-latest https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-amd64-latest.deb
+                sudo dpkg -i nrdot-collector-host-linux-amd64-latest
+                ```
+
+              * RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+                ```bash
+                curl -L -o nrdot-collector-host-linux-amd64-latest https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-amd64-latest.rpm
+                sudo rpm -ivh nrdot-collector-host-linux-amd64-latest
+                ```
+            </Collapser>
+
+            <Collapser title="ARM64用アーキテクチャー" id="arm">
+              * Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+                ```bash
+                curl -L -o nrdot-collector-host-linux-arm64-latest https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-arm64-latest.deb
+                sudo dpkg -i nrdot-collector-host-linux-arm64-latest
+                ```
+
+              * RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+                ```bash
+                curl -L -o nrdot-collector-host-linux-arm64-latest https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-arm64-latest.rpm
+                sudo rpm -ivh nrdot-collector-host-linux-arm64-latest
+                ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### データベースユーザーを構成する [#mdatabase-user]
+
+          マルチテナントOracleデータベースに必要な権限を持つ監視ユーザーを作成します。これには、接頭辞`C##`を持つ共通ユーザーを作成する必要があります。
+
+          1. ルート データベースにアドミニストレーターとしてログインします。
+
+             ```sql
+             CREATE USER c##<YOUR_DB_USERNAME> IDENTIFIED BY "<USER_PASSWORD>";
+             ```
+
+             <Callout variant="tip">
+               `USER_PASSWORD`が Oracle [の新規ユーザーパスワード](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/dbseg/keeping-your-oracle-database-secure.html#GUID-451679EB-8676-47E6-82A6-DF025FD65156)要件を満たしていることを確認してください。
+             </Callout>
+        </Step>
+
+        <Step>
+          ### マルチテナントデータベースの監視権限を付与する [#mgrant-privileges]
+
+          監視権限を付与するには、以下のSQL文を実行してください。マルチテナントデータベースの場合は、 `C##`プレフィックスとして正しいユーザー名形式を使用してください。
+
+          ```sql
+          ALTER USER c##<YOUR_DB_USERNAME> SET CONTAINER_DATA=ALL CONTAINER=CURRENT;
+          GRANT CREATE SESSION TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SET CONTAINER TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT CONNECT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$SESSION TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$SYSSTAT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$SESSTAT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$STATNAME TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$SYSTEM_EVENT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$SHARED_SERVER TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$DISPATCHER TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$CIRCUIT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$RESOURCE_LIMIT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$LOCK TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$DATABASE TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$PARAMETER TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$SQLAREA TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$SQL TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$SQL_PLAN TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.V_$PDBS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$INSTANCE TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$SGA TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$SESSTAT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$STATNAME TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$SYSSTAT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$SQLAREA TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$LIBRARYCACHE TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$ROWCACHE TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$PGASTAT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$CONTAINERS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$PDBS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$CON_SYSMETRIC TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$SYSMETRIC TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$FILESTAT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$SYSTEM_EVENT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$ACTIVE_SERVICES TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$SESSION TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$SESSION_WAIT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON SYS.GV_$ROLLSTAT TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON DBA_OBJECTS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON DBA_TABLESPACES TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON DBA_TABLESPACE_USAGE_METRICS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON DBA_DATA_FILES TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON DBA_USERS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON CDB_SERVICES TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON CDB_DATA_FILES TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON CDB_TABLESPACE_USAGE_METRICS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON CDB_USERS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON CDB_PDBS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON ALL_USERS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON ALL_VIEWS TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          GRANT SELECT ON GLOBAL_NAME TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+          ```
+        </Step>
+
+        <Step>
+          ### NRDOT Collectorを構成する [#mconfigure-collector]
+
+          1. `/etc/nrdot-collector-host/`にある`config.yaml`ファイルを編集し、以下のコードスニペットを追加してください。
+
+             <Callout variant="important">
+               既存の NRDOT Collectorユーザーの場合は、上記の設定を既存の`config.yaml`ファイルにマージしてください。 これには、現在の設定を保持したまま、 Oracleデータベース監視用の新しいレシーバー、プロセッサ、およびエクスポータを追加することが含まれます。
+             </Callout>
+
+             ```yaml
+             extensions:
+               health_check:
+             receivers:
+               otlp:
+                 protocols:
+                   grpc:
+                   http:
+               hostmetrics:
+                 collection_interval: 60s
+                 scrapers:
+                   cpu:
+                     metrics:
+                       system.cpu.time:
+                         enabled: false
+                       system.cpu.utilization:
+                         enabled: true
+                   load:
+                   memory:
+                     metrics:
+                       system.memory.utilization:
+                         enabled: true
+                   paging:
+                     metrics:
+                       system.paging.utilization:
+                         enabled: false
+                       system.paging.faults:
+                         enabled: false
+                   filesystem:
+                     metrics:
+                       system.filesystem.utilization:
+                         enabled: true
+                   disk:
+                     metrics:
+                       system.disk.merged:
+                         enabled: false
+                       system.disk.pending_operations:
+                         enabled: false
+                       system.disk.weighted_io_time:
+                         enabled: false
+                   network:
+                     metrics:
+                       system.network.connections:
+                         enabled: false
+                   # Uncomment to enable process metrics, which can be noisy but valuable.
+                   # processes:
+                   # process:
+                   #   metrics:
+                   #     process.cpu.utilization:
+                   #       enabled: true
+                   #     process.cpu.time:
+                   #       enabled: false
+               filelog:
+                 include:
+                   - /var/log/alternatives.log
+                   - /var/log/cloud-init.log
+                   - /var/log/auth.log
+                   - /var/log/dpkg.log
+                   - /var/log/syslog
+                   - /var/log/messages
+                   - /var/log/secure
+                   - /var/log/yum.log
+               newrelicoracledb/cdb:
+                 endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+                 username: "<USERNAME>"
+                 password: "<PASSWORD>"
+                 service: "<YOUR_CDB_SERVICE_NAME>"
+                 collection_interval: 30s
+                 timeout: 30s
+                 # enable_tablespace_scraper: true
+                 # enable_core_scraper: true
+                 # enable_system_scraper: true
+                 # enable_connection_scraper: true
+                 # enable_container_scraper: true
+                 # enable_database_info_scraper: true
+               newrelicoracledb/pdb:
+                 endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+                 username: "<USERNAME>"
+                 password: "<PASSWORD>"
+                 service: "<YOUR_CDB_SERVICE_NAME>"
+                 collection_interval: 30s
+                 timeout: 30s
+                 pdb_services: ["ALL"]
+                 # query_monitoring_response_time_threshold: 500
+                 # query_monitoring_count_threshold: 30
+                 # enable_query_monitoring: true
+                 # enable_pdb_scraper: true
+
+             processors:
+               metricstransform:
+                 transforms:
+                   - include: system.cpu.utilization
+                     action: update
+                     operations:
+                       - action: aggregate_labels
+                         label_set: [ state ]
+                         aggregation_type: mean
+                   - include: system.paging.operations
+                     action: update
+                     operations:
+                       - action: aggregate_labels
+                         label_set: [ direction ]
+                         aggregation_type: sum
+               filter/exclude_cpu_utilization:
+                 metrics:
+                   datapoint:
+                     - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+                     - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+                     - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+               filter/exclude_memory_utilization:
+                 metrics:
+                   datapoint:
+                     - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+                     - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+                     - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+                     - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+                     - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+               filter/exclude_memory_usage:
+                 metrics:
+                   datapoint:
+                     - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+                     - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+               filter/exclude_filesystem_utilization:
+                 metrics:
+                   datapoint:
+                     - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+               filter/exclude_filesystem_usage:
+                 metrics:
+                   datapoint:
+                     - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+                     - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+               filter/exclude_filesystem_inodes_usage:
+                 metrics:
+                   datapoint:
+                     - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+                     - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+               filter/exclude_system_disk:
+                 metrics:
+                   datapoint:
+                     - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+                     - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+                     - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+                     - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                     - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+               filter/exclude_system_paging:
+                 metrics:
+                   datapoint:
+                     - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+                     - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+               filter/exclude_network:
+                 metrics:
+                   datapoint:
+                     - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+               attributes/exclude_system_paging:
+                 include:
+                   match_type: strict
+                   metric_names:
+                     - system.paging.operations
+                 actions:
+                   - key: type
+                     action: delete
+               transform/clear_metadata:
+                 metric_statements:
+                   - context: metric
+                     statements:
+                       - set(metric.description, "")
+                       - set(metric.unit, "")
+               filter/exec_plan_and_query_details_include:
+                 metrics:
+                   include:
+                     match_type: strict
+                     metric_names:
+                       - newrelicoracledb.execution_plan
+                       - newrelicoracledb.slow_queries.query_details
+               filter/exec_plan_and_query_details_exclude:
+                 metrics:
+                   exclude:
+                     match_type: strict
+                     metric_names:
+                       - newrelicoracledb.execution_plan
+                       - newrelicoracledb.slow_queries.query_details
+               cumulativetodelta/oracle:
+                 include:
+                   match_type: strict
+                   metrics:
+                     - newrelicoracledb.connection.bytes_received
+                     - newrelicoracledb.connection.bytes_sent
+                     - newrelicoracledb.connection.execute_count
+                     - newrelicoracledb.connection.logons_cumulative
+                     - newrelicoracledb.connection.parse_count_hard
+                     - newrelicoracledb.connection.parse_count_total
+                     - newrelicoracledb.connection.sqlnet_roundtrips
+                     - newrelicoracledb.connection.user_commits
+                     - newrelicoracledb.connection.user_rollbacks
+               transform/host:
+                 metric_statements:
+                   - context: metric
+                     statements:
+                       - set(metric.description, "")
+                       - set(metric.unit, "")
+               transform:
+                 trace_statements:
+                   - context: span
+                     statements:
+                       - truncate_all(span.attributes, 4095)
+                       - truncate_all(resource.attributes, 4095)
+                 log_statements:
+                   - context: log
+                     statements:
+                       - truncate_all(log.attributes, 4095)
+                       - truncate_all(resource.attributes, 4095)
+               memory_limiter:
+                 check_interval: 1s
+                 limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+               batch:
+               resourcedetection:
+                 detectors: ["system"]
+                 system:
+                   hostname_sources: ["os"]
+                   resource_attributes:
+                     host.id:
+                       enabled: true
+               resourcedetection/db_safe:
+                 detectors: ["system"]
+                 override: false
+                 system:
+                   hostname_sources: ["os"]
+                   resource_attributes:
+                     host.id:
+                       enabled: true
+               resourcedetection/cloud:
+                 detectors: ["gcp", "ec2", "azure"]
+                 timeout: 2s
+                 override: true
+               resourcedetection/env:
+                 detectors: ["env"]
+                 timeout: 2s
+                 override: true
+
+             connectors:
+               metricsaslogs:
+                 include_resource_attributes: true
+                 include_scope_info: true
+
+             exporters:
+               otlp:
+                 endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+                 headers:
+                   api-key: "<YOUR_NEWRELIC_API_KEY>"
+                 compression: gzip
+
+             service:
+               pipelines:
+                 metrics/host:
+                   receivers: [hostmetrics]
+                   processors:
+                     - memory_limiter
+                     - metricstransform
+                     - filter/exclude_cpu_utilization
+                     - filter/exclude_memory_utilization
+                     - filter/exclude_memory_usage
+                     - filter/exclude_filesystem_utilization
+                     - filter/exclude_filesystem_usage
+                     - filter/exclude_filesystem_inodes_usage
+                     - filter/exclude_system_disk
+                     - filter/exclude_network
+                     - attributes/exclude_system_paging
+                     - transform/host
+                     - resourcedetection
+                     - resourcedetection/cloud
+                     - resourcedetection/env
+                     - cumulativetodelta/oracle
+                     - batch
+                   exporters: [otlp]
+                 traces:
+                   receivers: [otlp]
+                   processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+                   exporters: [otlp]
+                 metrics:
+                   receivers: [otlp]
+                   processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+                   exporters: [otlp]
+                 logs:
+                   receivers: [otlp]
+                   processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+                   exporters: [otlp]
+                 metrics/oracledb:
+                   receivers: [newrelicoracledb/cdb, newrelicoracledb/pdb]
+                   processors: [memory_limiter, resourcedetection/db_safe, batch, transform/clear_metadata, filter/exec_plan_and_query_details_exclude]
+                   exporters: [otlp]
+                 metrics/exec_plan_and_query_details_to_logs:
+                   receivers: [newrelicoracledb/cdb, newrelicoracledb/pdb]
+                   processors: [filter/exec_plan_and_query_details_include]
+                   exporters: [metricsaslogs]
+                 logs/oracledb:
+                   receivers: [metricsaslogs]
+                   processors: [memory_limiter, resourcedetection/db_safe, batch]
+                   exporters: [otlp]
+               extensions: [health_check]
+             ```
+
+          2. 設定ファイルに次の必須事項を設定します。
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  パラメータ
+                </th>
+
+                <th>
+                  説明
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `<YOUR_DB_HOST>`
+                </td>
+
+                <td>
+                  Oracleデータベースのホスト名を入力します。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_DB_PORT>`
+                </td>
+
+                <td>
+                  Oracleデータベースのポートを入力します。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<USERNAME>`
+                </td>
+
+                <td>
+                  データベースのユーザー名を入力してください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<PASSWORD>`
+                </td>
+
+                <td>
+                  データベースのパスワードを入力してください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_CDB_SERVICE_NAME>`
+                </td>
+
+                <td>
+                  Oracleサービス名を入力してください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_NEWRELIC_OTLP_ENDPOINT>`
+                </td>
+
+                <td>
+                  New Relic OTLP エンドポイントを入力します。詳細については、 [New Relic OTLP エンドポイントのドキュメント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)を参照してください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_NEWRELIC_API_KEY>`
+                </td>
+
+                <td>
+                  New Relic APIキーを入力します。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `pdb_services`
+                </td>
+
+                <td>
+                  次のオプションから監視する PDB サービスを選択します。
+
+                  * 空またはnil：指定されたサービスデータのみを収集します
+                  * `["ALL"]`: すべてのPDBサービス（CDBを除く）を収集します
+                  * `["pdb1", "pdb2"]`指定されたPDBサービスのみを収集する
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `enable_query_monitoring`
+                </td>
+
+                <td>
+                  低速、アクティブ、待機、ブロックセッション、実行計画などの監視メトリクスを取得します。 デフォルト値は 
+
+                  `false`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `query_monitoring_response_time_threshold`
+                </td>
+
+                <td>
+                  応答タイムの閾値を設定します (ミリ秒単位)。 この閾値を越える突破を捕捉します。 デフォルト値は500msに設定されています。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `query_monitoring_count_threshold`
+                </td>
+
+                <td>
+                  各書き込みパフォーマンス メトリクスのレコード数。 デフォルト値は30に設定されています
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <Callout variant="tip">
+            New Relic OTLP エンドポイント設定およびOpenTelemetryベストプラクティスの詳細については、 [OpenTelemetry OTLP ドキュメント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)を参照してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ### NRDOTコレクターを再起動します [#restart-collector]
+
+          設定を更新した後、NRDOT コレクターを再起動します。
+
+          ```bash
+          sudo systemctl restart nrdot-collector-host
+          sudo systemctl status nrdot-collector-host
+          ```
+
+          <Callout variant="tip">
+            新しい設定を確実に有効にするために、設定を変更した後は必ず NRDOT コレクターを再起動してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          #### （オプション）マルチレシーバー設定 [#multi-receiver]
+
+          `nrdot-collector-host`バイナリは、一意の資格証明を使用して複数のOracleデータベース インスタンスを監視するために、単一の`config.yaml`内のマルチレシーバー設定をサポートします。 以下の例`config.yaml`は、共通のプロセッサとエクスポーターを共有しながら、異なるオンホスト（マルチテナント）インスタンス用に複数のレシーバを設定する方法を示しています。
+
+          ```yaml
+          receivers:
+            newrelicoracledb/cdb1:
+              endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+              username: "<USERNAME>"
+              password: "<PASSWORD>"
+              service: "<YOUR_CDB1_SERVICE_NAME>"
+              collection_interval: 30s
+              timeout: 30s
+              # enable_tablespace_scraper: true
+              # enable_core_scraper: true
+              # enable_system_scraper: true
+              # enable_connection_scraper: true
+              # enable_container_scraper: true
+              # enable_database_info_scraper: true
+
+            # First CDB's PDB configuration
+            newrelicoracledb/pdb1:
+              endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+              username: "<USERNAME>"
+              password: "<PASSWORD>"
+              service: "<YOUR_CDB2_SERVICE_NAME>"
+              collection_interval: 30s
+              timeout: 30s
+              pdb_services: ["ALL"]
+              # query_monitoring_response_time_threshold: 500
+              # query_monitoring_count_threshold: 30
+              # enable_query_monitoring: true
+              # enable_pdb_scraper: true
+
+            # Second CDB configuration
+            newrelicoracledb/cdb2:
+              endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+              username: "<USERNAME>"
+              password: "<PASSWORD>"
+              service: "<YOUR_CDB2_SERVICE_NAME>"
+              collection_interval: 30s
+              timeout: 30s
+              # enable_tablespace_scraper: true
+              # enable_core_scraper: true
+              # enable_system_scraper: true
+              # enable_connection_scraper: true
+              # enable_container_scraper: true
+              # enable_database_info_scraper: true
+
+            # Second CDB's PDB configuration
+            newrelicoracledb/pdb2:
+              endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+              username: "<USERNAME>"
+              password: "<PASSWORD>"
+              service: "<YOUR_CDB2_SERVICE_NAME>"
+              collection_interval: 30s
+              timeout: 30s
+              pdb_services: ["ALL"]
+              # query_monitoring_response_time_threshold: 500
+              # query_monitoring_count_threshold: 30
+              # enable_query_monitoring: true
+              # enable_pdb_scraper: true
+
+          processors:
+            memory_limiter/oracle:
+              check_interval: 1s
+              limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+
+            cumulativetodelta/oracle:
+              include:
+                match_type: strict
+                metrics:
+                  - newrelicoracledb.connection.bytes_received
+                  - newrelicoracledb.connection.bytes_sent
+                  - newrelicoracledb.connection.execute_count
+                  - newrelicoracledb.connection.logons_cumulative
+                  - newrelicoracledb.connection.parse_count_hard
+                  - newrelicoracledb.connection.parse_count_total
+                  - newrelicoracledb.connection.sqlnet_roundtrips
+                  - newrelicoracledb.connection.user_commits
+                  - newrelicoracledb.connection.user_rollbacks
+
+            transform/oracle_clear_metadata:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(metric.description, "")
+                    - set(metric.unit, "")
+              log_statements:
+                - context: log
+                  statements:
+                    - set(body, "")
+
+            filter/exec_plan_and_query_details_include:
+              metrics:
+                include:
+                  match_type: strict
+                  metric_names:
+                    - newrelicoracledb.execution_plan
+                    - newrelicoracledb.slow_queries.query_details
+
+            filter/exec_plan_and_query_details_exclude:
+              metrics:
+                exclude:
+                  match_type: strict
+                  metric_names:
+                    - newrelicoracledb.execution_plan
+                    - newrelicoracledb.slow_queries.query_details
+
+            resourcedetection/oracle_db_safe:
+              detectors: ["system"]
+              override: false
+              system:
+                hostname_sources: ["os"]
+                resource_attributes:
+                  host.id:
+                    enabled: true
+
+          connectors:
+            metricsaslogs/oracle:
+              include_resource_attributes: true
+              include_scope_info: true
+
+          service:
+            pipelines:
+              metrics/oracledb:
+                receivers: [newrelicoracledb/cdb1, newrelicoracledb/pdb1, newrelicoracledb/cdb2, newrelicoracledb/pdb2]
+                processors: [memory_limiter/oracle, cumulativetodelta/oracle, transform/oracle_clear_metadata, filter/exec_plan_and_query_details_exclude, resourcedetection/oracle_db_safe]
+                exporters: [otlp]
+
+              metrics/oracle_query_to_logs:
+                receivers: [newrelicoracledb/cdb1, newrelicoracledb/pdb1, newrelicoracledb/cdb2, newrelicoracledb/pdb2]
+                processors: [memory_limiter/oracle, filter/exec_plan_and_query_details_include]
+                exporters: [metricsaslogs/oracle]
+
+              logs/oracledb:
+                receivers: [metricsaslogs/oracle]
+                processors: [memory_limiter/oracle, transform/oracle_clear_metadata, resourcedetection/oracle_db_safe]
+                exporters: [otlp]
+          ```
+
+          <Callout variant="tip">
+            * この設定により、複数のOracle RDS インスタンスを同時に監視できます。 各インスタンスは、共通のプロセッサとエクスポータを共有しながら、一意の資格情報を持つ独自のレシーバ設定を取得します。 監視要件に基づいて、 `collection_interval`とその他の値を調整します。
+
+            * 設定を更新した後、NRDOT コレクターを再起動して変更を適用します。
+          </Callout>
+        </Step>
+
+        <Step>
+          ### （オプション）APMとデータベースの相関関係を設定する [#moptional-service-id]
+
+          アプリケーションのパフォーマンスをデータベース操作と関連付けるために、データベース サービス ID を設定できます。 この機能を使用すると、特定のデータベース ワークロードを生成しているアプリケーションを正確に確認できます。詳細については、「 New RelicでAPMとデータベースの相関関係を取得するための[データベース サービス ID のセットアップ」](/docs/opentelemetry/database/database-service-identification/)を参照してください。
+
+          <Callout variant="important">
+            APM でデータベース パフォーマンス データを表示するには、両方のエンティティが同じ New Relic アカウント内にある必要があります。エンティティが異なる New Relic アカウントにある場合、データを表示するには両方のアカウントにアクセスできる必要があります。
+          </Callout>
+        </Step>
+
+        <Step>
+          ### （オプション）シークレット管理を構成する [#rds-secret-management]
+
+          シークレット管理機能を使用すると、データベース資格情報などの機密情報を安全に管理できます。これにより、構成ファイルに機密データをハードコーディングすることを避け、監視設定のセキュリティを強化できます。詳細については、[シークレット管理](/docs/opentelemetry/database/database-service-identification/#secret-management)を参照してください。
+        </Step>
+
+        <Step>
+          ### データを探す、使う [#mfind-use-data]
+
+          データが収集されると、 New RelicのUIを通じて包括的なOracleデータベース監視にアクセスできるようになります。
+
+          New RelicでOracleデータベースのエンティティを見つけるには:
+
+          1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>に移動します。
+          2. 検索条件を<DNT>`instrumentation.provider = opentelemetry`</DNT>に設定します。
+          3. エンティティのリストからOracleデータベースを選択します。
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="rds">
+      RDS環境にNRDOT Collectorインストールするには、以下の手順に従ってください。
+
+      <Steps>
+        <Step>
+          ### 設置方法 [#rds-installation]
+
+          Linux 環境に適したインストレーション配布方法を選択します。
+
+          <CollapserGroup>
+            <Collapser title="AMD64向けアーキテクチャー" id="amd64-rds">
+              * Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+                ```bash
+                curl -L -o nrdot-collector-host-linux-amd64-latest https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-amd64-latest.deb
+                sudo dpkg -i nrdot-collector-host-linux-amd64-latest
+                ```
+
+              * RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+                ```bash
+                curl -L -o nrdot-collector-host-linux-amd64-latest https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-amd64-latest.rpm
+                sudo rpm -ivh nrdot-collector-host-linux-amd64-latest
+                ```
+            </Collapser>
+
+            <Collapser title="ARM64用アーキテクチャー" id="arm64-rds">
+              * Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+                ```bash
+                curl -L -o nrdot-collector-host-linux-arm64-latest https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-arm64-latest.deb
+                sudo dpkg -i nrdot-collector-host-linux-arm64-latest
+                ```
+
+              * RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+                ```bash
+                curl -L -o nrdot-collector-host-linux-arm64-latest https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-host-linux-arm64-latest.rpm
+                sudo rpm -ivh nrdot-collector-host-linux-arm64-latest
+                ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### データベースユーザーを構成する [#rds-database-user]
+
+          RDS Oracleデータベースに必要な権限を持つ監視ユーザーを作成します。
+
+          1. ルート データベースにアドミニストレーターとしてログインします。
+
+             ```sql
+             CREATE USER <USERNAME> IDENTIFIED BY "<USER_PASSWORD>";
+             ```
+
+          2. 新しく作成されたユーザーに`CONNECT`権限を付与します。
+
+             ```sql
+             GRANT CONNECT TO <USERNAME>;
+             ```
+        </Step>
+
+        <Step>
+          ### RDS データベースに対する監視権限を付与する [#rds-grant-privileges]
+
+          監視権限を付与するには、以下のSQL文を実行してください。`<USERNAME_IN_UPPERCASE>`あなたのユーザー名（大文字）に置き換えてください。
+
+          ```sql
+          SET SERVEROUTPUT ON;
+          BEGIN
+              FOR r IN (SELECT column_value as view_name FROM table(sys.odcivarchar2list(
+                          'V_$SESSION', 'V_$SYSSTAT', 'V_$SESSTAT', 'V_$STATNAME', 
+                          'V_$SYSTEM_EVENT', 'V_$SHARED_SERVER', 'V_$DISPATCHER', 
+                          'V_$RESOURCE_LIMIT', 'V_$LOCK', 'V_$DATABASE', 
+                          'V_$PARAMETER', 'V_$SQLAREA', 'V_$SQL', 'V_$SQL_PLAN', 
+                          'V_$PDBS', 'GV_$INSTANCE', 'GV_$SGA', 'GV_$SESSTAT', 
+                          'GV_$STATNAME', 'GV_$SYSSTAT', 'GV_$SQLAREA', 
+                          'GV_$LIBRARYCACHE', 'GV_$ROWCACHE', 'GV_$PGASTAT', 
+                          'GV_$CONTAINERS', 'GV_$PDBS', 'GV_$CON_SYSMETRIC', 
+                          'GV_$SYSMETRIC', 'GV_$FILESTAT', 'GV_$SYSTEM_EVENT', 
+                          'GV_$ACTIVE_SERVICES', 'GV_$SESSION', 'GV_$SESSION_WAIT', 
+                          'GV_$ROLLSTAT', 'DBA_OBJECTS', 'DBA_TABLESPACES', 
+                          'DBA_TABLESPACE_USAGE_METRICS', 'DBA_DATA_FILES', 'DBA_USERS', 
+                          'CDB_SERVICES', 'CDB_DATA_FILES', 'CDB_TABLESPACE_USAGE_METRICS', 
+                          'CDB_USERS', 'CDB_PDBS', 'ALL_USERS', 'ALL_VIEWS', 'GLOBAL_NAME'
+                      ))) LOOP
+                BEGIN
+                    rdsadmin.rdsadmin_util.grant_sys_object(
+                      p_obj_name  => r.view_name, 
+                      p_grantee   => '<USERNAME_IN_UPPERCASE>', 
+                      p_privilege => 'SELECT'
+                    );
+                EXCEPTION 
+                    WHEN OTHERS THEN 
+                      DBMS_OUTPUT.PUT_LINE('FAILED: ' || r.view_name || ' | Error: ' || SQLERRM);
+                END;
+              END LOOP;
+          END;
+          /
+          ```
+        </Step>
+
+        <Step>
+          ### NRDOT Collectorを構成する [#rds-configure-collector]
+
+          1. `/etc/nrdot-collector-host/`にある`config.yaml`ファイルを編集し、以下のコードスニペットを追加してください。
+
+             <Callout variant="important">
+               既存の NRDOT Collectorユーザーの場合は、上記の設定を既存の`config.yaml`ファイルにマージしてください。 これには、現在の設定を保持したまま、 Oracleデータベース監視用の新しいレシーバー、プロセッサ、およびエクスポータを追加することが含まれます。
+             </Callout>
+
+             ```yaml
+             receivers:
+               newrelicoracledb/pdb:
+                 endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+                 username: "<USERNAME>"
+                 password: "<PASSWORD>"
+                 service: "<PDB_NAME>"
+                 collection_interval: 30s
+                 timeout: 30s
+                 # pdb_services: ['PDB1','PDB2'] #for multiple pdbs
+                 # query_monitoring_response_time_threshold: 500
+                 # query_monitoring_count_threshold: 30
+                 # enable_query_monitoring: true
+                 # enable_pdb_scraper: true
+                 # enable_tablespace_scraper: true
+                 # enable_core_scraper: true
+                 # enable_system_scraper: true
+                 # enable_connection_scraper: true
+                 # enable_container_scraper: true
+                 # enable_database_info_scraper: true
+             processors:
+               transform/clear_metadata:
+                 metric_statements:
+                   - context: metric
+                     statements:
+                       - set(metric.description, "")
+                       - set(metric.unit, "")
+                 log_statements:
+                   - context: log
+                     statements:
+                       - set(log.body, "")
+               filter/exec_plan_and_query_details_include:
+                 metrics:
+                   include:
+                     match_type: strict
+                     metric_names:
+                       - newrelicoracledb.execution_plan
+                       - newrelicoracledb.slow_queries.query_details
+               filter/exec_plan_and_query_details_exclude:
+                 metrics:
+                   exclude:
+                     match_type: strict
+                     metric_names:
+                       - newrelicoracledb.execution_plan
+                       - newrelicoracledb.slow_queries.query_details
+               cumulativetodelta:
+                 include:
+                   match_type: strict
+                   metrics:
+                     - newrelicoracledb.connection.bytes_received
+                     - newrelicoracledb.connection.bytes_sent
+                     - newrelicoracledb.connection.execute_count
+                     - newrelicoracledb.connection.logons_cumulative
+                     - newrelicoracledb.connection.parse_count_hard
+                     - newrelicoracledb.connection.parse_count_total
+                     - newrelicoracledb.connection.sqlnet_roundtrips
+                     - newrelicoracledb.connection.user_commits
+                     - newrelicoracledb.connection.user_rollbacks        
+             connectors:
+               metricsaslogs:
+                 include_resource_attributes: true
+                 include_scope_info: true 
+             exporters:
+               otlp:
+                 endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>" 
+                 headers:
+                   api-key: "<YOUR_NEWRELIC_API_KEY>"
+                 compression: gzip
+             service:
+               pipelines:
+                 metrics:
+                   receivers: [newrelicoracledb/pdb]
+                   processors: [transform/clear_metadata, filter/exec_plan_and_query_details_exclude, cumulativetodelta]
+                   exporters: [otlp]
+                 metrics/exec_plan_and_query_details_to_logs:
+                   receivers: [newrelicoracledb/pdb]
+                   processors: [filter/exec_plan_and_query_details_include]
+                   exporters: [metricsaslogs]
+                 logs/newrelicoracledb:
+                   receivers: [metricsaslogs]
+                   processors: [transform/clear_metadata]
+                   exporters: [otlp]
+             ```
+
+          2. 設定ファイルに次の必須事項を設定します。
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  パラメータ
+                </th>
+
+                <th>
+                  説明
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `<YOUR_DB_HOST>`
+                </td>
+
+                <td>
+                  Oracleデータベースのホスト名を入力します。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_DB_PORT>`
+                </td>
+
+                <td>
+                  Oracleデータベースのポートを入力します。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<USERNAME>`
+                </td>
+
+                <td>
+                  データベースのユーザー名を入力してください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<PASSWORD>`
+                </td>
+
+                <td>
+                  データベースのパスワードを入力してください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<PDB_NAME>`
+                </td>
+
+                <td>
+                  PDBサービス名を入力してください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_NEWRELIC_OTLP_ENDPOINT>`
+                </td>
+
+                <td>
+                  New Relic OTLP エンドポイントを入力します。詳細については、 [New Relic OTLP エンドポイントのドキュメント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)を参照してください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_NEWRELIC_API_KEY>`
+                </td>
+
+                <td>
+                  New Relic APIキーを入力します。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `pdb_services`
+                </td>
+
+                <td>
+                  次のオプションから監視する PDB サービスを選択します。
+
+                  * 空またはnil：指定されたサービスデータのみを収集します
+                  * `["pdb1", "pdb2"]`指定されたPDBサービスのみを収集する
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `enable_query_monitoring`
+                </td>
+
+                <td>
+                  低速、アクティブ、待機、ブロックセッション、実行計画などの監視メトリクスを取得します。 デフォルト値は 
+
+                  `false`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `query_monitoring_response_time_threshold`
+                </td>
+
+                <td>
+                  応答タイムの閾値を設定します (ミリ秒単位)。 この閾値を越える突破を捕捉します。 デフォルト値は500msに設定されています。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `query_monitoring_count_threshold`
+                </td>
+
+                <td>
+                  各書き込みパフォーマンス メトリクスのレコード数。 デフォルト値は30に設定されています
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Step>
+
+        <Step>
+          ### NRDOTコレクターを再起動します [#restart]
+
+          設定を更新した後、NRDOT コレクターを再起動します。
+
+          ```bash
+          sudo systemctl restart nrdot-collector-host
+          sudo systemctl status nrdot-collector-host
+          ```
+
+          <Callout variant="tip">
+            新しい設定を確実に有効にするために、設定を変更した後は必ず NRDOT コレクターを再起動してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          #### （オプション）マルチレシーバー設定 [#rds-multi-receiver]
+
+          `nrdot-collector-host`バイナリは、一意の資格証明を使用して複数のOracleデータベース インスタンスを監視するために、単一の`config.yaml`内のマルチレシーバー設定をサポートします。 以下の例`config.yaml`は、共通のプロセッサとエクスポーターを共有しながら、異なる RDS インスタンスに対して複数のレシーバを設定する方法を示しています。
+
+          ```yaml
+          receivers:
+            # First RDS Instance
+            newrelicoracledb/pdb/rds1:
+              endpoint: "<YOUR_DB_HOST_1>:<YOUR_DB_PORT_1>"
+              username: "<USERNAME_1>"
+              password: "<PASSWORD_1>"
+              service: "<PDB_NAME_1>"
+              collection_interval: 30s
+              timeout: 30s
+              # query_monitoring_response_time_threshold: 500
+              # query_monitoring_count_threshold: 30
+              # enable_query_monitoring: true
+
+            # Second RDS Instance
+            newrelicoracledb/pdb/rds2:
+              endpoint: "<YOUR_DB_HOST_2>:<YOUR_DB_PORT_2>"
+              username: "<USERNAME_2>"
+              password: "<PASSWORD_2>"
+              service: "<PDB_NAME_2>"
+              collection_interval: 30s
+              timeout: 30s
+              # query_monitoring_response_time_threshold: 500
+              # query_monitoring_count_threshold: 30
+              # enable_query_monitoring: true
+
+          processors:
+            transform/clear_metadata:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(metric.description, "")
+                    - set(metric.unit, "")
+              log_statements:
+                - context: log
+                  statements:
+                    - set(log.body, "")
+
+            filter/exec_plan_and_query_details_include:
+              metrics:
+                include:
+                  match_type: strict
+                  metric_names:
+                    - newrelicoracledb.execution_plan
+                    - newrelicoracledb.slow_queries.query_details
+
+            filter/exec_plan_and_query_details_exclude:
+              metrics:
+                exclude:
+                  match_type: strict
+                  metric_names:
+                    - newrelicoracledb.execution_plan
+                    - newrelicoracledb.slow_queries.query_details
+
+          connectors:
+            metricsaslogs:
+              include_resource_attributes: true
+              include_scope_info: true
+
+          exporters:
+            otlp:
+              endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+              headers:
+                api-key: "<YOUR_NEWRELIC_API_KEY>"
+              compression: gzip
+
+          service:
+            pipelines:
+              # Separate metrics pipelines to apply unique resource names
+              metrics/rds1:
+                receivers: [newrelicoracledb/pdb/rds1]
+                processors: [transform/clear_metadata, filter/exec_plan_and_query_details_exclude]
+                exporters: [otlp]
+              
+              metrics/rds2:
+                receivers: [newrelicoracledb/pdb/rds2]
+                processors: [transform/clear_metadata, filter/exec_plan_and_query_details_exclude]
+                exporters: [otlp]
+
+              # Combined logs pipeline for execution plans and query details
+              metrics/exec_plan_and_query_details_to_logs:
+                receivers: [newrelicoracledb/pdb/rds1, newrelicoracledb/pdb/rds2]
+                processors: [filter/exec_plan_and_query_details_include]
+                exporters: [metricsaslogs]
+
+              logs/newrelicoracledb:
+                receivers: [metricsaslogs]
+                processors: [transform/clear_metadata]
+                exporters: [otlp]
+          ```
+
+          <Callout variant="tip">
+            * この設定により、複数のOracle RDS インスタンスを同時に監視できます。 各インスタンスは、共通のプロセッサとエクスポータを共有しながら、一意の資格情報を持つ独自のレシーバ設定を取得します。 監視要件に基づいて、 `collection_interval`とその他の値を調整します。
+
+            * 設定を更新した後、NRDOT コレクターを再起動して変更を適用します。
+          </Callout>
+        </Step>
+
+        <Step>
+          ### （オプション）APMとデータベースの相関関係を設定する [#rds-service-id]
+
+          アプリケーションのパフォーマンスをデータベース操作と関連付けるために、データベース サービス ID を設定できます。 この機能を使用すると、特定のデータベース ワークロードを生成しているアプリケーションを正確に確認できます。詳細については、「 New RelicでAPMとデータベースの相関関係を取得するための[データベース サービス ID のセットアップ」](/docs/opentelemetry/database/database-service-identification/)を参照してください。
+
+          <Callout variant="important">
+            APM でデータベース パフォーマンス データを表示するには、両方のエンティティが同じ New Relic アカウント内にある必要があります。エンティティが異なるアカウントに存在する場合、データを表示するには両方のアカウントへのアクセス権が必要です。
+          </Callout>
+        </Step>
+
+        <Step>
+          ### （オプション）シークレット管理を構成する [#rds-secret-management]
+
+          シークレット管理機能を使用すると、データベース資格情報などの機密情報を安全に管理できます。これにより、構成ファイルに機密データをハードコーディングすることを避け、監視設定のセキュリティを強化できます。詳細については、[シークレット管理](/docs/opentelemetry/database/database-service-identification/#secret-management)を参照してください。
+        </Step>
+
+        <Step>
+          ### データを探す、使う [#rds-find-use-data]
+
+          データが収集されると、 New RelicのUIを通じて包括的なOracleデータベース監視にアクセスできるようになります。
+
+          New RelicでOracleデータベースのエンティティを見つけるには:
+
+          1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>に移動します。
+          2. 検索条件を<DNT>`instrumentation.provider = opentelemetry`</DNT>に設定します。
+          3. エンティティのリストからOracleデータベースを選択します。
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+{/* ## Troubleshooting [#troubleshooting]
+
+### Common issues
+
+**Connection refused errors:**
+- Verify Oracle database is running and accessible
+- Check firewall settings and network connectivity
+- Confirm connection details (host, port, service name)
+
+**Authentication failures:**
+- Verify username and password are correct
+- Ensure user has required privileges granted
+- For multitenant databases, confirm `C##` prefix is used
+
+**No data in New Relic:**
+- Verify New Relic API key is valid and has ingest permissions
+- Check OTLP endpoint URL matches your New Relic region
+- Review collector logs for error messages
+
+**Query monitoring not working:**
+- Ensure `enable_query_monitoring: true` in configuration
+- Verify user has SELECT privileges on `gv_$sqlarea` or `v_$sqlarea` views
+- Check query monitoring thresholds are appropriate for your workload */}
+
+## NRDOT コレクターがサポートするコマンド [#commands]
+
+このセクションでは、システム上のNRDOT Collectorサービスを管理するための一般的なコマンドの一覧を示します。
+
+<CollapserGroup>
+  <Collapser title="NRDOT Collectorコマンド" id="command">
+    * インストールステータスを検証するには:
+
+      * Debian/Ubuntu ベースのディストリビューションの場合:
+
+        ```bash
+        dpkg -l | grep nrdot-collector-host
+        ```
+
+      * RHEL/CentOS ベースのディストリビューションの場合:
+
+        ```bash
+        rpm -q nrdot-collector-host || ls /etc/nrdot-collector-host
+        ```
+
+    * NRDOT Collector を再起動するには:
+
+    ```bash
+    sudo systemctl restart nrdot-collector-host
+    ```
+
+    * NRDOT Collectorステータスを確認するには:
+
+    ```bash
+    sudo systemctl status nrdot-collector-host
+    ```
+
+    * NRDOT Collector ログを表示するには:
+
+    ```bash
+    sudo journalctl -u nrdot-collector-host -n 50 --no-pager
+    ```
+
+    * NRDOT Collector サービスを削除するには:
+
+      * Debian/Ubuntu ベースのディストリビューションの場合:
+
+        ```bash
+        sudo apt purge nrdot-collector-host
+        ```
+
+      * RHEL/CentOS ベースのディストリビューションの場合:
+
+        ```bash
+        sudo yum erase nrdot-collector-host
+        ```
+
+    * 設定ファイルをクリーンアップするには：
+
+    ```bash
+    # Clean up configuration and reload systemd
+    sudo rm -rf /etc/nrdot-collector-host/
+    sudo systemctl daemon-reload
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 利用可能なメトリクス [#otel-metrics]
+
+設定フラグごとに整理されたメトリクスを使用して、 Oracleパフォーマンスを監視します。 [デフォルトのメトリクスは、](#default) New Relic UI機能のために自動的に収集されます。 特定のスクレイパーを有効にすると、提供される[追加のメトリクスを](#additional)使用して、高度でより深いインサイトを取得することもできます。
+
+### デフォルトのメトリクス [#default]
+
+これらのメトリクスはNew RelicのOracleデータベース監視機能に不可欠であり、設定に関係なく自動的に収集されます。
+
+<CollapserGroup>
+  <Collapser title="NRDOT Collectorによって収集されたデフォルトのメトリクス" id="default-metrics">
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.details`
+          </td>
+
+          <td>
+            Oracleデータベースの子カーソルの詳細
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.elapsed_time`
+          </td>
+
+          <td>
+            子カーソル操作にかかった経過時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.active_sessions`
+          </td>
+
+          <td>
+            アクティブなOracleデータベース セッションの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.execute_count`
+          </td>
+
+          <td>
+            SQL実行回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.inactive_sessions`
+          </td>
+
+          <td>
+            非アクティブなOracleデータベースセッションの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.total_sessions`
+          </td>
+
+          <td>
+            Oracleデータベース セッションの合計数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.memory.pga_max_size_bytes`
+          </td>
+
+          <td>
+            PGAのグローバルメモリバウンド（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sessions.count`
+          </td>
+
+          <td>
+            アクティブなOracleデータベース セッションの合計数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_hit_ratio`
+          </td>
+
+          <td>
+            SGAヒット率（バッファキャッシュ効率）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_shared_pool_library_cache_hit_ratio`
+          </td>
+
+          <td>
+            SQL AREAネームスペースのライブラリキャッシュのヒット率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.execution_count`
+          </td>
+
+          <td>
+            スロー実行の数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_avg_cpu_time`
+          </td>
+
+          <td>
+            間隔内のスロー書き込みの平均 CPU 時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_avg_elapsed_time`
+          </td>
+
+          <td>
+            インターバル内のスロー書き込みの平均経過時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_buffer_gets`
+          </td>
+
+          <td>
+            間隔内でスロー書き込み用のバッファを取得します
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_cpu_time`
+          </td>
+
+          <td>
+            間隔内のスロー書き込みの CPU 時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_elapsed_time`
+          </td>
+
+          <td>
+            インターバル内のスロー書き込みの経過時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_execution_count`
+          </td>
+
+          <td>
+            インターバル内のスロー書き込みの実行回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_rows_processed`
+          </td>
+
+          <td>
+            間隔内でスロー書き込みのために処理された行数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_wait_time`
+          </td>
+
+          <td>
+            インターバル内のスロー書き込みの待ち時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.query_details`
+          </td>
+
+          <td>
+            スロー書き込みの詳細情報
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_cpu_time`
+          </td>
+
+          <td>
+            スロー書き込みの合計 CPU 時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_elapsed_time`
+          </td>
+
+          <td>
+            スロー書き込みの合計経過時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_rows_examined`
+          </td>
+
+          <td>
+            スロー書き込みで調べられた合計行数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_rows_returned`
+          </td>
+
+          <td>
+            スロー書き込みによって返された合計行数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_wait_time`
+          </td>
+
+          <td>
+            スロー書き込みの合計待ち時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.average_active_sessions`
+          </td>
+
+          <td>
+            同時アクティブセッションの平均数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.buffer_cache_hit_ratio`
+          </td>
+
+          <td>
+            バッファキャッシュのヒット率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.database_cpu_time_ratio`
+          </td>
+
+          <td>
+            データベース CPU 時間比率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.enqueue_waits_per_second`
+          </td>
+
+          <td>
+            エンキュー競合率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.executions_per_second`
+          </td>
+
+          <td>
+            SQL実行速度
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.hard_parse_count_per_second`
+          </td>
+
+          <td>
+            ハードパースレート
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.host_cpu_utilization`
+          </td>
+
+          <td>
+            ホストCPU使用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.io_megabytes_per_second`
+          </td>
+
+          <td>
+            I/Oループット（MB/秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_reads_per_second`
+          </td>
+
+          <td>
+            物理読み取り速度
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_writes_per_second`
+          </td>
+
+          <td>
+            物理書き込み速度
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.redo_generated_bytes_per_second`
+          </td>
+
+          <td>
+            リドゥ生成レート
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.response_time_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとの応答時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.transactions_per_second`
+          </td>
+
+          <td>
+            1秒あたりのトランザクションレート
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.wait_events.current_wait_time_ms`
+          </td>
+
+          <td>
+            データベースイベントの現在の待機時間（ミリ秒）
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+### 追加のメトリクス [#additional]
+
+インサイトをOracleデータベースのパフォーマンスと健全性にさらに深くするために、必要に応じてこれらの追加のメトリクスを有効にします。
+
+<CollapserGroup>
+  <Collapser id="tablespace" title="テーブルスペース・メトリクス">
+    `enable_tablespace_scraper: true`を有効にしてこれらのメトリクスを収集します。
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.space_consumed_bytes`
+          </td>
+
+          <td>
+            テーブルスペースごとの使用容量（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.space_reserved_bytes`
+          </td>
+
+          <td>
+            テーブルスペースごとの割り当て済み容量（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.space_used_percentage`
+          </td>
+
+          <td>
+            テーブルスペースごとの使用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.is_offline`
+          </td>
+
+          <td>
+            テーブルスペースのオフライン状態（1=オフライン、0=オンライン）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.global_name`
+          </td>
+
+          <td>
+            テーブルスペースでタグ付けされたグローバルデータベース名
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.db_id`
+          </td>
+
+          <td>
+            テーブルスペースごとのデータベース ID タグ
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.offline_cdb_datafiles`
+          </td>
+
+          <td>
+            CDBテーブルスペース内のオフラインデータファイルの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.offline_pdb_datafiles`
+          </td>
+
+          <td>
+            PDB表領域内のオフラインデータファイルの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.pdb_non_write_mode`
+          </td>
+
+          <td>
+            書き込みモードではないPDBテーブルスペースの数
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="core" title="コアメトリクス">
+    `enable_core_scraper: true`を有効にしてこれらのメトリクスを収集します。
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.memory.pga_in_use_bytes`
+          </td>
+
+          <td>
+            現在使用されている合計 PGA メモリ (バイト単位)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.memory.pga_allocated_bytes`
+          </td>
+
+          <td>
+            PGAに割り当てられたメモリの合計（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.memory.pga_freeable_bytes`
+          </td>
+
+          <td>
+            解放可能な PGA メモリの合計 (バイト単位)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.memory.sga_uga_total_bytes`
+          </td>
+
+          <td>
+            SGA UGA メモリの合計 (バイト単位)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.memory.sga_shared_pool_library_cache_sharable_bytes`
+          </td>
+
+          <td>
+            SGA共有プールライブラリキャッシュ共有可能メモリ（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.memory.sga_shared_pool_library_cache_user_bytes`
+          </td>
+
+          <td>
+            SGA共有プールライブラリキャッシュユーザーごとの共有可能メモリ（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_shared_pool_library_cache_reload_ratio`
+          </td>
+
+          <td>
+            ライブラリキャッシュの再読み込み率（再読み込み数／固定数）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_shared_pool_dict_cache_miss_ratio`
+          </td>
+
+          <td>
+            ディクショナリキャッシュミス率（getmisses/gets）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_log_buffer_space_waits`
+          </td>
+
+          <td>
+            ログバッファ領域を待機しているセッション数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_log_allocation_retries_ratio`
+          </td>
+
+          <td>
+            ログ割り当て再試行率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_fixed_size_bytes`
+          </td>
+
+          <td>
+            SGA固定サイズメモリ（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_redo_buffers_bytes`
+          </td>
+
+          <td>
+            SGAリドゥバッファのメモリ（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.disk.reads`
+          </td>
+
+          <td>
+            物理ディスク読み取り回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.disk.writes`
+          </td>
+
+          <td>
+            物理ディスクへの書き込み回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.disk.blocks_read`
+          </td>
+
+          <td>
+            ディスクから読み取られた物理ブロックの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.disk.blocks_written`
+          </td>
+
+          <td>
+            ディスクに書き込まれた物理ブロックの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.disk.read_time_milliseconds`
+          </td>
+
+          <td>
+            ディスクからの読み込みに要した時間（ミリ秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.disk.write_time_milliseconds`
+          </td>
+
+          <td>
+            ディスクへの書き込みにかかった時間（ミリ秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.global_name`
+          </td>
+
+          <td>
+            Oracleデータベースのグローバル名情報
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.db_id`
+          </td>
+
+          <td>
+            Oracleデータベース ID 情報
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.locked_accounts`
+          </td>
+
+          <td>
+            データベース内のロックされたユーザーアカウントの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.long_running_queries`
+          </td>
+
+          <td>
+            長時間実行されるクエリの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_log_buffer_redo_allocation_retries`
+          </td>
+
+          <td>
+            リドゥバッファ割り当ての再試行回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_log_buffer_redo_entries`
+          </td>
+
+          <td>
+            やり直しエントリ数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sorts_memory`
+          </td>
+
+          <td>
+            メモリ内で実行されたソート回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sorts_disk`
+          </td>
+
+          <td>
+            ディスク上で実行されたソート回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rollback_segments_gets`
+          </td>
+
+          <td>
+            ロールバックセグメントでの取得回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rollback_segments_waits`
+          </td>
+
+          <td>
+            ロールバックセグメントでの待機回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rollback_segments_wait_ratio`
+          </td>
+
+          <td>
+            ロールバックセグメントの待機率（待機回数／取得回数）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.redo_log_parallel_write_waits`
+          </td>
+
+          <td>
+            ログファイル並列書き込みイベントの待機回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.redo_log_switch_completion_waits`
+          </td>
+
+          <td>
+            ログファイル切り替え完了イベントの待機回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.redo_log_switch_checkpoint_incomplete_waits`
+          </td>
+
+          <td>
+            ログファイル切り替え（チェックポイント不完全）イベントの待機回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.redo_log_switch_archiving_needed_waits`
+          </td>
+
+          <td>
+            ログファイル切り替え（アーカイブが必要）イベントの待機回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_buffer_busy_waits`
+          </td>
+
+          <td>
+            バッファビジー待機イベントの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_free_buffer_waits`
+          </td>
+
+          <td>
+            空きバッファ待機イベントの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.sga_free_buffer_inspected_waits`
+          </td>
+
+          <td>
+            検査された空きバッファ待機イベントの数
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="system" title="システム指標">
+    `enable_system_scraper: true`を有効にしてこれらのメトリクスを収集します。
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.system.active_parallel_sessions`
+          </td>
+
+          <td>
+            アクティブな並列セッション
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.active_serial_sessions`
+          </td>
+
+          <td>
+            アクティブなシリアルセッション
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.background_checkpoints_per_second`
+          </td>
+
+          <td>
+            バックグラウンドチェックポイント数（1秒あたり）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.background_cpu_usage_per_second`
+          </td>
+
+          <td>
+            バックグラウンドCPU使用率（1秒あたり）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.background_time_per_second`
+          </td>
+
+          <td>
+            バックグラウンド処理時間（秒あたり）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.branch_node_splits_per_second`
+          </td>
+
+          <td>
+            1秒あたりの分岐ノード分割数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.branch_node_splits_per_transaction`
+          </td>
+
+          <td>
+            ブランチノードはトランザクションごとに分割されます
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.captured_user_calls`
+          </td>
+
+          <td>
+            キャプチャされたユーザーの通話
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.consistent_read_changes_per_second`
+          </td>
+
+          <td>
+            1秒あたりの読み取り変更数の一貫性
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.consistent_read_changes_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとの一貫した読み取り変更
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.consistent_read_gets_per_second`
+          </td>
+
+          <td>
+            1秒あたりの読み取り取得数（一貫性あり）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.consistent_read_gets_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとの一貫した読み取り取得数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.cpu_usage_per_second`
+          </td>
+
+          <td>
+            1秒あたりのCPU使用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.cpu_usage_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりのCPU使用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.cr_blocks_created_per_second`
+          </td>
+
+          <td>
+            1秒あたりに作成されるCRブロック数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.cr_blocks_created_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとに作成されるCRブロック
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.cr_undo_records_applied_per_second`
+          </td>
+
+          <td>
+            CR 取り消しレコード適用件数（1秒あたり）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.cr_undo_records_applied_per_transaction`
+          </td>
+
+          <td>
+            CR トランザクションごとに適用されたレコードの取り消し
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.current_logons_count`
+          </td>
+
+          <td>
+            現在のログオン数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.current_open_cursors_count`
+          </td>
+
+          <td>
+            現在開いているカーソルの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.current_os_load`
+          </td>
+
+          <td>
+            現在のOS負荷
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.cursor_cache_hit_ratio`
+          </td>
+
+          <td>
+            カーソルキャッシュのヒット率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.database_time_per_second`
+          </td>
+
+          <td>
+            データベース処理時間（秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.database_wait_time_ratio`
+          </td>
+
+          <td>
+            データベース待機時間比率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.db_block_changes_per_second`
+          </td>
+
+          <td>
+            1秒あたりのDBブロック変更数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.db_block_changes_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのDBブロック変更
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.db_block_changes_per_user_call`
+          </td>
+
+          <td>
+            ユーザー呼び出しごとのDBブロック変更
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.db_block_gets_per_second`
+          </td>
+
+          <td>
+            DBブロックの取得数（1秒あたり）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.db_block_gets_per_transaction`
+          </td>
+
+          <td>
+            DBブロックはトランザクションごとに取得されます
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.db_block_gets_per_user_call`
+          </td>
+
+          <td>
+            DBブロックはユーザー呼び出しごとに取得されます
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.dbwr_checkpoints_per_second`
+          </td>
+
+          <td>
+            DBWR チェックポイント/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.disk_sort_per_second`
+          </td>
+
+          <td>
+            ディスクソート/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.disk_sort_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのディスクソート
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.enqueue_deadlocks_per_second`
+          </td>
+
+          <td>
+            1秒あたりのエンキューデッドロック数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.enqueue_deadlocks_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのエンキューデッドロック
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.enqueue_requests_per_second`
+          </td>
+
+          <td>
+            1秒あたりのリクエストキューへの追加数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.enqueue_requests_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのリクエストのキューイング数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.enqueue_timeouts_per_second`
+          </td>
+
+          <td>
+            1秒あたりのエンキュータイムアウト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.enqueue_timeouts_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのエンキュータイムアウト
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.enqueue_waits_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのエンキュー待ち時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.execute_without_parse_ratio`
+          </td>
+
+          <td>
+            解析比率なしで実行する
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.executions_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりの実行回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.executions_per_user_call`
+          </td>
+
+          <td>
+            ユーザー呼び出しごとの実行回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.full_index_scans_per_second`
+          </td>
+
+          <td>
+            1秒あたりのフルインデックススキャン回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.full_index_scans_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのフルインデックススキャン
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.gc_cr_block_received_per_second`
+          </td>
+
+          <td>
+            GC CRブロック受信数（1秒あたり）（RAC）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.gc_cr_block_received_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとに受信されたGC CRブロック（RAC）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.gc_current_block_received_per_second`
+          </td>
+
+          <td>
+            GC（ガベージコレクション）の1秒あたりの受信ブロック数（RAC）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.gc_current_block_received_per_transaction`
+          </td>
+
+          <td>
+            GC（ガベージコレクション）トランザクションごとの受信ブロック数（RAC）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.global_cache_average_cr_get_time`
+          </td>
+
+          <td>
+            グローバルキャッシュの平均CR取得時間（RAC）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.global_cache_average_current_get_time`
+          </td>
+
+          <td>
+            グローバルキャッシュの平均現在取得時間（RAC）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.global_cache_blocks_corrupted`
+          </td>
+
+          <td>
+            グローバルキャッシュブロック破損（RAC）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.global_cache_blocks_lost`
+          </td>
+
+          <td>
+            グローバルキャッシュブロック損失（RAC）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.hard_parse_count_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのハードパース回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.host_cpu_usage_per_second`
+          </td>
+
+          <td>
+            ホストCPU使用率（秒単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.io_requests_per_second`
+          </td>
+
+          <td>
+            1秒あたりのI/Oリクエスト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.leaf_node_splits_per_second`
+          </td>
+
+          <td>
+            1秒あたりの葉節分割数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.leaf_node_splits_per_transaction`
+          </td>
+
+          <td>
+            リーフノードのトランザクションごとの分割
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.library_cache_hit_ratio`
+          </td>
+
+          <td>
+            ライブラリキャッシュのヒット率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.library_cache_miss_ratio`
+          </td>
+
+          <td>
+            ライブラリキャッシュミス率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.logical_reads_per_second`
+          </td>
+
+          <td>
+            1秒あたりの論理読み取り回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.logical_reads_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりの論理読み取り回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.logical_reads_per_user_call`
+          </td>
+
+          <td>
+            ユーザー呼び出しごとの論理読み取り
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.logons_per_second`
+          </td>
+
+          <td>
+            1 秒あたりのログオン数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.logons_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりのログオン数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.long_table_scans_per_second`
+          </td>
+
+          <td>
+            長いテーブルを1秒あたりスキャンする回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.long_table_scans_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのロングテーブルスキャン
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.memory_sorts_ratio`
+          </td>
+
+          <td>
+            メモリソート比率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.network_traffic_volume_per_second`
+          </td>
+
+          <td>
+            1秒あたりのネットワークTraffic量
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.open_cursors_per_second`
+          </td>
+
+          <td>
+            1秒あたりのオープンカーソル数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.open_cursors_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのオープンカーソル数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.parse_failure_count_per_second`
+          </td>
+
+          <td>
+            1秒あたりの解析失敗回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.parse_failure_count_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとの解析失敗回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.pga_cache_hit_percentage`
+          </td>
+
+          <td>
+            PGA キャッシュのヒット率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_lobs_reads_per_second`
+          </td>
+
+          <td>
+            物理LOBの1秒あたりの読み取り回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_lobs_reads_per_transaction`
+          </td>
+
+          <td>
+            物理LOBの読み取り回数（トランザクションあたり）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_lobs_writes_per_second`
+          </td>
+
+          <td>
+            物理LOB書き込み/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_lobs_writes_per_transaction`
+          </td>
+
+          <td>
+            物理LOBのトランザクションごとの書き込み
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_read_bytes_per_second`
+          </td>
+
+          <td>
+            1 秒あたりの物理読み取りバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_read_io_requests_per_second`
+          </td>
+
+          <td>
+            1秒あたりの物理読み取りIOリクエスト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_read_total_bytes_per_second`
+          </td>
+
+          <td>
+            物理読み取り合計バイト/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_read_total_io_requests_per_second`
+          </td>
+
+          <td>
+            物理読み取り合計IOリクエスト/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_reads_direct_per_second`
+          </td>
+
+          <td>
+            1秒あたりの直接物理読み取り数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_reads_direct_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとの物理読み取り
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_reads_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりの物理読み取り回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_write_bytes_per_second`
+          </td>
+
+          <td>
+            物理書き込みバイト/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_write_io_requests_per_second`
+          </td>
+
+          <td>
+            1秒あたりの物理書き込みIOリクエスト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_write_total_bytes_per_second`
+          </td>
+
+          <td>
+            物理書き込み合計バイト/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_write_total_io_requests_per_second`
+          </td>
+
+          <td>
+            物理書き込み合計IOリクエスト/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_writes_direct_per_second`
+          </td>
+
+          <td>
+            1秒あたりの直接書き込み物理書き込み
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_writes_direct_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとの物理書き込み
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.physical_writes_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりの物理書き込み
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.process_limit_percentage`
+          </td>
+
+          <td>
+            工程限界率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.recursive_calls_per_second`
+          </td>
+
+          <td>
+            1秒あたりの再帰呼び出し回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.recursive_calls_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりの再帰呼び出し回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.redo_allocation_hit_ratio`
+          </td>
+
+          <td>
+            再割り当てヒット率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.redo_generated_bytes_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとに生成されるリドゥバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.redo_writes_per_second`
+          </td>
+
+          <td>
+            1秒あたりのリドゥ書き込み回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.redo_writes_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとのリドゥ書き込み
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.row_cache_hit_ratio`
+          </td>
+
+          <td>
+            ロウキャッシュのヒット率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.row_cache_miss_ratio`
+          </td>
+
+          <td>
+            行キャッシュミス率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.rows_per_sort`
+          </td>
+
+          <td>
+            ソートごとの行数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.session_count`
+          </td>
+
+          <td>
+            セッション数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.session_limit_percentage`
+          </td>
+
+          <td>
+            セッション制限率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.shared_pool_free_percentage`
+          </td>
+
+          <td>
+            共有プール無料利用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.soft_parse_ratio`
+          </td>
+
+          <td>
+            ソフトパース比率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.sql_service_response_time`
+          </td>
+
+          <td>
+            SQL サービスの応答時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.streams_pool_usage_percentage`
+          </td>
+
+          <td>
+            ストリームプール使用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.temp_space_used`
+          </td>
+
+          <td>
+            一時的に使用するスペース
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.total_index_scans_per_second`
+          </td>
+
+          <td>
+            1秒あたりのインデックススキャン総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.total_index_scans_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりのインデックススキャン総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.total_parse_count_per_second`
+          </td>
+
+          <td>
+            1秒あたりの合計解析回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.total_parse_count_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとの合計解析回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.total_sorts_per_user_call`
+          </td>
+
+          <td>
+            ユーザー呼び出しごとの合計ソート数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.total_table_scans_per_second`
+          </td>
+
+          <td>
+            1秒あたりのテーブルスキャン総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.total_table_scans_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりのテーブルスキャン総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.total_table_scans_per_user_call`
+          </td>
+
+          <td>
+            ユーザー呼び出しごとのテーブルスキャン総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.transactions_per_logon`
+          </td>
+
+          <td>
+            ログインごとのトランザクション数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.transactions_per_second`
+          </td>
+
+          <td>
+            1秒あたりのトランザクション数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.user_calls_per_second`
+          </td>
+
+          <td>
+            1秒あたりのユーザー呼び出し数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.user_calls_per_transaction`
+          </td>
+
+          <td>
+            トランザクションあたりのユーザー呼び出し回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.user_calls_ratio`
+          </td>
+
+          <td>
+            ユーザー通話率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.user_commits_percentage`
+          </td>
+
+          <td>
+            ユーザーコミット率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.user_limit_percentage`
+          </td>
+
+          <td>
+            ユーザー制限率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.user_rollback_undo_records_applied_per_second`
+          </td>
+
+          <td>
+            ユーザーロールバック取り消しレコード適用件数（1秒あたり）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.user_rollback_undo_records_applied_per_transaction`
+          </td>
+
+          <td>
+            ユーザーロールバック取り消しレコード（トランザクションごとに適用）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.user_rollbacks_per_second`
+          </td>
+
+          <td>
+            1秒あたりのユーザーロールバック数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.system.user_rollbacks_percentage`
+          </td>
+
+          <td>
+            ユーザーロールバック率
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="connection" title="接続メトリクス">
+    `enable_connection_scraper: true`を有効にしてこれらのメトリクスを収集します。
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.connection.sessions_by_status`
+          </td>
+
+          <td>
+            ステータス別にグループ化されたセッション数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.sessions_by_type`
+          </td>
+
+          <td>
+            セッション数をタイプ別にグループ化
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.logons_cumulative`
+          </td>
+
+          <td>
+            インスタンス起動以降の累計ログオン回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.logons_current`
+          </td>
+
+          <td>
+            現在アクティブなログオン数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.shared_servers`
+          </td>
+
+          <td>
+            共有サーバー数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.dispatchers`
+          </td>
+
+          <td>
+            ディスパッチャーの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.circuits`
+          </td>
+
+          <td>
+            アクティブ回路の数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.resource_current_utilization`
+          </td>
+
+          <td>
+            Oracleリソースの現在の利用状況
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.resource_max_utilization`
+          </td>
+
+          <td>
+            Oracleのリソースを、起動時から最大限に活用しています。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.resource_limit`
+          </td>
+
+          <td>
+            Oracleリソースの制限値
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.user_commits`
+          </td>
+
+          <td>
+            ユーザーコミット数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.user_rollbacks`
+          </td>
+
+          <td>
+            ユーザーによるロールバック数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.parse_count_total`
+          </td>
+
+          <td>
+            解析呼び出しの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.parse_count_hard`
+          </td>
+
+          <td>
+            ハードパース呼び出しの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.sqlnet_roundtrips`
+          </td>
+
+          <td>
+            クライアントとの間でSQL*Netが往復した回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.bytes_sent`
+          </td>
+
+          <td>
+            SQL*Net経由でクライアントに送信されたバイト
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.connection.bytes_received`
+          </td>
+
+          <td>
+            SQL*Net を介してクライアントから受信したバイト数
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="pdb" title="PDBメトリクス">
+    `enable_pdb_scraper: true`を有効にして、これらの PDB (プラガブル データベース) メトリクスを収集します。
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.active_parallel_sessions`
+          </td>
+
+          <td>
+            PDBにおけるアクティブな並列セッション数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.active_serial_sessions`
+          </td>
+
+          <td>
+            PDBにおけるアクティブなシリアルセッションの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.average_active_sessions`
+          </td>
+
+          <td>
+            PDBにおけるアクティブセッションの平均数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.background_cpu_usage_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのバックグラウンドCPU使用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.background_time_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりの背景時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.block_changes_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのDBブロック変更数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.block_changes_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションごとのDBブロック変更
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.cpu_time_ratio`
+          </td>
+
+          <td>
+            データベース PDB の CPU 時間比率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.cpu_usage_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのCPU使用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.cpu_usage_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションごとのCPU使用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.current_logons`
+          </td>
+
+          <td>
+            PDBにおける現在のログオン数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.current_open_cursors`
+          </td>
+
+          <td>
+            PDB内の現在開いているカーソルの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.db_physical_read_bytes_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりの物理読み取りバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.db_physical_reads_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりの物理読み取り数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.db_physical_write_bytes_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりの物理書き込みバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.db_physical_writes_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりの物理書き込み数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.execute_without_parse_ratio`
+          </td>
+
+          <td>
+            PDBで解析比率なしで実行する
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.executions_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりの実行回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.executions_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションあたりの実行回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.hard_parse_count_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのハードパース回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.hard_parse_count_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションごとのハードパース数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.logical_reads_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりの論理読み取り回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.logical_reads_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションごとの論理読み取り
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.logons_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのログオン数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.logons_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションごとのログオン数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.network_traffic_byte_per_second`
+          </td>
+
+          <td>
+            1秒あたりのネットワークトラフィック量（バイト単位、PDB形式）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.open_cursors_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのオープンカーソル数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.open_cursors_per_transaction`
+          </td>
+
+          <td>
+            PDB内のトランザクションごとのオープンカーソル
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.parse_failure_count_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりの解析失敗回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.physical_read_bytes_per_second`
+          </td>
+
+          <td>
+            PDBにおける物理読み取り合計バイト/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.physical_reads_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションごとの物理読み取り回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.physical_write_bytes_per_second`
+          </td>
+
+          <td>
+            PDBにおける物理書き込み合計バイト/秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.physical_writes_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションごとの物理書き込み
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.redo_generated_bytes_per_second`
+          </td>
+
+          <td>
+            1秒あたりに生成されるリドゥログのバイト数（PDB形式）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.redo_generated_bytes_per_transaction`
+          </td>
+
+          <td>
+            トランザクションごとに生成されるリドゥログのバイト数（PDB内）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.response_time_per_transaction`
+          </td>
+
+          <td>
+            PDB での 1 回あたりの応答時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.session_count`
+          </td>
+
+          <td>
+            PDBにおけるセッション数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.soft_parse_ratio`
+          </td>
+
+          <td>
+            PDBにおけるソフトパース比率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.sql_service_response_time`
+          </td>
+
+          <td>
+            PDB での SQL サービスの応答時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.total_parse_count_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりの合計解析回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.total_parse_count_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションごとの総解析回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.transactions_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのユーザートランザクション数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.user_calls_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのユーザー呼び出し数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.user_calls_per_transaction`
+          </td>
+
+          <td>
+            PDBにおけるトランザクションごとのユーザー呼び出し回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.user_commits_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのユーザーコミット数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.user_commits_percentage`
+          </td>
+
+          <td>
+            PDBにおけるユーザーのコミット率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.user_rollbacks_per_second`
+          </td>
+
+          <td>
+            PDBにおける1秒あたりのユーザーロールバック数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.user_rollbacks_percentage`
+          </td>
+
+          <td>
+            PDBにおけるユーザーロールバック率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.wait_time_ratio`
+          </td>
+
+          <td>
+            PDBにおけるデータベース待機時間比率
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="container" title="コンテナメトリクス">
+    CDB環境のコンテナメトリクスを収集するには、 `enable_container_scraper: true`有効にしてください。
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.container.status`
+          </td>
+
+          <td>
+            コンテナのオープンモードステータス（1=読み取り/書き込み、0=その他）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.container.restricted`
+          </td>
+
+          <td>
+            コンテナ制限モード（1=はい、0=いいえ）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.open_mode`
+          </td>
+
+          <td>
+            PDBオープンモード（1=読み書き、0=その他）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.pdb.total_size_bytes`
+          </td>
+
+          <td>
+            PDBの合計サイズ（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.used_bytes`
+          </td>
+
+          <td>
+            CDBにおけるテーブルスペースあたりの使用バイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.total_bytes`
+          </td>
+
+          <td>
+            CDBにおけるテーブルスペースごとの合計バイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.tablespace.used_percent`
+          </td>
+
+          <td>
+            CDBにおけるテーブルスペースごとの使用率
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.datafile.size_bytes`
+          </td>
+
+          <td>
+            データファイルのサイズ（バイト単位）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.datafile.used_bytes`
+          </td>
+
+          <td>
+            データファイルで使用されているバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.datafile.autoextensible`
+          </td>
+
+          <td>
+            データファイルの自動拡張ステータス（1=はい、0=いいえ）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.service.status`
+          </td>
+
+          <td>
+            Oracleサービスのステータス（1=アクティブ、0=非アクティブ）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.service.count`
+          </td>
+
+          <td>
+            コンテナあたりのサービス数
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="rac" title="RACメトリクス">
+    `enable_rac_scraper: true`を有効にして、これらの RAC (Real Application クラスタ) メトリクスを収集します。
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.asm.diskgroup.total_mb`
+          </td>
+
+          <td>
+            ASMディスクグループの総容量（MB）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.asm.diskgroup.free_mb`
+          </td>
+
+          <td>
+            ASMディスクグループの空き容量（MB）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.asm.diskgroup.offline_disks`
+          </td>
+
+          <td>
+            ASMディスクグループ内のオフラインディスクの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.wait_time`
+          </td>
+
+          <td>
+            クラスター待機時間の割合（マイクロ秒/秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.total_waits`
+          </td>
+
+          <td>
+            クラスター待機イベントの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.instance.status`
+          </td>
+
+          <td>
+            RAC インスタンスのステータス (1=OPEN 0=その他)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.instance.uptime_seconds`
+          </td>
+
+          <td>
+            インスタンスの起動からの稼働時間（秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.instance.database_status`
+          </td>
+
+          <td>
+            データベースの状態を示すインジケーター（1＝アクティブ、0＝その他）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.instance.active_state`
+          </td>
+
+          <td>
+            インスタンスのアクティブ状態を示すインジケーター（1=通常、0=その他）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.instance.logins_allowed`
+          </td>
+
+          <td>
+            インスタンスログインステータスインジケーター（1=許可、0=制限）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.instance.archiver_started`
+          </td>
+
+          <td>
+            アーカイブ機能の状態表示（1=開始済み、0=停止済み）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.instance.version_info`
+          </td>
+
+          <td>
+            Oracleデータベースのバージョン情報 (プロパティでは常に 1 バージョン)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.service.instance_id`
+          </td>
+
+          <td>
+            サービスが現在実行されているインスタンスID
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.service.network_config`
+          </td>
+
+          <td>
+            サービスネットワーク設定（プロパティに常に1つの設定）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.service.clb_config`
+          </td>
+
+          <td>
+            接続負荷分散設定（属性には常に1つの設定が含まれます）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.service.goal_config`
+          </td>
+
+          <td>
+            サービス目標の設定（属性には常に1つの目標が含まれます）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.service.blocked_status`
+          </td>
+
+          <td>
+            サービスブロック表示（1＝ブロック済み、0＝ブロックなし）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.service.fan_enabled`
+          </td>
+
+          <td>
+            高速アプリケーション通知（FAN）有効インジケーター（1=有効、0=無効）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.service.transaction_guard_enabled`
+          </td>
+
+          <td>
+            トランザクションガード有効インジケーター（1=有効、0=無効）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.service.drain_timeout_seconds`
+          </td>
+
+          <td>
+            サービス停止前のセッションドレインタイムアウト（秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.rac.service.replay_timeout_seconds`
+          </td>
+
+          <td>
+            アプリケーション継続性リプレイ開始タイムアウト（秒）
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="database_info" title="データベース情報メトリクス">
+    `enable_database_info_scraper: true`を有効にして、これらのデータベース情報メトリクスを収集します:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.database.info`
+          </td>
+
+          <td>
+            データベースのバージョンと設定情報
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.hosting.info`
+          </td>
+
+          <td>
+            データベースホスティングとプラットフォーム情報
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.database.role`
+          </td>
+
+          <td>
+            データベースの役割とData Guardの設定
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="query_monitoring" title="クエリ監視メトリクス">
+    `enable_query_monitoring: true`を有効にして、これらの低速監視メトリクスを収集します:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            メトリクス名
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.execution_count`
+          </td>
+
+          <td>
+            スロー実行の実行数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_elapsed_time`
+          </td>
+
+          <td>
+            スロー書き込みの累計経過時間の合計
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_cpu_time`
+          </td>
+
+          <td>
+            スロー書き込みの合計累積 CPU 時間
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_wait_time`
+          </td>
+
+          <td>
+            スロー書き込みの合計累積待機時間 (elapsed_time - cpu_time)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_rows_examined`
+          </td>
+
+          <td>
+            スロー書き込みについて検査された合計累積行数 (バッファーの取得/論理読み取り)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_rows_returned`
+          </td>
+
+          <td>
+            スローペースで返された累積行数の合計 (処理された行数)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_disk_reads`
+          </td>
+
+          <td>
+            スロー書き込みの合計累積ディスク読み取り数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.total_disk_writes`
+          </td>
+
+          <td>
+            スロー書き込みの合計累積直接書き込み - バッファ キャッシュをバイパスした書き込み
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_execution_count`
+          </td>
+
+          <td>
+            前回のスクレイピング以降の新しい実行数 (デルタ メトリクス)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_elapsed_time`
+          </td>
+
+          <td>
+            最後のポーリングの合計経過時間 (デルタ メトリクスは平均化されていません)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_cpu_time`
+          </td>
+
+          <td>
+            最後のポーリング冷静の合計 CPU 時間 (デルタ メトリクスは平均化されていません)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_wait_time`
+          </td>
+
+          <td>
+            前回のポーリング冷静の合計待機時間 (デルタ メトリクスは平均化されていません)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_buffer_gets`
+          </td>
+
+          <td>
+            最後のポーリング冷静で取得された合計バッファー (論理読み取り) (デルタ メトリクスは平均化されていません)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_rows_processed`
+          </td>
+
+          <td>
+            最後のポーリング冷静で処理された（返された）行の合計（デルタ メトリクスは平均化されていません）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_disk_reads`
+          </td>
+
+          <td>
+            最後のポーリング冷静における合計ディスク読み取り数 (デルタ メトリクスは平均化されていません)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_disk_writes`
+          </td>
+
+          <td>
+            最後のポーリング態勢での直接書き込みの合計 - バッファ キャッシュをバイパスした書き込み (デルタ メトリクスは平均化されません)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_avg_elapsed_time`
+          </td>
+
+          <td>
+            最後のポーリング待機における実行あたりの平均経過時間 (デルタ メトリクス)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_avg_cpu_time`
+          </td>
+
+          <td>
+            最後のポーリング監視における実行あたりの平均 CPU 時間 (デルタ メトリクス)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_avg_wait_time`
+          </td>
+
+          <td>
+            最後のポーリング冷静における実行ごとの平均待機時間 (デルタ メトリクス)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_avg_buffer_gets`
+          </td>
+
+          <td>
+            最後のポーリング間隔での実行ごとの平均バッファ取得 (論理読み取り) (デルタ メトリクス)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_avg_rows_processed`
+          </td>
+
+          <td>
+            最後のポーリング間隔での実行ごとに処理された (返された) 平均行数 (デルタ メトリクス)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_avg_disk_reads`
+          </td>
+
+          <td>
+            最後のポーリング監視における実行あたりの平均ディスク読み取り数 (デルタ メトリクス)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.interval_avg_disk_writes`
+          </td>
+
+          <td>
+            最後のポーリング冷静における実行あたりの平均直接書き込み - バッファ キャッシュをバイパスした書き込み (デルタ メトリクス)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.slow_queries.query_details`
+          </td>
+
+          <td>
+            スロー詳細カウント
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.elapsed_time`
+          </td>
+
+          <td>
+            この子カーソルの実行あたりの平均経過時間（ミリ秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.cpu_time`
+          </td>
+
+          <td>
+            この子カーソルの実行あたりの平均CPU時間（ミリ秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.user_io_wait_time`
+          </td>
+
+          <td>
+            平均 この子カーソルの実行ごとのI/O待機時間（ミリ秒）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.buffer_gets`
+          </td>
+
+          <td>
+            この子カーソルの実行あたりの平均バッファ取得回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.disk_reads`
+          </td>
+
+          <td>
+            この子カーソルの実行あたりの平均ディスク読み取り回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.executions`
+          </td>
+
+          <td>
+            この子カーソルの実行総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.invalidations`
+          </td>
+
+          <td>
+            この子カーソルが無効化された回数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.child_cursors.details`
+          </td>
+
+          <td>
+            子カーソルの詳細（読み込み時間を含む）
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelicoracledb.execution_plan`
+          </td>
+
+          <td>
+            Oracle SQL実行計画の詳細（運用コスト、カーディナリティ、リソース見積もりを含む）
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## 次のステップ [#whats-next]
+
+NRDOT を使用してOracleデータベース監視を設定した後:
+
+* データベースのメトリクスを視覚化する[カスタムダッシュボードを作成する](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/)
+* クリティカルデータベースパフォーマンス閾値の[アラートを設定する](/docs/alerts/create-alert/create-alert-condition/alert-conditions/)
+* New Relicのクエリ機能を使用して[データを探索する](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/)

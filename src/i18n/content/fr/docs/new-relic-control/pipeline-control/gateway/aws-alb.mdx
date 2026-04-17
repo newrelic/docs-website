@@ -1,0 +1,395 @@
+---
+title: Implémenter un équilibreur de charge pour le cluster de gateway
+metaDescription: Learn how to set up a load balancer for your gateway cluster to manage the flow of data from your monitored entities to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cette section fournit des instructions pour implémenter un équilibreur de charge pour votre cluster de gateway à l&apos;aide des services AWS. À partir de la configuration d&apos;un AWS Elastic Kubernetes Service (EKS), cluster le guide couvre la configuration IAM, le déploiement du contrôleur AWS Load Balancer, l&apos;installation du contrôle de pipeline et les étapes de validation.
+
+Pour implémenter AWS ALB pour votre cluster de gateway :
+
+1. [Configurer le cluster EKS](/docs/new-relic-control/pipeline-control/aws-alb-for-gateway#eks-cluster)
+2. [Configurer les rôles et les politiques IAM](/docs/new-relic-control/pipeline-control/aws-alb-for-gateway#iam-access)
+3. [Connecter EKS](/docs/new-relic-control/pipeline-control/aws-alb-for-gateway#connect-eks)
+4. [Créer un rôle IAM pour AWS ALB](/docs/new-relic-control/pipeline-control/aws-alb-for-gateway#iam-role)
+5. [Créer un contrôleur AWS ALB](/docs/new-relic-control/pipeline-control/aws-alb-for-gateway#aws-alb)
+6. [Installer un contrôle de pipeline](/docs/new-relic-control/pipeline-control/aws-alb-for-gateway#pipeline-control)
+7. [Valider AWS ALB](/docs/new-relic-control/pipeline-control/aws-alb-for-gateway#validate)
+8. [Tester et optimiser la charge](/docs/new-relic-control/pipeline-control/aws-alb-for-gateway#optimize)
+
+## Configurer le cluster EKS [#eks-cluster]
+
+1. **Connectez-vous à AWS**:
+
+   * Sélectionnez la région souhaitée pour le déploiement d’EKS dans la liste déroulante du coin supérieur droit.
+
+2. **Accéder à Elastic Kubernetes Service (EKS)**:
+
+   * Recherchez **EKS** dans le champ de recherche AWS et ouvrez le service Elastic Kubernetes . C&apos;est ici que vous gérerez votre cluster Kubernetes.
+
+3. **Créer un cluster**:
+
+   * Cliquez sur **Create Cluster** et sélectionnez les options configuration :
+
+     * Choisissez **Quick configuration (with EKS Auto Mode)** pour une configuration simplifiée.
+     * Fournissez les détails nécessaires : nom, version Kubernetes, rôle IAM Cluster, rôle IAM du nœud, VPC et sous-réseaux. Si les rôles ne sont pas prêts, utilisez « Créer un rôle recommandé » suggéré par AWS.
+
+   * Cliquez sur **Create** pour lancer la création du cluster. Cela met en place l’infrastructure fondamentale de votre environnement Kubernetes.
+
+   * Une fois le cluster créé, configurez les entrées d’accès pour que l’utilisateur actuel puisse gérer les autorisations.
+
+## Entrées de gestion des identités et des accès (IAM) [#iam-access]
+
+1. **Créer une entrée d&apos;accès**:
+
+   * Sélectionnez votre principal IAM Amazon Resource Name (ARN) pour définir qui peut accéder au cluster.
+   * Choisissez le type **Standard IAM Access** pour les autorisations utilisateur typiques.
+   * Créez l’entrée d’accès pour établir l’accès utilisateur.
+
+2. **Ajouter des politiques d&apos;accès**:
+
+   * Joignez les politiques suivantes à l’entrée d’accès IAM pour accorder les autorisations nécessaires :
+
+     * `AmazonEKSAdminPolicy`
+     * `AmazonEKSAutoNodePolicy`
+     * `AmazonEKSClusterAdminPolicy`
+     * `AmazonEKSEditPolicy`
+     * `AmazonEKSNetworkingClusterPolicy`
+     * `AmazonEKSNetworkingPolicy`
+     * `AmazonEKSViewPolicy`
+
+## Connectez EKS depuis le terminal [#connect-eks]
+
+1. **Mettre à jour kubeconfig**:
+
+   * Exécutez la commande suivante :
+
+     ```bash
+     aws eks update-kubeconfig --region ap-south-1 --name pcg-cluster
+     ```
+
+   * Cette commande configure votre client Kubernetes local pour interagir avec le cluster EKS.
+
+2. **Consultez l&apos;espace de nommage**:
+
+   * Exécutez la commande suivante :
+
+     ```bash
+     kubectl get namespaces
+     ```
+
+   * Vérifiez que les espaces de nommage sont correctement configurés, ce qui est crucial pour organiser les ressources au sein du cluster.
+
+3. **Fournisseur associé IAM OIDC**:
+
+   * Exécutez la commande suivante :
+
+     ```bash
+     eksctl utils associate-iam-oidc-provider --region=ap-south-1 --cluster=pcg-cluster --approve
+     ```
+
+   * Cette étape est nécessaire pour activer les rôles IAM pour les comptes de service, améliorant ainsi la sécurité et le contrôle d’accès.
+
+## Créer un rôle IAM pour AWS ALB [#iam-role]
+
+1. **Télécharger la politique IAM pour le contrôleur AWS ALB**:
+
+   * Exécutez la commande suivante pour télécharger la politique :
+
+     ```bash
+     curl -O https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.11.0/docs/install/iam_policy.json
+     ```
+
+   * Cette politique définit les autorisations pour le contrôleur AWS Load Balancer.
+
+2. **Créer une politique IAM**:
+
+   * Exécutez la commande suivante pour créer la politique :
+
+     ```bash
+     aws iam create-policy \
+     --policy-name AWSLoadBalancerControllerIAMPolicy \
+     --policy-document file://iam_policy.json
+     ```
+
+   * Cela crée une politique qui peut être attachée aux rôles, permettant au contrôleur de gérer les équilibreurs de charge.
+
+3. **Créer un compte de service IAM**:
+
+   * Remplacez `my-cluster` par le nom de votre cluster et `111122223333` par votre ID de compte, puis exécutez la commande suivante :
+
+     ```bash
+     eksctl create iamserviceaccount \
+     --cluster=my-cluster \
+     --namespace=kube-system \
+     --name=aws-load-balancer-controller \
+     --role-name AmazonEKSLoadBalancerControllerRole \
+     --attach-policy-arn=arn:aws:iam::111122223333:policy/AWSLoadBalancerControllerIAMPolicy \
+     --approve
+     ```
+
+   * Cette étape lie la politique IAM à un compte de service, permettant au contrôleur de fonctionner au sein du cluster.
+
+## Créer un contrôleur AWS ALB [#aws-alb]
+
+1. **Ajouter un référentiel de graphiques Helm**:
+
+   * Exécutez la commande suivante pour ajouter le référentiel de graphiques Helm :
+
+     ```bash
+     helm repo add eks https://aws.github.io/eks-charts
+     ```
+
+   * Cela ajoute le référentiel contenant le graphique Helm du contrôleur AWS Load Balancer.
+
+2. **Mettre à jour le référentiel local (repository)**:
+
+   * Exécutez la commande suivante pour mettre à jour votre référentiel Helm local :
+
+     ```bash
+     helm repo update eks
+     ```
+
+   * Cela garantit que vous disposez de la dernière version des graphiques pour le déploiement.
+
+3. **Installer le contrôleur AWS ALB**:
+
+   * Exécutez la commande suivante pour installer le contrôleur AWS Load Balancer :
+
+     ```bash
+     helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+     -n kube-system \
+     --set clusterName=pcg-cluster \
+     --set serviceAccount.create=false \
+     --set serviceAccount.name=aws-load-balancer-controller \
+     --set vpcId=<your-vpc-id> \
+     --set region=<your-region>
+     ```
+
+   * Remplacez `<your-vpc-id>` et `<your-region>` par votre ID VPC et votre région AWS spécifiques.
+
+4. **Vérifier l&apos;installation**:
+
+   * Vérifiez l’état du déploiement pour vous assurer que le contrôleur fonctionne correctement :
+
+     ```bash
+     kubectl get deployment -n kube-system aws-load-balancer-controller
+     ```
+
+   * La sortie doit afficher le contrôleur comme déployé et en cours d&apos;exécution.
+
+5. **Vérifier la version du graphique**:
+
+   * Vérifiez la version du graphique Helm installé :
+
+     ```bash
+     helm list -n kube-system
+     ```
+
+   * Cela garantit que vous utilisez la version correcte du contrôleur AWS Load Balancer.
+
+## Installer un contrôle de pipeline [#pipeline-control]
+
+1. **Installer Contrôle de pipeline**:
+
+   * Utilisez l&apos;intégration et les agents New Relic pour déployer Contrôle de pipeline au sein de votre cluster Kubernetes.
+   * Suivez les instructions spécifiques fournies par New Relic pour l’installation, en vous assurant qu’elles s’intègrent à votre configuration existante.
+
+2. **Créer des ressources d&apos;entrée AWS ALB**:
+
+   Créez deux ressources d’entrée distinctes en raison des limitations du protocole. **Entrée de données APM (HTTP1) :**
+
+   * Gère le trafic de l&apos;agent New Relic APM
+   * Configuré pour le protocole HTTP1
+
+   ```bash
+   kubectl -n newrelic apply -f apm-ingress.yaml
+   ```
+
+   ### Échantillon `apm-ingress.yaml`
+
+   ```yaml
+       apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+       name: gateway-alb
+       namespace: newrelic
+       labels:
+           test: test
+       annotations:
+           #kubernetes.io/ingress.class: alb
+           alb.ingress.kubernetes.io/tags: owning_team=pipeline-control,service=gateway-alb,environment=test
+
+           # health check stuff
+           alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+           alb.ingress.kubernetes.io/healthcheck-port: '13133'
+           alb.ingress.kubernetes.io/healthcheck-path: /health/status
+           # pull target out of ALB after 10 seconds of throwing 503s
+           alb.ingress.kubernetes.io/healthcheck-interval-seconds: '5'
+           alb.ingress.kubernetes.io/unhealthy-threshold-count: '2'
+           alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '3'
+           alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+
+           alb.ingress.kubernetes.io/subnets: subnet-09499a12728c84cc0,subnet-0985931c0c134e164,subnet-00adc734c06241fc0
+           
+           alb.ingress.kubernetes.io/scheme: internal
+           # enables HTTP/2
+           alb.ingress.kubernetes.io/load-balancer-attributes: "routing.http2.enabled=true,idle_timeout.timeout_seconds=60"
+           # sets deregistration_delay.timeout_seconds=10 since we wait 10 seconds to pull V out of LB based on failing health checks
+           alb.ingress.kubernetes.io/target-group-attributes: "deregistration_delay.timeout_seconds=10,slow_start.duration_seconds=30"
+           alb.ingress.kubernetes.io/target-type: "ip"
+           alb.ingress.kubernetes.io/backend-protocol: "HTTP"
+           alb.ingress.kubernetes.io/backend-protocol-version: "HTTP1"
+       spec:
+       ingressClassName: alb
+       rules:
+       - http:
+           paths:
+           - path: /v1/logs
+               pathType: Prefix
+               backend:
+               service:
+                   name: pipeline-control-gateway
+                   port:
+                   number: 4318
+           - path: /v1/metrics
+               pathType: Prefix
+               backend:
+               service:
+                   name: pipeline-control-gateway
+                   port:
+                   number: 4318
+           - path: /v1/traces
+               pathType: Prefix
+               backend:
+               service:
+                   name: pipeline-control-gateway
+                   port:
+                   number: 4318
+           - backend:
+               service:
+                   name: pipeline-control-gateway
+                   port:
+                   number: 8080
+               path: /
+               pathType: Prefix
+   ```
+
+   **Entrée de données OpenTelemetry (HTTP2/gRPC) :**
+
+   * Gère le trafic de l&apos;agent OpenTelemetry
+   * Configuré pour le protocole HTTP2/gRPC
+
+   ```bash
+   kubectl -n newrelic apply -f otlp-ingress.yaml
+   ```
+
+   ### Échantillon `otlp-ingress.yaml`
+
+   ```yaml
+       apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+       name: gateway-alb-otlp
+       namespace: newrelic
+       labels:
+           test: test
+       annotations:
+           #kubernetes.io/ingress.class: alb
+           alb.ingress.kubernetes.io/tags: owning_team=pipeline-control,service=gateway-alb,environment=test
+
+           # health check stuff
+           alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+           alb.ingress.kubernetes.io/healthcheck-port: '13133'
+           alb.ingress.kubernetes.io/healthcheck-path: /health/status
+           # pull target out of ALB after 10 seconds of throwing 503s
+           alb.ingress.kubernetes.io/healthcheck-interval-seconds: '5'
+           alb.ingress.kubernetes.io/unhealthy-threshold-count: '2'
+           alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '3'
+           alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+
+           alb.ingress.kubernetes.io/subnets: subnet-09499a12728c84cc0,subnet-0985931c0c134e164,subnet-00adc734c06241fc0
+           
+           alb.ingress.kubernetes.io/scheme: internal
+           # enables HTTP/2
+           alb.ingress.kubernetes.io/load-balancer-attributes: "routing.http2.enabled=true,idle_timeout.timeout_seconds=60"
+           alb.ingress.kubernetes.io/conditions: >
+           [{"field": "http-header","httpHeaderConfig":{"httpHeaderName": "Content-Type", "values":["application/grpc*"]}}]
+           # sets deregistration_delay.timeout_seconds=10 since we wait 10 seconds to pull V out of LB based on failing health checks
+           alb.ingress.kubernetes.io/target-group-attributes: "deregistration_delay.timeout_seconds=10,slow_start.duration_seconds=30"
+           alb.ingress.kubernetes.io/target-type: "ip"
+           alb.ingress.kubernetes.io/backend-protocol: "HTTP"
+           alb.ingress.kubernetes.io/backend-protocol-version: "HTTP2"
+       spec:
+       ingressClassName: alb
+       rules:
+       - http:
+           paths:
+           - path: /opentelemetry.proto.collector.logs.v1.LogsService/Export
+               pathType: Prefix
+               backend:
+               service:
+                   name: pipeline-control-gateway
+                   port:
+                   number: 4317
+           - path: /opentelemetry.proto.collector.metrics.v1.MetricsService/Export
+               pathType: Prefix
+               backend:
+               service:
+                   name: pipeline-control-gateway
+                   port:
+                   number: 4317
+           - path: /opentelemetry.proto.collector.trace.v1.TraceService/Export
+               pathType: Prefix
+               backend:
+               service:
+                   name: pipeline-control-gateway
+                   port:
+                   number: 4317
+           - backend:
+               service:
+                   name: pipeline-control-gateway
+                   port:
+                   number: 8080
+               path: /
+               pathType: Prefix
+   ```
+
+   <Callout variant="tip">
+     Cette approche est spécifique à AWS ALB. D’autres fournisseurs de cloud peuvent prendre en charge une seule ressource d’entrée pour plusieurs protocoles.
+   </Callout>
+
+3. **Vérifier la ressource d&apos;entrée**:
+
+   * Décrivez la ressource d’entrée pour vérifier sa configuration :
+
+     ```bash
+     kubectl -n newrelic describe ingress gateway-alb
+     ```
+
+## Valider AWS ALB [#validate]
+
+1. **Accédez à EC2 &gt; Load Balancers**:
+
+   * Dans la console de gestion AWS, accédez au service EC2 et sélectionnez **Load Balancers**.
+   * Vérifiez que l’équilibreur de charge a été créé et est correctement configuré.
+
+2. **Vérifiez les règles d&apos;écoute**:
+
+   * Vérifiez les règles d’écoute pour vous assurer qu’elles sont configurées pour acheminer le trafic de manière appropriée vers votre instance de gateway.
+
+## Tester et optimiser la charge [#optimize]
+
+1. **Répartition Traffic de test**:
+
+   * Effectuez des tests de charge pour garantir que l’équilibreur de charge répartit efficacement le trafic sur l’instance de gateway.
+   * Monitorez les performances métriques pour identifier tout goulot d&apos;étranglement ou zones d&apos;optimisation.
+
+2. **Optimiser la configuration**:
+
+   * Ajustez les paramètres en fonction des résultats des tests pour améliorer l’efficacité et la fiabilité.
+
+## Prochaine étape
+
+Ensuite, vous apprendrez à [configurer le DNS et les certificats de sécurité](/docs/new-relic-control/pipeline-control/gateway/dns-certificate) pour l&apos;ALB AWS.

@@ -1,0 +1,922 @@
+---
+title: Monitore o NGINX auto-hospedado com OpenTelemetry
+metaDescription: 'Complete step-by-step guide to configure NGINX monitoring with OpenTelemetry. Includes prerequisites, configuration, environment setup, and troubleshooting.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Monitore seus servidores NGINX auto-hospedados com o OpenTelemetry usando o coletor NRDOT (recomendado) ou o OpenTelemetry Collector Contrib para enviar métricas de desempenho e dados de telemetria para o New Relic.
+
+## Antes de você começar [#prerequisites]
+
+Certifique-se de ter:
+
+* [Chave de licença](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)da New Relic válida
+
+* NGINX com o módulo [HTTP stub status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) habilitado
+
+* Um dos seguintes coletores instalado em um host Linux:
+
+  * [coletor NRDOT](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation), ou
+  * [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest)
+
+* Acesso à rede do host Linux para:
+
+  * Endpoint de status stub HTTP do NGINX
+  * [Endpoint OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)da New Relic
+
+{/* Verify NGINX status module:
+```bash
+nginx -V 2>&1 | grep -o with-http_stub_status_module
+```
+Expected output: `with-http_stub_status_module`
+
+Test network connectivity:
+```bash
+# For US region
+curl -I https://otlp.nr-data.net
+
+# For EU region
+curl -I https://otlp.eu01.nr-data.net
+```
+Expected output: HTTP/2 200 response */}
+
+## Configurar o monitoramento do NGINX [#setup]
+
+Escolha seu coletor preferido e siga as etapas:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-prereqs">
+      coletor NRDOT
+    </TabsBarItem>
+
+    <TabsBarItem id="otelcol-prereqs">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-prereqs">
+      Você pode usar o coletor NRDOT para monitorar seu servidor NGINX. O coletor NRDOT é uma distribuição pré-configurada que inclui componentes específicos da New Relic.
+
+      Para instalar e configurar o coletor NRDOT, siga estas etapas:
+
+      <Callout variant="tip">
+        Se alguma etapa de verificação falhar, instale os componentes ausentes antes de continuar. Precisa de ajuda para instalar o coletor NRDOT? Consulte a [seção de instalação](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation) do repositório nrdot-collector-releases.
+
+        Durante a instalação, use `export collector_distro="nrdot-collector"`
+      </Callout>
+
+      <CollapserGroup>
+        <Collapser id="configure-nrdot-collector-nrdot" title="Etapa 1: configurar o coletor NRDOT">
+          Configure o coletor NRDOT para coletar métricas do seu endpoint de status stub do NGINX e enviá-las para o New Relic.
+
+          {/* The NRDOT collector uses three main components for NGINX monitoring:
+
+          - **Receivers** - Connect to your NGINX stub status endpoint to collect metrics
+          - **Processors** - Add server identification and batch metrics for efficient transmission
+          - **Exporters** - Send the processed metrics to your New Relic account via OTLP HTTP */}
+
+          {/* Before configuring, you need:
+
+          - Your stub status URL from Step 1 (default: `http://<NGINX_SERVER_IP>:<YOUR_LOCAL_PORT>/nginx_status`)
+          - A deployment name (for example `production-web-01`, `staging-api`) */}
+
+          <Callout variant="important">
+            **Escolha sua abordagem de monitoramento**:
+
+            * Monitoramento exclusivo do NGINX (este guia): monitora apenas o desempenho e as métricas do seu servidor web NGINX
+            * Monitoramento completo do servidor: monitora o NGINX e todo o seu servidor (uso da CPU, memória, espaço em disco, logs do sistema)
+
+            Se você quiser monitorar todo o seu servidor, não apenas o NGINX, use a [configuração padrão](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/config.yaml) do coletor NRDOT em vez disso e adicione a configuração do receiver do NGINX a ela.
+          </Callout>
+
+          Crie o arquivo de configuração `/etc/nrdot-collector/nginx-config.yaml`:
+
+          ```yaml
+          receivers:
+            nginx:
+              endpoint: <YOUR_STUB_STATUS_ENDPOINT>  # Replace with your stub status URL
+              collection_interval: 30s                      # How often to collect metrics
+              metrics:
+                nginx.requests:
+                  enabled: true
+                nginx.connections_accepted:
+                  enabled: true
+                nginx.connections_handled:
+                  enabled: true
+                nginx.connections_current:
+                  enabled: true
+
+          processors:
+            # Detect system information
+            resourcedetection:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: false
+                  host.id:
+                    enabled: true
+
+            # Add NGINX-specific identification
+            resource/nginx:
+              attributes:
+                - key: nginx.server.endpoint
+                  value: "<YOUR_STUB_STATUS_ENDPOINT>"  # Replace with your endpoint
+                  action: upsert
+                - key: nginx.deployment.name
+                  value: "<DEPLOYMENT_NAME>"                    # Replace with your deployment name
+                  action: upsert
+            
+            # Batch metrics for efficient sending
+            batch:
+              timeout: 30s
+              send_batch_size: 1024
+
+            # Transform metrics for better display in New Relic
+            transform/nginx_metrics:
+              metric_statements:
+                - context: resource
+                  statements:
+                    # Customize the display name as needed for your New Relic dashboard
+                    - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+            
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+
+          exporters:
+            otlp_http:
+              endpoint: ${env:YOUR_NEWRELIC_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:YOUR_NEW_RELIC_LICENSE_KEY}
+
+          service:
+            pipelines:
+              metrics/nginx:
+                receivers: [nginx]
+                processors: [resourcedetection, resource/nginx, batch, transform/nginx_metrics, transform/metadata_nullify]
+                exporters: [otlp_http]
+          ```
+
+          #### Parâmetro de configuração
+
+          A tabela a seguir descreve os principais parâmetros de configuração:
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  Parâmetro
+                </th>
+
+                <th>
+                  Descrição
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `<YOUR_STUB_STATUS_ENDPOINT>`
+                </td>
+
+                <td>
+                  Substitua pelo endpoint de status stub do NGINX (por exemplo, 
+
+                  `http://127.0.0.1/basic_status`
+
+                  )
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<DEPLOYMENT_NAME>`
+                </td>
+
+                <td>
+                  Substitua por um nome de implantação exclusivo para este servidor NGINX (por exemplo, 
+
+                  `production-web-01`
+
+                  , 
+
+                  `staging-api`
+
+                  , 
+
+                  `prod-lb-01`
+
+                  )
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `collection_interval`
+                </td>
+
+                <td>
+                  Intervalo em segundos para coletar métricas. O valor padrão é definido como 
+
+                  `30s`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `timeout`
+                </td>
+
+                <td>
+                  Tempo limite em segundos para aguardar antes de enviar métricas em lote. O valor padrão é definido como 
+
+                  `30s`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `send_batch_size`
+                </td>
+
+                <td>
+                  Número de métricas a serem agrupadas em lote antes de enviar. O valor padrão é definido como 
+
+                  `1024`
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* **Replace these values in the configuration above:**
+
+          1. **Endpoint URL**: Change `http://<NGINX_SERVER_IP>:<YOUR_LOCAL_PORT>/nginx_status` to match your stub status configuration from Step 1
+          2. **Deployment name**: Replace `production-web-01` with a unique identifier for this NGINX server
+
+          **Choosing a good deployment name:**
+          - Use descriptive names like `production-web-01`, `staging-api`, or `prod-lb-01`
+          - Must be unique across all NGINX servers within your New Relic account
+          - This name will appear in dashboards and help you identify specific servers
+          - Keep it short but meaningful for easy filtering and alerting */}
+        </Collapser>
+
+        <Collapser id="configure-environment-nrdot" title="Etapa 2: configure o ambiente e atualize o caminho de configuração">
+          Atualize a configuração do coletor NRDOT para usar seu arquivo de configuração NGINX e defina o endpoint OTLP.
+
+          Determine o endpoint OTLP com base na sua região da New Relic. Consulte [Configurar endpoint, porta e protocolo](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) para obter a lista completa de endpoints e portas suportadas para sua região.
+
+          <Callout variant="important">
+            Sua chave de licença já está configurada em `/etc/nrdot-collector/nrdot-collector.conf` durante a instalação. Você só precisa atualizar o caminho do arquivo de configuração e o endpoint OTLP.
+          </Callout>
+
+          Atualize o arquivo de configuração do coletor:
+
+          ```bash
+          export collector_distro="nrdot-collector"
+          export otlp_endpoint="<YOUR_NEWRELIC_OTLP_ENDPOINT>"  # Replace with your region's endpoint
+
+          # Update the config file path to point to nginx-config.yaml
+          sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/nginx-config.yaml"|' /etc/${collector_distro}/${collector_distro}.conf
+
+          # Add the OTLP endpoint
+          echo "OTEL_EXPORTER_OTLP_ENDPOINT=${otlp_endpoint}" | sudo tee -a /etc/${collector_distro}/${collector_distro}.conf > /dev/null
+          ```
+        </Collapser>
+
+        <Collapser id="forward-nginx-logs-nrdot" title="Etapa 3: (Opcional) Encaminhar logs do NGINX">
+          Além das métricas, você pode enviar [logs de acesso e erro](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/) do NGINX para o New Relic para monitoramento e solução de problemas abrangentes. Esses logs complementam as [métricas principais do NGINX](/docs/opentelemetry/nginx/nginx-otel-metrics-reference#core-metrics) e fornecem insights detalhados no nível da solicitação.
+
+          <Callout variant="tip">
+            Ignore esta etapa se você só precisa de métricas básicas do NGINX e não precisa de logs de solicitação detalhados.
+          </Callout>
+
+          1. Para configurar o NGINX para gerar logs formatados em JSON, adicione isso à sua configuração do NGINX (`/etc/nginx/nginx.conf`):
+
+          ```nginx
+          http {
+              # JSON log format for better parsing
+              log_format json_combined escape=json
+              '{'
+                '"time":"$time_local",'
+                '"remote_addr":"$remote_addr",'
+                '"request":"$request",'
+                '"status":$status,'
+                '"bytes_sent":$body_bytes_sent,'
+                '"request_time":$request_time,'
+                '"referer":"$http_referer",'
+                '"user_agent":"$http_user_agent"'
+              '}';
+
+              # Use the JSON format for access logs
+              access_log /var/log/nginx/access.log json_combined;
+              error_log /var/log/nginx/error.log warn;
+
+              # Your existing configuration...
+          }
+          ```
+
+          2. Recarregue o NGINX para aplicar as alterações:
+
+          ```bash
+          sudo nginx -t && sudo nginx -s reload
+          ```
+
+          3. Para configurar o coletor para encaminhamento de logs, adicione estas seções ao seu `/etc/nrdot-collector/nginx-config.yaml`:
+
+          ```yaml
+          receivers:
+            # Your existing nginx receiver...
+            nginx:
+              # existing configuration...
+
+            # Add log receivers
+            filelog/nginx_access:
+              include:
+                - /var/log/nginx/access.log
+
+            filelog/nginx_error:
+              include:
+                - /var/log/nginx/error.log
+
+          processors:
+            # Your existing processors...
+
+            # Add log processor
+            transform/nginx_access_logs:
+              log_statements:
+              - context: resource
+                statements:
+                  - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                  - set(attributes["logtype"], "nginx")
+            transform/nginx_error_logs:
+              log_statements:
+              - context: resource
+                statements:
+                  - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                  - set(attributes["logtype"], "nginx-error")
+
+          service:
+            pipelines:
+              # Your existing metrics pipeline...
+
+              # Add log pipelines
+              logs/nginx-access:
+                receivers: [filelog/nginx_access]
+                processors: [resource/nginx, batch, transform/nginx_access_logs]
+                exporters: [otlp_http]
+
+              logs/nginx-error:
+                receivers: [filelog/nginx_error]
+                processors: [resource/nginx, batch, transform/nginx_error_logs]
+                exporters: [otlp_http]
+          ```
+
+          4. Defina permissões e aplique a configuração. Permitir que o coletor leia os arquivos de log do NGINX:
+
+          ```bash
+          # Add collector user to adm group (has read access to logs)
+          sudo usermod -a -G adm nrdot-collector
+
+          # Ensure log files are readable
+          sudo chmod 644 /var/log/nginx/access.log
+          sudo chmod 644 /var/log/nginx/error.log
+          ```
+        </Collapser>
+
+        <Collapser id="start-monitoring-nrdot" title="Etapa 4: Comece a monitorar">
+          Agora que tudo está configurado, inicie o coletor NRDOT e verifique se os dados estão fluindo para o New Relic.
+
+          1. Inicie o coletor:
+
+             1. Aplique as alterações de configuração:
+
+             ```bash
+             sudo systemctl daemon-reload
+             sudo systemctl restart nrdot-collector.service
+             ```
+
+             2. Verifique se o serviço está em execução:
+
+             ```bash
+             sudo systemctl status nrdot-collector.service
+             ```
+
+             Saída esperada: `Active: active (running)` sem erros recentes
+
+          2. Verifique a coleta de dados:
+
+             1. Verifique os logs de inicialização:
+
+             ```bash
+             sudo journalctl -u nrdot-collector.service -n 20
+             ```
+
+             2. Gere tráfego de teste (para criar métricas):
+
+             ```bash
+             # Make a few requests to your NGINX server
+             curl http://localhost
+             ```
+
+             Aguarde um tempo para que os dados iniciais apareçam no New Relic e, em seguida, [acesse seu dashboard do NGINX](/docs/opentelemetry/integrations/nginx/find-and-query-your-data#find-data) para verificar a coleta de dados.
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-prereqs">
+      <Callout variant="tip">
+        Se alguma etapa de verificação falhar, instale os componentes ausentes antes de continuar. Precisa de ajuda para instalar o coletor? Consulte o [guia de instalação do OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib).
+      </Callout>
+
+      <CollapserGroup>
+        <Collapser id="configure-otelcol-collector" title="Etapa 1: Configurar o OpenTelemetry Collector">
+          Configure o OpenTelemetry Collector para coletar métricas do seu endpoint de status stub do NGINX e enviá-las para o New Relic.
+
+          {/* The OpenTelemetry Collector uses three main components for NGINX monitoring:
+
+          - **Receivers** - Connect to your NGINX stub status endpoint to collect metrics
+          - **Processors** - Add server identification and batch metrics for efficient transmission
+          - **Exporters** - Send the processed metrics to your New Relic account via OTLP HTTP */}
+
+          {/* Before editing the configuration, you'll need:
+
+          - Your stub status URL from Step 1 (default: `http://<NGINX_SERVER_IP>:<YOUR_LOCAL_PORT>/nginx_status`)
+          - A deployment name (for example `production-web-01`, `staging-api`) */}
+
+          {/* The deployment name will appear in New Relic dashboards and helps you identify specific servers when you have multiple NGINX instances. */}
+
+          <Callout variant="important">
+            Antes de editar: faça backup da sua configuração existente: `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
+          </Callout>
+
+          Edite o arquivo de configuração do seu coletor (normalmente `/etc/otelcol-contrib/config.yaml`) e adicione as seguintes seções. Se você já tiver seções de receptores, processadores ou exportadores, mescle-as com sua configuração existente:
+
+          1. Configure o receptor NGINX:
+
+          ```yaml
+          receivers:
+            nginx:
+              endpoint: <YOUR_STUB_STATUS_ENDPOINT>  # Replace with your stub status URL
+              collection_interval: 30s                      # How often to collect metrics
+              metrics:
+                nginx.requests:
+                  enabled: true
+                nginx.connections_accepted:
+                  enabled: true
+                nginx.connections_handled:
+                  enabled: true
+                nginx.connections_current:
+                  enabled: true
+          ```
+
+          2. Configure os processadores para metadados e batching:
+
+          ```yaml
+          processors:
+            # Detect system information
+            resourcedetection:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: false
+                  host.id:
+                    enabled: true
+
+            # Add NGINX-specific identification
+            resource/nginx:
+              attributes:
+                - key: nginx.server.endpoint
+                  value: "<YOUR_STUB_STATUS_ENDPOINT>"  # Replace with your endpoint
+                  action: upsert
+                - key: nginx.deployment.name
+                  value: "<DEPLOYMENT_NAME>"                    # Replace with your deployment name
+                  action: upsert
+
+            # Batch metrics for efficient sending
+            batch:
+              timeout: 30s
+              send_batch_size: 1024
+
+            # Transform metrics for better display in New Relic
+            transform/nginx_metrics:
+              metric_statements:
+                - context: resource
+                  statements:
+                    # Customize the display name as needed for your New Relic dashboard
+                    - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+            
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+          ```
+
+          3. Configure o exportador New Relic:
+
+          ```yaml
+          exporters:
+            # Send metrics to New Relic via OTLP
+            otlp_http:
+              endpoint: ${env:YOUR_NEWRELIC_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:YOUR_NEW_RELIC_LICENSE_KEY}
+          ```
+
+          4. Conecte tudo com um pipeline:
+
+          ```yaml
+          service:
+            pipelines:
+              metrics/nginx:
+                receivers: [nginx]
+                processors: [resourcedetection, resource/nginx, batch, transform/nginx_metrics, transform/metadata_nullify]
+                exporters: [otlp_http]
+          ```
+
+          #### Parâmetro de configuração
+
+          A tabela a seguir descreve os principais parâmetros de configuração:
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  Parâmetro
+                </th>
+
+                <th>
+                  Descrição
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `<YOUR_STUB_STATUS_ENDPOINT>`
+                </td>
+
+                <td>
+                  Substitua pelo endpoint de status stub do NGINX (por exemplo, 
+
+                  `http://127.0.0.1/basic_status`
+
+                  )
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<DEPLOYMENT_NAME>`
+                </td>
+
+                <td>
+                  Substitua por um nome de implantação exclusivo para este servidor NGINX (por exemplo, 
+
+                  `production-web-01`
+
+                  , 
+
+                  `staging-api`
+
+                  , 
+
+                  `prod-lb-01`
+
+                  )
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `collection_interval`
+                </td>
+
+                <td>
+                  Intervalo em segundos para coletar métricas. O valor padrão é definido como 
+
+                  `30s`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `timeout`
+                </td>
+
+                <td>
+                  Tempo limite em segundos para aguardar antes de enviar métricas em lote. O valor padrão é definido como 
+
+                  `30s`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `send_batch_size`
+                </td>
+
+                <td>
+                  Número de métricas a serem agrupadas em lote antes de enviar. O valor padrão é definido como 
+
+                  `1024`
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Collapser>
+
+        <Collapser id="set-up-authentication-otelcol" title="Etapa 2: configurar a autenticação">
+          Configure a autenticação segura para que o OpenTelemetry Collector possa enviar dados para sua conta New Relic. Esta etapa configura variáveis de ambiente para manter suas credenciais seguras.
+
+          1. Obtenha suas credenciais do New Relic:
+
+             * Chave de licença: obtenha sua chave de licença na [página da interface de chaves de API](https://one.newrelic.com/admin-portal/api-keys/home)
+             * Endpoint OTLP: use o endpoint da sua região dos [endpoints New Relic OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+          2. Configure as credenciais:
+
+             1. Crie um diretório de substituição do systemd:
+
+             ```bash
+             sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+             ```
+
+             2. Crie o arquivo de configuração do ambiente:
+
+             ```bash
+             cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+             [Service]
+             Environment="NEWRELIC_OTLP_ENDPOINT=<YOUR_NEWRELIC_OTLP_ENDPOINT>"  # Replace with your region's endpoint
+             Environment="NEWRELIC_LICENSE_KEY=YOUR_NEW_RELIC_LICENSE_KEY"
+             EOF
+             ```
+        </Collapser>
+
+        <Collapser id="forward-nginx-logs-otelcol" title="Etapa 3: (Opcional) Encaminhar logs do NGINX">
+          Além de métricas, você pode enviar [logs de acesso e erro](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/) do NGINX para o New Relic para monitoramento e resolução de problemas abrangentes. Esses logs complementam as [métricas principais do NGINX](/docs/opentelemetry/integrations/nginx/nginx-otel-metrics-reference/) e fornecem insights detalhados em nível de requisição.
+
+          <Callout variant="tip">
+            Ignore esta etapa se você só precisa de métricas básicas do NGINX e não precisa de logs de solicitação detalhados.
+          </Callout>
+
+          1. Para configurar o NGINX para gerar logs formatados em JSON, adicione isso à sua configuração do NGINX (`/etc/nginx/nginx.conf`):
+
+             ```nginx
+             http {
+                 # JSON log format for better parsing
+                 log_format json_combined escape=json
+                 '{'
+                   '"time":"$time_local",'
+                   '"remote_addr":"$remote_addr",'
+                   '"request":"$request",'
+                   '"status":$status,'
+                   '"bytes_sent":$body_bytes_sent,'
+                   '"request_time":$request_time,'
+                   '"referer":"$http_referer",'
+                   '"user_agent":"$http_user_agent"'
+                 '}';
+
+                 # Use the JSON format for access logs
+                 access_log /var/log/nginx/access.log json_combined;
+                 error_log /var/log/nginx/error.log warn;
+
+                 # Your existing configuration...
+             }
+             ```
+
+          2. Recarregue o NGINX para aplicar as alterações:
+
+             ```bash
+             sudo nginx -t && sudo nginx -s reload
+             ```
+
+          3. Para configurar o coletor para encaminhamento de logs, adicione estas seções ao seu `/etc/otelcol-contrib/config.yaml`:
+
+             ```yaml
+             receivers:
+               # Your existing nginx receiver...
+               nginx:
+                 # existing configuration...
+
+               # Add log receivers
+               filelog/nginx_access:
+                 include:
+                   - /var/log/nginx/access.log
+
+               filelog/nginx_error:
+                 include:
+                   - /var/log/nginx/error.log
+
+             processors:
+               # Your existing processors...
+
+               # Add log processor
+               transform/nginx_access_logs:
+                 log_statements:
+                 - context: resource
+                   statements:
+                     - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                     - set(attributes["logtype"], "nginx")
+               transform/nginx_error_logs:
+                 log_statements:
+                 - context: resource
+                   statements:
+                     - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+                     - set(attributes["logtype"], "nginx-error")
+
+             service:
+               pipelines:
+                 # Your existing metrics pipeline...
+
+                 # Add log pipelines
+                 logs/nginx-access:
+                   receivers: [filelog/nginx_access]
+                   processors: [resource/nginx, batch, transform/nginx_access_logs]
+                   exporters: [otlp_http]
+
+                 logs/nginx-error:
+                   receivers: [filelog/nginx_error]
+                   processors: [resource/nginx, batch, transform/nginx_error_logs]
+                   exporters: [otlp_http]
+             ```
+
+          4. Defina permissões e aplique a configuração. Permitir que o coletor leia os arquivos de log do NGINX:
+
+             ```bash
+             # Add collector user to adm group (has read access to logs)
+             sudo usermod -a -G adm otelcol-contrib
+
+             # Ensure log files are readable
+             sudo chmod 644 /var/log/nginx/access.log
+             sudo chmod 644 /var/log/nginx/error.log
+             ```
+        </Collapser>
+
+        <Collapser id="start-monitoring-otelcol" title="Etapa 4: Comece a monitorar">
+          Agora que tudo está configurado, inicie o OpenTelemetry Collector e verifique se os dados estão fluindo para o New Relic.
+
+          1. Inicie o coletor:
+
+             1. Aplique as alterações de configuração:
+
+             ```bash
+             sudo systemctl daemon-reload
+             sudo systemctl restart otelcol-contrib.service
+             ```
+
+             2. Verifique se o serviço está em execução:
+
+             ```bash
+             sudo systemctl status otelcol-contrib.service
+             ```
+
+             Saída esperada: `Active: active (running)` sem erros recentes
+
+          2. Verifique a coleta de dados:
+
+             1. Verifique os logs de inicialização:
+
+             ```bash
+             sudo journalctl -u otelcol-contrib.service -n 20
+             ```
+
+             2. Gere tráfego de teste (para criar métricas):
+
+             ```bash
+             # Make a few requests to your NGINX server
+             curl http://localhost
+             ```
+
+             Aguarde um tempo para que os dados iniciais apareçam no New Relic e, em seguida, [acesse seu dashboard do NGINX](/docs/opentelemetry/integrations/nginx/find-and-query-your-data#find-data) para verificar a coleta de dados.
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Visualize seus dados no New Relic [#find-data]
+
+Depois que sua configuração estiver concluída e os dados estiverem fluindo, você poderá acessar suas métricas NGINX nos dashboards do New Relic e criar alertas personalizados.
+
+Para instruções completas sobre como acessar dashboards, consultar dados com NRQL e criar alertas, veja [Encontre e consulte seus dados do NGINX](/docs/opentelemetry/integrations/nginx/find-and-query-your-data).
+
+## Resolução de problemas [#troubleshooting]
+
+Se você encontrar problemas durante a configuração, use este guia de solução de problemas para diagnosticar e resolver problemas comuns.
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-nginx-stub-status" title="Problemas de status stub do NGINX">
+    Obtendo 404 Not Found:
+
+    ```bash
+    curl http://<NGINX_SERVER_IP>:<YOUR_LOCAL_PORT>/nginx_status
+    ```
+
+    Soluções:
+
+    * Verifique se o caminho do local corresponde à URL da sua solicitação
+    * Verifique se a configuração foi adicionada ao bloco de servidor correto
+    * Execute `sudo nginx -T | grep -A5 nginx_status` para confirmar se a configuração foi carregada
+
+    Obtendo 403 Proibido:
+
+    * Certifique-se de que você está testando do IP do servidor correto `<NGINX_SERVER_IP>`
+    * Verifique suas diretivas `allow`/`deny` na configuração do NGINX
+    * Verifique se nenhuma outra restrição de acesso está bloqueando a solicitação
+
+    Conexão recusada:
+
+    * Verifique se o NGINX está em execução: `sudo systemctl status nginx`
+    * Verifique se a sua porta configurada não está bloqueada: `sudo netstat -tlnp | grep :<YOUR_LOCAL_PORT>`
+    * Verifique as regras do firewall, se aplicável
+  </Collapser>
+
+  <Collapser id="troubleshoot-collector-service" title="O serviço do Collector não será iniciado">
+    Verifique o status do serviço:
+
+    ```bash
+    sudo systemctl status ${collector_distro}.service
+    sudo journalctl -u ${collector_distro}.service -n 50
+    ```
+
+    Causas e correções comuns:
+
+    * Erros de sintaxe YAML - Corrija a indentação e os problemas de sintaxe
+    * Variáveis de ambiente ausentes - Verifique se as credenciais estão definidas no arquivo de ambiente
+    * Problemas de permissão de arquivo - Execute `sudo chown ${collector_distro}:${collector_distro} /etc/${collector_distro}/config.yaml`
+    * URLs de endpoint inválidas - Verifique o endpoint NGINX e o endpoint New Relic OTLP
+    * Configurações de componentes ausentes - Certifique-se de que todos os receivers, processors e exporters referenciados na seção de pipelines de serviço estejam realmente definidos em suas respectivas seções de configuração acima
+
+    Reinicie após as correções:
+
+    ```bash
+    sudo systemctl restart ${collector_distro}.service
+    ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-no-data" title="Nenhum dado aparece no New Relic">
+    Diagnóstico passo a passo:
+
+    1. Verifique se o status stub do NGINX funciona:
+
+       ```bash
+       curl http://<NGINX_SERVER_IP>:<YOUR_LOCAL_PORT>/nginx_status
+       ```
+
+       Deve retornar estatísticas de conexão.
+
+    2. Verifique se o Collector está em execução e íntegro:
+
+       ```bash
+       sudo systemctl status ${collector_distro}.service
+       sudo journalctl -u ${collector_distro} -n 20
+       ```
+
+       Os logs fornecerão contexto detalhado se houver algum problema de configuração ou tempo de execução com o OpenTelemetry Collector.
+
+    3. Verifique se há dados com NRQL:
+
+       ```sql
+       FROM Metric SELECT * WHERE nginx.deployment.name LIKE '%production%' LIMIT 1
+       ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-log-forwarding" title="Problemas de encaminhamento de logs">
+    Nenhum log aparecendo no New Relic:
+
+    ```bash
+    # Check Collector logs for file errors
+    sudo journalctl -u ${collector_distro} -f | grep -i "filelog\|error"
+    ```
+
+    Problemas comuns:
+
+    * Erros de permissão de arquivo - Adicione o coletor ao grupo adm: `sudo usermod -a -G adm ${collector_distro}`
+    * Caminhos de arquivo errados - Verifique os locais dos arquivos de log em sua configuração
+  </Collapser>
+</CollapserGroup>
+
+## Próximos passos [#next-steps]
+
+Saiba mais sobre seus dados:
+
+* [Encontre e consulte seus dados do NGINX](/docs/opentelemetry/integrations/nginx/find-and-query-your-data/) - Acesse dashboards, crie consultas personalizadas e configure alertas
+* [Referência de métricas e atributos do NGINX OpenTelemetry](/docs/opentelemetry/integrations/nginx/nginx-otel-metrics-reference/) - Referência completa de métricas com descrições e exemplos
+* [Visão geral do NGINX OpenTelemetry](/docs/opentelemetry/integrations/nginx/nginx-otel-overview/) - Entenda as métricas coletadas, atributos e casos de uso
+
+Explore o monitoramento relacionado:
+
+* [Monitore o NGINX Plus com OpenTelemetry](/docs/opentelemetry/integrations/nginx-plus/nginx-plus-otel/) - Para implantações comerciais do NGINX Plus
+* [Monitorar NGINX no Kubernetes](/docs/opentelemetry/integrations/nginx/nginx-otel-kubernetes/) - Para ambientes conteinerizados

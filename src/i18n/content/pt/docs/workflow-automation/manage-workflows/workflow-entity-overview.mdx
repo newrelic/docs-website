@@ -1,0 +1,401 @@
+---
+title: Visão geral da entidade de fluxo de trabalho
+tags:
+  - Workflow Automation
+  - workflow
+  - workflow details
+  - entity overview
+  - start workflow
+  - schedule workflow
+metaDescription: 'View detailed workflow information, run workflows on demand, and schedule automated executions in the Entity Overview page.'
+freshnessValidatedDate: '2026-02-24T00:00:00.000Z'
+translationType: machine
+---
+
+A página de visão geral da entidade Workflow exibe informações detalhadas sobre um workflow específico, incluindo métricas de execução, histórico de execuções, agendamentos e logs. A partir desta página, você pode executar fluxos de trabalho manualmente ou agendá-los para serem executados automaticamente.
+
+## Antes de você começar
+
+Antes de usar as APIs para acionar ou agendar fluxos de trabalho, certifique-se de ter:
+
+* **fluxo de trabalho criado**: Uma definição de fluxo de trabalho já implantada em sua conta a partir de [template](/docs/workflow-automation/create-a-workflow-automation/use-a-template) ou [customizada](/docs/workflow-automation/create-a-workflow-automation/create-your-own).
+* **ID da conta**: Você pode encontrar o ID da sua conta New Relic nas [configurações da conta](/docs/accounts/accounts-billing/account-structure/account-id).
+* **Nome do fluxo de trabalho**: O nome exato da sua definição de fluxo de trabalho.
+* **Entradas obrigatórias**: Valores para qualquer parâmetro que seu fluxo de trabalho espera.
+* **Segredos configurados**: credenciais da AWS, tokens do Slack ou outros segredos armazenados no [gerenciador de segredos](/docs/workflow-automation/limitations-and-faq/workflow-best-practices#secure-credentials).
+
+## Acessar visão geral da entidade
+
+No [painel do Workflow Automation](/docs/workflow-automation/manage-workflows/managing-workflow), clique no nome de um fluxo de trabalho na aba Workflows para abrir a página de visão geral da entidade.
+
+<Callout variant="tip">
+  **Alteração na navegação**: Clicar no nome de um fluxo de trabalho agora abre a página de visão geral da entidade. Para editar um fluxo de trabalho, use a opção **Open in editor** do menu de ações da linha.
+</Callout>
+
+A página de visão geral da entidade exibe as seguintes abas:
+
+## Resumo
+
+Métricas e informações de nível de fluxo de trabalho:
+
+* **Run count**: Número total de vezes que este fluxo de trabalho foi executado
+* **Total steps**: Número de etapas executadas em todas as execuções
+* **Failed runs**: Contagem de execuções com falha e quais etapas falharam
+* Cada widget de métrica inclui um menu de contexto para visualizar a consulta, obter a imagem ou criar uma condição de alerta
+
+## Histórico de execução
+
+Lista de todas as execuções de fluxo de trabalho:
+
+* Visualizar logs de cada execução
+* Veja o status de execução e os carimbos de data/hora
+* Acesse informações detalhadas da execução
+
+## Registro
+
+Visualizar logs de execução:
+
+* Acesse os logs ao executar um fluxo de trabalho da página de lista
+* Redireciona do botão **View logs** após executar um workflow
+
+### Executar fluxos de trabalho via API [#on-demand]
+
+Use a [StartWorkflowRun API](/docs/workflow-automation/workflow-automation-apis/start-workflow-run) para acionar workflows programaticamente. Isso executa o fluxo de trabalho imediatamente com as entradas que você fornecer.
+
+### Exemplo: invocar uma função AWS do Lambda
+
+A definição de fluxo de trabalho a seguir invoca uma função do Lambda da AWS e registra a saída. Substitua `12345678` pelo seu ID de conta New Relic.
+
+```yaml
+  name: lambda1
+
+  workflowInputs:
+    username:
+      type: String
+      defaultValue: "User"
+    key:
+      type: String
+      defaultValue: "${{ :secrets:12345678:USERNAME_AWS_ACCESS_KEY_ID }}"
+    access:
+      type: String
+      defaultValue: "${{ :secrets:12345678:USERNAME_AWS_SECRET_ACCESS_KEY }}"
+    token:
+      type: String
+      defaultValue: "${{ :secrets:12345678:USERNAME_AWS_SESSION_TOKEN }}"
+    region:
+      type: String
+      defaultValue: us-east-1
+
+  steps:
+    - name: invoke1
+      type: action
+      action: aws.lambda.invoke
+      version: 1
+      inputs:
+        awsAccessKeyId: ${{ .workflowInputs.key }}
+        awsSecretAccessKey: ${{ .workflowInputs.access }}
+        awsSessionToken: ${{ .workflowInputs.token }}
+        region: ${{ .workflowInputs.region }}
+        functionName: hello-you
+        payload:
+          user: ${{ .workflowInputs.username }}
+
+    - name: logOutput
+      type: action
+      action: newrelic.ingest.sendLogs
+      version: 1
+      inputs:
+        logs:
+          - message: 'The lambda function message output is:${{ .steps.invoke1.outputs.payload.body }}'
+```
+
+Para iniciar este fluxo de trabalho, use a seguinte mutação do NerdGraph. Antes de executar esta mutação, certifique-se de ter armazenado suas credenciais da AWS usando a mutação `secretsManagementCreateSecret`. Para mais informações, consulte o [gerenciador de segredos](/docs/workflow-automation/limitations-and-faq/workflow-best-practices#secure-credentials).
+
+```yaml
+  mutation {
+    workflowAutomationStartWorkflowRun(
+      # Specify the account where the workflow is defined
+      scope: { type: ACCOUNT id: "12345678" }
+
+      # Reference the workflow definition by name
+      definition: { name: "lambda1" }
+
+      # Provide input values for the workflow
+      workflowInputs: [
+        {key: "key" value: "${{ :secrets:testUser123_AWS_ACCESS_KEY_ID }}"}
+        {key: "access" value: "${{ :secrets:testUser123_AWS_SECRET_ACCESS_KEY }}"}
+        {key: "token" value: "${{ :secrets:testUser123_AWS_SESSION_TOKEN }}"}
+        {key: "region" value:"us-east-2"}
+        {key: "username" value: "Julien"}
+      ]
+    ) {
+      runId
+    }
+  }
+```
+
+**parâmetro explicado:**
+
+* `scope`O ID da conta onde a definição do seu fluxo de trabalho está armazenada.
+* `definition`: O nome do fluxo de trabalho a ser executado (deve corresponder ao campo `name` na definição do seu fluxo de trabalho)
+* `workflowInputs`: pares de valores principais que substituem os valores padrão na seção `workflowInputs` da sua definição de fluxo de trabalho
+
+A mutação retorna um `runId` (por exemplo, `7bd25287-2af8-42e1-b783-80f4e760a40b`). Utilize este ID para consultar os logs e visualizar a saída:
+
+<img title="Workflow automation logs" alt="Workflow automation logs showing the Lambda function output" src="/images/autoflow-all-logs-2.webp" />
+
+## Agendamentos
+
+Gerenciar execuções agendadas para este fluxo de trabalho:
+
+* Visualizar todos os agendamentos ativos
+* Criar novos agendamentos
+* Excluir agendamentos existentes
+
+Use a [CreateSchedule API](/docs/workflow-automation/workflow-automation-apis/create-schedule) para agendar workflows para serem executados automaticamente em horários específicos. Workflows agendados executam tarefas recorrentes sem intervenção manual.
+
+<Callout variant="important">
+  **Desativar a automação de fluxo de trabalho?** Se você planeja desativar a Automação de Fluxo de Trabalho por meio do Gerenciamento de Controle de Recursos (FCM), remova todos os fluxos de trabalho agendados primeiro para evitar confusão ou alertas. Consulte [Desativar a Automação de fluxo de trabalho](/docs/workflow-automation/troubleshooting#disabling-workflow-automation-fcm) para obter etapas detalhadas.
+</Callout>
+
+**Quando agendar fluxo de trabalho:**
+
+* Verificações regulares de saúde
+* Processamento periódico de dados
+* Relatórios diários/semanais
+* Janelas de manutenção programada
+* Cópias de segurança ou limpezas recorrentes
+
+### Referência de expressão Cron
+
+Os agendamentos usam expressões cron para definir quando o fluxo de trabalho será executado. Formatar: `minute hour day month weekday`
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Padrão
+      </th>
+
+      <th>
+        Descrição
+      </th>
+
+      <th>
+        Exemplo de caso de uso
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `0 9 * * *`
+      </td>
+
+      <td>
+        Todos os dias às 9h da manhã.
+      </td>
+
+      <td>
+        Verificações diárias de saúde pela manhã
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `0 9 * * 1-5`
+      </td>
+
+      <td>
+        Todos os dias da semana às 9h00.
+      </td>
+
+      <td>
+        Operações do dia útil
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `0 */6 * * *`
+      </td>
+
+      <td>
+        A cada 6 horas
+      </td>
+
+      <td>
+        Operações de sincronização regulares
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `0 0 1 * *`
+      </td>
+
+      <td>
+        Primeiro dia do mês à meia-noite
+      </td>
+
+      <td>
+        Relatórios mensais
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `*/10 * * * *`
+      </td>
+
+      <td>
+        A cada 10 minutos (intervalo mínimo)
+      </td>
+
+      <td>
+        Sondagens frequentes, exames de saúde
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `0 0 * * 0`
+      </td>
+
+      <td>
+        Todo domingo à meia-noite
+      </td>
+
+      <td>
+        Tarefas de limpeza semanais
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  **Intervalo mínimo entre os horários:** Os horários devem ter um intervalo mínimo de 10 minutos. Não é possível programar o fluxo de trabalho para ser executado com uma frequência maior que a cada 10 minutos. Para intervalos inferiores a 10 minutos, considere agendar a cada 10 minutos e usar uma [etapa de espera](/docs/workflow-automation/workflow-automation-apis/definition-schema#wait) em seu fluxo de trabalho. Consulte [os limites do fluxo de trabalho](/docs/workflow-automation/limitations-and-faq/workflow-limits) para todas as restrições de agendamento.
+</Callout>
+
+<Callout variant="tip">
+  **Sintaxe do Cron:** `*` significa `every`, `/` significa `every nth`, `-` significa `range`. Exemplo: `0 9 * * 1-5 = At minute 0, hour 9, every day, every month, Monday through Friday`.
+</Callout>
+
+### Exemplo: Agende uma verificação diária de saúde.
+
+O exemplo a seguir agenda o fluxo de trabalho `lambda1` para ser executado todos os dias às 9h, horário do leste dos EUA:
+
+```yaml
+  mutation {
+    workflowAutomationCreateSchedule(
+      scope: {type: ACCOUNT, id: "1"}
+      definition: {name: "outdated_agents_multiple_nrql", version: 22}
+      workflowInputs: [{key: "emailDestinationId", value: "04ea4bf6-e52a-4df1-bd5d-9c0271652a93"}, {key: "accountId", value: "1"}]
+      timezone: "America/New_York"
+      cronExpression: "0 12 * * *"
+    ) {
+      scheduleId
+    }
+  }
+```
+
+**O que você recebe como resposta:** `scheduleId`, Identificador único para o agendamento (use isso para atualizar ou excluir o agendamento posteriormente)
+
+### Solução alternativa: intervalos inferiores a 10 minutos
+
+Se você precisar verificar algo com mais frequência do que a cada 10 minutos, programe seu fluxo de trabalho no intervalo mínimo de 10 minutos e use uma etapa de espera dentro da definição do fluxo de trabalho para criar um intervalo de sondagem adicional.
+
+**Exemplo de fluxo de trabalho com sondagem a cada 5 minutos:**
+
+```yaml
+  name: frequent-health-check
+
+  steps:
+    # First check happens immediately when scheduled
+    - name: firstCheck
+      type: action
+      action: newrelic.nrdb.query
+      version: 1
+      inputs:
+        query: "FROM Transaction SELECT count(*) WHERE appName = 'MyApp' SINCE 5 minutes ago"
+
+    # Wait 5 minutes
+    - name: waitStep
+      type: wait
+      seconds: 300
+
+    # Second check happens 5 minutes after the workflow started
+    - name: secondCheck
+      type: action
+      action: newrelic.nrdb.query
+      version: 1
+      inputs:
+        query: "FROM Transaction SELECT count(*) WHERE appName = 'MyApp' SINCE 5 minutes ago"
+```
+
+Agende este fluxo de trabalho para ser executado a cada 10 minutos usando `*/10 * * * *`. Isso permite realizar votações eficazes a cada 5 minutos:
+
+* 0:00 - O fluxo de trabalho inicia e executa a primeira verificação.
+* 0:05 - segunda verificação executada (após a etapa de espera)
+* 0:10 - O próximo fluxo de trabalho agendado será iniciado e executado primeiro.
+* 0:15 - segunda verificação executada (após a etapa de espera)
+
+<Callout variant="tip">
+  **limite de duração do fluxo de trabalho:** Lembre-se que o fluxo de trabalho tem duração máxima de 7 dias. Defina as etapas de espera e a frequência de sondagem de acordo com isso. Consulte [os limites do fluxo de trabalho](/docs/workflow-automation/limitations-and-faq/workflow-limits) para obter detalhes.
+</Callout>
+
+### Gerenciar agendas
+
+Após criar um cronograma:
+
+* **Visualizar agendamentos ativos**: Veja todas as execuções agendadas na aba Agendamentos nesta página de Visão geral da entidade
+* **Atualizar programação**: Use a API UpdateSchedule para alterar a frequência ou as entradas.
+* **Excluir agendamento**: Use a API DeleteSchedule para interromper execuções recorrentes.
+
+Para obter a documentação completa da API, consulte [APIs de Automação de Fluxo de Trabalho](/docs/workflow-automation/workflow-automation-apis/using-workflow-automation-api).
+
+## Configurações
+
+Visualizar configuração do fluxo de trabalho:
+
+* Exibir configurações e parâmetros do fluxo de trabalho
+* Apenas informações de configuração (a edição é feita através do editor)
+
+## Execute fluxos de trabalho a partir desta página [#workflow-actions]
+
+Para executar manualmente um fluxo de trabalho a partir da página de visão geral da entidade:
+
+1. Clique em **Run workflow**
+2. O fluxo de trabalho é executado imediatamente
+3. Após a conclusão da execução, clique em **View logs** para ver os detalhes da execução na guia Logs
+
+Para editar um fluxo de trabalho, clique no botão **Edit** para abrir o fluxo de trabalho no editor.
+
+<Callout variant="tip">
+  Quando as condições de alerta são violadas, o New Relic pode acionar fluxos de trabalho automaticamente configurando a Automação de fluxo de trabalho como um destino. O `issueId` e `accountId` são passados automaticamente. Consulte [Enviar notificações de fluxos de trabalho](/docs/workflow-automation/setup-and-configure/create-destinations#trigger-from-alerts) para obter instruções de configuração.
+</Callout>
+
+## Tópicos relacionados [#related-topics]
+
+<DocTiles>
+  <DocTile title="Gerenciar fluxos de trabalho" path="/docs/workflow-automation/manage-workflows/managing-workflow">
+    Visualizar o painel e gerenciar todos os fluxos de trabalho
+  </DocTile>
+
+  <DocTile title="API de criação de agendamento" path="/docs/workflow-automation/workflow-automation-apis/create-schedule">
+    Crie agendamentos programaticamente via NerdGraph
+  </DocTile>
+
+  <DocTile title="API de início de execução de fluxo de trabalho" path="/docs/workflow-automation/workflow-automation-apis/start-workflow-run">
+    Acione fluxos de trabalho sob demanda via API
+  </DocTile>
+
+  <DocTile title="Limites do fluxo de trabalho" path="/docs/workflow-automation/limitations-and-faq/workflow-limits">
+    Entenda a frequência de agendamento e os limites de execução
+  </DocTile>
+
+  <DocTile title="Resolução de problemas" path="/docs/workflow-automation/troubleshooting">
+    Depurar erros e falhas de execução do fluxo de trabalho
+  </DocTile>
+</DocTiles>
