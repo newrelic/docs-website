@@ -13,7 +13,7 @@ This retirement is part of our ongoing work to improve our platform and streamli
 
 ## What's changing [#whats-changing]
 
-The following API endpoints will be permanently retired on June 30, 2027:
+The following API endpoints will be permanently removed on June 30, 2027:
 
 - `https://api.newrelic.com/v2/`: US datacenter
 - `https://api.eu.newrelic.com/v2/`: EU datacenter
@@ -27,7 +27,7 @@ The following API endpoints will be permanently retired on June 30, 2027:
 
 ## How do I know if I'm affected? [#affected]
 
-You may be affected if your account has made calls to the REST API v2 within the past 3 months. If your account only uses `/v2/alerts*` endpoints, no action is required. Otherwise, to determine what action you need to take:
+You may be affected if your account has made calls to the REST API v2 within the past 3 months. If your account only uses `/v2/alerts*` endpoints, no action is required. Otherwise, follow these steps to determine what action you need to take:
 
 1. **Identify your REST API v2 usage:** Search your codebase, CI/CD pipelines, and automation scripts for calls to `api.newrelic.com/v2/` or `api.eu.newrelic.com/v2/`.
 
@@ -36,7 +36,7 @@ You may be affected if your account has made calls to the REST API v2 within the
    - Scripts that pull metric data for external dashboards or data warehousing
    - Automation that checks application health status or alert conditions
 
-2. **Check which endpoints you use:** If you only use `/v2/alerts*` endpoints, no action is required, those endpoints are not part of this EOL.
+2. **Check which endpoints you use:** If you only use `/v2/alerts*` endpoints, no action is required — those endpoints are not part of this EOL.
 
 3. **Review the migration guide:** For each REST API v2 call you identify, our [migration guide](https://docs.newrelic.com/docs/apis/rest-api-v2/migrate-to-nerdgraph/) provides the equivalent NerdGraph query or mutation.
 
@@ -52,9 +52,9 @@ Migrate your integrations from REST API v2 to NerdGraph before June 30, 2027:
    - **Key transactions**: query via entity search
    - **Mobile & browser applications**: query via entity search
 
-2. **Test your new integrations.** Use the NerdGraph API Explorer in the New Relic platform to interactively build and test queries before deploying changes.
+2. **Test your new integrations:** Use the NerdGraph API Explorer in the New Relic platform to interactively build and test queries before deploying changes.
 
-**Important note for metric data users:** 
+**Important note for metric data users:**
 
 The REST API v2 returns metric data in a proprietary format. In NerdGraph, metric data is queried using NRQL (New Relic Query Language). While the same data is available, the response format is different. The migration guide includes a complete mapping table to help you translate your existing metric value names (for example, `average_response_time`, `call_count`) to the equivalent NRQL functions. Please allow adequate time for this migration.
 
