@@ -7,84 +7,570 @@ redirects:
 freshnessValidatedDate: never
 ---
 
-Monitor your NGINX servers running in Kubernetes clusters using the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) to send metrics and telemetry data to New Relic.
+Monitor your NGINX servers running in Kubernetes clusters using the NRDOT collector (recommended) or OpenTelemetry collector contrib to send metrics and telemetry data to New Relic.
 
 This Kubernetes-specific integration automatically discovers NGINX pods in your cluster and collects metrics without manual configuration for each instance. It leverages the OpenTelemetry [nginxreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/nginxreceiver) and [receivercreator](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) to dynamically monitor NGINX performance metrics, connection statistics, and server health across your containerized environment.
 
-## Before you begin [#prerequisites]
+## Set up NGINX monitoring [#setup]
+
+Choose your preferred collector and follow the steps:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-k8s-prereqs">
+      NRDOT collector
+    </TabsBarItem>
+    <TabsBarItem id="otelcol-k8s-prereqs">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-k8s-prereqs">
+
+## Before you begin [#prerequisites-nrdot]
 
 Ensure you have:
 
-- A [New Relic account](https://newrelic.com/signup) with a <InlinePopover type="licenseKey"/>
+- Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
 - Enable the [HTTP stub status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) module on NGINX pod that needs to be monitored
 - Add labels `app` and `role` to each NGINX pod that needs to be monitored
+- For manifest install: complete the base [Kubernetes OpenTelemetry manifest installation](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install)
+- For helm install: complete the base [Kubernetes OpenTelemetry helm installation](/docs/kubernetes-pixie/k8s-otel/install/#helm-install)
 
-## Install and configure the OpenTelemetry Collector [#install-collector]
+## Configure the NRDOT collector [#install-nrdot-collector]
+
+Install the NRDOT collector using Kubernetes manifests or Helm.
+
+<CollapserGroup>
+
+  <Collapser id="nrdot-k8s-manifest-install" title="Manifest install">
+
+After completing the base Kubernetes OpenTelemetry manifest installation, configure NGINX monitoring by following these steps:
+
+1. Update the collector image to use NRDOT collector.
+
+    In both [`deployment.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment.yaml) and [`daemonset.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/daemonset.yaml) files in your local `rendered` directory, update the image to:
+
+    ```yaml
+    image: newrelic/nrdot-collector:latest
+    ```
+
+2. Update the [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml) for NGINX monitoring:
+
+    Choose one of the following configuration options based on your monitoring requirements:
+
+    <Collapser id="option1-nginx-only" title="NGINX-only monitoring">
+    
+    <Callout variant="important">
+    This option monitors NGINX only and removes other Kubernetes metrics collection. You'll delete additional collectors later to prevent unwanted metric ingestion.
+    </Callout>
+    
+    Replace the content under [`deployment-config.yaml: |`](https://github.com/newrelic/helm-charts/blob/4177f3cd73b73a82884206afc83963b504d51111/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml#L15)  with the below NGINX-specific configuration:
+
+    ```yaml
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      k8s_observer:
+        auth_type: serviceAccount
+        observe_pods: true
+        observe_nodes: true
+
+    receivers:
+      receiver_creator/nginx:
+        watch_observers: [k8s_observer]
+        receivers:
+          nginx:
+            rule: type == "pod" && labels["app"] == "nginx" && labels["role"] == "reverse-proxy"  # Update with your labels
+            config:
+              endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+              metrics:
+                nginx.requests:
+                  enabled: true
+                nginx.connections_accepted:
+                  enabled: true
+                nginx.connections_handled:
+                  enabled: true
+                nginx.connections_current:
+                  enabled: true
+              collection_interval: 30s
+            resource_attributes:
+              nginx.server.endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+              nginx.port: '<YOUR_STUB_STATUS_PORT>'  # Update to match your configuration
+
+    processors:
+      batch:
+        send_batch_max_size: 1000
+        timeout: 30s
+        send_batch_size: 800
+
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+
+      resource/cluster:
+        attributes:
+          - key: k8s.cluster.name
+            value: "<CLUSTER_NAME>"  # Replace with your cluster name
+            action: insert
+
+      transform/nginx:
+        metric_statements:
+          - context: resource
+            statements:
+              - set(attributes["nginx.display.name"], Concat([
+                  "server",
+                  "k8s",
+                  attributes["k8s.cluster.name"],
+                  attributes["k8s.namespace.name"],
+                  "pod",
+                  attributes["k8s.pod.name"],
+                  "nginx",
+                  attributes["nginx.port"]
+                ], ":"))
+              - set(attributes["nginx.deployment.name"], attributes["k8s.pod.name"])
+      
+      transform/metadata_nullify:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "")
+              - set(unit, "")
+
+    exporters:
+      otlp_http/newrelic:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+        headers:
+          api-key: ${env:NR_LICENSE_KEY}
+
+    service:
+      extensions: [health_check, k8s_observer]
+      pipelines:
+        metrics/nginx:
+          receivers: [receiver_creator/nginx]
+          processors: [batch, resource/cluster, transform/nginx, transform/metadata_nullify, memory_limiter]
+          exporters: [otlp_http/newrelic]
+    ```
+
+    #### Configuration parameters
+
+    The following table describes the key configuration parameters:
+
+    <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>`<YOUR_STUB_STATUS_PORT>`</td>
+        <td>Replace with your NGINX stub status port (for example 80, 8080)</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_STUB_STATUS_PATH>`</td>
+        <td>Replace with your NGINX stub status path (for example basic_status)</td>
+      </tr>
+      <tr>
+        <td>`<CLUSTER_NAME>`</td>
+        <td>Replace with your Kubernetes cluster name for identification in New Relic</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_NEWRELIC_OTLP_ENDPOINT>`</td>
+        <td>Update with your region's OTLP endpoint. See [OTLP endpoint documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)</td>
+      </tr>
+      <tr>
+        <td>`app` and `role` labels</td>
+        <td>Pod labels used to identify NGINX pods (update the rule to match your labels)</td>
+      </tr>
+      <tr>
+        <td>`collection_interval`</td>
+        <td>Interval in seconds to collect metrics. The default value is set to `30s`</td>
+      </tr>
+      <tr>
+        <td>`send_batch_max_size`</td>
+        <td>Maximum number of metrics to batch before sending. The default value is set to `1000`</td>
+      </tr>
+      <tr>
+        <td>`timeout`</td>
+        <td>Timeout in seconds to wait before sending batched metrics. The default value is set to `30s`</td>
+      </tr>
+      
+    </tbody>
+    </table>
+
+    </Collapser>
+
+    <Collapser id="option2-k8s-nginx" title="K8s + NGINX monitoring">
+    
+    Add the following sections to your existing `deployment-configmap.yaml`:
+
+    Extensions to add:
+    ```yaml
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      k8s_observer:
+        auth_type: serviceAccount
+        observe_pods: true
+        observe_nodes: true
+    ```
+
+    Receivers to add:
+    ```yaml
+    receivers:
+      receiver_creator/nginx:
+        watch_observers: [k8s_observer]
+        receivers:
+          nginx:
+            rule: type == "pod" && labels["app"] == "nginx" && labels["role"] == "reverse-proxy"  # Update with your labels
+            config:
+              endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+              metrics:
+                nginx.requests:
+                  enabled: true
+                nginx.connections_accepted:
+                  enabled: true
+                nginx.connections_handled:
+                  enabled: true
+                nginx.connections_current:
+                  enabled: true
+              collection_interval: 30s
+            resource_attributes:
+              nginx.server.endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+              nginx.port: '<YOUR_STUB_STATUS_PORT>'  # Update to match your configuration
+    ```
+
+    Processors to add:
+    ```yaml
+    processors:
+      resource/cluster:
+        attributes:
+          - key: k8s.cluster.name
+            value: "<CLUSTER_NAME>"  # Replace with your cluster name
+            action: insert
+
+      transform/nginx:
+        metric_statements:
+          - context: resource
+            statements:
+              - set(attributes["nginx.display.name"], Concat([
+                  "server",
+                  "k8s",
+                  attributes["k8s.cluster.name"],
+                  attributes["k8s.namespace.name"],
+                  "pod",
+                  attributes["k8s.pod.name"],
+                  "nginx",
+                  attributes["nginx.port"]
+                ], ":"))
+              - set(attributes["nginx.deployment.name"], attributes["k8s.pod.name"])
+      
+      transform/metadata_nullify:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "")
+              - set(unit, "")
+    ```
+
+    Service pipelines to add:
+    ```yaml
+    service:
+      extensions: [health_check, k8s_observer]  # Add to existing extensions
+      pipelines:
+        metrics/nginx:
+          receivers: [receiver_creator/nginx]
+          processors: [batch, resource/cluster, transform/nginx, transform/metadata_nullify, memory_limiter]
+          exporters: [otlphttp/newrelic]
+    ```
+
+    #### Configuration parameters
+
+    The following table describes the key configuration parameters:
+
+    <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>`<YOUR_STUB_STATUS_PORT>`</td>
+        <td>Replace with your NGINX stub status port (for example 80, 8080)</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_STUB_STATUS_PATH>`</td>
+        <td>Replace with your NGINX stub status path (for example basic_status)</td>
+      </tr>
+      <tr>
+        <td>`<CLUSTER_NAME>`</td>
+        <td>Replace with your Kubernetes cluster name for identification in New Relic</td>
+      </tr>
+      <tr>
+        <td>`app` and `role` labels</td>
+        <td>Pod labels used to identify NGINX pods (update the rule to match your labels)</td>
+      </tr>
+      <tr>
+        <td>`collection_interval`</td>
+        <td>Interval in seconds to collect metrics. The default value is set to `30s`</td>
+      </tr>
+      <tr>
+        <td>`memory_limiter`</td>
+        <td>Processor used in existing Kubernetes configuration to limit memory usage</td>
+      </tr>
+    </tbody>
+    </table>
+
+    </Collapser>
+
+3. Apply the updated manifests and restart the deployment.
+
+    1. For NGINX-only monitoring, run these commands:
+      ```bash
+      kubectl apply -n newrelic -R -f rendered
+      kubectl delete daemonset nr-k8s-otel-collector-daemonset -n newrelic
+      kubectl delete deployment nr-k8s-otel-collector-kube-state-metrics -n newrelic
+      kubectl rollout restart deployment nr-k8s-otel-collector-deployment -n newrelic
+      ```
+
+    2. For K8s + NGINX monitoring, run these commands:
+      ```bash
+      kubectl apply -n newrelic -R -f rendered
+      kubectl rollout restart deployment nr-k8s-otel-collector-deployment -n newrelic
+      ```
+
+  </Collapser>
+
+  <Collapser id="nrdot-k8s-helm-install" title="Helm install">
+
+    1. Update your [`values.yaml`](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml) for the `nr-k8s-otel-collector` Helm chart with the following changes:
+
+      a. Update the [collector image repository](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L90) and [tag](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L91) to use NRDOT:
+
+    ```yaml
+    images:
+      collector:
+        repository: newrelic/nrdot-collector
+        tag: latest
+    ```
+
+      b. Add the following sections under [`deployment.extraConfig`](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L259):
+
+    <Callout variant="important">
+    In `deployment.extraConfig`, `pipelines:` must be defined at the root level — not nested under `service:`. The helm chart template maps `extraConfig.pipelines` into `service.pipelines`, and `extraConfig.service.extensions` into `service.extensions`.
+    </Callout>
+
+    Extensions:
+    ```yaml
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      k8s_observer:
+        auth_type: serviceAccount
+        observe_pods: true
+        observe_nodes: true
+    ```
+
+    Receivers:
+    ```yaml
+    receivers:
+      receiver_creator/nginx:
+        watch_observers: [k8s_observer]
+        receivers:
+          nginx:
+            rule: type == "pod" && labels["app"] == "nginx" && labels["role"] == "reverse-proxy"  # Update with your labels
+            resource_attributes:
+              nginx.server.endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+              nginx.port: '<YOUR_STUB_STATUS_PORT>'  # Update to match your configuration
+            config:
+              endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+              metrics:
+                nginx.requests:
+                  enabled: true
+                nginx.connections_accepted:
+                  enabled: true
+                nginx.connections_handled:
+                  enabled: true
+                nginx.connections_current:
+                  enabled: true
+              collection_interval: 30s
+      ```
+            
+
+    Processors:
+    ```yaml
+    processors:
+
+      resource/cluster:
+        attributes:
+          - key: k8s.cluster.name
+            value: "<CLUSTER_NAME>"  # Replace with your cluster name
+            action: insert
+
+      transform/nginx:
+        metric_statements:
+          - context: resource
+            statements:
+              - set(attributes["nginx.display.name"], Concat([
+                  "server",
+                  "k8s",
+                  attributes["k8s.cluster.name"],
+                  attributes["k8s.namespace.name"],
+                  "pod",
+                  attributes["k8s.pod.name"],
+                  "nginx",
+                  attributes["nginx.port"]
+                ], ":"))
+              - set(attributes["nginx.deployment.name"], attributes["k8s.pod.name"])
+
+      transform/metadata_nullify:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "")
+              - set(unit, "")
+    ```
+
+    Service extensions:
+    ```yaml
+    service:
+      extensions: [health_check, k8s_observer]
+    ```
+
+    Pipelines:
+    ```yaml
+    pipelines:
+      metrics/nginx:
+        receivers: [receiver_creator/nginx]
+        processors: [batch, resource/cluster, transform/nginx, transform/metadata_nullify, memory_limiter]
+        exporters: [otlphttp/newrelic]
+    ```
+
+    #### Configuration parameters
+
+    The following table describes the key configuration parameters:
+
+    <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>`<YOUR_STUB_STATUS_PORT>`</td>
+        <td>Replace with your NGINX stub status port (for example 80, 8080)</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_STUB_STATUS_PATH>`</td>
+        <td>Replace with your NGINX stub status path (for example basic_status)</td>
+      </tr>
+      <tr>
+        <td>`<CLUSTER_NAME>`</td>
+        <td>Replace with your Kubernetes cluster name for identification in New Relic</td>
+      </tr>
+      <tr>
+        <td>`app` and `role` labels</td>
+        <td>Pod labels used to identify NGINX pods (update the rule to match your labels)</td>
+      </tr>
+      <tr>
+        <td>`collection_interval`</td>
+        <td>Interval in seconds to collect metrics. The default value is set to `30s`</td>
+      </tr>
+      <tr>
+        <td>`send_batch_max_size`</td>
+        <td>Maximum number of metrics to batch before sending. The default value is set to `1000`</td>
+      </tr>
+      <tr>
+        <td>`timeout`</td>
+        <td>Timeout in seconds to wait before sending batched metrics. The default value is set to `30s`</td>
+      </tr>
+      <tr>
+        <td>`memory_limiter`</td>
+        <td>Processor used to limit memory usage. `limit_percentage` sets the maximum memory percentage before limiting begins</td>
+      </tr>
+    </tbody>
+    </table>
+
+  2. Apply the updated values to your running Helm release:
+
+    ```bash
+    helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector \
+      --namespace newrelic \
+      --reuse-values \
+      -f values.yaml
+    ```
+
+  </Collapser>
+
+</CollapserGroup>
+
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-k8s-prereqs">
+
+## Before you begin [#prerequisites-otel]
+
+Ensure you have:
+
+- Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- Enable the [HTTP stub status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) module on NGINX pod that needs to be monitored
+- Add labels `app` and `role` to each NGINX pod that needs to be monitored
+- [Helm](https://helm.sh/docs/intro/install/) installed
+
+## Configure the OpenTelemetry Collector [#install-otelcol-collector]
 
 Deploy the OpenTelemetry Collector to your Kubernetes cluster using Helm. The collector will automatically discover and scrape metrics from your NGINX pods.
 
 <CollapserGroup>
-  <Collapser id="k8s-create-secret" title="Create Kubernetes secret for credentials">
-    Create a Kubernetes secret to store your New Relic credentials. Replace `YOUR_LICENSE_KEY` and `YOUR_OTLP_ENDPOINT` with your actual values. Refer to the OTLP endpoint configuration [documentation](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) to select the appropriate endpoint for your region.
 
-    ```bash
-    kubectl create namespace newrelic
-    kubectl create secret generic newrelic-licenses --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY --from-literal=NEWRELIC_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
-    ```
-  </Collapser>
+  <Collapser id="create-values-yaml-otelcol" title="Step 1: Create custom values.yaml configuration">
 
-  <Collapser id="k8s-values-yaml" title="Create values.yaml configuration">
-    Create a `values.yaml` file to configure the OpenTelemetry Collector. Update the placeholders for your cluster name, NGINX pod labels, stub status port and path.
+Download or create a custom `values.yaml` file based on the [OpenTelemetry Collector values.yaml](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml).
 
-    ```yaml
-    opentelemetry-collector:
-      mode: deployment
+Update the following sections in your `values.yaml` file:
 
-      image:
-        repository: otel/opentelemetry-collector-contrib
-        pullPolicy: IfNotPresent
+1. Set mode to deployment:
+   ```yaml
+   mode: deployment
+   ```
 
-      command:
-        name: otelcol-contrib
+2. Replace the image repository:
+   ```yaml
+   image:
+     repository: otel/opentelemetry-collector-contrib
+   ```
 
-      resources:
-        limits:
-          cpu: 500m
-          memory: 300Mi
-        requests:
-          cpu: 100m
-          memory: 100Mi
+3. Configure cluster role:
+   ```yaml
+   clusterRole:
+     create: true
+     rules:
+       - apiGroups: [""]
+         resources: ["pods", "nodes", "nodes/stats", "nodes/proxy"]
+         verbs: ["get", "list", "watch"]
+       - apiGroups: ["apps"]
+         resources: ["replicasets"]
+         verbs: ["get", "list", "watch"]
+   ```
 
-      extraEnvs:
-        - name: NEWRELIC_LICENSE_KEY
-          valueFrom:
-            secretKeyRef:
-              name: newrelic-licenses
-              key: NEWRELIC_LICENSE_KEY
-        - name: NEWRELIC_OTLP_ENDPOINT
-          valueFrom:
-            secretKeyRef:
-              name: newrelic-licenses
-              key: NEWRELIC_OTLP_ENDPOINT
-        - name: K8S_NODE_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
-        - name: K8S_CLUSTER_NAME
-          value: nginx-cluster # Update with your cluster name
+4. Configure resource limits:
+   ```yaml
+   resources:
+     limits:
+       cpu: 250m
+       memory: 512Mi
+   ```
 
-      clusterRole:
-        create: true
-        rules:
-          - apiGroups: [""]
-            resources: ["pods", "nodes", "nodes/stats", "nodes/proxy"]
-            verbs: ["get", "list", "watch"]
-          - apiGroups: ["apps"]
-            resources: ["replicasets"]
-            verbs: ["get", "list", "watch"]
-        clusterRoleBinding:
-          name: ""
-
+5. Replace the entire config section with NGINX monitoring configuration:
+   ```yaml
       config:
         extensions:
           health_check:
@@ -101,7 +587,7 @@ Deploy the OpenTelemetry Collector to your Kubernetes cluster using Helm. The co
               nginx:
                 rule: type == "pod" && labels["app"] == "nginx" && labels["role"] == "reverse-proxy" # Update with your labels
                 config:
-                  endpoint: 'http://`endpoint`:<stub_status_port>/status'
+                  endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
                   metrics:
                     nginx.requests:
                       enabled: true
@@ -113,8 +599,8 @@ Deploy the OpenTelemetry Collector to your Kubernetes cluster using Helm. The co
                       enabled: true
                   collection_interval: 30s
                 resource_attributes:
-                  nginx.server.endpoint: 'http://`endpoint`:<stub_status_port>/status'
-                  nginx.port: '<stub_status_port>'
+                  nginx.server.endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+                  nginx.port: '<YOUR_STUB_STATUS_PORT>'  # Update to match your configuration
 
         processors:
           batch:
@@ -124,7 +610,7 @@ Deploy the OpenTelemetry Collector to your Kubernetes cluster using Helm. The co
           resource/cluster:
             attributes:
               - key: k8s.cluster.name
-                value: "${env:K8S_CLUSTER_NAME}"
+                value: "<CLUSTER_NAME>"  # Replace with your cluster name
                 action: insert
 
           transform/nginx:
@@ -151,10 +637,10 @@ Deploy the OpenTelemetry Collector to your Kubernetes cluster using Helm. The co
                   - set(unit, "")
 
         exporters:
-          otlp_http:
-            endpoint: "${env:NEWRELIC_OTLP_ENDPOINT}"
+          otlp_http/newrelic:
+            endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"  # Update for your region
             headers:
-              api-key: "${env:NEWRELIC_LICENSE_KEY}"
+              api-key: "<YOUR_NEW_RELIC_LICENSE_KEY>"  # Replace with your New Relic license key
 
         service:
           extensions: [health_check, k8s_observer]
@@ -162,50 +648,114 @@ Deploy the OpenTelemetry Collector to your Kubernetes cluster using Helm. The co
             metrics/nginx:
               receivers: [receiver_creator/nginx]
               processors: [batch, resource/cluster, transform/nginx, transform/metadata_nullify]
-              exporters: [otlp_http]
-    ```
+              exporters: [otlp_http/newrelic]
+   ```
+
+#### Configuration parameters
+
+The following table describes the key configuration parameters:
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`<YOUR_STUB_STATUS_PORT>`</td>
+    <td>Replace with your NGINX stub status port (for example 80, 8080)</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_STUB_STATUS_PATH>`</td>
+    <td>Replace with your NGINX stub status path (for example basic_status)</td>
+  </tr>
+  <tr>
+    <td>`<CLUSTER_NAME>`</td>
+    <td>Replace with your Kubernetes cluster name for identification in New Relic</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_NEWRELIC_OTLP_ENDPOINT>`</td>
+    <td>Update with your region's OTLP endpoint. See [OTLP endpoint documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_NEW_RELIC_LICENSE_KEY>`</td>
+    <td>Replace with your New Relic license key</td>
+  </tr>
+  <tr>
+    <td>`app` and `role` labels</td>
+    <td>Pod labels used to identify NGINX pods (update the rule to match your labels)</td>
+  </tr>
+  <tr>
+    <td>`basic_status`</td>
+    <td>NGINX stub status endpoint path (update if using a different path)</td>
+  </tr>
+  <tr>
+    <td>`collection_interval`</td>
+    <td>Interval in seconds to collect metrics. The default value is set to `30s`</td>
+  </tr>
+  <tr>
+    <td>`send_batch_size`</td>
+    <td>Number of metrics to batch before sending. The default value is set to `1024`</td>
+  </tr>
+  <tr>
+    <td>`timeout`</td>
+    <td>Timeout in seconds to wait before sending batched metrics. The default value is set to `30s`</td>
+  </tr>
+</tbody>
+</table>
+
   </Collapser>
 
-  <Collapser id="k8s-install-helm" title="Install with Helm">
-    Install the [Helm chart](https://github.com/open-telemetry/opentelemetry-helm-charts) using your values.yaml file.
+  <Collapser id="install-helm-otelcol" title="Step 2: Install with Helm">
 
-    ```bash
-    helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-    helm repo update
-    helm upgrade --install nginx-otel-collector open-telemetry/opentelemetry-collector --namespace newrelic --create-namespace -f values.yaml
-    ```
+Follow the [OpenTelemetry Collector Helm chart installation guide](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/README.md#opentelemetry-collector-helm-chart) to install the collector using your custom `values.yaml` file.
+
+Example commands:
+
+```bash
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo update
+helm upgrade my-opentelemetry-collector open-telemetry/opentelemetry-collector -f your-custom-values.yaml -n newrelic --create-namespace --install
+```
+
   </Collapser>
 
-  <Collapser id="k8s-verify-deployment" title="Verify deployment and data collection">
-    1. **Ensure the pods have successfully spun up:**
+  <Collapser id="verify-deployment-otelcol" title="Step 3: Verify deployment and data collection">
 
-       ```bash
-       kubectl get pods -n newrelic --watch
-       ```
+1. Verify the pods are running:
 
-       You should see pods with names like `nginx-otel-collector-<hash>` in a `Running` state in the `newrelic` namespace.
+   ```bash
+   kubectl get pods -n newrelic --watch
+   ```
 
-    2. **Run an NRQL query in New Relic to confirm data is arriving.** Replace the cluster name with the value you set in the values file:
+   You should see the OpenTelemetry Collector pods in a `Running` state in the `newrelic` namespace.
 
-       ```sql
-       FROM Metric
-       SELECT *
-       WHERE metricName LIKE 'nginx.%'
-         AND instrumentation.provider = 'opentelemetry'
-         AND k8s.cluster.name = 'nginx-cluster'
-       SINCE 10 minutes ago
-       ```
+2. Run an NRQL query in New Relic to verify data collection. Replace the cluster name with your actual cluster name:
+
+   ```sql
+   FROM Metric
+   SELECT *
+   WHERE metricName LIKE 'nginx.%'
+     AND instrumentation.provider = 'opentelemetry'
+     AND k8s.cluster.name = 'your-cluster-name'
+   SINCE 10 minutes ago
+   ```
+
   </Collapser>
+
 </CollapserGroup>
 
-## Find and use data [#find-data]
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
 
-1. Go to **[one.newrelic.com](https://one.newrelic.com) > Integrations & Agents**.
-2. Select **Dashboards**, and click **NGINX OTel overview dashboard**.
-3. In the popup window, select your account.
-4. Click View dashboard, and see your NGINX data in New Relic.
+## View your data in New Relic [#find-data]
 
-The NGINX metrics are attached to the `Metric` [event type](/docs/using-new-relic/data/understand-data/new-relic-data-types#events-new-relic). You can [query this data](/docs/using-new-relic/data/understand-data/query-new-relic-data) for troubleshooting purposes or to create custom charts and dashboards.
+Once your setup is complete and data is flowing, you can access your NGINX metrics in New Relic dashboards and create custom alerts.
+
+For complete instructions on accessing dashboards, querying data with NRQL, and creating alerts, see [Find and query your NGINX data](/docs/opentelemetry/integrations/nginx/find-and-query-your-data).
 
 ## Metrics and attributes reference [#metrics]
 
@@ -215,16 +765,9 @@ This integration collects the same core NGINX metrics as the on-host deployment,
 
 ## Next steps [#next-steps]
 
-**Learn more about your data:**
-- [Find and query your NGINX data](/docs/opentelemetry/integrations/nginx/find-and-query-your-data/) - Access dashboards, create custom queries, and set up alerts
-- [NGINX OpenTelemetry metrics and attributes reference](/docs/opentelemetry/integrations/nginx/nginx-otel-metrics-reference/) - Complete metrics reference with descriptions and examples
-- [NGINX OpenTelemetry overview](/docs/opentelemetry/integrations/nginx/nginx-otel-overview/) - Understand collected metrics, attributes, and use cases
-- [NGINX receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/nginxreceiver/documentation.md) - Technical details and advanced configuration
-
 **Explore related monitoring:**
 - [Monitor NGINX Plus with OpenTelemetry](/docs/opentelemetry/integrations/nginx-plus/nginx-plus-otel/) - For commercial NGINX Plus deployments
 - [Monitor self-hosted NGINX with OpenTelemetry](/docs/opentelemetry/integrations/nginx/nginx-otel-host/) - For traditional server deployments
-- [OpenTelemetry best practices](/docs/opentelemetry/best-practices/opentelemetry-otlp/) - Optimize your OpenTelemetry setup
 
 **Kubernetes-specific resources:**
 - [OpenTelemetry Collector on Kubernetes](https://opentelemetry.io/docs/kubernetes/) - Advanced collector configurations
