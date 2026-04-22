@@ -261,16 +261,17 @@ const updateJobRecords = async (jobStatuses) => {
 /**
  * Process items in batches with rate limiting to avoid API limits
  * Smartling API allows 400 requests per 10 seconds
+ * Each batch item makes 2 API calls (batch data + job data), so effective limit is 200 items
  * @param {Array} items - Items to process
  * @param {Function} processor - Async function to process each item
- * @param {number} batchSize - Number of items to process per batch (default: 300)
+ * @param {number} batchSize - Number of items to process per batch (default: 180)
  * @param {number} delayMs - Delay between batches in milliseconds (default: 10000)
  * @returns {Promise<Array>}
  */
 const processWithRateLimit = async (
   items,
   processor,
-  batchSize = 300,
+  batchSize = 180,
   delayMs = 10000
 ) => {
   const results = [];
