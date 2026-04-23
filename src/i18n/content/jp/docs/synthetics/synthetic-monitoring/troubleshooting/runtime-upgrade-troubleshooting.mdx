@@ -6,78 +6,304 @@ tags:
   - Synthetic monitoring
   - Troubleshooting
   - Runtime conversion
-metaDescription: null
+metaDescription: Solutions for common issues when upgrading synthetic monitors to Node.js 22 and newer Chrome runtimes.
 freshnessValidatedDate: never
 translationType: machine
 ---
 
-<Callout variant="important">
-  2024年8月26日以降、パブリックロケーションまたはプライベートロケーションでレガシーランタイムを使用して新しいモニターを作成することはできなくなります。 2024年10月22日をもって、コンテナ化されたプライベートミニオン（1分間あたりの呼出し回数）とレガシーsyntheticランタイムバージョンの[サポートを終了](/whats-new/2024/04/whats-new-04-09-eol-synthetics-runtime-cpm)します。
+## Node.js 22へのアップグレードに関する問題
 
-  * パブリックロケーションの場合は、[ランタイム アップグレードUI](/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui/)使用してモニターを最新のランタイムに更新します。
-  * プライベートロケーションの場合、モニターの低下を回避するために[推奨する移行手順](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-transition-guide/#monitorMigration)を確認してください。
-</Callout>
+以下の問題は、モニターをNode.js 22にアップグレードする際に特有のものです。
 
-## Scripted Browser: 要素を操作しようとすると失敗する [#promises]
+### 未処理の開いたハンドル [#open-handles]
 
-古いランタイムで作成されたモニターを[Chrome 100 (またはそれ以降) のランタイム](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100)に対して検証する場合、Promise 処理の違いにより、ページ上の要素を見つけて操作する`findElement`などのメソッドが失敗する可能性があります。 モニターがレガシー ランタイムでは合格し、新しいランタイムでは失敗し、スクリーンショットに要素が存在する場合は、Promise 処理ロジックを改善する必要がある可能性があります。
+**症状：**検証または実行中にモニターが失敗する**原因：** Node.js 22 ではプロセスライフサイクルに関する制約が厳しくなった
+
+Node.js 22 にアップグレードする際に最もよく発生する問題は、未処理のオープンハンドルです。モニター スクリプトに未処理のオープン ハンドル (未解決の Promise、残留タイマー、クローズされていないネットワーク接続など) が含まれている場合、モニターは失敗します。
+
+一般的な開閉式ハンドルの種類は以下のとおりです。
+
+* **未解決の約束**：すべての約束が適切に待機または処理されていることを確認する
+* **残存タイマー**: `setTimeout`および`setInterval`呼び出しをすべてクリアします
+* **未接続**: すべてのネットワーク接続、データベース接続、およびファイルハンドルを閉じます。
+* **HTTP/HTTPS接続**：応答データを適切に処理し、接続を閉じる
+
+### HTTP/HTTPS接続は開いたままです [#http-connections]
+
+**症状：**モニターがハングアップまたはタイムアウトする**原因：**応答データが消費されていないか、keepAliveが有効になっていない
+
+#### 解決策A：応答データを利用する
+
+`http`または`https`を使用するには、 `data`イベントをリッスンしてください。それ以外の場合は、HTTPS接続は開いたままになります。
+
+```javascript
+const https = require('https');
+
+https.get('https://example.com', (res) => {
+  console.log('Status Code:', res.statusCode);
+  // Consume the response data
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+}).on('error', (e) => {
+  console.error('Error:', e);
+});
+```
+
+#### 解決策B：keepAliveを無効にする
+
+リクエスト完了後にHTTP接続を閉じるには、 `keepAlive`オプションを`false`に設定してください。
+
+```javascript
+const https = require('https');
+const { Agent } = require('https'); // or http for HTTP requests
+
+const options = {
+  hostname: 'example.com',
+  path: '/',
+  method: 'GET',
+  agent: new Agent({ keepAlive: false }), // Disable keepAlive
+};
+
+const req = https.request(options, (res) => {
+  console.log(`Status: ${res.statusCode}`);
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+});
+
+req.on('error', (e) => {
+  console.error(e);
+});
+
+req.end();
+```
+
+### ストリームリソースがクリーンアップされませんでした [#stream-cleanup]
+
+**症状：**リソースリークまたはモニターのハングアップ**原因：** finallyブロックでストリームが破棄されていない
+
+#### 解決
+
+適切なリソースの解放を確実にするため、 `finally`ブロック内のストリームをクリーンアップします。
+
+```javascript
+const got = require('got');
+
+let downloadStream = got.stream("https://example.com/test.txt");
+
+try {
+  // Your stream processing logic here
+} finally {
+  if (downloadStream) {
+    downloadStream.destroy();
+  }
+}
+```
+
+### ソケットが正しく破壊されていません [#socket-cleanup]
+
+**症状：**モニター検証が「オープンハンドル」エラーで失敗する。**原因：**成功コードパスでソケットのクリーンアップが欠落している。
+
+すべてのコードパスにおいて、ソケットを適切に破棄してください。
+
+#### 問題のあるコード
+
+```javascript
+// ❌ Problematic code - Socket not closed in success case
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      resolve({ validTo: validTo });
+    } else {
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+#### 推奨されるアプローチ
+
+すべてのコードパスにクリーンアップ機能を追加する：
+
+```javascript
+// ✅ Better approach - Proper cleanup in all cases
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    // Always destroy the response and socket
+    const cleanup = () => {
+      try {
+        res.destroy();
+        if (res.socket && !res.socket.destroyed) {
+          res.socket.destroy();
+        }
+      } catch (e) {
+        console.log("Cleanup warning:", e.message);
+      }
+    };
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      cleanup();
+      resolve({ validTo: validTo });
+    } else {
+      cleanup();
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+### タイマーがクリアされていません [#timers]
+
+**症状：**モニターの実行が完了しない**原因：** `setTimeout` / `setInterval`がクリアされていない
+
+#### 問題のあるコード
+
+```javascript
+// ❌ Problematic code
+setTimeout(() => {
+  console.log('This might cause issues');
+}, 5000);
+```
+
+#### 推奨されるアプローチ
+
+終了したらタイマーをリセットしてください。
+
+```javascript
+// ✅ Better approach
+const timerId = setTimeout(() => {
+  console.log('This is properly handled');
+}, 1000);
+
+// Clear the timer when done
+clearTimeout(timerId);
+```
+
+### 未解決の約束 [#unresolved-promises]
+
+**症状：**スクリプトは終了したように見えるが、検証が失敗する。**原因：** Promiseが適切に待機または処理されていない。
+
+**解決策:**すべてのプロミスが`.then()` 、 `.catch()`であるか、 `await`で編集されていることを確認します。
+
+## Chromeランタイムのアップグレードに関する問題
+
+次の問題は、スクリプト化ブラウザモニターを新しいChromeランタイムにアップグレードする場合に特有の問題です。
+
+### スクリプトブラウザ：要素とのインタラクションが失敗します [#promises]
+
+**症状:** `findElement`およびその他のメソッドは新しいランタイムでは失敗しますが、従来のランタイムでは機能します**原因:** Seleniumのバージョン間の相違点の処理を Promise にしているウェブサイト
+
+古いランタイムで作成されたモニターを[Chrome 100 (またはそれ以降) ランタイム](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100)に対して検証する場合、プロミス処理の違いにより、 `findElement`やページ上の要素を検索および操作するためのその他のメソッドが失敗する可能性があります。モニターがレガシー ランタイムでは成功し、新しいランタイムでは失敗し、要素がスクリーンショットに存在する場合は、Promise 処理ロジックを改善してください。
 
 Seleniumウェブの意見 Promise Manager と制御フローにより、Promise を管理せずに、レガシー ランタイムで一部の関数を順番に実行できるようになりました。 この機能はSeleniumウェブ意見 4.0 で削除され、ランタイムでは使用できなくなりました。 すべての非同期関数と Promise は、 `await`または`.then` Promise チェーンを使用して管理する必要があります。 これにより、スクリプト関数が期待どおりの順序で実行されるようになります。
 
-たとえば、Promise マネージャーと制御フローにより、 `$browser.get` Promise を返し、Promise が正しく処理されていない場合でも、この部分的なスクリプトが正常に完了する可能性があります。
+#### 問題のあるコード
+
+プロミスマネージャと制御フローにより、 `$browser.get`プロミスを返し、そのプロミスが正しく処理されていない場合でも、この部分的なスクリプトは正常に完了する可能性があります。
 
 ```js
+// ❌ Problematic code - Promises not handled
 $browser.get('http://example.com');
 
 $browser.findElement($driver.By.css('h1'));
 ```
 
-[Chrome 100 (またはそれ以降) のランタイム](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100)では、Promise を返すメソッドは、ステップを適切に順序付けるために await または`.then`構文を使用する必要があります。 より簡潔な構文と簡単な使用法のため、await の使用が推奨されますが、 `.then`プロミス チェーンも引き続きサポートされています。
+#### 推奨されるアプローチ
+
+[Chrome 100（またはそれ以降）ランタイム](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100)では、Promiseを返すメソッドは、手順を適切に順序付けるために、awaitまたは`.then`構文を使用する必要があります。構文がより簡潔で使いやすいため、await の使用が推奨されますが、 `.then`プロミス チェーンも引き続きサポートされています。
 
 ```js
+// ✅ Better approach - Using await
 await $browser.get('http://example.com');
 
 let el = await $browser.findElement($driver.By.css('h1'));
 ```
 
-## スクリプト API: `request`との違い `got` [#request]
+### スクリプトbrowser : 非推奨の警告 (`$browser` および `$driver` [#deprecations]
+
+**症状：**モニターログに非推奨警告が表示される**原因：**古いノードブラウザランタイムイメージを使用している
+
+ブラウザランタイムのバージョン2.0.29以降では、 `$browser`および`$driver`に対する非推奨警告は削除されました。パブリックロケーションを使用するときにこれらの警告は表示されなくなりました。 プライベートロケーションの使用時にこれらの警告が表示された場合は、ノード ブラウザーのランタイム イメージを更新してください。
+
+### スクリプトbrowser : `waitForAndFindElement` および `waitForPendingRequests` [#waitMethods]
+
+**症状:** `$selenium`および`$webDriver`使用時にメソッドが使用できない**原因:** New Relicカスタム メソッドがSeleniumウェブワイド 4.1 ベース API に含まれていない
+
+`waitForAndFindElement`と`waitForPendingRequests`メソッドは、Chrome 72以前のスクリプト対応ブラウザランタイムで提供されるNew Relic独自のメソッドです。Chrome 100 以降のランタイムでは`$driver`および`$browser`と併用できますが、 Selenium Web の 4.1 API を`$selenium`および`$webDriver`と直接併用する場合は利用できません。 この変更によりNew RelicのSeleniumウェブ意見実装と基本的なSeleniumウェブ意見実装がより適切に調整されます。
+
+新しいランタイムで`waitForAndFindElement`または`waitForPendingRequests`引き続き使用するには、 [コード例を](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100/#waitForAndFindElement)モニターに貼り付けてください。
+
+## APIランタイムアップグレードの問題
+
+以下の問題は、スクリプト化されたAPI新しいNode.jsランタイムにアップグレードする際に特有のものです。
+
+### スクリプト API: `request`との違い `got` [#request]
+
+**症状:** `request`モジュール機能を使用したAPIスクリプトが新しいランタイムで失敗する**原因:**非推奨の`request`モジュールから`got`モジュールへの移行
 
 [Node.js 10 以前のスクリプトAPIランタイムは、](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#dependencies) `request` Node.js モジュールを使用して、 [APIテスト](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests-legacy/)に使用できる `$http` オブジェクトを提供していました。
 
-[Node.js 16 以降のスクリプト API ランタイムでは、](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#apidependencies) `request`ではなく`got`が使用されます。 `request` モジュールは 2020 年に廃止され、新しいAPIまたはbrowserベースのランタイムには含まれなくなります。 `$http`オブジェクトは、 `got`を利用して、基本的なユースケースに対する下位互換性を提供しながら、非推奨のモジュールの使用を回避しながら、カスタムの`request`のようなエクスペリエンスを提供します。 `request`の高度な使用例はすべてサポートされているわけではありません。 [スクリプトの例と変換ガイド](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/)が用意されています。
+[Node.js 16 以降のスクリプト API ランタイムでは、](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#apidependencies) `request`の代わりに`got`使用します。`request`モジュールは 2020 年に非推奨となり、新しい API やブラウザベースのランタイムには含まれなくなりました。`$http`オブジェクトは、 `got`によって駆動されながら、 `request`のようなカスタムエクスペリエンスを提供し、基本的な使用例に対する後方互換性を提供しつつ、非推奨のモジュールの使用を回避します。`request`の高度な使用例すべてがサポートされているわけではありません。[スクリプトの例と変換ガイド](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/)が用意されています。
 
 <Callout variant="tip">
-  `$http`オブジェクトによって提供される`request`のようなエクスペリエンスは、Node.js 16 以降のスクリプト化された API ランタイムで`request`を直接使用しようとするすべての顧客に対しても返されます。
+  `$http`オブジェクトは、Node.js 16 以降のスクリプト API ランタイムで`request`直接使用しようとする顧客に対しても、 `request`と同様のエクスペリエンスを返します。
 </Callout>
 
-## スクリプト API: 予期しないトークン `JSON.parse` [#scripted-api-unexpected]
+### スクリプト API: 予期しないトークン `JSON.parse` [#scripted-api-unexpected]
 
-応答本文の操作中に`JSON.parse`関数を使用しようとすると、Node.js 16 以降のランタイムを使用するスクリプト API モニターで予期しないトークン エラーが発生する可能性があります。content-type 応答ヘッダーが`application/json`の場合、 `$http`オブジェクトによって返される応答本文は解析された JSON になります。`JSON.parse`を使用して応答本文を解析しようとする追加の呼び出しは、応答本文がすでに解析されているため、このエラーで失敗します。
+**症状:** `JSON.parse`を使用すると予期しないトークンエラーが発生する**原因:**コンテンツタイプが の場合、レスポンスボディは既に自動的に解析されている `application/json`
 
-コンテンツ タイプ応答ヘッダーが`application/json`でない場合、応答本文は自動的に解析されず、 `JSON.parse`関数を使用する必要があります。
+応答本文との対話中に`JSON.parse`関数を使用しようとすると、 Node.js 16 以降のランタイムを使用するスクリプトAPIモニターで予期しないエラーが発生します。 コンテンツタイプのレスポンスヘッダーが`application/json`の場合、 `$http`オブジェクトはレスポンスボディに解析済みの JSON を返します。レスポンスボディを解析するために`JSON.parse`を使用しようとする追加の呼び出しは、レスポンスボディが既に解析されているため、このエラーで失敗します。
 
-## スクリプトAPI: `HEAD`または `GET` [#scripted-api-head-get]
+コンテンツタイプのレスポンスヘッダーが`application/json`でない場合、レスポンスボディは自動的に解析されないため、 `JSON.parse`関数を使用する必要があります。
 
-HTTP `HEAD`または`GET`リクエストにリクエスト本文を含めることはできません。 Node 10 以前のランタイムで使用される`request`モジュールではこれが許可されていましたが、新しいランタイムではエラーが発生します。 いくつかの異なる設定によりエラーが発生する可能性がありますが、最も一般的な提案は次のとおりです。
+### スクリプトAPI: `HEAD`または `GET` [#scripted-api-head-get]
 
-* たとえ空であっても、リクエストに本文を含めないでください。
+**症状：** HTTP `HEAD`または`GET` requestsボディ関連のエラーで失敗する。**原因：**新しいランタイムが、 `HEAD` / `GET` requestsでのボディを禁止する HTTP 仕様を強制する。
+
+HTTP `HEAD`または`GET`リクエストにはリクエストボディを含めることはできません。Node 10以前のランタイムで使用されていた`request`モジュールではこれが可能でしたが、新しいランタイムではエラーが発生します。最も一般的な提案は以下のとおりです。
+
+* リクエストに本文を含めないでください。たとえ空であってもです。
 * `HEAD`または`GET`リクエストで不要なオプションは使用しないでください。 `json: true`
 
-## スクリプト API: クエリ文字列 (qs) の違い [#scripted-api-query]
+### スクリプト API: クエリ文字列 (qs) の違い [#scripted-api-query]
 
-Node 10 以前のランタイムでは、書き込み文字列設定は`qs:`オプションを使用して渡されました。 Node 16 ランタイムの場合は、代わりに`searchParams:`オプションを使用してください。 オプションの名前のみを変更する必要があります。 クエリ文字列の内容を更新する必要はありません。
+**症状:**クエリ文字列オプションが新しいランタイムで機能しない**原因:**オプション名が`qs:`から変更されました `searchParams:`
 
-## スクリプト API: Cookie jar の違い [#scripted-api-cookie]
+Node 10以前のランタイムでは、クエリ文字列の設定は`qs:`オプションを使用して渡されていました。Node 16ランタイムの場合は、代わりに`searchParams:`オプションを使用してください。オプション名だけを変更すれば良い。クエリ文字列の内容を更新する必要はありません。
+
+### スクリプト API: Cookie jar の違い [#scripted-api-cookie]
+
+**症状：** `jar: true`を使用した Cookie 処理が機能しない**原因：** Node 16 ランタイムで Cookie jar の実装が変更された
 
 Node 10 以前のランタイムでは、オプション`jar: true`を使用して、リクエスト間で Cookie を Cookie jar に保存できました。
 
 Node 16 ランタイムでは、 `tough-cookie`モジュールを使用して Cookie jar を作成し、代わりにリクエストでその Cookie jar を参照する必要があります。 cookiesという名前のクッキージャーを作成した場合は、オプションで次のように参照します。 `cookieJar: cookies`
 
-## スクリプト API: フォームの違い [#scripted-api-form]
+### スクリプト API: フォームの違い [#scripted-api-form]
+
+**症状：**フォームベースのrequests失敗するか、動作が異なる。**原因：**フォーム処理に関するモジュール`request`と`got`の違い。
 
 Node 10 以前のランタイムの`$http`オブジェクトに使用される`request`モジュールと、Node 16 ランタイムの`$http`オブジェクトに使用される`got`モジュールの違いにより、API モニターのフォームを使用したリクエストで問題が発生する可能性があります。
 
-その場合は、この部分的な例に示すように、 `form-data`モジュールを使用してフォームを作成し、リクエストに含めてください。
+そうであれば、 `form-data`モジュールを使用してフォームを作成し、リクエストに含めてください。以下に示す部分的な例をご覧ください。
 
 ```js
 const FormData = require('form-data');
@@ -95,20 +321,12 @@ let req = {
 }
 ```
 
-## UUID モジュールのバージョンの違い [#uuid-module-version]
+### UUID モジュールのバージョンの違い [#uuid-module-version]
+
+**症状：**モジュール`uuid`のインポートエラー**原因：** Node 16ランタイムでモジュール`uuid`の構文が更新されました
 
 Node 16 ランタイムには、更新された`require`構文の使用を強制する`uuid`モジュールの新しいバージョンが含まれています。
 
 Node 10以前: `const uuid = require('uuid');`
 
 ノード 16 ( `uuidv4`の使用を想定): `const { v4: uuidv4 } = require('uuid');`
-
-## スクリプトbrowser : 非推奨の警告 (`$browser` および `$driver` [#deprecations]
-
-browserランタイムのバージョン 2.0.29 以降では、`$browser` および `$driver` の非推奨警告が削除されました。 パブリックロケーションを使用するときにこれらの警告は表示されなくなります。 プライベートプライベートロケーションの使用時にこれらの警告が表示される場合は、ノードbrowserランタイム イメージを更新してください。
-
-## スクリプトbrowser : `waitForAndFindElement` および `waitForPendingRequests` [#waitMethods]
-
-`waitForAndFindElement`メソッドと`waitForPendingRequests`メソッドは、Chrome 72 以前のスクリプト化されたブラウザ ランタイムで提供される New Relic カスタム メソッドです。Chrome 100 以降のランタイムでは引き続き`$driver`および`$browser`で使用できますが、Selenium WebDriver 4.1 API を`$selenium`および`$webDriver`で直接使用する場合は使用できません。この変更により、New Relic の Selenium WebDriver 実装が基本の Selenium WebDriver 実装とより適切に連携します。
-
-新しいランタイムで`waitForAndFindElement`または`waitForPendingRequests`を引き続き使用することを選択したお客様は、 [コード例](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100/#waitForAndFindElement)をモニターに貼り付けることができます。

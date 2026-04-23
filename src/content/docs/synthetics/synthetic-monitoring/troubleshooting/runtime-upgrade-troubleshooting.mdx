@@ -6,78 +6,323 @@ tags:
   - Synthetic monitoring
   - Troubleshooting
   - Runtime conversion
-metaDescription: 
+metaDescription: Solutions for common issues when upgrading synthetic monitors to Node.js 22 and newer Chrome runtimes.
 redirects:
 freshnessValidatedDate: never
 ---
 
-<Callout variant="important">
-  As of August 26, 2024, you can no longer create new monitors using legacy runtimes on public or private locations. On October 22, 2024, we will [end of life](/whats-new/2024/04/whats-new-04-09-eol-synthetics-runtime-cpm) the containerized private minion (CPM) and legacy synthetics runtime versions. 
-  
-  * For public locations, use [the runtime upgrade UI](/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui/) to update your monitors to the newest runtimes.
-  * For private locations, please review our [recommended migration steps](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-transition-guide/#monitorMigration) to avoid monitor degradation.
+<Callout variant="tip">
+  If you're running monitors on private locations, see the [private location runtime transition guide](/docs/synthetics/synthetic-monitoring/private-locations/runtime-transition-guide) for SJM deployment steps and private-location-specific troubleshooting.
 </Callout>
 
-## Scripted Browser: Attempts to interact with elements fail [#promises]
+## Node.js 22 upgrade issues
 
-When validating a monitor created in an older runtime against [the Chrome 100 (or newer) runtime](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100), `findElement` and other methods to find and interact with elements on the page may fail due to promise handling differences. If the monitor passes in a legacy runtime, fails in the new runtime, and the element is present in the screenshot, you may need to improve your promise handling logic.
+The following issues are specific to upgrading monitors to Node.js 22.
+
+### Unhandled open handles [#open-handles]
+
+**Symptom:** Monitor fails during validation or execution
+**Cause:** Node.js 22 is stricter about process lifecycles
+
+The most common issue when upgrading to Node.js 22 is unhandled open handles. If your monitor scripts contain unhandled open handles (such as unresolved promises, lingering timers, or unclosed network connections), your monitors will fail.
+
+Common types of open handles include:
+
+- **Unresolved promises**: Ensure all promises are properly awaited or handled
+- **Lingering timers**: Clear all `setTimeout` and `setInterval` calls
+- **Unclosed connections**: Close all network connections, database connections, and file handles
+- **HTTP/HTTPS connections**: Properly consume response data and close connections
+
+### HTTP/HTTPS connections remain open [#http-connections]
+
+**Symptom:** Monitor hangs or times out
+**Cause:** Response data not consumed or keepAlive enabled
+
+#### Solution A: Consume response data
+
+To use `http` or `https`, listen to the `data` event. Otherwise, the HTTPS connection remains open.
+
+```javascript
+const https = require('https');
+
+https.get('https://example.com', (res) => {
+  console.log('Status Code:', res.statusCode);
+  // Consume the response data
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+}).on('error', (e) => {
+  console.error('Error:', e);
+});
+```
+
+#### Solution B: Disable keepAlive
+
+Set the `keepAlive` option to `false` to close HTTP connections after the request completes.
+
+```javascript
+const https = require('https');
+const { Agent } = require('https'); // or http for HTTP requests
+
+const options = {
+  hostname: 'example.com',
+  path: '/',
+  method: 'GET',
+  agent: new Agent({ keepAlive: false }), // Disable keepAlive
+};
+
+const req = https.request(options, (res) => {
+  console.log(`Status: ${res.statusCode}`);
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+});
+
+req.on('error', (e) => {
+  console.error(e);
+});
+
+req.end();
+```
+
+### Stream resources not cleaned up [#stream-cleanup]
+
+**Symptom:** Resource leaks or hanging monitors
+**Cause:** Streams not destroyed in finally blocks
+
+#### Solution
+
+Clean up streams in a `finally` block to ensure proper resource disposal.
+
+```javascript
+const got = require('got');
+
+let downloadStream = got.stream("https://example.com/test.txt");
+
+try {
+  // Your stream processing logic here
+} finally {
+  if (downloadStream) {
+    downloadStream.destroy();
+  }
+}
+```
+
+### Sockets not properly destroyed [#socket-cleanup]
+
+**Symptom:** Monitor validation fails with "open handles" error
+**Cause:** Socket cleanup missing in success code paths
+
+Destroy sockets properly in all code paths.
+
+#### Problematic code
+
+```javascript
+// ❌ Problematic code - Socket not closed in success case
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      resolve({ validTo: validTo });
+    } else {
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+#### Recommended approach
+
+Add cleanup functionality for all code paths:
+
+```javascript
+// ✅ Better approach - Proper cleanup in all cases
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    // Always destroy the response and socket
+    const cleanup = () => {
+      try {
+        res.destroy();
+        if (res.socket && !res.socket.destroyed) {
+          res.socket.destroy();
+        }
+      } catch (e) {
+        console.log("Cleanup warning:", e.message);
+      }
+    };
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      cleanup();
+      resolve({ validTo: validTo });
+    } else {
+      cleanup();
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+### Timers not cleared [#timers]
+
+**Symptom:** Monitor doesn't complete execution
+**Cause:** `setTimeout`/`setInterval` not cleared
+
+#### Problematic code
+
+```javascript
+// ❌ Problematic code
+setTimeout(() => {
+  console.log('This might cause issues');
+}, 5000);
+```
+
+#### Recommended approach
+
+Clear the timer when done:
+
+```javascript
+// ✅ Better approach
+const timerId = setTimeout(() => {
+  console.log('This is properly handled');
+}, 1000);
+
+// Clear the timer when done
+clearTimeout(timerId);
+```
+
+### Unresolved promises [#unresolved-promises]
+
+**Symptom:** Script appears to finish but validation fails
+**Cause:** Promises not properly awaited or handled
+
+**Solution:** Ensure all promises have `.then()`, `.catch()`, or are `await`ed.
+
+## Chrome runtime upgrade issues
+
+The following issues are specific to upgrading scripted browser monitors to newer Chrome runtimes.
+
+### Scripted browser: Attempts to interact with elements fail [#promises]
+
+**Symptom:** `findElement` and other methods fail in new runtime but work in legacy runtime
+**Cause:** Promise handling differences between Selenium WebDriver versions
+
+When validating a monitor created in an older runtime against the [Chrome 100 (or newer) runtime](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100), `findElement` and other methods to find and interact with elements on the page may fail due to promise handling differences. If the monitor passes in a legacy runtime, fails in the new runtime, and the element is present in the screenshot, improve your promise handling logic.
 
 Selenium WebDriver promise manager and control flow allowed some functions to execute in order in legacy runtimes, without managing promises. This capability was removed in Selenium WebDriver 4.0 and is no longer available in the runtime. All async functions and promises need to be managed with `await` or with `.then` promise chains. This will ensure script functions execute in the expected order.
 
-For example, promise manager and control flow could allow this partial script to complete successfully, even though `$browser.get` returns a promise and the promise is not being handled correctly:
+#### Problematic code
+
+Promise manager and control flow could allow this partial script to complete successfully, even though `$browser.get` returns a promise and the promise is not being handled correctly:
 
 ```js
+// ❌ Problematic code - Promises not handled
 $browser.get('http://example.com');
 
 $browser.findElement($driver.By.css('h1'));
 ```
 
-In the [the Chrome 100 (or newer) runtime](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100), any methods that return a promise need to use await or `.then` syntax to properly sequence steps. Using await is recommended due to cleaner syntax and easier usage, but `.then` promise chains are still supported too.
+#### Recommended approach
+
+In the [Chrome 100 (or newer) runtime](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100), any methods that return a promise need to use await or `.then` syntax to properly sequence steps. Using await is recommended due to cleaner syntax and easier usage, but `.then` promise chains are still supported too.
 
 ```js
+// ✅ Better approach - Using await
 await $browser.get('http://example.com');
 
 let el = await $browser.findElement($driver.By.css('h1'));
 ```
 
-## Scripted API: Differences between `request` and `got` [#request]
+### Scripted browser: Deprecation warnings (`$browser` and `$driver`) [#deprecations]
+
+**Symptom:** Deprecation warnings appear in monitor logs
+**Cause:** Using older node browser runtime image
+
+Deprecation warnings for `$browser` and `$driver` were removed starting with the 2.0.29 or newer version of the browser runtime. You no longer receive these warnings when using public locations. Update your node browser runtime image if you receive these warnings when using private locations.
+
+### Scripted browser: `waitForAndFindElement` and `waitForPendingRequests` [#waitMethods]
+
+**Symptom:** Methods not available when using `$selenium` and `$webDriver`
+**Cause:** New Relic custom methods not included in Selenium WebDriver 4.1 base APIs
+
+The `waitForAndFindElement` and `waitForPendingRequests` methods are New Relic custom methods that are provided in the Chrome 72 and older scripted browser runtimes. They can still be used with `$driver` and `$browser` in the Chrome 100 and newer runtimes, but are not available when using the Selenium WebDriver 4.1 APIs directly with `$selenium` and `$webDriver`. This change better aligns New Relic's Selenium WebDriver implementation with the base Selenium WebDriver implementation.
+
+To continue using `waitForAndFindElement` or `waitForPendingRequests` in the new runtime, paste [code examples](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100/#waitForAndFindElement) into your monitors.
+
+## API runtime upgrade issues
+
+The following issues are specific to upgrading scripted API monitors to newer Node.js runtimes.
+
+### Scripted API: Differences between `request` and `got` [#request]
+
+**Symptom:** API scripts using `request` module features fail in new runtime
+**Cause:** Migration from deprecated `request` module to `got` module
 
 The [Node.js 10 and older scripted API runtimes](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#dependencies) used the `request` Node.js module to provide a `$http` object that could be used to [test APIs](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests-legacy/).
 
-The [Node.js 16 and newer scripted API runtimes](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#apidependencies) use `got` instead of `request`. The `request` module was deprecated in 2020 and will no longer be included in new API or browser based runtimes. The `$http` object provides a custom `request`-like experience while being powered by `got` to provide backward compatibility for basic use cases while still avoiding the use of a deprecated module. Not all advanced use cases of `request` are or will be supported. There are [script examples and a conversion guide](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/) available.
+The [Node.js 16 and newer scripted API runtimes](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#apidependencies) use `got` instead of `request`. The `request` module was deprecated in 2020 and is no longer included in new API or browser based runtimes. The `$http` object provides a custom `request`-like experience while being powered by `got` to provide backward compatibility for basic use cases while still avoiding the use of a deprecated module. Not all advanced use cases of `request` are supported. There are [script examples and a conversion guide](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/) available.
 
 <Callout variant="tip">
-  The `request`-like experience provided by the `$http` object will also be returned for any customers attempting to use `request` directly in Node.js 16 and newer scripted API runtimes.
+  The `$http` object also returns the `request`-like experience for any customers attempting to use `request` directly in Node.js 16 and newer scripted API runtimes.
 </Callout>
 
-## Scripted API: Unexpected token `JSON.parse` errors [#scripted-api-unexpected]
+### Scripted API: Unexpected token `JSON.parse` errors [#scripted-api-unexpected]
 
-Attempting to use the `JSON.parse` function while interacting with the response body may produce unexpected token errors in scripted API monitors using the Node.js 16 and newer runtime. If the content-type response header is `application/json`, the response body being returned by the `$http` object will be parsed JSON. Additional calls attempting to use `JSON.parse` to parse the response body will fail with this error because the response body has already been parsed. 
+**Symptom:** Unexpected token errors when using `JSON.parse`
+**Cause:** Response body already parsed automatically when content-type is `application/json`
 
-If the content-type response header is not `application/json`, the response body will not automatically be parsed and the `JSON.parse` function will still need to be used.
+Attempting to use the `JSON.parse` function while interacting with the response body produces unexpected token errors in scripted API monitors using the Node.js 16 and newer runtime. If the content-type response header is `application/json`, the `$http` object returns parsed JSON in the response body. Additional calls attempting to use `JSON.parse` to parse the response body fail with this error because the response body has already been parsed.
 
-## Scripted API: `HEAD` or `GET` request cannot be used with a body [#scripted-api-head-get]
+If the content-type response header is not `application/json`, the response body is not automatically parsed and you must use the `JSON.parse` function.
 
-You cannot include a request body with a HTTP `HEAD` or `GET` request. The `request` module used by the Node 10 and older runtime allowed this, but this will cause errors in the new runtime. A few different configurations can cause the error a few different configurations, but the most common suggestions include:
+### Scripted API: `HEAD` or `GET` request cannot be used with a body [#scripted-api-head-get]
 
-* Do not include a body in your request, even if it's empty. 
+**Symptom:** HTTP `HEAD` or `GET` requests fail with body-related errors
+**Cause:** New runtime enforces HTTP specification that prohibits bodies in `HEAD`/`GET` requests
+
+You cannot include a request body with a HTTP `HEAD` or `GET` request. The `request` module used by the Node 10 and older runtime allowed this, but this will cause errors in the new runtime. The most common suggestions include:
+
+* Do not include a body in your request, even if it's empty
 * Avoid unnecessary options on your `HEAD` or `GET` request, like `json: true`
 
-## Scripted API: Query string (qs) differences [#scripted-api-query]
+### Scripted API: Query string (qs) differences [#scripted-api-query]
 
-In the Node 10 or older runtimes, query string configurations were passed using the `qs:` option. For the Node 16 runtime, please use the `searchParams:` option instead. Only the name of the option needs to change. The content of the query string should not need to be updated.
+**Symptom:** Query string options not working in new runtime
+**Cause:** Option name changed from `qs:` to `searchParams:`
 
-## Scripted API: Cookie jar differences [#scripted-api-cookie]
+In the Node 10 or older runtimes, query string configurations were passed using the `qs:` option. For the Node 16 runtime, use the `searchParams:` option instead. Only the name of the option needs to change. The content of the query string does not need to be updated.
 
-In the Node 10 or older runtimes you could use the option `jar: true` to store cookies in a cookie jar between requests. 
+### Scripted API: Cookie jar differences [#scripted-api-cookie]
+
+**Symptom:** Cookie handling with `jar: true` not working
+**Cause:** Cookie jar implementation changed in Node 16 runtime
+
+In the Node 10 or older runtimes you could use the option `jar: true` to store cookies in a cookie jar between requests.
 
 In the Node 16 runtime you must create a cookie jar using the `tough-cookie` module and then refer to that cookie jar in your request instead. If you created a cookie jar named cookies, refer to it in your options as `cookieJar: cookies`
 
-## Scripted API: Form differences [#scripted-api-form]
+### Scripted API: Form differences [#scripted-api-form]
 
-Due to differences between the `request` module used for the `$http` object in Node 10 and older runtimes and the `got` module that's used for the `$http` object in the Node 16 runtime, you may encounter issues with requests using forms in API monitors. 
+**Symptom:** Form-based requests fail or behave differently
+**Cause:** Differences between `request` and `got` modules for form handling
 
-If so, please use the `form-data` module to create and include your form with your request as shown in this partial example.
+Due to differences between the `request` module used for the `$http` object in Node 10 and older runtimes and the `got` module that's used for the `$http` object in the Node 16 runtime, you may encounter issues with requests using forms in API monitors.
+
+If so, use the `form-data` module to create and include your form with your request as shown in this partial example:
 
 ```js
 const FormData = require('form-data');
@@ -95,22 +340,15 @@ let req = {
 }
 ```
 
-## UUID module version differences [#uuid-module-version]
+### UUID module version differences [#uuid-module-version]
 
-The Node 16 runtime includes a newer version of the `uuid` module that forces the use of updated `require` syntax. 
+**Symptom:** Module import errors with `uuid` module
+**Cause:** Updated `uuid` module syntax in Node 16 runtime
 
-Node 10 and older: 
+The Node 16 runtime includes a newer version of the `uuid` module that forces the use of updated `require` syntax.
+
+Node 10 and older:
 `const uuid = require('uuid');`
 
 Node 16 (assuming use of `uuidv4`):
 `const { v4: uuidv4 } = require('uuid');`
-
-## Scripted browser: Deprecation warnings (`$browser` and `$driver`) [#deprecations]
-
-Deprecation warnings for `$browser` and `$driver` were removed starting with the 2.0.29 or newer version of the browser runtime. You should no longer receive these warnings when using public locations. Please update your node browser runtime image if you're receiving these warnings when using private locations.
-
-## Scripted browser: `waitForAndFindElement` and `waitForPendingRequests` [#waitMethods]
-
-The `waitForAndFindElement` and `waitForPendingRequests` methods are New Relic custom methods that are provided in the Chrome 72 and older scripted browser runtimes. They can still be used with `$driver` and `$browser` in the Chrome 100 and newer runtimes, but they will not be available when using the Selenium WebDriver 4.1 APIs directly with `$selenium` and `$webDriver`. This change will better align New Relic's Selenium WebDriver implementation with the base Selenium WebDriver implementation.
-
-Customers who choose to continue using `waitForAndFindElement` or `waitForPendingRequests` in the new runtime can paste [code examples](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100/#waitForAndFindElement) into their monitors.

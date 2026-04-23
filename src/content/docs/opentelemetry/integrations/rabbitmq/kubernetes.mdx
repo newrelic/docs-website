@@ -7,10 +7,10 @@ tags:
   - RabbitMQ
   - Kubernetes
 metaDescription: "Install and configure RabbitMQ OpenTelemetry monitoring for Kubernetes."
-freshnessValidatedDate: 2024-12-24
+freshnessValidatedDate: never
 ---
 
-Monitor RabbitMQ running in Kubernetes clusters using the [NRDOT Collector](https://github.com/newrelic/nrdot-collector-releases/releases/latest) (recommended) or [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) with automatic pod discovery. This guide walks you through deploying the collector via Helm with dynamic broker detection powered by the Kubernetes observer.
+Monitor RabbitMQ running in Kubernetes clusters using the OpenTelemetry Collector with automatic pod discovery. This guide walks you through deploying the collector via Helm with dynamic broker detection powered by the Kubernetes observer.
 
 <Callout variant="tip">
   Running RabbitMQ on Linux hosts? See the [self-hosted installation guide](/docs/opentelemetry/integrations/rabbitmq/self-hosted) for virtual machine or bare metal deployments.
@@ -40,282 +40,29 @@ The collector runs as a Kubernetes deployment (single replica) with RBAC permiss
 
 Follow these steps to deploy the OpenTelemetry Collector with RabbitMQ monitoring.
 
-<Tabs>
-  <TabsBar>
-    <TabsBarItem id="nrdot-k8s">
-      NRDOT Collector (Recommended)
-    </TabsBarItem>
-    <TabsBarItem id="otelcol-k8s">
-      OpenTelemetry Collector Contrib
-    </TabsBarItem>
-  </TabsBar>
-
-  <TabsPages>
-    <TabsPageItem id="nrdot-k8s">
-
 <Steps>
 
 <Step>
 
-### Before you begin [#requirements-nrdot]
+### Before you begin [#requirements]
 
 Ensure your environment meets these requirements:
 
 <CollapserGroup>
-  <Collapser id="k8s-reqs-nrdot" title="Kubernetes cluster requirements">
-    * **Kubernetes version**: 1.19 or higher
-    * **kubectl access**: Configured with appropriate RBAC permissions to create deployments, services, and RBAC resources
-  </Collapser>
-
-  <Collapser id="rabbitmq-reqs-nrdot" title="RabbitMQ requirements">
-    * **Management plugin**: Must be enabled on all RabbitMQ pods
-    * **Service exposure**: RabbitMQ Service must expose the management API port (default: 15672)
-    * **Pod labels**: RabbitMQ pods should have consistent labels (e.g., `app=rabbitmq`) for discovery
-    * **Credentials**: Admin user with permissions to access the management API
-  </Collapser>
-
-  <Collapser id="newrelic-reqs-nrdot" title="New Relic requirements">
-    * **Account**: Active New Relic account
-    * **License key**: [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key) for your account
-    * Completed the base [Kubernetes OpenTelemetry manifest installation](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install)
-  </Collapser>
-</CollapserGroup>
-
-</Step>
-
-<Step>
-
-### Verify the management endpoint [#verify-endpoint-nrdot]
-
-Ensure RabbitMQ pods have the management plugin enabled:
-
-```bash
-kubectl exec deploy/<your-rabbitmq-deployment> -n <rabbitmq-namespace> -- curl -I -u admin:password http://localhost:15672/api/overview
-```
-
-You should see `HTTP/1.1 200 OK` in the response.
-
-</Step>
-
-<Step>
-
-### Configure the NRDOT Collector [#configure-nrdot]
-
-You can install the NRDOT Collector using Kubernetes manifests. Helm chart support is coming soon.
-
-After completing the base Kubernetes OpenTelemetry manifest installation, configure RabbitMQ monitoring by following these steps:
-
-1. Update the collector image to use NRDOT Collector.
-
-    In both [`deployment.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment.yaml) and [`daemonset.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/daemonset.yaml) files in your local `rendered` directory, update the image to:
-
-    ```yaml
-    image: newrelic/nrdot-collector:latest
-    ```
-
-2. Update the [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml) for RabbitMQ monitoring.
-
-    Replace the entire `deployment-config.yaml` content with the RabbitMQ-specific configuration:
-
-    ```yaml
-    extensions:
-      health_check:
-        endpoint: 0.0.0.0:13133
-      k8s_observer:
-        auth_type: serviceAccount
-        observe_pods: true
-        observe_nodes: true
-
-    receivers:
-      receiver_creator/rabbitmq:
-        watch_observers: [k8s_observer]
-        receivers:
-          rabbitmq:
-            rule: type == "pod" && labels["app"] == "rabbitmq"
-            config:
-              endpoint: 'http://`endpoint`:15672'
-              username: admin
-              password: password
-              collection_interval: 30s
-              metrics:
-                rabbitmq.consumer.count:
-                  enabled: true
-                rabbitmq.message.delivered:
-                  enabled: true
-                rabbitmq.message.published:
-                  enabled: true
-                rabbitmq.message.acknowledged:
-                  enabled: true
-                rabbitmq.message.dropped:
-                  enabled: true
-                rabbitmq.message.current:
-                  enabled: true
-                rabbitmq.node.disk_free:
-                  enabled: true
-                rabbitmq.node.disk_free_limit:
-                  enabled: true
-                rabbitmq.node.disk_free_alarm:
-                  enabled: true
-                rabbitmq.node.mem_used:
-                  enabled: true
-                rabbitmq.node.mem_limit:
-                  enabled: true
-                rabbitmq.node.mem_alarm:
-                  enabled: true
-                rabbitmq.node.fd_used:
-                  enabled: true
-                rabbitmq.node.fd_total:
-                  enabled: true
-                rabbitmq.node.sockets_used:
-                  enabled: true
-                rabbitmq.node.sockets_total:
-                  enabled: true
-                rabbitmq.node.proc_used:
-                  enabled: true
-                rabbitmq.node.proc_total:
-                  enabled: true
-                rabbitmq.node.uptime:
-                  enabled: true
-            resource_attributes:
-              rabbitmq.server.endpoint: 'http://`endpoint`:15672'
-              rabbitmq.port: '15672'
-
-    processors:
-      batch:
-        send_batch_max_size: 1000
-        timeout: 30s
-        send_batch_size: 800
-
-      memory_limiter:
-        check_interval: 1s
-        limit_percentage: 80
-        spike_limit_percentage: 25
-
-      resource/cluster:
-        attributes:
-          - key: k8s.cluster.name
-            value: "your-cluster-name"
-            action: insert
-
-      transform/rabbitmq:
-        metric_statements:
-          - context: resource
-            statements:
-              - set(attributes["rabbitmq.display.name"], Concat([
-                  "server",
-                  "k8s",
-                  attributes["k8s.cluster.name"],
-                  attributes["k8s.namespace.name"],
-                  "pod",
-                  attributes["k8s.pod.name"],
-                  "rabbitmq",
-                  attributes["rabbitmq.port"]
-                ], ":"))
-              - set(attributes["rabbitmq.deployment.name"], attributes["k8s.pod.name"])
-
-      transform/metadata_nullify:
-        metric_statements:
-          - context: metric
-            statements:
-              - set(description, "")
-              - set(unit, "")
-
-    exporters:
-      otlp_http/newrelic:
-        endpoint: "https://otlp.nr-data.net"
-        headers:
-          api-key: ${env:NR_LICENSE_KEY}
-
-    service:
-      extensions: [health_check, k8s_observer]
-      pipelines:
-        metrics/rabbitmq:
-          receivers: [receiver_creator/rabbitmq]
-          processors: [batch, resource/cluster, transform/rabbitmq, transform/metadata_nullify, memory_limiter]
-          exporters: [otlp_http/newrelic]
-    ```
-
-3. Customize the RabbitMQ configuration.
-
-    - Update the `rule` to match your RabbitMQ pod labels
-    - Change `admin`/`password` to match your RabbitMQ credentials
-    - Replace `your-cluster-name` with your actual cluster name
-    - Update the `endpoint` under `otlp_http/newrelic` exporter. Refer to the OTLP endpoint configuration [documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) to select the appropriate endpoint for your region.
-
-4. Apply the updated manifests and restart the deployment.
-
-    ```bash
-    kubectl apply -n newrelic -R -f rendered
-    kubectl rollout restart deployment nr-k8s-otel-collector-deployment -n newrelic
-    ```
-
-</Step>
-
-<Step>
-
-### Verify the deployment and data flow [#verify-nrdot]
-
-Check that the collector pod is running:
-
-```bash
-kubectl get pods -n newrelic --watch
-```
-
-View collector logs to verify pod discovery:
-
-```bash
-kubectl logs deploy/nr-k8s-otel-collector-deployment -n newrelic --tail=50
-```
-
-Verify your data in New Relic:
-
-Wait 2-3 minutes for data to appear, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder):
-
-```sql
-SELECT count(*)
-FROM Metric
-WHERE metricName LIKE 'rabbitmq.%'
-  AND instrumentation.provider = 'opentelemetry'
-  AND k8s.cluster.name = 'your-cluster-name'
-FACET k8s.pod.name, metricName
-SINCE 10 minutes ago
-```
-
-<Callout variant="tip">
-  If you don't see data after 5 minutes, check the [troubleshooting section](#troubleshoot) below.
-</Callout>
-
-</Step>
-
-</Steps>
-
-    </TabsPageItem>
-
-    <TabsPageItem id="otelcol-k8s">
-
-<Steps>
-
-<Step>
-
-### Before you begin [#requirements-otelcol]
-
-Ensure your environment meets these requirements:
-
-<CollapserGroup>
-  <Collapser id="k8s-reqs-otelcol" title="Kubernetes cluster requirements">
+  <Collapser id="k8s-reqs" title="Kubernetes cluster requirements">
     * **Kubernetes version**: 1.19 or higher
     * **kubectl access**: Configured with appropriate RBAC permissions to create deployments, services, and RBAC resources
     * **Helm version**: Helm 3.x installed locally
   </Collapser>
 
-  <Collapser id="rabbitmq-reqs-otelcol" title="RabbitMQ requirements">
+  <Collapser id="rabbitmq-reqs" title="RabbitMQ requirements">
     * **Management plugin**: Must be enabled on all RabbitMQ pods
     * **Service exposure**: RabbitMQ Service must expose the management API port (default: 15672)
     * **Pod labels**: RabbitMQ pods should have consistent labels (e.g., `app=rabbitmq`) for discovery
     * **Credentials**: Admin user with permissions to access the management API
   </Collapser>
 
-  <Collapser id="newrelic-reqs-otelcol" title="New Relic requirements">
+  <Collapser id="newrelic-reqs" title="New Relic requirements">
     * **Account**: Active New Relic account
     * **License key**: [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key) for your account
   </Collapser>
@@ -325,7 +72,7 @@ Ensure your environment meets these requirements:
 
 <Step>
 
-### Verify the management endpoint [#verify-endpoint-otelcol]
+### Verify the management endpoint [#verify-endpoint]
 
 Ensure RabbitMQ pods have the management plugin enabled:
 
@@ -568,26 +315,20 @@ opentelemetry-collector:
               # Use pod name as deployment name
               - set(attributes["rabbitmq.deployment.name"], attributes["k8s.pod.name"])
 
-      transform/metadata_nullify:
-        metric_statements:
-          - context: metric
-            statements:
-              - set(description, "")
-              - set(unit, "")
-
     exporters:
-      otlp_http/newrelic:
+      otlphttp:
         endpoint: "${NEWRELIC_OTLP_ENDPOINT}"
         headers:
           api-key: "${NEWRELIC_LICENSE_KEY}"
+        compression: gzip
 
     service:
       extensions: [health_check, k8s_observer]
       pipelines:
         metrics/rabbitmq:
           receivers: [receiver_creator/rabbitmq]
-          processors: [batch, resource/cluster, transform/rabbitmq, transform/metadata_nullify]
-          exporters: [otlp_http/newrelic]
+          processors: [batch, resource/cluster, transform/rabbitmq]
+          exporters: [otlphttp]
 ```
 
 <Callout variant="tip">
@@ -611,12 +352,12 @@ Select the region that matches your New Relic account (check your browser URL wh
 
 <Tabs>
   <TabsBar>
-    <TabsBarItem id="us-otelcol-k8s">US Region</TabsBarItem>
-    <TabsBarItem id="eu-otelcol-k8s">EU Region</TabsBarItem>
+    <TabsBarItem id="us">US Region</TabsBarItem>
+    <TabsBarItem id="eu">EU Region</TabsBarItem>
   </TabsBar>
 
   <TabsPages>
-    <TabsPageItem id="us-otelcol-k8s">
+    <TabsPageItem id="us">
 ```bash
 kubectl create secret generic newrelic-licenses \
   --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
@@ -627,7 +368,7 @@ kubectl create secret generic newrelic-licenses \
 Replace `YOUR_LICENSE_KEY` with your [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key).
     </TabsPageItem>
 
-    <TabsPageItem id="eu-otelcol-k8s">
+    <TabsPageItem id="eu">
 ```bash
 kubectl create secret generic newrelic-licenses \
   --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
@@ -726,10 +467,6 @@ You should see metrics from each RabbitMQ pod with Kubernetes attributes:
 </Step>
 
 </Steps>
-
-    </TabsPageItem>
-  </TabsPages>
-</Tabs>
 
 ## Troubleshooting [#troubleshoot]
 
