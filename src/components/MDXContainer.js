@@ -33,6 +33,8 @@ import TechTile from './TechTile';
 import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
 import TypeDefReference from './TypeDefReference';
+import { ReuseableWarning, TestReuse } from './Snippets';
+// import * as GeneratedSnippets from './generated-snippets';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
@@ -133,6 +135,8 @@ const defaultComponents = {
   UserJourneyControls,
   EolPage,
   DeveloperIcons,
+  ReuseableWarning,
+  TestReuse
 };
 
 const MDXContainer = ({ body, children, components }) => {
