@@ -57,7 +57,7 @@ WHERE locationLabel = 'YOUR_PRIVATE_LOCATION' SINCE 1 day ago
 | rc1.0 | 1.2.143 | 22.20.0 | 2025-10-08 |
 
 <Callout variant="tip">
-  Use **rc1.14 or later** for the browser runtime to get Chrome 146.0.7680.177, which includes the patch for [CVE-2026-5281](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/). Use **rc1.11 or later** for the 30-second execution time fix (browser runtime 3.0.114+).
+  Use **rc1.14 or later** for the browser runtime to get Chrome 146.0.7680.177, which includes the patch for [CVE-2026-5281](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/). Use **rc1.11 or later** for the 30-second execution time fix.
 </Callout>
 
 ## Public vs private location differences [#public-vs-private]
@@ -71,6 +71,8 @@ The migration path depends on whether your monitors run on public or private loc
 <Callout variant="important">
   For private locations, the **Browser** and **Runtime** version dropdowns in General settings have **no effect**. The version is determined entirely by the image the SJM is running. Changing the dropdown does not change which runtime container processes the job — only the deployed image does.
 </Callout>
+
+The **Runtime Upgrades** page at **Synthetics > Runtime Upgrades** is designed for public monitors. For private locations, there is no automated pre-migration validation through that tool. If you point multiple job managers—each running a different runtime—at the same private location key, any results shown are real job executions, not isolated compatibility checks. Use the [parallel private location strategy](#parallel-location) to compare monitor behavior between runtimes before committing to the upgrade.
 
 ## What's changing [#whats-changing]
 
@@ -87,7 +89,7 @@ These changes may impact your existing monitors:
 
 * **HTTP keep-alive default changed.** Node.js 22 defaults `http.globalAgent` to `keepAlive: true` (it was `false` in Node.js 16). Scripts that create custom HTTP agents without explicitly setting `keepAlive: false` may experience longer execution times or timeouts, as connections remain open and prevent the process from exiting.
 
-* **Higher resource usage.** Chrome 146 requires more CPU and memory than Chrome 134 for the same workload. Browser runtime containers typically use 625MB-980MB of their 3.3GB default memory limit during execution, compared to lower usage on Chrome 134.
+* **Higher resource usage.** Chrome 146 requires more CPU and memory than Chrome 134 for the same workload. Browser runtime containers typically use 625 MB-980 MB of their 3.256 GiB default memory limit during execution, compared to lower usage on Chrome 134.
 
 * **Increased container overhead.** Scripted browser monitors have an average container overhead of 6-10 seconds. Scripted API monitors average 2-4 seconds. Monitors that were close to timeout thresholds on the old runtime may now exceed them.
 
@@ -143,9 +145,9 @@ Create a second private location, deploy SJMs with the new runtime images there,
 
 **Trade-off:** Double infrastructure cost during the transition period. You need separate hosts or cluster resources for the second set of SJMs.
 
-The benefit to this approach is to see a complete picture of how 100% of your current monitors will execute on the new runtimes. That includes potential differences in results and execution duration, both of which impact the load on the job manager and needed resources.
+This approach gives you a complete picture of how all your monitors execute on the new runtimes, including differences in results and execution duration—both of which affect job manager load and resource planning.
 
-To just test for monitor failures, an alternative approach is to set up a second private location with a small test SJM. Then run some validation jobs to test certain monitors. This can provide you with knowledge about how existing monitors will behave on the new runtimes, but not how the new runtimes will fit with your existing infrastructure capacity.
+To test only for script failures without the full infrastructure comparison, set up a second private location with a small test SJM and run a subset of monitors. This shows how existing monitors behave on the new runtimes, but not how the runtimes fit your existing infrastructure capacity.
 
 ## Deploy SJM with new runtime images [#deploy]
 
@@ -199,7 +201,7 @@ podman run -d \
 ```
 
 <Callout variant="tip">
-  Pre-pull the runtime images before starting the SJM to avoid timeout issues during first startup. The browser runtime image is approximately 3GB:
+  Pre-pull the runtime images before starting the SJM to avoid timeout issues during first startup. The browser runtime image is approximately 3 GB:
 
   ```shell
   podman pull docker.io/newrelic/synthetics-node-browser-runtime:RC_IMAGE_TAG
@@ -268,7 +270,7 @@ New Relic automatically validates your monitors against the new runtime in the b
 
 ## NRQL queries for monitoring the transition
 
-If you've set up a second private location with the same set of monitors (real jobs not validations), use these queries to track your migration progress:
+If you've set up a second private location with the same monitors—where checks run as real jobs, not pre-migration validations—use these queries to track your migration progress:
 
 **Failure rate by monitor on the new runtime:**
 
@@ -317,8 +319,6 @@ Click the ellipsis menu (⋯) on a failing monitor and select **Fix with AI**. N
 Click **Fix manually** to open a script editor pre-loaded with your monitor's current script. Make your changes, then click **Continue to validation**. New Relic runs the edited script against the new runtime with a 185-second validation timeout. If validation passes, the monitor moves to the **Ready to update** tab. If it fails, you'll see the error and can try again.
 
 {/* TODO: Add screenshot of the manual fix dialog */} -->
-
-Below are common issues and their fixes.
 
 <CollapserGroup>
   <Collapser
@@ -370,6 +370,27 @@ Below are common issues and their fixes.
     **Cause:** Chrome 146 and Node.js 22 may execute certain operations slower than the previous versions. Container overhead is typically 6-10 seconds for browser monitors.
 
     **Fix:**
+
+    If Chrome startup time is contributing to the delay, try these resource adjustments in order:
+
+    1. Increase container memory to 4 GiB:
+
+       ```shell
+       -e HEAVY_WORKER_MEMORY=4294967296
+       ```
+
+    2. If that doesn't help, increase the CPU weight:
+
+       ```shell
+       -e HEAVY_WORKER_CPUS=2
+       ```
+
+       `HEAVY_WORKER_CPUS` controls Docker CPU shares (a relative weight), not a hard CPU core limit. It only makes a difference when multiple containers are competing for CPU at the same time.
+
+    Both changes are low-risk and worth trying if you have available resources. However, startup delays may be inherent to Chrome 146's heavier startup profile rather than a container resource constraint, so they may not fully eliminate the issue. Either way, they rule out resource limits as a contributing factor.
+
+    If timeouts persist after resource adjustments:
+
     * Increase the monitor timeout in the monitor settings.
     * Set `CHECK_TIMEOUT` on the SJM to a higher value (default is 180 seconds).
     * Optimize scripts to reduce unnecessary page loads or waits.
@@ -460,11 +481,13 @@ Based on testing with rc1.15 runtimes:
 
 | Component | Recommended minimum | Default |
 |-----------|-------------------|---------|
-| SJM container memory | 3GiB | 3.256GiB |
-| Browser runtime memory (`HEAVY_WORKER_MEMORY`) | 4GiB | 3.256GiB |
-| Browser runtime shared memory | 2.256GiB | 2.256GiB |
-| CPU per browser runtime | 1 core | 1 core |
-| Ping runtime memory | 1GiB | 1GiB |
+| SJM container memory | 3.256 GiB | 3.256 GiB |
+| Browser runtime memory (`HEAVY_WORKER_MEMORY`) | 4 GiB | 3.256 GiB |
+| Browser runtime shared memory | 2.256 GiB | 2.256 GiB |
+| Browser runtime CPU shares (`HEAVY_WORKER_CPUS`) | 2 | 1 |
+| Ping runtime memory | 1 GiB | 1 GiB |
+
+`HEAVY_WORKER_CPUS` sets Docker CPU shares (a relative weight), not a hard CPU core limit. Increasing it only makes a difference when multiple containers are competing for CPU simultaneously.
 
 ## Timeline [#timeline]
 
