@@ -33,7 +33,7 @@ import TechTile from './TechTile';
 import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
 import TypeDefReference from './TypeDefReference';
-import { ReuseableWarning, TestReuse } from './Snippets';
+import { ReuseableWarning, TestReuse, ApmNodejsPrerequisites } from './Snippets';
 // import * as GeneratedSnippets from './generated-snippets';
 
 const defaultComponents = {
@@ -136,7 +136,8 @@ const defaultComponents = {
   EolPage,
   DeveloperIcons,
   ReuseableWarning,
-  TestReuse
+  TestReuse,
+  ApmNodejsPrerequisites,
 };
 
 const MDXContainer = ({ body, children, components }) => {

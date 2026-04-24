@@ -9,7 +9,7 @@ function generateSnippets() {
     fs.mkdirSync(snippetsDir, { recursive: true });
   }
 
-  const mdxFiles = fs.readdirSync(snippetsDir).filter(f => f.endsWith('.mdx'));
+  const mdxFiles = findMdxFiles(snippetsDir);
 
   if (mdxFiles.length === 0) {
     console.log('⚠️  No MDX snippets found');
@@ -18,10 +18,9 @@ function generateSnippets() {
 
   let components = {};
 
-  mdxFiles.forEach(file => {
-    const name = path.basename(file, '.mdx');
-    const componentName = name.charAt(0).toUpperCase() + name.slice(1);
-    const content = fs.readFileSync(path.join(snippetsDir, file), 'utf-8');
+  mdxFiles.forEach(({ filePath, relativePath }) => {
+    const componentName = pathToComponentName(relativePath);
+    const content = fs.readFileSync(filePath, 'utf-8');
     components[componentName] = convertMdxToJsx(content);
   });
 
@@ -97,6 +96,48 @@ function escapeJsx(text) {
   return text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
+
+// Recursively find all .mdx files
+function findMdxFiles(dir, baseDir = dir) {
+  let results = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      // Skip README and common non-snippet directories
+      if (entry.name === 'node_modules' || entry.name === '.git') continue;
+      results = results.concat(findMdxFiles(fullPath, baseDir));
+    } else if (entry.name.endsWith('.mdx')) {
+      // Skip README files
+      if (entry.name === 'README.mdx') continue;
+
+      const relativePath = path.relative(baseDir, fullPath);
+      results.push({ filePath: fullPath, relativePath });
+    }
+  }
+
+  return results;
+}
+
+// Convert file path to PascalCase component name
+// Examples:
+//   apm/nodejs/prerequisites.mdx -> ApmNodejsPrerequisites
+//   shared/api-limits.mdx -> SharedApiLimits
+//   ReuseableWarning.mdx -> ReuseableWarning
+function pathToComponentName(relativePath) {
+  // Remove .mdx extension
+  const withoutExt = relativePath.replace(/\.mdx$/, '');
+
+  // Split by path separators and hyphens
+  const parts = withoutExt.split(/[\/\\-]/);
+
+  // Convert each part to PascalCase and join
+  return parts
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
 }
 
 try {

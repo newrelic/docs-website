@@ -4,30 +4,56 @@ This folder contains MDX snippets that can be reused across documentation pages 
 
 ## How to Create a Reusable Snippet
 
-1. Create a new `.mdx` file in this folder (e.g., `system-requirements.mdx`)
+1. Create a new `.mdx` file using the **nested folder structure** (see below)
 2. Write your content using standard Markdown syntax
 3. Run `yarn generate:snippets` (or it runs automatically with `yarn start`)
 4. The snippet will be available as a component
 
-## How to Use a Snippet
+## Folder Structure (IMPORTANT)
 
-In any documentation page, use the component name (based on the filename):
+Use **nested folders** to organize snippets by category to avoid naming conflicts:
 
-```mdx
-<SystemRequirements />
+```
+src/components/snippets/
+├── apm/
+│   ├── nodejs/
+│   │   ├── prerequisites.mdx  → <ApmNodejsPrerequisites />
+│   │   └── installation.mdx   → <ApmNodejsInstallation />
+│   ├── go/
+│   │   └── prerequisites.mdx  → <ApmGoPrerequisites />
+│   └── shared/
+│       └── configuration.mdx  → <ApmSharedConfiguration />
+├── browser/
+│   └── prerequisites.mdx      → <BrowserPrerequisites />
+├── shared/
+│   └── api-limits.mdx         → <SharedApiLimits />
+└── ReuseableWarning.mdx       → <ReuseableWarning />
 ```
 
-The component name is the filename converted to PascalCase:
-- First letter capitalized
-- Hyphens removed with next letter capitalized
+**Naming Convention:**
+- Folder path + filename → PascalCase component name
+- Path separators and hyphens become capital letters
+- Example: `apm/nodejs/prerequisites.mdx` → `ApmNodejsPrerequisites`
+
+## How to Use a Snippet
+
+In any documentation page, use the generated component name:
+
+```mdx
+<ApmNodejsPrerequisites />
+<BrowserPrerequisites />
+<SharedApiLimits />
+```
 
 ### Examples:
 
-| Filename | Component Name |
-|----------|----------------|
+| File Path | Component Name |
+|-----------|----------------|
+| `apm/nodejs/prerequisites.mdx` | `<ApmNodejsPrerequisites />` |
+| `apm/go/prerequisites.mdx` | `<ApmGoPrerequisites />` |
+| `browser/prerequisites.mdx` | `<BrowserPrerequisites />` |
+| `shared/api-limits.mdx` | `<SharedApiLimits />` |
 | `system-requirements.mdx` | `<SystemRequirements />` |
-| `warning-banner.mdx` | `<WarningBanner />` |
-| `ReuseableWarning.mdx` | `<ReuseableWarning />` |
 
 ## Supported Markdown Features
 
