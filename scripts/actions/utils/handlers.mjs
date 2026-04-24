@@ -494,6 +494,24 @@ export default {
         identifyComponent: false,
       }),
   },
+  div: {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        tagName: 'div',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  pre: {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        tagName: 'pre',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
   var: {
     deserialize: (state, node) =>
       deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
