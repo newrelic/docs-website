@@ -245,6 +245,7 @@ exports.createSchemaCustomization = (
     features: [String]
     bugs: [String]
     security: [String]
+    pageMeta: JSON
   }
 
   `;

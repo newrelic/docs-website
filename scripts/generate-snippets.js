@@ -38,31 +38,46 @@ function generateSnippets() {
     }
 
     const content = fs.readFileSync(filePath, 'utf-8');
+
+    // Warn about unsupported markdown patterns before converting
+    validateSnippet(content, relativePath);
+
     components[componentName] = {
       jsx: convertMdxToJsx(content),
       props: extractProps(content),
       jsxComponents: detectJsxComponents(content),
+      metaFields: extractMeta(content),
     };
   });
 
-  // Check if any snippet uses external JSX components
+  // Determine which imports the generated file needs
   const anyJsxComponents = Object.values(components).some(c => c.jsxComponents.length > 0);
+  const anyMetaFields = Object.values(components).some(c => c.metaFields.length > 0);
 
   // Generate component exports with React import for SSR
   const output = `// AUTO-GENERATED - DO NOT EDIT
 // Run: yarn generate:snippets
 
 import React from 'react';
-${anyJsxComponents ? "import { useMDXComponents } from '@mdx-js/react';\n" : ''}
-${Object.entries(components).map(([name, { jsx, props, jsxComponents }]) => {
+${anyJsxComponents ? "import { useMDXComponents } from '@mdx-js/react';\n" : ''}${anyMetaFields ? "import { usePageMeta } from './PageMetaContext';\n" : ''}
+${Object.entries(components).map(([name, { jsx, props, jsxComponents, metaFields }]) => {
   const propsSignature = props.length > 0
-    ? `({ ${props.map(p => `${p.name} = '${p.default}'`).join(', ')} })`
+    ? `({ ${props.map(p => p.type === 'boolean'
+        ? `${p.name} = ${p.default}`
+        : `${p.name} = '${p.default}'`).join(', ')} })`
     : '()';
 
-  if (jsxComponents.length > 0) {
-    // Use function body so we can call the useMDXComponents hook
+  // Snippets that use MDX components or page meta need a function body for hook calls
+  if (jsxComponents.length > 0 || metaFields.length > 0) {
+    const hookLines = [];
+    if (jsxComponents.length > 0) {
+      hookLines.push(`  const { ${jsxComponents.join(', ')} } = useMDXComponents();`);
+    }
+    if (metaFields.length > 0) {
+      hookLines.push(`  const { ${metaFields.join(', ')} } = usePageMeta();`);
+    }
     return `export const ${name} = ${propsSignature} => {
-  const { ${jsxComponents.join(', ')} } = useMDXComponents();
+${hookLines.join('\n')}
   return (${jsx});
 };`;
   }
@@ -79,12 +94,48 @@ function convertMdxToJsx(mdx) {
   let lines = mdx.trim().split('\n');
   let jsx = [];
 
+  // Stack tracking whether each open IF block has a matching ELSE.
+  // Used to decide whether to emit a null else-arm on ENDIF.
+  let ifStack = [];
+
   for (let line of lines) {
     line = line.trim();
     if (!line) continue;
 
-    // Skip prop definition comments (supports both {/* PROPS: */} and <!-- PROPS: --> formats)
+    // Skip generator directive comments
     if (line.startsWith('{/* PROPS:') || line.startsWith('<!-- PROPS:')) continue;
+    if (line.startsWith('{/* META:')) continue;
+
+    // Conditional block — boolean: {/* IF: propName */}
+    const ifBoolMatch = line.match(/^\{\/\*\s*IF:\s*(\w+)\s*\*\/\}$/);
+    if (ifBoolMatch) {
+      ifStack.push({ hasElse: false });
+      jsx.push(`    {${ifBoolMatch[1]} ? (<>`);
+      continue;
+    }
+
+    // Conditional block — string comparison: {/* IF: field === "value" */} or {/* IF: field !== "value" */}
+    const ifEqMatch = line.match(/^\{\/\*\s*IF:\s*(\w+)\s*(===|!==)\s*"([^"]+)"\s*\*\/\}$/);
+    if (ifEqMatch) {
+      ifStack.push({ hasElse: false });
+      jsx.push(`    {${ifEqMatch[1]} ${ifEqMatch[2]} '${ifEqMatch[3]}' ? (<>`);
+      continue;
+    }
+
+    // Else block: {/* ELSE */} — closes true branch, opens false branch
+    if (/^\{\/\*\s*ELSE\s*\*\/\}$/.test(line)) {
+      if (ifStack.length > 0) ifStack[ifStack.length - 1].hasElse = true;
+      jsx.push(`    </>) : (<>`);
+      continue;
+    }
+
+    // End conditional: {/* ENDIF */}
+    // If no ELSE was seen, emit a null false-arm so the ternary is valid JSX.
+    if (/^\{\/\*\s*ENDIF\s*\*\/\}$/.test(line)) {
+      const block = ifStack.pop();
+      jsx.push(block && block.hasElse ? `    </>)}` : `    </>) : null}`);
+      continue;
+    }
 
     // Pass through lines that are raw JSX (component tags, closing tags, JSX expressions)
     if (line.startsWith('<') || (line.startsWith('{') && !line.startsWith('{{'))) {
@@ -92,10 +143,14 @@ function convertMdxToJsx(mdx) {
       continue;
     }
 
-    if (line.startsWith('## ')) {
+    if (line.startsWith('# ')) {
+      jsx.push(`    <h1>${escapeJsxWithProps(line.substring(2))}</h1>`);
+    } else if (line.startsWith('## ')) {
       jsx.push(`    <h2>${escapeJsxWithProps(line.substring(3))}</h2>`);
     } else if (line.startsWith('### ')) {
       jsx.push(`    <h3>${escapeJsxWithProps(line.substring(4))}</h3>`);
+    } else if (line.startsWith('#### ')) {
+      jsx.push(`    <h4>${escapeJsxWithProps(line.substring(5))}</h4>`);
     } else if (line.startsWith('* **')) {
       const match = line.match(/\* \*\*(.+?):\*\* (.+)/);
       if (match) {
@@ -105,55 +160,59 @@ function convertMdxToJsx(mdx) {
       }
     } else if (line.startsWith('* ')) {
       jsx.push(`      <li>${escapeJsxWithProps(line.substring(2))}</li>`);
+    } else if (/^\d+\. /.test(line)) {
+      jsx.push(`      <li data-ol>${escapeJsxWithProps(line.replace(/^\d+\. /, ''))}</li>`);
     } else {
       jsx.push(`    <p>${escapeJsxWithProps(line)}</p>`);
     }
   }
 
-  // Wrap list items
+  // Wrap list items in <ul> or <ol>, handling transitions between list types
   let result = [];
-  let inList = false;
+  let currentList = null; // null | 'ul' | 'ol'
 
   for (let line of jsx) {
-    if (line.includes('<li>')) {
-      if (!inList) {
-        result.push('    <ul>');
-        inList = true;
+    const isOl = line.includes('<li data-ol>');
+    const isUl = !isOl && (line.includes('<li>') || line.includes('<li><strong>'));
+
+    if (isOl || isUl) {
+      const listType = isOl ? 'ol' : 'ul';
+      if (currentList !== listType) {
+        if (currentList) result.push(`    </${currentList}>`);
+        result.push(`    <${listType}>`);
+        currentList = listType;
       }
-      result.push(line);
+      result.push(line.replace(' data-ol', ''));
     } else {
-      if (inList) {
-        result.push('    </ul>');
-        inList = false;
+      if (currentList) {
+        result.push(`    </${currentList}>`);
+        currentList = null;
       }
       result.push(line);
     }
   }
 
-  if (inList) {
-    result.push('    </ul>');
+  if (currentList) {
+    result.push(`    </${currentList}>`);
   }
 
   return `\n  <>\n${result.join('\n')}\n  </>\n`;
 }
 
-function escapeJsx(text) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>');
-}
-
-// Escape JSX and convert {{propName}} to {propName}
+// Escape JSX and convert markdown formatting to JSX
 function escapeJsxWithProps(text) {
   return text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/\{\{\s*(\w+)\s*\}\}/g, '{$1}'); // {{agentName}} or {{ agentName }} -> {agentName}
+    .replace(/`([^`]+)`/g, '<code>$1</code>')                        // inline code
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')     // markdown links
+    .replace(/\{\{\s*(\w+)\s*\}\}/g, '{$1}');                       // {{propName}} -> {propName}
 }
 
-// Extract prop definitions from MDX comments
-// Supports: {/* PROPS: agentName="APM", minVersion="X.X" */} (preferred MDX syntax)
-// Also supports: <!-- PROPS: agentName="APM", minVersion="X.X" --> (HTML comment syntax)
+// Extract prop definitions from MDX comments.
+// Supports string props:  {/* PROPS: name="default" */}
+// Supports boolean props: {/* PROPS: showSection=false */}
+// Also supports HTML comment syntax: <!-- PROPS: ... -->
 function extractProps(mdx) {
   const propsMatch = mdx.match(/\{\/\*\s*PROPS:\s*(.+?)\s*\*\/\}/) ||
                      mdx.match(/<!--\s*PROPS:\s*(.+?)\s*-->/);
@@ -162,17 +221,59 @@ function extractProps(mdx) {
   const propsString = propsMatch[1];
   const props = [];
 
-  // Parse prop definitions: name="default"
-  const propRegex = /(\w+)="([^"]*)"/g;
+  // String props: name="default"
+  const stringRegex = /(\w+)="([^"]*)"/g;
   let match;
-  while ((match = propRegex.exec(propsString)) !== null) {
-    props.push({
-      name: match[1],
-      default: match[2]
-    });
+  while ((match = stringRegex.exec(propsString)) !== null) {
+    props.push({ name: match[1], default: match[2], type: 'string' });
+  }
+
+  // Boolean props: name=true or name=false (no quotes)
+  const boolRegex = /(\w+)=(true|false)/g;
+  while ((match = boolRegex.exec(propsString)) !== null) {
+    props.push({ name: match[1], default: match[2] === 'true', type: 'boolean' });
   }
 
   return props;
+}
+
+// Extract page metadata field names declared in a snippet.
+// {/* META: prodName, agentVersion */} → ['prodName', 'agentVersion']
+// These fields are read from PageMetaContext at render time (populated from page frontmatter.pageMeta).
+function extractMeta(content) {
+  const match = content.match(/\{\/\*\s*META:\s*(.+?)\s*\*\/\}/);
+  if (!match) return [];
+  return match[1].split(/\s*,\s*/).map((s) => s.trim()).filter(Boolean);
+}
+
+// Warn about markdown patterns the converter cannot handle.
+// These would produce broken or literal-text output without an error — fail loudly instead.
+function validateSnippet(content, relativePath) {
+  const lines = content.split('\n');
+  const warnings = [];
+
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    const lineNum = i + 1;
+
+    // Skip comment lines
+    if (trimmed.startsWith('{/*') || trimmed.startsWith('<!--')) return;
+
+    if (/^```/.test(trimmed)) {
+      warnings.push(`   Line ${lineNum}: Fenced code block (\`\`\`). Use a JSX <code> block or <InlineCode> component instead.`);
+    } else if (/^\|/.test(trimmed)) {
+      warnings.push(`   Line ${lineNum}: Markdown table (|). Use a JSX <table> element instead.`);
+    } else if (/^!\[/.test(trimmed)) {
+      warnings.push(`   Line ${lineNum}: Markdown image (![). Use a JSX <img> element instead.`);
+    } else if (/^> /.test(trimmed)) {
+      warnings.push(`   Line ${lineNum}: Blockquote (>). Use a <Callout> component instead.`);
+    }
+  });
+
+  if (warnings.length > 0) {
+    console.warn(`⚠️  Unsupported syntax in ${relativePath} — output may be incorrect:`);
+    warnings.forEach(w => console.warn(w));
+  }
 }
 
 // Component names provided by @newrelic/gatsby-theme-newrelic via its own MDXProvider.
