@@ -2,6 +2,7 @@
 // Run: yarn generate:snippets
 
 import React from 'react';
+import { useMDXComponents } from '@mdx-js/react';
 
 export const ReuseableWarning = () => (
   <>
@@ -20,13 +21,36 @@ export const TestReuse = () => (
   </>
 );
 
-export const ApmNodejsPrerequisites = () => (
+export const TestSnippet = ({ capabilityName = '' }) => {
+  const { Callout, DNT } = useMDXComponents();
+  return (
   <>
-    <h2>Prerequisites for APM Node.js</h2>
+    <Callout variant="important" title="Feature availability and support">
+    <DNT><strong>{capabilityName}</strong></DNT> isn't available in the Japan data center/region. For a complete list of capabilities not available in Japan, refer to <a href="#">Features not supported in Japan</a>.
+    </Callout>
+  </>
+);
+};
+
+export const ApmNodejsPrerequisites = ({ agentName = 'Node.js' }) => (
+  <>
+    <h2>Prerequisites for APM {agentName}</h2>
     <ul>
-      <li><strong>Node.js Version:</strong> 14.x or higher</li>
+      <li><strong>{agentName} Version:</strong> 14.x or higher</li>
       <li><strong>NPM:</strong> 6.x or higher</li>
       <li><strong>Supported frameworks:</strong> Express, Koa, Fastify</li>
+    </ul>
+  </>
+);
+
+export const ApmSharedPrerequisites = ({ agentName = 'APM Agent', minVersion = 'X.X' }) => (
+  <>
+    <h2>Prerequisites for {agentName}</h2>
+    <p>Before installing the {agentName} agent:</p>
+    <ul>
+      <li><strong>{agentName} Version:</strong> {minVersion} or higher</li>
+      <li><strong>Operating System:</strong> Linux, Windows, or macOS</li>
+      <li><strong>Memory:</strong> 512MB minimum</li>
     </ul>
   </>
 );

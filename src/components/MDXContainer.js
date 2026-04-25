@@ -33,8 +33,7 @@ import TechTile from './TechTile';
 import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
 import TypeDefReference from './TypeDefReference';
-import { ReuseableWarning, TestReuse, ApmNodejsPrerequisites } from './Snippets';
-// import * as GeneratedSnippets from './generated-snippets';
+import * as Snippets from './Snippets';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
@@ -135,9 +134,7 @@ const defaultComponents = {
   UserJourneyControls,
   EolPage,
   DeveloperIcons,
-  ReuseableWarning,
-  TestReuse,
-  ApmNodejsPrerequisites,
+  ...Snippets,
 };
 
 const MDXContainer = ({ body, children, components }) => {
