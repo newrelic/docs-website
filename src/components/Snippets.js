@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { useMDXComponents } from '@mdx-js/react';
+import { usePageMeta } from './PageMetaContext';
 
 export const ReuseableWarning = () => (
   <>
@@ -54,3 +55,12 @@ export const ApmSharedPrerequisites = ({ agentName = 'APM Agent', minVersion = '
     </ul>
   </>
 );
+
+export const TestPageMeta = () => {
+  const { prodName } = usePageMeta();
+  return (
+  <>
+    {prodName}
+  </>
+);
+};

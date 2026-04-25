@@ -86,6 +86,12 @@ ${hookLines.join('\n')}
 }).join('\n\n')}
 `;
 
+  const existing = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, 'utf-8') : '';
+  if (output === existing) {
+    console.log(`⏭️  No changes — Snippets.js is already up to date`);
+    return;
+  }
+
   fs.writeFileSync(outputFile, output);
   console.log(`✅ Generated ${mdxFiles.length} snippet(s): ${Object.keys(components).join(', ')}`);
 }
