@@ -524,6 +524,285 @@ Our performance analysis reports provide simple and pre-defined views of your ap
       </tbody>
     </table>
 
+    ## Query your weekly report metrics with NRQL [#nrql-queries]
+
+    The following queries are the ones New Relic uses to generate the numbers in your weekly performance report email. They rely on APM timeslice data exposed through `newrelic.timeslice.value` on the `Metric` event, so you can run them in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) or pin them to a [dashboard](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) to reproduce any value in the email.
+
+    Replace the placeholders with values for your application before running a query:
+
+    <table>
+      <thead>
+        <tr>
+          <th width={200}>
+            <DNT>
+              **Placeholder**
+            </DNT>
+          </th>
+
+          <th>
+            <DNT>
+              **Meaning**
+            </DNT>
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `<app_name>`
+          </td>
+
+          <td>
+            The APM application name (matches `appName` in your data).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<APP_GUID>`
+          </td>
+
+          <td>
+            The entity GUID of the APM application (matches `entity.guid`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<APP_ID>`
+          </td>
+
+          <td>
+            The numeric application ID used by browser events (matches `appId` on `PageView`, `JavaScriptError`, and `BrowserInteraction`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<MONITOR_NAME>`
+          </td>
+
+          <td>
+            The name of a [Synthetic monitor](/docs/synthetics/synthetic-monitoring/using-monitors/intro-synthetic-monitoring) configured for the application.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<monday>` / `<next_monday>`
+          </td>
+
+          <td>
+            ISO 8601 timestamps for the start and end of the reporting week, at Monday `00:00` UTC (for example, `'2026-04-20T00:00:00Z'` and `'2026-04-27T00:00:00Z'`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `{N}`
+          </td>
+
+          <td>
+            An integer number of weeks to chart, for time-series queries (for example, `8` for the last 8 weeks).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Two constants appear in several queries: `10080` is the number of minutes in a week (used to convert summed timeslice counts into a per-minute throughput average), and `604800` is the number of seconds in a week (used in the CPU % calculation).
+    </Callout>
+
+    ### App server metrics [#nrql-app-server]
+
+    Each query in this group reports a single weekly value for one application, using `SINCE '<monday>' UNTIL '<next_monday>'` to scope the week and `appName = '<app_name>'` to select the app.
+
+    **Requests (millions)** — Total HTTP requests handled during the week, expressed in millions.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value[count]) / 1e6 AS 'Requests millions'
+    FROM Metric
+    WHERE metricTimesliceName = 'HttpDispatcher' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Response time (ms)** — Average response time in milliseconds across all HTTP transactions.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value) / sum(newrelic.timeslice.value[count]) * 1000 AS 'Resp time ms'
+    FROM Metric
+    WHERE metricTimesliceName = 'HttpDispatcher' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Throughput (RPM)** — Average requests per minute over the week.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value[count]) / 10080 AS 'Throughput RPM'
+    FROM Metric
+    WHERE metricTimesliceName = 'HttpDispatcher' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Error rate (%)** — Errors as a percentage of all web and non-web transactions.
+
+    ```sql
+    SELECT filter(sum(newrelic.timeslice.value[count]), WHERE metricTimesliceName = 'Errors/all') /
+      (filter(sum(newrelic.timeslice.value[count]), WHERE metricTimesliceName = 'HttpDispatcher') +
+       filter(sum(newrelic.timeslice.value[count]), WHERE metricTimesliceName = 'OtherTransaction/all')) * 100 AS 'Error rate'
+    FROM Metric
+    WHERE metricTimesliceName IN ('Errors/all', 'HttpDispatcher', 'OtherTransaction/all')
+      AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Apdex** — The weekly [Apdex](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction) score for the application.
+
+    ```sql
+    SELECT (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) / 2.0) /
+      (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) + sum(newrelic.timeslice.value[exclusiveTotal])) AS 'Apdex'
+    FROM Metric
+    WHERE metricTimesliceName = 'Apdex' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **% Satisfied / % Tolerating / % Frustrated** — The three Apdex components as percentages. This complements the single Apdex score above by breaking it into its underlying request categories.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value[count]) /
+      (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) + sum(newrelic.timeslice.value[exclusiveTotal])) * 100 AS '% Satisfied',
+      sum(newrelic.timeslice.value[total]) /
+      (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) + sum(newrelic.timeslice.value[exclusiveTotal])) * 100 AS '% Tolerating',
+      sum(newrelic.timeslice.value[exclusiveTotal]) /
+      (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) + sum(newrelic.timeslice.value[exclusiveTotal])) * 100 AS '% Frustrated'
+    FROM Metric
+    WHERE metricTimesliceName = 'Apdex' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **CPU (%)** — Average CPU user time for the week, expressed as a percentage.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value) / 604800 * 100 AS 'CPU %'
+    FROM Metric
+    WHERE metricTimesliceName = 'CPU/User Time' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Memory (MB)** — Average physical memory use in megabytes.
+
+    ```sql
+    SELECT average(newrelic.timeslice.value) AS 'Memory MB'
+    FROM Metric
+    WHERE metricTimesliceName = 'Memory/Physical' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **DB (%)** — Time spent in web datastore calls as a percentage of total web transaction time.
+
+    ```sql
+    SELECT filter(sum(newrelic.timeslice.value), WHERE metricTimesliceName = 'Datastore/allWeb') /
+      filter(sum(newrelic.timeslice.value), WHERE metricTimesliceName = 'HttpDispatcher') * 100 AS 'DB %'
+    FROM Metric
+    WHERE metricTimesliceName IN ('Datastore/allWeb', 'HttpDispatcher') AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Request queue time (ms)** — Average time requests spent waiting in the web front-end queue, in milliseconds.
+
+    ```sql
+    SELECT average(newrelic.timeslice.value) * 1000 AS 'Request Queue Time ms'
+    FROM Metric
+    WHERE metricTimesliceName = 'WebFrontend/QueueTime'
+      AND entity.guid = '<APP_GUID>' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Availability (%)** — The percentage of Synthetic monitor checks that succeeded during the week.
+
+    ```sql
+    SELECT percentage(count(*), WHERE result = 'SUCCESS') AS 'Availability %'
+    FROM SyntheticCheck
+    WHERE monitorName = '<MONITOR_NAME>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    <Callout variant="important">
+      The Availability query uses `SyntheticCheck`, not `Metric`. The original APM "Availability" metric is a legacy feature; the weekly report now derives availability from a [Synthetic monitor's](/docs/synthetics/synthetic-monitoring/using-monitors/intro-synthetic-monitoring) success rate. Replace `<MONITOR_NAME>` with the name of the monitor you've configured for the application.
+    </Callout>
+
+    ### Traffic pattern [#nrql-traffic]
+
+    These queries drive the two-month daily sparkline shown at the top of the report. They use `TIMESERIES 1 day` over `SINCE 2 months ago`. There are two variants depending on how the app is instrumented: app-server apps are keyed off `HttpDispatcher` timeslices (rpm), and browser-instrumented apps use `EndUser` timeslices (ppm).
+
+    **Throughput — app-server apps (rpm)**
+
+    ```sql
+    SELECT rate(sum(newrelic.timeslice.value), 1 minute) AS 'Throughput rpm'
+    FROM Metric
+    WHERE metricTimesliceName = 'HttpDispatcher' AND entity.guid = '<APP_GUID>'
+    SINCE 2 months ago TIMESERIES 1 day
+    ```
+
+    **Throughput — browser-instrumented apps (ppm)**
+
+    ```sql
+    SELECT rate(sum(newrelic.timeslice.value), 1 minute) AS 'Throughput ppm'
+    FROM Metric
+    WHERE metricTimesliceName = 'EndUser' AND entity.guid = '<APP_GUID>'
+    SINCE 2 months ago TIMESERIES 1 day
+    ```
+
+    ### End-user browser metrics [#nrql-enduser]
+
+    These queries power the browser section of the report for applications with [browser monitoring](/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring) attached. They return a point per week over the most recent `{N}` weeks using `TIMESERIES 1 week`.
+
+    **End-user response time (s)** — Average page load time from the browser agent.
+
+    ```sql
+    SELECT average(newrelic.timeslice.value) AS 'End User Resp Time (s)'
+    FROM Metric
+    WHERE metricTimesliceName = 'EndUser' AND entity.guid = '<APP_GUID>'
+    SINCE {N} weeks ago TIMESERIES 1 week
+    ```
+
+    **End-user Apdex (page load)** — Apdex score for end-user page loads.
+
+    ```sql
+    SELECT apdex(newrelic.timeslice.value) AS 'End User Apdex'
+    FROM Metric
+    WHERE metricTimesliceName = 'EndUser/Apdex' AND entity.guid = '<APP_GUID>'
+    SINCE {N} weeks ago TIMESERIES 1 week
+    ```
+
+    **Page views** — Weekly count of `PageView` events.
+
+    ```sql
+    SELECT count(*) AS 'Page Views'
+    FROM PageView
+    WHERE appId = '<APP_ID>'
+    SINCE {N} weeks ago TIMESERIES 1 week
+    ```
+
+    **JavaScript errors** — Weekly count of `JavaScriptError` events.
+
+    ```sql
+    SELECT count(*) AS 'JS Errors'
+    FROM JavaScriptError
+    WHERE appId = '<APP_ID>'
+    SINCE {N} weeks ago TIMESERIES 1 week
+    ```
+
+    **Browser interactions** — Weekly count of `BrowserInteraction` events (route changes and custom interactions in single-page apps).
+
+    ```sql
+    SELECT count(*) AS 'Interactions'
+    FROM BrowserInteraction
+    WHERE appId = '<APP_ID>'
+    SINCE {N} weeks ago TIMESERIES 1 week
+    ```
+
     ## Selected applications [#featured_apps]
 
     New Relic selects the top 20 apps by call count that meet these criteria:
