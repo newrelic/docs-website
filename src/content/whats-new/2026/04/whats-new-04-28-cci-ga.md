@@ -38,15 +38,15 @@ CCI surfaces cost optimization opportunities from two complementary sources:
 
 Every recommendation can be acknowledged, dismissed, or tracked as pending — giving your FinOps team a clear action queue to work from.
 
-### AI Cost Management
+### AI Cost management
 
-The AI Costs page provides cost visibility for AI services across your cloud providers. It surfaces token-level costs broken down by service, model, and token type, giving you a unified view of AI spending across multi-cloud environments and multiple LLM models.
+The **AI Costs** page provides cost visibility for AI services across your cloud providers. It surfaces token-level costs broken down by service, model, and token type, giving you a unified view of AI spending across multi-cloud environments and multiple LLM models.
 
-### Alerts Support
+### Alerts support
 
 Build cost as an operational metric, with native integrations with Alerts, Notifications and Workflows.
 
-## The Exciting Road Ahead
+## The exciting eoad ahead
 
 Cloud Cost Intelligence at GA is just the beginning. We're continuing to expand multi-cloud recommendation coverage, deepen Kubernetes cost attribution, and build tighter integrations between cost data and the rest of the New Relic observability platform — so you can answer "why did costs spike?" with the same confidence as "why did latency spike?"
 
