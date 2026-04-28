@@ -1,0 +1,798 @@
+---
+title: Monitore o ECS no EC2 com o OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Amazon ECS
+  - AWS
+  - EC2
+  - Containers
+metaDescription: Install and configure OpenTelemetry monitoring for Amazon ECS tasks running on EC2 instances.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Monitore as tarefas do Amazon ECS em execução em instâncias de EC2 implantando o OpenTelemetry Collector Contrib como um contêiner sidecar. Este guia abrangente orienta você na criação de definições de tarefa, configuração do coletor e configuração do monitoramento para seus workloads do ECS no EC2.
+
+## Etapas de instalação [#install]
+
+Siga estas etapas para configurar o monitoramento das suas tarefas do ECS no EC2.
+
+<Steps>
+  <Step>
+    ### Antes de você começar [#requirements]
+
+    Certifique-se de que seu ambiente atenda a estes requisitos:
+
+    <CollapserGroup>
+      <Collapser id="ecs-reqs" title="Requisitos do ECS">
+        * Cluster ECS: cluster ECS ativo com provedores de capacidade do EC2
+        * Definições de tarefa: definições de tarefa existentes que você deseja monitorar
+        * Tipo de lançamento: tipo de lançamento EC2
+        * Modo de rede: suporta os modos de rede `default`, `host`
+      </Collapser>
+
+      <Collapser id="ec2-reqs" title="Requisitos do EC2">
+        * Tipos de instância: qualquer tipo de instância EC2 suportado pelo ECS
+        * AMI: Amazon Linux 2 ou outra AMI otimizada para ECS
+        * Armazenamento: espaço em disco suficiente para imagens de contêiner e logs
+        * Grupos de segurança: permitir tráfego HTTPS de saída para exportação de métricas
+      </Collapser>
+
+      <Collapser id="aws-reqs" title="Permissões da AWS">
+        * Função de execução de tarefa: `AmazonECSTaskExecutionRolePolicy` anexada
+        * Permissões do SSM: acesso ao Systems Manager Parameter Store para configuração
+        * Permissões do CloudWatch: para logging (opcional, mas recomendado)
+      </Collapser>
+
+      <Collapser id="newrelic-reqs" title="Requisitos do New Relic">
+        * Conta: conta ativa da New Relic
+        * Chave de licença: [chave de licença da New Relic](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) para sua conta
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ### Armazene sua chave de licença do New Relic [#store-license-key]
+
+    Salve sua chave de licença como um parâmetro do Systems Manager (SSM) para armazenar credenciais com segurança para o OpenTelemetry Collector:
+
+    ```bash
+    aws ssm put-parameter \
+      --name "/newrelic-infra/ecs/license-key" \
+      --type SecureString \
+      --description 'New Relic license key for ECS monitoring' \
+      --value "YOUR_NEW_RELIC_LICENSE_KEY"
+    ```
+  </Step>
+
+  <Step>
+    ### Criar política IAM e função de execução [#create-role]
+
+    1. Crie uma política do IAM para que seus contêineres do ECS possam recuperar com segurança a chave de licença da New Relic:
+
+       ```bash
+       aws iam create-policy \
+         --policy-name "NewRelicSSMLicenseKeyReadAccess" \
+         --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ssm:GetParameters"],"Resource":["arn:aws:ssm:*:*:parameter/newrelic-infra/ecs/license-key"]}]}' \
+         --description "Provides read access to the New Relic SSM license key parameter"
+       ```
+
+    2. Crie uma função do IAM para ser usada como função de execução de tarefas:
+
+       ```bash
+       aws iam create-role \
+         --role-name "NewRelicECSTaskExecutionRole" \
+         --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
+         --description "ECS task execution role for New Relic infrastructure"
+       ```
+
+    3. Anexe as políticas gerenciadas necessárias à função:
+
+       ```bash
+       # Attach the standard ECS task execution policy
+       aws iam attach-role-policy \
+         --role-name "NewRelicECSTaskExecutionRole" \
+         --policy-arn "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+
+       # Attach the New Relic SSM license key read access policy
+       aws iam attach-role-policy \
+         --role-name "NewRelicECSTaskExecutionRole" \
+         --policy-arn "arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):policy/NewRelicSSMLicenseKeyReadAccess"
+       ```
+  </Step>
+
+  <Step>
+    ### Armazenar configuração do coletor [#store-config]
+
+    Armazene a configuração do OpenTelemetry Collector no AWS Systems Manager Parameter Store para que você possa gerenciar e atualizar as configurações sem reconstruir imagens de contêiner:
+
+    ```bash
+    aws ssm put-parameter \
+      --name "/ecs/otel-collector/ec2-config" \
+      --type "String" \
+      --value "$(cat <<EOF
+    receivers:
+      awsecscontainermetrics:
+        collection_interval: <COLLECTION_INTERVAL>
+      hostmetrics:
+        collection_interval: <COLLECTION_INTERVAL>
+        scrapers:
+          cpu:
+            metrics:
+              system.cpu.time:
+                enabled: false
+              system.cpu.utilization:
+                enabled: true
+          load:
+          memory:
+            metrics:
+              system.memory.utilization:
+                enabled: true
+          paging:
+            metrics:
+              system.paging.utilization:
+                enabled: false
+              system.paging.faults:
+                enabled: false
+          filesystem:
+            metrics:
+              system.filesystem.utilization:
+                enabled: true
+          disk:
+            metrics:
+              system.disk.merged:
+                enabled: false
+              system.disk.pending_operations:
+                enabled: false
+              system.disk.weighted_io_time:
+                enabled: false
+          network:
+            metrics:
+              system.network.connections:
+                enabled: false
+
+    processors:
+      metricstransform/containers:
+        transforms:
+          - include: container.cpu.utilized
+            action: insert
+            new_name: container.cpu.utilization
+          - include: container.memory.usage
+            action: insert
+            new_name: container.memory.usage.total
+          - include: container.storage.read_bytes
+            action: insert
+            new_name: container.blockio.io_service_bytes_recursive
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: read
+          - include: container.storage.write_bytes
+            action: insert
+            new_name: container.blockio.io_service_bytes_recursive
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: write
+      metricstransform:
+        transforms:
+          - include: system.cpu.utilization
+            action: update
+            operations:
+              - action: aggregate_labels
+                label_set: [ state ]
+                aggregation_type: mean
+          - include: system.paging.operations
+            action: update
+            operations:
+              - action: aggregate_labels
+                label_set: [ direction ]
+                aggregation_type: sum
+      filter/exclude_cpu_utilization:
+        metrics:
+          datapoint:
+            - 'metric.name == \"system.cpu.utilization\" and attributes[\"state\"] == \"interrupt\"'
+            - 'metric.name == \"system.cpu.utilization\" and attributes[\"state\"] == \"nice\"'
+            - 'metric.name == \"system.cpu.utilization\" and attributes[\"state\"] == \"softirq\"'
+      filter/exclude_memory_utilization:
+        metrics:
+          datapoint:
+            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"slab_unreclaimable\"'
+            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"inactive\"'
+            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"cached\"'
+            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"buffered\"'
+            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"slab_reclaimable\"'
+      filter/exclude_memory_usage:
+        metrics:
+          datapoint:
+            - 'metric.name == \"system.memory.usage\" and attributes[\"state\"] == \"slab_unreclaimable\"'
+            - 'metric.name == \"system.memory.usage\" and attributes[\"state\"] == \"inactive\"'
+      filter/exclude_filesystem_utilization:
+        metrics:
+          datapoint:
+            - 'metric.name == \"system.filesystem.utilization\" and attributes[\"type\"] == \"squashfs\"'
+      filter/exclude_filesystem_usage:
+        metrics:
+          datapoint:
+            - 'metric.name == \"system.filesystem.usage\" and attributes[\"type\"] == \"squashfs\"'
+            - 'metric.name == \"system.filesystem.usage\" and attributes[\"state\"] == \"reserved\"'
+      filter/exclude_filesystem_inodes_usage:
+        metrics:
+          datapoint:
+            - 'metric.name == \"system.filesystem.inodes.usage\" and attributes[\"type\"] == \"squashfs\"'
+            - 'metric.name == \"system.filesystem.inodes.usage\" and attributes[\"state\"] == \"reserved\"'
+      filter/exclude_system_disk:
+        metrics:
+          datapoint:
+            - 'metric.name == \"system.disk.operations\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+            - 'metric.name == \"system.disk.merged\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+            - 'metric.name == \"system.disk.io\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+            - 'metric.name == \"system.disk.io_time\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+            - 'metric.name == \"system.disk.operation_time\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
+      filter/exclude_system_paging:
+        metrics:
+          datapoint:
+            - 'metric.name == \"system.paging.usage\" and attributes[\"state\"] == \"cached\"'
+            - 'metric.name == \"system.paging.operations\" and attributes[\"type\"] == \"cached\"'
+      filter/exclude_network:
+        metrics:
+          datapoint:
+            - 'IsMatch(metric.name, \"^system.network.*\") == true and attributes[\"device\"] == \"lo\"'
+
+      attributes/exclude_system_paging:
+        include:
+          match_type: strict
+          metric_names:
+            - system.paging.operations
+        actions:
+          - key: type
+            action: delete
+
+      cumulativetodelta:
+
+      transform/host:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(metric.description, \"\")
+              - set(metric.unit, \"\")
+
+      transform:
+        trace_statements:
+          - context: span
+            statements:
+              - truncate_all(span.attributes, <ATTRIBUTE_TRUNCATION_LIMIT>)
+              - truncate_all(resource.attributes, <RESOURCE_ATTRIBUTE_TRUNCATION_LIMIT>)
+        log_statements:
+          - context: log
+            statements:
+              - truncate_all(log.attributes, <ATTRIBUTE_TRUNCATION_LIMIT>)
+              - truncate_all(resource.attributes, <RESOURCE_ATTRIBUTE_TRUNCATION_LIMIT>)
+
+      memory_limiter:
+        check_interval: <MEMORY_LIMITER_CHECK_INTERVAL>
+        limit_mib: \${env:NEW_RELIC_MEMORY_LIMIT_MIB:-<MEMORY_LIMIT_MIB>}
+      batch:
+        send_batch_size: <SEND_BATCH_SIZE>
+        timeout: <BATCH_TIMEOUT>
+      resource:
+        attributes:
+          - key: ClusterName
+            from_attribute: aws.ecs.cluster.name
+            action: insert
+          - key: ServiceName
+            from_attribute: aws.ecs.service.name
+            action: insert
+          - key: TaskId
+            from_attribute: aws.ecs.task.id
+            action: insert
+          - key: TaskDefinitionFamily
+            from_attribute: aws.ecs.task.family
+            action: insert
+          - key: LaunchType
+            from_attribute: aws.ecs.launch_type
+            action: insert
+
+      resourcedetection:
+        detectors:
+          - env
+          - ecs
+          - ec2
+          - system
+        timeout: <RESOURCE_DETECTION_TIMEOUT>
+        override: false
+
+    exporters:
+      otlphttp:
+        endpoint: https://otlp.nr-data.net:443
+        headers:
+          api-key: \${NEW_RELIC_LICENSE_KEY}
+
+      debug:
+        verbosity: basic
+
+    service:
+      pipelines:
+        metrics/containers:
+          receivers: [awsecscontainermetrics]
+          processors: [metricstransform/containers, resource, batch]
+          exporters: [otlphttp, debug]
+        metrics/host:
+          receivers: [hostmetrics]
+          processors:
+            - memory_limiter
+            - metricstransform
+            - filter/exclude_cpu_utilization
+            - filter/exclude_memory_utilization
+            - filter/exclude_memory_usage
+            - filter/exclude_filesystem_utilization
+            - filter/exclude_filesystem_usage
+            - filter/exclude_filesystem_inodes_usage
+            - filter/exclude_system_disk
+            - filter/exclude_network
+            - attributes/exclude_system_paging
+            - transform/host
+            - resourcedetection
+            - cumulativetodelta
+            - batch
+          exporters: [otlphttp, debug]
+    EOF
+    )"
+    ```
+
+    #### Parâmetro de configuração
+
+    Os seguintes parâmetros podem ser personalizados na configuração do OpenTelemetry Collector:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "300px" }}>
+            Parâmetro
+          </th>
+
+          <th>
+            Descrição
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `<COLLECTION_INTERVAL>`
+          </td>
+
+          <td>
+            Intervalo para coletar métricas dos endpoints de métricas do contêiner ECS e do host.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<MEMORY_LIMIT_MIB>`
+          </td>
+
+          <td>
+            Limite de memória para o OpenTelemetry Collector em MiB
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<MEMORY_LIMITER_CHECK_INTERVAL>`
+          </td>
+
+          <td>
+            Intervalo para o limitador de memória verificar o uso atual de memória
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<SEND_BATCH_SIZE>`
+          </td>
+
+          <td>
+            Número de métricas a serem agrupadas em lote antes de enviar para o New Relic
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<BATCH_TIMEOUT>`
+          </td>
+
+          <td>
+            Tempo máximo de espera antes de enviar um lote
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<RESOURCE_DETECTION_TIMEOUT>`
+          </td>
+
+          <td>
+            Tempo limite para processadores de detecção de recursos
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<ATTRIBUTE_TRUNCATION_LIMIT>`
+          </td>
+
+          <td>
+            Comprimento máximo para valores de atributos de span e log antes do truncamento. Padrão: 4.095
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<RESOURCE_ATTRIBUTE_TRUNCATION_LIMIT>`
+          </td>
+
+          <td>
+            Comprimento máximo para valores de atributos de recurso antes do truncamento. Padrão: 4.095
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Step>
+
+  <Step>
+    ### Criar definição de tarefa [#create-task-definition]
+
+    Crie uma nova definição de tarefa do ECS que inclua o contêiner sidecar do OpenTelemetry Collector. Escolha a definição de tarefa apropriada para sua plataforma de contêiner:
+
+    <CollapserGroup>
+      <Collapser id="linux-task-definition" title="Contêineres Linux">
+        ```json
+        {
+          "family": "otel-ecs-ec2-sidecar-metrics",
+          "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT:role/NewRelicECSTaskExecutionRole",
+          "networkMode": "host",
+          "requiresCompatibilities": ["EC2"],
+          "cpu": "<TASK_CPU>",
+          "memory": "<TASK_MEMORY>",
+          "containerDefinitions": [
+            {
+              "name": "your-application",
+              "image": "your-app:latest",
+              "cpu": <APP_CPU>,
+              "memory": <APP_MEMORY>,
+              "essential": true,
+              "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                  "awslogs-group": "<APP_LOG_GROUP>",
+                  "awslogs-create-group": "true",
+                  "awslogs-region": "<AWS_REGION>",
+                  "awslogs-stream-prefix": "<APP_LOG_STREAM_PREFIX>"
+                }
+              }
+            },
+            {
+              "name": "otel-collector",
+              "image": "otel/opentelemetry-collector-contrib:latest",
+              "cpu": <COLLECTOR_CPU>,
+              "memory": <COLLECTOR_MEMORY>,
+              "essential": true,
+              "command": ["--config=env:OTEL_CONFIG"],
+              "mountPoints": [
+                {
+                  "sourceVolume": "proc",
+                  "containerPath": "/proc",
+                  "readOnly": true
+                },
+                {
+                  "sourceVolume": "sys",
+                  "containerPath": "/sys",
+                  "readOnly": true
+                }
+              ],
+              "secrets": [
+                {
+                  "name": "OTEL_CONFIG",
+                  "valueFrom": "arn:aws:ssm:us-east-1:YOUR_ACCOUNT:parameter/ecs/otel-collector/ec2-config"
+                },
+                {
+                  "name": "NEW_RELIC_LICENSE_KEY",
+                  "valueFrom": "arn:aws:ssm:us-east-1:YOUR_ACCOUNT:parameter/newrelic-infra/ecs/license-key"
+                }
+              ],
+              "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                  "awslogs-group": "<COLLECTOR_LOG_GROUP>",
+                  "awslogs-create-group": "true",
+                  "awslogs-region": "<AWS_REGION>",
+                  "awslogs-stream-prefix": "<COLLECTOR_LOG_STREAM_PREFIX>"
+                }
+              }
+            }
+          ],
+          "volumes": [
+            {
+              "name": "proc",
+              "host": {
+                "sourcePath": "/proc"
+              }
+            },
+            {
+              "name": "sys",
+              "host": {
+                "sourcePath": "/sys"
+              }
+            }
+          ]
+        }
+        ```
+      </Collapser>
+
+      <Collapser id="windows-task-definition" title="Contêineres Windows">
+        ```json
+        {
+          "family": "otel-ecs-ec2-sidecar-metrics-windows",
+          "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT:role/NewRelicECSTaskExecutionRole",
+          "networkMode": "default",
+          "requiresCompatibilities": ["EC2"],
+          "cpu": "<TASK_CPU>",
+          "memory": "<TASK_MEMORY>",
+          "runtimePlatform": {
+            "cpuArchitecture": "X86_64",
+            "operatingSystemFamily": "WINDOWS_SERVER_2022_CORE"
+          },
+          "containerDefinitions": [
+            {
+              "name": "your-application",
+              "image": "your-app:latest",
+              "cpu": <APP_CPU>,
+              "memory": <APP_MEMORY>,
+              "essential": true,
+              "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                  "awslogs-group": "<APP_LOG_GROUP>",
+                  "awslogs-create-group": "true",
+                  "awslogs-region": "<AWS_REGION>",
+                  "awslogs-stream-prefix": "<APP_LOG_STREAM_PREFIX>"
+                }
+              }
+            },
+            {
+              "name": "otel-collector",
+              "image": "otel/opentelemetry-collector-contrib:latest-windows-2022-amd64",
+              "cpu": <COLLECTOR_CPU>,
+              "memory": <COLLECTOR_MEMORY>,
+              "essential": true,
+              "command": ["--config", "env:OTEL_CONFIG"],
+              "secrets": [
+                {
+                  "name": "OTEL_CONFIG",
+                  "valueFrom": "arn:aws:ssm:us-east-1:YOUR_ACCOUNT:parameter/ecs/otel-collector/ec2-config-windows"
+                },
+                {
+                  "name": "NEW_RELIC_LICENSE_KEY",
+                  "valueFrom": "arn:aws:ssm:us-east-1:YOUR_ACCOUNT:parameter/newrelic-infra/ecs/license-key"
+                }
+              ],
+              "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                  "awslogs-group": "<COLLECTOR_LOG_GROUP>",
+                  "awslogs-create-group": "true",
+                  "awslogs-region": "<AWS_REGION>",
+                  "awslogs-stream-prefix": "<COLLECTOR_LOG_STREAM_PREFIX>"
+                }
+              }
+            }
+          ],
+          "volumes": []
+        }
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    #### Parâmetros de definição de tarefa
+
+    Os seguintes parâmetros podem ser personalizados na sua definição de tarefa do ECS:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "300px" }}>
+            Parâmetro
+          </th>
+
+          <th>
+            Descrição
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `<TASK_CPU>`
+          </td>
+
+          <td>
+            Total de unidades de CPU para a tarefa EC2
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<TASK_MEMORY>`
+          </td>
+
+          <td>
+            Memória total para a tarefa do EC2 em MiB
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<APP_CPU>`
+          </td>
+
+          <td>
+            Unidades de CPU alocadas ao seu contêiner de aplicativo
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<APP_MEMORY>`
+          </td>
+
+          <td>
+            Memória alocada ao seu contêiner de aplicativo em MiB
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<COLLECTOR_CPU>`
+          </td>
+
+          <td>
+            Unidades de CPU alocadas ao OpenTelemetry Collector
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<COLLECTOR_MEMORY>`
+          </td>
+
+          <td>
+            Memória alocada para o OpenTelemetry Collector em MiB
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<APP_LOG_GROUP>`
+          </td>
+
+          <td>
+            Nome do grupo de logs do CloudWatch para o contêiner do seu aplicativo
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<COLLECTOR_LOG_GROUP>`
+          </td>
+
+          <td>
+            Nome do grupo de logs do CloudWatch para o OpenTelemetry Collector
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<AWS_REGION>`
+          </td>
+
+          <td>
+            Região da AWS para logs do CloudWatch
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<APP_LOG_STREAM_PREFIX>`
+          </td>
+
+          <td>
+            Prefixo do stream de log para o contêiner do seu aplicativo
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<COLLECTOR_LOG_STREAM_PREFIX>`
+          </td>
+
+          <td>
+            Prefixo do fluxo de log para o OpenTelemetry Collector
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      O `networkMode` está definido como `"host"` para contêineres Linux e deve ser `"default"` para contêineres Windows. O modo host oferece melhor acesso às métricas do sistema em instâncias de EC2.
+    </Callout>
+
+    <Callout variant="important">
+      Substitua os valores de `YOUR_ACCOUNT` e da região pelo ID da sua conta da AWS e região da AWS reais.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Implantar e executar a tarefa [#deploy-task]
+
+    Implante sua definição de tarefa em seu cluster ECS:
+
+    1. Registre a definição de tarefa:
+
+       ```bash
+       aws ecs register-task-definition --cli-input-json file://task-definition.json
+       ```
+
+    2. Criar um serviço com estratégia de agendamento daemon:
+
+       ```bash
+       aws ecs create-service \
+         --cluster your-cluster-name \
+         --service-name otel-monitoring-service \
+         --task-definition otel-ecs-ec2-sidecar-metrics:1 \
+         --scheduling-strategy DAEMON \
+         --launch-type EC2
+       ```
+
+    <Callout variant="tip">
+      A estratégia de agendamento DAEMON garante que uma tarefa de monitoramento seja executada em cada instância de EC2 do seu cluster, fornecendo cobertura abrangente de monitoramento de infraestrutura.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Verificar coleta de dados [#verify-data]
+
+    Verifique se seus dados estão fluindo para o New Relic:
+
+    * Verifique o status do OpenTelemetry Collector: analise os logs do contêiner para confirmar que o coletor está sendo executado sem erros e se conectando com sucesso ao New Relic:
+
+      ```bash
+      aws logs get-log-events \
+        --log-group-name "/ecs/otel-collector-ec2" \
+        --log-stream-name "otel/otel-collector/TASK_ID"
+      ```
+
+    * Verifique os dados na interface do New Relic: navegue até <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Infrastructure**</DNT> para confirmar se seus hosts do ECS e contêineres aparecem com métricas. Para obter orientações detalhadas sobre como explorar seus dados, consulte [Encontrar e consultar seus dados de monitoramento do ECS](/docs/opentelemetry/integrations/ecs-monitoring/find-and-query-your-data).
+  </Step>
+</Steps>
+
+{/* ## Key features [#key-features]
+
+This configuration provides:
+
+- **Container metrics**: CPU, memory, network, and storage metrics for each container in your tasks
+- **Host metrics**: System-level metrics from the EC2 instances running your containers
+- **ECS metadata**: Automatic tagging with cluster, service, task, and container information
+- **Filtered metrics**: Optimized metric collection to reduce noise and costs
+- **Health monitoring**: Built-in health checks for the collector sidecar */}
+
+## Próximos passos [#next-steps]
+
+Após configurar o monitoramento, você pode:
+
+* [Crie dashboards personalizados](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) para suas métricas do ECS
+* [Configurar alertas](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) para problemas no nível do contêiner e do host
+* [Correlacionar métricas do ECS com traces e logs do aplicativo](/docs/opentelemetry/integrations/ecs-monitoring/overview#how-it-works)
