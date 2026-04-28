@@ -5,11 +5,7 @@ releaseDate: '2026-04-28'
 learnMoreLink: 'https://docs.newrelic.com/docs/cci/'
 ---
 
-As cloud infrastructure complexity grows, the gap between what you spend and what you can explain keeps widening. We're thrilled to announce that New Relic **Cloud Cost Intelligence (CCI)** has officially reached **General Availability** — bringing production-ready FinOps capabilities directly into your observability workflow.
-
-## Cloud Cost Intelligence is now GA!
-
-We are excited to announce that Cloud Cost Intelligence has officially reached General Availability (GA).
+We are excited to announce that Cloud Cost Intelligence has officially reached **General Availability**.
 
 In modern cloud environments, cost accountability is a major source of organizational friction. Engineering teams know their services are running, but finance teams can't attribute spend to the right teams, applications, or resources — and optimization opportunities stay buried in spreadsheets. Cloud Cost Intelligence closes that gap by embedding full cloud cost visibility directly into New Relic, alongside the performance data you already rely on every day.
 
