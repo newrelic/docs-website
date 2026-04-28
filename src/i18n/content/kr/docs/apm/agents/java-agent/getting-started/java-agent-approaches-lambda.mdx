@@ -1,0 +1,339 @@
+---
+title: 서버리스 AWS 람다 성능 모니터링
+tags:
+  - Agents
+  - Java agent
+  - Getting started
+metaDescription: This guide helps users decide which approach to take for Java serverless AWS Lambda performance monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+서버리스에서 무슨 일이 일어나고 있는지 이해하기 위해 외부 Lambda 함수에 대한 가시성을 확보할 수 있습니다.
+
+<Callout variant="important">
+  This doc details how to use the new APM agent based solution for Java Serverless monitoring. This solution was released on April 10, 2026. Users who were using Java Monitoring prior to this release or are using Java versions 11 or 8 should instead use our [Legacy Open Tracing Based Java solution](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own/#console).
+</Callout>
+
+## 뉴렐릭 자바 에이전트 [#java-agent]
+
+뉴렐릭 에이전트 에이전트는 전용 **서버리스 모드를** 통해 AWS Lambda 함수를 지원합니다. Lambda 함수 내부에서 실행될 때 에이전트는 자동으로 환경을 감지하고 Lambda 호출의 짧은 지속 시간과 이벤트 기반 특성에 최적화된 모드로 전환됩니다.
+
+<Callout variant="important">
+  지속 에이전트 서버리스 모드에는 **지속 17 이상이** 필요합니다. 초기 시작 시간이 오래 걸리기 때문에 Java 11 및 이전 런타임은 지원되지 않습니다.
+</Callout>
+
+### 작동 원리
+
+서버리스 모드에서 에이전트는 표준적인 주기적 데이터 수집 및 HTTP 전송 방식을 호출별 모델로 대체합니다.
+
+1. Lambda 함수가 호출되면 에이전트는 코드가 실행되기 전에 핸들러를 가로챕니다.
+2. Lambda 호출에 대한 트랜잭션이 자동으로 생성되며, 이 트랜잭션에는 Lambda ARN, 요청 ID, 콜드 스타트 여부와 같은 컨텍스트 정보가 포함됩니다.
+3. 이벤트 페이로드가 인식되면(예: API Gateway 또는 SQS 이벤트) 에이전트는 이벤트-소스 메타데이터를 추출하고, 이벤트를 웹 또는 비웹 이벤트로 분류하고 관련 속성을 추가합니다.
+4. 프로세서가 완료되면 에이전트는 버퍼링된 모든 텔리메트리를 수집하고 이를 압축된 Base64 인코딩 페이로드로 `/tmp/newrelic-telemetry` 에 기록하고 일반 JSON으로 stdout에 기록합니다.
+5. (레이어에 포함된) [뉴렐릭 Lambda 확장 기능은](https://github.com/newrelic/newrelic-lambda-extension/tree/main) 텔레메트리 파일을 읽고 각 호출 후 데이터를 뉴렐릭으로 전달합니다.
+
+### Lambda 레이어 [#layers]
+
+저항 에이전트에 대해 두 가지 Lambda 레이어 변형이 게시되었습니다.
+
+* **전체 에이전트 계층**: 모든 측정, 로그 모듈이 활성화됩니다. 즉시 사용 가능한 최대 가시성을 제공하지만 자동 측정, 자동 리소스의 전체 세트로 인해 더 높은 콜드 스타트 오버헤드가 발생합니다.
+* **Slim 레이어(권장)**: `aws-lambda-java-core` 모듈을 *제외한* 모든 자동 측정, 자동 로그를 비활성화합니다. 즉, `RequestHandler` 또는 `RequestStreamHandler` 구현하는 Java Lambda 핸들러는 자동으로 계측되어 기본적으로 텔레메트리를 내보내기 시작하지만, 다른 측정, 계측(AWS SDK 호출, HTTP 클라이언트 등)은 명시적으로 선택하지 않는 한 비활성화됩니다. 이는 대부분의 고객에게 권장되는 시작점입니다.
+
+### 레이어 ARN [#layer-arns]
+
+다음 ARN은 `us-east-1` 영역에 대한 것입니다. `us-east-1` AWS 리전으로 바꾸세요. 레이어 버전은 `1` 부터 시작하여 새 릴리스가 나올 때마다 증가합니다. 최신 버전을 확인하려면 [뉴렐릭의 레이어 목록을](https://layers.newrelic-external.com/) 참조하세요.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        레이어 변형
+      </th>
+
+      <th>
+        아키텍처
+      </th>
+
+      <th>
+        ARN
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Slim (추천)
+      </td>
+
+      <td>
+        x86_64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJava-slim:1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Slim (추천)
+      </td>
+
+      <td>
+        ARM64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJavaARM64-slim:1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        가득한
+      </td>
+
+      <td>
+        x86_64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJava:1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        가득한
+      </td>
+
+      <td>
+        ARM64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJavaARM64:1`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+포함 지침은 [계층화된 측정, 리소스를](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own/) 참조하세요.
+
+두 레이어 중 하나를 사용할 때는 에이전트가 호출을 가로챌 수 있도록 Lambda 함수의 핸들러를 다음 래퍼 값 중 하나로 설정하십시오.
+
+* `RequestHandler` 구현: `com.newrelic.java.HandlerWrapper::handleRequest`
+* `RequestStreamHandler` 구현: `com.newrelic.java.HandlerWrapper::handleStreamsRequest`
+
+### 자동 감지
+
+에이전트는 `AWS_LAMBDA_FUNCTION_NAME` 환경 변수가 존재할 경우 자동으로 서버리스 모드를 활성화합니다. Lambda 레이어를 사용할 때는 별도의 설정이 필요하지 않습니다. Serverless 모드는 항상 활성화되어 있으며 덮어쓸 수 없습니다.
+
+### 구성 [#configuration]
+
+Lambda 레이어에는 다음과 같은 환경 변수가 미리 구성되어 있습니다.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        환경 변수
+      </th>
+
+      <th>
+        레이어 기본값
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `NEW_RELIC_SERVERLESS_MODE_ENABLED`
+      </td>
+
+      <td>
+        `true`
+      </td>
+
+      <td>
+        서버리스 모드를 활성화합니다. 레이어에서 정의되지 않은 경우 
+
+        `true`
+
+         으로 설정합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_LOG_FILE_PATH`
+      </td>
+
+      <td>
+        `/tmp/logs`
+      </td>
+
+      <td>
+        기본적으로 이는 에이전트 로그 파일 경로를 다음으로 설정합니다. 
+
+        `/tmp/logs/newrelic_agent.log`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_APP_NAME`
+      </td>
+
+      <td>
+        `lambda-function`
+      </td>
+
+      <td>
+        에이전트에서 사용하는 기본 애플리케이션 이름입니다. 레이어에 의해 설정됩니다(아직 정의되지 않은 경우). 이 값은 Lambda 함수의 뉴렐릭 UI 에서는 사용되지 않습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED`
+      </td>
+
+      <td>
+        `false`
+      </td>
+
+      <td>
+        in-에이전트 로그인 포워딩을 비활성화합니다. 레이어에 의해 설정됩니다(아직 정의되지 않은 경우). 로그는 CloudWatch 또는 Lambda 확장 프로그램을 통해 수집됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_ENABLE_AUTO_APP_NAMING`
+      </td>
+
+      <td>
+        `false`
+      </td>
+
+      <td>
+        레이어에 의해 항상 
+
+        `false`
+
+         으로 설정됩니다. 에이전트가 대전 데이터를 기반으로 하는 이름을 재정의하는 것을 방지합니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+다음 환경 변수는 필수이며 사용자가 직접 설정해야 합니다.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        환경 변수
+      </th>
+
+      <th>
+        필수 값
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `AWS_LAMBDA_EXEC_WRAPPER`
+      </td>
+
+      <td>
+        `/opt/newrelic-java-handler`
+      </td>
+
+      <td>
+        AWS Lambda 가 뉴렐릭 에이전트 래퍼를 가리킵니다. 저항력 레이어를 사용할 때는 항상 
+
+        `/opt/newrelic-java-handler`
+
+         으로 설정해야 합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_LICENSE_KEY`
+      </td>
+
+      <td>
+        귀하의 뉴렐릭 클러스터
+      </td>
+
+      <td>
+        귀하의 뉴렐릭 수집 볼륨 키는 뉴렐릭에게 전송된 델파이를 인증하는 데 사용됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+      </td>
+
+      <td>
+        귀하의 New Relic 계정 ID
+      </td>
+
+      <td>
+        방사능 Lambda 확장에 필요합니다. 이 값을 뉴렐릭 부모 계정 ID 또는 부모 계정이 없는 경우 계정 ID로 설정하세요.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  기본적으로 Lambda 확장 프로그램 또는 CloudWatch는 로그를 수집합니다. 에이전트는 로그를 직접 전달하지 않습니다.
+</Callout>
+
+### <DNT>Cold starts</DNT> [#cold-starts]
+
+에이전트는 첫 번째 호출 시 설정되는 정적 플래그를 사용하여 <DNT>cold starts</DNT> 추적합니다. <DNT>cold start</DNT> 번 호출 시 `aws.lambda.coldStart=true` 속성이 트랜잭션에 추가됩니다. 이 속성은 따뜻한 호출 시에는 생략됩니다. `false` 으로 설정되어 있지 않습니다.
+
+<Callout variant="important">
+  **<DNT>Cold start</DNT> 시간**: 회전 에이전트를 추가하면 에이전트가 없는 기능에 비해 <DNT>cold start</DNT> 시간이 약 4,000-6,200ms 증가합니다. 이는 첫 번째 호출에만 영향을 미칩니다. 따뜻한 기원은 영향을 받지 않습니다. 슬림 레이어는 시작 시 로드되는 모니터링 모듈 수를 줄여 이러한 문제를 완화합니다.
+
+  <DNT>cold start</DNT> 성능을 개선하려면 제한시간 고대 값, 참조 및 메모리 할당을 늘리고 프로비저닝된 동시성을 사용하십시오.
+</Callout>
+
+### 텔레메트리 수집 [#telemetry]
+
+서버리스 모드에서 지속 에이전트는 호출 중에 다음과 같은 텔리메트리 유형을 수집하고 버퍼링합니다.
+
+* 트랜잭션 추적
+* 오류 이벤트 및 트레이스 오류(그리드 추적 포함)
+* 스팬 이벤트(분산 추적용)
+* 프로세서(분석) 이벤트
+* 맞춤 이벤트
+* 로그 이벤트(기본적으로 CloudWatch를 통해)
+* 성능 지표
+
+수집된 모든 데이터는 단일 `NR_LAMBDA_MONITORING` 페이로드로 기록되어 호출이 완료된 후 뉴렐릭으로 전달됩니다.
+
+### 제한 사항 [#limitations]
+
+* **만 17세 이상만 가능합니다.** 자바 11 및 이전 버전은 지원되지 않습니다.
+* 서버리스 모드에서는 스레드 프로파일링을 사용할 수 없습니다.
+* 서버리스 모드에서는 JFR(자바 Flight Recorder) 모니터링이 비활성화됩니다.
+* 서버리스 모드에서는 JAR 수집기(모듈 스캔)가 비활성화됩니다.

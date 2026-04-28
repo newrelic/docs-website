@@ -1,0 +1,339 @@
+---
+title: JavaサーバーレスAWS lambdaパフォーマンス監視
+tags:
+  - Agents
+  - Java agent
+  - Getting started
+metaDescription: This guide helps users decide which approach to take for Java serverless AWS Lambda performance monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Java Lambda関数を可視化することで、サーバーレスアプリケーションで何が起こっているかを把握できます。
+
+<Callout variant="important">
+  This doc details how to use the new APM agent based solution for Java Serverless monitoring. This solution was released on April 10, 2026. Users who were using Java Monitoring prior to this release or are using Java versions 11 or 8 should instead use our [Legacy Open Tracing Based Java solution](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own/#console).
+</Callout>
+
+## New Relic Javaエージェント [#java-agent]
+
+New Relic Javaエージェントは、専用の**サーバーレス モード**を通じてインストゥルメントされたAWS Lambda関数をサポートします。 Lambda関数内で実行される場合、エージェントは環境を自動的に検出し、Lambda呼び出しの短命でイベント駆動型の性質に最適化されたこのモードに切り替わります。
+
+<Callout variant="important">
+  Javaエージェントのサーバーレスモードには**、Java 17以降が**必要です。Java 11以前のランタイムは、初期起動時間が長くなるためサポートされていません。
+</Callout>
+
+### 使い方
+
+サーバーレスモードでは、エージェントは標準の定期的なデータ収集とHTTPトランスポートを、呼び出しごとのモデルに置き換えます。
+
+1. Lambda関数が呼び出されると、エージェントはコードが実行される前にハンドラーをインターセプトします。
+2. 呼び出し時にはトランザクションが自動的に作成され、Lambda ARN、リクエストID、コールドスタートかどうかなどのコンテキストが記録されます。
+3. イベント ペイロードが認識されると (APIゲートウェイや SQS イベントなど)、エージェントはイベント ソースのメタデータを抽出し、その場を Web または非ウェブサイトとして分類し、関連するプロパティを追加します。
+4. 現場が終了すると、エージェントはバッファリングされたすべてのテレメトリーを収集し、それを圧縮された Base64 エンコードされたペイロードとして`/tmp/newrelic-telemetry`に書き込み、プレーンな JSON として stdout に書き込みます。
+5. [New Relic Lambda拡張機能](https://github.com/newrelic/newrelic-lambda-extension/tree/main)（レイヤーにバンドルされています）は、テレメトリーファイルを読み込み、呼び出しごとにデータをNew Relicに転送します。
+
+### Lambda層 [#layers]
+
+Javaエージェント向けに、2種類のLambdaレイヤーバリアントが公開されています。
+
+* **フルエージェント層**: すべての計装モジュールが有効になります。 すぐに使える最大限の可視性を提供しますが、自動インストゥルメンテーションのフルセットにより、コールド スタートのオーバーヘッドが高くなります。
+* **Slimレイヤー (推奨)** : `aws-lambda-java-core`モジュール*を除く*すべての自動インストゥルメンテーションを無効にします。 つまり、 `RequestHandler`または`RequestStreamHandler`実装するJava Lambdaハンドラーは自動的にインストゥルメントされ、すぐにテレメトリーの出力を開始しますが、他の計装 (AWS SDK 呼び出し、HTTP クライアントなど) は、明示的にオプトインしない限り無効になります。 これはほとんどのお客様にとって推奨される出発点です。
+
+### レイヤーARN [#layer-arns]
+
+以下のARNは`us-east-1`領域用です。`us-east-1` AWSリージョンに置き換えてください。レイヤーバージョンは`1`から始まり、新しいリリースごとに増加します。最新バージョンについては、 [New Relicのレイヤーリストを](https://layers.newrelic-external.com/)参照してください。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        レイヤーバリアント
+      </th>
+
+      <th>
+        アーキテクチャー
+      </th>
+
+      <th>
+        ARN
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Slim （推奨）
+      </td>
+
+      <td>
+        x86_64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJava-slim:1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Slim （推奨）
+      </td>
+
+      <td>
+        ARM64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJavaARM64-slim:1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        満杯
+      </td>
+
+      <td>
+        x86_64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJava:1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        満杯
+      </td>
+
+      <td>
+        ARM64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJavaARM64:1`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+インストレーションの手順については、 [「Layered 計装」を](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own/)参照してください。
+
+どちらのレイヤーを使用する場合でも、エージェントが呼び出しをインターセプトできるように、Lambda関数のハンドラーを以下のラッパー値のいずれかに設定してください。
+
+* `RequestHandler` 実装： `com.newrelic.java.HandlerWrapper::handleRequest`
+* `RequestStreamHandler` 実装： `com.newrelic.java.HandlerWrapper::handleStreamsRequest`
+
+### 自動検出
+
+環境変数`AWS_LAMBDA_FUNCTION_NAME`が存在する場合、エージェントは自動的にサーバーレスモードを有効にします。Lambdaレイヤーを使用する場合、明示的な設定は必要ありません。Serverlessモードは常に有効になっており、上書きすることはできません。
+
+### 構成 [#configuration]
+
+Lambdaレイヤーには、以下の環境変数が事前に設定されています。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        環境変数
+      </th>
+
+      <th>
+        レイヤーデフォルト
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `NEW_RELIC_SERVERLESS_MODE_ENABLED`
+      </td>
+
+      <td>
+        `true`
+      </td>
+
+      <td>
+        サーバーレスモードを有効にします。レイヤーがまだ定義していない場合は、 
+
+        `true`
+
+        に設定します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_LOG_FILE_PATH`
+      </td>
+
+      <td>
+        `/tmp/logs`
+      </td>
+
+      <td>
+        デフォルトでは、Javaエージェントのログファイルパスは次のように設定されます。 
+
+        `/tmp/logs/newrelic_agent.log`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_APP_NAME`
+      </td>
+
+      <td>
+        `lambda-function`
+      </td>
+
+      <td>
+        エージェントが使用するデフォルトのアプリケーション名。レイヤーによって設定されない場合は、レイヤーによって設定されます。この値は、Lambda関数のNew Relic UIでは使用されません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED`
+      </td>
+
+      <td>
+        `false`
+      </td>
+
+      <td>
+        エージェント内ログ転送を無効にします。レイヤーによって設定されない場合は、レイヤーによって設定されます。ログはCloudWatchまたはLambda拡張機能を介して取得されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_ENABLE_AUTO_APP_NAMING`
+      </td>
+
+      <td>
+        `false`
+      </td>
+
+      <td>
+        レイヤーによって常に
+
+        `false`
+
+        に設定されます。エージェントがトランザクションデータに基づいてアプリケーション名を上書きすることを防止します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+以下の環境変数は必須であり、ユーザー自身が設定する必要があります。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        環境変数
+      </th>
+
+      <th>
+        必要値
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `AWS_LAMBDA_EXEC_WRAPPER`
+      </td>
+
+      <td>
+        `/opt/newrelic-java-handler`
+      </td>
+
+      <td>
+        AWS Lambda New Relic Javaエージェントラッパーを指すようにします。 Javaエージェントレイヤーを使用する場合は、これを常に
+
+        `/opt/newrelic-java-handler`
+
+        に設定する必要があります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_LICENSE_KEY`
+      </td>
+
+      <td>
+        あなたのNew Relicライセンスキー
+      </td>
+
+      <td>
+        New Relicは、 New Relicに送信されたテレメトリーを認証するために使用されるライセンスキーを取り込みます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+      </td>
+
+      <td>
+        NewRelicアカウントID
+      </td>
+
+      <td>
+        ディストリビューティッド（分散）トレーシングのNew Relic Lambda拡張機能で必要です。 ここにNew Relicの親アカウントID、または親アカウントがない場合はアカウントIDを設定してください。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  デフォルトでは、Lambda拡張機能またはCloudWatchがログをキャプチャします。エージェントはログを直接転送しません。
+</Callout>
+
+### <DNT>Cold starts</DNT> [#cold-starts]
+
+エージェントは、最初の呼び出し時に設定される静的フラグを使用して<DNT>cold starts</DNT>を追跡します。<DNT>cold start</DNT>呼び出し時に、 `aws.lambda.coldStart=true`属性がトランザクションに追加されます。この属性は、ウォーム呼び出しでは省略されます。`false`に設定されていません。
+
+<Callout variant="important">
+  **<DNT>Cold start</DNT>時間**: Javaエージェントを追加すると、エージェントを使用しない関数と比較して、 <DNT>cold start</DNT>時間が約 4,000 ～ 6,200 ミリ秒増加します。 これは最初の呼び出しにのみ影響します。ウォームインボイスは影響を受けません。スリムレイヤーは、起動時に読み込む監視モジュールの数を減らすことで、この問題を軽減します。
+
+  <DNT>cold start</DNT>パフォーマンスを向上させるには、タイムアウト値とメモリ割り当てを増やし、プロビジョニングされた同時実行性を使用します。
+</Callout>
+
+### テレメトリーを収集しました [#telemetry]
+
+サーバーレス モードでは、 Javaエージェントは呼び出し中に次のテレメトリー タイプを収集してバッファリングします。
+
+* トランザクショントレース
+* エラーイベントとトレースされたエラー（スタックトレース付き）
+* スパンイベント（ディストリビューティッド（分散）トレーディング用）
+* トランザクション（分析）イベント
+* カスタムイベント
+* ログイベント (デフォルトでは CloudWatch 経由)
+* パフォーマンスメトリクス
+
+収集されたすべてのデータは単一の`NR_LAMBDA_MONITORING`ペイロードとして書き込まれ、呼び出し完了後にNew Relicに転送されます。
+
+### 制限 [#limitations]
+
+* **Java 17以降のみ対応。**Java 11以前のバージョンはサポートされていません。
+* サーバーレスモードでは、スレッドプロファイリングは利用できません。
+* サーバーレスモードでは、JFR（Java Flight Recorder）による監視は無効になっています。
+* JAR コレクター (モジュール スキャン) はサーバーレス モードでは無効になります。
