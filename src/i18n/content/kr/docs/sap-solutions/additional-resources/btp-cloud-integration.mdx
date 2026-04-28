@@ -1,0 +1,184 @@
+---
+title: BTP 통합 제품군을 통해 뉴렐릭에 연결
+metaDescription: Configure SAP Cloud Integration as middleware to transmit monitoring data to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+직접 연결을 사용할 수 없는 경우 모니터링 데이터를 뉴렐릭으로 전송하기 위한 미들웨어로 SAP BTP 통합 제품군(클라우드 통합)을 구성합니다.
+
+## 개요
+
+수집 관리자 프로그램은 직접 전송하는 대신 SAP 클라우드 통합(SAP CPI)을 미들웨어로 사용하여 뉴렐릭으로 데이터를 전송하는 옵션을 제공합니다.
+
+| **방법**      | **설명**                   |
+| ----------- | ------------------------ |
+| 직접          | SAP에서 뉴렐릭으로 직접 전송(표준 방법) |
+| SAP 클라우드 통합 | SAP CPI를 미들웨어로 사용하기      |
+
+## 구성 단계
+
+<Steps>
+  <Step>
+    ## 권한 부여 방법 결정
+
+    iFlow에 사용할 인증 유형을 선택하세요:
+
+    * **ClientId/Secret** \[클라이언트 ID/시크릿] (OAuth2)
+    * **인증서**
+    * **외부 인증서**
+  </Step>
+
+  <Step>
+    ## 서비스 인스턴스 및 키 생성
+
+    1. **SAP Process Integration Runtime**용 서비스 인스턴스를 생성합니다.
+    2. 선택한 권한 부여 방법을 사용하여 서비스 키 또는 인증서를 할당하십시오.
+    3. 나중에 사용할 수 있도록 서비스 키를 다운로드하세요.
+
+    자세한 지침은 [BTP 모니터링용 서비스 키 확보](/docs/sap-solutions/install-and-configure/obtain-service-key/process-integration-runtime)를 참조하십시오.
+  </Step>
+
+  <Step>
+    ## iFlow 구성 및 배포
+
+    뉴렐릭에서 제공하는 iFlow를 템플릿으로 사용하십시오:
+
+    1. 템플릿 iFlow를 복사합니다.
+    2. 1단계에서 선택한 항목과 일치하도록 인증 방법을 업데이트하세요.
+    3. 다음 매핑이 구성되어 있는지 확인합니다:
+
+    ### 허용 헤더
+
+    다음을 포함하도록 허용 헤더를 구성합니다:
+
+    ```
+    API-Key|targetURL
+    ```
+
+    ### 권한 부여 방식
+
+    * **ClientId/Secret** \[클라이언트 ID/시크릿] 또는 **Certificate** \[인증서]의 경우: **User Role**\[사용자 역할]을 선택하십시오.
+    * **External Certificate** \[외부 인증서]의 경우: **Client Certificate** \[클라이언트 인증서]를 선택하고 루트 인증서를 추가하십시오.
+
+    ### 요청 콘텐츠 수정자
+
+    다음을 유지하도록 교환 속성을 구성합니다:
+
+    * `targeturl`
+    * `apikey`
+
+    ### Groovy 스크립트
+
+    헤더를 동적으로 설정하는 스크립트를 추가합니다:
+
+    ```groovy
+    import com.sap.gateway.ip.core.customdev.util.Message;
+    def Message processData(Message message) {
+
+      message.setHeader("API-Key", message.getProperty("apikey"));
+      message.setHeader("Content-Type", "application/json");
+      message.setHeader("Accept", "application/json");
+
+      message.setHeader("CamelHttpUri", message.getProperty("targeturl"));
+
+      def turl = message.getHeader("CamelHttpUri", String);
+
+      def logText = "---Headers---\n";
+
+      message.getHeaders().each { k, v -> logText += "\${k} = \${v}\n" };
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("AllHeaders", logText, "text/plain");
+
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("URL", turl, "text/plain");
+
+      return message;
+    }
+    ```
+
+    ### 응답 콘텐츠 수정자
+
+    반환할 메시지 본문을 구성합니다:
+
+    ```json
+    {
+      "statusCode": "\${header.CamelHttpResponseCode}",
+      "response": \${body}
+    }
+    ```
+
+    ### HTTP 연결 설정
+
+    * **주소**: `\${header.CamelHttpUri}`
+    * **메서드**: POST
+    * **타임아웃**: 60000ms
+    * **요청 헤더**: `*`
+    * **응답 헤더**: `*`
+
+    4. iFlow를 배포합니다.
+    5. iFlow 엔드포인트 URL을 참고하세요.
+  </Step>
+
+  <Step>
+    ## RFC 대상 생성
+
+    1. `SM59` 트랜잭션을 사용하여 새로운 RFC 대상을 생성합니다.
+
+    2. 다음 정보를 입력하십시오.
+
+       * **RFC Destination** \[RFC 대상]: 기술 이름(예: `NR_CPI_ENDPOINT`)
+       * **Connection Type** \[연결 유형]: `G` (외부 서버에 대한 HTTP 연결)
+       * **Destination** \[설명]: 클라우드 통합을 통한 뉴렐릭 연결
+
+    3. **Technical Settings** \[기술 설정] 탭에서:
+
+       * **Target Host** \[대상 호스트]: iFlow 엔드포인트의 호스트
+       * **Service No.** \[서비스 번호]: 443
+       * **Path Prefix \[경로 접두사]**: iFlow 엔드포인트의 경로입니다.
+
+    4. **Logon &amp; Security** \[로그온 및 보안] 탭에서:
+
+       * 선택한 방법에 따라 인증을 구성하십시오:
+
+         * **ClientId/Secret** \[클라이언트 ID/시크릿]의 경우: ClientId를 사용자 이름으로, ClientSecret을 비밀번호로 입력합니다.
+         * **Certificate** \[인증서]의 경우: 인증서 세부 정보를 구성하십시오.
+
+    5. **Security Options** \[보안 옵션] 탭에서:
+       * SSL에 대해 **Active** \[활성]을 선택하세요.
+
+    6. 구성을 저장합니다.
+
+    7. **Connection Test** \[연결 테스트를] 클릭하여 연결을 확인하세요.
+  </Step>
+
+  <Step>
+    ## 컬렉션 관리자 구성
+
+    1. 트랜잭션 `/NEWR/ONE_COLLECTION` 을 실행하거나 `/NEWR/ABAP_COLLECTION_MANAGERN`에 대한 변형을 생성합니다.
+    2. **Data Transmission to NR** \[NR로 데이터 전송] 섹션에서:
+       * **Direct** \[직접] 대신 **SAP Cloud Integration** \[SAP 클라우드 통합]을 선택하세요.
+    3. **iFlow Endpoint** \[iFlow 엔드포인트] 필드에서:
+       * 4단계에서 생성한 RFC 대상 이름을 입력합니다(예: `NR_CPI_ENDPOINT`)
+    4. 변형을 저장합니다.
+    5. 수집 작업을 예약하거나 실행합니다.
+  </Step>
+</Steps>
+
+## 데이터 전송 확인
+
+1. 수집 관리자 작업을 실행합니다.
+
+2. SAP 클라우드 통합에서 iFlow 모니터링을 확인하십시오:
+
+   * SAP BTP 통합 제품군에 로그인하세요.
+   * **Monitor** &gt; **Integrations**으로 이동합니다.
+   * 메시지 처리가 성공했는지 확인하세요.
+
+3. 뉴렐릭에서 데이터 도착 확인:
+
+   * 뉴렐릭에 로그인
+   * SAP 대시보드로 이동합니다.
+   * 모니터링 데이터가 수신되는지 확인하세요
+
+<Callout variant="important">
+  표준 iFlow 템플릿을 수정하는 경우, 컬렉션 관리자 프로그램과의 호환성을 유지하기 위해 모든 필수 매핑 및 헤더가 보존되도록 하십시오.
+</Callout>

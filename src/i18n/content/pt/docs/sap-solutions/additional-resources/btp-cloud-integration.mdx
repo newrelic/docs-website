@@ -1,0 +1,184 @@
+---
+title: Conecte-se ao New Relic via BTP Integration Suite
+metaDescription: Configure SAP Cloud Integration as middleware to transmit monitoring data to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Configure o SAP BTP Integration Suite (integração na nuvem) como middleware para transmitir dados de monitoramento para o New Relic quando a conectividade direta não estiver disponível.
+
+## Visão geral
+
+O programa collection manager fornece uma opção para enviar dados para o New Relic usando o SAP Cloud Integration (SAP CPI) como middleware em vez de transmissão direta.
+
+| **Método**            | **Descrição**                                              |
+| --------------------- | ---------------------------------------------------------- |
+| Direto                | Transmissão direta do SAP para o New Relic (método padrão) |
+| SAP Cloud Integration | Usando o SAP CPI como middleware                           |
+
+## Etapas de configuração
+
+<Steps>
+  <Step>
+    ## Determine o método de autorização
+
+    Selecione o tipo de autorização que você usará para o iFlow:
+
+    * **ClientId/Secret** (OAuth2)
+    * **Certificado**
+    * **Certificado Externo**
+  </Step>
+
+  <Step>
+    ## Crie uma instância de serviço e uma chave
+
+    1. Crie uma instância de serviço para o **SAP Process Integration Runtime**.
+    2. Atribua uma chave de serviço ou certificado usando o método de autorização selecionado.
+    3. Faça o download da chave de serviço para uso posterior.
+
+    Para obter instruções detalhadas, consulte [Obter chave de serviço para monitoramento do BTP](/docs/sap-solutions/install-and-configure/obtain-service-key/process-integration-runtime).
+  </Step>
+
+  <Step>
+    ## Configure e implante o iFlow
+
+    Use o iFlow fornecido pela New Relic como modelo:
+
+    1. Copie o modelo de iFlow.
+    2. Atualize o método de autorização para corresponder à sua seleção da Etapa 1.
+    3. Certifique-se de que os seguintes mapeamentos estejam configurados:
+
+    ### Cabeçalhos permitidos
+
+    Configure os cabeçalhos permitidos para conter:
+
+    ```
+    API-Key|targetURL
+    ```
+
+    ### Método de autorização
+
+    * Para **ClientId/Secret** ou **Certificate**: selecione **User Role**
+    * Para **External Certificate**: selecione **Client Certificate** e adicione certificados raiz
+
+    ### Modificador de conteúdo da solicitação
+
+    Configure propriedades de troca para armazenar:
+
+    * `targeturl`
+    * `apikey`
+
+    ### Script Groovy
+
+    Adicione um script para definir dinamicamente os cabeçalhos:
+
+    ```groovy
+    import com.sap.gateway.ip.core.customdev.util.Message;
+    def Message processData(Message message) {
+
+      message.setHeader("API-Key", message.getProperty("apikey"));
+      message.setHeader("Content-Type", "application/json");
+      message.setHeader("Accept", "application/json");
+
+      message.setHeader("CamelHttpUri", message.getProperty("targeturl"));
+
+      def turl = message.getHeader("CamelHttpUri", String);
+
+      def logText = "---Headers---\n";
+
+      message.getHeaders().each { k, v -> logText += "\${k} = \${v}\n" };
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("AllHeaders", logText, "text/plain");
+
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("URL", turl, "text/plain");
+
+      return message;
+    }
+    ```
+
+    ### Response content modifier
+
+    Configure o corpo da mensagem para retornar:
+
+    ```json
+    {
+      "statusCode": "\${header.CamelHttpResponseCode}",
+      "response": \${body}
+    }
+    ```
+
+    ### Configurações de conexão HTTP
+
+    * **Endereço**: `\${header.CamelHttpUri}`
+    * **Método**: POST
+    * **Tempo limite**: 60000 ms
+    * **Cabeçalhos da requisição**: `*`
+    * **Cabeçalhos de resposta**: `*`
+
+    4. Implante o iFlow.
+    5. Anote a URL do endpoint do iFlow.
+  </Step>
+
+  <Step>
+    ## Criar destino RFC
+
+    1. Use a transação `SM59` para criar um novo destino RFC.
+
+    2. Insira as seguintes informações:
+
+       * **RFC Destination**: um nome descritivo (por exemplo, `NR_CPI_ENDPOINT`)
+       * **Connection Type**: `G` (Conexão HTTP para Servidor Externo)
+       * **Description**: conexão com o New Relic via integração na nuvem
+
+    3. Na aba **Technical Settings**:
+
+       * **Target Host**: o host do seu endpoint do iFlow
+       * **Service No.**: 443
+       * **Path Prefix**: o caminho do seu endpoint do iFlow
+
+    4. Na guia **Logon &amp; Security**:
+
+       * Configure a autenticação com base no seu método selecionado:
+
+         * Para **ClientId/Secret**: insira ClientId como nome de usuário e ClientSecret como senha
+         * Para **Certificate**: configure os detalhes do certificado
+
+    5. Na guia **Security Options**:
+       * Selecione **Active** para SSL
+
+    6. Salve a configuração.
+
+    7. Clique em **Connection Test** para verificar a conexão.
+  </Step>
+
+  <Step>
+    ## Configure o gerenciador de coleta
+
+    1. Execute a transação `/NEWR/ONE_COLLECTION` ou crie uma variante para `/NEWR/ABAP_COLLECTION_MANAGERN`.
+    2. Na seção **Data Transmission to NR**:
+       * Selecione **SAP Cloud Integration** em vez de **Direct**
+    3. No campo **iFlow Endpoint**:
+       * Insira o nome do destino RFC criado na Etapa 4 (por exemplo, `NR_CPI_ENDPOINT`)
+    4. Salve a variante.
+    5. Agende ou execute o job de coleta.
+  </Step>
+</Steps>
+
+## Verifique a transmissão de dados
+
+1. Execute o trabalho do gerenciador de coleta.
+
+2. Verifique o monitoramento do iFlow no SAP Cloud Integration:
+
+   * Faça login no SAP BTP Integration Suite
+   * Acesse **Monitor** &gt; **Integrations**
+   * Verifique o processamento bem-sucedido de mensagens
+
+3. Verifique a chegada de dados no New Relic:
+
+   * Faça login na New Relic
+   * Navegue até seus dashboards SAP
+   * Verifique se os dados de monitoramento estão sendo recebidos
+
+<Callout variant="important">
+  Se você modificar o modelo padrão do iFlow, certifique-se de que todos os mapeamentos e cabeçalhos necessários sejam preservados para manter a compatibilidade com o programa gerenciador de coleta.
+</Callout>

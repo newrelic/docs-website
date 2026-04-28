@@ -33,11 +33,12 @@ NRDOT コレクター (推奨) またはOpenTelemetryコレクター contrib を
       * 有効なNew Relic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
       * 監視する必要がある NGINX ポッド上の[HTTP スタブ ステータス](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html)モジュールを有効にします
       * 監視する必要がある各 NGINX ポッドにラベル`app`と`role`を追加します。
-      * 基本的な[Kubernetes OpenTelemetryマニフェストのインストール](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install)を完了する
+      * マニフェストインストールの場合：ベースとなる[Kubernetes OpenTelemetryマニフェストのインストレーション](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install)を完了します
+      * Helmインストールの場合：ベースとなる[Kubernetes OpenTelemetry Helmインストレーション](/docs/kubernetes-pixie/k8s-otel/install/#helm-install)を完了します
 
       ## NRDOT コレクターを構成する [#install-nrdot-collector]
 
-      Kubernetesマニフェストを使用して NRDOT コレクターをインストールします。 Helmのチャートサポートは近日中に提供開始予定です。
+      KubernetesマニフェストまたはHelmを使用してNRDOTコレクターをインストールします。
 
       <CollapserGroup>
         <Collapser id="nrdot-k8s-manifest-install" title="マニフェストのインストール">
@@ -461,7 +462,237 @@ NRDOT コレクター (推奨) またはOpenTelemetryコレクター contrib を
         </Collapser>
 
         <Collapser id="nrdot-k8s-helm-install" title="Helm インストール">
-          NGINX 監視による NRDOT コレクターのHelmチャートのサポートは近日中に提供される予定です。
+          1. `nr-k8s-otel-collector` Helmチャートの[`values.yaml`](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml)を次の変更で更新します：
+
+          a. NRDOTを使用するように、[コレクターイメージリポジトリ](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L90)と[タグ](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L91)を更新します：
+
+          ```yaml
+          images:
+            collector:
+              repository: newrelic/nrdot-collector
+              tag: latest
+          ```
+
+          b. [`deployment.extraConfig`](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L259)の下に次のセクションを追加します：
+
+          <Callout variant="important">
+            `deployment.extraConfig`では、`pipelines:`は`service:`の下にネストするのではなく、ルートレベルで定義する必要があります。helmチャートテンプレートは、`extraConfig.pipelines`を`service.pipelines`に、`extraConfig.service.extensions`を`service.extensions`にマッピングします。
+          </Callout>
+
+          拡張機能：
+
+          ```yaml
+          extensions:
+            health_check:
+              endpoint: 0.0.0.0:13133
+            k8s_observer:
+              auth_type: serviceAccount
+              observe_pods: true
+              observe_nodes: true
+          ```
+
+          レシーバー：
+
+          ```yaml
+          receivers:
+            receiver_creator/nginx:
+              watch_observers: [k8s_observer]
+              receivers:
+                nginx:
+                  rule: type == "pod" && labels["app"] == "nginx" && labels["role"] == "reverse-proxy"  # Update with your labels
+                  resource_attributes:
+                    nginx.server.endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+                    nginx.port: '<YOUR_STUB_STATUS_PORT>'  # Update to match your configuration
+                  config:
+                    endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+                    metrics:
+                      nginx.requests:
+                        enabled: true
+                      nginx.connections_accepted:
+                        enabled: true
+                      nginx.connections_handled:
+                        enabled: true
+                      nginx.connections_current:
+                        enabled: true
+                    collection_interval: 30s
+          ```
+
+          プロセッサ：
+
+          ```yaml
+          processors:
+
+            resource/cluster:
+              attributes:
+                - key: k8s.cluster.name
+                  value: "<CLUSTER_NAME>"  # Replace with your cluster name
+                  action: insert
+
+            transform/nginx:
+              metric_statements:
+                - context: resource
+                  statements:
+                    - set(attributes["nginx.display.name"], Concat([
+                        "server",
+                        "k8s",
+                        attributes["k8s.cluster.name"],
+                        attributes["k8s.namespace.name"],
+                        "pod",
+                        attributes["k8s.pod.name"],
+                        "nginx",
+                        attributes["nginx.port"]
+                      ], ":"))
+                    - set(attributes["nginx.deployment.name"], attributes["k8s.pod.name"])
+
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+          ```
+
+          サービス拡張機能：
+
+          ```yaml
+          service:
+            extensions: [health_check, k8s_observer]
+          ```
+
+          パイプライン：
+
+          ```yaml
+          pipelines:
+            metrics/nginx:
+              receivers: [receiver_creator/nginx]
+              processors: [batch, resource/cluster, transform/nginx, transform/metadata_nullify, memory_limiter]
+              exporters: [otlphttp/newrelic]
+          ```
+
+          #### 設定パラメーター
+
+          次の表では、キー設定について説明します。
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  パラメータ
+                </th>
+
+                <th>
+                  説明
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `<YOUR_STUB_STATUS_PORT>`
+                </td>
+
+                <td>
+                  NGINXのスタブステータスポート（例：80、8080）に置き換えてください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_STUB_STATUS_PATH>`
+                </td>
+
+                <td>
+                  NGINXのスタブステータスパス（例：basic_status）に置き換えてください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<CLUSTER_NAME>`
+                </td>
+
+                <td>
+                  New Relicで識別するためのKubernetesクラスター名に置き換えてください。
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `app`
+
+                   および
+
+                  `role`
+
+                  ラベル
+                </td>
+
+                <td>
+                  NGINX ポッドを識別するために使用されるポッド ラベル (ラベルと一致するようにルールを更新します)
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `collection_interval`
+                </td>
+
+                <td>
+                  メトリクスを収集する間隔 (秒単位)。 デフォルト値は 
+
+                  `30s`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `send_batch_max_size`
+                </td>
+
+                <td>
+                  送信前にバッチ処理するメトリクスの最大数。デフォルト値は 
+
+                  `1000`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `timeout`
+                </td>
+
+                <td>
+                  バッチ処理されたメトリクスを送信する前に待機するタイムアウト時間（秒）。デフォルト値は 
+
+                  `30s`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `memory_limiter`
+                </td>
+
+                <td>
+                  メモリ使用量を制限するために使用されるプロセッサ。
+
+                  `limit_percentage`
+
+                  は、制限が開始される前の最大メモリ割合を設定します
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          2. 更新された値を実行中のHelmリリースに適用します：
+
+          ```bash
+          helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector \
+            --namespace newrelic \
+            --reuse-values \
+            -f values.yaml
+          ```
         </Collapser>
       </CollapserGroup>
     </TabsPageItem>
