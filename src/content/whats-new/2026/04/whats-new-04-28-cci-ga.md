@@ -1,15 +1,15 @@
 ---
 title: 'Cloud Cost Intelligence reaches General Availability'
-summary: 'Unify cloud cost visibility and observability across AWS, Azure, and GCP with production-ready FinOps capabilities'
+summary: 'Unify cloud cost visibility and observability across AWS, Azure, and Google Cloud with production-ready FinOps capabilities'
 releaseDate: '2026-04-28'
-learnMoreLink: 'https://docs.newrelic.com/docs/cci/'
+learnMoreLink: 'https://docs.newrelic.com/docs/cci/overview/'
 ---
 
-We are excited to announce that Cloud Cost Intelligence has officially reached **General Availability**.
+Cloud Cost Intelligence brings full cloud cost visibility directly into New Relic.
 
 In modern cloud environments, cost accountability is a major source of organizational friction. Engineering teams know their services are running, but finance teams can't attribute spend to the right teams, applications, or resources — and optimization opportunities stay buried in spreadsheets. Cloud Cost Intelligence closes that gap by embedding full cloud cost visibility directly into New Relic, alongside the performance data you already rely on every day.
 
-CCI supports all three major cloud providers — **AWS, Azure, and Google Cloud Platform** — and delivers a unified view of your cloud expenditure without requiring you to leave the New Relic platform.
+CCI supports all three major cloud providers — **AWS, Azure, and Google Cloud** — and delivers a unified view of your cloud expenditure without requiring you to leave the New Relic platform.
 
 ## What's included at GA
 
@@ -20,10 +20,6 @@ The centerpiece of CCI is the **Intelligent Summary Dashboard** — an at-a-glan
 ### Cost Overview and Drill-Down Analysis
 
 Go beyond the summary with the **Cost Overview** page. Slice your spend by cloud provider, account, region, charge type, or custom resource tags. Switch between bar charts, line charts, tree charts, and heat maps to find the visualization that surfaces the signal fastest. Drill from the service level all the way down to individual resources in just a few clicks.
-
-### Real-Time Cost Estimation
-
-CCI's **real-time cost estimation** reflects infrastructure changes within one hour of resource provisioning — powered by a combination of your New Relic telemetry data and historical billing patterns. You no longer have to wait until end-of-month billing statements to understand the cost impact of a deployment.
 
 ### Kubernetes Cost Allocation
 
@@ -42,8 +38,16 @@ CCI surfaces cost optimization opportunities from two complementary sources:
 
 Every recommendation can be acknowledged, dismissed, or tracked as pending — giving your FinOps team a clear action queue to work from.
 
+### AI Cost Management
+
+The AI Costs page provides cost visibility for AI services across your cloud providers. It surfaces token-level costs broken down by service, model, and token type, giving you a unified view of AI spending across multi-cloud environments and multiple LLM models.
+
+### Alerts Support
+
+Build cost as an operational metric, with native integrations with Alerts, Notifications and Workflows.
+
 ## The Exciting Road Ahead
 
 Cloud Cost Intelligence at GA is just the beginning. We're continuing to expand multi-cloud recommendation coverage, deepen Kubernetes cost attribution, and build tighter integrations between cost data and the rest of the New Relic observability platform — so you can answer "why did costs spike?" with the same confidence as "why did latency spike?"
 
-We invite you to explore [Cloud Cost Intelligence](https://docs.newrelic.com/docs/cci/) and start connecting your cloud spend to the engineering context that explains it. Your feedback drives our roadmap — reach out to us at cci-support@newrelic.com with questions, ideas, or anything you'd like to see next.
+We invite you to explore [Cloud Cost Intelligence](https://docs.newrelic.com/docs/cci/overview/) and start connecting your cloud spend to the engineering context that explains it. Your feedback drives our roadmap — reach out to us at cci-support@newrelic.com with questions, ideas, or anything you'd like to see next.
