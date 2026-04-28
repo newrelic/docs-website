@@ -6,7 +6,7 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-A integração do Kubernetes da New Relic é executada em **modo privilegiado** por padrão, permitindo que o agente de infraestrutura (executado como um sidecar do DaemonSet) acesse diretamente as informações do host subjacente.
+A integração do Kubernetes da New Relic é executada em **modo privilegiado** por padrão. Isso permite que o agente de infraestrutura acesse diretamente as informações do host subjacente.
 
 Embora isso forneça a telemetria mais completa, algumas políticas de segurança (como Pod Security Standards ou OpenShift SCCs) podem exigir que você execute cargas de trabalho em **modo não privilegiado**.
 
@@ -14,7 +14,7 @@ Embora isso forneça a telemetria mais completa, algumas políticas de seguranç
 
 O agente de infraestrutura do New Relic está incluído no pod do Kubelet e requer acesso de baixo nível ao sistema operacional do nó para coletar métricas detalhadas do sistema.
 
-Embora o valor padrão para `privileged` na [biblioteca comum](https://github.com/newrelic/helm-charts/blob/master/library/common-library/README.md) seja `false`, este chart o define como `true` por padrão (consulte [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml)) para garantir que o agente possa:
+O valor padrão para `privileged` na [biblioteca comum](https://github.com/newrelic/helm-charts/blob/master/library/common-library/README.md) é `false`. No entanto, este chart o define como `true` por padrão (consulte [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml)) para garantir que o agente possa:
 
 * Leia os sistemas de arquivos `/proc` e `/sys` do host.
 * Colete estatísticas precisas de CPU, memória, armazenamento e rede para o **host subjacente**.
@@ -27,10 +27,10 @@ Se a política de segurança do seu cluster não permitir `privileged` no contex
 ### Impacto na coleta de dados
 
 <Callout variant="important">
-  Desabilitar o modo privilegiado resultará na perda de **métricas de nível de host** e metadados.
+  Desabilitar o modo privilegiado resultará na perda de **métricas de nível de host** e metadados. Entidades de host não serão criadas no New Relic.
 </Callout>
 
-Quando não privilegiado, o Agente de Infraestrutura não consegue ver o uso de recursos do host. Você perderá o acesso às métricas de host padrão, incluindo:
+No modo não privilegiado, o agente de infraestrutura não consegue ver o uso de recursos do host e as entidades do host não serão criadas. Você perderá o acesso às métricas de host padrão, incluindo:
 
 * **SystemSample:** CPU, memória e médias de carga no nível do host.
 * **StorageSample:** Uso de disco e E/S para o sistema de arquivos do nó.
@@ -48,8 +48,80 @@ global:
   privileged: false
 ```
 
-### Windows em modo não privilegiado
+### Nós Windows
 
-Contêineres Windows padrão não podem acessar diretamente a infraestrutura do host devido ao isolamento do contêiner. Os contêineres HostProcess poderiam fornecer esse acesso, mas introduzem riscos de segurança adicionais e não são usados atualmente pela integração do New Relic com Kubernetes. Portanto, os DaemonSets do Windows são executados apenas em modo não privilegiado; o modo privilegiado não é suportado para nós Windows.
+Os nós Windows suportam tanto o modo privilegiado quanto o não privilegiado. Ao contrário do Linux, onde o modo privilegiado opera por meio do contexto de segurança do contêiner, **o modo privilegiado do Windows usa contêineres HostProcess** — o mecanismo nativo do Windows para conceder a um contêiner acesso direto aos recursos do host.
 
-Para mais detalhes sobre quais métricas são coletadas neste modo, consulte [Limitações da integração do Kubernetes para Windows](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows/#k8-windows-limitations).
+#### O que são contêineres HostProcess?
+
+Quando você implanta com `windows.privileged=true` (o padrão para nós Windows), os contêineres de monitoramento são executados como contêineres HostProcess do Windows. Este é um modelo de execução fundamentalmente diferente do isolamento de contêiner Windows padrão:
+
+* Os processos do contêiner são executados diretamente no **espaço de processos do SO do host Windows** — eles são visíveis no Gerenciador de Tarefas no nó, não isolados em um namespace de contêiner.
+* `hostNetwork: true` é aplicado automaticamente, dando ao processo acesso a todas as interfaces de rede no nó.
+* O contêiner tem acesso ao **sistema de arquivos e registro do host**.
+* Ele é executado como `NT AUTHORITY\Local Service`, uma conta interna do Windows com privilégios locais limitados, mas com a capacidade de se autenticar em recursos de rede como a conta do computador.
+
+O modo HostProcess é necessário para coletar métricas do host — CPU, memória, disco e interfaces de rede — do próprio nó Windows.
+
+#### Modo não privilegiado para Windows
+
+Quando você define `windows.privileged=false`, os contêineres são executados como `ContainerUser` padrão sem acesso à rede do host. O agente opera no modo apenas de encaminhamento — ele encaminha dados do scraper da integração do kubelet, mas não acessa diretamente os recursos do host. Amostras no nível do nó (`SystemSample`, `StorageSample`, `NetworkSample`) não são coletadas neste modo.
+
+Muitas métricas relacionadas ao nó ainda estão disponíveis no modo não privilegiado via o evento K8sNodeSample. Para obter a lista completa de métricas indisponíveis no modo não privilegiado, consulte [Limitações da integração do Kubernetes para Windows](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows/#k8-windows-limitations).
+
+#### Considerações de segurança para o modo privilegiado do Windows
+
+Como os contêineres HostProcess são executados com acesso direto ao sistema operacional do host, o New Relic recomenda as seguintes práticas ao usar `windows.privileged=true`:
+
+* **Habilite a autorização granular do kubelet** para restringir o RBAC aos endpoints específicos de somente leitura que a integração usa, em vez do subrecurso `nodes/proxy` mais amplo. Isso requer o Kubernetes 1.32+ com o portão de recurso `KubeletFineGrainedAuthz`.
+
+No chart do Helm newrelic-infrastructure:
+
+```yaml
+rbac:
+  kubeletFineGrainedAuth: true
+```
+
+* **Armazene a chave de licença como um Secret do Kubernetes** em vez de inseri-la em `values.yaml` ou passá-la via `--set`, onde ficaria visível no histórico do shell e `helm get values`:
+
+  ```bash
+  kubectl create secret generic newrelic-license \
+    --namespace newrelic \
+    --from-literal=licenseKey=<YOUR_KEY>
+  ```
+
+  ```yaml
+  global:
+    customSecretName: newrelic-license
+    customSecretLicenseKey: licenseKey
+  ```
+
+* **Fixe o DaemonSet em nós designados** usando `kubelet.windowsNodeSelector`. Se o seu cluster tiver nós Windows com diferentes classificações de workload, você pode restringir o monitoramento apenas aos nós que pretende monitorar.
+
+* **Imponha a saída de rede no nível do nó** usando regras do Windows Defender Firewall ou um proxy. Os objetos `NetworkPolicy` do Kubernetes não se aplicam aos pods do HostProcess porque `hostNetwork: true` ignora totalmente a rede do pod. Observe que a aplicação de `NetworkPolicy` também depende do seu plug-in CNI — nem todos os plug-ins CNI aplicam políticas de rede por padrão. Se você depende de `NetworkPolicy` para controle de saída em outro lugar no seu cluster, verifique se a aplicação está realmente ativa antes de depender disso. Se você utiliza um proxy:
+
+  ```yaml
+  global:
+    proxy: "http://your-proxy:3128"
+  ```
+
+* **Defina limites de recursos** para proteger a estabilidade do nó, já que os contêineres HostProcess competem diretamente pelos recursos do nó. O chart define um limite de memória por padrão — você pode mantê-lo ou definir o seu próprio:
+
+  ```yaml
+  kubelet:
+    windows:
+      agent:
+        resources:
+          limits:
+            memory: 300Mi
+  ```
+
+  Um limite de CPU não é definido por padrão. Para um agente de monitoramento, um limite rígido de CPU corre o risco de perder intervalos de coleta sob carga do nó. Se a política do seu cluster exigir um, avalie essa compensação antes de defini-lo.
+
+* **Execute a stack de monitoramento em um namespace dedicado** e restrinja quem pode criar ou modificar recursos nele. Como os pods HostProcess são executados com acesso direto ao host, o acesso lateral a esse namespace deve ser tratado como equivalente ao acesso ao nó.
+
+* **Garanta que seu monitoramento de segurança do Windows existente cubra esses nós.** Os processos de contêiner HostProcess são executados diretamente no espaço de processo do SO do host e são visíveis para o host como qualquer outro processo. Eles aparecem na saída de `Get-Process` e, com a auditoria de criação de processo ativada, nos eventos de log de Security 4688 (criação de processo) e 4689 (encerramento de processo).
+
+  O sinal identificável para um lançamento de contêiner HostProcess no log de Security é `containerd-shim-runhcs-v1.exe` como o Processo Criador gerando `cmd.exe` como `NT AUTHORITY\Local Service`, seguido pelos processos do agente (`newrelic-infra.exe` e `nri-kubernetes`) mais abaixo na cadeia.
+
+  Observe que a auditoria de criação de processos está desativada por padrão no Windows e requer privilégios de administrador ou SYSTEM para ser ativada e para ler o log de Security — ela não pode ser configurada de dentro do próprio contêiner da New Relic. Se a sua organização usa um SIEM, o Windows Event Forwarding ou uma ferramenta de EDR para coletar logs de eventos de hosts Windows, certifique-se de que a cobertura se estenda aos seus nós Windows do Kubernetes.
