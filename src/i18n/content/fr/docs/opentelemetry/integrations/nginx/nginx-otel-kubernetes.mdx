@@ -33,11 +33,12 @@ Choisissez votre collecteur préféré et suivez les étapes :
       * [Clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)New Relic valide
       * Activez le module [HTTP stub status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) sur le pod NGINX qui doit être monitoré
       * Ajoutez les étiquettes `app` et `role` à chaque pod NGINX qui doit être monitoré
-      * Terminez l&apos;installation de base du [manifeste Kubernetes OpenTelemetry](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install)
+      * Pour l&apos;installation via manifeste : terminez l&apos;installation de base du [manifeste Kubernetes OpenTelemetry](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install)
+      * Pour l&apos;installation Helm : terminez l&apos;[installation Helm d&apos;OpenTelemetry sur Kubernetes](/docs/kubernetes-pixie/k8s-otel/install/#helm-install)de base
 
       ## Configurer le collecteur NRDOT [#install-nrdot-collector]
 
-      Installer le collecteur NRDOT à l&apos;aide de manifestes Kubernetes. La prise en charge des charts Helm sera bientôt disponible.
+      Installer le collecteur NRDOT à l&apos;aide de manifestes Kubernetes ou Helm.
 
       <CollapserGroup>
         <Collapser id="nrdot-k8s-manifest-install" title="Installation via manifeste">
@@ -459,7 +460,237 @@ Choisissez votre collecteur préféré et suivez les étapes :
         </Collapser>
 
         <Collapser id="nrdot-k8s-helm-install" title="Installation Helm">
-          La prise en charge des charts Helm pour le collecteur NRDOT avec le monitoring NGINX sera bientôt disponible.
+          1. Mettez à jour votre [`values.yaml`](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml) pour le chart Helm `nr-k8s-otel-collector` avec les modifications suivantes :
+
+          a. Mettre à jour le [référentiel de l&apos;image du collecteur](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L90) et le [tag](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L91) pour utiliser NRDOT :
+
+          ```yaml
+          images:
+            collector:
+              repository: newrelic/nrdot-collector
+              tag: latest
+          ```
+
+          b. Ajoutez les sections suivantes sous [`deployment.extraConfig`](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L259):
+
+          <Callout variant="important">
+            Dans `deployment.extraConfig`, `pipelines:` doit être défini au niveau racine — et non imbriqué sous `service:`. Le modèle de chart Helm associe `extraConfig.pipelines` à `service.pipelines`, et `extraConfig.service.extensions` à `service.extensions`.
+          </Callout>
+
+          Extensions :
+
+          ```yaml
+          extensions:
+            health_check:
+              endpoint: 0.0.0.0:13133
+            k8s_observer:
+              auth_type: serviceAccount
+              observe_pods: true
+              observe_nodes: true
+          ```
+
+          Récepteurs :
+
+          ```yaml
+          receivers:
+            receiver_creator/nginx:
+              watch_observers: [k8s_observer]
+              receivers:
+                nginx:
+                  rule: type == "pod" && labels["app"] == "nginx" && labels["role"] == "reverse-proxy"  # Update with your labels
+                  resource_attributes:
+                    nginx.server.endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+                    nginx.port: '<YOUR_STUB_STATUS_PORT>'  # Update to match your configuration
+                  config:
+                    endpoint: 'http://`endpoint`:<YOUR_STUB_STATUS_PORT>/<YOUR_STUB_STATUS_PATH>'  # Update port and path as needed
+                    metrics:
+                      nginx.requests:
+                        enabled: true
+                      nginx.connections_accepted:
+                        enabled: true
+                      nginx.connections_handled:
+                        enabled: true
+                      nginx.connections_current:
+                        enabled: true
+                    collection_interval: 30s
+          ```
+
+          Processeurs :
+
+          ```yaml
+          processors:
+
+            resource/cluster:
+              attributes:
+                - key: k8s.cluster.name
+                  value: "<CLUSTER_NAME>"  # Replace with your cluster name
+                  action: insert
+
+            transform/nginx:
+              metric_statements:
+                - context: resource
+                  statements:
+                    - set(attributes["nginx.display.name"], Concat([
+                        "server",
+                        "k8s",
+                        attributes["k8s.cluster.name"],
+                        attributes["k8s.namespace.name"],
+                        "pod",
+                        attributes["k8s.pod.name"],
+                        "nginx",
+                        attributes["nginx.port"]
+                      ], ":"))
+                    - set(attributes["nginx.deployment.name"], attributes["k8s.pod.name"])
+
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+          ```
+
+          Extensions de service :
+
+          ```yaml
+          service:
+            extensions: [health_check, k8s_observer]
+          ```
+
+          Pipelines :
+
+          ```yaml
+          pipelines:
+            metrics/nginx:
+              receivers: [receiver_creator/nginx]
+              processors: [batch, resource/cluster, transform/nginx, transform/metadata_nullify, memory_limiter]
+              exporters: [otlphttp/newrelic]
+          ```
+
+          #### Paramètres de configuration
+
+          Le tableau suivant décrit les principaux paramètres de configuration :
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  paramètres
+                </th>
+
+                <th>
+                  Description
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `<YOUR_STUB_STATUS_PORT>`
+                </td>
+
+                <td>
+                  Remplacez par votre port de statut stub NGINX (par exemple 80, 8080)
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_STUB_STATUS_PATH>`
+                </td>
+
+                <td>
+                  Remplacez par le chemin de votre statut stub NGINX (par exemple basic_status)
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<CLUSTER_NAME>`
+                </td>
+
+                <td>
+                  Remplacez par le nom de votre cluster Kubernetes pour l&apos;identification dans New Relic
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `app`
+
+                   et 
+
+                  `role`
+
+                   labels
+                </td>
+
+                <td>
+                  Labels de pod utilisés pour identifier les pods NGINX (mettez à jour la règle pour correspondre à vos labels)
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `collection_interval`
+                </td>
+
+                <td>
+                  Intervalle en secondes pour collecter les métriques. La valeur par défaut est définie sur 
+
+                  `30s`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `send_batch_max_size`
+                </td>
+
+                <td>
+                  Nombre maximal de métriques à regrouper en lot avant l&apos;envoi. La valeur par défaut est définie sur 
+
+                  `1000`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `timeout`
+                </td>
+
+                <td>
+                  Délai d&apos;attente en secondes avant d&apos;envoyer les métriques groupées. La valeur par défaut est définie sur 
+
+                  `30s`
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `memory_limiter`
+                </td>
+
+                <td>
+                  Processeur utilisé pour limiter l&apos;utilisation de la mémoire. 
+
+                  `limit_percentage`
+
+                   définit le pourcentage maximal de mémoire avant le début de la limitation
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          2. Appliquez les valeurs mises à jour à votre sortie Helm en cours d&apos;exécution :
+
+          ```bash
+          helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector \
+            --namespace newrelic \
+            --reuse-values \
+            -f values.yaml
+          ```
         </Collapser>
       </CollapserGroup>
     </TabsPageItem>
