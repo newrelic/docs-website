@@ -2,7 +2,7 @@
 title: 'Amazon CloudWatch Metric Streams'
 summary: 'More metrics, more often - fill gaps in your observability with Amazon CloudWatch Metric Streams and New Relic One.'
 releaseDate: '2021-03-31'
-getStartedLink: 'https://one.nr/0GbRmVXWnjy'
+getStartedLink: 'https://onenr.io/0GbRmVXWnjy'
 learnMoreLink: 'https://blog.newrelic.com/product-news/aws-cloudwatch-metric-streams/'
 ---
 
