@@ -46,7 +46,7 @@ The **AI Costs** page provides cost visibility for AI services across your cloud
 
 Build cost as an operational metric, with native integrations with Alerts, Notifications and Workflows.
 
-## The exciting eoad ahead
+## The exciting road ahead
 
 Cloud Cost Intelligence at GA is just the beginning. We're continuing to expand multi-cloud recommendation coverage, deepen Kubernetes cost attribution, and build tighter integrations between cost data and the rest of the New Relic observability platform — so you can answer "why did costs spike?" with the same confidence as "why did latency spike?"
 
