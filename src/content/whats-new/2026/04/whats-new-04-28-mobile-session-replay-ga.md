@@ -1,7 +1,7 @@
 ---
 title: 'Mobile Update: Session replay is now generally available'
 summary: 'Troubleshoot faster and deliver better customer experiences with full-stack visibility into your mobile app sessions'
-learnMoreLink: 'https://newrelic.com/docs/mobile-monitoring/mobile-monitoring-ui/mobile-session-replay/introduction'
+learnMoreLink: 'https://docs.newrelic.com/docs/mobile-monitoring/mobile-monitoring-ui/mobile-session-replay/introduction/'
 releaseDate: '2026-04-28'
 ---
 
