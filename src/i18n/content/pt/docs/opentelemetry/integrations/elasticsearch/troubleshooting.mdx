@@ -10,7 +10,9 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-Se você concluiu a [instalação da integração do Elasticsearch com OpenTelemetry](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-install) mas não vê dados no New Relic, encontre seu problema abaixo e siga as etapas de solução.
+Se você concluiu a [instalação da integração do Elasticsearch com OpenTelemetry](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-install) ou a [instalação no Kubernetes](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install) mas não vê dados no New Relic, encontre seu problema abaixo e siga as etapas de solução.
+
+## Implantações baseadas em host [#host-troubleshooting]
 
 <CollapserGroup>
   <Collapser id="troubleshoot-collector-stopped" title="O serviço do Collector parou ou falhou">
@@ -155,5 +157,165 @@ Se você concluiu a [instalação da integração do Elasticsearch com OpenTelem
         otlphttp
       </InlineCode>
       .
+  </Collapser>
+</CollapserGroup>
+
+## Implantações do Kubernetes [#kubernetes-troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-k8s-no-pods-discovered" title="Nenhum pod do Elasticsearch descoberto - rótulos ausentes">
+    <strong>Como verificar</strong>
+
+    ```bash
+    # Verify your Elasticsearch pods have the required label
+    kubectl get pods -n <namespace> -l app=elasticsearch --show-labels
+    ```
+
+    <strong>Resolução</strong>
+
+    Se nenhum pod for retornado, seus pods do Elasticsearch não possuem o rótulo <InlineCode>
+      app=elasticsearch
+    </InlineCode> obrigatório. O receiver\_creator não consegue descobrir pods sem rótulos correspondentes.
+
+    * Para StatefulSet/Implantação, adicione o rótulo no modelo do pod:
+      ```yaml
+      spec:
+        template:
+          metadata:
+            labels:
+              app: elasticsearch
+      ```
+    * Para pods existentes, adicione o rótulo e reinicie:
+      ```bash
+      kubectl label pods -l <your-selector> app=elasticsearch -n <namespace>
+      kubectl rollout restart statefulset/elasticsearch -n <namespace>
+      ```
+    * Se estiver usando rótulos personalizados, atualize a regra do receiver no values.yaml para corresponder aos seus rótulos:
+      ```yaml
+      rule: type == "pod" && labels["app"] == "your-custom-label"
+      ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-collector-not-running" title="Pods do Collector não executando ou falhando">
+    <strong>Como verificar</strong>
+
+    ```bash
+    kubectl get pods -n newrelic
+    kubectl describe pod <collector-pod-name> -n newrelic
+    ```
+
+    <strong>Resolução</strong>
+
+    * Verifique os eventos do pod para erros:
+      <InlineCode>
+        kubectl describe pod
+      </InlineCode>
+    * Revise os logs do coletor:
+      ```bash
+      kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+      ```
+    * Verifique se o segredo existe:
+      ```bash
+      kubectl get secret newrelic-licenses -n newrelic
+      ```
+    * Verifique se os limites de recursos não estão muito baixos
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-discovery-errors" title="O criador de receptores não consegue descobrir pods">
+    <strong>Como verificar</strong>
+
+    ```bash
+    # Check collector logs for discovery errors
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector | grep "receiver_creator"
+    ```
+
+    <strong>Resolução</strong>
+
+    * Verifique se as permissões RBAC estão definidas corretamente:
+      ```bash
+      kubectl get clusterrole | grep opentelemetry
+      kubectl describe clusterrole <role-name>
+      ```
+    * Certifique-se de que o coletor tenha permissões para monitorar pods, nós e endpoints
+    * Verifique se a extensão k8s\_observer está ativada na configuração
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-network-connectivity" title="O Collector não consegue se conectar aos pods do Elasticsearch">
+    <strong>Como verificar</strong>
+
+    ```bash
+    # Check network policies
+    kubectl get networkpolicies -n <namespace>
+
+    # Test connectivity from collector to Elasticsearch
+    kubectl exec -n newrelic <collector-pod> -- curl http://<es-pod-ip>:9200
+    ```
+
+    <strong>Resolução</strong>
+
+    * Verifique se as políticas de rede permitem o tráfego do namespace newrelic para o seu namespace Elasticsearch
+    * Verifique se os pods do Elasticsearch estão expondo a porta correta (padrão: 9200)
+    * Certifique-se de que nenhuma regra de firewall bloqueie a comunicação entre pods
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-wrong-endpoint" title="403 Forbidden ou erros de autenticação no Kubernetes">
+    <strong>Amostra de erro</strong>: <InlineCode>
+      permanent error: 403 Forbidden
+    </InlineCode>
+
+    <strong>Resolução</strong>
+
+    * Verifique se o segredo contém a chave de licença correta:
+      ```bash
+      kubectl get secret newrelic-licenses -n newrelic -o jsonpath='{.data.NEWRELIC_LICENSE_KEY}' | base64 -d
+      ```
+    * Certifique-se de que o endpoint OTLP esteja correto para sua região
+    * Verifique se o segredo está montado no pod do coletor:
+      ```bash
+      kubectl describe pod <collector-pod> -n newrelic | grep -A5 "Environment"
+      ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-logs-not-collected" title="Logs não sendo coletados no Kubernetes">
+    <strong>Resolução</strong>
+
+    * Verifique se você está usando
+      <InlineCode>
+        mode: daemonset
+      </InlineCode>
+      (o modo de implantação não pode acessar os logs do nó)
+    * Verifique se as montagens de volume estão configuradas corretamente:
+      ```bash
+      kubectl describe pod <collector-pod> -n newrelic | grep -A10 "Mounts"
+      ```
+    * Verifique se o caminho do receptor filelog corresponde aos logs do seu pod do Elasticsearch:
+      ```bash
+      kubectl exec -n newrelic <collector-pod> -- ls /var/log/pods/*/elasticsearch*/*.log
+      ```
+    * Certifique-se de que o coletor tenha permissões de leitura nos diretórios de log do host
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-cluster-name-missing" title="Métricas sem o atributo k8s.cluster.name">
+    <strong>Resolução</strong>
+
+    * Verifique se a variável de ambiente
+      <InlineCode>
+        K8S_CLUSTER_NAME
+      </InlineCode>
+      está definida no values.yaml
+    * Verifique se o processador
+      <InlineCode>
+        resource/cluster
+      </InlineCode>
+      está no pipeline de métricas
+    * Consulta para verificar:
+      ```sql
+      FROM Metric SELECT * WHERE metricName LIKE 'elasticsearch.%' LIMIT 1
+      ```
+      Verifique se o atributo
+      <InlineCode>
+        k8s.cluster.name
+      </InlineCode>
+      está presente
   </Collapser>
 </CollapserGroup>
