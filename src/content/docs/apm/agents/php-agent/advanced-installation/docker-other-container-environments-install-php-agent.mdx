@@ -12,104 +12,248 @@ redirects:
 freshnessValidatedDate: 2024-07-31
 ---
 
-You can install the PHP agent on a Docker container or other container to monitor one or more of your PHP applications. This is supported for containers that meet the standard [PHP agent compatibility and requirements](/docs/agents/php-agent/getting-started/php-agent-compatibility-requirements).
+The PHP agent works inside Docker containers, but it requires both its components — the PHP extension and the daemon — to be present and communicating. How you arrange those two components is the key decision.
+
+## Choose your container setup [#choose-setup]
+
+<table>
+  <thead>
+    <tr>
+      <th width={220}>Setup</th>
+      <th>When to use it</th>
+      <th>Trade-off</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>**Same container** (recommended)</td>
+      <td>Single-service containers, most standard deployments, getting started quickly.</td>
+      <td>Simpler to configure. Both components share the container lifecycle.</td>
+    </tr>
+    <tr>
+      <td>**Separate containers**</td>
+      <td>Short-lived app containers (jobs, workers), sidecar architectures, or when you want one daemon shared across many app containers.</td>
+      <td>More moving parts. Agent-to-daemon traffic is unencrypted — use a private network.</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## Option 1: Same container (recommended) [#install-same-container]
+
+Install the agent and daemon together in a single image. This is the simplest setup and works for most deployments.
+
+### Step 1: Build the image [#same-container-build]
+
+The Dockerfile below installs the latest PHP agent and configures it to read your license key and app name from environment variables at runtime. Copy this into your project and extend it as needed.
+
+```dockerfile
+FROM php:fpm
+
+# Install the latest New Relic PHP agent
+RUN \
+    cd /tmp \
+    # Discover the latest released version
+    && export NEW_RELIC_AGENT_VERSION=$(curl -s https://download.newrelic.com/php_agent/release/ | grep -o '[1-9][0-9]\?\(\.[0-9]\+\)\{3\}' | head -n1) \
+    # Detect libc type (glibc vs musl/Alpine)
+    && export NR_INSTALL_PLATFORM=$(ldd --version 2>&1 | grep -q musl && echo "linux-musl" || echo "linux") \
+    # Download the agent
+    && curl -o newrelic-php-agent.tar.gz https://download.newrelic.com/php_agent/release/newrelic-php5-${NEW_RELIC_AGENT_VERSION}-${NR_INSTALL_PLATFORM}.tar.gz \
+    # Install
+    && tar xzf newrelic-php-agent.tar.gz \
+    && NR_INSTALL_USE_CP_NOT_LN=1 NR_INSTALL_SILENT=0 ./*/newrelic-install install \
+    # Wire up env var substitution for license key and app name
+    && sed -ie 's/[ ;]*newrelic.license[[:space:]]=.*/newrelic.license=${NEW_RELIC_LICENSE_KEY}/' $(php-config --ini-dir)/newrelic.ini \
+    && sed -ie 's/[ ;]*newrelic.appname[[:space:]]=.*/newrelic.appname=${NEW_RELIC_APP_NAME}/' $(php-config --ini-dir)/newrelic.ini \
+    # Clean up
+    && rm newrelic-php-agent.tar.gz && rm -rf newrelic-php5-*-linux
+```
 
 <Callout variant="important">
-  The PHP agent's daemon transmits data to New Relic periodically during the minute-long [harvest cycle](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#harvest-cycle). If you're starting up and tearing down containers often, ensure that you leave the daemon container running long enough to transmit any remaining data.
+  **Alpine Linux?** Use `newrelic-php5-${NEW_RELIC_AGENT_VERSION}-linux-musl.tar.gz` instead. The `ldd --version` check above handles this automatically.
 </Callout>
 
-## Container options [#overview]
+### Step 2: Set required environment variables [#same-container-env]
 
-The PHP agent requires two components to work: the PHP agent (one for each application) and a [daemon](/docs/agents/php-agent/getting-started/new-relic-daemon-processes), which aggregates data sent from one or more agents and sends it to New Relic. For this reason, there are two options for enabling the PHP agent for container environments:
+When you run a container from this image, pass exactly two required variables:
 
-* [Install agent and daemon on different containers.](#install-diff-containers) This may be useful if you have short-lived containers.
-* [Install agent and daemon on the same container.](#install-same-container) This is the recommended setup.
+```bash
+docker run \
+  -e NEW_RELIC_LICENSE_KEY="YOUR_LICENSE_KEY" \
+  -e NEW_RELIC_APP_NAME="My PHP App" \
+  your-image-name
+```
 
-## Install agent and daemon in different containers [#install-diff-containers]
+| Variable | Required? | What it does |
+|---|---|---|
+| `NEW_RELIC_LICENSE_KEY` | **Required** | Authenticates your agent with New Relic. Find it in **Account settings → API keys**. |
+| `NEW_RELIC_APP_NAME` | **Required** | Names your app in the APM UI. All containers sharing the same name report as one application. |
 
-Installing the agent and daemon in different containers is supported starting with New Relic PHP agent release 9.2.0.
+### Step 3: Prevent first-transaction data loss [#same-container-timeout]
 
-To see an example application, go to [New Relic's Support Forum](https://discuss.newrelic.com/t/relic-solution-php-agent-and-daemon-containers/84841). If you're using short-lived application containers, we recommend you use a separate container for the PHP agent's daemon.
+By default, the agent triggers daemon startup on the first request and does not wait for the connection to complete. This causes the first transaction to be dropped. To prevent this, add these two settings to `newrelic.ini` (or inject them as additional `sed` commands in your Dockerfile):
 
-<Callout variant="caution">
-  Data transmitted from the agent to the daemon is **not** encrypted. The only exception to this is the [SQL obfuscation](/docs/agents/php-agent/configuration/php-agent-configuration#inivar-tt-sql) that happens before sending data to the daemon. If the agent and daemon are running on different hosts, we recommend that you use a private network connection between the agent and daemon.
-</Callout>
+```ini
+newrelic.daemon.start_timeout = 5s
+newrelic.daemon.app_connect_timeout = 15s
+```
 
-### Set up the daemon container [#daemon-container]
+These tell the agent to wait up to 5 seconds for the daemon to start and 15 seconds for the app connection — so no transactions are lost on container startup.
 
-If you use Docker, you can pull our daemon image from [Docker Hub](https://hub.docker.com/r/newrelic/php-daemon):
+### Step 4: Verify data is flowing [#same-container-verify]
 
-1. Run this command: `docker pull newrelic/php-daemon`.
-2. To customize the image, follow the steps on [Docker Hub](https://hub.docker.com/r/newrelic/php-daemon).
-
-You can also build your own daemon image:
-
-1. To install the daemon, download the PHP agent package from New Relic's [tar file download site](/docs/agents/php-agent/installation/php-agent-installation-tar-file), and run the `newrelic-install` script with the `install_daemon` argument.
-2. Start the daemon using `--address` and `--watchdog-foreground` arguments.
-
-The `--address` argument sets a port for the daemon to accept connections. The `--watchdog-foreground` argument ensures that the daemon runs in the foreground.
-
-### Set up the PHP agent container [#agent-container]
-
-To set up the PHP agent container for Docker:
-
-1. Make sure a PHP installation is available in the container. For example, use a [Docker "Official Image"](https://github.com/docker-library/official-images#what-are-official-images) for [`php`](https://hub.docker.com/_/php/) like `php:fpm` or `php:cli`.
-2. To install the agent, download the PHP agent package from New Relic's [download site](https://download.newrelic.com/php_agent/release/), and run the `newrelic-install` script with the `install` argument.
-3. In the `newrelic.ini` file, set the application name and <InlinePopover type="licenseKey"/> with the `newrelic.appname` and `newrelic.license` entries .
-4. Point the agent to the daemon by setting the `newrelic.daemon.address` option in the `newrelic.ini` file. Make sure the value for this option is `HOST:PORT`, where `HOST` is the name or IP address of the host where the daemon is running, and `PORT` is the port number where the daemon is listening
-
-## Install agent and daemon in the same container [#install-same-container]
-
-<Callout variant="caution">
-  By default, the first transaction causes the agent to trigger a daemon start and an application connection initialization. For performance reasons, the agent does not wait for those operations to complete before it initializes the connection. This can result in the loss of the first few transactions after a container starts. To prevent this loss, set both `newrelic.daemon.start_timeout` and `newrelic.daemon.app_connect_timeout` entries in the `newrelic.ini` file to our [recommended values](https://discuss.newrelic.com/t/php-troubleshooting-framework-configuration/119980) of 5s and 15s respectively.
-</Callout>
-
-To set up the PHP agent and daemon in the same Docker container:
-
-1. Make sure a PHP installation is available in the container. For example, use a [Docker "Official Image"](https://github.com/docker-library/official-images#what-are-official-images) for [`php`](https://hub.docker.com/_/php/) like `php:fpm` or `php:cli`.
-2. To install the agent, download the PHP agent package from New Relic's [download site](https://download.newrelic.com/php_agent/release/) and run the `newrelic-install` script with the `install` argument.
-3. Set the application name and <InlinePopover type="licenseKey"/> via the `newrelic.license` and `newrelic.appname` entries in the `newrelic.ini` file.
-
-<CollapserGroup>
-  <Collapser
-    id="dockerfile-example"
-    title="Dockerfile example"
-  >
-    ```dockerfile
-    FROM php:fpm
-
-    # Install the latest New Relic PHP Agent
-    RUN \
-        cd /tmp \
-        # Discover the latest released version:
-        && export NEW_RELIC_AGENT_VERSION=$(curl -s https://download.newrelic.com/php_agent/release/ | grep -o '[1-9][0-9]\?\(\.[0-9]\+\)\{3\}' | head -n1) \
-        # Discover libc provider
-        && export NR_INSTALL_PLATFORM=$(ldd --version 2>&1 | grep -q musl && echo "linux-musl" || echo "linux") \
-        # Download the discovered version:
-        && curl -o newrelic-php-agent.tar.gz https://download.newrelic.com/php_agent/release/newrelic-php5-${NEW_RELIC_AGENT_VERSION}-${NR_INSTALL_PLATFORM}.tar.gz \
-        # Install the downloaded agent:
-        && tar xzf newrelic-php-agent.tar.gz \
-        && NR_INSTALL_USE_CP_NOT_LN=1 NR_INSTALL_SILENT=0 ./*/newrelic-install install \
-        # Configure the agent to use license key from NEW_RELIC_LICENSE_KEY env var:
-        && sed -ie 's/[ ;]*newrelic.license[[:space:]]=.*/newrelic.license=${NEW_RELIC_LICENSE_KEY}/' $(php-config --ini-dir)/newrelic.ini \
-        # Configure the agent to use app name from NEW_RELIC_APP_NAME env var:
-        && sed -ie 's/[ ;]*newrelic.appname[[:space:]]=.*/newrelic.appname=${NEW_RELIC_APP_NAME}/' $(php-config --ini-dir)/newrelic.ini \
-        # Cleanup temporary files:
-        && rm newrelic-php-agent.tar.gz && rm -rf newrelic-php5-*-linux
-    ```
-
-    You must set two environment variables when starting the container from the image built using the above `Dockerfile`:
-
-    * `NEW_RELIC_LICENSE_KEY`: set this to your <InlinePopover type="licenseKey"/>.
-    * `NEW_RELIC_APP_NAME`: set this to your application name
-  </Collapser>
-</CollapserGroup>
+1. Start the container and send at least two requests to your application.
+2. The daemon requires two transactions on first start before it begins reporting data — this is expected.
+3. Wait a few minutes, then open [New Relic APM](https://one.newrelic.com/apm) and confirm your app appears.
 
 <Callout variant="tip">
-  Here are some Docker troubleshooting resources:
-
-  * [Monitoring containers that run a single PHP script](https://discuss.newrelic.com/t/relic-solution-single-php-script-docker-containers/80386)
-  * [Troubleshooting tips for the PHP agent](https://discuss.newrelic.com/t/php-troubleshooting-framework-configuration/119980)
+  No data after a few minutes? See [No data appears (PHP)](/docs/agents/php-agent/troubleshooting/no-data-appears-php).
 </Callout>
+
+---
+
+## Option 2: Separate containers [#install-diff-containers]
+
+Run the PHP agent and daemon in separate containers. This is useful when you have many short-lived app containers that would waste resources spinning up a daemon each, or when you want centralized daemon management.
+
+<Callout variant="caution">
+  **Security note:** Data between the agent and daemon is **not encrypted**. If agent and daemon containers are on different hosts or an untrusted network, use a private network connection between them.
+</Callout>
+
+### Step 1: Set up the daemon container [#daemon-container]
+
+**Option A — Use the official New Relic daemon image from Docker Hub:**
+
+```bash
+docker pull newrelic/php-daemon
+docker run --name nr-daemon \
+  -p 31339:31339 \
+  newrelic/php-daemon
+```
+
+**Option B — Build your own daemon image:**
+
+```bash
+# Install the daemon only (no PHP extension)
+./newrelic-install install_daemon
+
+# Start the daemon listening on a TCP port
+newrelic-daemon --address=0.0.0.0:31339 --watchdog-foreground
+```
+
+The `--address` flag sets the port the daemon listens on. The `--watchdog-foreground` flag keeps the daemon in the foreground so Docker can manage the process.
+
+### Step 2: Configure the agent container [#agent-container]
+
+Install the PHP agent in your app container exactly as you would for a same-container setup (steps 1–2 above), then add one additional configuration in `newrelic.ini`:
+
+```ini
+; Required: Point the agent at your daemon container
+; Replace "nr-daemon" with the hostname or IP of your daemon container
+; Replace 31339 with the port you configured in Step 1
+newrelic.daemon.address = "nr-daemon:31339"
+
+; Required as always
+newrelic.license = "YOUR_LICENSE_KEY"
+newrelic.appname = "My PHP App"
+```
+
+| Setting | Required? | Notes |
+|---|---|---|
+| `newrelic.daemon.address` | **Required for separate containers** | Must match the `--address` on the daemon. Use `HOST:PORT` format. |
+| `newrelic.license` | **Required** | Can be set via env var (see Option 1 Dockerfile). |
+| `newrelic.appname` | **Required** | Can be set via env var (see Option 1 Dockerfile). |
+
+### Step 3: Verify the connection [#diff-container-verify]
+
+1. Start the daemon container first. The daemon must be running before app containers try to connect.
+2. Start the app container and send at least two requests.
+3. Check daemon logs for connection messages: `docker logs nr-daemon`
+4. Wait a few minutes, then confirm your app appears in [New Relic APM](https://one.newrelic.com/apm).
+
+<Callout variant="important">
+  **Container startup order matters.** The daemon must be ready before your PHP application starts processing requests. In Docker Compose, use `depends_on` with a health check on the daemon container. In Kubernetes, use an init container or readiness probe.
+</Callout>
+
+---
+
+## Complete your setup [#complete-setup]
+
+A basic install gives you transaction traces, error rates, and throughput. Enable these after your initial setup:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>Feature</th>
+      <th>What it gives you</th>
+      <th>Doc</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Distributed tracing</td>
+      <td>See requests flowing across services and microservices end-to-end</td>
+      <td>[Enable distributed tracing](/docs/apm/agents/php-agent/configuration/distributed-tracing-php-agent)</td>
+    </tr>
+    <tr>
+      <td>Browser monitoring</td>
+      <td>Correlate back-end performance with real-user front-end experience</td>
+      <td>[Browser monitoring with PHP](/docs/apm/agents/php-agent/features/browser-monitoring-php-agent)</td>
+    </tr>
+    <tr>
+      <td>Logs in context</td>
+      <td>See log messages alongside your errors and traces without switching tools</td>
+      <td>[PHP logs in context](/docs/logs/logs-context/configure-logs-context-php/)</td>
+    </tr>
+    <tr>
+      <td>Code-level metrics</td>
+      <td>View APM data inline in your IDE via the CodeStream extension</td>
+      <td>[Code-level metrics](/docs/apm/agents/php-agent/features/php-code-level-metrics)</td>
+    </tr>
+    <tr>
+      <td>Custom instrumentation</td>
+      <td>Capture transactions not covered by automatic instrumentation</td>
+      <td>[PHP custom instrumentation](/docs/apm/agents/php-agent/features/php-custom-instrumentation)</td>
+    </tr>
+    <tr>
+      <td>Framework-specific setup</td>
+      <td>Extra steps for Laravel, WordPress, Drupal, Magento, and others</td>
+      <td>[Frameworks and libraries](/docs/apm/agents/php-agent/frameworks-libraries)</td>
+    </tr>
+  </tbody>
+</table>
+
+## What's next [#whats-next]
+
+<DocTiles>
+  <DocTile
+    title="View your data in APM"
+    path="/docs/apm/applications-menu/monitoring/apm-overview-page"
+  >
+    Confirm data is flowing from your container and explore transactions, errors, and throughput.
+  </DocTile>
+
+  <DocTile
+    title="Enable distributed tracing"
+    path="/docs/apm/agents/php-agent/configuration/distributed-tracing-php-agent"
+  >
+    Trace requests across containers and microservices end-to-end.
+  </DocTile>
+
+  <DocTile
+    title="Daemon configuration reference"
+    path="/docs/apm/agents/php-agent/configuration/proxy-daemon-newreliccfg-settings"
+  >
+    Running the daemon in a separate container? Tune socket address, log level, proxy, and other daemon settings here.
+  </DocTile>
+
+  <DocTile
+    title="No data appearing?"
+    path="/docs/agents/php-agent/troubleshooting/no-data-appears-php"
+  >
+    Container-specific causes: daemon not yet ready, wrong socket address, or harvest cycle too short for short-lived containers.
+  </DocTile>
+</DocTiles>
 
 <InstallFeedback/>
