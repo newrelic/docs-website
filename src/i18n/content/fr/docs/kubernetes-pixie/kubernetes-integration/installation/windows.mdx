@@ -1,0 +1,213 @@
+---
+title: Monitorer les nœuds Windows
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Windows
+metaDescription: How to enable and configure Windows node monitoring in the New Relic Kubernetes integration.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+L&apos;intégration New Relic Kubernetes prend nativement en charge le monitoring des nœuds Windows aux côtés des nœuds Linux dans le même cluster — vous n&apos;avez pas besoin d&apos;un graphique Helm ou d&apos;une installation séparée.
+
+Découvrez comment activer et configurer le monitoring des nœuds Windows. Pour plus de détails sur le modèle d&apos;exécution privilégié vs non privilégié et les considérations de sécurité, consultez [Mode privilégié vs non privilégié](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-privileged-mode). Pour les limitations de métriques spécifiques à Windows, consultez [Limitations et dépannage pour Windows](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows).
+
+## Prérequis [#prerequisites]
+
+Avant d&apos;activer le monitoring Windows, assurez-vous que votre cluster répond aux exigences suivantes :
+
+* [Compatibilité et exigences pour les nœuds Windows](/docs/kubernetes-pixie/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements/#req-windows)
+* Windows Server LTSC 2019 (build `10.0.17763`) ou LTSC 2022 (build `10.0.20348`).
+* La version de l&apos;image de conteneur doit correspondre exactement à la version de l&apos;OS hôte Windows. Windows ne prend en charge que l’isolation des processus, et non l’isolation Hyper-V.
+* Les nœuds Windows s&apos;exécutant dans les clusters Red Hat OpenShift ne sont pas pris en charge.
+
+<Callout variant="important">
+  Les conteneurs Windows ne peuvent s&apos;exécuter que sur un hôte avec exactement la même version Windows et le même numéro de build. L&apos;intégration crée un DaemonSet par version Windows prise en charge, planifiant les pods uniquement sur les nœuds avec un build de système d&apos;exploitation correspondant.
+</Callout>
+
+## Vérifiez votre version de nœud Windows [#check-version]
+
+Si vous n&apos;êtes pas sûr de la version Windows exécutée par vos nœuds, effectuez directement une requête sur les étiquettes des nœuds :
+
+```shell
+kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.labels.node\.kubernetes\.io/windows-build}{"\n"}{end}'
+```
+
+Ceci affiche la valeur du label `node.kubernetes.io/windows-build` pour chaque nœud, à laquelle correspond le DaemonSet `nodeSelector` de l&apos;intégration. Vous pouvez également exécuter `systeminfo` sur le nœud lui-même et faire correspondre le numéro de build :
+
+| Version de Windows       | Numéro de build |
+| ------------------------ | --------------- |
+| Windows Server LTSC 2019 | 10.0.17763      |
+| Windows Server LTSC 2022 | 10.0.20348      |
+
+## Activer le monitoring de Windows [#enable-windows]
+
+Pour activer le monitoring Windows, définissez `enableWindows: true` dans votre `values.yaml`. Lors d&apos;un déploiement via `nri-bundle`, passez ceci sous la clé `newrelic-infrastructure` :
+
+```yaml
+newrelic-infrastructure:
+  enableWindows: true
+```
+
+Appliquez la modification avec un `helm upgrade`:
+
+```shell
+helm upgrade newrelic-bundle newrelic/nri-bundle \
+  --namespace newrelic \
+  --reuse-values \
+  --set newrelic-infrastructure.enableWindows=true
+```
+
+Par défaut, l&apos;activation de Windows crée des DaemonSets pour LTSC 2019 et LTSC 2022. Consultez [Configurer pour des versions spécifiques de Windows](#windows-os-list) pour restreindre cela.
+
+## Configurer pour des versions spécifiques de Windows [#windows-os-list]
+
+La clé `windowsOsList` contrôle quelles versions de Windows reçoivent les DaemonSets. Par défaut, il inclut les deux versions prises en charge. Pour restreindre le monitoring uniquement aux versions Windows réellement présentes dans votre cluster, surchargez-le dans votre `values.yaml`:
+
+```yaml
+newrelic-infrastructure:
+  enableWindows: true
+  windowsOsList:
+    - version: ltsc2022
+      imageTagSuffix: ltsc2022
+      buildNumber: 10.0.20348
+```
+
+Chaque entrée génère un DaemonSet séparé. Les pods sont uniquement planifiés sur les nœuds dont le label `node.kubernetes.io/windows-build` correspond au champ `buildNumber`. Cela empêche les DaemonSets vides d&apos;apparaître dans votre cluster.
+
+## Clusters mixtes Linux et Windows [#hybrid-clusters]
+
+Dans la v3, les nœuds Windows et Linux sont monitorés à l’aide du même graphique `newrelic-infrastructure` — vous n’avez pas besoin d’une installation de graphique séparée comme vous le faisiez dans la v2. Le graphique crée automatiquement :
+
+* Un DaemonSet Linux avec `nodeSelector: kubernetes.io/os: linux`
+* Un DaemonSet Windows par entrée dans `windowsOsList`, chacun avec `nodeSelector: kubernetes.io/os: windows` et un sélecteur de numéro de build correspondant
+
+Un `values.yaml` minimal pour un cluster hybride :
+
+```yaml
+global:
+  licenseKey: YOUR_NEW_RELIC_LICENSE_KEY
+  cluster: YOUR_CLUSTER_NAME
+
+newrelic-infrastructure:
+  enableWindows: true
+  windowsOsList:
+    - version: ltsc2022
+      imageTagSuffix: ltsc2022
+      buildNumber: 10.0.20348
+```
+
+Installer ou mettre à jour avec :
+
+```shell
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+  --namespace newrelic --create-namespace \
+  -f values.yaml
+```
+
+## Mode privilégié [#privileged-mode]
+
+Le monitoring Windows s’exécute par défaut en mode privilégié, qui utilise les [conteneurs Windows HostProcess](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/) pour collecter des métriques complètes au niveau du nœud, y compris le processeur, la mémoire, le disque et le réseau. Ceci est requis pour recevoir les données `SystemSample`, `StorageSample` et `NetworkSample` des nœuds Windows.
+
+<Callout variant="important">
+  Le mode privilégié n&apos;est pas disponible pour les nœuds Windows sur GKE car GKE ne le prend pas en charge. Configurez `windows.privileged: false` pour s&apos;exécuter en mode non privilégié.
+</Callout>
+
+Pour exécuter en mode non privilégié à la place :
+
+```yaml
+newrelic-infrastructure:
+  enableWindows: true
+  windows:
+    privileged: false
+```
+
+Le mode non privilégié désactive les métriques au niveau de l’hôte mais peut être requis par les politiques de sécurité du cluster. Pour obtenir le détail complet des données affectées, consultez [Mode privilégié vs non privilégié](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-privileged-mode/#windows-nodes).
+
+## Vérifier l&apos;installation [#verify]
+
+Après l&apos;installation ou la mise à jour, vérifiez que les DaemonSets ont été créés :
+
+```shell
+kubectl -n newrelic get daemonsets
+```
+
+Vous devriez voir un DaemonSet pour chaque version Windows que vous avez configurée aux côtés du DaemonSet Linux :
+
+```shell
+NAME                                                DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR
+newrelic-bundle-nrk8s-kubelet                       2         2         2       2            2           kubernetes.io/os=linux
+newrelic-bundle-nrk8s-kubelet-windows-ltsc2019      0         0         0       0            0           kubernetes.io/os=windows,node.kubernetes.io/windows-build=10.0.17763
+newrelic-bundle-nrk8s-kubelet-windows-ltsc2022      1         1         1       1            1           kubernetes.io/os=windows,node.kubernetes.io/windows-build=10.0.20348
+```
+
+Un nombre `DESIRED` de `0` pour une version Windows signifie qu&apos;aucun nœud avec ce numéro de build n&apos;existe dans le cluster — c&apos;est le comportement attendu, pas une erreur.
+
+Pour confirmer que les pods Windows s&apos;exécutent sur leurs nœuds :
+
+```shell
+kubectl -n newrelic get pods -o wide | grep windows
+```
+
+## Configuration supplémentaire [#additional-config]
+
+### Ajouter des sélecteurs de nœuds [#node-selector]
+
+Par défaut, les DaemonSets Windows sélectionnent les nœuds à l&apos;aide de `kubernetes.io/os: windows`. Vous pouvez ajouter des sélecteurs supplémentaires pour restreindre le monitoring à un sous-ensemble spécifique de nœuds Windows :
+
+```yaml
+kubelet:
+  windowsNodeSelector:
+    kubernetes.io/os: windows
+    node.kubernetes.io/windows-build: "10.0.20348"
+    newrelic.com/monitoring-allowed: "true"  # custom label you control
+```
+
+### Utilisez un registre de conteneurs privé [#custom-registry]
+
+Pour récupérer des images Windows depuis un registre privé au lieu de celui par défaut :
+
+```yaml
+images:
+  windowsIntegration:
+    registry: your-registry.example.com
+    pullPolicy: Always
+  windowsAgent:
+    registry: your-registry.example.com
+    pullPolicy: Always
+  pullSecrets:
+    - name: registry-credentials
+```
+
+### Définir les limites de ressources [#resource-limits]
+
+Les conteneurs HostProcess sont en concurrence pour les ressources directement sur le nœud Windows. Le chart définit une limite de mémoire par défaut. Vous pouvez l&apos;ajuster, ou définir une limite de CPU. Pour plus d’informations, consultez [Exigences de ressources](/docs/kubernetes-pixie/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements/#resource-requirements).
+
+```yaml
+kubelet:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 150Mi
+    limits:
+      memory: 300Mi
+```
+
+Aucune limite de CPU n&apos;est définie par défaut — un plafond de CPU strict risque de manquer des intervalles de scrape en cas de charge du nœud. Si la politique de votre cluster en exige un, évaluez ce compromis avant de le définir.
+
+## Prochaines étapes [#next-steps]
+
+<DocTiles>
+  <DocTile title="Mode privilégié vs mode non privilégié" path="/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-privileged-mode">
+    Découvrez ce que sont les conteneurs HostProcess, quel accès à l&apos;hôte ils accordent, et les bonnes pratiques de sécurité pour le mode privilégié de Windows.
+  </DocTile>
+
+  <DocTile title="Dépannage de Windows" path="/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows">
+    Résolvez les problèmes courants des nœuds Windows, comprenez les limites des métriques Windows, et vérifiez quelles métriques sont disponibles en mode non privilégié.
+  </DocTile>
+
+  <DocTile title="Monitorer les données Kubernetes" path="/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/find-use-your-kubernetes-data">
+    Apprenez à interroger et explorer les métriques des nœuds Windows aux côtés de vos workloads Linux.
+  </DocTile>
+</DocTiles>
