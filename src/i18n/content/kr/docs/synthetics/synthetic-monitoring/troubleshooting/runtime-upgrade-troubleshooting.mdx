@@ -6,71 +6,304 @@ tags:
   - Synthetic monitoring
   - Troubleshooting
   - Runtime conversion
-metaDescription: null
+metaDescription: Solutions for common issues when upgrading synthetic monitors to Node.js 22 and newer Chrome runtimes.
 freshnessValidatedDate: never
 translationType: machine
 ---
 
-## 스크립팅된 브라우저: 요소와 상호 작용하려는 시도가 실패함 [#promises]
+## Node.js 22 업그레이드 문제
 
-이전 런타임에서 생성된 모니터를 [Chrome 100(또는 최신) 런타임](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100) 과 비교할 때, `findElement` 및 페이지에서 요소를 찾아 상호작용하는 다른 메서드는 약속 처리 차이로 인해 실패할 수 있습니다. 모니터가 구형 런타임에서 전달되고 새 런타임에서 실패하며 해당 요소가 스크린샷에 존재하는 경우, 약속 처리 로직을 개선해야 할 수도 있습니다.
+다음 문제는 모니터를 Node.js 22로 업그레이드할 때 발생하는 특정 문제입니다.
+
+### 처리되지 않은 열린 손잡이 [#open-handles]
+
+**증상:** 모니터가 유효성 검사 또는 실행 중에 실패합니다. **원인:** Node.js 22는 프로세스 수명 주기에 대해 더 엄격합니다.
+
+Node.js 22로 업그레이드할 때 가장 흔한 문제는 처리되지 않은 열린 핸들입니다. 모니터 스크립트에 처리되지 않은 열린 핸들(예: 해결되지 않은 프로미스, 남아 있는 타이머 또는 닫히지 않은 네트워크 연결)이 포함되어 있으면 모니터가 실패합니다.
+
+일반적인 열린 손잡이 유형은 다음과 같습니다.
+
+* **미해결 약속**: 모든 약속이 적절하게 대기되거나 처리되었는지 확인하십시오.
+* **잔여 타이머**: 모든 `setTimeout` 및 `setInterval` 호출을 지웁니다.
+* **닫히지 않은 연결**: 모든 네트워크 연결, 데이터베이스 연결 및 파일 핸들을 닫습니다.
+* **HTTP/HTTPS 연결**: 응답 데이터를 적절하게 처리하고 연결을 종료합니다.
+
+### HTTP/HTTPS 연결은 계속 열려 있습니다. [#http-connections]
+
+**증상:** 모니터가 멈추거나 시간 초과됨 **원인:** 응답 데이터가 소비되지 않았거나 keepAlive가 활성화됨
+
+#### 해결책 A: 응답 데이터 활용
+
+`http` 또는 `https` 사용하려면 `data` 이벤트를 수신하세요. 그렇지 않으면 HTTPS 연결이 계속 열려 있습니다.
+
+```javascript
+const https = require('https');
+
+https.get('https://example.com', (res) => {
+  console.log('Status Code:', res.statusCode);
+  // Consume the response data
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+}).on('error', (e) => {
+  console.error('Error:', e);
+});
+```
+
+#### 해결책 B: keepAlive 기능을 비활성화합니다.
+
+요청이 완료된 후 HTTP 연결을 닫으려면 `keepAlive` 옵션을 `false` 로 설정하십시오.
+
+```javascript
+const https = require('https');
+const { Agent } = require('https'); // or http for HTTP requests
+
+const options = {
+  hostname: 'example.com',
+  path: '/',
+  method: 'GET',
+  agent: new Agent({ keepAlive: false }), // Disable keepAlive
+};
+
+const req = https.request(options, (res) => {
+  console.log(`Status: ${res.statusCode}`);
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+});
+
+req.on('error', (e) => {
+  console.error(e);
+});
+
+req.end();
+```
+
+### 스트림 리소스가 정리되지 않았습니다. [#stream-cleanup]
+
+**증상:** 리소스 누수 또는 모니터 멈춤 현상 **발생 원인:** finally 블록에서 스트림이 소멸되지 않음
+
+#### 해결책
+
+`finally` 블록의 스트림을 정리하여 리소스가 적절하게 처리되도록 합니다.
+
+```javascript
+const got = require('got');
+
+let downloadStream = got.stream("https://example.com/test.txt");
+
+try {
+  // Your stream processing logic here
+} finally {
+  if (downloadStream) {
+    downloadStream.destroy();
+  }
+}
+```
+
+### 소켓이 제대로 파괴되지 않았습니다 [#socket-cleanup]
+
+**증상:** 모니터 유효성 검사가 &quot;열린 핸들&quot; 오류와 함께 실패합니다. **원인:** 성공 코드 경로에 소켓 정리 작업이 누락되었습니다.
+
+모든 코드 경로에서 소켓을 올바르게 소멸시키십시오.
+
+#### 문제가 있는 코드
+
+```javascript
+// ❌ Problematic code - Socket not closed in success case
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      resolve({ validTo: validTo });
+    } else {
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+#### 권장되는 접근 방식
+
+모든 코드 경로에 대한 정리 기능을 추가합니다.
+
+```javascript
+// ✅ Better approach - Proper cleanup in all cases
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
+    // Always destroy the response and socket
+    const cleanup = () => {
+      try {
+        res.destroy();
+        if (res.socket && !res.socket.destroyed) {
+          res.socket.destroy();
+        }
+      } catch (e) {
+        console.log("Cleanup warning:", e.message);
+      }
+    };
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      cleanup();
+      resolve({ validTo: validTo });
+    } else {
+      cleanup();
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+### 타이머가 초기화되지 않았습니다 [#timers]
+
+**증상:** 모니터가 실행을 완료하지 못함 **원인:** `setTimeout`/`setInterval` 지워지지 않음
+
+#### 문제가 있는 코드
+
+```javascript
+// ❌ Problematic code
+setTimeout(() => {
+  console.log('This might cause issues');
+}, 5000);
+```
+
+#### 권장되는 접근 방식
+
+완료되면 타이머를 초기화하세요.
+
+```javascript
+// ✅ Better approach
+const timerId = setTimeout(() => {
+  console.log('This is properly handled');
+}, 1000);
+
+// Clear the timer when done
+clearTimeout(timerId);
+```
+
+### 해결되지 않은 약속들 [#unresolved-promises]
+
+**증상:** 스크립트 실행은 완료된 것처럼 보이지만 유효성 검사에 실패합니다. **원인:** 프로미스(Promise)를 제대로 기다리거나 처리하지 않았습니다.
+
+**해결책:** 모든 약속이 `.then()`, `.catch()` 이거나 `await`인지 확인합니다.
+
+## Chrome 런타임 업그레이드 문제
+
+다음 문제는 브라우저 브라우저 모니터를 최신 Chrome 런타임으로 업그레이드하는 경우에만 발생합니다.
+
+### 스크립트 기반 브라우저: 요소와의 상호 작용 시도가 실패합니다. [#promises]
+
+**증상:** `findElement` 및 기타 메서드가 새 런타임에서는 실패하지만 구형 런타임에서는 작동합니다. **원인:** 셀레니엄 웹 드라이브 버전 간의 Promise 처리 차이점
+
+이전 런타임에서 생성된 모니터를 [Chrome 100(또는 그 이후) 런타임에](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100) 대해 검증할 때 페이지의 요소를 찾고 상호 작용하는 `findElement` 및 기타 메서드가 프로미스 처리 차이로 인해 실패할 수 있습니다. 만약 해당 요소가 이전 런타임에서는 통과했지만 새 런타임에서는 실패했고, 해당 요소가 검색 결과에 존재한다면, 프로미스 처리 로직을 개선하세요.
 
 셀레니엄 웹드라이버 약속 관리자와 제어 흐름을 통해 약속을 관리하지 않고도 일부 기능이 원형 런타임에서 순서대로 실행될 수 있었습니다. 이 기능은 셀레니엄 웹드라이버 4.0에서 제거되었으며 더 이상 런타임에서 사용할 수 없습니다. 모든 비동기 함수와 약속은 `await` 또는 `.then` 약속 체인으로 관리해야 합니다. 이렇게 하면 스크립트 기능이 예상 순서대로 실행됩니다.
 
-예를 들어, 약속 관리자와 제어 흐름은 `$browser.get` 이 약속을 반환하고 약속이 올바르게 처리되지 않더라도 이 부분 스크립트가 성공적으로 완료되도록 허용할 수 있습니다.
+#### 문제가 있는 코드
+
+프로미스 관리자와 제어 흐름 덕분에 `$browser.get` 이 프로미스를 반환하고 해당 프로미스가 올바르게 처리되지 않더라도 이 부분 스크립트가 성공적으로 완료될 수 있습니다.
 
 ```js
+// ❌ Problematic code - Promises not handled
 $browser.get('http://example.com');
 
 $browser.findElement($driver.By.css('h1'));
 ```
 
-[Chrome 100(또는 그 이상) 런타임](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100) 에서는 약속을 반환하는 모든 메서드는 단계를 올바르게 순서 지정하기 위해 await 또는 `.then` 구문을 사용해야 합니다. 더 깔끔한 구문과 쉬운 사용으로 인해 await를 사용하는 것이 좋지만, `.then` promise 체인도 여전히 지원됩니다.
+#### 권장되는 접근 방식
+
+[Chrome 100(또는 그 이후 버전) 런타임](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100) 에서는 프로미스를 반환하는 모든 메서드는 단계 순서를 올바르게 처리하기 위해 await 또는 `.then` 구문을 사용해야 합니다. await를 사용하는 것이 구문이 더 깔끔하고 사용이 더 쉽기 때문에 권장되지만 `.then` 프로미스 체인도 여전히 지원됩니다.
 
 ```js
+// ✅ Better approach - Using await
 await $browser.get('http://example.com');
 
 let el = await $browser.findElement($driver.By.css('h1'));
 ```
 
-## 스크립팅된 API: `request` 과의 차이점 `got` [#request]
+### 스크립트 브라우저: 사용 중단 경고(`$browser` 및 `$driver` [#deprecations]
+
+**증상:** 모니터 로그에 사용 중단 경고가 나타남 **원인:** 이전 버전의 Node.js 브라우저 런타임 이미지를 사용 중
+
+`$browser` 및 `$driver` 에 대한 사용 중단 경고는 브라우저 런타임 버전 2.0.29 이상부터 제거되었습니다. 표시 위치를 사용할 때 더 이상 이러한 경고가 표시되지 않습니다. 로케이션을 사용할 때 이러한 경고를 받으면 노드 브라우저 런타임 이미지를 업데이트하세요.
+
+### 스크립트된 브라우저: `waitForAndFindElement` 및 `waitForPendingRequests` [#waitMethods]
+
+**증상:** `$selenium` 및 `$webDriver` 을 사용할 때 메서드를 사용할 수 없습니다. **원인:** 뉴렐릭 사용자 지정 메서드가 셀레니엄 웹드라이버 4.1 기본 API에 포함되어 있지 않습니다.
+
+`waitForAndFindElement` 및 `waitForPendingRequests` 메서드는 Chrome 72 및 이전 버전의 스크립트 브라우저 런타임에서 제공되는 뉴럴릭 사용자 지정 메서드입니다. Chrome 100 이상 런타임에서는 `$driver` 및 `$browser` 과 함께 계속 사용할 수 있지만 셀레니엄 웹드라이버 4.1 API를 `$selenium` 및 `$webDriver` 와 직접 사용할 때는 사용할 수 없습니다. 이번 변경으로 뉴렐릭의 셀레니엄 웹 드라이브 구현과 기본 셀레니엄 웹 드라이브 구현이 더 잘 일치합니다.
+
+새 런타임에서 `waitForAndFindElement` 또는 `waitForPendingRequests` 계속 사용하려면 [코드 예제를](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100/#waitForAndFindElement) 모니터에 붙여넣으세요.
+
+## API 런타임 업그레이드 문제
+
+다음 문제는 스크립트 기반 API 모니터를 최신 Node.js 런타임으로 업그레이드할 때 발생하는 특정 문제입니다.
+
+### 스크립팅된 API: `request` 과의 차이점 `got` [#request]
+
+**증상:** `request` 모듈 기능을 사용하는 API 스크립트가 새 런타임 환경에서 실패합니다. **원인:** 더 이상 사용되지 않는 `request` 모듈에서 `got` 모듈로의 마이그레이션
 
 [Node.js 10 및 이전 버전의 스크립트 API 런타임은](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#dependencies) [API테스트하는](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests-legacy/) 데 사용할 수 있는 `$http` 객체를 제공하기 위해 `request` Node.js 모듈을 사용했습니다.
 
-[Node.js 16 및 최신 스크립트 API 런타임은](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#apidependencies) `request` 대신 `got` 사용합니다. `request` 모듈은 2020년에 더 이상 사용되지 않으며 새로운 API나 브라우저 기반 런타임에 더 이상 포함되지 않습니다. `$http` 객체는 기본적인 사용 사례에 대한 이전 버전과의 호환성을 제공하면서도 더 이상 사용되지 않는 모듈을 사용하지 않도록 하기 위해 `got` 의 지원을 받는 동시에 `request`와 유사한 사용자 지정 환경을 제공합니다. `request` 의 모든 고급 사용 사례가 지원되지는 않거나 지원되지 않을 수도 있습니다. [스크립트 예제와 변환 가이드가](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/) 제공됩니다.
+[Node.js 16 이상 버전의 스크립트 API 런타임은](/docs/synthetics/synthetic-monitoring/using-monitors/manage-monitor-runtimes/#apidependencies) `request` 대신 `got` 사용합니다. `request` 모듈은 2020년에 사용이 중단되었으며 더 이상 새로운 API 또는 브라우저 기반 런타임에 포함되지 않습니다. `$http` 객체는 `got` 를 기반으로 하면서도 기본 사용 사례에 대한 하위 호환성을 제공하고 더 이상 사용되지 않는 모듈의 사용을 피하면서 사용자 지정 `request`와 유사한 경험을 제공합니다. `request` 의 모든 고급 사용 사례가 지원되는 것은 아닙니다. [스크립트 예제와 변환 가이드가](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/) 제공됩니다.
 
 <Callout variant="tip">
-  `$http` 객체가 제공하는 `request` 유사 환경은 Node.js 16 및 최신 스크립트 API 런타임에서 직접 `request` 를 사용하려는 모든 고객에게도 반환됩니다.
+  `$http` 객체는 Node.js 16 이상 스크립트 API 런타임에서 `request` 직접 사용하려는 모든 고객에게 `request`과 유사한 경험을 반환합니다.
 </Callout>
 
-## 스크립트 API: 예상치 못한 토큰 `JSON.parse` [#scripted-api-unexpected]
+### 스크립트 API: 예상치 못한 토큰 `JSON.parse` [#scripted-api-unexpected]
 
-응답 본문과 상호작용하는 동안 `JSON.parse` 함수를 사용하려고 하면 Node.js 16 이상 런타임을 사용하는 스크립트 API 모니터에서 예기치 않은 토큰 오류가 발생할 수 있습니다. 콘텐츠 유형 응답 헤더가 `application/json` 인 경우 `$http` 객체에서 반환되는 응답 본문은 JSON으로 구문 분석됩니다. 응답 본문을 구문 분석하기 위해 `JSON.parse` 사용하려는 추가 호출은 응답 본문이 이미 구문 분석되었기 때문에 이 오류와 함께 실패합니다.
+**증상:** `JSON.parse` 사용 시 예기치 않은 토큰 오류 **발생 원인:** content-type이 인 경우 응답 본문이 이미 자동으로 구문 분석되었습니다. `application/json`
 
-콘텐츠 유형 응답 헤더가 `application/json` 이 아닌 경우 응답 본문은 자동으로 구문 분석되지 않으며 `JSON.parse` 함수를 계속 사용해야 합니다.
+Node.js 16 이상 런타임을 사용하는 스크립트 기반 API 모니터에서 응답 본문과 상호 작용하는 동안 `JSON.parse` 함수를 사용하려고 하면 예기치 않은 토큰 오류가 발생합니다. 콘텐츠 유형 응답 헤더가 `application/json` 인 경우 `$http` 객체는 응답 본문에 구문 분석된 JSON을 반환합니다. `JSON.parse` 사용하여 응답 본문을 구문 분석하려는 추가 호출은 응답 본문이 이미 구문 분석되었기 때문에 이 오류와 함께 실패합니다.
 
-## 스크립트 API: `HEAD` 또는 `GET` [#scripted-api-head-get]
+content-type 응답 헤더가 `application/json` 아닌 경우 응답 본문이 자동으로 구문 분석되지 않으므로 `JSON.parse` 함수를 사용해야 합니다.
 
-HTTP `HEAD` 또는 `GET` 요청에는 요청 본문을 포함할 수 없습니다. Node 10 및 이전 런타임에서 사용된 `request` 모듈은 이를 허용했지만, 이로 인해 새 런타임에서 오류가 발생합니다. 몇 가지 다른 설정으로 인해 오류가 발생할 수 있지만 가장 일반적인 제안은 다음과 같습니다.
+### 스크립트 API: `HEAD` 또는 `GET` [#scripted-api-head-get]
 
-* 본문이 비어 있더라도 요청에 본문을 포함하지 마세요.
+**증상:** HTTP `HEAD` 또는 `GET` requests 본문 관련 오류로 실패합니다. **원인:** 새로운 런타임 환경에서 HTTP 사양이 적용되어 `HEAD`/`GET` requests에 본문을 포함할 수 없습니다.
+
+HTTP `HEAD` 또는 `GET` 요청에는 요청 본문을 포함할 수 없습니다. Node 10 및 이전 런타임에서 사용되는 `request` 모듈은 이를 허용했지만 새 런타임에서는 오류가 발생합니다. 가장 일반적인 제안은 다음과 같습니다.
+
+* 요청에 본문을 포함하지 마세요. 내용이 비어있더라도 마찬가지입니다.
 * `HEAD` 또는 `GET` 요청에서 불필요한 옵션을 피하세요. `json: true`
 
-## 스크립트 API: 쿼리 문자열(qs) 차이점 [#scripted-api-query]
+### 스크립트 API: 쿼리 문자열(qs) 차이점 [#scripted-api-query]
 
-Node 10 이하 런타임에서는 쿼리 문자열 설정이 `qs:` 옵션을 사용하여 전달되었습니다. Node 16 런타임의 경우 대신 `searchParams:` 옵션을 사용하세요. 옵션의 이름만 변경하면 됩니다. 쿼리 문자열의 내용은 업데이트할 필요가 없습니다.
+**증상:** 새 런타임에서 쿼리 문자열 옵션이 작동하지 않음 **원인:** 옵션 이름이 `qs:` 에서 다음으로 변경됨 `searchParams:`
 
-## 스크립트 API: 쿠키 항아리 차이점 [#scripted-api-cookie]
+Node 10 또는 이전 런타임에서는 쿼리 문자열 설정이 `qs:` 옵션을 사용하여 전달되었습니다. Node 16 런타임의 경우 `searchParams:` 옵션을 대신 사용하십시오. 옵션의 이름만 바꾸면 됩니다. 쿼리 문자열의 내용은 업데이트할 필요가 없습니다.
+
+### 스크립트 API: 쿠키 항아리 차이점 [#scripted-api-cookie]
+
+**증상:** `jar: true` 사용한 쿠키 처리가 작동하지 않음 **원인:** Node 16 런타임에서 쿠키 저장소 구현이 변경됨
 
 Node 10 또는 이전 런타임에서는 `jar: true` 옵션을 사용하여 요청 간에 쿠키를 쿠키 항아리에 저장할 수 있습니다.
 
 Node 16 런타임에서는 `tough-cookie` 모듈을 사용하여 쿠키 항아리를 만든 다음 요청에서 해당 쿠키 항아리를 참조해야 합니다. 쿠키라는 이름의 쿠키 항아리를 만든 경우 옵션에서 이를 참조하세요. `cookieJar: cookies`
 
-## 스크립트 API: 양식 차이점 [#scripted-api-form]
+### 스크립트 API: 양식 차이점 [#scripted-api-form]
+
+**증상:** 폼 기반 requests 실패하거나 다르게 동작함 **원인:** 폼 처리와 관련하여 `request` 및 `got` 모듈 간의 차이점
 
 Node 10 및 이전 런타임에서 `$http` 객체에 사용되는 `request` 모듈과 Node 16 런타임에서 `$http` 객체에 사용되는 `got` 모듈의 차이로 인해 API 모니터에서 양식을 사용하는 요청에서 문제가 발생할 수 있습니다.
 
-그렇다면 이 부분적인 예에서 보여준 대로 `form-data` 모듈을 사용하여 요청이 포함된 양식을 만들고 포함하세요.
+그렇다면 다음 예시와 같이 `form-data` 모듈을 사용하여 요청에 양식을 생성하고 포함시키세요.
 
 ```js
 const FormData = require('form-data');
@@ -88,20 +321,12 @@ let req = {
 }
 ```
 
-## UUID 모듈 버전 차이점 [#uuid-module-version]
+### UUID 모듈 버전 차이점 [#uuid-module-version]
+
+**증상:** `uuid` 모듈 가져오기 오류 **발생 원인:** Node 16 런타임에서 `uuid` 모듈 구문이 업데이트됨
 
 Node 16 런타임에는 업데이트된 `require` 구문을 사용하도록 강제하는 최신 버전의 `uuid` 모듈이 포함되어 있습니다.
 
 노드 10 및 이전: `const uuid = require('uuid');`
 
 노드 16( `uuidv4` 사용 가정): `const { v4: uuidv4 } = require('uuid');`
-
-## 스크립트 브라우저: 사용 중단 경고(`$browser` 및 `$driver` [#deprecations]
-
-`$browser` 및 `$driver` 에 대한 사용 중단 경고는 브라우저 런타임 2.0.29 이상 버전부터 제거되었습니다. 더 이상 공개 위치를 사용할 때 이러한 경고를 받지 않게 됩니다. 로케이션을 사용할 때 이러한 경고를 받으면 노드 브라우저 런타임 이미지를 업데이트하세요.
-
-## 스크립트된 브라우저: `waitForAndFindElement` 및 `waitForPendingRequests` [#waitMethods]
-
-`waitForAndFindElement` 및 `waitForPendingRequests` 메서드는 Chrome 72 및 이전 스크립트 브라우저 런타임에서 제공되는 New Relic 사용자 지정 메서드입니다. Chrome 100 및 최신 런타임에서 `$driver` 및 `$browser` 와 함께 계속 사용할 수 있지만 `$selenium` 및 `$webDriver` 와 함께 직접 Selenium WebDriver 4.1 API를 사용할 때는 사용할 수 없습니다. 이 변경은 New Relic의 Selenium WebDriver 구현을 기본 Selenium WebDriver 구현과 더 잘 맞출 것입니다.
-
-새 런타임에서 `waitForAndFindElement` 또는 `waitForPendingRequests` 을 계속 사용하기로 선택한 고객은 [코드 예제](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100/#waitForAndFindElement) 를 모니터에 붙여넣을 수 있습니다.
