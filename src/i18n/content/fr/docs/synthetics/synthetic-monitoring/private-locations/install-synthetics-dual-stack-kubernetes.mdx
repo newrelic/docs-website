@@ -1,0 +1,165 @@
+---
+title: Installer Synthetics pour double stack à l'aide de Kubernetes
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: Install and configure New Relic Synthetics for Dual Stack environments using Kubernetes to support both IPv4 and IPv6 testing.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Ce guide couvre la configuration et le déploiement du gestionnaire de tâches New Relic Synthetics pour prendre en charge le réseau à double stack (IPv4 et IPv6) dans votre environnement Kubernetes.
+
+## Prérequis [#prerequisites]
+
+Avant de commencer, assurez-vous d’avoir :
+
+* <DNT>**Kubernetes cluster**</DNT>: un cluster Kubernetes en cours d&apos;exécution (version 1.20 ou version ultérieure recommandée) avec la prise en charge du Dual stack activée
+
+* <DNT>**Helm**</DNT>: Helm 3.x installé sur votre machine
+
+* <DNT>**kubectl**</DNT>: kubectl installé et configuré pour communiquer avec votre cluster
+
+* <DNT>**Docker**</DNT>: Docker installé et en cours d&apos;exécution avec la prise en charge de la double stack (si vous utilisez Minikube ou des clusters locaux similaires)
+
+* <DNT>**Permissions**</DNT>: permissions d&apos;administrateur de Cluster pour créer des espaces de nommage et déployer des ressources
+
+* <DNT>**Private location key**</DNT>: votre clé de site privé New Relic depuis l&apos;UI
+
+* <DNT>**Public images**</DNT>: La prise en charge du double stack nécessite les versions d&apos;image suivantes ou ultérieures, disponibles sur Docker Hub :
+
+  * [Gestionnaire de tâches `519` ou version ultérieure](https://docs.newrelic.com/docs/release-notes/synthetics-release-notes/job-manager-release-notes/job-manager-release-519/): `newrelic/synthetics-job-manager`
+  * [Runtime Ping `1.65.0` ou version ultérieure](https://docs.newrelic.com/docs/release-notes/synthetics-release-notes/ping-runtime-release-notes/ping-runtime-1.65.0/): `newrelic/synthetics-ping-runtime`
+  * [Runtime de l&apos;API Node `rc1.15` ou version ultérieure](https://docs.newrelic.com/docs/release-notes/synthetics-release-notes/node-api-runtime-release-notes/node-api-runtime-rc1.15/): `newrelic/synthetics-node-api-runtime`
+  * [Runtime du navigateur Node `rc1.15` ou version ultérieure](https://docs.newrelic.com/docs/release-notes/synthetics-release-notes/node-browser-runtime-release-notes/node-browser-runtime-rc1.15/): `newrelic/synthetics-node-browser-runtime`
+
+<Steps>
+  <Step>
+    ## Valider votre infrastructure [#validate-infrastructure]
+
+    Avant de continuer, vérifiez que votre cluster Kubernetes et l&apos;infrastructure sous-jacente prennent en charge la mise en réseau double stack.
+
+    1. Testez la connectivité IPv6 depuis votre hôte en exécutant `ping6 ipv6.google.com` ou `ping -6 ipv6.google.com`, ou la commande équivalente pour votre machine.
+
+    2. Vérifier la prise en charge du Dual Stack par le cluster Kubernetes :
+
+       ```bash
+       kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+       ```
+
+       Cela devrait renvoyer à la fois les adresses IPv4 et IPv6 si le double stack est activé sur votre cluster.
+
+    3. Vérifier la configuration double stack de Docker (le cas échéant) :
+
+       ```bash
+       docker network inspect bridge | grep IPv6
+       ```
+
+    <Callout variant="important">
+      Si la validation échoue, assurez-vous que votre infrastructure réseau, votre VPC, vos sous-réseaux et vos groupes de sécurité sont configurés pour autoriser à la fois le trafic IPv4 et IPv6. Votre cluster Kubernetes doit être configuré avec la prise en charge du Dual Stack avant de continuer.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Vérifier que Docker est prêt pour le dual stack [#configure-docker]
+
+    Si votre cluster Kubernetes fonctionne sur Docker (comme Minikube, kind ou Docker Desktop), assurez-vous que Docker est configuré pour gérer à la fois le trafic IPv4 et IPv6. Pour vérifier que l&apos;IPv6 est activé dans Docker, exécutez :
+
+    ```bash
+    docker info | grep -i ipv6
+    ```
+
+    Le résultat devrait confirmer qu&apos;IPv6 est activé. Si ce n’est pas le cas, consultez la [documentation de Docker](https://docs.docker.com/config/daemon/ipv6/) pour activer la prise en charge de la double stack avant de continuer.
+  </Step>
+
+  <Step>
+    ## Installer avec Helm [#install-helm]
+
+    Déployez le gestionnaire de tâches Synthetics à l&apos;aide du chart Helm New Relic.
+
+    1. Ajouter le dépôt Helm New Relic :
+
+       ```bash
+       helm repo add YOUR_REPO_NAME https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. Installez le gestionnaire de tâches Synthetics :
+
+       ```bash
+       helm install YOUR_JOB_MANAGER_NAME YOUR_REPO_NAME/synthetics-job-manager \
+         -n YOUR_NAMESPACE \
+         --set synthetics.privateLocationKey=YOUR_PRIVATE_LOCATION_KEY
+       ```
+
+    3. Confirmez que les pods sont opérationnels :
+
+       ```bash
+       kubectl get -n YOUR_NAMESPACE pods
+       ```
+  </Step>
+
+  <Step>
+    ## Vérifier l&apos;installation [#verify-installation]
+
+    Confirmez que votre gestionnaire de tâches Synthetics peut accéder à la fois aux ressources IPv4 et IPv6.
+
+    1. Vérifiez l&apos;état du pod :
+
+       ```bash
+       kubectl get pods -n YOUR_NAMESPACE
+       ```
+
+       Tous les pods doivent afficher un statut `Running`.
+
+    2. Afficher les logs du gestionnaire de tâches :
+
+       ```bash
+       kubectl logs -n YOUR_NAMESPACE <job-manager-pod-name>
+       ```
+
+    3. Tester la connectivité Dual Stack depuis un pod :
+
+       ```bash
+       # Test IPv6
+       kubectl exec -n YOUR_NAMESPACE <pod-name> -- curl -6 -v http://ipv6.google.com
+
+       # Test IPv4
+       kubectl exec -n YOUR_NAMESPACE <pod-name> -- curl -4 -v http://google.com
+       ```
+
+       Si les deux commandes cURL réussissent, votre configuration Dual stack fonctionne correctement.
+
+    4. Vérifiez le statut du site privé dans l&apos;UI de New Relic en accédant à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Synthetic monitoring &gt; Private locations**</DNT>. Votre site privé devrait s&apos;afficher comme sain.
+  </Step>
+</Steps>
+
+## Dépannage [#troubleshooting]
+
+Si vous rencontrez des problèmes avec votre configuration Dual stack :
+
+* **Les pods ne peuvent pas atteindre les adresses IPv6**:
+
+  * Vérifier que la prise en charge du double stack est activée sur votre cluster Kubernetes
+  * Assurez-vous que les groupes de sécurité et les stratégies réseau autorisent le trafic IPv4 et IPv6
+
+* **Images introuvables**:
+
+  * Vérifiez que votre cluster a accès à Docker Hub pour extraire les images de runtime publiques
+  * Utilisez `kubectl describe pod <pod-name> -n YOUR_NAMESPACE` pour inspecter les erreurs de pull
+
+* **Le gestionnaire de tâches ne se connecte pas**:
+
+  * Vérifiez que votre clé de site privé est correcte
+  * Vérifiez les logs du job manager pour les erreurs de connexion : `kubectl logs -n YOUR_NAMESPACE <job-manager-pod-name>`
+
+Pour des conseils de dépannage supplémentaires, consultez [Dépannage des sites privés](/docs/synthetics/synthetic-monitoring/private-locations/troubleshoot-private-locations).
+
+## Quelle est la prochaine étape ? [#whats-next]
+
+Après avoir configuré votre site privé compatible Dual stack avec Kubernetes, vous pouvez :
+
+* [Créez des monitorers Synthétiques](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors) qui testent à la fois les points de terminaison IPv4 et IPv6 en utilisant votre site privé
+* [Configurez les paramètres du gestionnaire de tâches](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration) pour les options avancées
+* [Monitorer votre site privé](/docs/synthetics/synthetic-monitoring/private-locations/monitor-private-locations) : santé et performances
