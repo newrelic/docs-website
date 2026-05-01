@@ -1,0 +1,420 @@
+---
+title: Guia de transição de runtime para localizações privadas do Synthetics
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+  - Runtime migration
+  - Chrome 147
+  - Node.js 22
+metaDescription: 'Guide for transitioning Synthetics private location runtimes from Node.js 16/Chrome 134 to Node.js 22/Chrome 147 or higher, including migration strategies and troubleshooting.'
+freshnessValidatedDate: '2026-04-24'
+translationType: machine
+---
+
+A New Relic está fazendo a transição das imagens de runtime do Synthetics do Node.js 16 com Chrome 134 para o Node.js 22 com Chrome 147 ou superior. Esta atualização corrige a [CVE-2026-5281](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/) e traz os runtimes para as versões atualmente suportadas. O Chrome 134 está fora dos canais suportados do Google, e o Node.js 16 atingiu o fim da vida útil em setembro de 2023.
+
+As novas imagens de tempo de execução estão disponíveis no Docker Hub:
+
+* [`newrelic/synthetics-node-api-runtime:rc1.x`](https://hub.docker.com/r/newrelic/synthetics-node-api-runtime/tags)
+* [`newrelic/synthetics-node-browser-runtime:rc1.x`](https://hub.docker.com/r/newrelic/synthetics-node-browser-runtime/tags)
+
+<Callout variant="important">
+  **Ação necessária até DATE.** A New Relic está encerrando o suporte para os runtimes do Node.js 16 e Chrome 134. Se você não atualizar, a New Relic migrará automaticamente seus monitores. No entanto, a migração automática pode não detectar monitores que passam, mas falham silenciosamente em algumas etapas do script.
+</Callout>
+
+## Diferenças entre localização pública e privada [#public-vs-private]
+
+O caminho de migração depende se seus monitores são executados em locais públicos ou localizações privadas.
+
+**Localizações públicas:** Altere o dropdown de versão do **Browser** na página de configuração do monitor de **Chrome 134** para **Latest**. Nenhuma alteração de infraestrutura necessária.
+
+**Localizações privadas:** você deve implantar novas imagens de tempo de execução na infraestrutura do seu gerenciador de jobs de Sintéticos (SJM).
+
+<Callout variant="important">
+  Para localização privada, os dropdowns de versão do **Browser** e do **Runtime** nas Configurações gerais **não têm efeito**. A versão é totalmente determinada pela imagem que o SJM está executando. Alterar o dropdown não altera qual versão do runtime processa o job — apenas a imagem implantada faz isso. Sendo assim, o atributo `runtimeTypeVersion` em `SyntheticCheck` não é uma maneira confiável de identificar a versão de runtime para tarefas de monitor privado.
+</Callout>
+
+A página **Runtime Upgrades** em **Synthetics &gt; Runtime Upgrades** foi projetada para monitores públicos. Para localizações privadas, não há validação pré-migração automatizada por meio dessa ferramenta. Se você apontar vários gerenciadores de jobs — cada um executando um runtime diferente — para a mesma chave de localização privada, quaisquer resultados exibidos são execuções reais de tarefas, não verificações isoladas de compatibilidade. Use a [estratégia de localização privada paralela](#parallel-location) para comparar o comportamento do monitor entre runtimes antes de confirmar a atualização.
+
+## O que está mudando [#whats-changing]
+
+Use esta tabela para identificar se os resultados do seu monitor vieram de um SJM executando uma imagem `rc1.x`.
+
+| Componente                             | Versão antiga | `rc1.x` versão        |
+| -------------------------------------- | ------------- | --------------------- |
+| Node.js                                | 16            | 22 ou superior        |
+| Chrome                                 | 134           | 147 ou superior       |
+| Versão do runtime da API               | `1.2.134`     | `1.2.143` ou superior |
+| Versão de tempo de execução do browser | `3.0.55`      | `3.0.63` ou superior  |
+
+### Consultando versões de runtime [#version-reference]
+
+Cada tag `rc1.x` do Docker Hub corresponde a um valor `nr.runtimeVersion` específico reportado em eventos `SyntheticCheck`. Você pode consultar o atributo `nr.runtimeVersion` em NRQL:
+
+```sql
+SELECT count(*) FROM SyntheticCheck
+WHERE locationLabel = 'YOUR_PRIVATE_LOCATION'
+FACET type, nr.runtimeVersion SINCE 1 day ago
+```
+
+<Callout variant="tip">
+  Use **rc1.14 ou superior** para o tempo de execução do browser para obter o Chrome 146.0.7680.177, que inclui o patch para [CVE-2026-5281](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/).
+</Callout>
+
+### Principais alterações comportamentais
+
+Essas alterações podem impactar seus monitores existentes:
+
+* **O padrão do HTTP keep-alive foi alterado.** O Node.js 22 define `http.globalAgent` como `keepAlive: true` por padrão (era `false` no Node.js 16). Scripts que criam agentes HTTP personalizados sem definir explicitamente `keepAlive: false` podem apresentar tempos de execução mais longos ou timeouts, pois as conexões permanecem abertas e impedem que o processo seja encerrado.
+
+* **Maior uso de recursos.** O Chrome 147 requer mais CPU e memória do que o Chrome 134 para o mesmo workload. Os contêineres de tempo de execução de Browser normalmente usam 625-980 MiB do seu limite de memória padrão de 3,256 GiB durante a execução, em comparação com o uso menor no Chrome 134.
+
+* **Aumento da sobrecarga do contêiner.** Monitores de browser com script têm uma sobrecarga média de contêiner de 6–10 segundos. Monitores de API com script têm uma média de 2–4 segundos. Monitores que estavam próximos aos limites de timeout no tempo de execução antigo podem agora excedê-los.
+
+## Escolha sua estratégia de migração [#migration-strategy]
+
+Existem duas abordagens para a migração de localização privada. Escolha com base na sua tolerância a riscos e no tamanho da frota de monitores.
+
+### Opção A: Atualização in-place [#in-place-upgrade]
+
+Atualize todos os SJMs para as novas imagens de tempo de execução. Todos os monitores são executados imediatamente nos novos runtimes.
+
+**Ideal para:** Pequenas frotas de monitores, ambientes não críticos ou quando você pode tolerar algumas falhas de monitor durante a transição.
+
+**Passos:**
+
+1. Atualize a configuração `DESIRED_RUNTIMES` em cada SJM para usar as novas tags de imagem.
+2. Reinicie ou reimplante o SJM.
+3. Resultados do monitor.
+
+**Risco:** Alguns monitores podem falhar até que seus scripts sejam atualizados para funcionar com o Node.js 22 e o Chrome 147 ou superior.
+
+### Opção B: Localização privada paralela (recomendada) [#parallel-location]
+
+Crie uma segunda localização privada, implante SJMs com as novas imagens de tempo de execução lá e execute monitores em ambas as localizações simultaneamente para comparação A/B.
+
+**Ideal para:** Ambientes de produção, grandes frotas de monitores ou quando você precisa de zero interrupção no monitoramento existente.
+
+**Passos:**
+
+1. [Crie uma nova localização privada](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/) na New Relic. Dê um nome descritivo.
+
+2. Implante um ou mais SJMs apontados para a nova localização privada com as novas imagens de tempo de execução.
+
+3. **Configure uma regra de silenciamento** para suprimir o ruído de alerta do novo local durante os testes:
+
+   Acesse **Alerts &gt; Muting rules** e crie uma regra com a condição `tags.privateLocation EQUALS <your-new-location-name>`.
+
+4. Adicione a nova localização privada aos seus monitores. Cada monitor pode ser atribuído a várias localizações privadas. Os jobs de cada local são executados de forma independente — uma falha no novo local não afeta os resultados do local antigo.
+
+5. Compare os resultados entre os dois locais. Use esta consulta NRQL:
+
+   ```sql
+   SELECT count(*), percentage(count(*), WHERE result = 'SUCCESS') AS 'Success %',
+          average(executionDuration) AS 'Avg Exec Duration'
+   FROM SyntheticCheck
+   SINCE 1 day ago
+   FACET locationLabel, monitorName
+   ```
+
+6. Corrija quaisquer monitores com falha no novo local editando manualmente os scripts.
+
+7. Assim que todos os monitores passarem no novo local, remova o local antigo dos seus monitores e desative a infraestrutura antiga do SJM.
+
+**Compensação:** custo duplo de infraestrutura durante o período de transição. Você precisa de hosts ou recursos de cluster separados para o segundo conjunto de SJMs.
+
+Essa abordagem oferece uma visão completa de como todos os seus monitores são executados nos novos tempos de execução, incluindo diferenças nos resultados e na duração de execução — ambos afetam a carga do gerenciador de tarefas e o planejamento de recursos.
+
+Para testar apenas falhas de script sem a comparação completa da infraestrutura, configure uma segunda localização privada com um pequeno SJM de teste e execute um subconjunto de monitores. Isso mostra como os monitores existentes se comportam nos novos runtimes, mas não como os runtimes se adequam à capacidade da sua infraestrutura existente.
+
+## Implantar SJM com novas imagens de runtime [#deploy]
+
+Atualize sua implantação existente do SJM para usar as novas tags de imagem de runtime. O próprio SJM (`newrelic/synthetics-job-manager:latest`) não muda — apenas as imagens de runtime que ele baixa.
+
+<Callout variant="tip">
+  Para obter instruções detalhadas de instalação e configuração, consulte [Instalar o gerenciador de jobs do Synthetics](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/) e [Configuração do Job Manager](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/).
+</Callout>
+
+### Docker [#deploy-docker]
+
+Atualize a variável de ambiente `DESIRED_RUNTIMES` para referenciar as novas tags de imagem:
+
+```shell
+docker run \
+  --name sjm \
+  --restart unless-stopped \
+  -e PRIVATE_LOCATION_KEY=YOUR_PRIVATE_LOCATION_KEY \
+  -e "DESIRED_RUNTIMES=[newrelic/synthetics-ping-runtime:latest,newrelic/synthetics-node-api-runtime:RC_IMAGE_TAG,newrelic/synthetics-node-browser-runtime:RC_IMAGE_TAG]" \
+  -v /var/run/docker.sock:/var/run/docker.sock:rw \
+  newrelic/synthetics-job-manager:latest
+```
+
+Substitua `YOUR_PRIVATE_LOCATION_KEY` pela sua chave de localização privada e `RC_IMAGE_TAG` pela tag da imagem do Docker Hub, como `rc1.17`.
+
+Se você tiver um contêiner SJM existente, pare e remova-o primeiro, depois inicie o novo:
+
+```shell
+docker stop YOUR_CONTAINER_NAME
+docker rm YOUR_CONTAINER_NAME
+```
+
+### Homem-Pod [#deploy-podman]
+
+Certifique-se de ter concluído todas as [dependências do Podman](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-dependencies) incluindo o serviço de API do Podman na porta 8000. Em seguida, atualize o `DESIRED_RUNTIMES`:
+
+```shell
+podman pod create --network slirp4netns --name sjm-pod \
+  --add-host=podman.service:YOUR_HOST_IP
+
+podman run -d \
+  --name sjm \
+  --pod sjm-pod \
+  --restart unless-stopped \
+  -e PRIVATE_LOCATION_KEY=YOUR_PRIVATE_LOCATION_KEY \
+  -e "DESIRED_RUNTIMES=[newrelic/synthetics-ping-runtime:latest,newrelic/synthetics-node-api-runtime:RC_IMAGE_TAG,newrelic/synthetics-node-browser-runtime:RC_IMAGE_TAG]" \
+  -e CONTAINER_ENGINE=PODMAN \
+  -e PODMAN_API_SERVICE_PORT=8000 \
+  -e PODMAN_POD_NAME=sjm-pod \
+  newrelic/synthetics-job-manager:latest
+```
+
+<Callout variant="tip">
+  Faça o pré-pull das imagens de runtime antes de iniciar o SJM para evitar problemas de timeout durante a primeira inicialização. A imagem do runtime do navegador tem aproximadamente 3 GB:
+
+  ```shell
+  podman pull docker.io/newrelic/synthetics-node-browser-runtime:RC_IMAGE_TAG
+  podman pull docker.io/newrelic/synthetics-node-api-runtime:RC_IMAGE_TAG
+  podman pull docker.io/newrelic/synthetics-ping-runtime:latest
+  ```
+</Callout>
+
+Substitua `YOUR_PRIVATE_LOCATION_KEY` pela sua chave de localização privada e `RC_IMAGE_TAG` pela tag da imagem do Docker Hub, como `rc1.17`.
+
+### Kubernetes [#deploy-kubernetes]
+
+Atualize os valores do Helm para o chart do gerenciador de tarefas do Synthetics. Se você usar um arquivo `values.yaml`, atualize as tags de imagem de tempo de execução:
+
+```shell
+helm repo update
+
+helm upgrade sjm newrelic/synthetics-job-manager \
+  --namespace YOUR_NAMESPACE \
+  --set synthetics.privateLocationKey=YOUR_PRIVATE_LOCATION_KEY \
+  --set-json 'synthetics.desiredRuntimes=[{"image":"newrelic/synthetics-ping-runtime","tag":"latest"},{"image":"newrelic/synthetics-node-api-runtime","tag":"RC_IMAGE_TAG"},{"image":"newrelic/synthetics-node-browser-runtime","tag":"RC_IMAGE_TAG"}]'
+```
+
+Para uma nova instalação:
+
+```shell
+helm install sjm newrelic/synthetics-job-manager \
+  --namespace synthetics --create-namespace \
+  --set synthetics.privateLocationKey=YOUR_PRIVATE_LOCATION_KEY \
+  --set-json 'synthetics.desiredRuntimes=[{"image":"newrelic/synthetics-ping-runtime","tag":"latest"},{"image":"newrelic/synthetics-node-api-runtime","tag":"RC_IMAGE_TAG"},{"image":"newrelic/synthetics-node-browser-runtime","tag":"RC_IMAGE_TAG"}]'
+```
+
+Substitua `YOUR_PRIVATE_LOCATION_KEY` pela sua chave de localização privada e `RC_IMAGE_TAG` pela tag da imagem do Docker Hub, como `rc1.17`.
+
+## Consultas NRQL para monitoramento da transição
+
+Se você configurou uma segunda localização privada com os mesmos monitores — onde as verificações são executadas como tarefas reais, não como validações pré-migração — use estas consultas para acompanhar o progresso da sua migração:
+
+**Taxa de falhas por monitor no novo tempo de execução:**
+
+```sql
+SELECT percentage(count(*), WHERE result = 'SUCCESS') AS 'Success %',
+       count(*) AS 'Total Checks'
+FROM SyntheticCheck
+WHERE locationLabel = 'YOUR_NEW_LOCATION'
+SINCE 1 day ago
+FACET monitorName
+```
+
+**Comparação da duração da execução entre as localizações antigas e novas:**
+
+```sql
+SELECT average(executionDuration) AS 'Avg Execution Duration (ms)',
+       average(duration) AS 'Avg Duration (ms)',
+       average(executionDuration - duration) AS 'Avg Overhead (ms)'
+FROM SyntheticCheck
+SINCE 1 day ago
+FACET locationLabel, monitorName
+```
+
+**Identificar monitores com tempos de execução aumentados:**
+
+```sql
+SELECT monitorName, average(executionDuration) AS 'Avg ExecDuration'
+FROM SyntheticCheck
+SINCE 1 day ago
+FACET monitorName, locationLabel
+ORDER BY average(executionDuration) DESC
+```
+
+## Corrigir monitores com falha [#fix-monitors]
+
+<CollapserGroup>
+  <Collapser id="keepalive-timeout" title="Scripts com agentes HTTP personalizados esgotando o tempo limite">
+    **Sintoma:** Monitores de API ou browser com script que criam instâncias personalizadas de `http.Agent` ou `https.Agent` apresentam tempos de execução mais longos ou timeouts.
+
+    **Causa:** O Node.js 22 alterou `http.globalAgent` para o padrão `keepAlive: true`. Agentes personalizados herdam esse comportamento, mantendo as conexões abertas e impedindo que o processo seja encerrado.
+
+    **Correção:** defina explicitamente `keepAlive: false` em agentes personalizados ou chame `agent.destroy()` quando terminar:
+
+    ```javascript
+    // Option 1: Set keepAlive: false
+    const agent = new https.Agent({ keepAlive: false });
+
+    // Option 2: Destroy the agent after use
+    const agent = new https.Agent({ keepAlive: true });
+    // ... make requests ...
+    agent.destroy();
+    ```
+  </Collapser>
+
+  <Collapser id="tab-crashed" title="Guia do Chrome falha em páginas pesadas">
+    **Sintoma:** os monitores de browser com script falham com `Error: tab crashed` em páginas com muito JavaScript.
+
+    **Causa:** o Chrome 147 tem um consumo de memória maior do que o Chrome 134. Páginas que estavam próximas ao limite de memória no tempo de execução antigo podem agora excedê-lo.
+
+    **Correção:** aumente a alocação de memória do contêiner do SJM:
+
+    * **Docker/Podman:** Defina `-e HEAVY_WORKER_MEMORY=4294967296` (4 GiB, aumento em relação ao padrão de 3,256 GiB).
+    * **Kubernetes:** Atualize os valores do Helm para aumentar os limites de recursos.
+
+    Você também pode reduzir a pressão de memória ao:
+
+    * Reduzindo o número de workers pesados simultâneos (`HEAVYWEIGHT_WORKERS`).
+    * Simplificar scripts para carregar menos páginas por verificação.
+    * Montando o `/dev/shm` do host para memória compartilhada adicional: `-v /dev/shm:/dev/shm`.
+  </Collapser>
+
+  <Collapser id="timeout-increase" title="Monitores esgotando o tempo limite devido ao aumento da duração da execução">
+    **Sintoma:** Monitores que anteriormente eram concluídos dentro do tempo limite agora falham com erros de tempo limite.
+
+    **Causa:** o Chrome 147 e o Node.js 22 podem executar determinadas operações mais lentamente do que as versões anteriores. O overhead do contêiner é normalmente de 6–10 segundos para monitores de browser.
+
+    **Correção:**
+
+    Se o tempo de inicialização do Chrome estiver contribuindo para o atraso, tente estes ajustes de recursos nesta ordem:
+
+    1. Aumente a memória do contêiner para 4 GiB:
+
+       ```shell
+       -e HEAVY_WORKER_MEMORY=4294967296
+       ```
+
+    2. Se isso não ajudar, aumente o peso da CPU:
+
+       ```shell
+       -e HEAVY_WORKER_CPUS=2
+       ```
+
+       `HEAVY_WORKER_CPUS` controla os compartilhamentos de CPU do Docker (um peso relativo), não um limite rígido de núcleo de CPU. Isso só faz diferença quando vários contêineres estão competindo por CPU ao mesmo tempo.
+
+    Ambas as alterações são de baixo risco e vale a pena tentar se você tiver recursos disponíveis. No entanto, os atrasos na inicialização podem ser inerentes ao perfil de inicialização mais pesado do Chrome 147, em vez de uma restrição de recursos do contêiner, portanto, eles podem não eliminar totalmente o problema. De qualquer forma, eles descartam os limites de recursos como um fator contribuinte.
+
+    Se os tempos limite persistirem após os ajustes de recursos:
+
+    * Aumente o tempo limite do monitor nas configurações do monitor.
+    * Defina `CHECK_TIMEOUT` no SJM para um valor mais alto (o padrão é 180 segundos).
+    * Otimize scripts para reduzir carregamentos de página ou esperas desnecessárias.
+    * Use tempos limite explícitos em chamadas `waitForElement` em vez de depender de valores padrão.
+  </Collapser>
+
+  <Collapser id="ipv6-url" title="Alterações no tratamento de endereços IPv6">
+    **Sintoma:** Scripts que constroem URLs com endereços IPv6 falham com erros de análise de URL.
+
+    **Causa:** o Node.js 22 tem uma análise de URL mais rigorosa. Endereços IPv6 devem ser envolvidos por colchetes quando usados em URLs.
+
+    **Correção:** certifique-se de que os endereços IPv6 estejam formatados corretamente:
+
+    ```javascript
+    // Before (may break on Node.js 22)
+    const url = `http://${ipv6Address}:${port}/path`;
+
+    // After
+    const url = `http://[${ipv6Address}]:${port}/path`;
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Resolução de problemas [#troubleshooting]
+
+### Problemas comuns
+
+| Problema                                             | Causa possível                                                | Solução                                                                                                                                                                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Error: tab crashed`                                 | Limite de memória do Chrome 147 excedido                      | Aumente `HEAVY_WORKER_MEMORY` ou reduza `HEAVYWEIGHT_WORKERS`                                                                                                                                                  |
+| Mais de 30 segundos adicionados ao tempo de execução | Conexões keep-alive impedindo o encerramento do processo      | Corrigido no rc1.11; verifique se há agentes personalizados em scripts                                                                                                                                         |
+| Podman SJM falha ao criar rede de ponte              | Permissões do Podman rootless                                 | Siga a configuração das [dependências do Podman](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-dependencies); garanta a delegação de cgroup e o serviço da API do Podman |
+| Podman SJM encerra durante a extração da imagem      | Imagens grandes esgotando o tempo limite no primeiro download | Faça o pré-pull de imagens de runtime com `podman pull` antes de iniciar o SJM                                                                                                                                 |
+| Monitor passa, mas perde etapas do script            | Falhas silenciosas em scripts de várias etapas                | Use a estratégia de local paralelo para comparar resultados entre os tempos de execução antigos e novos                                                                                                        |
+
+### Consultas NRQL úteis
+
+**Verificar se há monitores com aumento nas taxas de falha:**
+
+```sql
+SELECT percentage(count(*), WHERE result = 'FAILED') AS 'Failure %'
+FROM SyntheticCheck
+SINCE 1 day ago
+FACET monitorName
+WHERE percentage(count(*), WHERE result = 'FAILED') > 0
+```
+
+**Compare a duração de execução antes e depois da migração:**
+
+```sql
+SELECT average(executionDuration) AS 'Avg ExecDuration',
+       max(executionDuration) AS 'Max ExecDuration',
+       average(executionDuration - duration) AS 'Avg Overhead'
+FROM SyntheticCheck
+SINCE 1 day ago
+FACET monitorName
+ORDER BY average(executionDuration) DESC
+```
+
+**Encontre monitores com falhas nas abas do Chrome:**
+
+```sql
+SELECT count(*)
+FROM SyntheticCheck
+WHERE error LIKE '%tab crashed%'
+SINCE 1 day ago
+FACET monitorName
+```
+
+### Recomendações de recursos
+
+Com base em testes com runtimes rc1.15:
+
+| Componente                                                           | Mínimo recomendado | Padrão    |
+| -------------------------------------------------------------------- | ------------------ | --------- |
+| Memória do contêiner SJM                                             | 3,256 GiB          | 3,256 GiB |
+| Memória de tempo de execução do Browser (`HEAVY_WORKER_MEMORY`)      | 4 GiB              | 3,256 GiB |
+| Memória compartilhada do runtime do Browser                          | 2,256 GiB          | 2,256 GiB |
+| Compartilhamentos de CPU do runtime do Browser (`HEAVY_WORKER_CPUS`) | 2                  | 1         |
+| Memória de tempo de execução de ping                                 | 1 GiB              | 1 GiB     |
+
+`HEAVY_WORKER_CPUS` define os compartilhamentos de CPU do Docker (um peso relativo), não um limite rígido de núcleos de CPU. Aumentá-lo só faz diferença quando vários contêineres estão competindo por CPU simultaneamente.
+
+## Linha do tempo [#timeline]
+
+| Data           | Evento                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Abril de 2026  | Novas imagens de tempo de execução (rc1.15) disponível no Docker Hub                                                      |
+| Abril de 2026  | Boletim de segurança [NR26-04](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/) publicado |
+| -Julho de 2026 | Fim do suporte para os ambientes de execução Node.js 16/Chrome 134                                                        |
+| -Julho de 2026 | Migração automática dos monitores restantes                                                                               |
+
+<Callout variant="caution">
+  Monitores que são migrados automaticamente podem passar na validação, mas falhar silenciosamente em algumas etapas do script. Teste seus monitores proativamente usando a estratégia de localização privada paralela para garantir uma transição tranquila.
+</Callout>
+
+## Documentação relacionada [#related-docs]
+
+* [Instale o gerenciador de jobs de Sintéticos](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/)
+* [Configuração do gerenciador de trabalhos](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/)
+* [Resolução de problemas de monitor de browser com script](/docs/synthetics/synthetic-monitoring/troubleshooting/troubleshoot-browser-monitoring/)
+* [Boletim de segurança NR26-04](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/)
