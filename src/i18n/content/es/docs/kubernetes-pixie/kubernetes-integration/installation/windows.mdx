@@ -1,0 +1,213 @@
+---
+title: Monitorear nodos de Windows
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Windows
+metaDescription: How to enable and configure Windows node monitoring in the New Relic Kubernetes integration.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La integración de Kubernetes de New Relic admite de forma nativa el monitoreo de nodos de Windows junto con nodos de Linux en el mismo clúster — no necesita un chart de Helm ni una instalación por separado.
+
+Aprenda a habilitar y configurar el monitoreo de nodos de Windows. Para obtener detalles sobre el modelo de ejecución privilegiado vs. no privilegiado y las consideraciones de seguridad, consulte [Modo privilegiado vs. no privilegiado](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-privileged-mode). Para las limitaciones de métricas específicas de Windows, consulta [Limitaciones y resolución de problemas para Windows](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows).
+
+## Requisitos previos [#prerequisites]
+
+Antes de habilitar el monitoreo de Windows, asegúrese de que su clúster cumpla con los siguientes requisitos:
+
+* [Compatibilidad y requisitos para nodos de Windows](/docs/kubernetes-pixie/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements/#req-windows)
+* Windows Server LTSC 2019 (compilación `10.0.17763`) o LTSC 2022 (compilación `10.0.20348`).
+* La versión de la imagen de contenedor debe coincidir exactamente con la versión del sistema operativo del host de Windows. Windows solo admite aislamiento de procesos, no aislamiento de Hyper-V.
+* No se admiten nodos de Windows que se ejecutan en clústeres de Red Hat OpenShift.
+
+<Callout variant="important">
+  Los contenedores de Windows solo pueden ejecutarse en un host con exactamente la misma versión de Windows y número de compilación. La integración crea un DaemonSet por versión de Windows compatible, programando los pods solo en nodos con una compilación de SO coincidente.
+</Callout>
+
+## Verifique la versión de su nodo de Windows [#check-version]
+
+Si no está seguro de qué versión de Windows ejecutan sus nodos, consulte las etiquetas de los nodos directamente:
+
+```shell
+kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.labels.node\.kubernetes\.io/windows-build}{"\n"}{end}'
+```
+
+Esto imprime el valor de la etiqueta `node.kubernetes.io/windows-build` para cada nodo, con el que coincide el DaemonSet `nodeSelector` de la integración. También puede ejecutar `systeminfo` en el propio nodo y hacer coincidir el número de compilación:
+
+| Versión de Windows       | Número de compilación |
+| ------------------------ | --------------------- |
+| Windows Server LTSC 2019 | 10.0.17763            |
+| Windows Server LTSC 2022 | 10.0.20348            |
+
+## Habilitar el monitoreo de Windows [#enable-windows]
+
+Para habilitar el monitoreo de Windows, establezca `enableWindows: true` en su `values.yaml`. Al desplegar mediante `nri-bundle`, pase esto bajo la clave `newrelic-infrastructure`:
+
+```yaml
+newrelic-infrastructure:
+  enableWindows: true
+```
+
+Aplique el cambio con un `helm upgrade`:
+
+```shell
+helm upgrade newrelic-bundle newrelic/nri-bundle \
+  --namespace newrelic \
+  --reuse-values \
+  --set newrelic-infrastructure.enableWindows=true
+```
+
+De forma predeterminada, habilitar Windows crea DaemonSets tanto para LTSC 2019 como para LTSC 2022. Consulte [Configurar para versiones específicas de Windows](#windows-os-list) para restringir esto.
+
+## Configurar para versiones específicas de Windows [#windows-os-list]
+
+La clave `windowsOsList` controla qué versiones de Windows obtienen DaemonSets. De forma predeterminada, incluye ambas versiones admitidas. Para restringir el monitoreo solo a las versiones de Windows realmente presentes en su clúster, sobrescríbalo en su `values.yaml`:
+
+```yaml
+newrelic-infrastructure:
+  enableWindows: true
+  windowsOsList:
+    - version: ltsc2022
+      imageTagSuffix: ltsc2022
+      buildNumber: 10.0.20348
+```
+
+Cada entrada genera un DaemonSet independiente. Los pods solo se programan en nodos cuya etiqueta `node.kubernetes.io/windows-build` coincide con el campo `buildNumber`. Esto evita que aparezcan DaemonSets vacíos en su clúster.
+
+## Clústeres mixtos de Linux y Windows [#hybrid-clusters]
+
+En v3, los nodos de Windows y Linux se monitorean usando el mismo chart `newrelic-infrastructure` — no necesita una instalación de chart por separado como lo hacía en v2. El gráfico crea automáticamente:
+
+* Un DaemonSet de Linux con `nodeSelector: kubernetes.io/os: linux`
+* Un DaemonSet de Windows por entrada en `windowsOsList`, cada uno con `nodeSelector: kubernetes.io/os: windows` y un selector de número de compilación coincidente
+
+Un `values.yaml` mínimo para un clúster híbrido:
+
+```yaml
+global:
+  licenseKey: YOUR_NEW_RELIC_LICENSE_KEY
+  cluster: YOUR_CLUSTER_NAME
+
+newrelic-infrastructure:
+  enableWindows: true
+  windowsOsList:
+    - version: ltsc2022
+      imageTagSuffix: ltsc2022
+      buildNumber: 10.0.20348
+```
+
+Instale o actualice con:
+
+```shell
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+  --namespace newrelic --create-namespace \
+  -f values.yaml
+```
+
+## Modo privilegiado [#privileged-mode]
+
+El monitoreo de Windows se establece de forma predeterminada en modo privilegiado, el cual utiliza [contenedores HostProcess de Windows](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/) para recopilar métricas completas a nivel de nodo, incluyendo CPU, memoria, disco y red. Esto es necesario para recibir datos de `SystemSample`, `StorageSample` y `NetworkSample` de los nodos de Windows.
+
+<Callout variant="important">
+  El modo privilegiado no está disponible para los nodos de Windows en GKE, ya que GKE no lo admite. Configure `windows.privileged: false` para ejecutarse en modo sin privilegios.
+</Callout>
+
+Para ejecutar en modo sin privilegios en su lugar:
+
+```yaml
+newrelic-infrastructure:
+  enableWindows: true
+  windows:
+    privileged: false
+```
+
+El modo no privilegiado deshabilita las métricas a nivel de host, pero puede ser requerido por las políticas de seguridad del clúster. Para obtener un desglose completo de los datos afectados, consulte [Modo privilegiado frente a no privilegiado](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-privileged-mode/#windows-nodes).
+
+## Verifique la instalación [#verify]
+
+Después de instalar o actualizar, verifique que se crearon los DaemonSets:
+
+```shell
+kubectl -n newrelic get daemonsets
+```
+
+Debería ver un DaemonSet para cada versión de Windows que haya configurado junto al DaemonSet de Linux:
+
+```shell
+NAME                                                DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR
+newrelic-bundle-nrk8s-kubelet                       2         2         2       2            2           kubernetes.io/os=linux
+newrelic-bundle-nrk8s-kubelet-windows-ltsc2019      0         0         0       0            0           kubernetes.io/os=windows,node.kubernetes.io/windows-build=10.0.17763
+newrelic-bundle-nrk8s-kubelet-windows-ltsc2022      1         1         1       1            1           kubernetes.io/os=windows,node.kubernetes.io/windows-build=10.0.20348
+```
+
+Un recuento de `DESIRED` de `0` para una versión de Windows significa que no existen nodos con ese número de compilación en el clúster — esto es el comportamiento esperado, no un error.
+
+Para confirmar que los pods de Windows se están ejecutando en sus nodos:
+
+```shell
+kubectl -n newrelic get pods -o wide | grep windows
+```
+
+## Configuración adicional [#additional-config]
+
+### Agregar selectores de nodos [#node-selector]
+
+De forma predeterminada, los DaemonSets de Windows seleccionan nodos usando `kubernetes.io/os: windows`. Puede agregar selectores adicionales para restringir el monitoreo a un subconjunto específico de nodos de Windows:
+
+```yaml
+kubelet:
+  windowsNodeSelector:
+    kubernetes.io/os: windows
+    node.kubernetes.io/windows-build: "10.0.20348"
+    newrelic.com/monitoring-allowed: "true"  # custom label you control
+```
+
+### Use un registro de contenedores privado [#custom-registry]
+
+Para descargar imágenes de Windows desde un registro privado en lugar del valor predeterminado:
+
+```yaml
+images:
+  windowsIntegration:
+    registry: your-registry.example.com
+    pullPolicy: Always
+  windowsAgent:
+    registry: your-registry.example.com
+    pullPolicy: Always
+  pullSecrets:
+    - name: registry-credentials
+```
+
+### Establecer límites de recursos [#resource-limits]
+
+Los contenedores HostProcess compiten por recursos directamente en el nodo de Windows. El chart establece un límite de memoria predeterminado. Puede ajustarlo o establecer un límite de CPU. Para obtener más información, consulta [Requisitos de recursos](/docs/kubernetes-pixie/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements/#resource-requirements).
+
+```yaml
+kubelet:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 150Mi
+    limits:
+      memory: 300Mi
+```
+
+No se establece un límite de CPU por defecto — un tope estricto de CPU corre el riesgo de perder intervalos de raspado bajo carga del nodo. Si la política de su clúster requiere uno, evalúe esa compensación antes de configurarlo.
+
+## Próximos pasos [#next-steps]
+
+<DocTiles>
+  <DocTile title="Modo privilegiado vs. no privilegiado" path="/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-privileged-mode">
+    Aprenda qué son los contenedores HostProcess, qué acceso al host otorgan y las mejores prácticas de seguridad para el modo privilegiado de Windows.
+  </DocTile>
+
+  <DocTile title="Resolución de problemas de Windows" path="/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows">
+    Resuelve problemas comunes de los nodos de Windows, comprende las limitaciones de las métricas de Windows y verifica qué métricas están disponibles en modo sin privilegios.
+  </DocTile>
+
+  <DocTile title="Monitorear datos de Kubernetes" path="/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/find-use-your-kubernetes-data">
+    Aprende a consultar y explorar las métricas de nodo de Windows junto con tus workloads de Linux.
+  </DocTile>
+</DocTiles>

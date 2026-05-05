@@ -1,0 +1,213 @@
+---
+title: Windows ノードをモニターする
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Windows
+metaDescription: How to enable and configure Windows node monitoring in the New Relic Kubernetes integration.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic Kubernetesインテグレーションは、同じクラスタ内のLinuxノードとともにWindowsノードの監視をネイティブにサポートしているため、別のHelmチャートやインストレーションは必要ありません。
+
+Windowsノード監視を有効にして設定する方法を説明します。特権的および非特権的実行モデルとセキュリティに関する考慮事項の詳細については、[特権的モードと非特権的モード](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-privileged-mode)を参照してください。Windows固有のメトリクスの制限事項については、[Windowsの制限事項とトラブルシューティング](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows)を参照してください。
+
+## 前提条件 [#prerequisites]
+
+Windows監視を有効にする前に、クラスタが以下の要件を満たしていることを確認してください。
+
+* [Windowsノードの互換性および要件](/docs/kubernetes-pixie/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements/#req-windows)
+* Windows Server LTSC 2019（ビルド`10.0.17763`）またはLTSC 2022（ビルド`10.0.20348`）。
+* コンテナイメージのバージョンは、WindowsホストOSのバージョンと完全に一致する必要があります。Windows はプロセス分離のみをサポートしており、Hyper-V 分離はサポートしていません。
+* Red Hat OpenShiftクラスタで動作するWindowsノードはサポートされていません。
+
+<Callout variant="important">
+  Windowsコンテナは、Windowsバージョンとビルド番号がまったく同じホストでのみ実行できます。インテグレーションは、サポートされているWindowsバージョンごとに1つのDaemonSetを作成し、一致するOSビルドを持つノードにのみポッドをスケジュールします。
+</Callout>
+
+## お使いのWindowsノードのバージョンを確認する [#check-version]
+
+ノードで実行されているWindowsのバージョンが不明な場合は、ノードのラベルを直接クエリしてください：
+
+```shell
+kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.labels.node\.kubernetes\.io/windows-build}{"\n"}{end}'
+```
+
+これにより、インテグレーションのDaemonSet `nodeSelector`が照合する、各ノードの`node.kubernetes.io/windows-build`ラベルの値が出力されます。ノード自体で`systeminfo`を実行し、ビルド番号を照合することもできます：
+
+| Windowsバージョン             | ビルド番号      |
+| ------------------------ | ---------- |
+| Windows Server LTSC 2019 | 10.0.17763 |
+| Windows Server LTSC 2022 | 10.0.20348 |
+
+## Windowsの監視を有効にする [#enable-windows]
+
+Windows監視を有効にするには、`values.yaml`で`enableWindows: true`を設定します。`nri-bundle`を介してデプロイする場合、これを`newrelic-infrastructure`キーの下に渡します：
+
+```yaml
+newrelic-infrastructure:
+  enableWindows: true
+```
+
+`helm upgrade`を使用して変更を適用します：
+
+```shell
+helm upgrade newrelic-bundle newrelic/nri-bundle \
+  --namespace newrelic \
+  --reuse-values \
+  --set newrelic-infrastructure.enableWindows=true
+```
+
+デフォルトでは、Windowsを有効にすると、LTSC 2019とLTSC 2022の両方のDaemonSetが作成されます。これを制限するには、[特定のWindowsバージョンの構成](#windows-os-list)を参照してください。
+
+## 特定のWindowsバージョン用に設定する [#windows-os-list]
+
+`windowsOsList`キーは、どのWindowsバージョンがDaemonSetを取得するかを制御します。デフォルトでは、両方のサポート対象バージョンが含まれています。クラスタに実際に存在するWindowsバージョンのみに監視を制限するには、`values.yaml`でオーバーライドします：
+
+```yaml
+newrelic-infrastructure:
+  enableWindows: true
+  windowsOsList:
+    - version: ltsc2022
+      imageTagSuffix: ltsc2022
+      buildNumber: 10.0.20348
+```
+
+各エントリは個別のDaemonSetを生成します。ポッドは、`node.kubernetes.io/windows-build`ラベルが`buildNumber`フィールドと一致するノードにのみスケジュールされます。これにより、空のDaemonSetがクラスタに表示されるのを防ぎます。
+
+## LinuxとWindowsの混在クラスタ [#hybrid-clusters]
+
+v3では、WindowsおよびLinuxノードは同じ`newrelic-infrastructure`チャートを使用してモニターされます — v2のように個別のチャートのインストレーションは必要ありません。チャートは以下を自動作成します：
+
+* 〜を備えたLinux DaemonSet `nodeSelector: kubernetes.io/os: linux`
+* `windowsOsList` のエントリごとに1つの Windows DaemonSet、それぞれに `nodeSelector: kubernetes.io/os: windows` および一致するビルド番号セレクタ
+
+ハイブリッドクラスタ用の最小限の`values.yaml`：
+
+```yaml
+global:
+  licenseKey: YOUR_NEW_RELIC_LICENSE_KEY
+  cluster: YOUR_CLUSTER_NAME
+
+newrelic-infrastructure:
+  enableWindows: true
+  windowsOsList:
+    - version: ltsc2022
+      imageTagSuffix: ltsc2022
+      buildNumber: 10.0.20348
+```
+
+次を使用してインストールまたはアップグレードします：
+
+```shell
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+  --namespace newrelic --create-namespace \
+  -f values.yaml
+```
+
+## 特権モード [#privileged-mode]
+
+Windowsの監視はデフォルトで特権モードになり、[Windows HostProcessコンテナ](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/)を使用して、CPU、メモリ、ディスク、ネットワークなど、完全なノードレベルのメトリクスを収集します。Windowsノードから`SystemSample`、`StorageSample`、および`NetworkSample`データを受信するために必要です。
+
+<Callout variant="important">
+  GKEがサポートしていないため、GKE上のWindowsノードでは特権モードを利用できません。`windows.privileged: false`を非特権モードで実行するように設定します。
+</Callout>
+
+代わりに非特権モードで実行するには：
+
+```yaml
+newrelic-infrastructure:
+  enableWindows: true
+  windows:
+    privileged: false
+```
+
+非特権モードはホストレベルのメトリクスを無効にしますが、クラスタのセキュリティポリシーによって必要になる場合があります。影響を受けるデータの詳細については、[特権モードと非特権モードの比較](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-privileged-mode/#windows-nodes)を参照してください。
+
+## インストレーションを確認する [#verify]
+
+インストールまたはアップグレード後、DaemonSetが作成されたことを確認します：
+
+```shell
+kubectl -n newrelic get daemonsets
+```
+
+Linux DaemonSetと並んで、設定したWindowsの各バージョンに対するDaemonSetが表示されるはずです：
+
+```shell
+NAME                                                DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR
+newrelic-bundle-nrk8s-kubelet                       2         2         2       2            2           kubernetes.io/os=linux
+newrelic-bundle-nrk8s-kubelet-windows-ltsc2019      0         0         0       0            0           kubernetes.io/os=windows,node.kubernetes.io/windows-build=10.0.17763
+newrelic-bundle-nrk8s-kubelet-windows-ltsc2022      1         1         1       1            1           kubernetes.io/os=windows,node.kubernetes.io/windows-build=10.0.20348
+```
+
+Windowsバージョンにおける`DESIRED`の数が`0`であることは、そのビルド番号を持つノードがクラスタ内に存在しないことを意味します — これは想定される動作であり、エラーではありません。
+
+Windowsポッドがノードで実行されていることを確認するには：
+
+```shell
+kubectl -n newrelic get pods -o wide | grep windows
+```
+
+## 追加設定 [#additional-config]
+
+### ノードセレクターを追加 [#node-selector]
+
+デフォルトでは、Windows DaemonSetは`kubernetes.io/os: windows`を使用してノードを選択します。Windowsノードの特定のサブセットに監視を制限するために、追加のセレクタを追加できます：
+
+```yaml
+kubelet:
+  windowsNodeSelector:
+    kubernetes.io/os: windows
+    node.kubernetes.io/windows-build: "10.0.20348"
+    newrelic.com/monitoring-allowed: "true"  # custom label you control
+```
+
+### プライベートコンテナレジストリを使用する [#custom-registry]
+
+デフォルトではなくプライベートレジストリからWindowsイメージをプルするには：
+
+```yaml
+images:
+  windowsIntegration:
+    registry: your-registry.example.com
+    pullPolicy: Always
+  windowsAgent:
+    registry: your-registry.example.com
+    pullPolicy: Always
+  pullSecrets:
+    - name: registry-credentials
+```
+
+### リソース制限を設定する [#resource-limits]
+
+HostProcessコンテナは、Windowsノード上で直接リソースをめぐって競合します。チャートはデフォルトのメモリ上限を設定します。調整するか、CPU制限を設定できます。詳細については、[リソース要件](/docs/kubernetes-pixie/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements/#resource-requirements)を参照してください。
+
+```yaml
+kubelet:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 150Mi
+    limits:
+      memory: 300Mi
+```
+
+デフォルトではCPU制限は設定されていません。ノードの負荷時に厳格なCPU上限を設けると、スクレイプ間隔を逃すリスクがあるためです。クラスタポリシーで必要な場合は、設定する前にそのトレードオフを比較検討してください。
+
+## 次のステップ [#next-steps]
+
+<DocTiles>
+  <DocTile title="特権モードと非特権モード" path="/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-privileged-mode">
+    HostProcessコンテナとは何か、どのようなホストアクセス権限を付与するのか、およびWindows特権モードのセキュリティのベストプラクティスをご覧ください。
+  </DocTile>
+
+  <DocTile title="Windowsのトラブルシューティング" path="/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows">
+    一般的なWindowsノードの問題を解決し、Windowsメトリクスの制限を理解し、非特権モードでどのメトリクスが利用できるかを確認します。
+  </DocTile>
+
+  <DocTile title="Kubernetesデータのモニター" path="/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/find-use-your-kubernetes-data">
+    LinuxワークロードとともにWindowsノードのメトリクスをクエリして詳しく調べる方法をご覧ください。
+  </DocTile>
+</DocTiles>
