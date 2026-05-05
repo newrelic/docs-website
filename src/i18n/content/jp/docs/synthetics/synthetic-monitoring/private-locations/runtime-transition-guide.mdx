@@ -1,0 +1,420 @@
+---
+title: 外形監視プライベートロケーションのランタイム移行ガイド
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+  - Runtime migration
+  - Chrome 147
+  - Node.js 22
+metaDescription: 'Guide for transitioning Synthetics private location runtimes from Node.js 16/Chrome 134 to Node.js 22/Chrome 147 or higher, including migration strategies and troubleshooting.'
+freshnessValidatedDate: '2026-04-24'
+translationType: machine
+---
+
+New Relicは、syntheticランタイムイメージをNode.js 16およびChrome 134から、Node.js 22およびChrome 147以降に移行しています。このアップデートは[CVE-2026-5281](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/)に対処し、ランタイムを現在サポートされているバージョンに更新します。Chrome 134はGoogleのサポート対象チャネル外であり、Node.js 16は2023年9月に有効期限を迎えました。
+
+新しいランタイムイメージはDocker Hubで利用可能です：
+
+* [`newrelic/synthetics-node-api-runtime:rc1.x`](https://hub.docker.com/r/newrelic/synthetics-node-api-runtime/tags)
+* [`newrelic/synthetics-node-browser-runtime:rc1.x`](https://hub.docker.com/r/newrelic/synthetics-node-browser-runtime/tags)
+
+<Callout variant="important">
+  **DATEまでに対応が必要です。**New Relicは、Node.js 16およびChrome 134ランタイムのサポートを終了します。更新しない場合、New Relicは自動的にモニターを移行します。ただし、自動移行では、パスしても一部のスクリプトステップでサイレントに失敗するモニターを検出できない場合があります。
+</Callout>
+
+## パブリックロケーションとプライベートロケーションの違い [#public-vs-private]
+
+移行パスは、モニターがパブリックロケーションとプライベートロケーションのどちらで実行されるかによって異なります。
+
+**パブリックロケーション:** モニターの設定ページで、**Browser**バージョンのドロップダウンを**Chrome 134**から**Latest**に変更します。インフラストラクチャの変更は必要ありません。
+
+**プライベートロケーション:** 外形監視ジョブマネージャー（SJM）インフラストラクチャに新しいランタイムイメージをデプロイする必要があります。
+
+<Callout variant="important">
+  プライベートロケーションの場合、一般設定の**Browser**および**ランタイム**バージョンのドロップダウンは**影響しません**。バージョンは、SJMが実行しているイメージによって完全に決まります。ドロップダウンを変更しても、ジョブを処理するランタイムバージョンは変更されません — 変更するのはデプロイされたイメージのみです。そのため、`SyntheticCheck`の`runtimeTypeVersion`属性は、プライベートモニタージョブのランタイムバージョンを識別するための信頼できる方法ではありません。
+</Callout>
+
+**Synthetics &gt; Runtime Upgrades**の**Runtime Upgrades**ページは、パブリックモニター向けに設計されています。プライベートロケーションの場合、そのツールによる自動化された移行前検証はありません。それぞれ異なるランタイムを実行している複数のジョブマネージャーに同じプライベートロケーションキーを指定した場合、表示される結果は独立した互換性チェックではなく、実際のジョブ実行になります。アップグレードを確定する前に、[並行プライベートロケーション戦略](#parallel-location)を使用して、ランタイム間でモニターの動作を比較してください。
+
+## 何が変わるのか [#whats-changing]
+
+モニター結果が`rc1.x`イメージを実行しているSJMからのものかどうかを確認するには、このテーブルを使用します。
+
+| コンポーネント           | 古いバージョン   | `rc1.x` version |
+| ----------------- | --------- | --------------- |
+| Node.js           | 16        | 22以上            |
+| クローム              | 134       | 147以降           |
+| APIランタイムバージョン     | `1.2.134` | `1.2.143` 以降    |
+| Browserランタイムバージョン | `3.0.55`  | `3.0.63` 以降     |
+
+### ランタイムバージョンのクエリ [#version-reference]
+
+各`rc1.x` Docker Hubタグは、`SyntheticCheck`イベントでレポートされる特定の`nr.runtimeVersion`値に対応します。NRQLで`nr.runtimeVersion`属性をクエリできます：
+
+```sql
+SELECT count(*) FROM SyntheticCheck
+WHERE locationLabel = 'YOUR_PRIVATE_LOCATION'
+FACET type, nr.runtimeVersion SINCE 1 day ago
+```
+
+<Callout variant="tip">
+  ブラウザ ランタイムには **rc1.14 以降** を使用して、Chrome 146.0.7680.177 を取得します、これには、[CVE-2026-5281](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/)のパッチが含まれています。
+</Callout>
+
+### 主な動作の変更
+
+これらの変更は、既存のモニターに影響を与える可能性があります：
+
+* **HTTP keep-aliveのデフォルトが変更されました。**Node.js 22では、`http.globalAgent`がデフォルトで`keepAlive: true`になります（Node.js 16では`false`でした）。`keepAlive: false`を明示的に設定せずにカスタムHTTPエージェントを作成するスクリプトは、接続が開いたままになりプロセスが終了できなくなるため、実行時間が長くなったりタイムアウトが発生したりする可能性があります。
+
+* **リソース使用量の増加。**同じワークロードの場合、Chrome 147はChrome 134よりも多くのCPUとメモリを必要とします。Chrome 134での使用量が低いのと比較して、Browser ランタイム コンテナは通常、実行中にデフォルトのメモリ制限3.256 GiBのうち625～980 MiBを使用します。
+
+* **コンテナのオーバーヘッドの増加。**スクリプト化ブラウザモニターの平均コンテナオーバーヘッドは6～10秒です。Scripted APIモニターは平均2～4秒です。古いランタイムでタイムアウトの閾値に近かったモニターは、現在その閾値を超える可能性があります。
+
+## 移行戦略を選択する [#migration-strategy]
+
+プライベートロケーションの移行には2つのアプローチがあります。リスク許容度とモニターフリートの規模に基づいて選択してください。
+
+### オプションA：インプレースアップグレード [#in-place-upgrade]
+
+すべてのSJMを新しいランタイムイメージにアップグレードします。すべてのモニターは直ちに新しいランタイムで実行されます。
+
+**最適な用途:** 小規模なモニター群、非クリティカルな環境、または移行中に一部のモニター障害を許容できる場合。
+
+**ステップ**
+
+1. 新しいイメージタグを使用するように、各SJMの`DESIRED_RUNTIMES`の設定を更新します。
+2. SJMを再起動または再デプロイします。
+3. モニター結果。
+
+**リスク:** スクリプトがNode.js 22およびChrome 147以降で動作するように更新されるまで、一部のモニターが失敗する可能性があります。
+
+### オプションB：並列プライベートロケーション（推奨） [#parallel-location]
+
+2つ目のプライベートロケーションを作成し、そこに新しいランタイムイメージのSJMをデプロイして、A/B比較のために両方のロケーションで同時にモニターを実行します。
+
+**最適な用途:** 本番環境、大規模なモニター群、または既存の監視をまったく中断させたくない場合。
+
+**ステップ**
+
+1. New Relicで[新しいプライベートロケーションを作成](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/)します。分かりやすい名前を付けます。
+
+2. 新しいランタイムイメージを使用して、新しいプライベートロケーションを指定した1つ以上のSJMをデプロイします。
+
+3. テスト中に新しいロケーションからの集計ノイズを抑制するために、**ミュートルールを設定します**：
+
+   **Alerts &gt; Muting rules**に移動し、条件`tags.privateLocation EQUALS <your-new-location-name>`でルールを作成します。
+
+4. 新しいプライベートロケーションをモニターに追加します。各モニターは複数のプライベートロケーションに割り当てることができます。各ロケーションのジョブは独立して実行されます。新しいロケーションでの失敗は、旧ロケーションからの結果に影響しません。
+
+5. 2つの場所の間の結果を比較する。以下のNRQLクエリを使用します。
+
+   ```sql
+   SELECT count(*), percentage(count(*), WHERE result = 'SUCCESS') AS 'Success %',
+          average(executionDuration) AS 'Avg Exec Duration'
+   FROM SyntheticCheck
+   SINCE 1 day ago
+   FACET locationLabel, monitorName
+   ```
+
+6. スクリプトを手動で編集して、新しいロケーションで失敗しているモニターを修正します。
+
+7. 新しいロケーションですべてのモニターがパスしたら、モニターから旧ロケーションを削除し、旧SJMインフラストラクチャを廃止します。
+
+**トレードオフ:** 移行期間中はインフラストラクチャコストが2倍になります。2つ目のSJMセットには、別のホストまたはクラスタリソースが必要です。
+
+このアプローチにより、結果と実行時間の違い（どちらもジョブマネージャーの負荷とリソース計画に影響します）を含め、すべてのモニターが新しいランタイムでどのように実行されるかの全体像を把握できます。
+
+完全なインフラストラクチャの比較を行わずにスクリプトの失敗のみをテストするには、小規模なテストSJMを使用して2つ目のプライベートロケーションをセットアップし、モニターのサブセットを実行します。これは、新しいランタイムで既存のモニターがどのように動作するかを示していますが、ランタイムが既存のインフラストラクチャのキャパシティにどのように適合するかを示すものではありません。
+
+## 新しいランタイム イメージを使用してSJMをデプロイする [#deploy]
+
+新しいランタイムイメージタグを使用するように、既存のSJMデプロイメントを更新してください。SJM自体（`newrelic/synthetics-job-manager:latest`）は変更されません — プルするランタイムイメージのみが変更されます。
+
+<Callout variant="tip">
+  インストレーションと設定の詳細な手順については、[外形監視ジョブマネージャーのインストール](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/)および[ジョブマネージャーの設定](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/)を参照してください。
+</Callout>
+
+### Docker [#deploy-docker]
+
+新しいイメージタグを参照するように環境変数`DESIRED_RUNTIMES`を更新します：
+
+```shell
+docker run \
+  --name sjm \
+  --restart unless-stopped \
+  -e PRIVATE_LOCATION_KEY=YOUR_PRIVATE_LOCATION_KEY \
+  -e "DESIRED_RUNTIMES=[newrelic/synthetics-ping-runtime:latest,newrelic/synthetics-node-api-runtime:RC_IMAGE_TAG,newrelic/synthetics-node-browser-runtime:RC_IMAGE_TAG]" \
+  -v /var/run/docker.sock:/var/run/docker.sock:rw \
+  newrelic/synthetics-job-manager:latest
+```
+
+`YOUR_PRIVATE_LOCATION_KEY`をプライベートロケーションキーに、`RC_IMAGE_TAG`をDocker Hubのイメージタグ（`rc1.17`など）に置き換えます。
+
+既存のSJMコンテナがある場合は、まずそれを停止して削除してから、新しいコンテナを起動します：
+
+```shell
+docker stop YOUR_CONTAINER_NAME
+docker rm YOUR_CONTAINER_NAME
+```
+
+### ポッドマン [#deploy-podman]
+
+ポート8000のPodman APIサービスなど、すべての[Podmanの依存関係](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-dependencies)を完了していることを確認してください。次に、`DESIRED_RUNTIMES`を更新します：
+
+```shell
+podman pod create --network slirp4netns --name sjm-pod \
+  --add-host=podman.service:YOUR_HOST_IP
+
+podman run -d \
+  --name sjm \
+  --pod sjm-pod \
+  --restart unless-stopped \
+  -e PRIVATE_LOCATION_KEY=YOUR_PRIVATE_LOCATION_KEY \
+  -e "DESIRED_RUNTIMES=[newrelic/synthetics-ping-runtime:latest,newrelic/synthetics-node-api-runtime:RC_IMAGE_TAG,newrelic/synthetics-node-browser-runtime:RC_IMAGE_TAG]" \
+  -e CONTAINER_ENGINE=PODMAN \
+  -e PODMAN_API_SERVICE_PORT=8000 \
+  -e PODMAN_POD_NAME=sjm-pod \
+  newrelic/synthetics-job-manager:latest
+```
+
+<Callout variant="tip">
+  初回起動時のタイムアウトの問題を回避するために、SJMを起動する前にランタイムイメージを事前にプルしてください。ブラウザ ランタイム イメージは約 3 GB です：
+
+  ```shell
+  podman pull docker.io/newrelic/synthetics-node-browser-runtime:RC_IMAGE_TAG
+  podman pull docker.io/newrelic/synthetics-node-api-runtime:RC_IMAGE_TAG
+  podman pull docker.io/newrelic/synthetics-ping-runtime:latest
+  ```
+</Callout>
+
+`YOUR_PRIVATE_LOCATION_KEY`をプライベートロケーションキーに、`RC_IMAGE_TAG`をDocker Hubのイメージタグ（`rc1.17`など）に置き換えます。
+
+### Kubernetes [#deploy-kubernetes]
+
+SyntheticsジョブマネージャーチャートのHelmの値を更新します。`values.yaml`ファイルを使用する場合は、ランタイム イメージ タグを更新してください：
+
+```shell
+helm repo update
+
+helm upgrade sjm newrelic/synthetics-job-manager \
+  --namespace YOUR_NAMESPACE \
+  --set synthetics.privateLocationKey=YOUR_PRIVATE_LOCATION_KEY \
+  --set-json 'synthetics.desiredRuntimes=[{"image":"newrelic/synthetics-ping-runtime","tag":"latest"},{"image":"newrelic/synthetics-node-api-runtime","tag":"RC_IMAGE_TAG"},{"image":"newrelic/synthetics-node-browser-runtime","tag":"RC_IMAGE_TAG"}]'
+```
+
+新規インストレーションの場合：
+
+```shell
+helm install sjm newrelic/synthetics-job-manager \
+  --namespace synthetics --create-namespace \
+  --set synthetics.privateLocationKey=YOUR_PRIVATE_LOCATION_KEY \
+  --set-json 'synthetics.desiredRuntimes=[{"image":"newrelic/synthetics-ping-runtime","tag":"latest"},{"image":"newrelic/synthetics-node-api-runtime","tag":"RC_IMAGE_TAG"},{"image":"newrelic/synthetics-node-browser-runtime","tag":"RC_IMAGE_TAG"}]'
+```
+
+`YOUR_PRIVATE_LOCATION_KEY`をプライベートロケーションキーに、`RC_IMAGE_TAG`をDocker Hubのイメージタグ（`rc1.17`など）に置き換えます。
+
+## 移行を監視するためのNRQLクエリ
+
+チェックが移行前の検証としてではなく、実際のジョブとして実行される、同じモニターを備えた2つ目のプライベートロケーションをセットアップした場合は、これらのクエリを使用して移行の進捗状況を追跡します：
+
+**新しいランタイムでのモニター別の失敗率：**
+
+```sql
+SELECT percentage(count(*), WHERE result = 'SUCCESS') AS 'Success %',
+       count(*) AS 'Total Checks'
+FROM SyntheticCheck
+WHERE locationLabel = 'YOUR_NEW_LOCATION'
+SINCE 1 day ago
+FACET monitorName
+```
+
+**旧ロケーションと新しいロケーションの実行時間の比較：**
+
+```sql
+SELECT average(executionDuration) AS 'Avg Execution Duration (ms)',
+       average(duration) AS 'Avg Duration (ms)',
+       average(executionDuration - duration) AS 'Avg Overhead (ms)'
+FROM SyntheticCheck
+SINCE 1 day ago
+FACET locationLabel, monitorName
+```
+
+**実行時間が増加したモニターの特定：**
+
+```sql
+SELECT monitorName, average(executionDuration) AS 'Avg ExecDuration'
+FROM SyntheticCheck
+SINCE 1 day ago
+FACET monitorName, locationLabel
+ORDER BY average(executionDuration) DESC
+```
+
+## 失敗しているモニターを修正 [#fix-monitors]
+
+<CollapserGroup>
+  <Collapser id="keepalive-timeout" title="カスタムHTTPエージェントを使用するスクリプトがタイムアウトする">
+    **症状:** カスタム`http.Agent`または`https.Agent`インスタンスを作成するスクリプト化APIまたはブラウザモニターで、実行時間が長くなるか、タイムアウトが発生します。
+
+    **原因：**Node.js 22で`http.globalAgent`がデフォルトの`keepAlive: true`に変更されました。カスタムエージェントはこの動作を継承し、接続を開いたままにしてプロセスが終了するのを防ぎます。
+
+    **修正：**カスタムエージェントで`keepAlive: false`を明示的に設定するか、完了時に`agent.destroy()`を呼び出します：
+
+    ```javascript
+    // Option 1: Set keepAlive: false
+    const agent = new https.Agent({ keepAlive: false });
+
+    // Option 2: Destroy the agent after use
+    const agent = new https.Agent({ keepAlive: true });
+    // ... make requests ...
+    agent.destroy();
+    ```
+  </Collapser>
+
+  <Collapser id="tab-crashed" title="重いページでChromeタブがクラッシュする">
+    **症状:** JavaScriptを多用するページで、スクリプト化ブラウザモニターが`Error: tab crashed`で失敗します。
+
+    **原因:** Chrome 147はChrome 134よりもメモリ使用量が多くなっています。古いランタイムでメモリ制限に近かったページは、現在それを超える場合があります。
+
+    **修正:** SJMのコンテナのメモリ割り当てを増やします：
+
+    * **Docker/Podman:** `-e HEAVY_WORKER_MEMORY=4294967296`を設定します（4 GiB、デフォルトの3.256 GiBから増やします）。
+    * **Kubernetes：**リソース制限を増やすには、Helm の設定値を更新してください。
+
+    以下の方法でメモリの圧迫を軽減することもできます：
+
+    * 同時ヘビーウェイトワーカーの数を減らしています（`HEAVYWEIGHT_WORKERS`）。
+    * チェックごとに読み込むページ数を減らすためのスクリプトの簡素化。
+    * 追加の共有メモリ用にホストの`/dev/shm`をマウントしています：`-v /dev/shm:/dev/shm`。
+  </Collapser>
+
+  <Collapser id="timeout-increase" title="実行時間の増加によりモニターがタイムアウトする">
+    **症状:** 以前はタイムアウト内に完了していたモニターが、タイムアウトエラーで失敗するようになりました。
+
+    **原因:** Chrome 147およびNode.js 22では、特定の操作の実行が以前のバージョンよりも遅くなる場合があります。ブラウザモニターの場合、コンテナのオーバーヘッドは通常6～10秒です。
+
+    **修正：**
+
+    Chromeの起動時間が遅延の一因となっている場合は、以下の順序でリソースの調整を試してみてください：
+
+    1. コンテナのメモリを4 GiBに増やす：
+
+       ```shell
+       -e HEAVY_WORKER_MEMORY=4294967296
+       ```
+
+    2. それでも解決しない場合は、CPUウェイトを増やしてください：
+
+       ```shell
+       -e HEAVY_WORKER_CPUS=2
+       ```
+
+       `HEAVY_WORKER_CPUS` ハードなCPUコア制限ではなく、Docker CPUシェア（相対的な重み）を制御します。複数のコンテナが同時にCPUを競合している場合にのみ違いが生じます。
+
+    利用可能なリソースがある場合、どちらの変更もリスクが低く、試してみる価値があります。ただし、起動の遅延はコンテナのリソース制約ではなく、Chrome 147のより重い起動プロファイルに起因する可能性があるため、問題が完全に解消されない可能性があります。いずれにしても、リソース制限を要因として除外します。
+
+    リソース調整後もタイムアウトが続く場合：
+
+    * モニターの設定でモニターのタイムアウトを増やしてください。
+    * SJMの`CHECK_TIMEOUT`をより高い値に設定します（デフォルトは180秒です）。
+    * 不要なページの読み込みや待機を減らすようにスクリプトを最適化します。
+    * デフォルトに依存するのではなく、`waitForElement`呼び出しで明示的なタイムアウトを使用します。
+  </Collapser>
+
+  <Collapser id="ipv6-url" title="IPv6アドレスの処理の変更">
+    **症状:** IPv6アドレスを使用してURLを構築するスクリプトが、URL解析エラーで失敗します。
+
+    **原因:** Node.js 22ではURL構文解析がより厳格になっています。IPv6アドレスをURLで使用する場合は、角括弧で囲む必要があります。
+
+    **修正:** IPv6アドレスが適切に書式化されていることを確認してください：
+
+    ```javascript
+    // Before (may break on Node.js 22)
+    const url = `http://${ipv6Address}:${port}/path`;
+
+    // After
+    const url = `http://[${ipv6Address}]:${port}/path`;
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## トラブルシューティング [#troubleshooting]
+
+### よくある問題
+
+| 問題                             | 考えられる原因                | 解決                                                                                                                                                               |
+| ------------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Error: tab crashed`           | Chrome 147のメモリ制限を超えました | `HEAVY_WORKER_MEMORY`を増やすか減らします `HEAVYWEIGHT_WORKERS`                                                                                                            |
+| 実行時間に30秒以上追加                   | プロセスの終了を妨げるキープアライブ接続   | rc1.11で修正されました；スクリプト内のカスタムエージェントを確認してください                                                                                                                        |
+| Podman SJM がブリッジネットワークの作成に失敗する | Rootless Podman の権限    | [Podmanの依存関係](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-dependencies)のセットアップに従ってください；cgroupの委譲とPodman APIサービスを確認してください |
+| イメージのプル中にPodman SJMが終了する       | 初回プル時に大きなイメージがタイムアウトする | SJMを開始する前に、`podman pull`を使用してランタイム イメージを事前にプルする                                                                                                                  |
+| モニターはパスするが、スクリプトのステップが欠落する     | マルチステップスクリプトでのサイレントな失敗 | パラレルロケーション戦略を使用して、旧ランタイムと新しいランタイムの結果を比較します。                                                                                                                      |
+
+### 役立つNRQLクエリ
+
+**失敗率が増加しているモニターを確認します：**
+
+```sql
+SELECT percentage(count(*), WHERE result = 'FAILED') AS 'Failure %'
+FROM SyntheticCheck
+SINCE 1 day ago
+FACET monitorName
+WHERE percentage(count(*), WHERE result = 'FAILED') > 0
+```
+
+**移行前後の実行時間を比較します：**
+
+```sql
+SELECT average(executionDuration) AS 'Avg ExecDuration',
+       max(executionDuration) AS 'Max ExecDuration',
+       average(executionDuration - duration) AS 'Avg Overhead'
+FROM SyntheticCheck
+SINCE 1 day ago
+FACET monitorName
+ORDER BY average(executionDuration) DESC
+```
+
+**Chromeタブのクラッシュが発生しているモニターを見つける：**
+
+```sql
+SELECT count(*)
+FROM SyntheticCheck
+WHERE error LIKE '%tab crashed%'
+SINCE 1 day ago
+FACET monitorName
+```
+
+### リソースの推奨事項
+
+rc1.15ランタイムでのテストに基づく：
+
+| コンポーネント                                 | 推奨される最小   | デフォルト     |
+| --------------------------------------- | --------- | --------- |
+| SJMコンテナメモリ                              | 3.256 GiB | 3.256 GiB |
+| Browserランタイムメモリ（`HEAVY_WORKER_MEMORY`）  | 4 GiB     | 3.256 GiB |
+| Browserランタイム共有メモリ                       | 2.256 GiB | 2.256 GiB |
+| BrowserランタイムCPUシェア（`HEAVY_WORKER_CPUS`） | 2         | 1         |
+| Pingランタイムメモリ                            | 1 GiB     | 1 GiB     |
+
+`HEAVY_WORKER_CPUS` 厳密なCPUコア制限ではなく、DockerのCPUシェア（相対的な重み）を設定しますこれを増やしても、複数のコンテナが同時にCPUを競合している場合にのみ違いが生じます。
+
+## 時系列 [#timeline]
+
+| 日付       | イベント                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------- |
+| 2026年4月  | 新しいランタイム イメージ（rc1.15）Docker Hubで利用可能                                                                    |
+| 2026年4月  | セキュリティ速報 [NR26-04](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/) を公開 |
+| ～2026年7月 | Node.js 16/Chrome 134ランタイムのサポート終了                                                                       |
+| ～2026年7月 | 残りのモニターの自動移行                                                                                            |
+
+<Callout variant="caution">
+  自動的に移行されたモニターは、検証を通過する場合がありますが、一部のスクリプトステップでサイレントに失敗する可能性があります。スムーズな移行を確実にするために、並行プライベートロケーション戦略を使用してモニターをプロアクティブにテストしてください。
+</Callout>
+
+## 関連ドキュメント [#related-docs]
+
+* [外形監視ジョブマネージャーをインストールする](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/)
+* [ジョブマネージャーの設定](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/)
+* [スクリプト化ブラウザモニターのトラブルシューティング](/docs/synthetics/synthetic-monitoring/troubleshooting/troubleshoot-browser-monitoring/)
+* [セキュリティ速報 NR26-04](/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/)

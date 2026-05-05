@@ -11,6 +11,10 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
+<Callout variant="tip">
+  プライベートロケーションでモニターを実行している場合は、SJMのデプロイメント手順およびプライベートロケーション固有のトラブルシューティングについて、[プライベートロケーションランタイム移行ガイド](/docs/synthetics/synthetic-monitoring/private-locations/runtime-transition-guide)を参照してください。
+</Callout>
+
 ## Node.js 22へのアップグレードに関する問題
 
 以下の問題は、モニターをNode.js 22にアップグレードする際に特有のものです。
@@ -200,7 +204,85 @@ clearTimeout(timerId);
 
 **症状：**スクリプトは終了したように見えるが、検証が失敗する。**原因：** Promiseが適切に待機または処理されていない。
 
-**解決策:**すべてのプロミスが`.then()` 、 `.catch()`であるか、 `await`で編集されていることを確認します。
+すべてのプロミスに`.then()`、`.catch()`があるか、または`await`されていることを確認します。
+
+#### 問題のあるコード
+
+```javascript
+// ❌ Problematic code - Promise not awaited
+const $http = require('request');
+
+$http.get('https://api.example.com/data', (error, response, body) => {
+  console.log('Response:', body);
+  // Script ends before response is processed
+});
+```
+
+#### 推奨されるアプローチ
+
+async/awaitを使用してレスポンスを適切に待機します：
+
+```javascript
+// ✅ Better approach - Using async/await
+const $http = require('request');
+const { promisify } = require('util');
+const httpGet = promisify($http.get);
+
+async function checkAPI() {
+  try {
+    const response = await httpGet('https://api.example.com/data');
+    console.log('Response:', response.body);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+await checkAPI();
+```
+
+### 閉じられていないHTTP接続 [#unclosed-http]
+
+**症状：**オープンハンドルエラーによりモニターの検証に失敗する **原因：**awaitやクリーンアップを行わずにループ内でHTTP接続が行われている
+
+#### 問題のあるコード
+
+```javascript
+// ❌ Problematic code - Connection pool not cleaned up
+const $http = require('request');
+
+// Multiple requests without cleanup
+for (let i = 0; i < 10; i++) {
+  $http.get(`https://api.example.com/item/${i}`);
+}
+```
+
+#### 推奨されるアプローチ
+
+接続を適切に待機して処理する：
+
+```javascript
+// ✅ Better approach - Properly handle connections
+const $http = require('request');
+const { promisify } = require('util');
+const httpGet = promisify($http.get);
+
+async function fetchItems() {
+  const promises = [];
+
+  for (let i = 0; i < 10; i++) {
+    promises.push(httpGet(`https://api.example.com/item/${i}`));
+  }
+
+  try {
+    const results = await Promise.all(promises);
+    console.log('All requests completed');
+  } catch (error) {
+    console.error('Request failed:', error);
+  }
+}
+
+await fetchItems();
+```
 
 ## Chromeランタイムのアップグレードに関する問題
 
