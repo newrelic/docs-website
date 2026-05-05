@@ -1,0 +1,115 @@
+---
+title: 'Obfuscate streaming media agent data'
+tags:
+  - Streaming Video & Ads
+  - Obfuscation
+  - Privacy
+  - iOS
+  - Roku
+metaDescription: 'Configure regex-based obfuscation rules to mask sensitive data before it is transmitted to New Relic from your iOS or Roku streaming media agents.'
+freshnessValidatedDate: never
+---
+
+Obfuscation rules let you mask sensitive data before it is transmitted to New Relic. Each rule is a regex pattern paired with a replacement string. Rules are applied in order to every string attribute value in every outgoing event — including QoE events and crash-recovered events.
+
+## iOS [#ios]
+
+### Configuration [#ios-configuration]
+
+<DNT>**Objective-C**</DNT>
+
+```objectivec
+NRVAVideoConfiguration *config = [[[[NRVAVideoConfiguration builder]
+    withApplicationToken:@"YOUR_NEW_RELIC_TOKEN"]
+    withObfuscationRules:@[
+        @{ @"regex": @"account-\\d+",  @"replacement": @"ACCOUNT_ID" },
+        @{ @"regex": @"token=[^&\"]+", @"replacement": @"token=REDACTED" },
+    ]]
+    build];
+[[[NRVAVideo newBuilder] withConfiguration:config] build];
+```
+
+<DNT>**Swift**</DNT>
+
+```swift
+let config = NRVAVideoConfiguration.builder()
+    .withApplicationToken("YOUR_NEW_RELIC_TOKEN")
+    .withObfuscationRules([
+        ["regex": "account-\\d+",  "replacement": "ACCOUNT_ID"],
+        ["regex": "token=[^&\"]+", "replacement": "token=REDACTED"],
+    ])
+    .build()
+NRVAVideo.newBuilder().with(configuration: config).build()
+```
+
+### How it works [#ios-how-it-works]
+
+- Rules are applied per string attribute value, not on the raw JSON payload — numeric and boolean attributes are unaffected.
+- All rules run against every outgoing event (regular, live, QoE, and crash-recovered).
+- Rules are evaluated in the order they are declared. If two rules can match the same value, order matters.
+- The `applicationToken` and HTTP auth headers are never touched — obfuscation only runs on event attribute values.
+
+### Edge cases [#ios-edge-cases]
+
+| Scenario | Behavior |
+|----------|----------|
+| No rules configured | No-op; zero performance overhead |
+| Empty replacement string | Matched content is deleted (this is intentional and allowed) |
+| Invalid regex pattern | `withObfuscationRules:` throws `NSInvalidArgumentException` at configuration time — fail fast before any events are sent |
+| Non-string attribute value (number, bool) | Skipped; only string values are processed |
+| Malformed rules array entry (not a dictionary) | Entry is skipped with a warning log |
+| `applicationToken` / auth headers | Never included in event attributes; not affected |
+| Rule ordering | Rules apply in array order — document this to your team if order matters |
+| Catastrophic backtracking | `NSRegularExpression` has no built-in timeout on iOS. Avoid patterns with unbounded quantifier nesting (e.g. `(a+)+`). Test rules against worst-case inputs before deploying. |
+
+## Roku [#roku]
+
+The agent can be configured with regex-based obfuscation rules to mask sensitive data before events are sent to New Relic. This is useful when fields like `contentSrc`, `contentTitle`, `origUrl`, or custom attributes may inadvertently contain user IDs, tokens, or other PII.
+
+Rules are applied to every string attribute in every outgoing event — including video, ad (RAF and IMA), QOE, system, and custom events — before the event enters the internal buffer.
+
+### Configuration [#roku-configuration]
+
+Call `nrSetObfuscationRules` after creating the agent. Each rule is an associative array with a `regex` string and a `replacement` string:
+
+```brightscript
+m.nr = NewRelic("ACCOUNT_ID", "API_KEY", "APP_NAME", "APP_TOKEN")
+nrSetObfuscationRules(m.nr, [
+    { regex: "account-[0-9]+",  replacement: "ACCOUNT_ID" },
+    { regex: "token=[^&]+",     replacement: "token=REDACTED" },
+    { regex: "/users/[^/]+",    replacement: "/users/USER_ID" }
+])
+```
+
+To remove all rules at runtime, call with an empty array:
+
+```brightscript
+nrSetObfuscationRules(m.nr, [])
+```
+
+### Rule ordering [#roku-rule-ordering]
+
+Rules are applied in the order they appear in the array. The output of one rule is the input to the next. Order matters when patterns could overlap:
+
+```brightscript
+nrSetObfuscationRules(m.nr, [
+    ' Applied first — masks the specific token format
+    { regex: "auth-token-[a-z0-9]+", replacement: "AUTH_TOKEN" },
+    ' Applied second — masks any remaining bare token references
+    { regex: "token=[^&]+",          replacement: "token=REDACTED" }
+])
+```
+
+### Behavior and edge cases [#roku-edge-cases]
+
+| Case | Behavior |
+|------|----------|
+| No rules configured | No-op; zero performance overhead |
+| Empty `replacement` string | Matched content is deleted from the value |
+| Invalid regex pattern | Rule is skipped; a warning is written to the agent log |
+| Non-string attribute values (numbers, booleans) | Passed through unchanged |
+| Replacing all rules | Call `nrSetObfuscationRules` again with the new array; previous rules are discarded |
+
+<Callout variant="important">
+Roku uses `roRegex` for pattern matching. Complex lookahead/lookbehind assertions are not supported. Patterns that are valid in JavaScript or Java regex may need to be simplified for Roku.
+</Callout>
