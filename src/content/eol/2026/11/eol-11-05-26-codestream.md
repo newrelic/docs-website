@@ -13,7 +13,7 @@ Effective November 5, 2026, the CodeStream extensions will be removed from all I
 
 Your observability data still resides on the New Relic intelligent platform — only the user interface inside the IDE is going away. Stack traces (errors inbox), log records, dashboards, and entity transaction data remain where they've always been. Moving forward, you'll simply access them through the browser interface.
 
-We recommend customers move toward agentic integrations and the [New Relic AI MCP Server](/docs/agentic-ai/agentic-integration/introduction-agentic-integration/). The New Relic Intelligent Observability Agentic platform has evolved to a System of Intelligence that embeds observability directly into existing developer workflows (GitHub Copilot, VS Code, Claude Code).
+We recommend customers move toward agentic integrations and the [New Relic AI MCP Server](/docs/agentic-ai/mcp/overview/). The New Relic Intelligent Observability Agentic platform has evolved to a System of Intelligence that embeds observability directly into existing developer workflows (GitHub Copilot, VS Code, Claude Code).
 
 ## What you need to do
 
@@ -26,7 +26,7 @@ This ensures your environment stays secure and up to date, since CodeStream's se
 
 ## What you can use instead
 
-The New Relic Agentic Platform enables AI agents to deliver the full value of observability insights and actions directly into IDEs, ITSM, CI/CD, and collaboration tools — without context switching. To learn more about how New Relic AI-driven automation can transform your software development processes, see [Introduction to New Relic agentic integration](/docs/agentic-ai/agentic-integration/introduction-agentic-integration/).
+The New Relic Agentic Platform enables AI agents to deliver the full value of observability insights and actions directly into IDEs, ITSM, CI/CD, and collaboration tools — without context switching. To learn more about how New Relic AI-driven automation can transform your software development processes, see [Introduction to New Relic agentic integration](/docs/agentic-ai/agentic-integration/introduction-agentic-ai/).
 
 ## Still have questions?
 
