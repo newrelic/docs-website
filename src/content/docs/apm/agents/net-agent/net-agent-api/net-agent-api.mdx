@@ -108,6 +108,50 @@ To use the .NET agent API, make sure you have the [latest .NET agent release](/d
 
 * View and download the API package from the [NuGet Package Library](https://www.nuget.org/packages/NewRelic.Agent.Api/).
 
+## Notes on Dependency Injection
+
+If you consume the agent API through Microsoft.Extensions.DependencyInjection (or a similar container), there are two pitfalls that will silently disable your custom instrumentation without producing any error. Both stem from the fact that [`IAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent) is a long-lived handle, but [`CurrentTransaction`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ITransaction) and [`CurrentSpan`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) are request-scoped views that must be re-read on every call.
+
+### Register `IAgent` lazily, not eagerly
+
+[`GetAgent()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#GetAgent) must be called **after** the profiler has finished attaching. If you resolve it eagerly while the DI container is being built, you may cache the no-op placeholder the API returns before the agent is live — leaving the application with a silently disabled API for the lifetime of the process. Use a factory lambda so the call is deferred to first resolution:
+
+```cs
+// ❌ Eager — may capture the no-op placeholder
+builder.Services.AddSingleton<IAgent>(NewRelic.Api.Agent.NewRelic.GetAgent());
+
+// ✅ Lazy — GetAgent() runs on first resolution, after the profiler is ready
+builder.Services.AddSingleton<IAgent>(_ => NewRelic.Api.Agent.NewRelic.GetAgent());
+```
+
+### Do not cache `ITransaction` or `ISpan` in fields
+
+`IAgent` itself is safe to store — but `CurrentTransaction` and `CurrentSpan` must be read fresh each time you use them. Capturing them in a constructor or field binds your service to whichever request happened to be in flight when the field was first assigned. Every subsequent call then writes attributes, errors, and events to a transaction that has already ended, and the data never appears on the transactions you are actually looking at.
+
+```cs
+// ❌ Captures one request's transaction forever
+public class BuggyService
+{
+    private readonly ITransaction _transaction;
+    public BuggyService(IAgent agent) => _transaction = agent.CurrentTransaction;
+}
+
+// ✅ Fetch per-call
+public class WorkService
+{
+    private readonly IAgent _agent;
+    public WorkService(IAgent agent) => _agent = agent;
+
+    public void DoWork()
+    {
+        var transaction = _agent.CurrentTransaction;
+        transaction.AddCustomAttribute("key", "value");
+    }
+}
+```
+
+For a complete, runnable walkthrough — including compile-checked anti-pattern examples — see the [api-dependency-injection example](https://github.com/newrelic/newrelic-dotnet-examples/tree/main/api-dependency-injection) in the `newrelic-dotnet-examples` repository.
+
 ## List of API calls
 
 The following list contains the different calls you can make with the API, including syntax, requirements, functionality, and examples:
