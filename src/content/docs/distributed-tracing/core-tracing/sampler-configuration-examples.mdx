@@ -1,0 +1,412 @@
+---
+title: Sampler configuration examples for distributed tracing
+tags:
+  - Samplers
+  - Distributed tracing
+  - Partial granularity
+  - Full granularity
+  - Configuring distributed tracing
+metaDescription: Real-world examples of sampler configurations for different service scenarios, with copy-paste ready configuration code.
+freshnessValidatedDate: never
+---
+
+While the default sampling configuration works for most services, you may need to customize sampling behavior for specific scenarios. This guide provides real-world examples of sampler configurations with copy-paste ready code for different service needs.
+
+## Before you begin [#prerequisites]
+
+This guide assumes you've already:
+
+1. Reviewed [Control distributed tracing data volume](/docs/distributed-tracing/core-tracing/introduction-core-tracing) to understand partial granularity options
+2. Decided which services need custom sampling configurations
+3. Have access to modify your APM agent configuration files
+
+<Callout variant="important">
+  These examples use JSON-style configuration syntax for clarity. Adapt the syntax to match your agent's configuration format (YAML for Java/Python/Ruby, JavaScript for Node.js, etc.).
+</Callout>
+
+## Understanding sampler types [#sampler-types]
+
+APM agents provide several sampler types you can combine:
+
+* **`adaptive`** - Dynamically adjusts sampling to capture approximately 10 traces per minute (default)
+* **`trace_ratio_id_based`** - Samples a fixed percentage of traces based on trace ID
+* **`always_on`** - Samples 100% of matching traces
+* **`always_off`** - Samples 0% of matching traces
+
+You can configure different samplers for:
+* **`root`** - Transactions that originate in this service
+* **`remote_parent_sampled`** - Transactions where an upstream service already decided to sample
+* **`remote_parent_not_sampled`** - Transactions where an upstream service decided NOT to sample
+
+## Example 1: Fix poor endpoint distribution caused by upstream sampling [#example-upstream]
+
+### Problem
+
+With default configuration, upstream services that sample a trace will cause your service to also sample that trace. This can lead to one endpoint being over-sampled while other endpoints are under-sampled.
+
+**Symptoms:**
+- Distributed tracing dashboard shows 90% of traces from one endpoint
+- Other important endpoints rarely appear in traces
+- Your service's span reservoir fills up too quickly with upstream-sampled traces
+
+### Solution 1: Reduce upstream sampling rate
+
+Sample only 10% of traces that were already sampled by upstream services, leaving more reservoir space for your service's own endpoints.
+
+**Java (newrelic.yml):**
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.1  # Sample 10% of upstream-sampled traces
+```
+
+**Node.js (newrelic.js):**
+```javascript
+distributed_tracing: {
+  enabled: true,
+  sampler: {
+    remote_parent_sampled: {
+      trace_id_ratio_based: {
+        ratio: 0.1  // Sample 10% of upstream-sampled traces
+      }
+    }
+  }
+}
+```
+
+**Python (newrelic.ini):**
+```ini
+distributed_tracing.enabled = true
+distributed_tracing.sampler.remote_parent_sampled.trace_id_ratio_based.ratio = 0.1
+```
+
+**Result:** Better distribution across all your service's endpoints while still capturing some upstream-initiated traces.
+
+### Solution 2: Use hybrid sampling for upstream traces
+
+Capture 5% of upstream-sampled traces at full granularity and the remaining 95% at partial granularity. This maintains trace connectivity while preserving reservoir space.
+
+**Java (newrelic.yml):**
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.05  # Only 5% get full granularity
+  partial_granularity:
+    enabled: true
+    type: essential  # Use "essential" if capturing AI data, "compact" otherwise
+    remote_parent_sampled: always_on  # Rest get partial granularity
+```
+
+**Node.js (newrelic.js):**
+```javascript
+distributed_tracing: {
+  enabled: true,
+  sampler: {
+    remote_parent_sampled: {
+      trace_id_ratio_based: {
+        ratio: 0.05  // Only 5% get full granularity
+      }
+    }
+  },
+  partial_granularity: {
+    enabled: true,
+    type: 'essential',  // Use 'essential' if capturing AI data, 'compact' otherwise
+    remote_parent_sampled: 'always_on'  // Rest get partial granularity
+  }
+}
+```
+
+**Python (newrelic.ini):**
+```ini
+distributed_tracing.enabled = true
+distributed_tracing.sampler.remote_parent_sampled.trace_id_ratio_based.ratio = 0.05
+distributed_tracing.partial_granularity.enabled = true
+distributed_tracing.partial_granularity.type = essential
+distributed_tracing.partial_granularity.remote_parent_sampled = always_on
+```
+
+**Result:** 100% trace coverage with controlled data volume - 5% detailed + 95% lightweight traces.
+
+## Example 2: Capture rarely-called endpoints [#example-rare-endpoints]
+
+### Problem
+
+The default adaptive sampler captures ~10 traces per minute. Due to random probability, frequently-called endpoints dominate your traces while rarely-called endpoints almost never appear.
+
+**Symptoms:**
+- Admin endpoints or batch jobs rarely show up in traces
+- Can't troubleshoot issues with low-traffic endpoints
+- Trace coverage is incomplete for your full service topology
+
+### Solution: 100% partial granularity sampling
+
+Capture every transaction originating from this service using partial granularity, dramatically increasing the chance of capturing rare endpoints.
+
+**Java (newrelic.yml):**
+```yaml
+distributed_tracing:
+  enabled: true
+  partial_granularity:
+    enabled: true
+    type: compact  # Use "essential" if you have AI monitoring
+    root:
+      trace_id_ratio_based:
+        ratio: 1.0  # Sample 100% of root transactions as partial granularity
+```
+
+**Node.js (newrelic.js):**
+```javascript
+distributed_tracing: {
+  enabled: true,
+  partial_granularity: {
+    enabled: true,
+    type: 'compact',  // Use 'essential' if you have AI monitoring
+    root: {
+      trace_id_ratio_based: {
+        ratio: 1.0  // Sample 100% of root transactions as partial granularity
+      }
+    }
+  }
+}
+```
+
+**Python (newrelic.ini):**
+```ini
+distributed_tracing.enabled = true
+distributed_tracing.partial_granularity.enabled = true
+distributed_tracing.partial_granularity.type = compact
+distributed_tracing.partial_granularity.root.trace_id_ratio_based.ratio = 1.0
+```
+
+**Result:** Complete endpoint coverage with manageable data volume. All endpoints appear in traces, not just the busiest ones.
+
+<Callout variant="tip">
+  **When to use this:** Supporting services, background job processors, admin APIs, or any service with highly variable endpoint traffic patterns.
+</Callout>
+
+## Example 3: Fix trace fragmentation from too many spans [#example-fragmentation]
+
+### Problem
+
+Services with hundreds of spans per transaction fill the agent's span reservoir quickly. When the reservoir fills, spans are randomly dropped, creating gaps in distributed traces - especially at service boundaries.
+
+**Symptoms:**
+- Distributed traces show "missing" or "unknown" services
+- Service map has broken connections
+- Can't see the full request path through your system
+
+### Solution: Minimal span collection with partial granularity
+
+Capture only entry/exit spans (service boundaries) rather than all internal spans, preventing reservoir overflow.
+
+**Java (newrelic.yml):**
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    full_granularity:
+      enabled: false  # Disable full granularity by default
+  partial_granularity:
+    enabled: true
+    type: compact  # Use "essential" if you have AI monitoring
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # Sample 10% of root transactions
+    remote_parent_sampled: always_on  # Always capture upstream-sampled traces
+```
+
+**Node.js (newrelic.js):**
+```javascript
+distributed_tracing: {
+  enabled: true,
+  sampler: {
+    full_granularity: {
+      enabled: false  // Disable full granularity by default
+    }
+  },
+  partial_granularity: {
+    enabled: true,
+    type: 'compact',  // Use 'essential' if you have AI monitoring
+    root: {
+      trace_id_ratio_based: {
+        ratio: 0.1  // Sample 10% of root transactions
+      }
+    },
+    remote_parent_sampled: 'always_on'  // Always capture upstream-sampled traces
+  }
+}
+```
+
+**Python (newrelic.ini):**
+```ini
+distributed_tracing.enabled = true
+distributed_tracing.sampler.full_granularity.enabled = false
+distributed_tracing.partial_granularity.enabled = true
+distributed_tracing.partial_granularity.type = compact
+distributed_tracing.partial_granularity.root.trace_id_ratio_based.ratio = 0.1
+distributed_tracing.partial_granularity.remote_parent_sampled = always_on
+```
+
+**Result:** Complete trace paths with no gaps. You can temporarily re-enable full granularity during incidents for detailed debugging.
+
+<Callout variant="important">
+  **Configuration changes require application restart.** This approach works best for services with predictable span patterns, not for dynamic incident response.
+</Callout>
+
+## Example 4: Recommended hybrid agent configuration [#example-hybrid-agent]
+
+### Use case
+
+You're using the [hybrid APM agent approach](/docs/apm/agents/manage-apm-agents/agent-data/real-time-streaming/) where some services send full telemetry while others send minimal data.
+
+### Configuration
+
+Sample traces that originate in this service at 10%, always sample when upstream sampled, never sample when upstream didn't sample.
+
+**Java (newrelic.yml):**
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # 10% of transactions originating here
+    remote_parent_sampled: always_on  # Follow upstream sampling decisions
+    remote_parent_not_sampled: always_off  # Don't sample if upstream didn't
+```
+
+**Node.js (newrelic.js):**
+```javascript
+distributed_tracing: {
+  enabled: true,
+  sampler: {
+    root: {
+      trace_id_ratio_based: {
+        ratio: 0.1  // 10% of transactions originating here
+      }
+    },
+    remote_parent_sampled: 'always_on',  // Follow upstream sampling decisions
+    remote_parent_not_sampled: 'always_off'  // Don't sample if upstream didn't
+  }
+}
+```
+
+**Python (newrelic.ini):**
+```ini
+distributed_tracing.enabled = true
+distributed_tracing.sampler.root.trace_id_ratio_based.ratio = 0.1
+distributed_tracing.sampler.remote_parent_sampled = always_on
+distributed_tracing.sampler.remote_parent_not_sampled = always_off
+```
+
+**Result:** Consistent sampling decisions across your distributed system. Traces either fully capture all services or none at all.
+
+## Example 5: Combined approach for microservices architecture [#example-microservices]
+
+### Use case
+
+Large microservices architecture with:
+- 5 customer-facing services (need detailed traces)
+- 50 internal services (need connectivity only)
+- Variable traffic patterns across services
+
+### Configuration strategy
+
+**Customer-facing services:**
+```yaml
+# Full granularity with adaptive sampling
+distributed_tracing:
+  enabled: true
+  sampler:
+    root:
+      adaptive:
+        sampling_target: 10  # 10 traces per minute
+    remote_parent_sampled: always_on
+```
+
+**Internal services (low traffic):**
+```yaml
+# 100% partial granularity to ensure coverage
+distributed_tracing:
+  enabled: true
+  partial_granularity:
+    enabled: true
+    type: essential
+    root:
+      trace_id_ratio_based:
+        ratio: 1.0
+    remote_parent_sampled: always_on
+```
+
+**Internal services (high traffic):**
+```yaml
+# Hybrid approach: 10% full + 90% partial
+distributed_tracing:
+  enabled: true
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+  partial_granularity:
+    enabled: true
+    type: compact
+    root:
+      trace_id_ratio_based:
+        ratio: 0.9
+    remote_parent_sampled: always_on
+```
+
+**Result:** Complete service map coverage with controlled data volume. Critical services have full detail while supporting services provide connectivity data.
+
+## Verify your configuration [#verify]
+
+After applying a new sampler configuration:
+
+1. **Restart your application** (configuration changes require restart)
+
+2. **Check sampling is working:**
+   ```sql
+   SELECT count(*)
+   FROM Span
+   WHERE entity.name = 'YOUR_SERVICE_NAME'
+   SINCE 30 minutes ago
+   ```
+
+3. **Verify distribution across endpoints:**
+   ```sql
+   SELECT count(*)
+   FROM Span
+   WHERE entity.name = 'YOUR_SERVICE_NAME'
+   FACET name
+   SINCE 30 minutes ago
+   ```
+
+4. **Check partial vs full granularity mix (if using hybrid):**
+   ```sql
+   SELECT count(*)
+   FROM Span
+   WHERE entity.name = 'YOUR_SERVICE_NAME'
+   FACET CASES(
+     WHERE nr.pg IS NULL as 'Full Granularity',
+     WHERE nr.pg = true as 'Partial Granularity'
+   )
+   SINCE 30 minutes ago
+   ```
+
+## What's next [#whats-next]
+
+After configuring your samplers:
+
+* [Monitor your data ingestion](/docs/distributed-tracing/core-tracing/cost-optimization-strategies#track) to measure impact
+* Review [distributed tracing introduction](/docs/distributed-tracing/core-tracing/introduction-core-tracing) for context on partial granularity options
+* Explore [cost optimization strategies](/docs/distributed-tracing/core-tracing/cost-optimization-strategies) for service prioritization frameworks
+
+<Callout variant="tip">
+  Start with one service and monitor for 1-2 weeks before rolling out widely. Configuration changes are permanent until you change them again, so test carefully.
+</Callout>

@@ -1,0 +1,746 @@
+---
+title: Control distributed trace ingest with samplers
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Span configuration
+  - Sampling
+  - APM agents
+metaDescription: Deep dive into APM agent sampling configuration including sampler types, contexts, adaptive sampling targets, and ratio-based sampling for controlling distributed trace ingest.
+freshnessValidatedDate: never
+---
+
+This technical guide explains how APM agent samplers control which distributed traces are captured and sent to New Relic. You'll learn about sampler types, sampling contexts, adaptive sampling targets, and how to configure sampling alongside partial granularity modes for precise control over trace ingest.
+
+**Prerequisites**:
+1. Review [Control distributed tracing data volume](/docs/distributed-tracing/core-tracing/introduction-core-tracing) to understand partial granularity modes
+2. For real-world scenarios with copy-paste configs, see [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples)
+3. For strategic planning across services, see [Optimize tracing costs](/docs/distributed-tracing/core-tracing/cost-optimization-strategies)
+
+## How sampling works [#how-sampling-works]
+
+APM agents make sampling decisions at the trace level, not the span level. When a trace is sampled, all spans within that trace are captured (subject to partial granularity filtering if enabled). When a trace is not sampled, no spans from that trace are sent to New Relic.
+
+### Sampling decision flow
+
+1. **Request arrives** at your service
+2. **Agent checks sampling context**: Is this a root transaction, or did an upstream service already make a sampling decision?
+3. **Agent applies appropriate sampler**: Based on the context and your configuration
+4. **Sampling decision is made**: Sample or don't sample
+5. **Decision propagates**: The sampling decision is passed to downstream services via trace context headers
+
+### Interaction with partial granularity modes
+
+Sampling and partial granularity work together:
+
+* **Sampling** determines **which traces** are captured
+* **Partial granularity** determines **what data** is captured for sampled traces
+
+Example:
+* Sampling: "Capture 10% of traces"
+* Partial granularity essential mode: "For captured traces, send only entry/exit spans with minimal attributes"
+* Result: 10% of traces are captured with reduced data per trace
+
+## Sampling contexts [#sampling-contexts]
+
+APM agents use three sampling contexts to handle different trace scenarios. Each context can have its own sampler configuration.
+
+### Root context
+
+**When it applies**: The trace originates from the current service (this is the first service in the trace).
+
+**Use case**: Control sampling for traces that start in your service.
+
+**Example scenario**: Your API gateway is the entry point for customer requests. Configure root sampling to capture 20% of these customer-initiated traces.
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.2  # 20% of traces originating here
+```
+
+### Remote parent sampled context
+
+**When it applies**: An upstream service decided to sample this trace (the upstream service sent a sampling decision of "sampled" in the trace context).
+
+**Use case**: Honor upstream sampling decisions, or apply additional filtering.
+
+**Common pattern**: Capture all traces that upstream already decided to sample:
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_sampled:
+      always_on  # Always capture traces sampled by upstream
+```
+
+**Alternative pattern**: Increase sampling for already-sampled traces:
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_sampled:
+      adaptive:
+        sampling_target: 60  # Capture up to 60 traces/minute from upstream-sampled requests
+```
+
+### Remote parent not sampled context
+
+**When it applies**: An upstream service decided NOT to sample this trace (the upstream service sent a sampling decision of "not sampled" in the trace context).
+
+**Use case**: Override upstream decisions for important downstream services, or respect the upstream decision.
+
+**Common pattern**: Respect upstream decision (don't sample):
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_not_sampled:
+      always_off  # Don't sample traces that upstream rejected
+```
+
+**Alternative pattern**: Sample some traces even if upstream rejected them (use cautiously):
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_not_sampled:
+      trace_id_ratio_based:
+        ratio: 0.05  # Sample 5% even if upstream said no
+```
+
+<Callout variant="caution">
+  Overriding upstream "not sampled" decisions can create fragmented traces where only some services are present. Use this pattern only when you have a specific need to see activity in a downstream service even when upstream doesn't think the trace is interesting.
+</Callout>
+
+## Sampler types [#sampler-types]
+
+APM agents provide four sampler types, each appropriate for different scenarios.
+
+### Adaptive sampler
+
+**How it works**: Dynamically adjusts sampling to capture approximately a target number of traces per minute, regardless of traffic volume.
+
+**Default behavior**: Most agents default to adaptive sampling with a target of 10 traces per minute.
+
+**When to use**:
+* You want consistent trace volume regardless of traffic spikes or drops
+* You want automatic adjustment to traffic patterns
+* You don't need a specific percentage of requests sampled
+
+**Configuration**:
+
+```yaml
+distributed_tracing:
+  sampler:
+    adaptive_sampling_target: 10  # Global default
+    root:
+      adaptive:
+        sampling_target: 20  # Per-context override
+```
+
+**Key parameters**:
+* `adaptive_sampling_target` (global): Default target for all contexts (typically 10)
+* `sampling_target` (per-context): Override the target for a specific context
+* **Maximum**: Most agents support up to 120 traces per minute
+
+**How it adapts**:
+* Low traffic (10 requests/min): Samples 100% of requests to hit target
+* Medium traffic (100 requests/min): Samples ~20% to hit target
+* High traffic (1000 requests/min): Samples ~2% to hit target
+
+**Example**: Capture 60 traces per minute for complete service map coverage:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      adaptive:
+        sampling_target: 60
+    remote_parent_sampled:
+      always_on
+```
+
+### Ratio-based sampler (trace_id_ratio_based)
+
+**How it works**: Samples a fixed percentage of traces based on the trace ID. Because the sampling decision is based on trace ID, the same trace will get the same decision across all services using ratio-based sampling with the same ratio.
+
+**When to use**:
+* You need a consistent percentage of traffic sampled
+* You want deterministic sampling (same traces always sampled)
+* You're coordinating sampling across multiple services
+
+**Configuration**:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # 10% of traces
+```
+
+**Key parameters**:
+* `ratio`: Decimal between 0.0 (0%) and 1.0 (100%)
+
+**Important characteristic**: The trace ID determines whether a trace is sampled. If multiple services use the same ratio, they'll make consistent decisions for the same trace.
+
+**Example**: Sample 10% of root traces and 100% of upstream-sampled traces:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      always_on
+```
+
+### Always-on sampler
+
+**How it works**: Samples 100% of traces matching this context.
+
+**When to use**:
+* You need complete trace coverage for a specific context
+* You're using partial granularity to keep data volume manageable
+* You're sampling traces that upstream already selected (common pattern)
+
+**Configuration**:
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_sampled:
+      always_on  # Capture all upstream-sampled traces
+```
+
+**Warning**: Using `always_on` for root context will capture every trace, which can generate significant data volume for high-traffic services. Consider using partial granularity if you enable `always_on`.
+
+### Always-off sampler
+
+**How it works**: Samples 0% of traces matching this context.
+
+**When to use**:
+* You want to respect upstream "not sampled" decisions
+* You're disabling sampling for a specific context
+* You're troubleshooting and want to eliminate a context temporarily
+
+**Configuration**:
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_not_sampled:
+      always_off  # Don't sample if upstream rejected
+```
+
+## Adaptive sampling targets [#adaptive-targets]
+
+Adaptive sampling targets control how many traces per minute the agent attempts to capture. Understanding global vs per-context targets is crucial for predictable behavior.
+
+### Global adaptive sampling target
+
+The global `adaptive_sampling_target` sets the default target for all contexts that don't have an explicit override.
+
+**Default**: 10 traces per minute (typical for most agents)
+
+**Maximum**: 120 traces per minute (typical for most agents)
+
+**Configuration**:
+
+```yaml
+distributed_tracing:
+  sampler:
+    adaptive_sampling_target: 10  # Applied to all contexts without explicit override
+```
+
+### Per-context adaptive sampling targets
+
+Each sampling context (`root`, `remote_parent_sampled`, `remote_parent_not_sampled`) can override the global target with its own `sampling_target`.
+
+**Configuration**:
+
+```yaml
+distributed_tracing:
+  sampler:
+    adaptive_sampling_target: 10  # Global default
+    root:
+      adaptive:
+        sampling_target: 5  # Root traces: 5/min
+    remote_parent_sampled:
+      adaptive:
+        sampling_target: 60  # Upstream-sampled traces: 60/min
+```
+
+**Result**: The agent attempts to capture:
+* 5 root traces per minute
+* 60 upstream-sampled traces per minute
+* Any other context: 10 per minute (global default)
+
+### Target budget and competition
+
+**Important**: If your service receives both root and upstream-sampled traces, each context competes for its own target. They don't share a budget.
+
+**Example scenario**:
+* Root target: 10 traces/min
+* Remote parent sampled target: 60 traces/min
+* Your service receives 100 root requests/min and 500 upstream-sampled requests/min
+
+**Result**:
+* ~10 root traces captured (10% sampling rate)
+* ~60 upstream-sampled traces captured (12% sampling rate)
+* Total: ~70 traces per minute
+
+### Why increase adaptive sampling targets?
+
+The default 10 traces/minute was designed for transaction tracing, not distributed tracing. For distributed tracing, you often want higher sampling to:
+
+1. **Fill service map gaps**: Rare endpoints might never get sampled at 10/min
+2. **Improve trace diversity**: See more transaction types and code paths
+3. **Increase troubleshooting data**: More traces = more data for analysis
+
+**Common pattern**: Use partial granularity + increased sampling:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      adaptive:
+        sampling_target: 60  # Increased from default 10
+  partial_granularity:
+    enabled: true
+    type: essential  # Reduced data per trace
+```
+
+**Result**: 6x more traces captured, but each trace is smaller → controlled data volume with better coverage.
+
+## Ratio-based sampling with full and partial granularity [#ratio-handling]
+
+When using `trace_id_ratio_based` sampling with both full and partial granularity enabled, there's a special interaction to be aware of.
+
+### The challenge
+
+Because ratio-based sampling uses the trace ID to make decisions, if you configure the same ratio for both full and partial granularity, the **same traces** will be selected for both. Since full granularity takes precedence, you'll only get full granularity traces.
+
+**Example of the problem**:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # 10% for full granularity
+  full_granularity:
+    enabled: true
+  partial_granularity:
+    enabled: true
+    type: essential
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # Same 10% - will be the SAME traces!
+```
+
+**Result**: Only full granularity traces are captured (10% total), because both samplers select the same trace IDs.
+
+### The solution: Automatic ratio adjustment
+
+APM agents automatically solve this problem. When a context uses `trace_id_ratio_based` for both full and partial granularity, the agent automatically adjusts the partial granularity ratio to be the **sum** of both ratios.
+
+**Example**:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # 10% full granularity
+  full_granularity:
+    enabled: true
+  partial_granularity:
+    enabled: true
+    type: essential
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # You configure 10%
+```
+
+**What actually happens**:
+* Full granularity: 10% of traces (based on trace ID)
+* Partial granularity: **20%** of traces (agent adjusts: 0.1 + 0.1 = 0.2)
+* Partial granularity captures different traces than full granularity
+
+**Result**: 10% full granularity + 10% partial granularity = 20% total coverage
+
+### Manual calculation (if you want to set it explicitly)
+
+If you want to explicitly set the ratios yourself:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # 10% full
+  full_granularity:
+    enabled: true
+  partial_granularity:
+    enabled: true
+    type: essential
+    root:
+      trace_id_ratio_based:
+        ratio: 0.3  # 0.1 (full) + 0.2 (additional partial) = 30% total
+```
+
+**Result**: 10% full + 20% additional partial = 30% total coverage
+
+<Callout variant="tip">
+  **Best practice**: Let the agent handle the ratio adjustment automatically. Just configure the ratio you want for each granularity level, and the agent will ensure they select different traces.
+</Callout>
+
+## Priority and precedence [#priority]
+
+When multiple sampling rules could apply, APM agents use a priority system to determine which traces to keep when reservoir limits are reached.
+
+### Sampling decision precedence
+
+1. **Full granularity always wins**: If a trace is selected for both full and partial granularity, full granularity takes precedence
+2. **Upstream sampling is respected**: Traces sampled by upstream services are prioritized over locally-originated traces
+3. **Context precedence**: `remote_parent_sampled` > `root` > `remote_parent_not_sampled`
+
+### Reservoir limits
+
+APM agents maintain a reservoir of traces to send to New Relic. When the reservoir is full, lower-priority traces are dropped.
+
+**Priority order (highest to lowest)**:
+1. Full granularity, remote parent sampled
+2. Full granularity, root
+3. Full granularity, remote parent not sampled
+4. Partial granularity, remote parent sampled
+5. Partial granularity, root
+6. Partial granularity, remote parent not sampled
+
+**Example scenario**: Your reservoir can hold 100 traces per harvest cycle (typically 1 minute). You've configured:
+* Full granularity with high sampling
+* Partial granularity with high sampling
+
+**What happens**:
+1. Reservoir fills with full granularity traces first
+2. If room remains, partial granularity traces are added
+3. If reservoir is full, new partial granularity traces are dropped
+4. Full granularity traces arriving later may evict partial granularity traces
+
+**Implication**: In extremely high-traffic scenarios, partial granularity traces may be dropped if full granularity traces fill the reservoir. This is by design to prioritize more detailed data.
+
+## Configuration precedence table [#config-precedence]
+
+This table shows which traces are captured based on your configuration settings:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        distributed_tracing.enabled
+      </th>
+      <th>
+        full_granularity.enabled
+      </th>
+      <th>
+        partial_granularity.enabled
+      </th>
+      <th>
+        Full granularity captured
+      </th>
+      <th>
+        Partial granularity captured
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        True (default)
+      </td>
+      <td>
+        True (default)
+      </td>
+      <td>
+        False (default)
+      </td>
+      <td>
+        Yes
+      </td>
+      <td>
+        No
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        True
+      </td>
+      <td>
+        False
+      </td>
+      <td>
+        True
+      </td>
+      <td>
+        No
+      </td>
+      <td>
+        Yes
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        True
+      </td>
+      <td>
+        True
+      </td>
+      <td>
+        True
+      </td>
+      <td>
+        Yes
+      </td>
+      <td>
+        Yes
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        True
+      </td>
+      <td>
+        False
+      </td>
+      <td>
+        False
+      </td>
+      <td>
+        No
+      </td>
+      <td>
+        No
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        False
+      </td>
+      <td>
+        Any value
+      </td>
+      <td>
+        Any value
+      </td>
+      <td>
+        No
+      </td>
+      <td>
+        No
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+**Key takeaway**: Both full and partial granularity can be enabled simultaneously, but a trace is only ever captured as one or the other (full takes precedence).
+
+## Common sampling patterns [#common-patterns]
+
+### Pattern 1: Balanced full and partial granularity
+
+**Use case**: You need some detailed traces and broad coverage.
+
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # 10% at full detail
+    remote_parent_sampled:
+      always_on
+  full_granularity:
+    enabled: true
+  partial_granularity:
+    enabled: true
+    type: essential
+    root:
+      trace_id_ratio_based:
+        ratio: 0.4  # Additional 40% at reduced detail
+```
+
+**Result**: 10% full + 40% partial = 50% total coverage
+
+### Pattern 2: High-volume partial granularity with occasional full detail
+
+**Use case**: High-traffic service needs broad coverage with minimal full detail.
+
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    root:
+      adaptive:
+        sampling_target: 1  # ~1 full trace per minute
+    remote_parent_sampled:
+      always_on
+  full_granularity:
+    enabled: true
+  partial_granularity:
+    enabled: true
+    type: essential
+    root:
+      adaptive:
+        sampling_target: 60  # 60 partial traces per minute
+```
+
+**Result**: Near-complete service map with occasional detailed traces
+
+### Pattern 3: Partial granularity only for cost control
+
+**Use case**: Budget-constrained but need complete service visibility.
+
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    root:
+      adaptive:
+        sampling_target: 60
+    remote_parent_sampled:
+      always_on
+  full_granularity:
+    enabled: false  # Disabled
+  partial_granularity:
+    enabled: true
+    type: essential
+```
+
+**Result**: Complete service map with minimal data volume
+
+### Pattern 4: Respect upstream decisions
+
+**Use case**: Mid-tier service that should honor upstream sampling.
+
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    root:
+      adaptive:
+        sampling_target: 10
+    remote_parent_sampled:
+      always_on  # Always capture upstream-sampled traces
+    remote_parent_not_sampled:
+      always_off  # Never sample if upstream rejected
+  full_granularity:
+    enabled: true
+```
+
+**Result**: Sampling decisions propagate cleanly through your architecture
+
+## Verify sampling configuration [#verify]
+
+After configuring sampling, verify it's working as expected.
+
+### Check sampling rates
+
+```sql
+SELECT count(*) as 'Total Traces',
+       filter(count(*), WHERE instrumentation.provider = 'full_granularity') as 'Full Granularity',
+       filter(count(*), WHERE instrumentation.provider = 'partial_granularity') as 'Partial Granularity'
+FROM Trace
+WHERE entity.name = 'YOUR_SERVICE_NAME'
+SINCE 1 hour ago
+```
+
+### Check sampling by context
+
+Use supportability metrics to see how many traces were sampled in each context:
+
+```sql
+SELECT count(newrelic.timeslice.value) as 'Traces'
+FROM Metric
+WHERE metricTimesliceName LIKE 'Supportability/DistributedTrace/%Sampled'
+AND entity.name = 'YOUR_SERVICE_NAME'
+FACET metricTimesliceName
+SINCE 30 minutes ago
+```
+
+### Verify adaptive sampling target is being met
+
+```sql
+SELECT rate(count(*), 1 minute) as 'Traces Per Minute'
+FROM Trace
+WHERE entity.name = 'YOUR_SERVICE_NAME'
+SINCE 1 hour ago
+TIMESERIES
+```
+
+Compare this to your configured `sampling_target` to verify the agent is hitting the target.
+
+## Troubleshooting [#troubleshoot]
+
+### Not enough traces being sampled
+
+**Problem**: You configured a sampling target but fewer traces are captured.
+
+**Solutions**:
+
+1. **Low traffic**: If your service receives fewer requests than your sampling target, adaptive sampling will capture 100% and still not hit the target.
+   ```sql
+   SELECT rate(count(*), 1 minute) as 'Requests Per Minute'
+   FROM Transaction
+   WHERE entity.name = 'YOUR_SERVICE_NAME'
+   SINCE 1 hour ago
+   ```
+
+2. **Reservoir limits**: The agent reservoir may be full. Check if traces are being dropped.
+
+3. **Configuration syntax error**: Verify your YAML/config file syntax is correct. Check agent logs for errors.
+
+### Too many traces being sampled
+
+**Problem**: More traces captured than expected.
+
+**Solutions**:
+
+1. **Multiple contexts active**: You may have multiple sampling contexts (root + remote_parent_sampled) both capturing traces. Check your context configuration.
+
+2. **Both full and partial granularity**: If both are enabled with high sampling, you'll get more traces. Verify your configuration table.
+
+3. **Upstream sampling**: Traces sampled by upstream services are captured if `remote_parent_sampled` is set to `always_on`.
+
+### Partial granularity traces not appearing
+
+**Problem**: Partial granularity is enabled but no partial granularity traces are captured.
+
+**Solutions**:
+
+1. Verify `partial_granularity.enabled = true`
+2. Check that a valid type is specified (`reduced`, `essential`, or `compact`)
+3. Ensure full granularity isn't capturing all traces (full takes precedence)
+4. Check supportability metrics to see if partial granularity traces are being instrumented but dropped
+
+## What's next [#whats-next]
+
+Now that you understand sampling:
+
+* See [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples) for real-world scenarios with copy-paste ready configurations
+* Learn about [partial granularity configuration](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) to control what data is captured in sampled traces
+* Review [cost optimization strategies](/docs/distributed-tracing/core-tracing/cost-optimization-strategies) for strategic planning across your services
+* Understand [distributed tracing data volume control](/docs/distributed-tracing/core-tracing/introduction-core-tracing) for the big picture
+
+<Callout variant="tip">
+  Sampling configuration can be complex. Start with simple patterns and iterate based on your actual trace volume and needs. Use supportability metrics and trace queries to verify your configuration is working as expected.
+</Callout>
