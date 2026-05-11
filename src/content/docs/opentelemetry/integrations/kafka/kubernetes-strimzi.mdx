@@ -30,7 +30,7 @@ Follow these steps to set up monitoring for your Kafka cluster:
 
 <Step>
 
-### Before you begin
+### Before you begin [#prerequisites]
 
 Ensure you have:
 * A [New Relic account](https://newrelic.com/signup) with a <InlinePopover type="licenseKey"/>
@@ -47,7 +47,7 @@ Configure your Strimzi Kafka cluster to expose Kafka JMX metrics via the Prometh
 
 **Create JMX metrics ConfigMap**
 
-Create a ConfigMap with JMX Exporter patterns that define which Kafka metrics to collect. Save as `kafka-jmx-metrics-config.yaml`:
+Create a ConfigMap with JMX Exporter patterns that define which Kafka metrics to collect. Save as `kafka-jmx-config.yaml`:
 
 ```yaml
 apiVersion: v1
@@ -337,7 +337,7 @@ data:
 Apply the ConfigMap:
 
 ```bash
-kubectl apply -f kafka-jmx-metrics-config.yaml
+kubectl apply -f kafka-jmx-config.yaml
 ```
 
 **Update Kafka cluster to use JMX Exporter**
@@ -487,7 +487,7 @@ extraEnvsFrom:
   - secretRef:
       name: newrelic-otlp-secret
 
-# Disable default ports
+# Disable unused default ports
 ports:
   jaeger-compact:
     enabled: false
@@ -501,7 +501,7 @@ ports:
 # OpenTelemetry Collector Configuration
 config:
   receivers:
-    # Disable default receivers not available in NRDOT experimental
+    # Disable default receivers not needed in NRDOT
     jaeger: null
     zipkin: null
 
@@ -735,11 +735,10 @@ config:
 
   service:
     pipelines:
-      # Override default traces pipeline to only use receivers that exist in NRDOT
-      traces:
-        receivers: [otlp]
-        processors: [memory_limiter, batch]
-        exporters: [debug]
+      # Suppress default pipelines — only custom Kafka metrics pipelines are used
+      traces: null
+      logs: null
+      metrics: null
 
       # Broker-level metrics from Prometheus JMX scraping
       metrics/broker:
@@ -793,7 +792,7 @@ config:
           - otlp/backend
 ```
 
-    **Customize for your cluster**: Update the TODO items in the above helm configure file:
+    **Customize for your cluster**: Update the TODO items in `values.yaml`:
     * TODO#1: Replace with your Kafka bootstrap service
     * TODO#2: Replace with the namespace where your Kafka cluster is deployed
     * TODO#3: Replace with your Strimzi Kafka cluster name followed by `-kafka`
@@ -1153,7 +1152,7 @@ config:
           - otlp/backend
 ```
 
-    **Customize for your cluster**: Update the TODO items in the above helm configure file:
+    **Customize for your cluster**: Update the TODO items in `values.yaml`:
     * TODO#1: Replace with your Kafka bootstrap service
     * TODO#2: Replace with the namespace where your Kafka cluster is deployed
     * TODO#3: Replace with your Strimzi Kafka cluster name followed by `-kafka`
@@ -1223,7 +1222,7 @@ Create a Kubernetes secret containing your New Relic license key and OTLP endpoi
     kubectl create secret generic newrelic-otlp-secret \
       --namespace newrelic \
       --from-literal=NEW_RELIC_LICENSE_KEY='your-license-key-here' \
-      --from-literal=NEW_RELIC_OTLP_ENDPOINT='https://eu01-otlp.nr-data.net:4317'
+      --from-literal=NEW_RELIC_OTLP_ENDPOINT='https://otlp.eu01.nr-data.net:4317'
     ```
   </Collapser>
 </CollapserGroup>
@@ -1732,14 +1731,14 @@ You should see logs indicating successful scraping from Kafka brokers on port 94
 ### (Optional) Instrument producer or consumer applications [#instrument-apps]
 
 <Callout variant="important">
-  **Language support**: Java applications support out-of-the-box Kafka client instrumentation using the OpenTelemetry Java Agent.
+  **Language support**: Java applications support out-of-the-box Kafka client instrumentation using the OpenTelemetry Java agent.
 </Callout>
 
-To collect application-level telemetry from your Kafka producer and consumer applications, use the OpenTelemetry Java Agent.
+To collect application-level telemetry from your Kafka producer and consumer applications, use the OpenTelemetry Java agent.
 
 #### Instrument your Kafka application
 
-Use an init container to download the OpenTelemetry Java Agent at runtime:
+Use an init container to download the OpenTelemetry Java agent at runtime:
 
 ```yaml
 apiVersion: apps/v1
@@ -1850,7 +1849,7 @@ spec:
   </CollapserGroup>
 </Callout>
 
-The Java Agent provides [out-of-the-box Kafka instrumentation](https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/out-of-the-box-instrumentation/) with zero code changes, capturing:
+The Java agent provides [out-of-the-box Kafka instrumentation](https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/out-of-the-box-instrumentation/) with zero code changes, capturing:
 * Request latencies
 * Throughput metrics
 * Error rates
@@ -1862,15 +1861,39 @@ For advanced configuration, see the [Kafka instrumentation documentation](https:
 
 </Steps>
 
-## Find your data
+## Find your data [#find-data]
 
-After a few minutes, your Kafka metrics should appear in New Relic. See [Find your data](/docs/opentelemetry/integrations/kafka/find-and-query-data) for detailed instructions on exploring your Kafka metrics across different views in the New Relic UI.
+After a few minutes, your Kafka data should appear in New Relic. See [Find your data](/docs/opentelemetry/integrations/kafka/find-and-query-data) for detailed instructions on exploring your Kafka data across different views in the New Relic UI.
 
-You can also query your data with NRQL:
+**Metrics**
+
+Broker, topic, partition, consumer group, and JVM metrics are stored in the `Metric` event type. Replace `my-kafka-cluster` with your `KAFKA_CLUSTER_NAME` value:
 
 ```sql
-FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
+FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster' SINCE 30 minutes ago
 ```
+
+
+**Logs**
+
+Strimzi does not inject an application log exporter by default. If you deploy producer or consumer applications instrumented with the OpenTelemetry Java agent, their logs are stored in the `Log` event type:
+
+```sql
+FROM Log SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster' SINCE 30 minutes ago
+```
+
+**Traces**
+
+If you deploy producer or consumer applications instrumented with the OpenTelemetry Java agent, producer and consumer spans are stored in the `Span` event type:
+
+```sql
+FROM Span SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster' SINCE 30 minutes ago
+```
+
+
+## Example [#example]
+
+A complete working example with Strimzi Kafka custom resources, JMX Exporter configuration, OTel Collector setup, and sample producer/consumer applications is available in the [New Relic OpenTelemetry Examples repository](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/kafka/k8s-strimzi).
 
 ## Troubleshooting [#troubleshooting]
 
@@ -1912,8 +1935,6 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     exporters:
       debug:
         verbosity: detailed
-        sampling_initial: 5        # Log first 5 metrics
-        sampling_thereafter: 200   # Then log every 200th metric
 
       otlp/backend:
         endpoint: ${NEW_RELIC_OTLP_ENDPOINT}
@@ -2323,7 +2344,6 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     exporters:
       debug:
         verbosity: detailed
-        sampling_initial: 100  # Log first 100 metrics to see what's available
 
     service:
       pipelines:
@@ -2347,7 +2367,7 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
 
     **1. Remove the Additional metrics section from the JMX ConfigMap**
 
-    In your `kafka-jmx-metrics-config.yaml` ConfigMap, delete everything below this comment (through the end of the `rules:` list):
+    In your `kafka-jmx-config.yaml` ConfigMap, delete everything below this comment (through the end of the `rules:` list):
 
     ```yaml
       # Additional metrics — remove this section to reduce data ingest
@@ -2360,7 +2380,7 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     After editing the ConfigMap, apply it and restart the Kafka brokers to pick up the change:
 
     ```bash
-    kubectl apply -f kafka-jmx-metrics-config.yaml
+    kubectl apply -f kafka-jmx-config.yaml
     kubectl rollout restart statefulset -n kafka <kafka-cluster-name>-kafka
     ```
 
@@ -2387,4 +2407,4 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
 
 * [Explore Kafka metrics](/docs/opentelemetry/integrations/kafka/metrics-reference) - View the complete metrics reference
 * [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) - Build visualizations for your Kafka data
-* [Set up alerts](/docs/opentelemetry/integrations/kafka/metrics-reference/#alerting) - Monitor critical metrics like consumer lag and under-replicated partitions
+* [Set up alerts](/docs/opentelemetry/integrations/kafka/find-and-query-data#alerts) - Monitor critical metrics like consumer lag and under-replicated partitions
