@@ -10,7 +10,9 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-[Elasticsearch OpenTelemetry 통합 설치를](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-install) 완료했지만 뉴럴릭에 데이터가 표시되지 않는 경우, 아래에서 해당 문제를 찾아 해결 단계를 따르세요.
+[Elasticsearch OpenTelemetry 통합 설치](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-install) 또는 [Kubernetes 설치](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install) 를 완료했지만 뉴렐릭에 데이터가 표시되지 않는 경우, 아래에서 문제를 확인하고 해결 단계를 따르세요.
+
+## 호스트 기반 구현, 배포 [#host-troubleshooting]
 
 <CollapserGroup>
   <Collapser id="troubleshoot-collector-stopped" title="Collector 서비스가 중단되었거나 실패했습니다.">
@@ -152,5 +154,162 @@ translationType: machine
         otlphttp
       </InlineCode>
       수출자가 모두 포함되어 있는지 확인하십시오.
+  </Collapser>
+</CollapserGroup>
+
+## Kubernetes 구현, 배포 [#kubernetes-troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-k8s-no-pods-discovered" title="발견된 Elasticsearch 파드 없음 ― 레이블 누락">
+    <strong>확인 방법</strong>
+
+    ```bash
+    # Verify your Elasticsearch pods have the required label
+    kubectl get pods -n <namespace> -l app=elasticsearch --show-labels
+    ```
+
+    <strong>해결</strong>
+
+    반환되는 파드가 없으면 Elasticsearch 파드에 필수 <InlineCode>
+      app=elasticsearch
+    </InlineCode> 레이블이 누락된 것입니다. receiver\_creator는 일치하는 레이블이 없으면 파드를 검색할 수 없습니다.
+
+    * StatefulSet/배포의 경우 파드 템플릿에 레이블을 추가합니다:
+      ```yaml
+      spec:
+        template:
+          metadata:
+            labels:
+              app: elasticsearch
+      ```
+    * 기존 파드의 경우 라벨을 추가하고 다시 시작합니다:
+      ```bash
+      kubectl label pods -l <your-selector> app=elasticsearch -n <namespace>
+      kubectl rollout restart statefulset/elasticsearch -n <namespace>
+      ```
+    * 사용자 지정 레이블을 사용하는 경우, 레이블과 일치하도록 values.yaml의 수신자 규칙을 업데이트하십시오:
+      ```yaml
+      rule: type == "pod" && labels["app"] == "your-custom-label"
+      ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-collector-not-running" title="Collector 파드가 실행되지 않거나 충돌함">
+    <strong>확인 방법</strong>
+
+    ```bash
+    kubectl get pods -n newrelic
+    kubectl describe pod <collector-pod-name> -n newrelic
+    ```
+
+    <strong>해결</strong>
+
+    * 파드 이벤트에서 오류를 확인하세요:
+      <InlineCode>
+        kubectl describe pod
+      </InlineCode>
+    * 수집기 로그 검토:
+      ```bash
+      kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+      ```
+    * 시크릿이 존재하는지 확인합니다:
+      ```bash
+      kubectl get secret newrelic-licenses -n newrelic
+      ```
+    * 리소스 제한이 너무 낮지 않은지 확인하십시오.
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-discovery-errors" title="리시버 크리에이터가 파드를 발견할 수 없음">
+    <strong>확인 방법</strong>
+
+    ```bash
+    # Check collector logs for discovery errors
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector | grep "receiver_creator"
+    ```
+
+    <strong>해결</strong>
+
+    * RBAC 권한이 올바르게 설정되었는지 확인하세요:
+      ```bash
+      kubectl get clusterrole | grep opentelemetry
+      kubectl describe clusterrole <role-name>
+      ```
+    * 수집기에 파드, 노드 및 엔드포인트를 감시할 수 있는 권한이 있는지 확인하세요.
+    * 구성에서 k8s\_observer 확장이 활성화되어 있는지 확인합니다.
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-network-connectivity" title="Collector가 Elasticsearch 파드에 연결할 수 없습니다">
+    <strong>확인 방법</strong>
+
+    ```bash
+    # Check network policies
+    kubectl get networkpolicies -n <namespace>
+
+    # Test connectivity from collector to Elasticsearch
+    kubectl exec -n newrelic <collector-pod> -- curl http://<es-pod-ip>:9200
+    ```
+
+    <strong>해결</strong>
+
+    * 네트워크 정책이 newrelic 네임스페이스에서 Elasticsearch 네임스페이스로의 트래픽을 허용하는지 확인합니다.
+    * Elasticsearch 파드가 올바른 포트를 노출하는지 확인합니다(기본값: 9200)
+    * 방화벽 규칙이 파드 간 통신을 차단하지 않는지 확인하세요.
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-wrong-endpoint" title="Kubernetes에서의 403 Forbidden 또는 인증 오류">
+    <strong>오류 예시</strong>: <InlineCode>
+      permanent error: 403 Forbidden
+    </InlineCode>
+
+    <strong>해결</strong>
+
+    * 시크릿에 올바른 라이선스 키가 포함되어 있는지 확인하세요:
+      ```bash
+      kubectl get secret newrelic-licenses -n newrelic -o jsonpath='{.data.NEWRELIC_LICENSE_KEY}' | base64 -d
+      ```
+    * OTLP 엔드포인트가 해당 리전에 올바른지 확인하세요.
+    * 수집기 파드에 시크릿이 마운트되어 있는지 확인합니다:
+      ```bash
+      kubectl describe pod <collector-pod> -n newrelic | grep -A5 "Environment"
+      ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-logs-not-collected" title="Kubernetes에서 로그가 수집되지 않음">
+    <strong>해결</strong>
+
+    * <InlineCode>
+        mode: daemonset
+      </InlineCode>
+      를 사용 중인지 확인합니다(배포 모드에서는 노드 로그에 액세스할 수 없습니다)
+    * 볼륨 마운트가 올바르게 구성되었는지 확인하세요:
+      ```bash
+      kubectl describe pod <collector-pod> -n newrelic | grep -A10 "Mounts"
+      ```
+    * 파일 로그 수신기 경로가 Elasticsearch 파드 로그와 일치하는지 확인합니다:
+      ```bash
+      kubectl exec -n newrelic <collector-pod> -- ls /var/log/pods/*/elasticsearch*/*.log
+      ```
+    * 수집기에 호스트 로그 디렉터리에 대한 읽기 권한이 있는지 확인하십시오.
+  </Collapser>
+
+  <Collapser id="troubleshoot-k8s-cluster-name-missing" title="k8s.cluster.name 속성이 누락된 메트릭">
+    <strong>해결</strong>
+
+    * values.yaml에
+      <InlineCode>
+        K8S_CLUSTER_NAME
+      </InlineCode>
+      환경 변수가 설정되어 있는지 확인합니다.
+    * <InlineCode>
+        resource/cluster
+      </InlineCode>
+      프로세서가 메트릭 파이프라인에 있는지 확인합니다.
+    * 확인할 쿼리:
+      ```sql
+      FROM Metric SELECT * WHERE metricName LIKE 'elasticsearch.%' LIMIT 1
+      ```
+      <InlineCode>
+        k8s.cluster.name
+      </InlineCode>
+      속성이 존재하는지 확인합니다.
   </Collapser>
 </CollapserGroup>

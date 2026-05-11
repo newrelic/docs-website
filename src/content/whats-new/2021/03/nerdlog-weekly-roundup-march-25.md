@@ -10,7 +10,7 @@ Lindsy Farina, Senior Product Manager, and Andrew Ettinger, Senior Software Engi
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/gQnKRiCjI10" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-Get started with Lookout [here](https://one.nr/0oqQaKpYGR1) (no configuration or setup required) or follow the instructions below:
+Get started with Lookout [here](https://onenr.io/0oqQaKpYGR1) (no configuration or setup required) or follow the instructions below:
 1. Select Explorer in the navigation bar.
 2. Select the Lookout button in the upper right to see the view of what’s changed.
 3. Click on a highlighted circle to get important details like activity, tags, and key metrics. 

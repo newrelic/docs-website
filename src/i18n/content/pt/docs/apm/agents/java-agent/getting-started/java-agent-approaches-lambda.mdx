@@ -1,0 +1,339 @@
+---
+title: Monitoramento de desempenho Java AWS Lambda Serverless
+tags:
+  - Agents
+  - Java agent
+  - Getting started
+metaDescription: This guide helps users decide which approach to take for Java serverless AWS Lambda performance monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Você pode obter visibilidade da sua função Java do Lambda para entender o que está acontecendo em seus aplicativos serverless.
+
+<Callout variant="important">
+  Este documento detalha como usar a nova solução baseada no agente APM para o monitoramento Serverless Java. Esta solução foi lançada em 10 de abril de 2026. Usuários que estavam usando o monitoramento de Java antes desta versão ou que estão usando as versões 11 ou 8 do Java devem, em vez disso, usar nossa [solução Java legada baseada em Open Tracing](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own/#console).
+</Callout>
+
+## Agente Java New Relic [#java-agent]
+
+O agente Java da New Relic suporta instrumentar a função do AWS Lambda por meio de um **modo serverless** dedicado. Ao ser executado dentro de uma função do Lambda, o agente detecta automaticamente o ambiente e alterna para este modo, que é otimizado para a natureza de curta duração e orientada a eventos das invocações do Lambda.
+
+<Callout variant="important">
+  O modo serverless do agente Java requer **Java 17 ou posterior**. Runtimes do Java 11 e anteriores não são suportados devido a tempos de inicialização inicial mais longos.
+</Callout>
+
+### Como funciona
+
+No modo sem servidor, o agente substitui sua coleta periódica padrão e o transporte HTTP por um modelo por invocação:
+
+1. Quando uma função do Lambda é invocada, o agente intercepta o handler antes que seu código seja executado.
+2. Uma transação é criada automaticamente para a invocação, capturando contexto como o ARN do Lambda, o ID de requisição e se é um cold start.
+3. Se a carga do evento for reconhecida (por exemplo, um evento do API Gateway ou SQS), o agente extrai os metadados da origem do evento, classifica a transação como uma transação da web ou transação fora da web e adiciona atributos relevantes.
+4. Quando a transação termina, o agente coleta toda a telemetria em buffer e a grava como uma carga compactada e codificada em base64 em `/tmp/newrelic-telemetry` e como JSON simples no stdout.
+5. A [extensão do Lambda da New Relic](https://github.com/newrelic/newrelic-lambda-extension/tree/main) (empacotada na camada) lê o arquivo de telemetria e encaminha os dados para a New Relic após cada invocação.
+
+### Camadas Lambda [#layers]
+
+Duas variantes da camada do Lambda são publicadas para o agente Java:
+
+* **Camada completa do agente**: todos os módulos de instrumentação estão habilitados. Fornece visibilidade máxima pronta para uso, mas gera maior sobrecarga de inicialização a frio devido ao conjunto completo de instrumentação automática.
+* **Camada Slim (recomendada)**: desativa toda a instrumentação automática *exceto* os módulos `aws-lambda-java-core`. Isso significa que os handlers Java Lambda que implementam `RequestHandler` ou `RequestStreamHandler` são automaticamente instrumentados e começam a emitir telemetria pronta para uso, enquanto outra instrumentação (chamadas do AWS SDK, clientes HTTP, etc.) é desabilitada, a menos que você a habilite explicitamente. Este é o ponto de partida recomendado para a maioria dos clientes.
+
+### ARNs de camada [#layer-arns]
+
+Os seguintes ARNs são para a região `us-east-1`. Substitua `us-east-1` pela sua região da AWS. A versão da camada começa em `1` e aumenta a cada novo lançamento. Para as versões mais recentes disponíveis, consulte a [lista de camadas da New Relic](https://layers.newrelic-external.com/).
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Variante de camada
+      </th>
+
+      <th>
+        Arquitetura
+      </th>
+
+      <th>
+        ARN
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Slim (recomendado)
+      </td>
+
+      <td>
+        x86_64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJava-slim:1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Slim (recomendado)
+      </td>
+
+      <td>
+        ARM64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJavaARM64-slim:1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Completo
+      </td>
+
+      <td>
+        x86_64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJava:1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Completo
+      </td>
+
+      <td>
+        ARM64
+      </td>
+
+      <td>
+        `arn:aws:lambda:us-east-1:451483290750:layer:NewRelicAgentJavaARM64:1`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para instruções de instalação, consulte [Instrumentação em camadas](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own/).
+
+Ao usar qualquer uma das camadas, defina o manipulador da sua função do Lambda para um dos seguintes valores de wrapper para que o agente possa interceptar a invocação:
+
+* `RequestHandler` implementação: `com.newrelic.java.HandlerWrapper::handleRequest`
+* `RequestStreamHandler` implementação: `com.newrelic.java.HandlerWrapper::handleStreamsRequest`
+
+### Detecção automática
+
+O agente habilita automaticamente o modo serverless quando a variável de ambiente `AWS_LAMBDA_FUNCTION_NAME` está presente. Nenhuma configuração explícita é necessária ao usar a camada Lambda. O modo Serverless está sempre ativado e não pode ser sobrescrito.
+
+### Configuração [#configuration]
+
+As seguintes variáveis de ambiente estão pré-configuradas na camada Lambda:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Variável de ambiente
+      </th>
+
+      <th>
+        Padrão da camada
+      </th>
+
+      <th>
+        Descrição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `NEW_RELIC_SERVERLESS_MODE_ENABLED`
+      </td>
+
+      <td>
+        `true`
+      </td>
+
+      <td>
+        Habilita o modo serverless. Definido como 
+
+        `true`
+
+         pela camada se ainda não estiver definido.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_LOG_FILE_PATH`
+      </td>
+
+      <td>
+        `/tmp/logs`
+      </td>
+
+      <td>
+        Por padrão, isso define o caminho do arquivo de log do agente Java para 
+
+        `/tmp/logs/newrelic_agent.log`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_APP_NAME`
+      </td>
+
+      <td>
+        `lambda-function`
+      </td>
+
+      <td>
+        Nome padrão do aplicativo usado pelo agente. Definido pela camada se ainda não estiver definido. Este valor não é usado na interface do New Relic para funções do Lambda.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED`
+      </td>
+
+      <td>
+        `false`
+      </td>
+
+      <td>
+        Desabilita o encaminhamento de logs no agente. Definido pela camada se ainda não estiver definido. Em vez disso, os logs são capturados via CloudWatch ou pela extensão Lambda.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_ENABLE_AUTO_APP_NAMING`
+      </td>
+
+      <td>
+        `false`
+      </td>
+
+      <td>
+        Sempre definido como 
+
+        `false`
+
+         pela camada. Evita que o agente sobrescreva o nome do aplicativo com base nos dados da transação.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+As seguintes variáveis de ambiente são obrigatórias e devem ser definidas por você:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Variável de ambiente
+      </th>
+
+      <th>
+        Valor obrigatório
+      </th>
+
+      <th>
+        Descrição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `AWS_LAMBDA_EXEC_WRAPPER`
+      </td>
+
+      <td>
+        `/opt/newrelic-java-handler`
+      </td>
+
+      <td>
+        Aponta o AWS Lambda para o wrapper do agente Java New Relic. Isso deve sempre ser definido como 
+
+        `/opt/newrelic-java-handler`
+
+         ao usar a camada do agente Java.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_LICENSE_KEY`
+      </td>
+
+      <td>
+        Sua chave de licença New Relic
+      </td>
+
+      <td>
+        Sua chave de licença de ingestão da New Relic, usada para autenticar telemetria enviada para a New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+      </td>
+
+      <td>
+        ID da sua conta New Relic
+      </td>
+
+      <td>
+        Exigido pela extensão New Relic Lambda para distributed tracing. Defina isso como o ID da sua conta pai New Relic ou ID da conta se não houver uma conta pai.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Por padrão, a extensão Lambda ou o CloudWatch captura seus logs. O agente não encaminha logs diretamente.
+</Callout>
+
+### <DNT>Cold starts</DNT> [#cold-starts]
+
+O agente rastreia <DNT>cold starts</DNT> usando um sinalizador estático que é definido na primeira invocação. Em invocações <DNT>cold start</DNT>, o atributo `aws.lambda.coldStart=true` é adicionado à transação. Este atributo é omitido em invocações quentes. Não está definido para `false`.
+
+<Callout variant="important">
+  **Tempo de <DNT>Cold start</DNT>**: adicionar o agente Java aumenta o tempo de <DNT>cold start</DNT> em aproximadamente 4.000–6.200 ms comparado a uma função sem o agente. Isso afeta apenas a primeira invocação. As invocações quentes não são afetadas. A camada slim reduz isso ao carregar menos módulos de monitoramento na inicialização.
+
+  Para melhorar o desempenho de <DNT>cold start</DNT>, aumente o limite de timeout e a alocação de memória e use simultaneidade provisionada.
+</Callout>
+
+### Telemetria coletada [#telemetry]
+
+No modo serverless, o agente Java coleta e armazena em buffer os seguintes tipos de telemetria durante a invocação:
+
+* Rastreamento da transação
+* Eventos de erro e erros rastreados (com stack traces)
+* Eventos de span (para distributed tracing)
+* Eventos (analíticos) de transação
+* Evento personalizado
+* Eventos de log (via CloudWatch por padrão)
+* Métricas de desempenho
+
+Todos os dados coletados são gravados como uma única carga `NR_LAMBDA_MONITORING` e encaminhados para o New Relic após a conclusão da invocação.
+
+### Limitações [#limitations]
+
+* **Somente Java 17+.** Java 11 e anteriores não são suportados.
+* O profiling de thread não está disponível no modo serverless.
+* O monitoramento do JFR (Java Flight Recorder) está desativado no modo serverless.
+* O coletor JAR (varredura de módulo) está desabilitado no modo serverless.

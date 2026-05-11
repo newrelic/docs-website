@@ -3,7 +3,7 @@ title: 'Detect patterns and outliers in log data'
 summary: 'Create queries, alerts, and dashboards using log patterns and outliers'
 releaseDate: '2021-04-12'
 learnMoreLink: 'https://docs.newrelic.com/docs/logs/log-management/ui-data/find-unusual-logs-log-patterns/'
-getStartedLink: 'https://one.nr/0PoR8YblajG'
+getStartedLink: 'https://onenr.io/0PoR8YblajG'
 ---
 
 Reduce troubleshooting time with machine learning to automatically detect patterns that are clustered to surface outliers in log data.
