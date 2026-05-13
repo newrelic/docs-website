@@ -84,11 +84,15 @@ Remove all telemetry from test and development environments:
 config:
   rules:
     - name: drop-test-environment
+      description: Drop logs from test environment
       conditions: 
         - 'resource.attributes["environment"] == "test"'
+      context: log
     - name: drop-dev-environment
+      description: Drop logs from dev environment
       conditions: 
         - 'resource.attributes["environment"] == "dev"'
+      context: log
 ```
 
 ### Example 2: Drop debug logs in production
@@ -99,11 +103,15 @@ Keep only meaningful log levels in production:
 config:
   rules:
     - name: drop-debug-logs
+      description: Drop all DEBUG severity logs
       conditions: 
         - 'severity_text == "DEBUG"'
+      context: log
     - name: drop-low-severity-logs
+      description: Drop INFO and below severity logs
       conditions: 
         - "severity_number < 9"
+      context: log
 ```
 
 **Severity number reference**:
@@ -122,13 +130,15 @@ Remove health check traffic that adds no diagnostic value:
 config:
   rules:
     - name: drop-health-endpoint
-      context: span
+      description: Drop spans from /health endpoint
       conditions: 
         - 'attributes["http.path"] == "/health"'
-    - name: drop-health-check-spans
       context: span
+    - name: drop-health-check-spans
+      description: Drop spans named health_check
       conditions: 
         - 'name == "health_check"'
+      context: span
 ```
 
 ### Example 4: Drop by service name
@@ -139,11 +149,15 @@ Filter out specific services or service patterns:
 config:
   rules:
     - name: drop-legacy-api
+      description: Drop logs from legacy API v1 service
       conditions: 
         - 'resource.attributes["service.name"] == "legacy-api-v1"'
+      context: log
     - name: drop-canary-services
+      description: Drop logs from canary deployment services
       conditions: 
         - 'IsMatch(resource.attributes["service.name"], ".*-canary")'
+      context: log
 ```
 
 ### Example 5: Drop metrics with specific prefixes
@@ -154,13 +168,15 @@ Remove unnecessary metric streams:
 config:
   rules:
     - name: drop-internal-metrics
-      context: metric
+      description: Drop metrics with internal prefix
       conditions: 
         - 'IsMatch(name, "^internal\\.")'
+      context: metric
     - name: drop-debug-datapoints
-      context: datapoint
+      description: Drop datapoints marked as debug type
       conditions: 
         - 'attributes["metric.type"] == "debug"'
+      context: datapoint
 ```
 
 ### Example 6: Combined conditions with AND
@@ -171,10 +187,12 @@ Drop only when multiple conditions are true:
 config:
   rules:
     - name: drop-debug-logs-from-test
+      description: Drop DEBUG logs from background-worker service in test environment
       conditions:
         - 'severity_text == "DEBUG"'
         - 'resource.attributes["service.name"] == "background-worker"'
         - 'resource.attributes["environment"] == "test"'
+      context: log
 ```
 
 ### Example 7: Keep errors, drop everything else
@@ -185,8 +203,10 @@ Invert the logic to keep only valuable data:
 config:
   rules:
     - name: drop-non-error-logs
+      description: Drop everything below ERROR severity level
       conditions: 
         - "severity_number < 17"
+      context: log
 ```
 
 Or use NOT logic:
@@ -201,6 +221,7 @@ filter/Logs:
         description: Drop logs that are not ERROR or FATAL
         conditions:
           - 'not (severity_text == "ERROR" or severity_text == "FATAL")'
+        context: log
 ```
 
 ### Example 8: Pattern matching in log body
@@ -211,8 +232,10 @@ Drop logs containing specific patterns:
 config:
   rules:
     - name: drop-health-check-logs
+      description: Drop logs with health check in body
       conditions: 
         - 'IsMatch(body, ".*health check.*")'
+      context: log
 ```
 
 ### Example 9: Drop high-volume, low-value spans
@@ -223,11 +246,12 @@ Remove spans that occur frequently but provide little value:
 config:
   rules:
     - name: drop-fast-cache-hits
-      context: span
+      description: Drop cache hit operations faster than 1ms
       conditions:
         - 'attributes["db.operation"] == "get"'
         - 'end_time_unix_nano - start_time_unix_nano < 1000000'
         - 'attributes["cache.hit"] == true'
+      context: span
 ```
 
 ### Example 10: Drop based on HTTP status
@@ -238,9 +262,10 @@ Filter successful requests, keep errors:
 config:
   rules:
     - name: drop-successful-requests
-      context: span
+      description: Drop HTTP requests with status code less than 400
       conditions: 
         - 'attributes["http.status_code"] < 400'
+      context: span
 ```
 
 ### Example 11: Multiple conditions with OR
@@ -249,13 +274,14 @@ Drop if any condition matches:
 
 ```yaml
 config:
-  rules:
-    - name: drop-test-env
-      conditions: 
-        - 'resource.attributes["environment"] == "test"'
-    - name: drop-health-body
-      conditions: 
-        - 'IsMatch(body, ".*health.*")'
+    rules:
+      - name: drop-test-health-debug
+        description: Drop logs from test environment, health checks, or debug severity
+        conditions:
+          - 'resource.attributes["environment"] == "test"'
+          - 'IsMatch(body, ".*health.*")'
+          - 'severity_text == "DEBUG"'
+        context: log 
 ```
 
 ## Drop data vs drop attributes
@@ -270,8 +296,10 @@ filter/Logs:
   config:
     rules:
       - name: wrong-attribute-drop
+        description: Identify and drop logs containing specific sensitive attributes
         conditions:
           - 'delete attributes["sensitive_field"]'  # Filter conditions must be boolean, not actions
+        context: log
 ```
 
 **Correct approach** (use transform processor instead):
@@ -281,9 +309,9 @@ transform/Logs:
   config:
     rules:
       - name: remove-sensitive-field
-        context: log
+        description: "Redacts the 'sensitive_field' attribute from log records to ensure privacy compliance."
         statements:
-          - delete_key(attributes, "sensitive_field")
+          - 'delete_key(attributes, "sensitive_field")'
   output: 
     - nrexporter/newrelic
 ```
@@ -296,52 +324,56 @@ transform/Logs:
 
 **Example of efficient ordering**:
 ```yaml
-steps:
+    steps:
       # ... receive steps ...
-      probabilistic_sampler/Logs:
-        config:
-          default_sampling_percentage: 100
-          rules:
-            - name: ruby-test-sampling
-              sampling_percentage: 70
-              source_of_randomness: trace.id
-              conditions:
-                - 'resource.attributes["service.name"] == "ruby-test-service"'
+      # ... probabilistic sampler steps ...
       filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
         config:
           error_mode: ignore
           rules:
-            - name: drop-info-logs
+            - name: drop the log records
+              description: drop all records which has severity text INFO
               conditions:
-                - "log.severity_text == 'INFO'"
+                - log.severity_text == "INFO"
+              context: log
       filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
         config:
           error_mode: ignore
           rules:
-            - name: drop-humidity-metric
+            - name: drop-internal-metrics
+              description: drop internal metric
+              conditions:
+                - IsMatch(name, "^internal\\.")
               context: metric
+            - name: drop-debug-datapoints
+              description: drop-debug-datapoints
               conditions:
-                - "name == 'humidity_level_metric'"
-                - "IsMatch(resource.attributes['process_group_id'], 'pcg_.*')"
-            - name: drop-fahrenheit-datapoints
+                - attributes["metric.type"] == "debug"
               context: datapoint
-              conditions:
-                - "attributes['unit'] == 'Fahrenheit'"
-                - "IsMatch(attributes['testId'], 'pcg_.*')"
       filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
         config:
           error_mode: ignore
           rules:
-            - name: drop-specific-host-spans
+            - name: drop-health-endpoint
+              description: drop-health-endpoint
+              conditions:
+                - attributes["http.path"] == "/health"
               context: span
-              conditions:
-                - "attributes['host'] == 'host123.example.com'"
-                - "IsMatch(attributes['testId'], 'pcg_.*')"
             - name: drop-debug-events
-              context: span_event
+              description: drop-debug-events
               conditions:
-                - "name == 'debug_event'"
-      # ... transform steps ...
+                - name == 'debug_event'
+              context: span_event
+        # ... transformer steps...
 ```
 
 ## OTTL boolean expression reference
