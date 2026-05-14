@@ -477,6 +477,215 @@ Nos rapports d&apos;analyse des performances fournissent des vues simples et pr�
       </tbody>
     </table>
 
+    ## Interrogez les métriques de votre rapport hebdomadaire avec NRQL [#nrql-queries]
+
+    Voici les requêtes que New Relic utilise pour générer les chiffres dans votre email de rapport de performances hebdomadaire. Ils s’appuient sur les données d’intervalle de temps APM exposées via `newrelic.timeslice.value` sur l’événement `Metric`, vous pouvez donc les exécuter dans le [générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) ou les épingler à un [dashboard](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) pour reproduire n’importe quelle valeur dans l’e-mail.
+
+    Remplacez les variables par des valeurs pour votre application avant d&apos;exécuter une requête :
+
+    <table>
+      <thead>
+        <tr>
+          <th width={200}>
+            **Variable**
+          </th>
+
+          <th>
+            **Description**
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `<app_name>`
+          </td>
+
+          <td>
+            Le `appName` de l&apos;application APM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<APP_GUID>`
+          </td>
+
+          <td>
+            Le `entity.guid` de l&apos;application APM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `<monday>` / `<next_monday>`
+          </td>
+
+          <td>
+            Une paire d&apos;horodatages ISO 8601 marquant le début et la fin de la semaine de reporting. L&apos;e-mail hebdomadaire utilise le lundi `00:00` UTC comme limite. Par exemple, `'2026-04-20T00:00:00Z'` pour `<monday>` et `'2026-04-27T00:00:00Z'` pour `<next_monday>`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `{N}`
+          </td>
+
+          <td>
+            Le nombre de semaines à inclure dans une requête de série chronologique. Par exemple, `8` pour les 8 dernières semaines.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Deux constantes apparaissent dans plusieurs requêtes : `10080` est le nombre de minutes dans une semaine (utilisé pour convertir les comptes de tranches de temps additionnés en une moyenne de débit par minute), et `604800` est le nombre de secondes dans une semaine (utilisé dans le calcul du CPU %).
+    </Callout>
+
+    ### Métriques du serveur d&apos;application [#nrql-app-server]
+
+    Chaque requête de ce groupe rapporte une seule valeur hebdomadaire pour une application, en utilisant `SINCE '<monday>' UNTIL '<next_monday>'` pour définir la portée de la semaine et `appName = '<app_name>'` pour sélectionner l&apos;application.
+
+    **Requests (millions) :** nombre total de requests HTTP gérées pendant la semaine, exprimé en millions.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value[count]) / 1e6 AS 'Requests millions'
+    FROM Metric
+    WHERE metricTimesliceName = 'HttpDispatcher' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Temps de réponse (ms) :** temps de réponse moyen en millisecondes sur toutes les transactions HTTP.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value) / sum(newrelic.timeslice.value[count]) * 1000 AS 'Resp time ms'
+    FROM Metric
+    WHERE metricTimesliceName = 'HttpDispatcher' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Débit (RPM) :** moyenne des requests par minute sur la semaine.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value[count]) / 10080 AS 'Throughput RPM'
+    FROM Metric
+    WHERE metricTimesliceName = 'HttpDispatcher' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Taux d’erreur (%) :** erreurs en pourcentage de toutes les transactions web et non web.
+
+    ```sql
+    SELECT filter(sum(newrelic.timeslice.value[count]), WHERE metricTimesliceName = 'Errors/all') /
+      (filter(sum(newrelic.timeslice.value[count]), WHERE metricTimesliceName = 'HttpDispatcher') +
+       filter(sum(newrelic.timeslice.value[count]), WHERE metricTimesliceName = 'OtherTransaction/all')) * 100 AS 'Error rate'
+    FROM Metric
+    WHERE metricTimesliceName IN ('Errors/all', 'HttpDispatcher', 'OtherTransaction/all')
+      AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Apdex :** le score [Apdex](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction) hebdomadaire de l&apos;application.
+
+    ```sql
+    SELECT (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) / 2.0) /
+      (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) + sum(newrelic.timeslice.value[exclusiveTotal])) AS 'Apdex'
+    FROM Metric
+    WHERE metricTimesliceName = 'Apdex' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **% Satisfait/% Tolérant/% Frustré :** les trois composants Apdex en pourcentages. Cela complète le score Apdex unique ci-dessus en le décomposant en ses catégories de requêtes sous-jacentes.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value[count]) /
+      (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) + sum(newrelic.timeslice.value[exclusiveTotal])) * 100 AS '% Satisfied',
+      sum(newrelic.timeslice.value[total]) /
+      (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) + sum(newrelic.timeslice.value[exclusiveTotal])) * 100 AS '% Tolerating',
+      sum(newrelic.timeslice.value[exclusiveTotal]) /
+      (sum(newrelic.timeslice.value[count]) + sum(newrelic.timeslice.value[total]) + sum(newrelic.timeslice.value[exclusiveTotal])) * 100 AS '% Frustrated'
+    FROM Metric
+    WHERE metricTimesliceName = 'Apdex' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **CPU (%) :** Temps CPU utilisateur moyen pour la semaine, exprimé en pourcentage.
+
+    ```sql
+    SELECT sum(newrelic.timeslice.value) / 604800 * 100 AS 'CPU %'
+    FROM Metric
+    WHERE metricTimesliceName = 'CPU/User Time' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **Mémoire (Mo) :** utilisation moyenne de la mémoire physique en mégaoctets.
+
+    ```sql
+    SELECT average(newrelic.timeslice.value) AS 'Memory MB'
+    FROM Metric
+    WHERE metricTimesliceName = 'Memory/Physical' AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    **DB (%) :** temps passé dans les appels de datastore web en pourcentage du temps total de transaction web.
+
+    ```sql
+    SELECT filter(sum(newrelic.timeslice.value), WHERE metricTimesliceName = 'Datastore/allWeb') /
+      filter(sum(newrelic.timeslice.value), WHERE metricTimesliceName = 'HttpDispatcher') * 100 AS 'DB %'
+    FROM Metric
+    WHERE metricTimesliceName IN ('Datastore/allWeb', 'HttpDispatcher') AND appName = '<app_name>'
+    SINCE '<monday>' UNTIL '<next_monday>'
+    ```
+
+    <Callout title="Note">
+      Le pourcentage de base de données représente le ratio entre le temps d&apos;opération de la base de données et le temps de réponse total de la transaction web. Formule : (temps de base de données/temps de réponse total) × 100. Les pourcentages dépassant 100 % indiquent une exécution parallèle ou asynchrone des appels de base de données.
+    </Callout>
+
+    ### Modèle de Traffic [#nrql-traffic]
+
+    Ces requêtes alimentent le graphique sparkline quotidien sur deux mois affiché en haut du rapport. Ils utilisent `TIMESERIES 1 day` plutôt que `SINCE 2 months ago`. Il existe deux variantes selon la façon dont l&apos;application est instrumentée : les applications de serveur d&apos;applications sont basées sur `HttpDispatcher` tranches de temps (rpm), et les applications instrumentées par le navigateur utilisent `EndUser` tranches de temps (ppm).
+
+    **Débit — applications de serveur d&apos;applications (rpm) :** taux quotidien de requêtes par minute pour les applications rapportant `HttpDispatcher` tranches de temps.
+
+    ```sql
+    SELECT rate(sum(newrelic.timeslice.value), 1 minute) AS 'Throughput rpm'
+    FROM Metric
+    WHERE metricTimesliceName = 'HttpDispatcher' AND entity.guid = '<APP_GUID>'
+    SINCE 2 months ago TIMESERIES 1 day
+    ```
+
+    **Débit — applications instrumentées par le navigateur (ppm) :** Taux quotidien de chargements de pages par minute pour les applications rapportant `EndUser` tranches de temps.
+
+    ```sql
+    SELECT rate(sum(newrelic.timeslice.value), 1 minute) AS 'Throughput ppm'
+    FROM Metric
+    WHERE metricTimesliceName = 'EndUser' AND entity.guid = '<APP_GUID>'
+    SINCE 2 months ago TIMESERIES 1 day
+    ```
+
+    ### Métriques du navigateur de l&apos;utilisateur final [#nrql-enduser]
+
+    Ces requêtes alimentent la section navigateur du rapport pour les applications auxquelles le [monitoring de navigateurs](/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring) est associé. Ils renvoient un point par semaine sur les `{N}` semaines les plus récentes à l&apos;aide de `TIMESERIES 1 week`.
+
+    **Temps de réponse de l&apos;utilisateur final (s) :** temps de chargement de page moyen à partir de l&apos;agent du navigateur.
+
+    ```sql
+    SELECT average(newrelic.timeslice.value) AS 'End User Resp Time (s)'
+    FROM Metric
+    WHERE metricTimesliceName = 'EndUser' AND entity.guid = '<APP_GUID>'
+    SINCE {N} weeks ago TIMESERIES 1 week
+    ```
+
+    **Apdex de l&apos;utilisateur final (chargement de page) :** score Apdex pour les chargements de page de l&apos;utilisateur final.
+
+    ```sql
+    SELECT apdex(newrelic.timeslice.value) AS 'End User Apdex'
+    FROM Metric
+    WHERE metricTimesliceName = 'EndUser/Apdex' AND entity.guid = '<APP_GUID>'
+    SINCE {N} weeks ago TIMESERIES 1 week
+    ```
+
     ## Applications sélectionnées [#featured\_apps][#featured_apps]
 
     New Relic sélectionne les 20 meilleures applications en fonction du nombre d&apos;appels qui répondent à ces critères :

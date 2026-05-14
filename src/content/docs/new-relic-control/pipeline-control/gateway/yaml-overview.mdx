@@ -11,13 +11,13 @@ This reference covers YAML syntax for advanced users creating custom gateway con
 Gateway configurations use a declarative YAML format:
 
 ```yaml
-version: 2.0.0
+version: 2.0.1
 autoscaling:
   minReplicas: 6
   maxReplicas: 10
   targetCPUUtilizationPercentage: 60
 configuration:
-  simplified/v1:
+  simplified/v2:
     troubleshooting:
       proxy: false
       requestTraceLogs: false
@@ -39,70 +39,73 @@ configuration:
         output:
           - filter/Logs
         config:
-          global_sampling_percentage: 100
-          conditionalSamplingRules:
+          rules:
             - name: sample the log records for ruby test service
               description: sample the log records for ruby test service with 70%
               sampling_percentage: 70
               source_of_randomness: trace.id
-              condition: resource.attributes["service.name"] == "ruby-test-service"
+              conditions:
+                - resource.attributes["service.name"] == "ruby-test-service"
+          default_sampling_percentage: 100
       probabilistic_sampler/Traces:
         description: Probabilistic sampling for traces
         output:
           - filter/Traces
         config:
-          global_sampling_percentage: 80
+          default_sampling_percentage: 100
       filter/Logs:
         description: Apply drop rules and data processing for logs
         output:
           - transform/Logs
         config:
           error_mode: ignore
-          logs:
-            rules:
-              - name: drop the log records
-                description: drop all records which has severity text INFO
-                value: log.severity_text == "INFO"
+          rules:
+            - name: drop the log records
+              description: drop all records which has severity text INFO
+              conditions:
+                - log.severity_text == "INFO"
+              context: log
       filter/Metrics:
         description: Apply drop rules and data processing for metrics
         output:
           - transform/Metrics
         config:
           error_mode: ignore
-          metric:
-            rules:
-              - name: drop entire metrics
-                description: delete the metric on basis of humidity_level_metric
-                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
-          datapoint:
-            rules:
-              - name: drop datapoint
-                description: drop datapoint on the basis of unit
-                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+          rules:
+            - name: drop-internal-metrics
+              description: drop internal metric
+              conditions:
+                - IsMatch(name, "^internal\\.")
+              context: metric
+            - name: drop-debug-datapoints
+              description: drop-debug-datapoints
+              conditions:
+                - attributes["metric.type"] == "debug"
+              context: datapoint
       filter/Traces:
         description: Apply drop rules and data processing for traces
         output:
           - transform/Traces
         config:
           error_mode: ignore
-          span:
-            rules:
-              - name: delete spans
-                description: deleting the span for a specified host
-                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
-          span_event:
-            rules:
-              - name: Drop all the traces span event
-                description: Drop all the traces span event with name debug event
-                value: name == "debug_event"
+          rules:
+            - name: drop-health-endpoint
+              description: drop-health-endpoint
+              conditions:
+                - attributes["http.path"] == "/health"
+              context: span
+            - name: drop-debug-events
+              description: drop-debug-events
+              conditions:
+                - name == 'debug_event'
+              context: span_event
       transform/Logs:
         description: Transform and process logs
         output:
           - nrexporter/newrelic
         config:
-          log_statements:
-            - context: log
-              name: add new field to attribute
+          rules:
+            - name: add new field to attribute
               description: for otlp-test-service application add newrelic source type field
               conditions:
                 - resource.attributes["service.name"] == "otlp-java-test-service"
@@ -113,10 +116,9 @@ configuration:
         output:
           - nrexporter/newrelic
         config:
-          metric_statements:
-            - context: metric
-              name: adding a new attributes
-              description: 'adding a new field into a attributes '
+          rules:
+            - name: adding a new attributes
+              description: adding a new field into a attributes
               conditions:
                 - resource.attributes["service.name"] == "payments-api"
               statements:
@@ -126,9 +128,8 @@ configuration:
         output:
           - nrexporter/newrelic
         config:
-          trace_statements:
-            - context: span
-              name: remove the attribute
+          rules:
+            - name: remove the attribute
               description: remove the attribute when service name is payment-service
               conditions:
                 - resource.attributes["service.name"] == "payment-service"
