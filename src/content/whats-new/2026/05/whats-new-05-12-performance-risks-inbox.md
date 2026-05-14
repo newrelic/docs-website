@@ -12,12 +12,12 @@ By analyzing the rich, correlated telemetry New Relic already collects across yo
 ## Capabilities included in the Public Preview
 Performance Risks Inbox identifies the most common stability risks within your events and traces to highlight:
 
-- **N+1 Queries:** Identify where a single request triggers a cascade of unnecessary database calls.
-- **Slow SQL Queries:** Pinpoint inefficient queries that are dragging down transaction times.
-- **Excessive Database Queries:** Detects loops where a high volume of queries is bundled into a single transaction, potentially impacting database performance.
-- **Sequential Database Queries:** Identify patterns where multiple database queries are executed one after another instead of being batched or run in parallel.
-- **Slow HTTP Requests:** Pinpoint outgoing HTTP calls that consistently exceed performance benchmarks.
-- **Large HTTP Payloads:** Detects heavy responses that consume excessive bandwidth and memory, slowing down the end-user experience.
+- **N+1 queries:** Identify where a single request triggers a cascade of unnecessary database calls.
+- **Slow SQL queries:** Pinpoint inefficient queries that are dragging down transaction times.
+- **Excessive database queries:** Detects loops where a high volume of queries is bundled into a single transaction, potentially impacting database performance.
+- **Sequential database queries:** Identify patterns where multiple database queries are executed one after another instead of being batched or run in parallel.
+- **Slow HTTP requests:** Pinpoint outgoing HTTP calls that consistently exceed performance benchmarks.
+- **Large HTTP payloads:** Detects heavy responses that consume excessive bandwidth and memory, slowing down the end-user experience.
 
 ![performance inbox](/images/performance-risks-inbox.webp "performance inbox")
 
