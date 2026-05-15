@@ -1,5 +1,5 @@
 ---
-title: 'SLM Update: Maintenance Windows and Facet Compliance are now Generally Available'
+title: 'SLM update: Maintenance Windows and Facet Compliance are now Generally Available'
 summary: 'We have implemented two major updates to our Service Level Management (SLM) workflow to improve reporting accuracy and provide deeper diagnostic capabilities.'
 learnMoreLink: '/docs/service-level-management/intro-slm/'
 releaseDate: '2026-05-18'
