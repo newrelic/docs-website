@@ -27,6 +27,50 @@ Pour utiliser l&apos;API .NET deagent, assurez-vous que vous disposez de la [der
 
 * Affichez et téléchargez le API package à partir de la [bibliothèque de packages NuGet](https://www.nuget.org/packages/NewRelic.Agent.Api/).
 
+## Notes sur l&apos;injection de dépendances
+
+Si vous consommez l&apos;API d’agent via `Microsoft.Extensions.DependencyInjection` (ou un conteneur similaire), il existe deux pièges qui désactiveront silencieusement votre instrumentation personnalisée sans produire d&apos;erreur. Les deux découlent du fait que [`IAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent) est un handle à longue durée de vie, mais que [`CurrentTransaction`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ITransaction) et [`CurrentSpan`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) sont des vues à l&apos;échelle de la requête qui doivent être relues à chaque appel.
+
+### Enregistrer `IAgent` de manière différée, et non de manière anticipée
+
+[`GetAgent()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#GetAgent) doit être appelé **après** que le profileur a fini de s&apos;attacher. Si vous le résolvez de manière anticipée pendant la construction du conteneur DI, vous risquez de mettre en cache l’espace réservé no-op que l’API renvoie avant que l’agent ne soit actif, laissant l’application avec une API silencieusement désactivée pour la durée de vie du processus. Utilisez une lambda de fabrique pour que l&apos;appel soit différé à la première résolution :
+
+```cs
+// ❌ Eager — may capture the no-op placeholder
+builder.Services.AddSingleton<IAgent>(NewRelic.Api.Agent.NewRelic.GetAgent());
+
+// ✅ Lazy — GetAgent() runs on first resolution, after the profiler is ready
+builder.Services.AddSingleton<IAgent>(_ => NewRelic.Api.Agent.NewRelic.GetAgent());
+```
+
+### Ne mettez pas en cache `ITransaction` ou `ISpan` dans les champs
+
+`IAgent` lui-même peut être stocké en toute sécurité, mais `CurrentTransaction` et `CurrentSpan` doivent être lus à nouveau à chaque fois que vous les utilisez. Les capturer dans un constructeur ou un champ lie votre service à la requête qui se trouvait être en cours lorsque le champ a été assigné pour la première fois. Chaque appel ultérieur écrit alors des attributs, des erreurs, et des événements dans une transaction qui est déjà terminée, et les données n&apos;apparaissent jamais sur les transactions que vous consultez réellement.
+
+```cs
+// ❌ Captures one request's transaction forever
+public class BuggyService
+{
+    private readonly ITransaction _transaction;
+    public BuggyService(IAgent agent) => _transaction = agent.CurrentTransaction;
+}
+
+// ✅ Fetch per-call
+public class WorkService
+{
+    private readonly IAgent _agent;
+    public WorkService(IAgent agent) => _agent = agent;
+
+    public void DoWork()
+    {
+        var transaction = _agent.CurrentTransaction;
+        transaction.AddCustomAttribute("key", "value");
+    }
+}
+```
+
+Pour un guide complet et exécutable, y compris des exemples d&apos;anti-modèles vérifiés à la compilation, consultez l&apos;[exemple d&apos;injection de dépendance (api-dependency-injection)](https://github.com/newrelic/newrelic-dotnet-examples/tree/main/api-dependency-injection) dans le référentiel `newrelic-dotnet-examples`.
+
 ## Liste des appels d&apos;API
 
 La liste suivante contient les différents appels que vous pouvez effectuer avec l&apos;API, y compris la syntaxe, les exigences, les fonctionnalités et les exemples :
@@ -356,11 +400,11 @@ La liste suivante contient les différents appels que vous pouvez effectuer avec
 
         <tr>
           <td>
-            Étendue actuelle
+            CurrentSpan
           </td>
 
           <td>
-            Propriété donnant accès à l&apos;étendue en cours d&apos;exécution via l&apos;interface [ISpan](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan).
+            Propriété donnant accès à la span en cours d&apos;exécution via l&apos;interface [ISpan](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan).
           </td>
         </tr>
       </tbody>
@@ -561,7 +605,7 @@ La liste suivante contient les différents appels que vous pouvez effectuer avec
 
         ### Description
 
-        `ITransaction.AcceptDistributedTraceHeaders` est utilisé pour lier les étendues d&apos;une trace en acceptant une charge générée par [`InsertDistributedTraceHeaders`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#InsertDistributedTraceHeaders) ou générée par un autre traceur compatible W3C Trace Context . Cette méthode accepte la valeur clé stockée à partir d&apos;une requête entrante, recherche les W3C Trace Context données et, si elle ne les trouve pas, revient aux New Relic tracedonnées distribuées .
+        `ITransaction.AcceptDistributedTraceHeaders` est utilisé pour lier les spans d&apos;une trace en acceptant une charge générée par [`InsertDistributedTraceHeaders`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#InsertDistributedTraceHeaders) ou générée par un autre traceur compatible W3C Trace Context . Cette méthode accepte la valeur clé stockée à partir d&apos;une requête entrante, recherche les W3C Trace Context données et, si elle ne les trouve pas, revient aux New Relic tracedonnées distribuées .
 
         ### Paramètres
 
@@ -844,7 +888,7 @@ La liste suivante contient les différents appels que vous pouvez effectuer avec
         ```
       </Collapser>
 
-      <Collapser id="CurrentSpan" title="Étendue actuelle">
+      <Collapser id="CurrentSpan" title="CurrentSpan">
         Fournit l&apos;accès à [l&apos;](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) exécution en cours, rendant les méthodes spécifiques à l&apos;exécution disponibles dans l&apos;API New Relic.
 
         ### Exemple
@@ -1046,7 +1090,7 @@ La liste suivante contient les différents appels que vous pouvez effectuer avec
     Public interface ISpan
     ```
 
-    Fournit l&apos;accès aux méthodes spécifiques à l&apos;étendue dans l&apos;API New Relic.
+    Fournit l&apos;accès aux méthodes spécifiques à la span dans l&apos;API New Relic.
 
     ### Description
 
@@ -1279,7 +1323,7 @@ La liste suivante contient les différents appels que vous pouvez effectuer avec
       </Collapser>
 
       <Collapser id="SetName" title="Définir le nom">
-        Modifie le nom du segment/de la plage actuelle qui sera signalé à New Relic. Pour les segments/étendues résultant d&apos;une instrumentation personnalisée, le nom de la métrique signalé à New Relic sera également modifié.
+        Modifie le nom du segment/de la plage actuelle qui sera signalé à New Relic. Pour les segments/spans résultant d&apos;une instrumentation personnalisée, le nom de la métrique signalé à New Relic sera également modifié.
 
         Cette méthode nécessite la agent version .NET et la API agent version de l&apos;.NET 10.1.0 ou supérieur.
 
