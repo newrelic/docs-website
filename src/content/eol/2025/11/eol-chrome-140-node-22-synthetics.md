@@ -4,6 +4,4 @@ subject: "Updated communication regarding Chrome 134 and Node.js 16 synthetics r
 publishDate: '2025-11-05'
 ---
 
-Regarding the recent End-of-Life announcement about ending our support for Chrome 134 and Node.js 16 synthetics runtimes, we will be publishing an updated comprehensive communication shortly. Please stand by for the official update.
-
-In the meantime, if you have already begun testing or upgrading your monitors to the new runtimes (Chrome 140 and Node.js 22) and encountered any specific issues, please let our support team know. It will help us better assist you with the upcoming runtime migration.
+Regarding the End-of-Life announcement about ending our support for Chrome 134 and Node.js 16 synthetics runtimes, we have published an updated comprehensive communication. Please refer to the updated [Node.js 16 and Chrome 134 EOL documentation](/eol/2025/12/eol-12-04-windows-32bit-build/) for key milestones and required migration actions.
