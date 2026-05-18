@@ -6,7 +6,7 @@ eolEffectiveDate: '2026-11-18'
 
 As part of our commitment to maintaining a secure platform, New Relic is sunsetting the Node.js 16 and Chrome 134 runtimes for synthetic monitors. Continuing to use older runtimes can leave your monitors vulnerable. This transition is especially critical following the [recent Google Chrome CVE](https://docs.newrelic.com/docs/security/new-relic-security/security-bulletins/security-bulletin-nr26-04/). The new runtimes improve the runtime environment while increasing security and easier maintenance.
 
-## Key Dates & Action Needed
+## Key dates and action needed
 
 Pursuant to this migration, Node.js 16 and Chrome 134 legacy runtimes will be permanently discontinued and the following upgrades will be implemented. This will involve a sequence of changes that will **require customers to take critical actions** prior to certain dates as follows:
 
