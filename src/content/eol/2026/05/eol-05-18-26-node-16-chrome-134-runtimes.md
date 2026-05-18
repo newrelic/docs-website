@@ -13,39 +13,38 @@ Pursuant to this migration, Node.js 16 and Chrome 134 legacy runtimes will be pe
 <table>
   <thead>
     <tr>
-      <th style="text-align: center;">Date</th>
-      <th>Changes</th>
-      <th>Customer Action Needed</th>
+      <th style="width: 150px; white-space: nowrap; text-align: left;">Date</th>
+      <th style="text-align: left;">Changes</th>
+      <th style="text-align: left;">Customer Action Needed</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td style="text-align: center;"><strong>May 18, 2026</strong></td>
+      <td rowspan="2" style="white-space: nowrap;"><strong>May 18, 2026</strong></td>
       <td>All non-scripted monitors (viz. simple browser monitor, step monitor, cert check monitor and broken links monitor) will be force-upgraded to LATEST runtimes by default.</td>
       <td>None.</td>
     </tr>
     <tr>
-      <td style="text-align: center;"></td>
       <td>All <strong>new</strong> scripted monitors that are created either by the New Relic UI, NerdGraph API or Terraform will be created on the LATEST runtime environment by default.</td>
       <td>None.</td>
     </tr>
     <tr>
-      <td style="text-align: center;"><strong>June 18, 2026</strong></td>
+      <td style="white-space: nowrap;"><strong>June 18, 2026</strong></td>
       <td>All DISABLED scripted monitors will be force-upgraded to LATEST runtimes</td>
       <td>None. If customers wish to <strong>not</strong> have any of their DISABLED monitor(s) force-upgraded to LATEST runtimes, they can change the monitor status to ENABLED before June 18, 2026.</td>
     </tr>
     <tr>
-      <td style="text-align: center;"><strong>July 18, 2026</strong></td>
+      <td style="white-space: nowrap;"><strong>July 18, 2026</strong></td>
       <td>The "latest" tag on Docker Image of <strong>Browser runtime</strong> will point to the latest stable version (Chrome 147 or higher) with Node.js 22 runtime. The "latest" tag on Docker Image of <strong>API runtime</strong> will point to Node.js 22 runtime.</td>
       <td><strong>For Private Locations:</strong> Customers need to ensure that their scripts for both scripted browser and scripted api monitors run successfully in LATEST runtimes should they want to use the Docker Images with the "latest" tags. Customers that require more time to update the scripts for monitors deployed in private locations, can do so by referencing older versions of Docker Images instead of using images with the "latest" tags.</td>
     </tr>
     <tr>
-      <td style="text-align: center;"><strong>Aug 18, 2026</strong></td>
+      <td style="white-space: nowrap;"><strong>Aug 18, 2026</strong></td>
       <td><strong>Synthetics Node browser runtime will be upgraded to Chrome 147 or higher.</strong> ENABLED scripted browser monitors force-upgraded to LATEST runtime.</td>
       <td><strong>For Public Locations:</strong> Scripted browser monitors that could be upgraded to LATEST runtimes without any modification to scripts have been upgraded from the backend. The monitors that now require an update to their scripts can be updated using the runtime upgrade tool.</td>
     </tr>
     <tr>
-      <td style="text-align: center;"><strong>Nov 18, 2026</strong></td>
+      <td style="white-space: nowrap;"><strong>Nov 18, 2026</strong></td>
       <td><strong>Synthetics Node API runtime will be upgraded to Node.js 22.</strong> ENABLED scripted api monitors force-upgraded to LATEST runtime.</td>
       <td><strong>For Public Locations:</strong> Scripted api monitors that could be upgraded to LATEST runtimes without any modification to scripts have been upgraded from the backend. The monitors that now require an update to their scripts can be updated using the runtime upgrade tool.</td>
     </tr>
