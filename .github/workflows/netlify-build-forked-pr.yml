@@ -18,6 +18,40 @@ jobs:
     if: github.event.issue.pull_request && contains(github.event.comment.body, 'netlify build fork')
     
     steps:
+      # Capture the PR's HEAD SHA first so it is pinned before any intervening steps
+      # can observe a changed commit (TOCTOU mitigation).
+      - name: Get PR Data and Verify Fork Status
+        id: pr-data
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.issue.number;
+            console.log(`Fetching data for PR #${prNumber}`);
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            if (pr.head.repo.fork !== true) {
+              console.log("PR is not from a fork. Halting execution.");
+              core.setFailed("This workflow only runs on PRs from forked repositories.");
+              return;
+            }
+
+            console.log("PR is from a fork. Proceeding.");
+
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_repo_clone_url', pr.head.repo.clone_url);
+            core.setOutput('pr_title', pr.title);
+            core.setOutput('pr_body', pr.body || '');
+            core.setOutput('pr_author_login', pr.user.login);
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('head_repo_html_url', pr.head.repo.html_url);
+
       - name: Check for member permission
         env:
           GH_TOKEN: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
@@ -36,7 +70,7 @@ jobs:
             try {
               const user = await github.rest.users.getAuthenticated();
               console.log('Authenticated as:', user.data.login);
-              
+
               const scopes = await github.request('GET /user');
               console.log('Token scopes:', scopes.headers['x-oauth-scopes']);
             } catch (error) {
@@ -98,39 +132,7 @@ jobs:
             } else {
               console.log(`✅ ${commenter} is authorized to trigger builds`);
             }
-            
-      - name: Get PR Data and Verify Fork Status
-        id: pr-data
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = context.issue.number;
-            console.log(`Fetching data for PR #${prNumber}`);
-            
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-            });
 
-            if (pr.head.repo.fork !== true) {
-              console.log("PR is not from a fork. Halting execution.");
-              core.setFailed("This workflow only runs on PRs from forked repositories.");
-              return;
-            }
-            
-            console.log("PR is from a fork. Proceeding.");
-            
-            core.setOutput('head_sha', pr.head.sha);
-            core.setOutput('head_ref', pr.head.ref);
-            core.setOutput('head_repo_clone_url', pr.head.repo.clone_url);
-            core.setOutput('pr_title', pr.title);
-            core.setOutput('pr_body', pr.body || '');
-            core.setOutput('pr_author_login', pr.user.login);
-            core.setOutput('pr_number', prNumber);
-            core.setOutput('head_repo_html_url', pr.head.repo.html_url);
-            
       - name: Log PR event details
         run: |
           echo "::group::PR Event Details"
@@ -140,14 +142,21 @@ jobs:
           echo "PR Author: ${{ steps.pr-data.outputs.pr_author_login }}"
           echo "Event Type: ${{ github.event_name }} (comment)"
           echo "::endgroup::"
-      
+
+      # persist-credentials: false prevents the checkout token from being available
+      # to any code in the checked-out fork, limiting the blast radius of untrusted content.
+      # Push credentials are set explicitly in the next step.
       - name: Checkout repo
         id: checkout
         uses: actions/checkout@v3
         with:
           ref: ${{ steps.pr-data.outputs.head_sha }}
           fetch-depth: 0
-          token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          persist-credentials: false
+
+      - name: Configure push credentials
+        run: |
+          git remote set-url origin https://x-access-token:${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
       
       - name: Verify checkout
         run: |
