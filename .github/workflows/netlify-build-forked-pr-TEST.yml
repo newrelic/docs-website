@@ -1,0 +1,279 @@
+name: TEST - Fork PR Handler (Manual Trigger)
+
+# TEST WORKFLOW - Safe to run from any branch
+# This allows testing the new GitHub API approach before merging to develop
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to test with (must be a fork PR)'
+        required: true
+        type: number
+      comment_author:
+        description: 'GitHub username to simulate as comment author (should be in DOCS-ENG team)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  test-handle-fork-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check for member permission
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+        id: check_permission
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+          script: |
+            const commenter = '${{ inputs.comment_author }}';
+            const org = context.repo.owner;
+            const team_slugs = ['doc', 'DOCS-ENG'];
+
+            console.log(`Organization: ${org}`);
+            console.log(`Commenter: ${commenter}`);
+
+            try {
+              const user = await github.rest.users.getAuthenticated();
+              console.log('Authenticated as:', user.data.login);
+
+              const scopes = await github.request('GET /user');
+              console.log('Token scopes:', scopes.headers['x-oauth-scopes']);
+            } catch (error) {
+              console.log('Auth check failed:', error.message);
+            }
+
+            async function listUserTeams() {
+              try {
+                const teams = await github.paginate(github.rest.teams.listForAuthenticatedUser, {});
+                const userTeams = teams.filter(team => team.organization.login.toLowerCase() === org.toLowerCase());
+                if (userTeams.length === 0) {
+                  console.log(`${commenter} is not a member of any team in org ${org}.`);
+                } else {
+                  console.log(`${commenter} is a member of the following teams in ${org}:`);
+                  userTeams.forEach(team => {
+                    console.log(`- ${team.slug} (${team.name})`);
+                  });
+                }
+              } catch (err) {
+                console.log(`Could not list teams for user ${commenter}: ${err.message}`);
+              }
+            }
+
+            await listUserTeams();
+
+            async function isMemberOfAnyTeam() {
+              for (const team_slug of team_slugs) {
+                console.log(`Checking team_slug: ${team_slug}`);
+                try {
+                  const response = await github.rest.teams.getMembershipForUserInOrg({
+                    org,
+                    team_slug,
+                    username: commenter,
+                  });
+                  console.log(`API response for team_slug ${team_slug}:`, JSON.stringify(response.data, null, 2));
+                  if (response.data.state === 'active') {
+                    console.log(`${commenter} is an active member of the ${team_slug} team.`);
+                    return true;
+                  }
+                } catch (error) {
+                  console.log(`Error object for team_slug ${team_slug}:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
+                  if (error.status !== 404) {
+                    console.log(`Error checking team_slug ${team_slug}: ${error.message}`);
+                    core.setFailed(`Could not verify team membership for ${team_slug}: ${error.message}`);
+                    return false;
+                  }
+                  console.log(`${commenter} is not a member of ${team_slug} (404)`);
+                }
+              }
+              return false;
+            }
+
+            const isMember = await isMemberOfAnyTeam();
+            if (!isMember) {
+              core.setFailed(`${commenter} is not a member of any required team (${team_slugs.join(', ')})`);
+            } else {
+              console.log(`✅ ${commenter} is authorized to trigger builds`);
+            }
+
+      - name: Get PR Data and Verify Fork Status
+        id: pr-data
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = ${{ inputs.pr_number }};
+            console.log(`Fetching data for PR #${prNumber}`);
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            if (pr.head.repo.fork !== true) {
+              console.log("PR is not from a fork. Halting execution.");
+              core.setFailed("This workflow only runs on PRs from forked repositories.");
+              return;
+            }
+
+            console.log("PR is from a fork. Proceeding.");
+
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_repo_clone_url', pr.head.repo.clone_url);
+            core.setOutput('pr_title', pr.title);
+            core.setOutput('pr_body', pr.body || '');
+            core.setOutput('pr_author_login', pr.user.login);
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('head_repo_html_url', pr.head.repo.html_url);
+
+      - name: Log PR event details
+        run: |
+          echo "::group::PR Event Details"
+          echo "TEST MODE: Manually triggered workflow"
+          echo "PR #${{ steps.pr-data.outputs.pr_number }} from fork"
+          echo "PR Title: ${{ steps.pr-data.outputs.pr_title }}"
+          echo "PR Branch: ${{ steps.pr-data.outputs.head_ref }}"
+          echo "PR Author: ${{ steps.pr-data.outputs.pr_author_login }}"
+          echo "::endgroup::"
+
+      - name: Create or update branch using GitHub API (NEW SECURE METHOD)
+        id: process-pr
+        uses: actions/github-script@v7
+        env:
+          HEAD_SHA: ${{ steps.pr-data.outputs.head_sha }}
+          HEAD_REF: ${{ steps.pr-data.outputs.head_ref }}
+          PR_AUTHOR: ${{ steps.pr-data.outputs.pr_author_login }}
+        with:
+          github-token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          script: |
+            const headSha = process.env.HEAD_SHA;
+            const headRef = process.env.HEAD_REF;
+            const prAuthor = process.env.PR_AUTHOR;
+
+            // Combine author and original branch name
+            const fullBranchName = `${prAuthor}-${headRef}`;
+
+            // Sanitize the branch name for Netlify:
+            // 1. Replace all non-alphanumeric characters with a hyphen.
+            // 2. Squeeze consecutive hyphens into a single hyphen.
+            // 3. Truncate to Netlify's recommended length (38 chars).
+            // 4. Remove any leading/trailing hyphens.
+            const prBranch = fullBranchName
+              .replace(/[^a-zA-Z0-9]/g, '-')
+              .replace(/-+/g, '-')
+              .substring(0, 38)
+              .replace(/^-|-$/g, '');
+
+            // Add TEST prefix to avoid conflicts with production branches
+            const testBranchName = `TEST-${prBranch}`;
+
+            console.log(`Original combined branch name: ${fullBranchName}`);
+            console.log(`TEST branch name: ${testBranchName}`);
+
+            const commitShortSha = headSha.substring(0, 7);
+            console.log(`Latest commit ID: ${headSha} (short: ${commitShortSha})`);
+
+            core.setOutput('commit_id', headSha);
+            core.setOutput('commit_short_id', commitShortSha);
+            core.setOutput('new_branch_name', testBranchName);
+
+            // Check if branch already exists
+            let branchExists = false;
+            try {
+              await github.rest.repos.getBranch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: testBranchName,
+              });
+              branchExists = true;
+              console.log(`Branch '${testBranchName}' already exists, will update.`);
+            } catch (error) {
+              if (error.status === 404) {
+                console.log(`Branch '${testBranchName}' does not exist yet, will create.`);
+              } else {
+                throw error;
+              }
+            }
+
+            core.setOutput('is_first_commit', !branchExists ? 'true' : 'false');
+
+            // Create or update the branch reference using GitHub API
+            // This avoids checking out untrusted code locally (SECURITY FIX)
+            try {
+              if (branchExists) {
+                // Update existing branch
+                await github.rest.git.updateRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `heads/${testBranchName}`,
+                  sha: headSha,
+                  force: true,
+                });
+                console.log(`✅ Updated branch '${testBranchName}' to point to ${headSha}`);
+              } else {
+                // Create new branch
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/heads/${testBranchName}`,
+                  sha: headSha,
+                });
+                console.log(`✅ Created branch '${testBranchName}' pointing to ${headSha}`);
+              }
+
+              console.log('🎉 SUCCESS: Branch created/updated without checking out untrusted code!');
+            } catch (error) {
+              console.error(`❌ Failed to create/update branch: ${error.message}`);
+              core.setFailed(`Failed to create/update branch: ${error.message}`);
+              throw error;
+            }
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "::group::Test Summary"
+          echo "✅ TEST WORKFLOW COMPLETED"
+          echo "This was a test run of the new secure GitHub API approach"
+          echo ""
+          echo "Branch created: TEST-${{ steps.process-pr.outputs.new_branch_name }}"
+          echo "Commit: ${{ steps.process-pr.outputs.commit_id }}"
+          echo "First commit: ${{ steps.process-pr.outputs.is_first_commit }}"
+          echo ""
+          echo "⚠️  NOTE: This is a test workflow. The real workflow will:"
+          echo "  - Use the actual branch name (without TEST- prefix)"
+          echo "  - Create PRs and post comments"
+          echo "  - Trigger Netlify builds"
+          echo "::endgroup::"
+
+      - name: Cleanup test branch
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          script: |
+            const branchName = '${{ steps.process-pr.outputs.new_branch_name }}';
+
+            console.log('🧹 Cleaning up test branch...');
+
+            try {
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branchName}`,
+              });
+              console.log(`✅ Deleted test branch: ${branchName}`);
+            } catch (error) {
+              if (error.status === 422) {
+                console.log('ℹ️  Branch may not exist or already deleted');
+              } else {
+                console.log(`⚠️  Could not delete branch: ${error.message}`);
+              }
+            }
