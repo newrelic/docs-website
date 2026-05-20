@@ -112,7 +112,7 @@ Customers will always have the option to use runtimes with older versions by mak
 * **Node API runtime upgrade that affects Scripted API monitors:**  
   * Customers desiring to use latest runtimes Node.js 22 **can already do** so by using Docker images with “rc1.x” tags: [Docker Image of API runtime for Node 22](https://hub.docker.com/r/newrelic/synthetics-node-api-runtime/tags)  
   * Post July 18, 2026, if customers wish to use older versions of Node.js in the agents deployed on private locations, they can do that by using older Docker images: [Docker Image of API runtime for Node 16](https://hub.docker.com/layers/newrelic/synthetics-node-api-runtime/1.2.134/images/sha256-ad26493527290b42a8086a87ac1c7ad77a2a2ef29504d90bc2a5473fdb862c60)  
-* **Transition Guides:** [Private Locations](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/private-locations/runtime-transition-guide/), [Scripted Browser**,**](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetics-scripted-browser-monitors-to-chrome-latest/)  [Scripted API](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetics-scripted-api-monitors-to-node-22/)
+* **Transition Guides:** [Private Locations](/docs/synthetics/synthetic-monitoring/private-locations/runtime-transition-guide/), [Scripted Browser](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetics-scripted-browser-monitors-to-chrome-latest/)  [Scripted API](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetics-scripted-api-monitors-to-node-22/)
 
 ## If no action is taken
 
