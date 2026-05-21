@@ -1,0 +1,177 @@
+---
+title: Install Pipeline Control gateway without Flux
+metaDescription: 'Install Pipeline Control gateway with reduced permissions and manual infrastructure management.'
+freshnessValidatedDate: never
+---
+
+Install Pipeline Control gateway in configuration-only mode, where you manage gateway infrastructure (scaling, versions) manually while New Relic manages pipeline configuration (sampling, filtering, transforms) through the UI.
+
+## When to use this installation mode
+
+Choose this installation mode if:
+- Your security policies restrict cluster-admin access.
+- You need direct control over infrastructure scaling and upgrades.
+- You're comfortable managing Kubernetes resources manually.
+- You're deploying in compliance-driven environments.
+
+**What you get:**
+- Configure pipeline rules (sampling, filtering, transforms) via New Relic UI.
+- Reduced permissions required (ConfigMap access only, not cluster-admin).
+- Direct control over gateway scaling and versions.
+
+**What you manage manually:**
+- Gateway infrastructure scaling via Kubernetes Horizontal Pod Autoscaler (HPA)
+- Gateway version upgrades via Helm commands
+
+<Callout variant="tip">
+**Need full automation?** If you want New Relic to handle all gateway infrastructure management (scaling, versions, upgrades) through the UI and your security team approves cluster-admin permissions, refer to [Set up and deploy Pipeline Control gateway](/docs/new-relic-control/pipeline-control/set-up-and-deploy-pipeline-control) for full management installation.
+</Callout>
+
+## Considerations for using gateway
+
+As you integrate and use the gateway component, keep these considerations in mind:
+
+### Attribute and data management
+- **Attribute support:** The gateway uses OpenTelemetry semantic conventions for attributes. Refer to the [gateway documentation](/docs/new-relic-control/pipeline-control/gateway/overview) for details on supported attributes.
+- **Data/attribute handling:** The gateway forwards your requests for dropping data or attributes for metric time slice data, sql_trace_data, and trace_sample_data directly to New Relic without modification.
+
+### Parsing and data integration
+- **Log parsing:** The gateway does not include Grok parsing for logs. You may need alternative methods to structure log data for querying and visualization.
+- **Prometheus integration:** The gateway does not support Prometheus remote write for metrics.
+
+### Licensing and compliance
+- **License key management:** The gateway does not accommodate multiple license keys from native OpenTelemetry Protocol (OTLP) sources, such as agent collectors or APM SDKs.
+- **Compliance standards:** The gateway isn't FedRAMP-compliant, which may affect your use if you need to meet federal security standards.
+
+## Prerequisites
+
+**Kubernetes permissions:**
+This installation mode requires ConfigMap CREATE/UPDATE permissions only (not cluster-admin).
+
+**New Relic infrastructure agent (optional):**
+Pipeline Control gateway no longer bundles the New Relic infrastructure agent. To view cluster health metrics (CPU usage, memory, and region) in the gateway health dashboard, install the infrastructure agent separately. Refer to [Install the Kubernetes integration](/install/kubernetes/) for installation instructions.
+
+**What happens without infrastructure agent:**
+- Gateway health table will show "-" or "N/A" for: CPU usage, memory usage, and region.
+- Pipeline configuration and data processing continues to work normally.
+
+## Install Pipeline Control gateway
+
+<img
+  title="Install gateway without Flux"
+  alt="Screenshot of Pipeline Control gateway installation wizard"
+  src="/images/install-pipeline-control.webp"
+/>
+
+To install Pipeline Control gateway without Flux:
+
+1. In your New Relic account, in Integrations & Agents, click **Set up Pipeline Control**, or search for **gateway** and select **Pipeline Control gateway**.
+2. Ensure the account selected is the one you want to use for Pipeline Control. If not, click **Select an account**, select the account of your choice, and then click **Continue**.
+3. To enter your credentials, provide an existing license key or create a new key. If you create a new key, copy the key. Then, click **Continue**.
+4. Select or create a gateway fleet:
+   - Select an existing fleet if you want your new gateway to share an existing configuration (sampling, filtering, and transformation rules) with other gateways in your organization.
+   - Enter a unique gateway fleet name if you need a fresh, isolated configuration for a specific environment or business unit.
+5. Select **Configuration only (without Flux)**.
+6. Configure the gateway:
+   - Enter a unique, recognizable name for your new cluster.
+   - Enter the dedicated Kubernetes namespace where the core gateway infrastructure and manager services will reside. Default is `newrelic-agent-control`.
+   - Enter the specific namespace where individual collection agents will run. Default is `newrelic`.
+7. Configure gateway settings (minimum replicas, maximum replicas, CPU threshold). These settings create the initial Kubernetes HPA configuration.
+8. Follow the step-by-step Helm installation commands shown in the UI wizard:
+
+   **Step 1: Install Pipeline Control gateway**
+   
+   ```bash
+   kubectl create namespace newrelic && helm upgrade --install newrelic-pcg newrelic/pipeline-control-gateway -n newrelic --values pcg-values.yaml
+   ```
+
+   **Step 2: Install Agent Control**
+   
+   ```bash
+   helm upgrade --install agent-control-deployment newrelic/agent-control-deployment -n newrelic --values agent-control-deployment-values.yaml
+   ```
+
+   <Callout variant="tip">
+   The UI wizard provides the complete values files (`pcg-values.yaml` and `agent-control-deployment-values.yaml`) with your specific configuration. Download these files and use them with the Helm commands.
+   </Callout>
+
+9. Click **Continue**.
+10. Click **Test connection** and wait for a successful connection.
+
+To view details of your gateway setup, go to New Relic Control and click **Gateway**.
+
+## Why use multiple fleets?
+
+Imagine a corporation (**The Corp**) has two divisions: **OrgA** (needs 100% of data for safety) and **OrgB** (needs 1% sampling to control high-volume costs).
+
+With only one fleet, **The Corp** is stuck. If **OrgB** applies 1% sampling to save money, **OrgA** loses 99% of its flight safety data. One team's cost-control breaks the other team's mission-critical monitoring.
+
+By using multiple fleets, **The Corp** can separate their "brains":
+
+- **Mission-critical fleet**: **OrgA** joins this fleet to get 100% data retention.
+- **High-volume fleet**: **OrgB** joins this fleet for 1% sampling and GDPR-compliant redaction for their European sensors.
+
+As a result, separate teams can now manage unique sampling, security, and compliance rules without affecting the rest of the organization.
+
+Installing a gateway is now like hiring a worker. You just have to tell them which team (fleet) to join.
+
+## Managing gateway after installation
+
+After installation, the gateway settings page in the New Relic UI displays fleet-level settings as read-only for scaling and version fields. However, these two toggles remain editable:
+- **Gather diagnostic logs about the gateway** - Enable/disable diagnostic logging
+- **Bypass gateway rules if your available CPU gets low** - Toggle rule bypass during resource constraints
+
+To manage gateway infrastructure (scaling and versions), use these approaches:
+
+### Change gateway scaling settings
+
+To modify minimum/maximum replicas or CPU thresholds, update your Kubernetes HPA:
+
+**Option 1: Edit HPA directly**
+```bash
+kubectl edit hpa newrelic-pcg-hpa -n newrelic
+```
+
+**Option 2: Update via Helm**
+1. Edit your `pcg-values.yaml` file
+2. Run:
+
+   ```bash
+      helm upgrade newrelic-pcg newrelic/pipeline-control-gateway --namespace newrelic --values pcg-values.yaml
+   ```
+
+### Upgrade gateway version
+
+To upgrade the Pipeline Control gateway version:
+
+1. Update the chart version in your Helm command:
+   ```bash
+   helm upgrade newrelic-pcg newrelic/pipeline-control-gateway --namespace newrelic --version <NEW_VERSION> --values pcg-values.yaml
+   ```
+
+2. Verify the upgrade:
+   ```bash
+   helm list -n newrelic
+   kubectl get pods -n newrelic
+   ```
+
+### Pipeline configuration changes
+
+**These work automatically through the UI** - no manual steps needed:
+- Sampling rules
+- Drop filters
+- Transform rules
+- Conditional sampling
+
+Changes to pipeline configuration deploy automatically via ConfigMap updates, even in this mode.
+
+## Add more clusters
+
+To add a new cluster to your gateway setup:
+
+1. Open New Relic Control, and then select **Gateway**.
+2. In the clusters table, click **Add a cluster**.
+3. Follow the installation instructions above.
+4. Come back to the gateway summary page. You should see your newly added cluster.
+
+After you have created your gateway clusters, configure pipeline processing using YAML configuration. Refer to [Gateway configuration](/docs/new-relic-control/pipeline-control/gateway/overview).
