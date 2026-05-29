@@ -56,6 +56,18 @@ export const ApmSharedPrerequisites = ({ agentName = 'APM Agent', minVersion = '
   </>
 );
 
+export const PpCalloutPublicPreview = () => {
+  const { Callout } = useMDXComponents();
+  return (
+  <>
+    <Callout title="preview">
+    <p>We're still working on this feature, but we'd love for you to try it out!</p>
+    <p>This feature is currently provided as part of a preview program pursuant to our <a href="/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy">pre-release policies</a>.</p>
+    </Callout>
+  </>
+);
+};
+
 export const TestPageMeta = () => {
   const { prodName } = usePageMeta();
   return (
