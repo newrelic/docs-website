@@ -6,7 +6,7 @@ getStartedLink: 'https://docs.newrelic.com/docs/nrql/using-nrql/schedule-nrql-se
 isFeatured: true
 ---
 
-New Relic is excited to announce the general availability of **Scheduled NRQL searches**—a new feature that puts your most-run queries on autopilot.
+New Relic is excited to announce the general availability of **Scheduled NRQL searches-**a new feature that puts your most-run queries on autopilot.
 
 If you already run the same NRQL query every morning, every Monday, or every hour, you know how repetitive monitoring eats into your day—and how easy it's to miss something the moment you stop watching. Scheduled NRQL searches solve that. Define a query, pick a schedule, and let the results arrive in your inbox automatically—no open tab, no reminders, no manual reruns.
 
@@ -22,7 +22,7 @@ If you already run the same NRQL query every morning, every Monday, or every hou
 
 You can create a scheduled NRQL search from either the Logs UI or the Administration UI.
 
-**From the Logs UI**—turn an existing search into a scheduled one without rewriting the query:
+**From the Logs UI-**turn an existing search into a scheduled one without rewriting the query:
 
 1. Go to **one.newrelic.com > Logs**.
 2. Add text to search.
@@ -32,7 +32,7 @@ You can create a scheduled NRQL search from either the Logs UI or the Administra
 
 ![Scheduled NRQL search from LogsUI.](/images/scheduledSearch-LogsUI.webp "Configure scheduled NRQL search notifications")
 
-**From Administration > Scheduled searches**—start fresh with a blank query:
+**From Administration > Scheduled searches-**start fresh with a blank query:
 
 1. Go to **one.newrelic.com > Administration > Scheduled searches**.
 2. Click **Schedule a search**.
