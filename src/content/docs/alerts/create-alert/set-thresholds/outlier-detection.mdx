@@ -78,6 +78,64 @@ Follow these steps to create an alert condition with outlier detection:
 - Avoid over-segmentation which can reduce effectiveness.
 - Consider seasonality and business patterns when grouping.
 
+### Handling delayed data and older timestamps [#handling-delayed-data-and-older-timestamps]
+
+Outlier detection works by comparing metrics from multiple entities at the same point in time. To make a fair comparison, all entities must report data for the same time window.
+
+#### The problem with delayed timestamps
+
+Imagine you're monitoring CPU usage across three servers at 2:00 PM:
+
+- **Server A** reports 45% CPU with timestamp `2:00 PM`
+- **Server B** reports 50% CPU with timestamp `2:00 PM`
+- **Server C** reports 95% CPU with timestamp `1:30 PM`
+
+Server C's data has an older timestamp (1:30 PM instead of 2:00 PM). The system cannot compare 1:30 PM data to 2:00 PM data—it's like comparing apples to oranges. As a result, Server C is excluded from the outlier analysis entirely. Even though Server C is clearly experiencing a problem, you won't get an alert because it was never evaluated.
+
+This happens when an entity consistently reports data with older timestamps than the current time window being analyzed.
+
+#### Common causes
+
+- **Cloud-provider polling:** AWS CloudWatch and similar services collect metrics on a schedule, then New Relic polls them later. For example, a metric representing 2:00 PM might not arrive at New Relic until 2:05 PM, creating a 5-minute delay.
+
+- **Long-running transactions:** Background jobs are timestamped when they start, not when they finish. A job that starts at 1:30 PM and runs for 30 minutes will have a 1:30 PM timestamp when its data arrives at 2:00 PM.
+
+- **Buffered data:** Network issues or agent settings can cause data to queue locally. When connectivity is restored, all buffered data arrives with its original timestamps.
+
+#### Identifying excluded entities
+
+To see which entities are being excluded and why, query the `NrAiSignal` event:
+
+```sql
+FROM NrAiSignal
+SELECT *
+WHERE conditionId = 1234
+  AND outlierProcessingSkippedReason IS NOT NULL
+```
+
+Replace `1234` with your alert condition ID. Key fields to examine:
+
+- **`outlierProcessingSkippedReason`**: Why the signal was excluded (typically shows `LATE` for delayed data)
+- **`outlierProcessingSkippedTimeDelta`**: The time difference in seconds between the data's timestamp and the current evaluation window
+
+#### Resolving the issue
+
+If you see a warning in the condition editor that signals are being excluded:
+
+**Option 1: Split the condition (Recommended)**
+
+Create separate alert conditions for entities with different reporting behaviors:
+- One condition for real-time application servers
+- Another condition for cloud-polled resources (like AWS CloudWatch metrics)
+
+This ensures each condition's aggregation window matches how its entities actually report data.
+
+**Option 2: Increase the aggregation window**
+
+Expand your aggregation window to accommodate delays. For example, if your data is consistently 3-5 minutes late, use a 5-minute aggregation window instead of 1 minute.
+
+**Trade-off:** Larger windows smooth out short-term spikes and increase the time before an alert triggers. A server that spikes at 2:00 PM might not trigger an alert until 2:05 PM or later.
+
 ## Use cases and examples [#use-cases]
 
 - **Imbalanced Kafka brokers:** Quickly identify brokers with abnormal CPU I/O wait times, allowing administrators to proactively rebalance workloads before performance is impacted.
@@ -85,37 +143,3 @@ Follow these steps to create an alert condition with outlier detection:
 - **"Noisy neighbor" identification:** Detect resource-hogging entities that are consuming an disproportionate amount of shared resources. This allows for corrective action to balance resource allocation.
 - **Java application memory issues:** Early detection of Java Virtual Machines (JVMs) with abnormal Out of Memory (OOM) error rates, enabling timely intervention to prevent widespread application failure.
 - **Environment-specific monitoring:** Use evaluation groups to monitor staging and production environments separately, ensuring that outliers in one environment don't interfere with detection in another.
-
-## Handling delayed data and older timestamps [#handling-delayed-data-and-older-timestamps]
-
-Outlier detection compares signals to each other within a specific time window. This requires all signals for a given condition to share the same window timestamps.
-
-When an entity consistently reports data with older timestamps, the system assigns that data to an older time window that has already closed. Because these signals do not share the active window's timestamps, they cannot be compared against the other signals. The system processes them as forced inliers, completely excluding them from outlier evaluation. This creates a blind spot: true outliers on the excluded entity are missed, resulting in missed alerts.
-
-### Common causes for consistently older timestamps
-
-- **Cloud-provider polling:** Cloud integrations (such as AWS CloudWatch) pull data on intervals. This assigns older timestamps to data that is ingested later in a batch.
-- **Long-running transactions:** The agent assigns a timestamp at the exact moment a transaction begins. If a background job takes 30 minutes to run, its data enters the pipeline with a 30-minute-old timestamp.
-- **Buffered data:** Network interruptions or agent settings can cause data to buffer locally. When finally ingested, this entire batch of data carries its original, older timestamps.
-
-### How to identify excluded signals with NRQL
-
-To investigate exactly which entities are being excluded and how delayed their timestamps are, you can query the NrAiSignal event using NRQL. Run a query similar to the following:
-
-```sql
-FROM NrAiSignal SELECT * WHERE conditionId = 1234 AND outlierProcessingSkippedReason IS NOT NULL
-```
-
-When reviewing the results, pay close attention to these key fields:
-
-- `outlierProcessingSkippedReason`: Indicates why the signal was excluded from clustering (for example, `LATE`).
-
-- `outlierProcessingSkippedTimeDelta`: Shows the exact time difference between the data's timestamp and the time window currently being evaluated, measured in seconds.
-
-### How to resolve excluded signals
-
-If you see a warning in the condition editor that signals are being excluded, adjust your configuration using one of these methods:
-
-- **Split the condition (Recommended):** Move the delayed entities into their own alert condition. Grouping entities with similar reporting behaviors (for example, placing real-time application servers in one condition and delayed cloud-polled resources in another) ensures their aggregation windows align with the data's arrival.
-
-- **Increase the aggregation window:** Expand the aggregation window duration to catch delayed data. Note that larger windows dilute the data and increase the time it takes for an alert to trigger.
