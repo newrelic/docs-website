@@ -1,0 +1,673 @@
+---
+title: APM to OTel Kafka topic linkage
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Kafka
+  - APM
+metaDescription: "Link New Relic APM applications to Kafka topic entities to see the full producer → topic → consumer relationship in the entity explorer."
+freshnessValidatedDate: never
+---
+
+When your producers and consumers are instrumented with New Relic APM agents, New Relic can automatically build a **producer → topic → consumer** relationship map. You can see which services write to which topics, which consumers read from them, and where latency or errors are introduced — directly from the entity explorer.
+
+<img
+  title="APM to OTel Kafka topic linkage"
+  alt="Diagram showing producer APM entity linked to Kafka topic entity linked to consumer APM entity"
+  src="/images/apm-topic-linkage.webp"
+/>
+
+<figcaption>
+  Producer and consumer APM entities linked through a Kafka topic entity in New Relic.
+</figcaption>
+
+## How it works [#how-it-works]
+
+New Relic builds the relationship map from two links:
+
+1. **Producer → topic**: which service writes to which topic on which cluster.
+2. **Topic → consumer**: which service consumes from which topic.
+
+The **Kafka topic entity** (identified as `topic_name (cluster_name)`) is the bridge between the two sides. It is created by the Kafka infrastructure monitoring pipeline — if you haven't set that up yet, start at [Get started with Kafka monitoring](/docs/opentelemetry/integrations/kafka/overview/#get-started).
+
+There are two ways to give New Relic the cluster identity it needs to resolve that entity:
+
+| | Method 1: Set cluster name | Method 2: Use distributed tracing |
+|---|---|---|
+| **Setup** | Enable distributed tracing and add `kafka.cluster.name` to producer and consumer app config, then restart | Enable distributed tracing on producers and consumers |
+| **Auto discovery** | No — cluster name must be set manually on every app | Partial — producer → topic link is discovered automatically; consumer → topic may still need `kafka.cluster.name` set when multiple clusters share topic names |
+| **Multiple clusters, same topic name** | Set a distinct `kafka.cluster.name` per cluster on each app | The collector resolves the cluster from its own `KAFKA_CLUSTER_NAME` env var |
+
+Both methods require the Kafka topic entity to already exist in New Relic — created by the Kafka infrastructure monitoring pipeline (OTel Collector with kafkametrics receiver or the New Relic Kafka OHI). Method 2 additionally requires an OTel Collector with `kafkareceiver` to read message headers and build the producer → topic link. Neither method is supported yet for OpenTelemetry APM instrumentation.
+
+<Callout variant="tip">
+  Method 1 is simpler to set up. Use Method 2 if Kafka is behind a proxy or load balancer, or if multiple clusters share the same topic names.
+</Callout>
+
+## Before you begin [#prereqs]
+
+Before configuring linkage:
+
+- Your producer and consumer applications must be instrumented with a [New Relic APM agent](/docs/apm/new-relic-apm/getting-started/introduction-apm/) or an OpenTelemetry SDK.
+
+## Setup [#setup]
+
+<CollapserGroup>
+
+  {/* ─── JAVA ─────────────────────────────────────────────────────── */}
+  <Collapser id="java" title="Java">
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="java-nr">New Relic APM agent</TabsBarItem>
+        <TabsBarItem id="java-otel">OpenTelemetry instrumentation</TabsBarItem>
+      </TabsBar>
+      <TabsPages>
+
+        <TabsPageItem id="java-nr">
+
+          The New Relic Java agent automatically instruments Kafka producers and consumers. For Kafka-specific configuration options, see [Instrument Kafka message queues](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/).
+
+          ### Method 1: Set `kafka.cluster.name` [#java-nr-m1]
+
+          Add the cluster name to your agent configuration. New Relic uses it to resolve the correct Kafka topic entity.
+
+          `kafka.cluster.name` is a custom attribute, not a built-in agent config key. The Java agent's Kafka metrics instrumentation already captures topic names — you only need to add the cluster name so New Relic can resolve which topic entity to link to. No distributed tracing or spans module required for this method.
+
+          **Single cluster:**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name:my-kafka-cluster
+          ```
+
+          ```yaml
+          # newrelic.yml
+          common: &default_settings
+            custom_attributes:
+              kafka.cluster.name: my-kafka-cluster
+          ```
+
+          **Multiple clusters (up to 3):** if your app connects to more than one cluster, use numbered suffixes. New Relic checks `kafka.cluster.name-1`, `kafka.cluster.name-2`, and `kafka.cluster.name-3`:
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name-1:cluster-us-east,kafka.cluster.name-2:cluster-us-west
+          ```
+
+          <Callout variant="important">
+            The cluster name must exactly match the `KAFKA_CLUSTER_NAME` environment variable set on your OTel Collector. A mismatch prevents the topic entity GUID from resolving and the relationship won't appear.
+          </Callout>
+
+          ### Method 2: Kafka Receiver header extraction [#java-nr-m2]
+
+          Requires **Java agent 9.3.0 or later** with distributed tracing enabled. An OTel Collector running `kafkareceiver` reads the `newrelic` DT header from each Kafka message and extracts the producer's account ID and app ID.
+
+          Enable distributed tracing on your producer app:
+
+          ```bash
+          -Dnewrelic.config.distributed_tracing.enabled=true
+          -Dnewrelic.config.kafka.spans.enabled=true
+          ```
+
+          Deploy the following OTel Collector pipeline alongside your Kafka cluster. Set `KAFKA_CLUSTER_NAME` to the same value used by your Kafka infrastructure monitoring collector.
+
+          ```yaml
+          receivers:
+            kafka/apm_linkage:
+              brokers: ${env:KAFKA_BOOTSTRAP_BROKER_ADDRESSES}
+              protocol_version: 2.0.0
+              group_id: nr-apm-linkage-reader
+              initial_offset: latest
+              logs:
+                topics: ["^.*"]
+                exclude_topics: ["^__.*"]
+                encoding: json
+              header_extraction:
+                extract_headers: true
+                # newrelic header carries account ID (ac) and app ID (ap) as base64 JSON.
+                # Injected automatically when NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true.
+                headers: ["newrelic", "traceparent", "producerServiceName"]
+
+          processors:
+            attributes/kafka_metadata:
+              actions:
+                - {action: insert, key: topic, from_context: kafka.topic}
+
+            transform/extract_producer_identity:
+              log_statements:
+                - context: log
+                  statements:
+                    - set(attributes["kafka.cluster.name"], "${env:KAFKA_CLUSTER_NAME}")
+
+                    # base64({"v":[0,1],"d":{"ty":"App","ac":"<accountId>","ap":"<appId>",...}})
+                    - set(attributes["producer.account.id"],
+                          ParseJSON(Base64Decode(resource.attributes["kafka.header.newrelic"]))["d"]["ac"])
+                      where resource.attributes["kafka.header.newrelic"] != nil
+                    - set(attributes["producer.app.id"],
+                          ParseJSON(Base64Decode(resource.attributes["kafka.header.newrelic"]))["d"]["ap"])
+                      where resource.attributes["kafka.header.newrelic"] != nil
+
+                    # Fallback: producerServiceName header (human-readable app name)
+                    - set(attributes["producer.service.name"],
+                          resource.attributes["kafka.header.producerServiceName"])
+                      where resource.attributes["kafka.header.producerServiceName"] != nil
+
+            transform/strip_payload:
+              log_statements:
+                - context: log
+                  statements:
+                    - set(body, "")
+                    - keep_matching_keys(log.attributes,
+                        "^(topic|kafka\\..+|producer\\.account\\.id|producer\\.app\\.id|producer\\.service\\.name|trace\\.id|span\\.id)$")
+
+            probabilistic_sampler:
+              sampling_percentage: 1
+              attribute_source: record
+              from_attribute: trace.id
+
+            batch:
+              send_batch_size: 1024
+              timeout: 5s
+
+          exporters:
+            otlp/newrelic:
+              endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          service:
+            pipelines:
+              logs/apm_linkage:
+                receivers: [kafka/apm_linkage]
+                processors:
+                  - attributes/kafka_metadata
+                  - transform/extract_producer_identity
+                  - transform/strip_payload
+                  - probabilistic_sampler
+                  - batch
+                exporters: [otlp/newrelic]
+          ```
+
+          <Callout variant="caution">
+            If two clusters share a topic name and `kafka.cluster.name` is not set on your consumer apps, the consumer may link to the wrong topic entity. Set `kafka.cluster.name` (or `kafka.cluster.name-1` / `-2`) as a custom attribute on consumers to avoid this.
+          </Callout>
+
+        </TabsPageItem>
+
+        <TabsPageItem id="java-otel">
+
+          For Java instrumentation setup, see [OpenTelemetry zero-code instrumentation for Java](https://opentelemetry.io/docs/zero-code/java/agent/).
+
+          ### Method 1: Set `kafka.cluster.name` as a resource attribute [#java-otel-m1]
+
+          **Single cluster:**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name=my-kafka-cluster
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name-1=cluster-us-east,kafka.cluster.name-2=cluster-us-west
+          ```
+
+          <Callout variant="important">
+            The value must match `KAFKA_CLUSTER_NAME` in your OTel Collector.
+          </Callout>
+
+          <Callout variant="tip">
+            Method 2 (header extraction) is not yet supported for OTel APM instrumentation. If you run multiple clusters with overlapping topic names, make sure each deployment sets the cluster name for the cluster it connects to.
+          </Callout>
+
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Collapser>
+
+  {/* ─── .NET ─────────────────────────────────────────────────────── */}
+  <Collapser id="dotnet" title=".NET">
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="dotnet-nr">New Relic APM agent</TabsBarItem>
+        <TabsBarItem id="dotnet-otel">OpenTelemetry instrumentation</TabsBarItem>
+      </TabsBar>
+      <TabsPages>
+
+        <TabsPageItem id="dotnet-nr">
+
+          The New Relic .NET agent automatically instruments Confluent.Kafka producers and consumers. For distributed tracing configuration, see [Distributed tracing for the .NET agent](/docs/apm/agents/net-agent/configuration/distributed-tracing-net-agent/).
+
+          ### Method 1: Set `kafka.cluster.name` [#dotnet-nr-m1]
+
+          **Single cluster:**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name:my-kafka-cluster
+          NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+          NEW_RELIC_SPAN_EVENTS_ENABLED=true
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name-1:cluster-us-east,kafka.cluster.name-2:cluster-us-west
+          ```
+
+          <Callout variant="important">
+            The cluster name must match `KAFKA_CLUSTER_NAME` in your OTel Collector.
+          </Callout>
+
+          ### Method 2: Kafka Receiver header extraction [#dotnet-nr-m2]
+
+          Requires **.NET agent 10.x or later** with distributed tracing enabled. Use the OTel Collector pipeline from the [Java Method 2 section](#java-nr-m2) — it works the same way across all NR APM languages.
+
+          ```bash
+          NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+          NEW_RELIC_SPAN_EVENTS_ENABLED=true
+          ```
+
+          <Callout variant="caution">
+            If two clusters share a topic name, set `kafka.cluster.name` as a custom attribute on consumer apps to avoid incorrect topic-to-consumer links.
+          </Callout>
+
+        </TabsPageItem>
+
+        <TabsPageItem id="dotnet-otel">
+
+          For .NET instrumentation setup, see [OpenTelemetry zero-code instrumentation for .NET](https://opentelemetry.io/docs/zero-code/net/).
+
+          ### Method 1: Set `kafka.cluster.name` as a resource attribute [#dotnet-otel-m1]
+
+          **Single cluster:**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name=my-kafka-cluster
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name-1=cluster-us-east,kafka.cluster.name-2=cluster-us-west
+          ```
+
+          <Callout variant="tip">
+            Method 2 is not yet supported for OTel APM instrumentation.
+          </Callout>
+
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Collapser>
+
+  {/* ─── NODE.JS ───────────────────────────────────────────────────── */}
+  <Collapser id="nodejs" title="Node.js">
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="nodejs-nr">New Relic APM agent</TabsBarItem>
+        <TabsBarItem id="nodejs-otel">OpenTelemetry instrumentation</TabsBarItem>
+      </TabsBar>
+      <TabsPages>
+
+        <TabsPageItem id="nodejs-nr">
+
+          The New Relic Node.js agent automatically instruments KafkaJS producers and consumers. For messaging instrumentation details, see [Message queues](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/message-queues/).
+
+          ### Method 1: Set `kafka.cluster.name` [#nodejs-nr-m1]
+
+          **Single cluster (environment variable):**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name:my-kafka-cluster
+          ```
+
+          **Single cluster (`newrelic.js`):**
+
+          ```js
+          exports.config = {
+            app_name: ['my-nodejs-app'],
+            custom_attributes: {
+              'kafka.cluster.name': 'my-kafka-cluster'
+            }
+          }
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name-1:cluster-us-east,kafka.cluster.name-2:cluster-us-west
+          ```
+
+          ### Method 2: Kafka Receiver header extraction [#nodejs-nr-m2]
+
+          Requires **Node.js agent 12.x or later** with distributed tracing enabled. Use the OTel Collector pipeline from the [Java Method 2 section](#java-nr-m2).
+
+          ```bash
+          NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+          ```
+
+          <Callout variant="caution">
+            If two clusters share a topic name, set `kafka.cluster.name` on consumer apps to avoid incorrect topic-to-consumer links.
+          </Callout>
+
+        </TabsPageItem>
+
+        <TabsPageItem id="nodejs-otel">
+
+          For Node.js instrumentation setup, see [OpenTelemetry zero-code instrumentation for Node.js](https://opentelemetry.io/docs/zero-code/js/).
+
+          ### Method 1: Set `kafka.cluster.name` as a resource attribute [#nodejs-otel-m1]
+
+          **Single cluster:**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name=my-kafka-cluster
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name-1=cluster-us-east,kafka.cluster.name-2=cluster-us-west
+          ```
+
+          <Callout variant="tip">
+            Method 2 is not yet supported for OTel APM instrumentation.
+          </Callout>
+
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Collapser>
+
+  {/* ─── PYTHON ───────────────────────────────────────────────────── */}
+  <Collapser id="python" title="Python">
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="python-nr">New Relic APM agent</TabsBarItem>
+        <TabsBarItem id="python-otel">OpenTelemetry instrumentation</TabsBarItem>
+      </TabsBar>
+      <TabsPages>
+
+        <TabsPageItem id="python-nr">
+
+          The New Relic Python agent automatically instruments `confluent-kafka` and `kafka-python` producers and consumers. For messaging instrumentation details, see [Python message queues](/docs/apm/agents/python-agent/supported-features/python-message-queues/).
+
+          ### Method 1: Set `kafka.cluster.name` [#python-nr-m1]
+
+          **Single cluster:**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name:my-kafka-cluster
+          NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name-1:cluster-us-east,kafka.cluster.name-2:cluster-us-west
+          ```
+
+          <Callout variant="tip">
+            Method 2 (header extraction) is not yet available for the Python APM agent. Use Method 1 to establish topic linkage.
+          </Callout>
+
+        </TabsPageItem>
+
+        <TabsPageItem id="python-otel">
+
+          For Python instrumentation setup, see [OpenTelemetry zero-code instrumentation for Python](https://opentelemetry.io/docs/zero-code/python/).
+
+          ### Method 1: Set `kafka.cluster.name` as a resource attribute [#python-otel-m1]
+
+          **Single cluster:**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name=my-kafka-cluster
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name-1=cluster-us-east,kafka.cluster.name-2=cluster-us-west
+          ```
+
+          <Callout variant="tip">
+            Method 2 is not yet supported for OTel APM instrumentation.
+          </Callout>
+
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Collapser>
+
+  {/* ─── GO ───────────────────────────────────────────────────────── */}
+  <Collapser id="go" title="Go">
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="go-nr">New Relic APM agent</TabsBarItem>
+        <TabsBarItem id="go-otel">OpenTelemetry instrumentation</TabsBarItem>
+      </TabsBar>
+      <TabsPages>
+
+        <TabsPageItem id="go-nr">
+
+          The New Relic Go agent uses manual SDK instrumentation. For distributed tracing configuration, see [Distributed tracing for the Go agent](/docs/apm/agents/go-agent/configuration/distributed-tracing-go-agent/).
+
+          ### Method 1: Set `kafka.cluster.name` [#go-nr-m1]
+
+          Add `kafka.cluster.name` as a custom attribute on each transaction that produces or consumes Kafka messages:
+
+          ```go
+          txn := app.StartTransaction("kafka-produce")
+          txn.AddAttribute("kafka.cluster.name", "my-kafka-cluster")
+          defer txn.End()
+          ```
+
+          Or set it globally via environment variable (applies to all transactions):
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name:my-kafka-cluster
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name-1:cluster-us-east,kafka.cluster.name-2:cluster-us-west
+          ```
+
+          <Callout variant="tip">
+            Method 2 (header extraction) is not yet available for the Go APM agent. Use Method 1 to establish topic linkage.
+          </Callout>
+
+        </TabsPageItem>
+
+        <TabsPageItem id="go-otel">
+
+          For Go instrumentation setup, see [OpenTelemetry instrumentation for Go](https://opentelemetry.io/docs/languages/go/).
+
+          ### Method 1: Set `kafka.cluster.name` as a resource attribute [#go-otel-m1]
+
+          **Single cluster:**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name=my-kafka-cluster
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name-1=cluster-us-east,kafka.cluster.name-2=cluster-us-west
+          ```
+
+          <Callout variant="tip">
+            Method 2 is not yet supported for OTel APM instrumentation.
+          </Callout>
+
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Collapser>
+
+  {/* ─── RUBY ─────────────────────────────────────────────────────── */}
+  <Collapser id="ruby" title="Ruby">
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="ruby-nr">New Relic APM agent</TabsBarItem>
+        <TabsBarItem id="ruby-otel">OpenTelemetry instrumentation</TabsBarItem>
+      </TabsBar>
+      <TabsPages>
+
+        <TabsPageItem id="ruby-nr">
+
+          The New Relic Ruby agent automatically instruments `ruby-kafka` and `rdkafka` producers and consumers. For messaging instrumentation details, see [Message queues](/docs/apm/agents/ruby-agent/features/message-queues/).
+
+          ### Method 1: Set `kafka.cluster.name` [#ruby-nr-m1]
+
+          **Single cluster:**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name:my-kafka-cluster
+          NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          NEW_RELIC_CUSTOM_ATTRIBUTES=kafka.cluster.name-1:cluster-us-east,kafka.cluster.name-2:cluster-us-west
+          ```
+
+          <Callout variant="tip">
+            Method 2 (header extraction) is not yet available for the Ruby APM agent. Use Method 1 to establish topic linkage.
+          </Callout>
+
+        </TabsPageItem>
+
+        <TabsPageItem id="ruby-otel">
+
+          For Ruby instrumentation setup, see [OpenTelemetry zero-code instrumentation for Ruby](https://opentelemetry.io/docs/zero-code/ruby/).
+
+          ### Method 1: Set `kafka.cluster.name` as a resource attribute [#ruby-otel-m1]
+
+          **Single cluster:**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name=my-kafka-cluster
+          ```
+
+          **Multiple clusters (up to 3):**
+
+          ```bash
+          OTEL_RESOURCE_ATTRIBUTES=kafka.cluster.name-1=cluster-us-east,kafka.cluster.name-2=cluster-us-west
+          ```
+
+          <Callout variant="tip">
+            Method 2 is not yet supported for OTel APM instrumentation.
+          </Callout>
+
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Collapser>
+
+</CollapserGroup>
+
+## Verify the linkage [#verify]
+
+After setup, wait a few minutes for telemetry to arrive, then run these queries to confirm things are working.
+
+**Confirm consumer transactions carry producer identity (Method 2, Node.js/Ruby/Python):**
+
+When distributed tracing is working end-to-end, the standard NR DT fields `parent.app` and `parent.account` are automatically set on consumer transactions and spans — no custom attributes needed.
+
+```sql
+SELECT appName, `parent.app`, `parent.account`, name
+FROM Transaction
+WHERE `parent.transportType` = 'Kafka'
+  AND `parent.app` IS NOT NULL
+SINCE 10 minutes ago
+LIMIT 20
+```
+
+**Confirm producer app ID on Java consumer transactions (Method 2):**
+
+For Java consumers using a polling loop, `kafka.producer.appId` is set as a custom attribute on the consumer transaction (via `NewRelic.addCustomParameter()`), not on the span.
+
+```sql
+SELECT appName, kafka.producer.appId, kafka.producer.accountId, name
+FROM Transaction
+WHERE kafka.producer.appId IS NOT NULL
+SINCE 10 minutes ago
+LIMIT 20
+```
+
+**Confirm `kafka.cluster.name` is reaching New Relic (Method 1):**
+
+```sql
+SELECT uniques(kafka.cluster.name), uniques(appName)
+FROM Transaction
+WHERE kafka.cluster.name IS NOT NULL
+SINCE 10 minutes ago
+```
+
+**Check the relationship in the UI:**
+
+Go to **All entities → Kafka Topics**, search for `your-topic (your-cluster-name)`, open the entity, and select the **Map** tab. Your producer and consumer APM services should appear as connected nodes in the entity map.
+
+## How the links are built [#link-mechanics]
+
+### Producer → topic [#producer-topic]
+
+**Method 1**: Producer APM spans carry `kafka.cluster.name`. New Relic uses it to resolve the matching Kafka topic entity by cluster.
+
+**Method 2**: An OTel Collector running `kafkareceiver` reads the `newrelic` DT header from each Kafka message and extracts the producer's account ID and app ID. These are forwarded to New Relic as log attributes, and entity platform rules build the producer → topic link from them.
+
+### Topic → consumer [#topic-consumer]
+
+**Method 1**: Consumer APM spans carry `kafka.cluster.name`. New Relic resolves the consumer → topic link the same way as the producer side.
+
+**Method 2**: When a consumer receives a Kafka message, the NR APM agent accepts the `newrelic` DT header and automatically sets `parent.app` (producer's NR app ID) and `parent.account` on the consumer transaction. For most languages (Node.js, Python, Ruby) this happens at transaction creation. For Java, where the consumer app uses a polling loop, `kafka.producer.appId` is explicitly decoded from the `newrelic` header and stamped on consumer spans instead.
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+
+  <Collapser id="topic-entity-missing" title="Topic entity not appearing in New Relic">
+    The Kafka topic entity is created by the Kafka infrastructure monitoring pipeline, not by the APM agent. If you don't see a topic entity:
+
+    - Confirm you have an OTel Collector with `kafkareceiver` (or JMX receiver) running and sending data to New Relic.
+    - Verify the collector is receiving messages from the expected topics.
+    - Confirm `KAFKA_CLUSTER_NAME` on the collector matches what you set in your APM agent.
+
+    See [Get started with Kafka monitoring](/docs/opentelemetry/integrations/kafka/overview/#get-started) to set up the infrastructure pipeline.
+  </Collapser>
+
+  <Collapser id="relationship-not-showing" title="Entities appear but the relationship link is missing">
+    The entity exists but no relationship arrow appears, which means the entity platform rule didn't fire.
+
+    - **Method 1**: Run the `kafka.cluster.name` span query from [Verify](#verify). If the attribute is missing, check your env var or config syntax and confirm the app restarted after the change.
+    - **Method 1**: The cluster name must exactly match `KAFKA_CLUSTER_NAME` in the collector — case-sensitive, no trailing spaces.
+    - **Method 2**: Run the `parent.app` query from [Verify](#verify). If `parent.app` is null, confirm `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true` is set on both producer and consumer, and the agent meets the minimum version.
+    - **All methods**: Relationships expire after **75 minutes** if no telemetry refreshes them. For low-traffic topics, reduce `sampling_percentage` in the OTel Collector `probabilistic_sampler` or confirm enough messages are flowing.
+  </Collapser>
+
+  <Collapser id="wrong-topic-linked" title="Consumer linked to the wrong topic entity">
+    This happens when two Kafka clusters share a topic name and `kafka.cluster.name` is not set on the consumer app.
+
+    Set `kafka.cluster.name` (or numbered variants like `kafka.cluster.name-1`, `kafka.cluster.name-2`) as a custom attribute on the consumer app, using the same value the collector uses for that cluster.
+  </Collapser>
+
+  <Collapser id="producer-identity-missing" title="parent.app is null on consumer transactions (Method 2)">
+    The `parent.app` and `parent.account` fields are populated by the standard NR distributed tracing payload, which is only injected when DT is enabled on the producer.
+
+    - Confirm `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true` is set on the **producer** app. Without it, the `newrelic` header is not injected and `parent.app` stays null.
+    - Confirm `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true` is also set on the **consumer** app so it accepts the inbound DT payload.
+    - Confirm the producer and consumer connect to the same Kafka cluster — the header is embedded in the message itself.
+    - Check that no middleware or Kafka proxy strips message headers between producer and broker.
+    - For Java consumers specifically: `parent.app` may be null on the polling-loop transaction even when DT is working. Check for `kafka.producer.appId` on consumer transactions instead — that attribute is set by explicitly decoding the `newrelic` header in the consumer instrumentation and added via `addCustomParameter()`.
+  </Collapser>
+
+  <Collapser id="cluster-name-mismatch" title="Cluster name mismatch between APM agent and OTel Collector">
+    If `kafka.cluster.name` in your APM app doesn't match `KAFKA_CLUSTER_NAME` in your collector, the topic entity GUID won't resolve and the link won't appear.
+
+    Use the exact same string in both places — identical casing, no trailing spaces.
+  </Collapser>
+
+</CollapserGroup>
