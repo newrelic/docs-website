@@ -118,7 +118,7 @@ ECS Fargate 작업에 대한 모니터링을 설정하려면 다음 단계를 �
         collection_interval: <COLLECTION_INTERVAL>
 
     processors:
-      metricstransform/containers:
+      metricstransform/base:
         transforms:
           - include: container.cpu.utilized
             action: insert
@@ -140,20 +140,95 @@ ECS Fargate 작업에 대한 모니터링을 설정하려면 다음 단계를 �
               - action: add_label
                 new_label: operation
                 new_value: write
+      metricstransform/cluster_aggregation:
+        transforms:
+          - include: container.cpu.utilization
+            action: insert
+            new_name: ecs.cluster.cpu.utilization
+            operations:
+              - action: aggregate_labels
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
+                aggregation_type: mean
+          - include: container.memory.usage.total
+            action: insert
+            new_name: ecs.cluster.memory.usage
+            operations:
+              - action: aggregate_labels
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
+                aggregation_type: sum
+          - include: container.network.io.usage.rx_bytes
+            action: insert
+            new_name: ecs.cluster.network.rx_bytes
+            operations:
+              - action: aggregate_labels
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
+                aggregation_type: sum
+          - include: container.network.io.usage.tx_bytes
+            action: insert
+            new_name: ecs.cluster.network.tx_bytes
+            operations:
+              - action: aggregate_labels
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
+                aggregation_type: sum
+      filter/cluster_metrics:
+        metrics:
+          include:
+            match_type: regexp
+            metric_names:
+              - ^ecs\.cluster\..*
 
-      batch:
-        send_batch_size: <SEND_BATCH_SIZE>
-        timeout: <BATCH_TIMEOUT>
+      metricstransform/task_metrics:
+        transforms:
+          - include: container.cpu.utilization
+            action: insert
+            new_name: ecs.task.cpu.utilization
+          - include: container.memory.usage.total
+            action: insert
+            new_name: ecs.task.memory.usage
+          - include: container.blockio.io_service_bytes_recursive
+            action: insert
+            new_name: ecs.task.blockio.io_service_bytes_recursive
+
+      filter/task_metrics:
+        metrics:
+          include:
+            match_type: regexp
+            metric_names:
+              - ^ecs\.task\..*
       
-      transform/aws_arn:
+      filter/container_metrics:
+        metrics:
+          include:
+            match_type: regexp
+            metric_names:
+              - ^container\..*
+      transform/cluster_identifier:
         metric_statements:
           - context: resource
             statements:
             - set(attributes["aws.arn"], resource.attributes["aws.ecs.task.arn"]) where resource.attributes["aws.ecs.task.arn"] != nil and resource.attributes["aws.ecs.cluster.name"] != nil
             - replace_pattern(attributes["aws.arn"], ":task/.*", "") where attributes["aws.arn"] != nil
             - set(attributes["aws.arn"], Concat([attributes["aws.arn"], ":cluster/", resource.attributes["aws.ecs.cluster.name"]], "")) where attributes["aws.arn"] != nil and resource.attributes["aws.ecs.cluster.name"] != nil
+      transform/task_identifier:
+        metric_statements:
+          - context: resource
+            statements:
+            - set(attributes["TaskArn"], resource.attributes["aws.ecs.task.arn"]) where resource.attributes["aws.ecs.task.arn"] != nil
 
-      resource:
+      batch:
+        send_batch_size: <SEND_BATCH_SIZE>
+        timeout: <BATCH_TIMEOUT>
+      
+      resource/cluster:
+        attributes:
+          - key: ClusterName
+            from_attribute: aws.ecs.cluster.name
+            action: insert
+          - key: cloud.platform
+            value: "aws_ecs"
+            action: upsert
+
+      resource/task:
         attributes:
           - key: ClusterName
             from_attribute: aws.ecs.cluster.name
@@ -164,6 +239,9 @@ ECS Fargate 작업에 대한 모니터링을 설정하려면 다음 단계를 �
           - key: TaskId
             from_attribute: aws.ecs.task.id
             action: insert
+          - key: TaskArn
+            from_attribute: aws.ecs.task.arn
+            action: insert
           - key: TaskDefinitionFamily
             from_attribute: aws.ecs.task.family
             action: insert
@@ -171,7 +249,7 @@ ECS Fargate 작업에 대한 모니터링을 설정하려면 다음 단계를 �
             from_attribute: aws.ecs.launch_type
             action: insert
           - key: cloud.platform
-            value: \"aws_ecs\"
+            value: "aws_ecs"
             action: upsert
           - key: docker.host
             from_attribute: aws.ecs.task.id
@@ -186,7 +264,6 @@ ECS Fargate 작업에 대한 모니터링을 설정하려면 다음 단계를 �
             from_attribute: aws.ecs.container.know_status
             action: insert
 
-
     exporters:
       otlphttp:
         endpoint: https://otlp.nr-data.net:443
@@ -198,9 +275,38 @@ ECS Fargate 작업에 대한 모니터링을 설정하려면 다음 단계를 �
 
     service:
       pipelines:
+        metrics/clusters:
+          receivers: [awsecscontainermetrics]
+          processors: [
+            metricstransform/base,
+            metricstransform/cluster_aggregation,
+            filter/cluster_metrics,
+            transform/cluster_identifier,
+            resource/cluster,
+            batch
+          ]
+          exporters: [otlphttp, debug]
+
+        metrics/tasks:
+          receivers: [awsecscontainermetrics]
+          processors: [
+            metricstransform/base,
+            metricstransform/task_metrics,
+            filter/task_metrics,
+            transform/task_identifier,
+            resource/task,
+            batch
+          ]
+          exporters: [otlphttp, debug]
+
         metrics/containers:
           receivers: [awsecscontainermetrics]
-          processors: [metricstransform/containers, transform/aws_arn, resource, batch]
+          processors: [
+            metricstransform/base,
+            filter/container_metrics,
+            resource/task,
+            batch
+          ]
           exporters: [otlphttp, debug]
     EOF
     )"
