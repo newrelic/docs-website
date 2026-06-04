@@ -112,13 +112,13 @@ Los procesadores son los componentes básicos de su pipeline. Cada tipo de proce
 La configuración del Gateway utiliza archivos YAML con una estructura declarativa:
 
 ```yaml
-version: 2.0.0
+version: 2.0.1
 autoscaling:
   minReplicas: 6
   maxReplicas: 10
   targetCPUUtilizationPercentage: 60
 configuration:
-  simplified/v1:
+  simplified/v2:
     troubleshooting:
       proxy: false
       requestTraceLogs: false
@@ -140,70 +140,73 @@ configuration:
         output:
           - filter/Logs
         config:
-          global_sampling_percentage: 100
-          conditionalSamplingRules:
+          rules:
             - name: sample the log records for ruby test service
               description: sample the log records for ruby test service with 70%
               sampling_percentage: 70
               source_of_randomness: trace.id
-              condition: resource.attributes["service.name"] == "ruby-test-service"
+              conditions:
+                - resource.attributes["service.name"] == "ruby-test-service"
+          default_sampling_percentage: 100
       probabilistic_sampler/Traces:
         description: Probabilistic sampling for traces
         output:
           - filter/Traces
         config:
-          global_sampling_percentage: 80
+          default_sampling_percentage: 100
       filter/Logs:
         description: Apply drop rules and data processing for logs
         output:
           - transform/Logs
         config:
           error_mode: ignore
-          logs:
-            rules:
-              - name: drop the log records
-                description: drop all records which has severity text INFO
-                value: log.severity_text == "INFO"
+          rules:
+            - name: drop the log records
+              description: drop all records which has severity text INFO
+              conditions:
+                - log.severity_text == "INFO"
+              context: log
       filter/Metrics:
         description: Apply drop rules and data processing for metrics
         output:
           - transform/Metrics
         config:
           error_mode: ignore
-          metric:
-            rules:
-              - name: drop entire metrics
-                description: delete the metric on basis of humidity_level_metric
-                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
-          datapoint:
-            rules:
-              - name: drop datapoint
-                description: drop datapoint on the basis of unit
-                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+          rules:
+            - name: drop-internal-metrics
+              description: drop internal metric
+              conditions:
+                - IsMatch(name, "^internal\\.")
+              context: metric
+            - name: drop-debug-datapoints
+              description: drop-debug-datapoints
+              conditions:
+                - attributes["metric.type"] == "debug"
+              context: datapoint
       filter/Traces:
         description: Apply drop rules and data processing for traces
         output:
           - transform/Traces
         config:
           error_mode: ignore
-          span:
-            rules:
-              - name: delete spans
-                description: deleting the span for a specified host
-                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
-          span_event:
-            rules:
-              - name: Drop all the traces span event
-                description: Drop all the traces span event with name debug event
-                value: name == "debug_event"
+          rules:
+            - name: drop-health-endpoint
+              description: drop-health-endpoint
+              conditions:
+                - attributes["http.path"] == "/health"
+              context: span
+            - name: drop-debug-events
+              description: drop-debug-events
+              conditions:
+                - name == "debug_event"
+              context: span_event
       transform/Logs:
         description: Transform and process logs
         output:
           - nrexporter/newrelic
         config:
-          log_statements:
-            - context: log
-              name: add new field to attribute
+          rules:
+            - name: add new field to attribute
               description: for otlp-test-service application add newrelic source type field
               conditions:
                 - resource.attributes["service.name"] == "otlp-java-test-service"
@@ -214,10 +217,9 @@ configuration:
         output:
           - nrexporter/newrelic
         config:
-          metric_statements:
-            - context: metric
-              name: adding a new attributes
-              description: 'adding a new field into a attributes '
+          rules:
+            - name: adding a new attributes
+              description: adding a new field into a attributes
               conditions:
                 - resource.attributes["service.name"] == "payments-api"
               statements:
@@ -227,9 +229,8 @@ configuration:
         output:
           - nrexporter/newrelic
         config:
-          trace_statements:
-            - context: span
-              name: remove the attribute
+          rules:
+            - name: remove the attribute
               description: remove the attribute when service name is payment-service
               conditions:
                 - resource.attributes["service.name"] == "payment-service"
@@ -241,7 +242,7 @@ configuration:
 
 Características clave:
 
-* Declaración de versión: versión: `2.0.0` especifica el esquema de configuración
+* Declaración de versión: versión: `2.0.1` especifica el esquema de configuración
 * Nombre del paso: El formato es processortype/TelemetryType (por ejemplo, `transform/Logs`, `filter/Metrics`)
 * Encadenamiento de salida: cada paso declara sus destinos de salida, creando el pipeline de procesamiento
 
@@ -309,25 +310,31 @@ Consulte la [descripción general de YAML](/docs/new-relic-control/pipeline-cont
 
 Gateway utiliza un modelo de configuración unificado:
 
-1. **Crea** un archivo de configuración YAML que define todos los pasos de procesamiento
-2. **Usted despliega** a través de la UI (cargar YAML) en su clúster
-3. **Gateway aplica** la configuración a todos los clústeres de gateway de su organización
-4. **Todos los clústeres** procesan datos de forma idéntica usando las mismas reglas
+1. You create a YAML configuration file defining all processing steps.
+2. You deploy via the UI (upload YAML) to your gateway fleet.
+3. Gateway applies the configuration to all gateway clusters in the fleet.
+4. All clusters in the fleet process data identically using the same rules.
 
 **Gestión de versiones:**
 
-* Cada cambio de configuración crea una nueva versión
-* Ver el historial de versiones y revertir si es necesario
-* La insignia &quot;Necesita despliegue&quot; muestra cambios pendientes
+* Each configuration change creates a new version (per-fleet)
+* View version history and roll back if needed.
+* &quot;Needs deployment&quot; badge shows pending changes.
+* Different fleets can maintain different configurations and versions.
 
 ## Próximos pasos
 
-Elige tu ruta:
+**Get started with gateway installation:**
+
+* [Install with Flux](/docs/new-relic-control/pipeline-control/gateway/set-up-and-deploy-pipeline-control) - Full gateway lifecycle management via UI (install, upgrade, scale)
+* [Install without Flux](/docs/new-relic-control/pipeline-control/gateway/install-gateway-without-flux) - Configuration-only mode for reduced permissions
+
+**Configure your pipeline:**
 
 * **Configuración visual**: [Use la UI de Gateway](/docs/new-relic-control/pipeline-control/gateway/ui-guide)
 * **Configuración YAML**: [Aprenda la estructura YAML](/docs/new-relic-control/pipeline-control/gateway/yaml-overview)
 
-O profundice en tipos de procesadores específicos:
+**Explore processor types:**
 
 * [Procesador de transformación](/docs/new-relic-control/pipeline-control/gateway/transform-processor) - modificar, enriquecer y analizar datos mediante OTTL
 * [Procesador de filtros](/docs/new-relic-control/pipeline-control/gateway/filter-processor) - descarte datos no deseados mediante condiciones OTTL
