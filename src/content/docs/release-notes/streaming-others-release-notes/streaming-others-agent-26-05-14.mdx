@@ -1,0 +1,54 @@
+---
+subject: Streaming Video & Ads for others
+title: Media agent for Roku v4.1.0
+releaseDate: '2026-04-09'
+version: 4.1.0
+metaDescription: Release notes for Media agent for Roku version 4.1.0
+category: Roku
+---
+
+## New features
+
+### MediaTailor SSAI integration
+
+Native support for AWS Elemental MediaTailor server-side ad insertion via Roku's RAFX_SSAI `awsemt` adapter, with automatic `VideoAdAction` recording for every ad lifecycle event.
+
+#### MediaTailor ad lifecycle events
+
+Every event below is recorded as a `VideoAdAction` automatically — no manual forwarding required.
+
+- `AD_BREAK_START`: Pod boundary entered (preroll / midroll / postroll)
+- `AD_REQUEST`: Individual ad about to begin
+- `AD_START`: Ad playback started (first frame)
+- `AD_QUARTILE`: Fired at 25%, 50%, and 75% of each ad
+- `AD_END`: Ad completed
+- `AD_BREAK_END`: Pod boundary exited
+- `AD_ERROR`: Ad-side error surfaced from RAFX
+
+#### New API functions
+
+- `nrEnableMediaTailorTracking(nr, adIface)`: Register New Relic listeners on a RAFX_SSAI adapter in one call. Internally creates a `MediaTailorTracker` and wires every ad lifecycle callback.
+- `nrSetMediaTailorAdMetadata(tracker, metadata)`: Inject sidecar key/value metadata that is appended to every subsequent `VideoAdAction` for the rest of the session.
+- `nrSendVideoAdEvent(nr, actionName, attr)`: Direct public API for recording a `VideoAdAction` from any tracker. Companion to `nrSendVideoEvent` for ad-scoped events.
+
+#### Sample integration
+
+- `components/MediaTailorTask.brs`: Reference background task showing the recommended pattern: RAFX_SSAI session POST, manifest playback, and tracker plumbing.
+- `components/VideoScene.brs`: Scene-side setup demonstrating tracker creation in the render thread.
+
+#### Implementation details
+
+- `MediaTailorTracker` is created in the scene thread and handed to the task as a node field — RAFX dispatches listeners via `callFunctionInGlobalNamespace`, which cannot reach a tracker stashed on a task's local `m`.
+- Session initialisation goes through `RAFX_SSAI.requestStream()`; the stitched manifest URL is taken from `getStreamInfo().manifest_url` and assigned to the Video node's content.
+- Task event loop observes the Video node's `position` field; `onMessage(POSITION)` is what RAFX uses to resolve ad-break timing — without it, no PodStart / Impression / Complete ever fires.
+
+#### Default configuration
+
+- MediaTailor support is opt-in: it activates only when `nrEnableMediaTailorTracking` is called.
+- Sample app is wired for VOD HLS; other formats work by adjusting the `streamFormat` field on the task and the matching session URL.
+
+## Bug fixes
+
+### Google IMA ad events now correctly recorded as `VideoAdAction`
+
+Previously, every Google IMA ad lifecycle event (`AD_BREAK_START` / `AD_BREAK_END` / `AD_START` / `AD_END` / `AD_QUARTILE` / `AD_ERROR`) was routed through `nrSendVideoEvent`, which hard-codes the event type to `VideoAction`. As a result, IMA ads were invisible to any NRQL query against the ad data model. They now correctly produce `VideoAdAction` events.
