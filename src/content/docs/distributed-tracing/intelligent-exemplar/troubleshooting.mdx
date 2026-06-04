@@ -1,0 +1,403 @@
+---
+title: Troubleshooting Intelligent Exemplar
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Intelligent Exemplar
+  - Troubleshooting
+metaDescription: Resolve common issues with Intelligent Exemplar trace selection and pattern analysis.
+freshnessValidatedDate: never
+---
+
+This guide helps you troubleshoot common issues when using Intelligent Exemplar for trace investigation.
+
+## No traces shown after clicking chart [#no-traces-shown]
+
+**Symptom:** You click on an error or latency spike in a chart, but the traces page shows "No traces found" or an empty list.
+
+### Possible causes [#no-traces-causes]
+
+**1. Distributed tracing not enabled**
+* The service doesn't have distributed tracing configured
+* APM agent version doesn't support distributed tracing
+* Tracing was recently enabled and data isn't flowing yet
+
+**Solutions:**
+* Verify [distributed tracing is enabled](/docs/distributed-tracing/concepts/quick-start) for the service
+* Check your APM agent meets [minimum version requirements](/docs/distributed-tracing/concepts/quick-start#requirements)
+* Wait 2-3 minutes for trace data to arrive after enabling
+
+**2. Time window too narrow**
+* Selected time range is very short (&lt; 1 minute)
+* No traces were sampled in that specific window
+* Trace sampling may have missed the exact moment
+
+**Solutions:**
+* Expand time selection to 5+ minutes
+* Try selecting a slightly wider window around the spike
+* Check your [sampling configuration](/docs/distributed-tracing/concepts/how-new-relic-distributed-tracing-works#sampling)
+
+**3. Data not yet available**
+* Trace data has processing delay (typically 30-90 seconds)
+* System is under heavy load causing delays
+* Recent chart data not yet ingested
+
+**Solutions:**
+* Wait 2-3 minutes and refresh the page
+* Select a time window ending 2+ minutes in the past
+* Check [New Relic status page](https://status.newrelic.com/) for platform issues
+
+**4. No traces match the issue**
+* Error or latency spike didn't produce sampled traces
+* Issue affects operations not instrumented for tracing
+* Sampling rate too low to capture the issue
+
+**Solutions:**
+* Increase [trace sampling rate](/docs/distributed-tracing/concepts/how-new-relic-distributed-tracing-works#sampling) if too low
+* Verify all relevant services have tracing enabled
+* Check for [missing trace data](/docs/distributed-tracing/troubleshooting/missing-trace-data)
+
+### Verification steps [#verify-no-traces]
+
+1. **Check if ANY traces exist for this service:**
+   ```sql
+   SELECT count(*) FROM Span
+   WHERE entity.name = 'YOUR_SERVICE_NAME'
+   SINCE 1 hour ago
+   ```
+   * If count = 0, tracing isn't working
+   * If count > 0, tracing works but filtering may be too restrictive
+
+2. **Verify traces exist in the selected time window:**
+   ```sql
+   SELECT count(*) FROM Span
+   WHERE entity.name = 'YOUR_SERVICE_NAME'
+   AND timestamp >= 'YOUR_START_TIME'
+   AND timestamp <= 'YOUR_END_TIME'
+   ```
+
+3. **Check for errors or latency in traces:**
+   ```sql
+   SELECT count(*) FROM Span
+   WHERE entity.name = 'YOUR_SERVICE_NAME'
+   AND (error.message IS NOT NULL OR duration > 2)
+   SINCE 1 hour ago
+   ```
+
+## Traces don't match the issue I clicked on [#traces-mismatch]
+
+**Symptom:** The traces shown don't seem relevant to the error or latency spike you clicked on.
+
+### Possible causes [#mismatch-causes]
+
+**1. Sampling gaps**
+* The specific requests causing the issue weren't sampled
+* Sampling happened to miss the most problematic traces
+* Sampling rate too low for the issue volume
+
+**Solutions:**
+* Review multiple traces to identify patterns
+* Increase sampling rate to capture more of the issue
+* Look for common attributes across available traces
+
+**2. Time synchronization issues**
+* Service clocks not synchronized
+* Timezone mismatches between services
+* Clock skew causing incorrect correlation
+
+**Solutions:**
+* Verify NTP is configured on all hosts
+* Check for clock skew warnings in agent logs
+* Adjust time window slightly forward/backward to account for skew
+
+**3. Issue is intermittent or specific**
+* Problem affects only certain requests (e.g., specific customer, region, endpoint)
+* Traces shown are for same service but different operation
+* Issue requires specific attribute values not in all traces
+
+**Solutions:**
+* Apply additional filters for the specific condition:
+  - Customer ID
+  - Geographic region
+  - API endpoint
+  - User agent
+  - Feature flag values
+* Use [Attribute Correlation Analysis](/docs/distributed-tracing/attribute-correlation-analysis/introduction-aca) to identify differentiating attributes
+* Expand time window to capture more examples
+
+**4. Fragmented traces**
+* Traces missing critical spans where issue occurs
+* Services not fully instrumented
+* Trace context not propagating correctly
+
+**Solutions:**
+* Look for "fragmented" indicators on traces
+* Verify all services in path have tracing enabled
+* Check for [trace configuration conflicts](/docs/distributed-tracing/troubleshooting/infinite-tracing-trace-configuration-conflicts)
+
+### Validation steps [#validate-match]
+
+1. **Verify trace timestamps match your selection:**
+   * Check trace start time is within selected window
+   * Ensure trace end time doesn't extend far beyond window
+
+2. **Confirm traces contain the issue:**
+   * For errors: Verify error message/type matches
+   * For latency: Check duration exceeds threshold
+   * Look at span details, not just trace summary
+
+3. **Compare with manual query:**
+   ```sql
+   SELECT * FROM Span
+   WHERE entity.name = 'YOUR_SERVICE_NAME'
+   AND error.message LIKE '%YOUR_ERROR%'
+   AND timestamp >= 'START_TIME'
+   AND timestamp <= 'END_TIME'
+   LIMIT 100
+   ```
+
+## Expected traces are missing [#missing-traces]
+
+**Symptom:** You know certain traces should exist (you saw them elsewhere, or logs show they occurred), but they're not in the Intelligent Exemplar results.
+
+### Possible causes [#missing-causes]
+
+**1. Filtered out by relevance ranking**
+* Traces exist but scored low on relevance
+* Displaying only top N most relevant traces
+* Missing traces less exemplary of the pattern
+
+**Solutions:**
+* Scroll down to see more traces (system may show 20-50 by default)
+* Adjust sort order (try "by timestamp" to see all chronologically)
+* Clear additional filters that may be too restrictive
+
+**2. Sampling decisions**
+* Some traces sampled, others not
+* Head-based sampling made decisions before issue was known
+* Tail-based sampling (if using Infinite Tracing) filtered them out
+
+**Solutions:**
+* Review sampling configuration
+* Consider using [Infinite Tracing](/docs/distributed-tracing/infinite-tracing/introduction-infinite-tracing) for better sampling
+* Increase sampling rate for critical services
+
+**3. Data retention**
+* Traces aged out (typically 8 days retention)
+* Investigating very old issue
+* Account has custom retention settings
+
+**Solutions:**
+* Check when issue occurred vs current date
+* Review account [data retention settings](/docs/data-apis/manage-data/manage-data-retention)
+* Consider increasing retention for trace data if needed
+
+**4. Different trace group**
+* Traces in a different service or trace group
+* Not connected to the starting service you're viewing from
+* Async operations creating separate traces
+
+**Solutions:**
+* Start investigation from different service
+* Search globally across all services
+* Look for related traces using transaction ID or correlation attributes
+
+## Context not preserved from starting point [#context-lost]
+
+**Symptom:** When navigating to traces, filters or selection criteria from your starting point aren't applied.
+
+### Possible causes [#context-lost-causes]
+
+**1. Browser state issues**
+* Browser cleared cache/cookies
+* Session expired
+* JavaScript error prevented context capture
+
+**Solutions:**
+* Hard refresh the page (Ctrl+F5 or Cmd+Shift+R)
+* Check browser console for JavaScript errors
+* Try in an incognito/private window
+* Update browser to latest version
+
+**2. Navigation method**
+* Used back button instead of starting fresh navigation
+* Opened in new tab before context was captured
+* Link shared bypassed context capture
+
+**Solutions:**
+* Always initiate navigation by clicking charts/links directly
+* Don't use browser back/forward buttons for investigation
+* If sharing with team, share from the traces page (context already applied)
+
+**3. Feature not fully enabled**
+* Intelligent Exemplar partially deployed to your account
+* A/B test variant without context preservation
+* Known issue or limitation
+
+**Solutions:**
+* Contact New Relic support to verify feature status
+* Check for known issues in [status page](https://status.newrelic.com/)
+* Temporarily use manual filtering as workaround
+
+## Trace list doesn't match issue investigated [#list-mismatch]
+
+**Symptom:** The traces shown are sorted oddly, or highly relevant traces appear at the bottom of the list.
+
+### Possible causes [#list-mismatch-causes]
+
+**1. Sort order changed**
+* Accidentally clicked a column header
+* Sort preference saved from previous session
+* Default sort not set to "relevance"
+
+**Solutions:**
+* Click "Relevance" column header to sort by relevance score
+* Reset to default sort view
+* Clear browser cache to reset preferences
+
+**2. Relevance scoring anomaly**
+* Edge case confusing the relevance algorithm
+* Unusual trace pattern not handled optimally
+* Multiple different issues in same time period
+
+**Solutions:**
+* Try different sort orders (duration, timestamp)
+* Manually review top 10 traces regardless of score
+* Apply additional filters to narrow focus
+* Report issue to New Relic if consistently incorrect
+
+**3. Complex issue pattern**
+* Issue has multiple root causes
+* Different traces exemplify different aspects
+* No single "most relevant" trace exists
+
+**Solutions:**
+* Review multiple high-scoring traces (top 5-10)
+* Use [Attribute Correlation Analysis](/docs/distributed-tracing/attribute-correlation-analysis/introduction-aca) to identify patterns
+* Focus on propagation path visualization instead of individual traces
+
+## Performance and data availability issues [#performance-issues]
+
+### Slow trace loading [#slow-loading]
+
+**Symptom:** Traces page takes a long time to load or times out.
+
+**Possible causes:**
+* Very large number of traces in time window
+* Complex filtering on high-cardinality attributes
+* System under heavy load
+* Network connectivity issues
+
+**Solutions:**
+* Narrow the time window
+* Remove complex filters temporarily
+* Check network connectivity
+* Try during off-peak hours if consistently slow
+* Contact support if persistent
+
+### Incomplete pattern analysis [#incomplete-analysis]
+
+**Symptom:** Pattern analysis section shows "Loading..." indefinitely or shows partial results.
+
+**Possible causes:**
+* Analysis still processing (can take 10-30 seconds)
+* Too many traces to analyze quickly
+* Backend service issue
+
+**Solutions:**
+* Wait up to 60 seconds for analysis to complete
+* Refresh the page if stuck longer than 60 seconds
+* Narrow time window to reduce trace volume
+* Check [New Relic status page](https://status.newrelic.com/)
+
+### Propagation path not displayed [#no-propagation-path]
+
+**Symptom:** Propagation path visualization doesn't appear or shows error.
+
+**Possible causes:**
+* Traces too fragmented to build path
+* Services missing from trace context
+* Visualization data processing delay
+
+**Solutions:**
+* Check if traces are marked as "fragmented"
+* Verify all services have distributed tracing enabled
+* Wait 1-2 minutes and refresh
+* Try viewing individual traces to understand flow manually
+
+## Error messages and their meanings [#error-messages]
+
+### "Intelligent Exemplar not available for this account" [#not-available]
+
+**Meaning:** Your account doesn't have Intelligent Exemplar enabled.
+
+**Solution:** Contact your New Relic Account Team or [support](https://support.newrelic.com) to request Limited Preview access.
+
+### "Insufficient data to provide relevance ranking" [#insufficient-data]
+
+**Meaning:** Too few traces in the selected time period to perform intelligent ranking.
+
+**Solution:**
+* Expand time window
+* Check trace data is flowing
+* Verify sampling rate is adequate
+
+### "Unable to determine issue pattern" [#no-pattern]
+
+**Meaning:** System couldn't identify common patterns across traces.
+
+**Solution:**
+* Issue may be too diverse or random
+* Try manual filtering by suspected attributes
+* Use [Attribute Correlation Analysis](/docs/distributed-tracing/attribute-correlation-analysis/introduction-aca)
+
+### "Some traces may be incomplete" [#incomplete-traces]
+
+**Meaning:** Warning that displayed traces have missing spans.
+
+**Solution:**
+* Proceed with investigation but be aware of gaps
+* Check why services aren't reporting all spans
+* Consider traces marked "complete" more reliable
+
+## Get help [#get-help]
+
+If you're still experiencing issues:
+
+**1. Check documentation:**
+* [Intelligent Exemplar introduction](/docs/distributed-tracing/intelligent-exemplar/introduction-intelligent-exemplar)
+* [Distributed tracing troubleshooting](/docs/distributed-tracing/troubleshooting/missing-trace-data)
+
+**2. Search New Relic Explorers Hub:**
+* Community forum: [discuss.newrelic.com](https://discuss.newrelic.com)
+* Search for similar issues
+
+**3. Contact New Relic Support:**
+* Email: [support@newrelic.com](mailto:support@newrelic.com)
+* In-app support chat
+* Provide:
+  - Account ID
+  - Service name
+  - Time window of issue
+  - Screenshots of unexpected behavior
+  - Steps to reproduce
+
+**4. Report a bug:**
+* File an issue with Engineering
+* Include:
+  - Detailed reproduction steps
+  - Expected vs actual behavior
+  - Browser and version
+  - Network logs if relevant
+
+{/*
+WRITING NOTES FOR COMPLETION:
+- Add screenshots of common error messages
+- Get engineering input on edge cases
+- Add more diagnostic SQL queries
+- Include links to related troubleshooting docs
+- Add flowchart for troubleshooting decision tree
+- Update with known issues as they're discovered
+- Add customer-reported issues and solutions
+- Verify all support contact methods
+*/}
