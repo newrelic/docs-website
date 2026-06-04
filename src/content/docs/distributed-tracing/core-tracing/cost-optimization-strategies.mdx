@@ -1,0 +1,495 @@
+---
+title: Control distributed tracing data ingestion with APM agents
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Span configuration
+  - Cost optimization
+  - APM agents
+metaDescription: Use APM agent configuration options to control distributed tracing data ingestion while maintaining critical system visibility. Partial granularity distributed traces and adaptive sampling provide controlled ingestion customized to your needs.
+freshnessValidatedDate: never
+---
+
+This strategic guide helps you plan and implement partial granularity distributed traces across your services. You'll learn how to prioritize services, calculate potential impact, and roll out configurations to achieve controlled data ingestion.
+
+**Prerequisites**:
+1. Review [Control distributed tracing data volume](/docs/distributed-tracing/core-tracing/introduction-core-tracing) to understand the three configuration options (reduced, essential, compact)
+2. Understand [adaptive sampling configuration](/docs/distributed-tracing/core-tracing/introduction-core-tracing#adaptive-sampling) for controlled ingestion
+3. Use this guide to plan which services get which configuration
+
+**After planning**, implement your strategy using:
+- [Configure partial granularity](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) - Comprehensive implementation guide for your agent
+
+## Understand your data ingestion [#understand-costs]
+
+Distributed tracing data volumes come from two main factors:
+
+### Ingest costs
+
+You're charged for the data volume (GB) of span data ingested. Span data is controlled by:
+* **Partial granularity mode** (reduced, essential, or compact): Controls both the number of spans and the size of each span through combined span filtering and attribute reduction. See [Configure partial granularity](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) for details.
+* **Sampling rate**: Controlled by adaptive sampling configuration, which determines how many traces are captured per minute
+
+### Compute (CCU) costs
+
+Querying and visualizing trace data consumes compute units. While span configuration primarily addresses ingest costs, the impact on query performance depends on many variables and may vary by customer.
+
+### Measure your baseline
+
+Before optimizing, establish your current costs:
+
+```sql
+SELECT bytecountestimate() / 1e9 as 'Daily Span GB'
+FROM Span
+SINCE 1 day ago
+```
+
+This gives you a starting point to measure improvement against.
+
+## Understanding samplers [#samplers]
+
+Before implementing controlled ingestion strategies, it's important to understand how sampling works in APM agents. Samplers determine **which traces** are captured, while partial granularity modes determine **what data** is captured for those traces.
+
+### Quick overview
+
+APM agents provide four sampler types:
+
+* **Adaptive sampler** (default): Dynamically adjusts to capture a target number of traces per minute (default 10, max 120)
+* **Ratio-based sampler**: Samples a fixed percentage of traces based on trace ID
+* **Always-on sampler**: Captures 100% of matching traces
+* **Always-off sampler**: Captures 0% of matching traces
+
+Sampling can be configured differently for three contexts:
+
+* **Root**: Traces that originate in your service
+* **Remote parent sampled**: Traces already sampled by upstream services
+* **Remote parent not sampled**: Traces rejected by upstream services
+
+<Callout variant="tip">
+  For comprehensive technical documentation about samplers, including adaptive sampling targets, ratio-based sampling with partial granularity, and priority rules, see [Control trace ingest with samplers](/docs/distributed-tracing/core-tracing/controlling-trace-ingest).
+
+  For real-world scenarios with copy-paste configuration examples, see [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples).
+</Callout>
+
+## Controlled ingestion strategies [#strategies]
+
+APM agent configuration for partial granularity distributed traces offers three modes you can apply strategically across your services. For detailed explanations of what each mode captures, configuration instructions, and visual waterfall examples, see [Configure partial granularity distributed tracing](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing).
+
+### Strategy 1: Apply the three partial granularity modes based on service needs
+
+Choose the appropriate mode for each service based on your monitoring needs:
+
+**Reduced granularity (`type: reduced`):**
+* Removes in-process spans, keeps entry and exit spans with all attributes
+* Preserves LLM/AI monitoring spans
+* Best for: Services with deep call stacks where you need full attribute visibility
+
+**Essential granularity (`type: essential`):**
+* Removes in-process spans + reduces attributes to minimal set
+* Preserves LLM/AI monitoring spans
+* Best for: Supporting services where you need connectivity but not detailed diagnostics
+
+**Compact granularity (`type: compact`):**
+* Removes in-process spans + reduces attributes + compresses duplicate exit spans
+* **NOT compatible with LLM/AI monitoring**
+* Best for: Non-production environments or services where you only need proof of connectivity
+
+For configuration examples and visual comparisons, see [What data gets captured with each mode](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing#what-data).
+
+### Strategy 2: Increase adaptive sampling for better coverage
+
+**What it does:** Increases the number of traces captured by raising the adaptive sampling target
+**Results vary by application:** Impact depends on traffic volume and target adjustment
+**Best for:** Eliminating service map gaps while using partial granularity to control data volume
+
+The default adaptive sampling target for most agents is 10 traces per minute, with a maximum of 120. When using partial granularity modes, you can significantly increase this target to capture more traces without proportionally increasing costs, since each trace contains less data.
+
+**Common pattern:**
+* Capture 1 full granularity trace per minute (aligns with transaction trace behavior)
+* Capture 60 partial granularity traces per minute to fill service map gaps
+* Result: Complete service map visibility with controlled data volume
+
+**Example scenario:**
+Your service map has gaps because some endpoints are rarely sampled at the default 10 traces/minute target. Using partial granularity, you can increase sampling significantly:
+
+* Configure partial granularity (essential mode) on supporting services
+* Increase adaptive sampling target from 10 to 60-120 traces/minute
+* Result: Complete service map without gaps, controlled data volume due to essential granularity
+
+For detailed configuration examples, see [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples).
+
+### Strategy 3: Hybrid sampling (full + partial granularity)
+
+**What it does:** Enables both full and partial granularity tracing simultaneously on the same service
+**Results vary by application:** Impact depends on sampling ratios and span characteristics
+**Best for:** Services where you need occasional detailed traces but can't justify full granularity for all requests
+
+Configure a service to sample some traces at full granularity while capturing others at partial granularity (reduced, essential, or compact). This gives you complete trace coverage with mixed detail levels. When a trace is selected by both full and partial granularity sampling, full granularity always takes precedence.
+
+**Example configuration:**
+
+```yaml
+distributed_tracing:
+  enabled: true
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # 10% of root traces at full granularity
+  full_granularity:
+    enabled: true
+  partial_granularity:
+    enabled: true
+    type: essential
+    root:
+      trace_id_ratio_based:
+        ratio: 0.9  # Remaining 90% at partial granularity
+```
+
+**Example scenario:**
+Your checkout service is business-critical but generates significant trace data. You need detailed traces for troubleshooting but can't afford full detail on every request.
+
+* Configure 10% of traces to use full granularity (complete detail for deep analysis)
+* Configure 90% of traces to use essential granularity (lightweight coverage)
+* Result: 100% trace coverage with controlled data ingestion (results vary by application)
+
+For more hybrid sampling scenarios and configuration examples, see [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples).
+
+## Service prioritization framework [#prioritization]
+
+Not all services need the same level of tracing detail. Choose your configuration based on how frequently you need detailed trace information, whether you rely on custom attributes, and whether you use AI monitoring (LLM) data:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        Use case
+      </th>
+      <th>
+        Recommended configuration
+      </th>
+      <th>
+        Key decision factors
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **Frequent deep debugging needed**
+
+        Services where you regularly need method-level detail for troubleshooting
+      </td>
+      <td>
+        Full distributed tracing (no filtering)
+      </td>
+      <td>
+        * Need detailed code execution paths
+        * Require all custom attributes
+        * Troubleshoot complex issues frequently
+        * Business-critical services where cost is justified
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Occasional deep debugging**
+
+        Services where you sometimes need detail but not always
+      </td>
+      <td>
+        Reduced granularity
+      </td>
+      <td>
+        * Service-to-service visibility is usually sufficient
+        * Can tolerate losing internal method details
+        * Still need all custom attributes
+        * May use AI monitoring (LLM data) - reduced granularity preserves AI spans
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Connectivity tracking only**
+
+        Supporting services where you mainly need to see "what calls what"
+      </td>
+      <td>
+        Essential granularity
+      </td>
+      <td>
+        * Rarely need detailed diagnostics
+        * Don't rely on custom attributes for these services
+        * Need complete trace paths for context
+        * May use AI monitoring - essential granularity preserves AI spans
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Minimal monitoring**
+
+        Low-priority services, internal tools, or non-production environments
+      </td>
+      <td>
+        Compact granularity
+      </td>
+      <td>
+        * Only need proof that connections exist
+        * Don't need duplicate call tracking
+        * Don't rely on custom attributes
+        * **Cannot use if service has AI monitoring (LLM) data** - compact mode incompatible with LLM spans
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  **Decision checklist:** Before choosing a configuration:
+  1. How often do you need method-level detail for this service?
+  2. Does your team rely on custom attributes for monitoring or troubleshooting this service?
+  3. Does this service use AI monitoring to track LLM interactions? (If yes, can't use compact mode)
+  4. How critical is this service to your business operations?
+</Callout>
+
+### Create your service inventory
+
+Map your services to these categories:
+
+1. List all services currently sending distributed tracing data
+2. Categorize each service using the framework above
+3. Note current span volume per service:
+   ```sql
+   SELECT count(*) as 'Span Count'
+   FROM Span
+   FACET entity.name
+   SINCE 1 day ago
+   ```
+4. Prioritize configuration rollout starting with supporting services (lowest risk)
+
+## Calculate your potential savings [#calculate]
+
+Use this approach to estimate savings before implementing:
+
+### Step 1: Measure current ingest
+
+```sql
+SELECT bytecountestimate() / 1e9 as 'Daily GB',
+       (bytecountestimate() / 1e9) * 30 as 'Monthly GB'
+FROM Span
+SINCE 1 day ago
+```
+
+**Note:** `bytecountestimate()` provides an estimate for planning purposes. For monitoring actual consumption, consider using other metrics that track actual data ingest.
+
+### Step 2: Estimate reduction by configuration
+
+Break down by service category and apply estimated reduction percentages. Group your services by configuration type and estimate potential data volume reduction for each group. Results will vary based on your application's span structure and attribute complexity.
+
+### Step 3: Calculate expected cost
+
+Example calculation:
+
+| Current state | After span configuration |
+|---------------|-------------------|
+| 100 GB/day baseline | |
+| 20 GB (20%): Critical services keep full DT | 20 GB (no change) |
+| 30 GB (30%): Important services use reduced granularity | ~14-17 GB (estimated reduction) |
+| 50 GB (50%): Supporting services use essential granularity | ~15-20 GB (estimated reduction) |
+| **Total: 100 GB/day** | **Estimated total: 49-57 GB/day** |
+
+**Estimated result:** Potential data volume reduction (actual results vary by application)
+
+## Rollout approach [#rollout]
+
+Implement span configuration gradually to minimize risk:
+
+### Phase 1: Baseline and planning (Week 1)
+
+1. Measure current ingest volume and costs
+2. Categorize all services using the prioritization framework
+3. Identify 2-3 low-risk services for pilot (supporting services ideal)
+4. Document current troubleshooting workflows that rely on detailed spans
+
+### Phase 2: Pilot deployment (Weeks 2-3)
+
+1. Enable span configuration on pilot services:
+   * Week 2: Option 1 on 2-3 services
+   * Week 3: Evaluate and optionally move to Option 2
+2. Monitor daily ingest volume:
+   ```sql
+   SELECT bytecountestimate() / 1e9 as 'Daily GB'
+   FROM Span
+   WHERE entity.name IN ('pilot-service-1', 'pilot-service-2')
+   SINCE 1 day ago
+   TIMESERIES
+   ```
+3. Verify trace completeness in UI
+4. Confirm Dynamic Flow Maps still show all connections
+5. Gather feedback from team
+
+### Phase 3: Expand to supporting services (Weeks 4-6)
+
+1. Apply Option 2 or 3 to all supporting services
+2. Monitor aggregate impact on costs
+3. Address any issues discovered
+4. Document lessons learned
+
+### Phase 4: Optimize important services (Weeks 7-9)
+
+1. Apply Option 1 to important services
+2. Verify troubleshooting workflows still work
+3. Fine-tune configurations based on actual usage
+
+### Phase 5: Continuous optimization (Ongoing)
+
+1. Review configurations quarterly
+2. Adjust as service priorities change
+3. Monitor for new services to configure
+4. Track cost savings over time
+
+<Callout variant="tip">
+  Don't rush the rollout. Taking 2-3 months to implement span configuration carefully is better than rushing and losing critical visibility.
+</Callout>
+
+## Track your ingestion impact [#track]
+
+Monitor the effectiveness of your partial granularity distributed traces implementation:
+
+### Daily ingest tracking
+
+```sql
+SELECT bytecountestimate() / 1e9 as 'Daily GB'
+FROM Span
+FACET CASES (
+  WHERE nr.pg IS NULL as 'Full DT',
+  WHERE nr.pg = true as 'Partial Granularity'
+)
+SINCE 7 days ago
+TIMESERIES 1 day
+```
+
+### Span count by configuration
+
+```sql
+SELECT count(*) as 'Span Count'
+FROM Span
+FACET entity.name, nr.pg
+SINCE 1 day ago
+```
+
+### Cost savings dashboard
+
+Create a dashboard with these charts:
+
+1. **Total ingest over time:** Track overall GB/day trend
+2. **Ingest by configuration type:** Compare Full DT vs Partial Granularity options
+3. **Span count by service:** Identify high-volume services
+4. **Cost reduction percentage:** Calculate savings vs baseline
+
+Example query for cost reduction:
+
+```sql
+SELECT
+  (bytecountestimate() / 1e9) as 'Current GB',
+  (bytecountestimate() / 1e9) / YOUR_BASELINE_GB * 100 as '% of Baseline'
+FROM Span
+SINCE 1 day ago
+```
+
+## Balance cost and visibility [#balance]
+
+Span configuration is about smart trade-offs, not blind cost-cutting. Follow these principles:
+
+### What not to sacrifice
+
+* **Error visibility:** Always capture errors, even with Options 2-3
+* **Critical paths:** Keep full DT on customer-facing transactions
+* **Regulatory requirements:** Some industries require detailed audit trails
+* **Active incidents:** Temporarily increase detail when troubleshooting
+
+### Warning signs you've over-optimized
+
+Watch for these indicators that you've gone too far:
+
+1. **Troubleshooting time increases:** Teams struggle to diagnose issues
+2. **Incomplete traces:** Services missing from trace visualizations
+3. **Team complaints:** Engineers request "more detail" frequently
+4. **Failed root cause analysis:** Can't determine cause of incidents
+
+If you see these signs, dial back span configuration on affected services.
+
+### Configuration change considerations
+
+Agent configuration changes require editing configuration files and restarting your application:
+
+* Configuration changes typically require modifying agent config files (YAML, INI, etc.)
+* Most changes require an application restart to take effect
+* Plan configuration changes during maintenance windows when possible
+
+**Note:** Dynamic configuration changes during active incidents may not be practical due to restart requirements. It's better to have appropriate configurations in place proactively rather than adjusting them reactively during incidents.
+
+## Real-world controlled ingestion examples [#examples]
+
+### Example 1: E-commerce platform (150 services)
+
+**Situation:**
+* 150 microservices
+* $12,000/month distributed tracing costs
+* Needed to reduce by ~50%
+
+**Approach:**
+* Full DT: 10 customer-facing services (checkout, payment, cart)
+* Reduced granularity: 30 core services (inventory, pricing, search)
+* Essential/compact granularity: 110 supporting services (logging, notifications, analytics)
+
+**Results:**
+* Significantly reduced data ingestion
+* Achieved cost optimization goals
+* Maintained full visibility on critical customer paths
+
+### Example 2: SaaS startup (25 services)
+
+**Situation:**
+* 25 services
+* Limited budget, new to distributed tracing
+* Wanted coverage without high costs
+
+**Approach:**
+* Started with essential granularity on all 25 services
+* After 2 months, upgraded 5 core services to full DT
+* Kept essential granularity on 20 supporting services
+
+**Results:**
+* Light-weight entry into distributed tracing
+* Complete service map on day one
+* Gradual increase in detail as value proven
+
+### Example 3: Enterprise (500+ services)
+
+**Situation:**
+* 500+ microservices
+* Non-production environments mirroring production
+* Production DT costs acceptable, but dev/staging was wasteful
+
+**Approach:**
+* Production: Tiered strategy (Full DT / reduced / essential/compact by priority)
+* Staging: Essential/compact granularity on all services
+* Development: Compact granularity + reduced sampling
+
+**Results:**
+* Substantial reduction in non-production costs
+* Production cost optimization achieved
+* Complete traces in all environments
+
+## What's next [#whats-next]
+
+Ready to implement controlled ingestion?
+
+1. Review [Control distributed tracing data volume](/docs/distributed-tracing/core-tracing/introduction-core-tracing) for an overview of the three modes and when to use them
+2. [Configure partial granularity distributed tracing](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) - Comprehensive guide with configuration instructions for all three modes
+3. See [Sampler configuration examples](/docs/distributed-tracing/core-tracing/sampler-configuration-examples) for real-world scenarios with copy-paste ready configuration code
+
+<Callout variant="tip">
+  Need help planning your controlled ingestion strategy? Contact your New Relic account team or [New Relic Support](https://support.newrelic.com) for guidance.
+</Callout>
