@@ -5,17 +5,15 @@ on:
   issue_comment:
     types: [created]
 
-# Permissions remain the same as they are still needed for the job's tasks.
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
-  issues: write
 
 jobs:
   handle-fork-pr:
     runs-on: ubuntu-latest
     
-    if: github.event.issue.pull_request && github.event.comment.body == 'netlify build fork'
+    if: github.event.issue.pull_request && contains(github.event.comment.body, 'netlify build fork')
     
     steps:
       - name: Check for member permission
@@ -140,76 +138,93 @@ jobs:
           echo "PR Author: ${{ steps.pr-data.outputs.pr_author_login }}"
           echo "Event Type: ${{ github.event_name }} (comment)"
           echo "::endgroup::"
-      
-      - name: Checkout repo
-        id: checkout
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ steps.pr-data.outputs.head_sha }}
-          fetch-depth: 0
-          token: ${{ secrets.REPO_ACCESS_TOKEN }}
-      
-      - name: Verify checkout
-        run: |
-          echo "::group::Repository Status"
-          if [ -d .git ]; then
-            echo "Repository checkout successful"
-            git status
-            git log -n 1 --oneline
-          else
-            echo "::error::Repository checkout failed"
-            exit 1
-          fi
-          echo "::endgroup::"
-      
-      - name: Setup Git Identity
-        run: |
-          echo "::group::Git Configuration"
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          echo "Git identity configured"
-          echo "::endgroup::"
-      
-      - name: Process synced PR
-        id: process-pr
-        run: |
-          echo "::group::Processing synced PR"
-          # Combine author and original branch name
-          FULL_BRANCH_NAME="${{ steps.pr-data.outputs.pr_author_login }}-${{ steps.pr-data.outputs.head_ref }}"
 
-          # Sanitize the branch name for Netlify:
-          # 1. Replace all non-alphanumeric characters with a hyphen.
-          # 2. Squeeze consecutive hyphens into a single hyphen.
-          # 3. Truncate to Netlify's recommended length (38 chars).
-          # 4. Remove any leading/trailing hyphens.
-          PR_BRANCH=$(echo "$FULL_BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g' | tr -s '-' | cut -c1-38 | sed 's/^-//;s/-$//')
-          
-          echo "Original combined branch name: $FULL_BRANCH_NAME"
-          echo "New upstream branch name (sanitized and truncated): $PR_BRANCH"
-          
-          COMMIT_SHA="${{ steps.pr-data.outputs.head_sha }}"
-          COMMIT_SHORT_SHA=$(echo $COMMIT_SHA | cut -c1-7)
-          echo "Latest commit ID: $COMMIT_SHA (short: $COMMIT_SHORT_SHA)"
-          echo "commit_id=$COMMIT_SHA" >> $GITHUB_OUTPUT
-          echo "commit_short_id=$COMMIT_SHORT_SHA" >> $GITHUB_OUTPUT
-          echo "new_branch_name=$PR_BRANCH" >> $GITHUB_OUTPUT
-          
-          if git ls-remote --heads origin "refs/heads/$PR_BRANCH" | grep -q "refs/heads/$PR_BRANCH"; then
-            echo "Branch '$PR_BRANCH' already exists in upstream repo, will update."
-            echo "is_first_commit=false" >> $GITHUB_OUTPUT
-            git checkout -B "$PR_BRANCH" "FETCH_HEAD"
-          else
-            echo "Branch '$PR_BRANCH' does not exist yet in upstream repo, will create."
-            echo "is_first_commit=true" >> $GITHUB_OUTPUT
-            git checkout -b "$PR_BRANCH" "FETCH_HEAD"
-          fi
-          
-          git push origin "$PR_BRANCH" --force
-          if [ $? -ne 0 ]; then
-            echo "::error::Failed to push branch to origin"
-            exit 1
-          fi
-          echo "::endgroup::"
+      - name: Create or update branch using GitHub API
+        id: process-pr
+        uses: actions/github-script@v7
+        env:
+          HEAD_SHA: ${{ steps.pr-data.outputs.head_sha }}
+          HEAD_REF: ${{ steps.pr-data.outputs.head_ref }}
+          PR_AUTHOR: ${{ steps.pr-data.outputs.pr_author_login }}
+        with:
+          github-token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          script: |
+            const headSha = process.env.HEAD_SHA;
+            const headRef = process.env.HEAD_REF;
+            const prAuthor = process.env.PR_AUTHOR;
+
+            // Combine author and original branch name
+            const fullBranchName = `${prAuthor}-${headRef}`;
+
+            // Sanitize the branch name for Netlify:
+            // 1. Replace all non-alphanumeric characters with a hyphen.
+            // 2. Squeeze consecutive hyphens into a single hyphen.
+            // 3. Truncate to Netlify's recommended length (38 chars).
+            // 4. Remove any leading/trailing hyphens.
+            const prBranch = fullBranchName
+              .replace(/[^a-zA-Z0-9]/g, '-')
+              .replace(/-+/g, '-')
+              .substring(0, 38)
+              .replace(/^-|-$/g, '');
+
+            console.log(`Original combined branch name: ${fullBranchName}`);
+            console.log(`New upstream branch name (sanitized and truncated): ${prBranch}`);
+
+            const commitShortSha = headSha.substring(0, 7);
+            console.log(`Latest commit ID: ${headSha} (short: ${commitShortSha})`);
+
+            core.setOutput('commit_id', headSha);
+            core.setOutput('commit_short_id', commitShortSha);
+            core.setOutput('new_branch_name', prBranch);
+
+            // Check if branch already exists
+            let branchExists = false;
+            try {
+              await github.rest.repos.getBranch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: prBranch,
+              });
+              branchExists = true;
+              console.log(`Branch '${prBranch}' already exists in upstream repo, will update.`);
+            } catch (error) {
+              if (error.status === 404) {
+                console.log(`Branch '${prBranch}' does not exist yet in upstream repo, will create.`);
+              } else {
+                throw error;
+              }
+            }
+
+            core.setOutput('is_first_commit', !branchExists ? 'true' : 'false');
+
+            // Create or update the branch reference using GitHub API
+            // This avoids checking out untrusted code locally
+            try {
+              if (branchExists) {
+                // Update existing branch
+                await github.rest.git.updateRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `heads/${prBranch}`,
+                  sha: headSha,
+                  force: true,
+                });
+                console.log(`Updated branch '${prBranch}' to point to ${headSha}`);
+              } else {
+                // Create new branch
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/heads/${prBranch}`,
+                  sha: headSha,
+                });
+                console.log(`Created branch '${prBranch}' pointing to ${headSha}`);
+              }
+            } catch (error) {
+              console.error(`Failed to create/update branch: ${error.message}`);
+              core.setFailed(`Failed to create/update branch: ${error.message}`);
+              throw error;
+            }
       
       - name: Get Current Time in IST
         if: steps.process-pr.outputs.is_first_commit == 'true'
