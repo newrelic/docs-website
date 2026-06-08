@@ -1,5 +1,5 @@
 ---
-title: 'New Relic Knowledge is now generally available'
+title: 'New Relic Knowledge is now Generally Available'
 summary: 'Give your teams instant access to operational knowledge, service relationships, and troubleshooting context directly within the New Relic AI platform.'
 learnMoreLink: '/docs/agentic-ai/knowledge-integration/overview/'
 releaseDate: '2026-06-08'
@@ -9,7 +9,7 @@ New Relic Knowledge is now generally available, bringing AI-powered operational 
 
 Modern environments generate massive amounts of operational data, but critical context is often fragmented across dashboards, tickets, runbooks, and tribal knowledge. New Relic Knowledge closes that gap by transforming observability data into actionable operational intelligence that teams and AI-driven workflows can immediately use.
 
-## What’s included at GA
+## What’s included in GA
 
 ### Unified operational knowledge
 
