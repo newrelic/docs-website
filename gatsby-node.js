@@ -19,26 +19,53 @@ const hasTrailingSlash = (pathname) =>
   pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
 exports.onPreBootstrap = async () => {
-  console.log('🔍 Building search index...');
+  // Create navigation (existing functionality)
+  createSingleNav();
+};
+
+exports.sourceNodes = async ({ actions, createNodeId, createContentDigest }) => {
+  const { createNode } = actions;
   
-  // Build search index for current BUILD_LANG (Netlify-compatible approach)
+  console.log('🔍 Building search indexes for all languages...');
+  
   try {
     const SearchIndexBuilder = require('./scripts/search/build-search-index.js');
     
-    // Get current build language from environment (for production builds)
-    const currentBuildLang = process.env.BUILD_LANG || 'en';
-    console.log(`🌐 Building search index for language: ${currentBuildLang.toUpperCase()}`);
+    // Define all supported languages
+    const supportedLanguages = ['en', 'es', 'fr', 'jp', 'kr', 'pt'];
     
-    const builder = new SearchIndexBuilder(currentBuildLang);
-    await builder.build();
-    console.log(`✅ Search index built successfully for ${currentBuildLang.toUpperCase()}!`);
+    // Build search indexes for all languages
+    for (const language of supportedLanguages) {
+      console.log(`🌐 Building search index for language: ${language.toUpperCase()}`);
+      
+      try {
+        const builder = new SearchIndexBuilder(language);
+        const searchIndex = await builder.buildInMemory(); // No file I/O
+        
+        // Create GraphQL node with language-specific ID
+        const nodeId = language === 'en' ? 'search-index' : `search-index-${language}`;
+        createNode({
+          id: createNodeId(nodeId),
+          language: language,
+          ...searchIndex,
+          internal: {
+            type: 'SearchIndex',
+            contentDigest: createContentDigest(searchIndex),
+          },
+        });
+        
+        console.log(`🎉 Search index GraphQL node created for ${language.toUpperCase()}! (${searchIndex.metadata.totalDocuments} documents)`);
+      } catch (langError) {
+        console.warn(`⚠️  Failed to build search index for ${language.toUpperCase()}:`, langError.message);
+        // Continue with other languages even if one fails
+      }
+    }
+    
+    console.log('✅ All search indexes built successfully!');
   } catch (error) {
     console.error('❌ Failed to build search indexes:', error);
     // Don't fail the build, just log the error
   }
-  
-  // Create navigation (existing functionality)
-  createSingleNav();
 };
 
 exports.onCreateWebpackConfig = ({ actions }) => {
@@ -264,6 +291,33 @@ exports.createSchemaCustomization = (
     features: [String]
     bugs: [String]
     security: [String]
+  }
+  
+  type SearchIndex implements Node @dontInfer {
+    id: ID!
+    language: String!
+    documents: [SearchDocument!]!
+    metadata: SearchMetadata!
+  }
+  
+  type SearchDocument {
+    id: String!
+    title: String!
+    url: String!
+    content: String!
+    description: String
+    category: String
+    tags: [String!]!
+    searchWeight: Float
+  }
+  
+  type SearchMetadata {
+    totalDocuments: Int!
+    categories: [String!]!
+    tags: [String!]!
+    language: String!
+    buildDate: Date!
+    version: String!
   }
 
   `;

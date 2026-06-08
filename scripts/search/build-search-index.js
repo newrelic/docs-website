@@ -261,6 +261,53 @@ class SearchIndexBuilder {
 
     return searchIndex;
   }
+
+  // Build search index in memory only (for GraphQL integration)
+  async buildInMemory() {
+    console.log('🔍 Building search index in memory...');
+    console.log(`📂 Processing directory: ${this.contentDir}`);
+
+    this.totalFiles = 0;
+    this.skippedFiles = 0;
+    this.errorFiles = 0;
+
+    // Process all MDX files
+    this.processDirectory(this.contentDir);
+
+    console.log(`📊 Index Statistics:`);
+    console.log(`  Total MDX files found: ${this.totalFiles}`);
+    console.log(`  Successfully indexed: ${this.documents.length}`);
+    console.log(`  Generated titles: ${this.skippedFiles}`);
+    console.log(`  Processing errors: ${this.errorFiles}`);
+    console.log(`  Coverage: ${((this.documents.length / this.totalFiles) * 100).toFixed(1)}%`);
+
+    // Sort by search weight for better ranking
+    this.documents.sort((a, b) => b.searchWeight - a.searchWeight);
+
+    // Get unique categories and tags
+    const categories = [...new Set(this.documents.map(doc => doc.category))].sort();
+    const allTags = [...new Set(this.documents.flatMap(doc => doc.tags))].sort();
+
+    // Create search index (in memory only)
+    const searchIndex = {
+      documents: this.documents,
+      metadata: {
+        totalDocuments: this.documents.length,
+        categories: categories,
+        tags: allTags,
+        language: this.language,
+        buildDate: new Date().toISOString(),
+        version: '1.0.0'
+      }
+    };
+
+    console.log(`✅ Search index built successfully in memory for ${this.language.toUpperCase()}!`);
+    console.log(`📊 Categories: ${categories.length}`);
+    console.log(`🏷️  Tags: ${allTags.length}`);
+    console.log(`🌐 Language: ${this.language}`);
+
+    return searchIndex;
+  }
 }
 
 // Run if called directly

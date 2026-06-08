@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from '@emotion/styled';
 import { navigate } from 'gatsby';
 
-const SearchModal = ({ onClose }) => {
+const SearchModal = ({ onClose, searchData }) => {
+  console.log('🔍 SearchModal: Component starting to render...');
+  console.log('🔍 SearchModal: Received searchData props:', searchData);
+
   const [searchEngine, setSearchEngine] = useState(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -36,133 +39,73 @@ const SearchModal = ({ onClose }) => {
     return 'en'; // Default to English
   };
 
-  // Load search engine
+  // Load search engine from GraphQL data
   useEffect(() => {
     const loadSearchEngine = async () => {
       try {
-        const currentLang = getCurrentLanguage();
-        console.log(`Loading search engine for modal (language: ${currentLang})...`);
+        console.log('🔍 Loading search engine from props data...');
+        console.log('📊 Props searchData received:', searchData);
         
+        // Import SearchEngine
         let SearchEngine;
         try {
           const module = await import('../../utils/search/SearchEngine');
-          SearchEngine = module.SearchEngine || module.default;
+          SearchEngine = module.default;
+          console.log('✅ SearchEngine imported successfully:', SearchEngine);
         } catch (importError) {
-          console.error('Import error:', importError);
+          console.error('❌ SearchEngine import error:', importError);
           return;
         }
         
-        // Construct language-specific search index URLs with fallback strategy
-        const indexFiles = currentLang === 'en' 
-          ? ['/search-index.json', '/search-index.min.json']
-          : [`/search-index-${currentLang}.json`, `/search-index-${currentLang}.min.json`];
+        // Detect current language from URL
+        const currentLang = getCurrentLanguage();
         
-        // Fallback to English index files if current language fails
-        const fallbackIndexFiles = ['/search-index.json', '/search-index.min.json'];
+        // Find the correct search index for the current language
+        const searchIndexes = searchData?.allSearchIndex?.nodes || [];
+        let searchIndex = searchIndexes.find(index => index.language === currentLang);
         
-        let searchIndex;
-        let actualLanguage = currentLang;
-        
-        // Try to load current language index
-        try {
-          const response = await fetch(indexFiles[0]);
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          searchIndex = await response.json();
-          console.log(`✅ Search index loaded for ${currentLang.toUpperCase()}:`, {
-            documents: searchIndex.documents?.length || 0,
-            language: searchIndex.metadata?.language
-          });
-        } catch (fetchError) {
-          console.warn(`⚠️  Failed to fetch search index for ${currentLang}:`, fetchError);
-          
-          // Try compressed version of current language
-          try {
-            const response = await fetch(indexFiles[1]);
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            searchIndex = await response.json();
-            console.log(`✅ Compressed search index loaded for ${currentLang.toUpperCase()}:`, {
-              documents: searchIndex.documents?.length || 0,
-              language: searchIndex.metadata?.language
-            });
-          } catch (compressedFetchError) {
-            console.warn(`⚠️  Failed to fetch compressed search index for ${currentLang}:`, compressedFetchError);
-            
-            // Fallback to English index (production-ready approach)
-            if (currentLang !== 'en') {
-              console.log(`🔄 Falling back to English search index...`);
-              try {
-                const response = await fetch(fallbackIndexFiles[0]);
-                if (!response.ok) {
-                  throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                searchIndex = await response.json();
-                actualLanguage = 'en';
-                console.log(`✅ Fallback English search index loaded:`, {
-                  documents: searchIndex.documents?.length || 0,
-                  language: searchIndex.metadata?.language,
-                  note: `Fallback from ${currentLang} to EN`
-                });
-              } catch (englishFetchError) {
-                console.warn(`⚠️  Failed to fetch English fallback index:`, englishFetchError);
-                
-                // Try compressed English index as final fallback
-                try {
-                  const response = await fetch(fallbackIndexFiles[1]);
-                  if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                  }
-                  searchIndex = await response.json();
-                  actualLanguage = 'en';
-                  console.log(`✅ Compressed English fallback index loaded:`, {
-                    documents: searchIndex.documents?.length || 0,
-                    language: searchIndex.metadata?.language,
-                    note: `Final fallback from ${currentLang} to EN (compressed)`
-                  });
-                } catch (finalFetchError) {
-                  console.error('❌ All search index loading attempts failed:', finalFetchError);
-                  return;
-                }
-              }
-            } else {
-              console.error('❌ Failed to load English search index:', compressedFetchError);
-              return;
-            }
-          }
+        // Fallback to English if current language not found
+        if (!searchIndex) {
+          console.warn(`⚠️ No search index found for language ${currentLang}, falling back to English`);
+          searchIndex = searchIndexes.find(index => index.language === 'en');
         }
         
-        if (!searchIndex.documents || searchIndex.documents.length === 0) {
-          console.error('No documents found in search index');
+        if (!searchIndex || !searchIndex.documents || searchIndex.documents.length === 0) {
+          console.error('No search index data available from GraphQL');
           return;
         }
+        
+        console.log(`✅ Search index loaded from GraphQL:`, {
+          documents: searchIndex.documents.length,
+          language: searchIndex.metadata?.language || searchIndex.language,
+          categories: searchIndex.metadata?.categories?.length || 0
+        });
         
         const engine = new SearchEngine();
         await engine.loadIndex(searchIndex);
         setSearchEngine(engine);
         
         // Extract unique categories for filter options
-        const categories = [...new Set(searchIndex.documents.map(doc => doc.category))]
-          .filter(Boolean)
-          .sort();
+        const categories = searchIndex.metadata?.categories || 
+          [...new Set(searchIndex.documents.map(doc => doc.category))]
+            .filter(Boolean)
+            .sort();
         setAvailableCategories(categories);
         
-        // Show fallback notification if applicable
-        if (actualLanguage !== currentLang) {
-          console.info(`🌐 Search results will be shown in English as ${currentLang.toUpperCase()} index is not available.`);
-        }
-        
         setIndexLoaded(true);
-        console.log(`Search engine initialized in modal (${actualLanguage.toUpperCase()}) with categories:`, categories);
+        console.log(`Search engine initialized from GraphQL (${searchIndex.language}) with ${categories.length} categories`);
       } catch (error) {
-        console.error('Failed to load search engine:', error);
+        console.error('Failed to load search engine from GraphQL:', error);
       }
     };
 
-    loadSearchEngine();
-  }, []);
+    // Only load when searchData is available
+    if (searchData?.allSearchIndex?.nodes && searchData.allSearchIndex.nodes.length > 0) {
+      loadSearchEngine();
+    } else {
+      console.warn('No search index data available from props');
+    }
+  }, [searchData]);
 
   // Focus input when modal opens
   useEffect(() => {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styled from '@emotion/styled';
+import { useStaticQuery, graphql } from 'gatsby';
 import SearchModal from './SearchModal';
 
 const SearchInput = ({ 
@@ -7,6 +8,35 @@ const SearchInput = ({
   showShortcut = true
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Get all search indexes from GraphQL (for all languages)
+  const searchData = useStaticQuery(graphql`
+    query {
+      allSearchIndex {
+        nodes {
+          language
+          documents {
+            id
+            title
+            url
+            content
+            description
+            category
+            tags
+            searchWeight
+          }
+          metadata {
+            totalDocuments
+            categories
+            tags
+            language
+            buildDate
+            version
+          }
+        }
+      }
+    }
+  `);
 
   // Keyboard shortcut handler (Cmd/Ctrl + K)
   React.useEffect(() => {
@@ -22,10 +52,12 @@ const SearchInput = ({
   }, []);
 
   const openModal = () => {
+    console.log('🔍 SearchInput: Opening modal...');
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
+    console.log('🔍 SearchInput: Closing modal...');
     setIsModalOpen(false);
   };
 
@@ -47,7 +79,10 @@ const SearchInput = ({
       </SearchInputContainer>
 
       {isModalOpen && (
-        <SearchModal onClose={closeModal} />
+        <>
+          {console.log('🔍 SearchInput: Rendering SearchModal, isModalOpen:', isModalOpen)}
+          <SearchModal onClose={closeModal} searchData={searchData} />
+        </>
       )}
     </>
   );
