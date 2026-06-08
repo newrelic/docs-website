@@ -20,6 +20,7 @@ import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import { useLocation } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
+import GlobalKeyboardShortcuts from '../components/GlobalKeyboardShortcuts';
 
 const MainLayout = ({ children, pageContext }) => {
   const { sidebarWidth } = useLayout();
@@ -116,8 +117,8 @@ const MainLayout = ({ children, pageContext }) => {
   return (
     <>
       <SEO location={location} />
+      <GlobalKeyboardShortcuts />
       <GlobalHeader
-        hideSearch
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>

@@ -18,7 +18,26 @@ const hasOwnProperty = (obj, key) =>
 const hasTrailingSlash = (pathname) =>
   pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
-exports.onPreBootstrap = () => {
+exports.onPreBootstrap = async () => {
+  console.log('🔍 Building search index...');
+  
+  // Build search index for current BUILD_LANG (Netlify-compatible approach)
+  try {
+    const SearchIndexBuilder = require('./scripts/search/build-search-index.js');
+    
+    // Get current build language from environment (for production builds)
+    const currentBuildLang = process.env.BUILD_LANG || 'en';
+    console.log(`🌐 Building search index for language: ${currentBuildLang.toUpperCase()}`);
+    
+    const builder = new SearchIndexBuilder(currentBuildLang);
+    await builder.build();
+    console.log(`✅ Search index built successfully for ${currentBuildLang.toUpperCase()}!`);
+  } catch (error) {
+    console.error('❌ Failed to build search indexes:', error);
+    // Don't fail the build, just log the error
+  }
+  
+  // Create navigation (existing functionality)
   createSingleNav();
 };
 
