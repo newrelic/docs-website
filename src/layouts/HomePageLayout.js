@@ -9,7 +9,6 @@ import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import { useLocation } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
-import GlobalKeyboardShortcuts from '../components/GlobalKeyboardShortcuts';
 
 const HomePageLayout = ({ children, pageContext }) => {
   const location = useLocation();
@@ -17,7 +16,6 @@ const HomePageLayout = ({ children, pageContext }) => {
   return (
     <>
       <SEO location={location} />
-      <GlobalKeyboardShortcuts />
       <GlobalHeader
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
