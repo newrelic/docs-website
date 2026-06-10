@@ -14,7 +14,7 @@ If your environment routes outbound traffic through a corporate proxy, you can c
 
 <Callout variant="important">
 
-The eBPF agent supports HTTP CONNECT proxies only. The `https://` proxy scheme (a TLS-encrypted connection to the proxy itself) is not supported by gRPC's HTTP CONNECT implementation. Your telemetry data still travels TLS-encrypted **end-to-end** between the agent and the New Relic OTLP endpoint — the proxy only sees an encrypted tunnel and never has access to your data. The `http://` scheme refers to the connection between the agent and the proxy, not to your data in transit.
+The eBPF agent supports HTTP CONNECT proxies using the `http://` scheme only. Due to gRPC limitations, the `https://` scheme (a TLS-encrypted connection directly to the proxy) isn't supported. However, your telemetry data is always TLS-encrypted **end-to-end** between the agent and the New Relic OTLP endpoint. The `http://` prefix dictates only how the agent talks to the proxy to establish the tunnel. The proxy itself only sees encrypted traffic and never has access to your data.
 
 </Callout>
 
@@ -24,176 +24,8 @@ The eBPF agent uses gRPC's built-in HTTP proxy support. When a proxy is configur
 
 1. Connects to the proxy server.
 2. Sends an `HTTP CONNECT` request to open a tunnel to the New Relic OTLP endpoint.
-3. Performs a TLS handshake with the OTLP endpoint *through* that tunnel.
+3. Performs a TLS handshake with the OTLP endpoint through that tunnel.
 4. Adds a `Proxy-Authorization: Basic <base64>` header if you provided credentials.
-
-```
-┌─────────────┐  HTTP CONNECT   ┌─────────────┐  TLS / gRPC   ┌──────────────────┐
-│ eBPF Agent  │ ────────────────│    Proxy    │───────────────│  OTLP Endpoint   │
-└─────────────┘                 └─────────────┘               │ otlp.nr-data.net │
-                                                              └──────────────────┘
-```
-
-## Configure a proxy on Linux hosts [#linux]
-
-You can configure proxy settings on a Linux host using either environment variables or the `newrelic-ebpf-agent.yaml` configuration file.
-
-### Configuration precedence [#linux-precedence]
-
-When more than one source defines a proxy, the agent applies them in this order (highest priority first):
-
-1. `NEW_RELIC_PROXY_URL` — complete proxy URL.
-2. `NEW_RELIC_PROXY_*` — individual proxy settings (host, port, scheme, user, password).
-3. `HTTPS_PROXY` — checked before `HTTP_PROXY`.
-4. `HTTP_PROXY` — fallback when no other source is set.
-
-### Option 1: Environment variables [#linux-env-vars]
-
-The agent recognizes the following New Relic-specific environment variables:
-
-<table>
-    <thead>
-        <tr>
-            <th>Variable</th>
-            <th>Description</th>
-            <th>Example value</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>`NEW_RELIC_PROXY_HOST`</td>
-            <td>Proxy hostname. If empty, no proxy is used.</td>
-            <td>`proxy.example.com`</td>
-        </tr>
-        <tr>
-            <td>`NEW_RELIC_PROXY_PORT`</td>
-            <td>Proxy port. Required when `NEW_RELIC_PROXY_HOST` is set.</td>
-            <td>`8080`</td>
-        </tr>
-        <tr>
-            <td>`NEW_RELIC_PROXY_SCHEME`</td>
-            <td>Proxy scheme. Only `http` is supported.</td>
-            <td>`http`</td>
-        </tr>
-        <tr>
-            <td>`NEW_RELIC_PROXY_USER`</td>
-            <td>Username for Basic Authentication.</td>
-            <td>`myuser`</td>
-        </tr>
-        <tr>
-            <td>`NEW_RELIC_PROXY_PASS`</td>
-            <td>Password for Basic Authentication.</td>
-            <td>`mypassword`</td>
-        </tr>
-        <tr>
-            <td>`NEW_RELIC_PROXY_URL`</td>
-            <td>Complete proxy URL. Overrides all other `NEW_RELIC_PROXY_*` variables.</td>
-            <td>`http://user:pass@proxy.example.com:8080`</td>
-        </tr>
-    </tbody>
-</table>
-
-If no `NEW_RELIC_PROXY_*` variables are set, the agent falls back to standard `HTTPS_PROXY` and then `HTTP_PROXY`. Both variables use the `http://host:port` format — the scheme refers to the connection to the proxy, not to your telemetry data, which is always sent over TLS to the OTLP endpoint.
-
-**Example — unauthenticated proxy:**
-
-```bash
-export NEW_RELIC_PROXY_HOST=proxy.corporate.com
-export NEW_RELIC_PROXY_PORT=8080
-sudo systemctl restart newrelic-ebpf-agent
-```
-
-**Example — authenticated proxy:**
-
-```bash
-export NEW_RELIC_PROXY_HOST=proxy.corporate.com
-export NEW_RELIC_PROXY_PORT=8080
-export NEW_RELIC_PROXY_USER=myuser
-export NEW_RELIC_PROXY_PASS=mypassword
-sudo systemctl restart newrelic-ebpf-agent
-```
-
-**Example — using the URL form:**
-
-```bash
-export NEW_RELIC_PROXY_URL=http://myuser:mypass@proxy.corporate.com:8080
-sudo systemctl restart newrelic-ebpf-agent
-```
-
-### Option 2: Configuration file [#linux-config-file]
-
-Add an `otlpProxy:` block to `/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml`:
-
-```yaml
-otlpProxy:
-  host: "proxy.corporate.com"
-  port: 8080
-  scheme: "http"
-  user: "myuser"
-  password: "mypassword"
-```
-
-After saving the file, restrict its permissions and restart the agent:
-
-```bash
-sudo chmod 600 /etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml
-sudo systemctl restart newrelic-ebpf-agent
-```
-
-For the full list of `otlpProxy.*` parameters, see [Configuration parameters](/docs/ebpf/linux-installation/#config-params) on the Linux installation page.
-
-## Configure a proxy on Kubernetes [#kubernetes]
-
-For Kubernetes clusters, configure the proxy in your Helm `values.yaml` file. For production deployments, use a Kubernetes secret to store credentials instead of writing them directly into `values.yaml`.
-
-### Option 1: Inline credentials [#k8s-inline]
-
-Add an `otlpProxy:` block to your `values.yaml`:
-
-```yaml
-otlpProxy:
-  host: "proxy.corporate.com"
-  port: 8080
-  scheme: "http"
-  user: "myuser"
-  password: "mypassword"
-```
-
-Then apply the change:
-
-```bash
-helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
-```
-
-### Option 2: Kubernetes secret (recommended) [#k8s-secret]
-
-Storing proxy credentials in a Kubernetes secret keeps them out of your `values.yaml` file and out of source control.
-
-1. Create the secret. The keys must be named `proxy-user` and `proxy-password`:
-
-    ```bash
-    kubectl create secret generic ebpf-proxy-creds \
-      --namespace newrelic \
-      --from-literal=proxy-user=myuser \
-      --from-literal=proxy-password=mypassword
-    ```
-
-2. Reference the secret in your `values.yaml`:
-
-    ```yaml
-    otlpProxy:
-      host: "proxy.corporate.com"
-      port: 8080
-      existingSecret: "ebpf-proxy-creds"
-    ```
-
-3. Apply the change:
-
-    ```bash
-    helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
-    ```
-
-For the full list of `otlpProxy.*` parameters, see [K8s configuration parameters](/docs/ebpf/k8s-installation/#config-params) on the Kubernetes installation page.
 
 ## Proxy server requirements [#proxy-requirements]
 
@@ -232,7 +64,7 @@ Your proxy server must support:
         <tr>
             <td>HAProxy</td>
             <td>No</td>
-            <td>HAProxy is a reverse proxy/load balancer and does not support the forward-proxy `CONNECT` method.</td>
+            <td>HAProxy is a reverse proxy/load balancer and doesn't support the forward-proxy `CONNECT` method.</td>
         </tr>
         <tr>
             <td>Most corporate proxies</td>
@@ -242,26 +74,104 @@ Your proxy server must support:
     </tbody>
 </table>
 
-## Credential character restrictions [#credential-restrictions]
+## Credential character limitations [#credential-limitations]
 
 <Callout variant="caution">
 
-gRPC's proxy URI parser silently lowercases usernames and rejects URLs containing percent-encoded characters in the credential portion. If your username uses uppercase letters or your username or password contains special characters, proxy authentication fails without an obvious error. The eBPF agent validates credentials at startup to surface these problems early instead of letting them fail silently.
+If your proxy username contains uppercase letters, or your username or password contains special characters, proxy authentication fails silently. The eBPF agent catches these cases at startup and logs an error so you aren't left debugging a silent failure.
 
 </Callout>
 
 When you configure proxy credentials, only use the following characters:
 
-* **Username:** lowercase letters (`a–z`), digits (`0–9`), hyphen (`-`), underscore (`_`), period (`.`), tilde (`~`). Uppercase letters are not allowed.
-* **Password:** letters (`a–z`, `A–Z`), digits (`0–9`), hyphen (`-`), underscore (`_`), period (`.`), tilde (`~`).
+* **Username:** Lowercase letters (`a–z`), digits (`0–9`), hyphen (`-`), underscore (`_`), period (`.`), tilde (`~`). Uppercase letters aren't allowed.
+* **Password:** Letters (`a–z`, `A–Z`), digits (`0–9`), hyphen (`-`), underscore (`_`), period (`.`), tilde (`~`).
 
 The following characters are **not allowed** in either the username or the password: `@`, `:`, `/`, `?`, `#`, `[`, `]`, `!`, `$`, `&`, `'`, `(`, `)`, `*`, `+`, `,`, `;`, `=`, `%`, spaces, and other special characters.
 
-If your existing proxy credentials don't meet these restrictions, ask your proxy administrator to create a dedicated proxy account for the eBPF agent that uses a lowercase alphanumeric username and a simple password.
+If your existing proxy credentials use disallowed characters, ask your proxy administrator to create a dedicated proxy account for the eBPF agent that uses a lowercase alphanumeric username and a simple password.
 
-## Troubleshooting [#troubleshooting]
+## Configuration precedence [#configuration-precedence]
 
-### Verify your proxy configuration [#verify-config]
+When more than one source defines a proxy, the agent applies them in this order, with the highest priority first:
+
+* `otlpProxy.url` — Complete proxy URL.
+* `otlpProxy.*` — Individual proxy settings (`host`, `port`, `scheme`, `user`, `password`).
+
+This precedence applies to both Linux host and Kubernetes deployments.
+
+## Configure a proxy on Linux hosts [#linux]
+
+For Linux hosts, configure the proxy in the `newrelic-ebpf-agent.yaml` configuration file.
+
+### Configuration file [#linux-config-file]
+
+Add an `otlpProxy:` block to `/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml`:
+
+```yaml
+otlpProxy:
+  host: "proxy.corporate.com"
+  port: 8080
+  scheme: "http"
+  user: "myuser"
+  password: "mypassword"
+  url: ""
+```
+
+Alternatively, set `url:` to `http://[user:pass@]host:port` to provide a complete proxy URL. Only the `http` scheme is supported.
+
+After saving the file, restrict its permissions and restart the agent:
+
+```bash
+sudo chmod 600 /etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml
+sudo systemctl restart newrelic-ebpf-agent
+```
+
+For the full list of `otlpProxy.*` parameters, see [Configuration parameters](/docs/ebpf/linux-installation/#config-params) on the Linux installation page.
+
+## Configure a proxy on Kubernetes [#kubernetes]
+
+For Kubernetes clusters, configure the proxy in your Helm `values.yaml` file.
+
+### Configuration file [#k8s-config-file]
+
+Add an `otlpProxy:` block to your `values.yaml`:
+
+```yaml
+otlpProxy:
+  host: "proxy.corporate.com"
+  port: 8080
+  scheme: "http"
+  user: "myuser"
+  password: "mypassword"
+  url: ""
+  existingSecret: ""
+```
+
+Alternatively, set `url:` to `http://[user:pass@]host:port` to provide a complete proxy URL. Only the `http` scheme is supported.
+
+For production deployments, store credentials in a Kubernetes secret instead of setting `user:` and `password:` inline. Create the secret with `proxy-user` and `proxy-password` keys, and reference it through `existingSecret:`:
+
+```bash
+kubectl create secret generic ebpf-proxy-creds \
+  --namespace newrelic \
+  --from-literal=proxy-user=myuser \
+  --from-literal=proxy-password=mypassword
+```
+
+Then apply the change:
+
+```bash
+helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
+```
+
+For the full list of `otlpProxy.*` parameters, see [K8s configuration parameters](/docs/ebpf/k8s-installation/#config-params) on the Kubernetes installation page.
+
+## Verify your proxy configuration [#verify-config]
+
+After you configure the proxy, validate that the agent is using it as expected.
+
+### Check the agent log [#check-agent-log]
 
 Check the agent log for proxy-related messages:
 
@@ -271,9 +181,9 @@ journalctl -u newrelic-ebpf-agent | grep -i proxy
 
 Look for one of these messages:
 
-* `Using proxy for OTLP endpoint: <endpoint> via http://<host>:<port>` — proxy is enabled.
+* `Using proxy for OTLP endpoint: <endpoint> via http://<host>:<port>` — Proxy is enabled.
 * `Proxy authentication enabled (username: <user>)` — Basic Authentication is configured.
-* `Direct connection to OTLP endpoint (no proxy configured)` — no proxy is in use.
+* `Direct connection to OTLP endpoint (no proxy configured)` — No proxy is in use.
 
 ### Test proxy connectivity [#test-connectivity]
 
@@ -295,90 +205,12 @@ A successful response includes:
 * CONNECT phase completed!
 ```
 
-### Common errors [#common-errors]
-
-<CollapserGroup>
-
-<Collapser
-    id="error-400"
-    title="HTTP proxy returned response code 400"
->
-
-**Cause:** The proxy doesn't support the HTTP `CONNECT` method.
-
-**Solution:** Use a `CONNECT`-capable proxy. See [Supported proxy servers](#supported-proxies).
-
-</Collapser>
-
-<Collapser
-    id="error-https-scheme"
-    title="'https' scheme not supported in proxy URI"
->
-
-**Cause:** gRPC does not support `https://` as a proxy scheme. This is a gRPC limitation, not an agent restriction.
-
-**Solution:** Set the proxy scheme to `http` (for example, `NEW_RELIC_PROXY_SCHEME=http` or `otlpProxy.scheme: "http"`). Your telemetry data still travels TLS-encrypted end-to-end through the proxy tunnel — only the connection to the proxy itself is plaintext.
-
-</Collapser>
-
-<Collapser
-    id="error-socket-closed"
-    title="Socket closed or connection refused"
->
-
-**Cause:** The proxy server is not running, or the host or port is incorrect.
-
-**Solution:** Verify that the proxy is reachable using the [`curl` test command](#test-connectivity).
-
-</Collapser>
-
-<Collapser
-    id="error-connect-aborted"
-    title="Proxy CONNECT aborted"
->
-
-**Cause:** The proxy rejected the `CONNECT` request because of a firewall rule, ACL, or unsupported destination.
-
-**Solution:** Check your proxy server logs and confirm that `CONNECT` requests to port `443` are permitted from the agent's source IP.
-
-</Collapser>
-
-<Collapser
-    id="error-tls-required"
-    title="Proxy configuration ignored: gRPC HTTP CONNECT proxy requires TLS"
->
-
-**Cause:** A proxy is configured but TLS is disabled (for example, `TLS_ENABLED=false`). gRPC's HTTP CONNECT proxy implementation only works when the connection to the OTLP endpoint uses TLS.
-
-**Solution:** Make sure TLS is enabled (it is by default). The agent will then use the configured proxy.
-
-</Collapser>
-
-<Collapser
-    id="error-credential-chars"
-    title="Proxy username contains special or uppercase characters"
->
-
-**Cause:** Your proxy username or password contains characters that gRPC's URI parser doesn't accept. See [Credential character restrictions](#credential-restrictions).
-
-**Solution:** Use a proxy account with a lowercase alphanumeric username and a password that uses only letters, digits, and the allowed special characters.
-
-</Collapser>
-
-</CollapserGroup>
+If the agent isn't routing through the proxy or you encounter errors, see [Troubleshoot the eBPF proxy](/docs/ebpf/troubleshooting/proxy).
 
 ## Security considerations [#security]
 
-* **Telemetry data stays TLS-encrypted end-to-end.** The proxy only sees an encrypted tunnel to the OTLP endpoint; it never has access to your data.
+* **Telemetry data stays TLS-encrypted end-to-end.** The proxy only sees an encrypted tunnel to the OTLP endpoint. It never has access to your data.
 * **Proxy credentials are sent in plaintext to the proxy** because the `https://` proxy scheme isn't supported. Only use proxy authentication on a trusted network between the agent and the proxy. If you need encrypted transport between the agent and proxy, run the proxy on `localhost` or use a VPN.
 * **Passwords are never written to agent logs.** The username may appear in log lines such as `Proxy authentication enabled (username: <user>)` for debugging.
 * **In Kubernetes, prefer `existingSecret` over inline credentials** to keep proxy passwords out of your `values.yaml` file and source control.
 
-## Related documentation [#related-docs]
-
-<DocTiles>
-    <DocTile title="eBPF Linux installation" path="/docs/ebpf/linux-installation/">Install and configure the eBPF agent on a Linux host.</DocTile>
-    <DocTile title="eBPF Kubernetes installation" path="/docs/ebpf/k8s-installation/">Install and configure the eBPF agent on a Kubernetes cluster.</DocTile>
-    <DocTile title="eBPF compatibility and requirements" path="/docs/ebpf/requirements/">Review compatibility requirements for the eBPF agent.</DocTile>
-    <DocTile title="Troubleshooting eBPF" path="/docs/ebpf/troubleshooting/no-ui-data/">Troubleshoot issues with the eBPF agent.</DocTile>
-</DocTiles>
