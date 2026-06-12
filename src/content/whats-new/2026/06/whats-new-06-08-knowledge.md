@@ -1,7 +1,7 @@
 ---
 title: 'New Relic Knowledge is now Generally Available'
 summary: 'Give your teams instant access to operational knowledge, service relationships, and troubleshooting context directly within the New Relic AI platform.'
-learnMoreLink: '/docs/agentic-ai/knowledge-integration/overview/'
+learnMoreLink: 'https://docs.newrelic.com/docs/agentic-ai/knowledge-integration/overview/'
 releaseDate: '2026-06-08'
 ---
 
