@@ -1,0 +1,872 @@
+---
+title: Monitor Redis with OpenTelemetry
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Redis
+metaDescription: 'Monitor Redis using the NRDOT+ OpenTelemetry collector for enhanced observability.'
+freshnessValidatedDate: never
+---
+
+{/* DEMO clone of NR-576327 docs PR for AFA2026 hackathon — tracked under EPIC NR-576657. Do not merge. */}
+
+Monitor your Redis servers with OpenTelemetry using the NRDOT+ collector (recommended) or OpenTelemetry Collector Contrib. This integration uses the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) and [redisreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/redisreceiver) to automatically collect and send performance data, memory statistics, and operational insights to New Relic.
+
+## Overview [#overview]
+
+The OpenTelemetry Redis integration provides comprehensive monitoring of your Redis infrastructure, including memory usage, client connections, command throughput, keyspace statistics, and replication health.
+
+**Supported Redis versions:**
+- Redis 6.x
+- Redis 7.x
+- Redis 8.x
+
+**Supported topologies:**
+- Standalone
+- Cluster
+- Sentinel
+
+**Key benefits:**
+- **OTel standard**: Vendor-neutral, open-source telemetry collection aligned with the OpenTelemetry ecosystem
+- **Richer metrics**: Cumulative counters, detailed CPU breakdowns, and per-database keyspace metrics
+- **Better scalability**: Designed for high-cardinality environments with efficient batching and filtering
+- **Future-proof**: Active community development with growing metric coverage
+
+## Before you begin [#prerequisites]
+
+Ensure you have:
+
+- Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- Redis server accessible from the collector host (default port 6379)
+- One of the following collectors installed:
+  - [NRDOT+ collector](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation) (recommended), or
+  - [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest)
+- Network access from the collector host to:
+  - Redis server endpoint (default: `localhost:6379`)
+  - New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+<Callout variant="important">
+If using Redis ACLs (Redis 6+), ensure the monitoring user has permissions to run the `INFO` and `CONFIG GET` commands. For minimal permissions, create a dedicated monitoring user:
+
+```bash
+ACL SETUSER nrdot_monitor on >your_password +info +config|get ~* &*
+```
+</Callout>
+
+## Set up Redis monitoring [#setup]
+
+Choose your deployment environment to begin monitoring:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="bare-metal">
+      Bare Metal / VM
+    </TabsBarItem>
+    <TabsBarItem id="kubernetes">
+      Kubernetes (Helm)
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="bare-metal">
+
+Monitor Redis on bare metal or virtual machine deployments using the NRDOT+ collector or OpenTelemetry Collector Contrib.
+
+<CollapserGroup>
+
+  <Collapser id="configure-collector" title="Step 1: Configure the collector">
+
+Create the configuration file at `/etc/nrdot/config.d/redis.yaml`:
+
+```yaml
+receivers:
+  redis:
+    endpoint: "localhost:6379"
+    collection_interval: 15s
+    # Optional: TLS configuration
+    # tls:
+    #   ca_file: /path/to/ca.pem
+    #   cert_file: /path/to/cert.pem
+    #   key_file: /path/to/key.pem
+    # Optional: Authentication
+    # password: ${env:REDIS_PASSWORD}
+    # username: ${env:REDIS_USERNAME}  # For ACL-based auth (Redis 6+)
+
+processors:
+  # Detect system information
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+
+  # Add Redis-specific identification
+  resource/redis:
+    attributes:
+      - key: redis.server.endpoint
+        value: "localhost:6379"
+        action: upsert
+      - key: redis.deployment.name
+        value: "<DEPLOYMENT_NAME>"  # Replace with your deployment name
+        action: upsert
+
+  # Batch metrics for efficient sending
+  batch:
+    timeout: 30s
+    send_batch_size: 1024
+
+exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    metrics:
+      receivers: [redis]
+      processors: [resourcedetection, resource/redis, batch]
+      exporters: [otlphttp]
+```
+
+#### Configuration parameters
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`endpoint`</td>
+    <td>The Redis server address and port (for example `localhost:6379`)</td>
+  </tr>
+  <tr>
+    <td>`collection_interval`</td>
+    <td>How often to collect metrics. Default: `15s`</td>
+  </tr>
+  <tr>
+    <td>`password`</td>
+    <td>Redis password for authentication. Use environment variable reference for security.</td>
+  </tr>
+  <tr>
+    <td>`username`</td>
+    <td>Redis username for ACL-based authentication (Redis 6+). Use environment variable reference.</td>
+  </tr>
+  <tr>
+    <td>`tls.ca_file`</td>
+    <td>Path to CA certificate file for TLS connections</td>
+  </tr>
+  <tr>
+    <td>`tls.cert_file`</td>
+    <td>Path to client certificate file for mutual TLS</td>
+  </tr>
+  <tr>
+    <td>`tls.key_file`</td>
+    <td>Path to client key file for mutual TLS</td>
+  </tr>
+  <tr>
+    <td>`<DEPLOYMENT_NAME>`</td>
+    <td>Replace with a unique name for this Redis instance (for example `production-cache-01`, `session-store-primary`)</td>
+  </tr>
+</tbody>
+</table>
+
+  </Collapser>
+
+  <Collapser id="configure-environment" title="Step 2: Configure environment variables">
+
+Set up the required environment variables for the collector service. Create or edit the environment file:
+
+```bash
+# For NRDOT+ collector
+sudo tee -a /etc/nrdot-collector/nrdot-collector.conf > /dev/null <<EOF
+NEW_RELIC_LICENSE_KEY=<YOUR_LICENSE_KEY>
+OTEL_EXPORTER_OTLP_ENDPOINT=<YOUR_NEWRELIC_OTLP_ENDPOINT>
+EOF
+
+# Optional: If using Redis authentication
+sudo tee -a /etc/nrdot-collector/nrdot-collector.conf > /dev/null <<EOF
+REDIS_PASSWORD=<YOUR_REDIS_PASSWORD>
+REDIS_USERNAME=<YOUR_REDIS_USERNAME>
+EOF
+```
+
+Determine your OTLP endpoint based on your New Relic region. See [Configure endpoint, port, and protocol](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) for the complete list.
+
+  </Collapser>
+
+  <Collapser id="start-monitoring" title="Step 3: Start monitoring">
+
+Restart the collector and verify data flow:
+
+1. Apply configuration and restart:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart nrdot-collector
+   ```
+
+2. Verify the service is running:
+
+   ```bash
+   sudo systemctl status nrdot-collector
+   ```
+
+   Expected output: `Active: active (running)` with no recent errors.
+
+3. Check collector logs for errors:
+
+   ```bash
+   sudo journalctl -u nrdot-collector -n 20
+   ```
+
+4. Verify data in New Relic by running this NRQL query:
+
+   ```sql
+   FROM Metric SELECT uniques(metricName) WHERE metricName LIKE 'redis.%' SINCE 5 minutes ago
+   ```
+
+   You should also see a `REDIS_INSTANCE` entity appear in [New Relic Entity Explorer](https://one.newrelic.com/nr1-core?state=infra).
+
+  </Collapser>
+
+</CollapserGroup>
+
+    </TabsPageItem>
+
+    <TabsPageItem id="kubernetes">
+
+Monitor Redis on Kubernetes using the NRDOT+ collector Helm chart.
+
+<CollapserGroup>
+
+  <Collapser id="k8s-helm-install" title="Step 1: Install with Helm">
+
+Add the New Relic Helm repository and install the NRDOT+ collector with Redis monitoring enabled:
+
+```bash
+helm repo add newrelic https://helm-charts.newrelic.com
+helm repo update
+
+helm install nrdot-redis newrelic/nrdot-collector \
+  --set redis.enabled=true \
+  --set redis.endpoint="redis-service:6379" \
+  --set licenseKey=YOUR_LICENSE_KEY
+```
+
+For Redis instances requiring authentication:
+
+```bash
+helm install nrdot-redis newrelic/nrdot-collector \
+  --set redis.enabled=true \
+  --set redis.endpoint="redis-service:6379" \
+  --set redis.password="YOUR_REDIS_PASSWORD" \
+  --set licenseKey=YOUR_LICENSE_KEY
+```
+
+  </Collapser>
+
+  <Collapser id="k8s-custom-values" title="Step 2: (Optional) Customize with values file">
+
+For more complex configurations, create a `values.yaml` file:
+
+```yaml
+licenseKey: "YOUR_LICENSE_KEY"
+
+redis:
+  enabled: true
+  endpoint: "redis-service:6379"
+  collectionInterval: 15s
+  # Optional authentication
+  # password: "YOUR_REDIS_PASSWORD"
+  # username: "YOUR_REDIS_USERNAME"
+  # Optional TLS
+  # tls:
+  #   enabled: true
+  #   caFile: /path/to/ca.pem
+```
+
+Install using the values file:
+
+```bash
+helm install nrdot-redis newrelic/nrdot-collector -f values.yaml
+```
+
+  </Collapser>
+
+  <Collapser id="k8s-verify" title="Step 3: Verify deployment">
+
+Check that the collector pods are running:
+
+```bash
+kubectl get pods -l app.kubernetes.io/name=nrdot-collector
+```
+
+Check collector logs:
+
+```bash
+kubectl logs -l app.kubernetes.io/name=nrdot-collector --tail=20
+```
+
+Verify data in New Relic:
+
+```sql
+FROM Metric SELECT uniques(metricName) WHERE metricName LIKE 'redis.%' SINCE 5 minutes ago
+```
+
+  </Collapser>
+
+</CollapserGroup>
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Metrics collected [#metrics]
+
+The OpenTelemetry Redis receiver collects the following key metrics:
+
+<table>
+<thead>
+  <tr>
+    <th>Metric name</th>
+    <th>Type</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`redis.clients.connected`</td>
+    <td>Gauge</td>
+    <td>Number of client connections (excluding replica connections)</td>
+  </tr>
+  <tr>
+    <td>`redis.clients.blocked`</td>
+    <td>Gauge</td>
+    <td>Number of clients pending on a blocking call</td>
+  </tr>
+  <tr>
+    <td>`redis.clients.max_input_buffer`</td>
+    <td>Gauge</td>
+    <td>Biggest input buffer among current client connections</td>
+  </tr>
+  <tr>
+    <td>`redis.clients.max_output_buffer`</td>
+    <td>Gauge</td>
+    <td>Longest output list among current client connections</td>
+  </tr>
+  <tr>
+    <td>`redis.memory.used`</td>
+    <td>Gauge</td>
+    <td>Total bytes allocated by Redis using its allocator</td>
+  </tr>
+  <tr>
+    <td>`redis.memory.peak`</td>
+    <td>Gauge</td>
+    <td>Peak memory consumed by Redis (in bytes)</td>
+  </tr>
+  <tr>
+    <td>`redis.memory.rss`</td>
+    <td>Gauge</td>
+    <td>Bytes that Redis allocated as seen by the operating system (resident set size)</td>
+  </tr>
+  <tr>
+    <td>`redis.memory.fragmentation_ratio`</td>
+    <td>Gauge</td>
+    <td>Ratio between `memory.rss` and `memory.used`</td>
+  </tr>
+  <tr>
+    <td>`redis.memory.lua`</td>
+    <td>Gauge</td>
+    <td>Bytes used by the Lua engine</td>
+  </tr>
+  <tr>
+    <td>`redis.commands.processed`</td>
+    <td>Cumulative counter</td>
+    <td>Total number of commands processed by the server</td>
+  </tr>
+  <tr>
+    <td>`redis.connections.received`</td>
+    <td>Cumulative counter</td>
+    <td>Total number of connections accepted by the server</td>
+  </tr>
+  <tr>
+    <td>`redis.connections.rejected`</td>
+    <td>Cumulative counter</td>
+    <td>Number of connections rejected because of `maxclients` limit</td>
+  </tr>
+  <tr>
+    <td>`redis.keyspace.hits`</td>
+    <td>Cumulative counter</td>
+    <td>Number of successful lookup of keys in the main dictionary</td>
+  </tr>
+  <tr>
+    <td>`redis.keyspace.misses`</td>
+    <td>Cumulative counter</td>
+    <td>Number of failed lookup of keys in the main dictionary</td>
+  </tr>
+  <tr>
+    <td>`redis.net.input`</td>
+    <td>Cumulative counter</td>
+    <td>Total number of bytes read from the network</td>
+  </tr>
+  <tr>
+    <td>`redis.net.output`</td>
+    <td>Cumulative counter</td>
+    <td>Total number of bytes written to the network</td>
+  </tr>
+  <tr>
+    <td>`redis.rdb.changes_since_last_save`</td>
+    <td>Gauge</td>
+    <td>Number of changes since the last RDB dump</td>
+  </tr>
+  <tr>
+    <td>`redis.cpu.time`</td>
+    <td>Cumulative counter</td>
+    <td>System and user CPU time consumed by the Redis server, with `state` attribute (`sys` or `user`)</td>
+  </tr>
+  <tr>
+    <td>`redis.keys.expired`</td>
+    <td>Cumulative counter</td>
+    <td>Total number of key expiration events</td>
+  </tr>
+  <tr>
+    <td>`redis.keys.evicted`</td>
+    <td>Cumulative counter</td>
+    <td>Number of evicted keys due to `maxmemory` limit</td>
+  </tr>
+  <tr>
+    <td>`redis.replication.offset`</td>
+    <td>Gauge</td>
+    <td>The replication offset of the server</td>
+  </tr>
+  <tr>
+    <td>`redis.replication.backlog_first_byte_offset`</td>
+    <td>Gauge</td>
+    <td>The master offset of the replication backlog buffer</td>
+  </tr>
+  <tr>
+    <td>`redis.db.keys`</td>
+    <td>Gauge</td>
+    <td>Number of keys in the database (with `db` attribute for database index)</td>
+  </tr>
+  <tr>
+    <td>`redis.db.expires`</td>
+    <td>Gauge</td>
+    <td>Number of keys with an expiration in the database</td>
+  </tr>
+  <tr>
+    <td>`redis.uptime`</td>
+    <td>Gauge</td>
+    <td>Number of seconds since Redis server start</td>
+  </tr>
+</tbody>
+</table>
+
+## Migration from nri-redis [#migration]
+
+If you are currently using the New Relic infrastructure Redis integration (`nri-redis`), this section guides you through migrating to the OpenTelemetry-based approach.
+
+### Why migrate [#why-migrate]
+
+- **Richer metrics**: The OTel Redis receiver collects additional metrics not available in `nri-redis`, including memory fragmentation ratio, network I/O, & per-database keyspace stats
+- **Better scalability**: Efficient batching, filtering, and resource detection for high-cardinality environments
+- **OTel standard**: Vendor-neutral telemetry aligned with the broader OpenTelemetry ecosystem
+- **Active development**: The OTel receiver receives frequent updates from the open-source community
+
+### Key differences [#key-differences]
+
+<Callout variant="important">
+The following differences affect NRQL queries and alert conditions. Update your dashboards and alerts after migration.
+</Callout>
+
+**Rate metrics:** OTel uses cumulative counters instead of pre-computed rates. Use the `rate()` function in NRQL to compute rates:
+
+```sql
+-- nri-redis (pre-computed rate)
+FROM RedisSample SELECT average(net.commandsProcessedPerSecond)
+
+-- OTel equivalent (use rate function)
+FROM Metric SELECT rate(sum(redis.commands.processed), 1 second)
+```
+
+**CPU metrics:** OTel consolidates CPU metrics into `redis.cpu.time` with a `state` attribute (`sys` or `user`) instead of separate `system` and `user` CPU fields:
+
+```sql
+-- nri-redis
+FROM RedisSample SELECT average(system.usedCpuSysMilliseconds)
+
+-- OTel equivalent
+FROM Metric SELECT rate(sum(redis.cpu.time), 1 second) WHERE state = 'sys'
+```
+
+**Uptime:** OTel reports uptime in seconds; `nri-redis` reports in milliseconds:
+
+```sql
+-- nri-redis (milliseconds)
+FROM RedisSample SELECT latest(system.uptimeMilliseconds) / 1000
+
+-- OTel equivalent (already in seconds)
+FROM Metric SELECT latest(redis.uptime)
+```
+
+### Metric mapping table [#metric-mapping]
+
+The following table maps key `nri-redis` metrics to their OTel equivalents:
+
+<table>
+<thead>
+  <tr>
+    <th>nri-redis metric (RedisSample)</th>
+    <th>OTel metric</th>
+    <th>NRQL conversion</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`net.connectedClients`</td>
+    <td>`redis.clients.connected`</td>
+    <td>`FROM Metric SELECT latest(redis.clients.connected)`</td>
+  </tr>
+  <tr>
+    <td>`net.blockedClients`</td>
+    <td>`redis.clients.blocked`</td>
+    <td>`FROM Metric SELECT latest(redis.clients.blocked)`</td>
+  </tr>
+  <tr>
+    <td>`system.usedMemoryBytes`</td>
+    <td>`redis.memory.used`</td>
+    <td>`FROM Metric SELECT latest(redis.memory.used)`</td>
+  </tr>
+  <tr>
+    <td>`system.usedMemoryPeakBytes`</td>
+    <td>`redis.memory.peak`</td>
+    <td>`FROM Metric SELECT latest(redis.memory.peak)`</td>
+  </tr>
+  <tr>
+    <td>`system.usedMemoryRssBytes`</td>
+    <td>`redis.memory.rss`</td>
+    <td>`FROM Metric SELECT latest(redis.memory.rss)`</td>
+  </tr>
+  <tr>
+    <td>`system.memFragmentationRatio`</td>
+    <td>`redis.memory.fragmentation_ratio`</td>
+    <td>`FROM Metric SELECT latest(redis.memory.fragmentation_ratio)`</td>
+  </tr>
+  <tr>
+    <td>`net.commandsProcessedPerSecond`</td>
+    <td>`redis.commands.processed`</td>
+    <td>`FROM Metric SELECT rate(sum(redis.commands.processed), 1 second)`</td>
+  </tr>
+  <tr>
+    <td>`net.connectionsReceivedPerSecond`</td>
+    <td>`redis.connections.received`</td>
+    <td>`FROM Metric SELECT rate(sum(redis.connections.received), 1 second)`</td>
+  </tr>
+  <tr>
+    <td>`net.rejectedConnectionsPerSecond`</td>
+    <td>`redis.connections.rejected`</td>
+    <td>`FROM Metric SELECT rate(sum(redis.connections.rejected), 1 second)`</td>
+  </tr>
+  <tr>
+    <td>`db.keyspaceHitsPerSecond`</td>
+    <td>`redis.keyspace.hits`</td>
+    <td>`FROM Metric SELECT rate(sum(redis.keyspace.hits), 1 second)`</td>
+  </tr>
+  <tr>
+    <td>`db.keyspaceMissesPerSecond`</td>
+    <td>`redis.keyspace.misses`</td>
+    <td>`FROM Metric SELECT rate(sum(redis.keyspace.misses), 1 second)`</td>
+  </tr>
+  <tr>
+    <td>`net.inputBytesPerSecond`</td>
+    <td>`redis.net.input`</td>
+    <td>`FROM Metric SELECT rate(sum(redis.net.input), 1 second)`</td>
+  </tr>
+  <tr>
+    <td>`net.outputBytesPerSecond`</td>
+    <td>`redis.net.output`</td>
+    <td>`FROM Metric SELECT rate(sum(redis.net.output), 1 second)`</td>
+  </tr>
+  <tr>
+    <td>`system.usedCpuSysMilliseconds`</td>
+    <td>`redis.cpu.time` (state=sys)</td>
+    <td>`FROM Metric SELECT rate(sum(redis.cpu.time), 1 second) WHERE state = 'sys'`</td>
+  </tr>
+  <tr>
+    <td>`system.usedCpuUserMilliseconds`</td>
+    <td>`redis.cpu.time` (state=user)</td>
+    <td>`FROM Metric SELECT rate(sum(redis.cpu.time), 1 second) WHERE state = 'user'`</td>
+  </tr>
+  <tr>
+    <td>`db.evictedKeysPerSecond`</td>
+    <td>`redis.keys.evicted`</td>
+    <td>`FROM Metric SELECT rate(sum(redis.keys.evicted), 1 second)`</td>
+  </tr>
+  <tr>
+    <td>`db.expiredKeysPerSecond`</td>
+    <td>`redis.keys.expired`</td>
+    <td>`FROM Metric SELECT rate(sum(redis.keys.expired), 1 second)`</td>
+  </tr>
+  <tr>
+    <td>`system.uptimeMilliseconds`</td>
+    <td>`redis.uptime`</td>
+    <td>`FROM Metric SELECT latest(redis.uptime)` (already in seconds)</td>
+  </tr>
+</tbody>
+</table>
+
+### Migration procedure [#migration-procedure]
+
+Follow these steps to migrate from `nri-redis` to the OTel Redis integration:
+
+<Steps>
+
+<Step>
+
+### Install the NRDOT+ collector
+
+Install and configure the NRDOT+ collector following the [setup instructions](#setup) above. Do not disable `nri-redis` yet.
+
+</Step>
+
+<Step>
+
+### Run both in parallel
+
+Run both `nri-redis` and the OTel collector simultaneously for a validation period (recommended: 1-2 weeks). This allows you to:
+
+- Verify that OTel metrics match expected values
+- Update dashboards and alerts to use new metric names
+- Confirm no gaps in data coverage
+
+Compare key metrics between the two integrations:
+
+```sql
+-- Compare connected clients from both sources
+FROM Metric SELECT latest(redis.clients.connected) AS 'OTel'
+FROM RedisSample SELECT latest(net.connectedClients) AS 'nri-redis'
+```
+
+</Step>
+
+<Step>
+
+### Updating dashboards and alerts
+
+Update all NRQL queries in dashboards and alert conditions to use the OTel metric names and patterns documented in the [metric mapping table](#metric-mapping).
+
+</Step>
+
+<Step>
+
+### Disable nri-redis
+
+Once you have validated data parity and updated all dashboards and alerts, disable the `nri-redis` integration:
+
+```bash
+# Remove or rename the nri-redis config
+sudo mv /etc/newrelic-infra/integrations.d/redis-config.yml /etc/newrelic-infra/integrations.d/redis-config.yml.bak
+
+# Restart the infrastructure agent
+sudo systemctl restart newrelic-infra
+```
+
+</Step>
+
+</Steps>
+
+## Dashboards and alerts [#dashboards-alerts]
+
+### Pre-built dashboard
+
+A pre-built Redis OpenTelemetry dashboard is available through [New Relic Instant Observability](https://newrelic.com/instant-observability). The dashboard includes panels for:
+
+- Connected clients and blocked clients
+- Memory usage (used, peak, RSS, fragmentation ratio)
+- Commands processed per second
+- Keyspace hit ratio
+- Network I/O throughput
+- Key evictions and expirations
+- CPU utilization
+- Replication status
+
+### Recommended alert conditions
+
+Set up the following alert conditions using NRQL:
+
+<table>
+<thead>
+  <tr>
+    <th>Alert condition</th>
+    <th>NRQL query</th>
+    <th>Threshold</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>High memory usage</td>
+    <td>`FROM Metric SELECT latest(redis.memory.used) / latest(redis.memory.peak) * 100`</td>
+    <td>Warning: > 80%, Critical: > 90%</td>
+  </tr>
+  <tr>
+    <td>High memory fragmentation</td>
+    <td>`FROM Metric SELECT latest(redis.memory.fragmentation_ratio)`</td>
+    <td>Warning: > 1.5, Critical: > 2.0</td>
+  </tr>
+  <tr>
+    <td>Connected clients spike</td>
+    <td>`FROM Metric SELECT latest(redis.clients.connected)`</td>
+    <td>Set based on your `maxclients` configuration</td>
+  </tr>
+  <tr>
+    <td>Rejected connections</td>
+    <td>`FROM Metric SELECT rate(sum(redis.connections.rejected), 1 minute)`</td>
+    <td>Critical: > 0</td>
+  </tr>
+  <tr>
+    <td>Low keyspace hit ratio</td>
+    <td>`FROM Metric SELECT rate(sum(redis.keyspace.hits), 1 minute) / (rate(sum(redis.keyspace.hits), 1 minute) + rate(sum(redis.keyspace.misses), 1 minute)) * 100`</td>
+    <td>Warning: &lt; 90%, Critical: &lt; 80%</td>
+  </tr>
+  <tr>
+    <td>High eviction rate</td>
+    <td>`FROM Metric SELECT rate(sum(redis.keys.evicted), 1 minute)`</td>
+    <td>Warning: > 100/min, Critical: > 1000/min</td>
+  </tr>
+</tbody>
+</table>
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+
+  <Collapser id="troubleshoot-entity-missing" title="Entity not appearing in New Relic">
+
+If the `REDIS_INSTANCE` entity does not appear in Entity Explorer:
+
+1. Verify the `instrumentation.provider` attribute is set. The OTel collector automatically sets this, but ensure no processor is stripping it.
+
+2. Check that metrics are being received:
+
+   ```sql
+   FROM Metric SELECT count(*) WHERE metricName LIKE 'redis.%' SINCE 10 minutes ago
+   ```
+
+3. Confirm the collector is running and connected:
+
+   ```bash
+   sudo systemctl status nrdot-collector
+   sudo journalctl -u nrdot-collector --since "5 minutes ago"
+   ```
+
+4. Entity synthesis may take up to 5 minutes after the first metrics arrive.
+
+  </Collapser>
+
+  <Collapser id="troubleshoot-metrics-missing" title="Metrics missing or incomplete">
+
+If some or all metrics are not appearing:
+
+1. Verify Redis endpoint connectivity from the collector host:
+
+   ```bash
+   redis-cli -h localhost -p 6379 ping
+   ```
+
+   Expected output: `PONG`
+
+2. Check that the Redis `INFO` command returns data:
+
+   ```bash
+   redis-cli -h localhost -p 6379 INFO
+   ```
+
+3. Review collector logs for connection errors:
+
+   ```bash
+   sudo journalctl -u nrdot-collector | grep -i "redis\|error"
+   ```
+
+4. Verify the receiver configuration matches your Redis server's actual address and port.
+
+  </Collapser>
+
+  <Collapser id="troubleshoot-auth" title="Authentication errors">
+
+If you see authentication-related errors in collector logs:
+
+1. Verify credentials are correct:
+
+   ```bash
+   redis-cli -h localhost -p 6379 -a YOUR_PASSWORD ping
+   ```
+
+2. For Redis 6+ with ACLs, verify the user has proper permissions:
+
+   ```bash
+   redis-cli -h localhost -p 6379 --user YOUR_USERNAME --pass YOUR_PASSWORD ACL WHOAMI
+   ```
+
+3. Check that environment variables are properly set in the collector configuration:
+
+   ```bash
+   sudo systemctl show nrdot-collector --property=Environment
+   ```
+
+4. Ensure the password does not contain special characters that need escaping in YAML.
+
+  </Collapser>
+
+  <Collapser id="troubleshoot-high-ingest" title="High ingest volume">
+
+If Redis metrics are contributing to high data ingest:
+
+1. Increase the collection interval to reduce metric volume:
+
+   ```yaml
+   receivers:
+     redis:
+       collection_interval: 30s  # or 60s for lower volume
+   ```
+
+2. Use a filter processor to exclude metrics you do not need:
+
+   ```yaml
+   processors:
+     filter/redis:
+       metrics:
+         exclude:
+           match_type: strict
+           metric_names:
+             - redis.replication.backlog_first_byte_offset
+             - redis.clients.max_input_buffer
+             - redis.clients.max_output_buffer
+
+   service:
+     pipelines:
+       metrics:
+         processors: [filter/redis, resourcedetection, resource/redis, batch]
+   ```
+
+3. If monitoring multiple databases, consider filtering per-database keyspace metrics to only the databases you use.
+
+  </Collapser>
+
+</CollapserGroup>
+
+## Next steps [#next-steps]
+
+After setting up Redis monitoring:
+
+- **Explore your data**: Use [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/) to query Redis metrics and build custom visualizations
+- **Set up alerts**: Create [alert conditions](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) based on the [recommended queries](#dashboards-alerts)
+- **Monitor related services**: If Redis is part of a larger stack, explore monitoring for [Kafka](/docs/opentelemetry/integrations/kafka/overview), [NGINX](/docs/opentelemetry/integrations/nginx/nginx-otel-overview), or other services
+- **Review existing Redis docs**: For the infrastructure agent integration, see [Redis monitoring integration](/docs/infrastructure/host-integrations/host-integrations-list/redis/redis-integration)
