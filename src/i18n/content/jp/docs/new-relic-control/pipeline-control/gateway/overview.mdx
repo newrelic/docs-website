@@ -112,13 +112,13 @@ Pipeline Control ゲートウェイは次のような場合に役立ちます。
 ゲートウェイ設定では、宣言型構造の YAML ファイルを使用します。
 
 ```yaml
-version: 2.0.1
+version: 2.0.0
 autoscaling:
   minReplicas: 6
   maxReplicas: 10
   targetCPUUtilizationPercentage: 60
 configuration:
-  simplified/v2:
+  simplified/v1:
     troubleshooting:
       proxy: false
       requestTraceLogs: false
@@ -140,73 +140,70 @@ configuration:
         output:
           - filter/Logs
         config:
-          rules:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
             - name: sample the log records for ruby test service
               description: sample the log records for ruby test service with 70%
               sampling_percentage: 70
               source_of_randomness: trace.id
-              conditions:
-                - resource.attributes["service.name"] == "ruby-test-service"
-          default_sampling_percentage: 100
+              condition: resource.attributes["service.name"] == "ruby-test-service"
       probabilistic_sampler/Traces:
         description: Probabilistic sampling for traces
         output:
           - filter/Traces
         config:
-          default_sampling_percentage: 100
+          global_sampling_percentage: 80
       filter/Logs:
         description: Apply drop rules and data processing for logs
         output:
           - transform/Logs
         config:
           error_mode: ignore
-          rules:
-            - name: drop the log records
-              description: drop all records which has severity text INFO
-              conditions:
-                - log.severity_text == "INFO"
-              context: log
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
       filter/Metrics:
         description: Apply drop rules and data processing for metrics
         output:
           - transform/Metrics
         config:
           error_mode: ignore
-          rules:
-            - name: drop-internal-metrics
-              description: drop internal metric
-              conditions:
-                - IsMatch(name, "^internal\\.")
-              context: metric
-            - name: drop-debug-datapoints
-              description: drop-debug-datapoints
-              conditions:
-                - attributes["metric.type"] == "debug"
-              context: datapoint
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
       filter/Traces:
         description: Apply drop rules and data processing for traces
         output:
           - transform/Traces
         config:
           error_mode: ignore
-          rules:
-            - name: drop-health-endpoint
-              description: drop-health-endpoint
-              conditions:
-                - attributes["http.path"] == "/health"
-              context: span
-            - name: drop-debug-events
-              description: drop-debug-events
-              conditions:
-                - name == "debug_event"
-              context: span_event
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
       transform/Logs:
         description: Transform and process logs
         output:
           - nrexporter/newrelic
         config:
-          rules:
-            - name: add new field to attribute
+          log_statements:
+            - context: log
+              name: add new field to attribute
               description: for otlp-test-service application add newrelic source type field
               conditions:
                 - resource.attributes["service.name"] == "otlp-java-test-service"
@@ -217,9 +214,10 @@ configuration:
         output:
           - nrexporter/newrelic
         config:
-          rules:
-            - name: adding a new attributes
-              description: adding a new field into a attributes
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
               conditions:
                 - resource.attributes["service.name"] == "payments-api"
               statements:
@@ -229,8 +227,9 @@ configuration:
         output:
           - nrexporter/newrelic
         config:
-          rules:
-            - name: remove the attribute
+          trace_statements:
+            - context: span
+              name: remove the attribute
               description: remove the attribute when service name is payment-service
               conditions:
                 - resource.attributes["service.name"] == "payment-service"
@@ -242,7 +241,7 @@ configuration:
 
 主な特徴:
 
-* バージョン宣言: version: `2.0.1`は設定スキーマを指定します
+* バージョン宣言: version: `2.0.0`は設定スキーマを指定します
 * ステップの命名: 形式は processortype/TelemetryType です (例: `transform/Logs` 、 `filter/Metrics`)
 * 出力チェーン: 各ステップは出力目標を宣言し、処理パイプラインを作成します。
 
@@ -310,31 +309,25 @@ UIバックグラウンドで YAML 設定を生成し、随時プレビューを
 
 ゲートウェイは統一設定モデルを使用します。
 
-1. すべての処理ステップを定義するYAML設定ファイルを作成します。
-2. UI（YAMLをアップロード）経由でゲートウェイフリートにデプロイします。
-3. Gatewayは、フリート内のすべてのゲートウェイクラスタに設定を適用します。
-4. フリート内のすべてのクラスタは、同じルールを使用してデータを同一に処理します。
+1. すべての処理ステップを定義するYAML設定ファイル**を作成します**
+2. UI（YAMLアップロード）経由でクラスタに**デプロイします**
+3. **ゲートウェイは組織内のすべてのゲートウェイクラスタに設定を適用します**
+4. **すべてのクラスターは**同じルールを使用してデータを同じように処理します
 
 **バージョン管理:**
 
-* 設定変更ごとに新しいバージョンが作成されます（フリート単位）
-* バージョン履歴を表示し、必要に応じてロールバックします。
-* &quot;デプロイメントが必要&quot;バッジは保留中の変更を示します。
-* 異なるフリートは、異なる設定やバージョンを維持できます。
+* 設定を変更するたびに新しいバージョンが作成されます
+* バージョン履歴を表示し、必要に応じてロールバックする
+* 「デプロイメントが必要」バッジは保留中の変更を示します
 
 ## 次のステップ
 
-**ゲートウェイインストレーションの開始：**
-
-* [Fluxでインストール](/docs/new-relic-control/pipeline-control/gateway/set-up-and-deploy-pipeline-control) — UIによるゲートウェイの完全なライフサイクル管理（インストール、アップグレード、スケール）
-* [Fluxなしでのインストール](/docs/new-relic-control/pipeline-control/gateway/install-gateway-without-flux) — 権限を制限した設定専用モード
-
-**パイプラインの設定：**
+パスを選択してください:
 
 * **ビジュアル設定**:[ゲートウェイUIを使用する](/docs/new-relic-control/pipeline-control/gateway/ui-guide)
 * **YAML設定**: [YAMLの構造を学ぶ](/docs/new-relic-control/pipeline-control/gateway/yaml-overview)
 
-**プロセッサタイプを調べる：**
+または、特定のプロセッサ タイプについて詳しく見てみましょう。
 
 * [変換プロセッサ](/docs/new-relic-control/pipeline-control/gateway/transform-processor)- OTTL を使用してデータを変更、強化、解析する
 * [フィルタープロセッサ](/docs/new-relic-control/pipeline-control/gateway/filter-processor)- OTTL条件を使用して不要なデータをドロップします
