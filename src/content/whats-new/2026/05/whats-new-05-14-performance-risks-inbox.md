@@ -1,6 +1,7 @@
 ---
 title: "Performance Risks Inbox is now in Public Preview"
 summary: "Detect and resolve critical coding anti-patterns before they impact your customers using Performance Risks Inbox, now free during Public Preview."
+learnMoreLink: 'https://docs.newrelic.com/docs/errors-inbox/performance-risks/introduction/'
 releaseDate: "2026-05-14"
 ---
 
