@@ -1,0 +1,287 @@
+---
+title: 뉴렐릭 eBPF 에이전트용 프록시 구성
+metaDescription: Route New Relic eBPF agent telemetry through an HTTP proxy on Linux hosts or Kubernetes clusters in restricted-network environments.
+tags:
+  - New Relic integrations with eBPF
+  - New Relic eBPF agent
+  - eBPF integration
+  - eBPF proxy
+  - Corporate proxy
+freshnessValidatedDate: never
+translationType: machine
+---
+
+환경에서 기업 프록시를 통해 아웃바운드 트래픽을 라우팅하는 경우, 해당 프록시를 통해 OTLP 텔레메트리를 전송하도록 뉴렐릭 <DNT>eBPF agent</DNT> 을(를) 구성할 수 있습니다. 이 페이지에서는 Linux 호스트 및 Kubernetes 클러스터에서 프록시 지원을 구성하는 방법, 프록시 서버 요구 사항, 일반적인 문제를 해결하는 방법을 설명합니다.
+
+<Callout variant="important">
+  <DNT>eBPF agent</DNT> 은(는) <DNT>`http://`</DNT> 스킴만 사용하는 HTTP CONNECT 프록시를 지원합니다. gRPC 제한으로 인해 에이전트는 <DNT>`https://`</DNT> 체계(프록시에 직접 연결되는 TLS 암호화 연결)를 지원하지 않습니다. 그러나 텔레메트리 데이터는 에이전트와 뉴렐릭 OTLP 엔드포인트 간에 항상 **엔드투엔드** 로 TLS 암호화됩니다. <DNT>`http://`</DNT> 접두사는 에이전트가 터널을 설정하기 위해 프록시와 통신하는 방법만 지정합니다. 프록시 자체는 암호화된 트래픽만 볼 수 있으며 사용자의 데이터에는 절대 접근할 수 없습니다.
+</Callout>
+
+## 프록시 지원 작동 방식 [#how-it-works]
+
+<DNT>eBPF agent</DNT> 은(는) gRPC의 내장 HTTP 프록시 지원을 사용합니다. 프록시를 구성하면 에이전트는:
+
+1. 프록시 서버에 연결합니다.
+2. 뉴렐릭 OTLP 엔드포인트로 터널을 열기 위해 <DNT>`HTTP CONNECT`</DNT> 요청을 보냅니다.
+3. 해당 터널을 통해 OTLP 엔드포인트와 TLS 핸드셰이크를 수행합니다.
+4. 자격 증명을 제공한 경우 <DNT>`Proxy-Authorization: Basic <base64>`</DNT> 헤더를 추가합니다.
+
+## 프록시 서버 요구 사항 [#proxy-requirements]
+
+프록시 서버는 다음을 지원해야 합니다:
+
+* HTTP <DNT>`CONNECT`</DNT> 메서드(OTLP 엔드포인트로의 TLS 터널링에 필요).
+* 포트 `443` (으)로 터널링 중입니다(OTLP 엔드포인트는 HTTPS를 사용합니다).
+* 인증된 프록시 액세스를 사용하는 경우, HTTP 기본 인증.
+
+### 지원되는 프록시 서버 [#supported-proxies]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        대리
+      </th>
+
+      <th>
+        지원되나요?
+      </th>
+
+      <th>
+        Notes
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Squid
+      </td>
+
+      <td>
+        네
+      </td>
+
+      <td>
+        권장합니다. 기본적으로 
+
+        <DNT>`CONNECT`</DNT>
+
+         을(를) 지원합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        아파치 
+
+        <DNT>`mod_proxy`</DNT>
+      </td>
+
+      <td>
+        네
+      </td>
+
+      <td>
+        <DNT>`AllowCONNECT`</DNT>
+
+         설정이 필요합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        nginx
+      </td>
+
+      <td>
+        모듈 사용
+      </td>
+
+      <td>
+        <DNT>`ngx_http_proxy_connect_module`</DNT>
+
+         모듈이 필요합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        HAProxy
+      </td>
+
+      <td>
+        아니요
+      </td>
+
+      <td>
+        HAProxy는 리버스 프록시/로드 밸런서이며 포워드 프록시 
+
+        <DNT>`CONNECT`</DNT>
+
+         메서드를 지원하지 않습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        대부분의 기업용 프록시
+      </td>
+
+      <td>
+        일반적으로 그렇습니다
+      </td>
+
+      <td>
+        IT 또는 네트워크 팀에 문의하십시오.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 자격 증명 문자 제한 [#credential-limitations]
+
+<Callout variant="caution">
+  프록시 사용자 이름에 대문자가 포함되어 있거나, 사용자 이름 또는 비밀번호에 특수 문자가 포함되어 있는 경우, 프록시 인증이 알림 없이 실패합니다. <DNT>eBPF agent</DNT> 은(는) 시작 시 이러한 경우를 포착하고 오류 로그를 남기므로 조용한 실패를 디버깅하는 일이 없습니다.
+</Callout>
+
+프록시 자격 증명을 구성할 때는 다음 문자만 사용하십시오:
+
+* **사용자 이름:** 소문자(`a–z`), 숫자(`0–9`), 하이픈(`-`), 밑줄(`_`), 마침표(`.`) 및 물결표(`~`). 대문자는 허용되지 않습니다.
+* **비밀번호:** 문자(`a–z`, `A–Z`), 숫자(`0–9`), 하이픈(`-`), 밑줄(`_`), 마침표(`.`) 및 물결표(`~`).
+
+사용자 이름 또는 비밀번호에는 다음 문자가 **허용되지 않습니다**: `@`, `:`, `/`, `?`, `#`, `[`, `]`, `!`, `$`, `&`, `'`, `(`, `)`, `*`, `+`, `,`, `;`, `=`, `%`, 공백 및 기타 특수 문자.
+
+기존 프록시 자격 증명에 허용되지 않는 문자가 사용된 경우, 프록시 관리자에게 소문자 영숫자 사용자 이름과 간단한 비밀번호를 사용하는 <DNT>eBPF agent</DNT> 전용 프록시 계정을 생성해 달라고 요청하십시오.
+
+## 설정 우선순위 [#configuration-precedence]
+
+둘 이상의 소스에서 프록시를 정의하는 경우, 에이전트는 다음 순서로 이를 적용합니다:
+
+* <DNT>`otlpProxy.url`</DNT> — 전체 프록시 URL.
+* <DNT>`otlpProxy.*`</DNT> — 개별 프록시 설정(<DNT>`host`</DNT>, <DNT>`port`</DNT>, <DNT>`scheme`</DNT>, <DNT>`user`</DNT>, <DNT>`password`</DNT>).
+
+이 우선순위는 Linux 호스트와 Kubernetes 배포 모두에 적용됩니다.
+
+## 프록시 구성 [#configure]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="k8s">Kubernetes용</TabsBarItem> <TabsBarItem id="linux">Linux용</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="k8s">
+      Kubernetes 클러스터의 경우 <DNT>Helm</DNT> <DNT>`values.yaml`</DNT> 파일에서 프록시를 구성합니다.
+
+      <DNT>`values.yaml`</DNT>에 <DNT>`otlpProxy:`</DNT> 블록 추가:
+
+      ```yaml
+      otlpProxy:
+        host: "proxy.corporate.com"
+        port: 8080
+        scheme: "http"
+        user: "myuser"
+        password: "mypassword"
+        url: ""
+        existingSecret: ""
+      ```
+
+      또는 전체 프록시 URL을 제공하려면 <DNT>`url:`</DNT> 을(를) <DNT>`http://[user:pass@]host:port`</DNT> (으)로 설정하세요. 에이전트는 <DNT>`http`</DNT> 스킴만 지원합니다.
+
+      프로덕션 배포의 경우 <DNT>`user:`</DNT> 및 <DNT>`password:`</DNT> 을(를) 인라인으로 설정하는 대신 Kubernetes 시크릿에 자격 증명을 저장하세요. <DNT>`proxy-user`</DNT> 및 <DNT>`proxy-password`</DNT> 키로 시크릿을 생성하고 <DNT>`existingSecret:`</DNT>을(를) 통해 참조하십시오:
+
+      ```bash
+      kubectl create secret generic ebpf-proxy-creds \
+        --namespace newrelic \
+        --from-literal=proxy-user=myuser \
+        --from-literal=proxy-password=mypassword
+      ```
+
+      그런 다음 변경 사항을 적용합니다:
+
+      ```bash
+      helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
+      ```
+
+      <DNT>`otlpProxy.*`</DNT> 파라미터의 전체 목록은 Kubernetes 설치 페이지의 [K8s 설정 파라미터](/docs/ebpf/k8s-installation/#config-params) 를 참조하십시오.
+    </TabsPageItem>
+
+    <TabsPageItem id="linux">
+      Linux 호스트의 경우 <DNT>`newrelic-ebpf-agent.yaml`</DNT> 설정 파일에서 프록시를 구성하십시오.
+
+      <DNT>`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml`</DNT>에 <DNT>`otlpProxy:`</DNT> 블록 추가:
+
+      ```yaml
+      otlpProxy:
+        host: "proxy.corporate.com"
+        port: 8080
+        scheme: "http"
+        user: "myuser"
+        password: "mypassword"
+        url: ""
+      ```
+
+      또는 전체 프록시 URL을 제공하려면 <DNT>`url:`</DNT> 을(를) <DNT>`http://[user:pass@]host:port`</DNT> (으)로 설정하세요. 에이전트는 <DNT>`http`</DNT> 스킴만 지원합니다.
+
+      파일을 저장한 후 권한을 제한하고 에이전트를 다시 시작합니다:
+
+      ```bash
+      sudo chmod 600 /etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml
+      sudo systemctl restart newrelic-ebpf-agent
+      ```
+
+      <DNT>`otlpProxy.*`</DNT> 파라미터의 전체 목록은 Linux 설치 페이지의 [설정 파라미터](/docs/ebpf/linux-installation/#config-params) 를 참조하십시오.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 프록시 설정을 확인하십시오. [#verify-config]
+
+프록시를 구성한 후, 에이전트가 예상대로 이를 사용하고 있는지 확인합니다.
+
+### 에이전트 로그 확인 [#check-agent-log]
+
+에이전트 로그에서 프록시 관련 메시지를 확인하십시오:
+
+```bash
+journalctl -u newrelic-ebpf-agent | grep -i proxy
+```
+
+다음 메시지 중 하나를 찾습니다:
+
+* <DNT>`Using proxy for OTLP endpoint: <endpoint> via http://<host>:<port>`</DNT> — 프록시가 활성화되었습니다.
+* <DNT>`Proxy authentication enabled (username: <user>)`</DNT> — 기본 인증이 구성되었습니다.
+* <DNT>`Direct connection to OTLP endpoint (no proxy configured)`</DNT> — 사용 중인 프록시가 없습니다.
+
+### 프록시 연결 테스트 [#test-connectivity]
+
+<DNT>`curl`</DNT> 을(를) 사용하여 프록시가 <DNT>`HTTP CONNECT`</DNT> 메서드를 지원하고 뉴렐릭 OTLP 엔드포인트에 도달할 수 있는지 확인하세요:
+
+```bash
+# Unauthenticated proxy
+curl -v -x http://proxy.example.com:8080 https://otlp.nr-data.net
+
+# Authenticated proxy
+curl -v -x http://user:pass@proxy.example.com:8080 https://otlp.nr-data.net
+```
+
+성공적인 응답에는 다음이 포함됩니다:
+
+```
+< HTTP/1.1 200 Connection established
+* Proxy replied 200 to CONNECT request
+* CONNECT phase completed!
+```
+
+에이전트가 프록시를 통해 라우팅되지 않거나 오류가 발생하는 경우, [eBPF 프록시 문제 해결](/docs/ebpf/troubleshooting/proxy)을 참조하세요.
+
+## 보안 고려 사항 [#security]
+
+프록시를 통해 에이전트를 라우팅할 때 다음 사항에 유의하십시오:
+
+* **텔레메트리 데이터는 엔드투엔드로 TLS 암호화 상태를 유지합니다.** 프록시는 OTLP 엔드포인트로 연결되는 암호화된 터널만 볼 수 있습니다. 귀하의 데이터에 절대 접근하지 않습니다.
+* 에이전트가 <DNT>`https://`</DNT> 프록시 체계를 지원하지 않기 때문에 **프록시 자격 증명이 프록시에 일반 텍스트로 전송됩니다**. 에이전트와 프록시 간의 신뢰할 수 있는 네트워크에서만 프록시 인증을 사용하십시오. 에이전트와 프록시 간에 암호화된 전송이 필요한 경우, <DNT>`localhost`</DNT> 에서 프록시를 실행하거나 VPN을 사용하십시오.
+* **에이전트는 로그에 비밀번호를 절대 기록하지 않습니다.** 디버깅을 위해 <DNT>`Proxy authentication enabled (username: <user>)`</DNT> 과(와) 같은 로그 줄에 사용자 이름이 표시될 수 있습니다.
+* 프록시 비밀번호가 <DNT>`values.yaml`</DNT> 파일 및 소스 제어에 포함되지 않도록 **Kubernetes 배포는 인라인 자격 증명 대신 <DNT>`existingSecret`</DNT> 을(를) 사용해야 합니다**.
