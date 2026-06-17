@@ -1,0 +1,288 @@
+---
+title: Capture AJAX request and response payloads
+tags:
+  - Browser monitoring
+  - Configuration
+  - AJAX payloads
+metaDescription: "Configure the browser agent to capture request and response payloads for AJAX requests to help debug network issues."
+freshnessValidatedDate: never
+---
+
+The browser agent can capture detailed payload information from AJAX requests, including request and response headers, bodies, and query parameters. This helps you quickly diagnose failed network requests, especially for GraphQL APIs and other modern architectures where errors may be hidden within a 200 OK response body.
+
+## How it works [#how-it-works]
+
+When you enable AJAX payload capture, the browser agent adds the following attributes to `AjaxRequest` events:
+
+* `requestBody`: The request payload (truncated at 4KB)
+* `requestHeaders`: Request headers as JSON (truncated at 4KB)
+* `requestQuery`: URL query parameters as JSON (truncated at 4KB)
+* `responseBody`: The response payload (truncated at 4KB)
+* `responseHeaders`: Response headers as JSON (truncated at 4KB)
+* `ajaxRequest.id`: Unique identifier for each AJAX request
+
+Payloads are captured only for requests with human-readable content types (like `application/json`, `text/html`, `application/xml`). Binary content is excluded.
+
+All payload data attributes are truncated at 4096 bytes. When truncation occurs, the last 4 bytes are replaced with ` …` to indicate the content was cut off.
+
+## Configure via UI [#configure-ui]
+
+<Callout variant="important">
+AJAX payload capture is available as of browser agent [version 1.317.0](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes). This feature supports copy/paste, NPM browser installation methods, and APM-injected applications.
+</Callout>
+
+To configure AJAX payload capture in the browser application settings:
+
+1. Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select a browser app) > Settings > Application settings**.
+2. Scroll down to the **AJAX** section.
+3. Enable the "Capture payload for allowed domains" toggle.
+4. Set the **Capture payloads** option to one of:
+   * **Failures**: Capture payloads only for failed requests (4xx/5xx status codes and GraphQL errors in 200 responses)
+   * **All**: Capture payloads for all AJAX requests
+
+The AJAX settings section in the browser application settings:
+
+<img
+  title="AJAX payload capture settings"
+  alt="Screenshot showing the AJAX section with capture payload toggle and options"
+  src="/images/browser_ajax_payloads_flow_1.png"
+/>
+
+Configure the capture mode based on your needs:
+
+<img
+  title="AJAX payload capture mode selection"
+  alt="Screenshot showing the capture payloads dropdown with None, Failures, and All options"
+  src="/images/browser_ajax_payloads_flow_2.png"
+/>
+
+<Callout variant="tip">
+You can configure obfuscation rules in the UI to mask sensitive data before it's sent to New Relic. See [Obfuscate browser agent data](/docs/browser/new-relic-browser/configuration/obfuscate-browser-agent-data) for details on how to create obfuscation rules.
+</Callout>
+
+<Callout variant="important">
+**Default obfuscation rules**: When you enable AJAX payload capture for the first time, New Relic automatically adds baseline obfuscation rules to protect common sensitive data:
+- **Credit card numbers**: Detects and masks major credit card formats (Visa, MasterCard, American Express, Discover, etc.)
+- **Social Security numbers**: Detects and masks SSN patterns
+
+While these rules provide a reasonable baseline, they are not foolproof. **You should extend them with your own custom obfuscation rules** tailored to your application's specific data patterns and compliance requirements. Review the [Security and obfuscation](#security) section below for more details.
+</Callout>
+
+## Configure via NerdGraph [#configure-nerdgraph]
+
+You can use the NerdGraph API to query and update the AJAX payload capture setting.
+
+### Query current setting
+
+```graphql
+{
+  actor {
+    entities(guids: ["YOUR_BROWSER_APP_GUID"]) {
+      ... on BrowserApplicationEntity {
+        browserSettings {
+          browserMonitoring {
+            ajax {
+              capturePayloads
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Update setting
+
+```graphql
+mutation {
+  agentApplicationSettingsUpdate(
+    settings: {browserMonitoring: {ajax: {capturePayloads: "failures"}}}
+    guid: "YOUR_BROWSER_APP_GUID"
+  ) {
+    browserSettings {
+      browserMonitoring {
+        ajax {
+          capturePayloads
+        }
+      }
+    }
+  }
+}
+```
+
+Valid values for `capturePayloads` are:
+* `"none"`: No payload capture (default)
+* `"failures"`: Capture only failed requests
+* `"all"`: Capture all requests
+
+## Configure via init block [#configure-init]
+
+If you're using the copy/paste or NPM installation method, you can configure AJAX payload capture directly in your JavaScript configuration.
+
+### Copy/paste installation
+
+Add the `ajax.capture_payloads` setting to your browser configuration before the agent loader:
+
+```js
+window.NREUM.init = {
+    ...<other init properties>...,
+    ajax: {
+      deny_list: ["bam.nr-data.net"],
+      capture_payloads: 'failures' // or 'none', 'all'
+    }
+}
+```
+
+### NPM installation
+
+Add the `ajax.capture_payloads` setting when initializing the browser agent:
+
+```js
+import { BrowserAgent } from '@newrelic/browser-agent/loaders/browser-agent'
+
+const options = {
+  init: {
+    ...<other init properties>...,
+    ajax: {
+      deny_list: ["bam.nr-data.net"],
+      capture_payloads: 'failures' // or 'none', 'all'
+    }
+  },
+  info: { ... },
+  loader_config: { ... }
+}
+
+new BrowserAgent(options)
+```
+
+## Capture modes [#capture-modes]
+
+The `capture_payloads` setting controls when payload data is captured:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Mode
+      </th>
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        `none`
+      </td>
+      <td>
+        **Default**. Do not capture any payload data. Only standard AJAX metadata (URL, status code, duration) is collected.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `failures`
+      </td>
+      <td>
+        Capture payload data only when requests fail. This includes:
+        * HTTP status codes of 400 or higher (4xx, 5xx errors)
+        * Status code 0 (network failures)
+        * Status code 200 with a GraphQL error signature in the response body
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `all`
+      </td>
+      <td>
+        Capture payload data for every AJAX request, regardless of status code. Use this mode cautiously as it significantly increases data volume.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Security and obfuscation [#security]
+
+<Callout variant="important">
+Capturing AJAX payloads may expose sensitive data. We strongly recommend reviewing and extending the default obfuscation rules with your own custom patterns **before** enabling payload capture in production.
+</Callout>
+
+### Automatic baseline obfuscation rules
+
+When you enable AJAX payload capture for the first time, New Relic automatically adds baseline obfuscation rules to protect common sensitive data patterns:
+
+* **Credit card numbers**: Common credit card formats (Visa, MasterCard, American Express, Discover, JCB, etc.) are replaced with `XXXX-XXXX-XXXX-XXXX`
+* **Social Security numbers**: SSN patterns are replaced with `XXX-XX-XXXX`
+
+**Important**: These automatic rules are designed to catch common patterns but are **not foolproof**. They serve as a reasonable baseline for general protection. You should:
+
+1. **Extend with custom rules**: Add obfuscation patterns specific to your application's data structures (e.g., custom account IDs, internal identifiers, API keys)
+2. **Test in development**: Verify that sensitive data is properly masked before enabling in production
+3. **Review regularly**: Update rules as your application's data patterns evolve
+
+These default rules apply only to `AjaxRequest` events and can be viewed, customized, or disabled in the UI or via NerdGraph.
+
+### Additional security best practices
+
+For comprehensive data protection:
+1. **Configure custom obfuscation**: Set up regex patterns to mask PII like email addresses, account IDs, session tokens, or other sensitive fields specific to your application. See [Obfuscate browser agent data](/docs/browser/new-relic-browser/configuration/obfuscate-browser-agent-data) for detailed configuration.
+2. **Start with "failures" mode**: Begin with the `failures` capture mode to limit data collection to error cases only, reducing your risk surface.
+3. **Review the AJAX deny list**: Ensure highly sensitive endpoints (authentication, payment processing, personal health information) are on the [AJAX deny list](/docs/browser/new-relic-browser/configuration/filter-ajax-request-events) to exclude them entirely from data collection.
+4. **Consider user identification**: If using `newrelic.setUserId()` with obfuscation rules, see [Obfuscation and user identification](/docs/browser/new-relic-browser/configuration/obfuscate-browser-agent-data#obfuscation-and-user-identification) to avoid conflicts.
+
+## Requirements [#requirements]
+
+AJAX payload capture requires:
+* Browser agent [version 1.317.0](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes) or higher.
+
+## Troubleshooting [#troubleshooting]
+
+### Payloads not appearing
+
+If you've enabled payload capture but don't see the new attributes in your `AjaxRequest` events:
+
+1. **Verify the capture mode**: Ensure `capture_payloads` is set to `failures` or `all` (not `none`).
+2. **Check agent version**: Confirm you're running browser agent version 1.317.0 or higher. You can check this in the agent configuration or via the `agentVersion` attribute on your telemetry.
+3. **Review AJAX deny list**: If the endpoint is on the deny list, no data (including payloads) will be captured. Check your deny list configuration in the browser app settings.
+4. **Check for GraphQL error signature**: For `failures` mode with 200 status codes, the agent looks for error indicators in the response body. If your GraphQL API uses a non-standard error format, payloads may not be captured.
+
+### Data truncated at 4KB
+
+All payload attributes are hard-capped at 4096 bytes. When data is truncated:
+* The agent replaces the last 4 bytes with ` …` (ellipsis with a space) to indicate truncation
+* You can still query and search the captured portion
+* For full payloads exceeding 4KB, consider logging them separately or using session replay to see the full network activity
+
+### Sensitive data visible in payloads
+
+If sensitive information appears in captured payloads:
+
+1. **Add obfuscation rules**: Create regex patterns in the [obfuscation settings](/docs/browser/new-relic-browser/configuration/obfuscate-browser-agent-data) to mask the data before ingest.
+2. **Use out-of-the-box patterns**: The browser agent includes default patterns for credit cards and SSNs that apply to `AjaxRequest` events.
+3. **Update the AJAX deny list**: For endpoints that should never be captured, add them to the AJAX deny list to exclude them entirely.
+
+### Performance impact
+
+Payload capture adds data to each `AjaxRequest` event, which can increase:
+* **Network bandwidth**: Payloads are sent to New Relic as part of the harvest payload.
+* **Data ingest costs**: More event data results in higher data consumption.
+* **Agent overhead**: Serializing and obfuscating payloads adds minimal CPU time.
+
+To minimize impact:
+* Start with `failures` mode to capture only error cases.
+* Use obfuscation rules to reduce payload size. Avoid excessive or complicated obfuscation patterns.
+* Monitor your data ingest dashboard to track volume changes.
+
+### Content-type filtering
+
+Payload bodies are captured only for human-readable content types. Supported types include:
+* `text/*` (e.g., `text/html`, `text/plain`)
+* `application/json`
+* `application/xml`
+* `application/xhtml+xml`
+* `application/ld+json`
+* `application/yaml`
+* `application/x-www-form-urlencoded`
+
+Binary content types (images, videos, PDFs) are excluded automatically. If you're not seeing a payload for a specific request, check the `Content-Type` header to ensure it's in a supported format.
