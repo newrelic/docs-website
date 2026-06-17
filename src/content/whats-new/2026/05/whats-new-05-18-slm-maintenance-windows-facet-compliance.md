@@ -1,7 +1,7 @@
 ---
 title: 'SLM update: Maintenance Windows and Facet Compliance are now Generally Available'
 summary: 'We have implemented two major updates to our Service Level Management (SLM) workflow to improve reporting accuracy and provide deeper diagnostic capabilities.'
-learnMoreLink: '/docs/service-level-management/intro-slm/'
+learnMoreLink: 'https://docs.newrelic.com/docs/service-level-management/intro-slm/'
 releaseDate: '2026-05-18'
 ---
 
@@ -10,7 +10,7 @@ releaseDate: '2026-05-18'
 
 **Learn more**
 
-* [Service Level Maintenance Windows](/docs/service-level-management/maintenance-windows-slm/intro/)
-* [Facet-Based Compliance Tracking](/docs/service-level-management/facet-slm/intro/)
+* [Service Level Maintenance Windows](https://docs.newrelic.com/docs/service-level-management/maintenance-windows-slm/intro/)
+* [Facet-Based Compliance Tracking](https://docs.newrelic.com/docs/service-level-management/facet-slm/intro/)
 
 
