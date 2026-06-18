@@ -1,5 +1,5 @@
 ---
-title: 'End of Life Announcement: New Relic REST API v2 and Deployments v0 API'
+title: 'End of Life Announcement for New Relic REST API v2 and Deployments v0 API'
 summary: 'The New Relic REST API v2 (including Alerts endpoints) and the Deployments v0 API will reach end of life on June 30, 2027.'
 publishDate: '2026-06-30'
 eolEffectiveDate: '2027-06-30'
