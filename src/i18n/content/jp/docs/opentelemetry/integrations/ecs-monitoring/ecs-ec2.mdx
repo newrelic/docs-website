@@ -153,7 +153,105 @@ ECS on EC2タスクの監視を設定するには、次の手順に従います�
                 enabled: false
 
     processors:
-      metricstransform/containers:
+      metricstransform:
+        transforms:
+          - include: system.cpu.utilization
+            action: update
+            operations:
+              - action: aggregate_labels
+                label_set: [ state ]
+                aggregation_type: mean
+          - include: system.paging.operations
+            action: update
+            operations:
+              - action: aggregate_labels
+                label_set: [ direction ]
+                aggregation_type: sum
+      filter/exclude_cpu_utilization:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+            - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+            - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+      filter/exclude_memory_utilization:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+      filter/exclude_memory_usage:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+            - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+      filter/exclude_filesystem_utilization:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+      filter/exclude_filesystem_usage:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+            - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+      filter/exclude_filesystem_inodes_usage:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+            - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+      filter/exclude_system_disk:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+            - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+            - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+            - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+            - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+      filter/exclude_system_paging:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+            - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+      filter/exclude_network:
+        metrics:
+          datapoint:
+            - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+
+      attributes/exclude_system_paging:
+        include:
+          match_type: strict
+          metric_names:
+            - system.paging.operations
+        actions:
+          - key: type
+            action: delete
+
+      cumulativetodelta:
+
+      transform/host:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(metric.description, "")
+              - set(metric.unit, "")
+
+      transform:
+        trace_statements:
+          - context: span
+            statements:
+              - truncate_all(span.attributes, <ATTRIBUTE_TRUNCATION_LIMIT>)
+              - truncate_all(resource.attributes, <RESOURCE_ATTRIBUTE_TRUNCATION_LIMIT>)
+        log_statements:
+          - context: log
+            statements:
+              - truncate_all(log.attributes, <ATTRIBUTE_TRUNCATION_LIMIT>)
+              - truncate_all(resource.attributes, <RESOURCE_ATTRIBUTE_TRUNCATION_LIMIT>)
+
+      memory_limiter:
+        check_interval: <MEMORY_LIMITER_CHECK_INTERVAL>
+        limit_mib: \${env:NEW_RELIC_MEMORY_LIMIT_MIB:-<MEMORY_LIMIT_MIB>}
+      metricstransform/base:
         transforms:
           - include: container.cpu.utilized
             action: insert
@@ -175,104 +273,78 @@ ECS on EC2タスクの監視を設定するには、次の手順に従います�
               - action: add_label
                 new_label: operation
                 new_value: write
-      metricstransform:
+
+      metricstransform/cluster_aggregation:
         transforms:
-          - include: system.cpu.utilization
-            action: update
+          - include: container.cpu.utilization
+            action: insert
+            new_name: ecs.cluster.cpu.utilization
             operations:
               - action: aggregate_labels
-                label_set: [ state ]
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
                 aggregation_type: mean
-          - include: system.paging.operations
-            action: update
+          - include: container.memory.usage.total
+            action: insert
+            new_name: ecs.cluster.memory.usage
             operations:
               - action: aggregate_labels
-                label_set: [ direction ]
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
                 aggregation_type: sum
-      filter/exclude_cpu_utilization:
+          - include: container.network.io.usage.rx_bytes
+            action: insert
+            new_name: ecs.cluster.network.rx_bytes
+            operations:
+              - action: aggregate_labels
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
+                aggregation_type: sum
+          - include: container.network.io.usage.tx_bytes
+            action: insert
+            new_name: ecs.cluster.network.tx_bytes
+            operations:
+              - action: aggregate_labels
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
+                aggregation_type: sum
+      filter/cluster_metrics:
         metrics:
-          datapoint:
-            - 'metric.name == \"system.cpu.utilization\" and attributes[\"state\"] == \"interrupt\"'
-            - 'metric.name == \"system.cpu.utilization\" and attributes[\"state\"] == \"nice\"'
-            - 'metric.name == \"system.cpu.utilization\" and attributes[\"state\"] == \"softirq\"'
-      filter/exclude_memory_utilization:
+          include:
+            match_type: regexp
+            metric_names:
+              - ^ecs\.cluster\..*
+      metricstransform/task_metrics:
+        transforms:
+          - include: container.cpu.utilization
+            action: insert
+            new_name: ecs.task.cpu.utilization
+          - include: container.memory.usage.total
+            action: insert
+            new_name: ecs.task.memory.usage
+          - include: container.blockio.io_service_bytes_recursive
+            action: insert
+            new_name: ecs.task.blockio.io_service_bytes_recursive
+      filter/task_metrics:
         metrics:
-          datapoint:
-            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"slab_unreclaimable\"'
-            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"inactive\"'
-            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"cached\"'
-            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"buffered\"'
-            - 'metric.name == \"system.memory.utilization\" and attributes[\"state\"] == \"slab_reclaimable\"'
-      filter/exclude_memory_usage:
+          include:
+            match_type: regexp
+            metric_names:
+              - ^ecs\.task\..*
+      filter/container_metrics:
         metrics:
-          datapoint:
-            - 'metric.name == \"system.memory.usage\" and attributes[\"state\"] == \"slab_unreclaimable\"'
-            - 'metric.name == \"system.memory.usage\" and attributes[\"state\"] == \"inactive\"'
-      filter/exclude_filesystem_utilization:
-        metrics:
-          datapoint:
-            - 'metric.name == \"system.filesystem.utilization\" and attributes[\"type\"] == \"squashfs\"'
-      filter/exclude_filesystem_usage:
-        metrics:
-          datapoint:
-            - 'metric.name == \"system.filesystem.usage\" and attributes[\"type\"] == \"squashfs\"'
-            - 'metric.name == \"system.filesystem.usage\" and attributes[\"state\"] == \"reserved\"'
-      filter/exclude_filesystem_inodes_usage:
-        metrics:
-          datapoint:
-            - 'metric.name == \"system.filesystem.inodes.usage\" and attributes[\"type\"] == \"squashfs\"'
-            - 'metric.name == \"system.filesystem.inodes.usage\" and attributes[\"state\"] == \"reserved\"'
-      filter/exclude_system_disk:
-        metrics:
-          datapoint:
-            - 'metric.name == \"system.disk.operations\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
-            - 'metric.name == \"system.disk.merged\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
-            - 'metric.name == \"system.disk.io\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
-            - 'metric.name == \"system.disk.io_time\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
-            - 'metric.name == \"system.disk.operation_time\" and IsMatch(attributes[\"device\"], \"^loop.*\") == true'
-      filter/exclude_system_paging:
-        metrics:
-          datapoint:
-            - 'metric.name == \"system.paging.usage\" and attributes[\"state\"] == \"cached\"'
-            - 'metric.name == \"system.paging.operations\" and attributes[\"type\"] == \"cached\"'
-      filter/exclude_network:
-        metrics:
-          datapoint:
-            - 'IsMatch(metric.name, \"^system.network.*\") == true and attributes[\"device\"] == \"lo\"'
-
-      attributes/exclude_system_paging:
-        include:
-          match_type: strict
-          metric_names:
-            - system.paging.operations
-        actions:
-          - key: type
-            action: delete
-
-      cumulativetodelta:
-
-      transform/host:
+          include:
+            match_type: regexp
+            metric_names:
+              - ^container\..*
+      transform/cluster_identifier:
         metric_statements:
-          - context: metric
+          - context: resource
             statements:
-              - set(metric.description, \"\")
-              - set(metric.unit, \"\")
-
-      transform:
-        trace_statements:
-          - context: span
+            - set(attributes["aws.arn"], resource.attributes["aws.ecs.task.arn"]) where resource.attributes["aws.ecs.task.arn"] != nil and resource.attributes["aws.ecs.cluster.name"] != nil
+            - replace_pattern(attributes["aws.arn"], ":task/.*", "") where attributes["aws.arn"] != nil
+            - set(attributes["aws.arn"], Concat([attributes["aws.arn"], ":cluster/", resource.attributes["aws.ecs.cluster.name"]], "")) where attributes["aws.arn"] != nil and resource.attributes["aws.ecs.cluster.name"] != nil
+      transform/task_identifier:
+        metric_statements:
+          - context: resource
             statements:
-              - truncate_all(span.attributes, <ATTRIBUTE_TRUNCATION_LIMIT>)
-              - truncate_all(resource.attributes, <RESOURCE_ATTRIBUTE_TRUNCATION_LIMIT>)
-        log_statements:
-          - context: log
-            statements:
-              - truncate_all(log.attributes, <ATTRIBUTE_TRUNCATION_LIMIT>)
-              - truncate_all(resource.attributes, <RESOURCE_ATTRIBUTE_TRUNCATION_LIMIT>)
-
-      memory_limiter:
-        check_interval: <MEMORY_LIMITER_CHECK_INTERVAL>
-        limit_mib: \${env:NEW_RELIC_MEMORY_LIMIT_MIB:-<MEMORY_LIMIT_MIB>}
+            - set(attributes["TaskArn"], resource.attributes["aws.ecs.task.arn"]) where resource.attributes["aws.ecs.task.arn"] != nil
       batch:
         send_batch_size: <SEND_BATCH_SIZE>
         timeout: <BATCH_TIMEOUT>
@@ -293,7 +365,50 @@ ECS on EC2タスクの監視を設定するには、次の手順に従います�
           - key: LaunchType
             from_attribute: aws.ecs.launch_type
             action: insert
+      resource/cluster:
+        attributes:
+          - key: ClusterName
+            from_attribute: aws.ecs.cluster.name
+            action: insert
+          - key: cloud.platform
+            value: "aws_ecs"
+            action: upsert
 
+      resource/task:
+        attributes:
+          - key: ClusterName
+            from_attribute: aws.ecs.cluster.name
+            action: insert
+          - key: ServiceName
+            from_attribute: aws.ecs.service.name
+            action: insert
+          - key: TaskId
+            from_attribute: aws.ecs.task.id
+            action: insert
+          - key: TaskArn
+            from_attribute: aws.ecs.task.arn
+            action: insert
+          - key: TaskDefinitionFamily
+            from_attribute: aws.ecs.task.family
+            action: insert
+          - key: LaunchType
+            from_attribute: aws.ecs.launch_type
+            action: insert
+          - key: cloud.platform
+            value: "aws_ecs"
+            action: upsert
+          - key: docker.host
+            from_attribute: aws.ecs.task.id
+            action: insert
+          - key: docker.imageName
+            from_attribute: container.image.name
+            action: insert
+          - key: docker.containerId
+            from_attribute: container.id
+            action: insert
+          - key: docker.state
+            from_attribute: aws.ecs.container.know_status
+            action: insert
       resourcedetection:
         detectors:
           - env
@@ -313,11 +428,41 @@ ECS on EC2タスクの監視を設定するには、次の手順に従います�
         verbosity: basic
 
     service:
-      pipelines:
+    pipelines:
+        metrics/clusters:
+          receivers: [awsecscontainermetrics]
+          processors: [
+            metricstransform/base,
+            metricstransform/cluster_aggregation,
+            filter/cluster_metrics,
+            transform/cluster_identifier,
+            resource/cluster,
+            batch
+            ]
+          exporters: [otlphttp, debug]
+
         metrics/containers:
           receivers: [awsecscontainermetrics]
-          processors: [metricstransform/containers, resource, batch]
+          processors: [
+            metricstransform/base,
+            filter/container_metrics,
+            resource/task,
+            batch
+          ]
           exporters: [otlphttp, debug]
+
+        metrics/tasks:
+          receivers: [awsecscontainermetrics]
+          processors: [
+            metricstransform/base,
+            metricstransform/task_metrics,
+            filter/task_metrics,
+            transform/task_identifier,
+            resource/task,
+            batch
+          ]
+          exporters: [otlphttp, debug]
+
         metrics/host:
           receivers: [hostmetrics]
           processors:

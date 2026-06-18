@@ -36,6 +36,7 @@ import PrivateIcon from './newrelic/private';
 import AttachmentIcon from './newrelic/attachment';
 import DocLinkIcon from './newrelic/doc-link';
 import MediaStreamingIcon from './newrelic/media-streaming';
+import CloudCostIcon from './newrelic/cci';
 
 export default {
   ...defaultIcons,
@@ -76,4 +77,5 @@ export default {
   private: PrivateIcon,
   attachment: AttachmentIcon,
   'doc-link': DocLinkIcon,
+  cci: CloudCostIcon,
 };

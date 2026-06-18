@@ -27,6 +27,50 @@ Para emplear la API del agente .NET, cerciorar de tener la [última versión del
 
 * Vea y descargue el paquete API desde la [biblioteca de paquetes NuGet](https://www.nuget.org/packages/NewRelic.Agent.Api/).
 
+## Notas sobre la inyección de dependencias
+
+Si consume la API del agente a través de `Microsoft.Extensions.DependencyInjection` (o un contenedor similar), hay dos obstáculos que deshabilitarán silenciosamente su instrumentación personalizada sin producir ningún error. Ambos se deben al hecho de que [`IAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent) es un identificador de larga duración, pero [`CurrentTransaction`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ITransaction) y [`CurrentSpan`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) son vistas de ámbito de solicitud que deben volver a leerse en cada llamada.
+
+### Registre `IAgent` de forma diferida, no anticipada
+
+[`GetAgent()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#GetAgent) debe llamarse **después** de que el generador de perfiles haya terminado de adjuntarse. Si lo resuelve de forma anticipada mientras se construye el contenedor de DI, es posible que almacene en caché el marcador de posición no-op que devuelve la API antes de que el agente esté activo, dejando a la aplicación con una API deshabilitada silenciosamente durante el tiempo de vida del proceso. Usa una lambda de fábrica para que la llamada se difiera hasta la primera resolución:
+
+```cs
+// ❌ Eager — may capture the no-op placeholder
+builder.Services.AddSingleton<IAgent>(NewRelic.Api.Agent.NewRelic.GetAgent());
+
+// ✅ Lazy — GetAgent() runs on first resolution, after the profiler is ready
+builder.Services.AddSingleton<IAgent>(_ => NewRelic.Api.Agent.NewRelic.GetAgent());
+```
+
+### No almacene en caché `ITransaction` o `ISpan` en los campos
+
+`IAgent` en sí es seguro de almacenar, pero `CurrentTransaction` y `CurrentSpan` deben leerse de nuevo cada vez que se utilicen. Capturarlos en un constructor o campo vincula su servicio a cualquier solicitud que estuviera en curso cuando el campo se asignó por primera vez. Cada llamada posterior escribe entonces atributos, errores y eventos en una transacción que ya finalizó, y los datos nunca aparecen en las transacciones que realmente está viendo.
+
+```cs
+// ❌ Captures one request's transaction forever
+public class BuggyService
+{
+    private readonly ITransaction _transaction;
+    public BuggyService(IAgent agent) => _transaction = agent.CurrentTransaction;
+}
+
+// ✅ Fetch per-call
+public class WorkService
+{
+    private readonly IAgent _agent;
+    public WorkService(IAgent agent) => _agent = agent;
+
+    public void DoWork()
+    {
+        var transaction = _agent.CurrentTransaction;
+        transaction.AddCustomAttribute("key", "value");
+    }
+}
+```
+
+Para obtener un tutorial completo y ejecutable, que incluye ejemplos de antipatrones verificados por compilación, consulte el [ejemplo de inyección de dependencia de la API](https://github.com/newrelic/newrelic-dotnet-examples/tree/main/api-dependency-injection) en el respositorio `newrelic-dotnet-examples`.
+
 ## Lista de llamadas de API
 
 La siguiente lista contiene las diferentes llamadas que puede realizar con la API, incluida la sintaxis, los requisitos, la funcionalidad y los ejemplos:

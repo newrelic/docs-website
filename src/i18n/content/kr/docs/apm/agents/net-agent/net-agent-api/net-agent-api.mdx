@@ -27,6 +27,50 @@ translationType: machine
 
 * [NuGet 패키지 라이브러리](https://www.nuget.org/packages/NewRelic.Agent.Api/) 에서 API 패키지를 보고 다운로드합니다.
 
+## 의존성 주입에 대한 참고 사항
+
+`Microsoft.Extensions.DependencyInjection` (또는 유사한 컨테이너)를 통해 에이전트 API를 사용하는 경우, 아무런 오류를 발생시키지 않고 커스텀 측정을 조용히 비활성화하는 두 가지 함정이 있습니다. 두 가지 모두 [`IAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent) 은(는) 수명이 긴 핸들이지만, [`CurrentTransaction`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ITransaction) 및 [`CurrentSpan`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) 은(는) 모든 호출에서 다시 읽어야 하는 요청 범위의 뷰라는 사실에서 비롯됩니다.
+
+### `IAgent` 을(를) 즉시가 아니라 지연 등록하십시오
+
+[`GetAgent()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#GetAgent) 을(를) 프로파일러 연결이 완료된 **후에** 호출해야 합니다. DI 컨테이너가 빌드되는 동안 이를 조기에 리졸브하면, 에이전트가 활성화되기 전에 API가 반환하는 no-op 플레이스홀더를 캐시할 수 있으며, 이로 인해 프로세스의 수명 주기 동안 애플리케이션에 조용히 비활성화된 API가 남게 될 수 있습니다. 호출이 최초 해석 시까지 지연되도록 팩토리 람다를 사용하십시오:
+
+```cs
+// ❌ Eager — may capture the no-op placeholder
+builder.Services.AddSingleton<IAgent>(NewRelic.Api.Agent.NewRelic.GetAgent());
+
+// ✅ Lazy — GetAgent() runs on first resolution, after the profiler is ready
+builder.Services.AddSingleton<IAgent>(_ => NewRelic.Api.Agent.NewRelic.GetAgent());
+```
+
+### 필드에 `ITransaction` 또는 `ISpan` 을(를) 캐시하지 마십시오.
+
+`IAgent` 자체는 저장해도 안전하지만, `CurrentTransaction` 및 `CurrentSpan` 은(는) 사용할 때마다 새로 읽어야 합니다. 생성자나 필드에서 이를 캡처하면 필드가 처음 할당되었을 때 진행 중이던 요청에 서비스가 바인딩됩니다. 그러면 모든 후속 호출은 이미 종료된 트랜잭션에 속성, 오류 및 이벤트를 기록하며, 해당 데이터는 사용자가 실제로 보고 있는 트랜잭션에 전혀 표시되지 않습니다.
+
+```cs
+// ❌ Captures one request's transaction forever
+public class BuggyService
+{
+    private readonly ITransaction _transaction;
+    public BuggyService(IAgent agent) => _transaction = agent.CurrentTransaction;
+}
+
+// ✅ Fetch per-call
+public class WorkService
+{
+    private readonly IAgent _agent;
+    public WorkService(IAgent agent) => _agent = agent;
+
+    public void DoWork()
+    {
+        var transaction = _agent.CurrentTransaction;
+        transaction.AddCustomAttribute("key", "value");
+    }
+}
+```
+
+컴파일이 확인된 안티패턴 예제를 포함하여 완전하고 실행 가능한 단계별 안내를 보려면 `newrelic-dotnet-examples` 저장소의 [API 의존성 주입 예제](https://github.com/newrelic/newrelic-dotnet-examples/tree/main/api-dependency-injection) 를 참조하세요.
+
 ## API 호출 목록
 
 다음 목록에는 구문, 요구 사항, 기능 및 예를 포함하여 API를 사용하여 수행할 수 있는 다양한 호출이 포함되어 있습니다.
