@@ -1,0 +1,107 @@
+---
+title: Connect with WIF using Terraform
+tags:
+  - Integrations
+  - Google Cloud Platform integrations
+  - Get started
+metaDescription: Automate the Workload Identity Federation setup for your Google Cloud Platform integration with New Relic using Terraform.
+freshnessValidatedDate: 2026-06-22
+---
+
+You can automate the Workload Identity Federation setup using Terraform instead of configuring it manually through the GCP Console and New Relic UI.
+
+For the manual setup, see [Connect with Workload Identity Federation](/docs/infrastructure/google-cloud-platform-integrations/get-started/connect-gcp-workload-identity-federation).
+
+## Before you begin [#before-you-begin]
+
+- Terraform installed (v1.0+)
+- The New Relic Terraform provider configured
+- The Google Cloud Terraform provider configured
+- GCP project with the required APIs enabled (see [Requirements](/docs/infrastructure/google-cloud-platform-integrations/get-started/connect-gcp-workload-identity-federation#requirements))
+
+## What Terraform configures [#what-terraform-configures]
+
+The Terraform configuration creates:
+
+- A GCP service account with <DNT>**Viewer**</DNT> and <DNT>**Service Usage Consumer**</DNT> roles
+- A Workload Identity Pool with an OIDC provider pointing to New Relic
+- IAM bindings allowing New Relic to impersonate the service account
+- The New Relic cloud link connecting the GCP project
+
+## Example configuration [#example]
+
+<Callout variant="tip">
+  This is a reference example. Adapt the values to your project, region, and New Relic account. A full working Terraform module will be available in the Terraform Registry.
+</Callout>
+
+```hcl
+# Variables
+variable "gcp_project_id" {}
+variable "nr_account_id" {}
+
+# Service account
+resource "google_service_account" "newrelic" {
+  account_id   = "newrelic-gcp-integration"
+  display_name = "New Relic GCP Integration"
+  project      = var.gcp_project_id
+}
+
+resource "google_project_iam_member" "viewer" {
+  project = var.gcp_project_id
+  role    = "roles/viewer"
+  member  = "serviceAccount:${google_service_account.newrelic.email}"
+}
+
+resource "google_project_iam_member" "service_usage" {
+  project = var.gcp_project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${google_service_account.newrelic.email}"
+}
+
+# Workload Identity Pool
+resource "google_iam_workload_identity_pool" "newrelic" {
+  workload_identity_pool_id = "newrelic-pool"
+  display_name              = "New Relic Pool"
+  project                   = var.gcp_project_id
+}
+
+# OIDC Provider
+resource "google_iam_workload_identity_pool_provider" "newrelic" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.newrelic.workload_identity_pool_id
+  workload_identity_pool_provider_id = "newrelic-provider"
+  display_name                       = "New Relic OIDC Provider"
+  project                            = var.gcp_project_id
+
+  attribute_mapping = {
+    "google.subject"          = "assertion.sub"
+    "attribute.nr_account_id" = "assertion.nr_account_id"
+  }
+
+  attribute_condition = "assertion.nr_account_id == '${var.nr_account_id}'"
+
+  oidc {
+    issuer_uri        = "https://oidc.newrelic.com/r/gcp-cmp"
+    allowed_audiences = ["newrelic-gcp-integrations"]
+  }
+}
+
+# Allow impersonation
+resource "google_service_account_iam_member" "wif_binding" {
+  service_account_id = google_service_account.newrelic.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principal://iam.googleapis.com/${google_iam_workload_identity_pool.newrelic.name}/attribute.nr_account_id/${var.nr_account_id}"
+}
+```
+
+<Callout variant="important">
+  Use `https://oidc.newrelic.com/r/gcp-cmp` for US accounts or `https://oidc.eu.newrelic.com/r/gcp-cmp` for EU accounts.
+</Callout>
+
+## After applying [#after-applying]
+
+After `terraform apply` completes, you still need to:
+
+1. Download the WIF configuration JSON from GCP (the <DNT>**Connected Service Accounts**</DNT> section in the pool).
+2. Upload it in New Relic to complete the link, or use the NerdGraph API to link the account programmatically.
+
+See the [Terraform official documentation](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide) for the full New Relic provider resources for cloud integrations.
