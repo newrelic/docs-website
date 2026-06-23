@@ -1,7 +1,6 @@
 ---
 title: 'Advanced Capabilities now included in Core Observability'
 summary: 'Service Architecture Intelligence, proactive and predictive workflows, and public dashboards are now part of Core Observability for Full Platform Users and Core Compute customers.'
-learnMoreLink: 'https://docs.newrelic.com/docs/service-architecture-intelligence/getting-started/'
 releaseDate: '2026-06-18'
 ---
 
