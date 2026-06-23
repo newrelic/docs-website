@@ -8,17 +8,47 @@ class SearchIndexBuilder {
     this.language = language;
     this.outputDir = path.join(__dirname, '../../src/data');
     
-    // Define content directories for each language
+    // Define multiple content directories for each language
     this.contentDirs = {
-      'en': path.join(__dirname, '../../src/content/docs'),
-      'es': path.join(__dirname, '../../src/i18n/content/es/docs'),
-      'fr': path.join(__dirname, '../../src/i18n/content/fr/docs'),
-      'jp': path.join(__dirname, '../../src/i18n/content/jp/docs'),
-      'kr': path.join(__dirname, '../../src/i18n/content/kr/docs'),
-      'pt': path.join(__dirname, '../../src/i18n/content/pt/docs')
+      'en': [
+        path.join(__dirname, '../../src/content/docs'),
+        path.join(__dirname, '../../src/content/whats-new'),
+        path.join(__dirname, '../../src/content/eol'),
+        path.join(__dirname, '../../src/install')
+      ],
+      'es': [
+        path.join(__dirname, '../../src/i18n/content/es/docs'),
+        path.join(__dirname, '../../src/i18n/content/es/whats-new'),
+        path.join(__dirname, '../../src/i18n/content/es/eol'),
+        path.join(__dirname, '../../src/i18n/content/es/install')
+      ],
+      'fr': [
+        path.join(__dirname, '../../src/i18n/content/fr/docs'),
+        path.join(__dirname, '../../src/i18n/content/fr/whats-new'),
+        path.join(__dirname, '../../src/i18n/content/fr/eol'),
+        path.join(__dirname, '../../src/i18n/content/fr/install')
+      ],
+      'jp': [
+        path.join(__dirname, '../../src/i18n/content/jp/docs'),
+        path.join(__dirname, '../../src/i18n/content/jp/whats-new'),
+        path.join(__dirname, '../../src/i18n/content/jp/eol'),
+        path.join(__dirname, '../../src/i18n/content/jp/install')
+      ],
+      'kr': [
+        path.join(__dirname, '../../src/i18n/content/kr/docs'),
+        path.join(__dirname, '../../src/i18n/content/kr/whats-new'),
+        path.join(__dirname, '../../src/i18n/content/kr/eol'),
+        path.join(__dirname, '../../src/i18n/content/kr/install')
+      ],
+      'pt': [
+        path.join(__dirname, '../../src/i18n/content/pt/docs'),
+        path.join(__dirname, '../../src/i18n/content/pt/whats-new'),
+        path.join(__dirname, '../../src/i18n/content/pt/eol'),
+        path.join(__dirname, '../../src/i18n/content/pt/install')
+      ]
     };
     
-    this.contentDir = this.contentDirs[language] || this.contentDirs['en'];
+    this.contentDirs = this.contentDirs[language] || this.contentDirs['en'];
   }
 
   // Extract clean text content from MDX (simplified approach)
@@ -89,10 +119,10 @@ class SearchIndexBuilder {
   }
 
   // Process a single MDX file
-  processFile(filePath) {
+  processFile(filePath, baseDir) {
     this.totalFiles++;
     try {
-      const relativePath = path.relative(this.contentDir, filePath);
+      const relativePath = path.relative(baseDir, filePath);
       const fileContent = fs.readFileSync(filePath, 'utf-8');
       const { data: frontmatter, content } = matter(fileContent);
 
@@ -109,12 +139,32 @@ class SearchIndexBuilder {
       const textContent = this.extractTextContent(content);
       const headings = this.extractHeadings(content);
 
-      // Generate URL path (without trailing slash to match Gatsby routing)
+      // Generate URL path based on content type
       let urlPath;
+      let contentType = 'docs'; // default
+      
+      // Determine content type from base directory
+      if (baseDir.includes('/whats-new')) {
+        contentType = 'whats-new';
+      } else if (baseDir.includes('/eol')) {
+        contentType = 'eol';
+      } else if (baseDir.includes('/install')) {
+        contentType = 'install';
+      }
+      
+      // Generate appropriate URL path
       if (this.language === 'en') {
-        urlPath = '/docs/' + relativePath.replace(/\.mdx?$/, '').replace(/\/index$/, '');
+        if (contentType === 'docs') {
+          urlPath = '/docs/' + relativePath.replace(/\.mdx?$/, '').replace(/\/index$/, '');
+        } else {
+          urlPath = `/${contentType}/` + relativePath.replace(/\.mdx?$/, '').replace(/\/index$/, '');
+        }
       } else {
-        urlPath = `/${this.language}/docs/` + relativePath.replace(/\.mdx?$/, '').replace(/\/index$/, '');
+        if (contentType === 'docs') {
+          urlPath = `/${this.language}/docs/` + relativePath.replace(/\.mdx?$/, '').replace(/\/index$/, '');
+        } else {
+          urlPath = `/${this.language}/${contentType}/` + relativePath.replace(/\.mdx?$/, '').replace(/\/index$/, '');
+        }
       }
 
       // Calculate content metrics for ranking
@@ -129,7 +179,7 @@ class SearchIndexBuilder {
         content: textContent.substring(0, 2000), // Limit content length
         headings: headings.slice(0, 10), // Limit headings
         tags: frontmatter.tags || [],
-        category: relativePath.split('/')[0], // First directory as category
+        category: contentType === 'docs' ? relativePath.split('/')[0] : contentType, // Use content type or first directory
         language: this.language, // Add language metadata
         wordCount,
         hasMetaDescription,
@@ -171,16 +221,16 @@ class SearchIndexBuilder {
   }
 
   // Recursively process all MDX files
-  processDirectory(dir) {
+  processDirectory(dir, baseDir) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
 
       if (entry.isDirectory()) {
-        this.processDirectory(fullPath);
-      } else if (entry.isFile() && entry.name.endsWith('.mdx')) {
-        const doc = this.processFile(fullPath);
+        this.processDirectory(fullPath, baseDir);
+      } else if (entry.isFile() && (entry.name.endsWith('.mdx') || entry.name.endsWith('.md'))) {
+        const doc = this.processFile(fullPath, baseDir);
         if (doc) {
           this.documents.push(doc);
         }
@@ -191,21 +241,25 @@ class SearchIndexBuilder {
   // Build the search index
   async build() {
     console.log('🔍 Building search index...');
-    console.log(`📂 Processing directory: ${this.contentDir}`);
+    console.log(`📂 Processing directories for ${this.language}:`, this.contentDirs);
 
     this.totalFiles = 0;
     this.skippedFiles = 0;
     this.errorFiles = 0;
 
-    // Check if content directory exists (may be filtered out by BUILD_LANG)
-    if (!fs.existsSync(this.contentDir)) {
-      console.warn(`⚠️  Content directory for ${this.language} does not exist: ${this.contentDir}`);
-      console.log('📝 This is likely due to BUILD_LANG environment variable filtering.');
-      return null; // Skip building for this language
-    }
+    // Process each content directory
+    for (const contentDir of this.contentDirs) {
+      // Check if content directory exists (may be filtered out by BUILD_LANG)
+      if (!fs.existsSync(contentDir)) {
+        console.warn(`⚠️  Content directory for ${this.language} does not exist: ${contentDir}`);
+        console.log('📝 This is likely due to BUILD_LANG environment variable filtering.');
+        continue; // Skip this directory but process others
+      }
 
-    // Process all MDX files
-    this.processDirectory(this.contentDir);
+      console.log(`📁 Processing: ${contentDir}`);
+      // Process all MDX files in this directory
+      this.processDirectory(contentDir, contentDir);
+    }
 
     console.log(`📊 Index Statistics:`);
     console.log(`  Total MDX files found: ${this.totalFiles}`);
@@ -272,18 +326,32 @@ class SearchIndexBuilder {
   // Build search index in memory only (for GraphQL integration)
   async buildInMemory() {
     console.log('🔍 Building search index in memory...');
-    console.log(`📂 Processing directory: ${this.contentDir}`);
+    console.log(`📂 Processing directories for ${this.language}:`, this.contentDirs);
 
     this.totalFiles = 0;
     this.skippedFiles = 0;
     this.errorFiles = 0;
 
-    // Check if content directory exists (may be filtered out by BUILD_LANG)
-    if (!fs.existsSync(this.contentDir)) {
-      console.warn(`⚠️  Content directory for ${this.language} does not exist: ${this.contentDir}`);
-      console.log('📝 This is likely due to BUILD_LANG environment variable filtering.');
-      
-      // Return empty search index for this language
+    let hasAnyContent = false;
+
+    // Process each content directory
+    for (const contentDir of this.contentDirs) {
+      // Check if content directory exists (may be filtered out by BUILD_LANG)
+      if (!fs.existsSync(contentDir)) {
+        console.warn(`⚠️  Content directory for ${this.language} does not exist: ${contentDir}`);
+        console.log('📝 This is likely due to BUILD_LANG environment variable filtering.');
+        continue; // Skip this directory but process others
+      }
+
+      hasAnyContent = true;
+      console.log(`📁 Processing: ${contentDir}`);
+      // Process all MDX files in this directory
+      this.processDirectory(contentDir, contentDir);
+    }
+
+    // If no content directories were found, return empty index
+    if (!hasAnyContent) {
+      console.warn(`⚠️  No content directories available for ${this.language}`);
       return {
         documents: [],
         metadata: {
@@ -298,9 +366,6 @@ class SearchIndexBuilder {
         }
       };
     }
-
-    // Process all MDX files
-    this.processDirectory(this.contentDir);
 
     console.log(`📊 Index Statistics:`);
     console.log(`  Total MDX files found: ${this.totalFiles}`);
