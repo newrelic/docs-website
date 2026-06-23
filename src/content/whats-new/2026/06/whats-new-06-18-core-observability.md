@@ -17,7 +17,7 @@ Gain a centralized, searchable system of record for your enterprise. Understand 
 
 ### Proactive and predictive workflows
 
-Shift from reactive troubleshooting to proactive prevention. With NRQL Predictions and Predictive Alerting, you can get notified of anomalies before thresholds are breached, using a simple toggle directly within your existing alert conditions and using the `PREDICT` syntax in your query.
+Shift from reactive troubleshooting to proactive prevention. With NRQL Predictions and Predictive Alerting, you can get notified of anomalies before thresholds are breached, using a simple toggle directly within your existing alert conditions and using the **PREDICT** syntax in your query.
 
 ### Seamless external sharing
 
@@ -37,7 +37,7 @@ We automatically rolled out the migration to all eligible accounts over two phas
 | [GitHub Integrations](https://docs.newrelic.com/docs/service-architecture-intelligence/github-integrations/github-cloud-integration/) | Native GitHub integrations connected directly to your Service Architecture Intelligence portal. | May 18, 2026 |
 | [Public Dashboards](https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/share-dashboards-publicly/) | External sharing of live dashboards via a public URL, with no New Relic login required. | June 15, 2026 ** |
 | [Predictive Alerting](https://docs.newrelic.com/docs/alerts/create-alert/set-thresholds/predictive-alerts/) | Notifications before a metric threshold is breached, using historical data—no rebuild needed. | June 15, 2026 ** |
-| [NRQL Predictions](https://docs.newrelic.com/docs/query-your-data/explore-query-data/use-charts/nrql-predictions/) | Predictions of future trends and potential performance issues directly within your charts, using `PREDICT`. | June 15, 2026 ** |
+| [NRQL Predictions](https://docs.newrelic.com/docs/query-your-data/explore-query-data/use-charts/nrql-predictions/) | Predictions of future trends and potential performance issues directly within your charts, using **PREDICT**. | June 15, 2026 ** |
 
 *\* No customer action required. Migration was automatic for all eligible accounts.*
 
