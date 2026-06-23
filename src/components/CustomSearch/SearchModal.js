@@ -70,9 +70,23 @@ const SearchModal = ({ onClose, searchData }) => {
           searchIndex = searchIndexes.find(index => index.language === 'en');
         }
         
-        if (!searchIndex || !searchIndex.documents || searchIndex.documents.length === 0) {
+        if (!searchIndex) {
           console.error('No search index data available from GraphQL');
           return;
+        }
+        
+        // Check if this is an empty index due to BUILD_LANG filtering
+        if (!searchIndex.documents || searchIndex.documents.length === 0) {
+          if (searchIndex.metadata?.contentAvailable === false) {
+            console.warn(`⚠️ Search index for ${currentLang} is empty due to BUILD_LANG filtering. Content not available in build.`);
+            console.log('📝 This may happen in Netlify builds where only English content is processed.');
+            // In this case, you might want to show a message or fall back to Swiftype
+            // For now, we'll return early and let the original search handle it
+            return;
+          } else {
+            console.error('No search index documents available from GraphQL');
+            return;
+          }
         }
         
         console.log(`✅ Search index loaded from GraphQL:`, {

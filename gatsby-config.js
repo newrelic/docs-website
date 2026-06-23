@@ -27,22 +27,17 @@ const allI18nFolders = fs
   .filter((folder) => !folder.startsWith('.'));
 
 const ignoreI18nFolders = () => {
-  // For GraphQL search implementation, we need all languages available
-  // Always return empty array to include all i18n content
+  if (process.env.BUILD_LANG) {
+    return allI18nFolders
+      .map((folder) => {
+        if (folder !== process.env.BUILD_LANG) {
+          return `${__dirname}/src/i18n/content/${folder}`;
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
   return [];
-  
-  // Previous BUILD_LANG filtering logic disabled for GraphQL search compatibility
-  // if (process.env.BUILD_LANG) {
-  //   return allI18nFolders
-  //     .map((folder) => {
-  //       if (folder !== process.env.BUILD_LANG) {
-  //         return `${__dirname}/src/i18n/content/${folder}`;
-  //       }
-  //       return null;
-  //     })
-  //     .filter(Boolean);
-  // }
-  // return [];
 };
 
 module.exports = {

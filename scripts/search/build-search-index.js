@@ -197,6 +197,13 @@ class SearchIndexBuilder {
     this.skippedFiles = 0;
     this.errorFiles = 0;
 
+    // Check if content directory exists (may be filtered out by BUILD_LANG)
+    if (!fs.existsSync(this.contentDir)) {
+      console.warn(`⚠️  Content directory for ${this.language} does not exist: ${this.contentDir}`);
+      console.log('📝 This is likely due to BUILD_LANG environment variable filtering.');
+      return null; // Skip building for this language
+    }
+
     // Process all MDX files
     this.processDirectory(this.contentDir);
 
@@ -270,6 +277,27 @@ class SearchIndexBuilder {
     this.totalFiles = 0;
     this.skippedFiles = 0;
     this.errorFiles = 0;
+
+    // Check if content directory exists (may be filtered out by BUILD_LANG)
+    if (!fs.existsSync(this.contentDir)) {
+      console.warn(`⚠️  Content directory for ${this.language} does not exist: ${this.contentDir}`);
+      console.log('📝 This is likely due to BUILD_LANG environment variable filtering.');
+      
+      // Return empty search index for this language
+      return {
+        documents: [],
+        metadata: {
+          totalDocuments: 0,
+          categories: [],
+          tags: [],
+          language: this.language,
+          buildDate: new Date().toISOString(),
+          averageWordCount: 0,
+          totalWordCount: 0,
+          contentAvailable: false
+        }
+      };
+    }
 
     // Process all MDX files
     this.processDirectory(this.contentDir);
