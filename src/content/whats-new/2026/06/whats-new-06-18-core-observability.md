@@ -27,17 +27,17 @@ Democratize your data by sharing live dashboards with stakeholders outside your 
 
 We automatically rolled out the migration to all eligible accounts over two phases, requiring zero customer action to implement.
 
-| Feature | Description | Date moved to Core* | Documentation |
-| --- | --- | --- | --- |
-| Service Catalogs | Centralized inventories of high-value entities, complete with ownership, health, and compliance details. | May 18, 2026 | [Docs](https://docs.newrelic.com/docs/service-architecture-intelligence/catalogs/catalogs/) |
-| Maps | Unified, integrated view of your cloud estate for seamless navigation and architectural exploration. | May 18, 2026 | [Docs](https://docs.newrelic.com/docs/service-architecture-intelligence/maps/advanced-maps/) |
-| Teams | A direct connection between the entities you monitor and the teams that own them, clarifying ownership and speeding up MTTR. | May 18, 2026 | [Docs](https://docs.newrelic.com/docs/service-architecture-intelligence/teams/teams/) |
-| Scorecards | Tools to define, track, and improve engineering best practices and performance against custom metrics. | May 18, 2026 | [Docs](https://docs.newrelic.com/docs/service-architecture-intelligence/scorecards/getting-started/) |
-| E&R NRQL | Direct NRQL access to your Entities & Relationships for building custom views of your architecture. | May 18, 2026 | [Docs](https://docs.newrelic.com/docs/nrql/get-started/query-entities-and-relationships-via-nrql/) |
-| GitHub Integrations | Native GitHub integrations connected directly to your Service Architecture Intelligence portal. | May 18, 2026 | [Docs](https://docs.newrelic.com/docs/service-architecture-intelligence/github-integrations/github-cloud-integration/) |
-| Public Dashboards | External sharing of live dashboards via a public URL, with no New Relic login required. | June 15, 2026 ** | [Docs](https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/share-dashboards-publicly/) |
-| Predictive Alerting | Notifications before a metric threshold is breached, using historical data—no rebuild needed. | June 15, 2026 ** | [Docs](https://docs.newrelic.com/docs/alerts/create-alert/set-thresholds/predictive-alerts/) |
-| NRQL Predictions | Predictions of future trends and potential performance issues directly within your charts, using `PREDICT`. | June 15, 2026 ** | [Docs](https://docs.newrelic.com/docs/query-your-data/explore-query-data/use-charts/nrql-predictions/) |
+| Feature | Description | Date moved to Core* |
+| --- | --- | --- |
+| [Catalogs](https://docs.newrelic.com/docs/service-architecture-intelligence/catalogs/catalogs/) | Centralized inventories of high-value entities, complete with ownership, health, and compliance details. | May 18, 2026 |
+| [Maps](https://docs.newrelic.com/docs/service-architecture-intelligence/maps/advanced-maps/) | Unified, integrated view of your cloud estate for seamless navigation and architectural exploration. | May 18, 2026 |
+| [Teams](https://docs.newrelic.com/docs/service-architecture-intelligence/teams/teams/) | A direct connection between the entities you monitor and the teams that own them, clarifying ownership and speeding up MTTR. | May 18, 2026 |
+| [Scorecards](https://docs.newrelic.com/docs/service-architecture-intelligence/scorecards/getting-started/) | Tools to define, track, and improve engineering best practices and performance against custom metrics. | May 18, 2026 |
+| [E&R NRQL](https://docs.newrelic.com/docs/nrql/get-started/query-entities-and-relationships-via-nrql/) | Direct NRQL access to your Entities & Relationships for building custom views of your architecture. | May 18, 2026 |
+| [GitHub Integrations](https://docs.newrelic.com/docs/service-architecture-intelligence/github-integrations/github-cloud-integration/) | Native GitHub integrations connected directly to your Service Architecture Intelligence portal. | May 18, 2026 |
+| [Public Dashboards](https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/share-dashboards-publicly/) | External sharing of live dashboards via a public URL, with no New Relic login required. | June 15, 2026 ** |
+| [Predictive Alerting](https://docs.newrelic.com/docs/alerts/create-alert/set-thresholds/predictive-alerts/) | Notifications before a metric threshold is breached, using historical data—no rebuild needed. | June 15, 2026 ** |
+| [NRQL Predictions](https://docs.newrelic.com/docs/query-your-data/explore-query-data/use-charts/nrql-predictions/) | Predictions of future trends and potential performance issues directly within your charts, using `PREDICT`. | June 15, 2026 ** |
 
 *\* No customer action required. Migration was automatic for all eligible accounts.*
 
