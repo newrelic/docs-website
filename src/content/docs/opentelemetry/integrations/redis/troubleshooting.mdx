@@ -1,0 +1,221 @@
+---
+title: 'Troubleshoot Redis (OpenTelemetry)'
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Redis
+  - Troubleshooting
+metaDescription: 'Troubleshoot common issues with the Redis OpenTelemetry integration for both host-based and Kubernetes deployments.'
+freshnessValidatedDate: never
+---
+
+This guide covers common issues you may encounter when installing and configuring the Redis OpenTelemetry integration.
+
+## Collector startup issues [#collector-startup]
+
+<CollapserGroup>
+  <Collapser id="redis-receiver-not-recognized" title="Redis receiver not recognized (NRDOT)">
+    **Error message:**
+    ```
+    'receivers' unknown type: "redis" for id: "redis" (valid values: [elasticsearch hostmetrics ...])
+    ```
+
+    **Cause:** Your NRDOT version does not include the Redis receiver. The Redis receiver requires NRDOT v1.18.0+.
+
+    **Fix:** Either:
+    - Upgrade NRDOT to the latest version
+    - Switch to `otelcol-contrib` which includes all community receivers
+  </Collapser>
+
+  <Collapser id="invalid-yaml" title="Collector fails to start with config error">
+    **Error message:**
+    ```
+    cannot unmarshal the configuration: error reading receivers configuration
+    ```
+
+    **Common causes:**
+    - Invalid YAML indentation (mixed tabs and spaces)
+    - Heredoc issues when creating ConfigMaps from shell scripts
+    - Missing quotes around endpoint values containing colons
+
+    **Fix:**
+    ```bash
+    # Validate YAML syntax
+    python3 -c "import yaml; yaml.safe_load(open('/etc/nrdot-collector/redis-collector-config.yaml'))"
+    ```
+  </Collapser>
+
+  <Collapser id="service-stopped" title="Collector service stopped or failed">
+    **How to check:**
+    ```bash
+    systemctl status nrdot-collector
+    # or
+    systemctl status otelcol-contrib
+    ```
+
+    **Common causes:**
+    - Invalid YAML in the collector configuration file
+    - Port conflict with another process (check port 13133 for health check)
+    - Insufficient memory (increase `limit_mib` in memory_limiter)
+
+    **Fix:**
+    ```bash
+    # Check for port conflicts
+    ss -tlnp | grep 13133
+    ```
+  </Collapser>
+
+  <Collapser id="cannot-connect-redis" title="Cannot connect to Redis endpoint">
+    **Error message:**
+    ```
+    failed to fetch Redis INFO: dial tcp 127.0.0.1:6379: connect: connection refused
+    ```
+
+    **Cause:** Redis is not running, wrong endpoint configured, or firewall blocking connection.
+
+    **Fix:**
+    ```bash
+    # Verify Redis is running
+    redis-cli ping
+
+    # Test connectivity
+    nc -zv localhost 6379
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Data export issues [#data-export]
+
+<CollapserGroup>
+  <Collapser id="export-403" title="403 Forbidden when exporting to New Relic">
+    **Error message:**
+    ```
+    Exporting failed. 403 Forbidden
+    ```
+
+    **Cause:** Invalid license key or incorrect OTLP endpoint for your region.
+
+    **Fix:**
+    - Verify your license key is correct and active
+    - Ensure the OTLP endpoint matches your account region
+  </Collapser>
+
+  <Collapser id="no-data-at-all" title="No data appearing in NRDB">
+    **Verification steps:**
+
+    1. Check the collector is running:
+       ```bash
+       systemctl is-active nrdot-collector
+       ```
+
+    2. Check the health endpoint:
+       ```bash
+       curl http://localhost:13133
+       ```
+
+    3. Test with NRQL:
+       ```sql
+       FROM Metric SELECT count(*) WHERE metricName LIKE 'redis.%' SINCE 10 minutes ago
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## Log collection issues [#log-collection]
+
+<CollapserGroup>
+  <Collapser id="permission-denied-logs" title="Permission denied when collecting logs">
+    **Error message:**
+    ```
+    Failed to open file: /var/log/redis/redis-server.log: permission denied
+    ```
+
+    **Cause:** The collector process doesn't have read access to the Redis log file.
+
+    **Fix (host-based):**
+    ```bash
+    # Option 1: Make the log file readable
+    sudo chmod 644 /var/log/redis/redis-server.log
+
+    # Option 2: Add collector user to redis group
+    sudo usermod -a -G redis nrdot-collector
+    ```
+
+    **Fix (Kubernetes):** Ensure the DaemonSet has the `/var/log/pods` volume mounted with `readOnly: true`.
+  </Collapser>
+</CollapserGroup>
+
+## Kubernetes-specific issues [#kubernetes]
+
+<CollapserGroup>
+  <Collapser id="no-pods-discovered" title="No Redis pods discovered by receiver_creator">
+    **Cause:** Pod labels don't match the receiver_creator discovery rule.
+
+    **Fix:**
+    ```bash
+    # Check pod labels
+    kubectl get pods -n <namespace> --show-labels | grep redis
+    ```
+
+    Ensure the `rule` in your ConfigMap matches the labels on your Redis pods. For example, if your pods have `app.kubernetes.io/name: redis`, update the rule accordingly.
+  </Collapser>
+
+  <Collapser id="crashloopbackoff" title="Collector pods CrashLoopBackOff">
+    **How to check:**
+    ```bash
+    kubectl get pods -n newrelic
+    kubectl logs -n newrelic <pod-name> --previous
+    ```
+
+    **Common causes:**
+    - Invalid ConfigMap YAML (check indentation in the `data.config.yaml` field)
+    - Missing Kubernetes secret for credentials
+    - RBAC permissions missing (for DaemonSet with `k8s_observer`)
+
+    **Fix:**
+    ```bash
+    # Validate ConfigMap content
+    kubectl get configmap otel-collector-redis-config -n newrelic -o jsonpath='{.data.config\.yaml}' | python3 -c "import yaml,sys; yaml.safe_load(sys.stdin); print('Valid YAML')"
+
+    # Check secret exists
+    kubectl get secret newrelic-credentials -n newrelic
+
+    # Check RBAC
+    kubectl auth can-i list pods --as=system:serviceaccount:newrelic:otel-collector-redis
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-cannot-reach-redis" title="Collector cannot reach Redis service">
+    **Error:** Connection timeout to Redis endpoint.
+
+    **Fix:**
+    ```bash
+    # Verify Redis pods are running
+    kubectl get pods -n <namespace> -l app=redis
+
+    # Test connectivity from collector pod
+    kubectl exec -n newrelic <collector-pod> -- nc -zv <redis-pod-ip> 6379
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-helm-fails" title="Helm installation fails">
+    **Common causes:**
+    - Namespace doesn't exist
+    - Invalid values.yaml
+    - Helm repo not added
+
+    **Fix:**
+    ```bash
+    # Create namespace first
+    kubectl create namespace newrelic
+
+    # Validate (dry run)
+    helm template redis-otel open-telemetry/opentelemetry-collector -f values.yaml --dry-run
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Next steps [#next-steps]
+
+- **[Installation guides](/docs/opentelemetry/integrations/redis/self-hosted)**: Revisit configuration steps
+- **[Metrics reference](/docs/opentelemetry/integrations/redis/metrics-reference)**: Verify expected metrics
+- **[Find your data](/docs/opentelemetry/integrations/redis/find-and-query-data)**: Query and alert on Redis metrics
