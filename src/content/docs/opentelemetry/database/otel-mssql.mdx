@@ -318,7 +318,6 @@ Replace your `config.yaml` file at `C:\Program Files\NRDOT Collector Host\config
     },
   ]}
   config={`# NRDOT Collector Configuration for New Relic SQL Server Integration
-# Host Metrics + Database Monitoring Configuration
 
 extensions:
   health_check:
@@ -518,7 +517,7 @@ processors:
 
   memory_limiter:
     check_interval: 1s
-    limit_mib: \${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+    limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
 
   batch:
     timeout: 10s
@@ -682,7 +681,7 @@ The following table describes the key configuration parameters for the `nrsqlser
     title="Database Monitoring Only (Recommended)"
   >
 
-This minimal configuration focuses only on database monitoring without host infrastructure metrics. **Enter your values below and see the configuration update in real-time:**
+This configuration focuses only on database monitoring without host infrastructure metrics. **Enter your values below and see the configuration update in real-time:**
 
 <AgentConfig
   inputOptions={[
@@ -729,9 +728,7 @@ This minimal configuration focuses only on database monitoring without host infr
       toolTip: 'Enter your New Relic license key',
     },
   ]}
-  config={`# NRDOT Collector Configuration (Database Monitoring Only)
-# Values update as you type in the form on the left
-
+  config={`
 receivers:
   nrsqlserver:
     collection_interval: 15s
@@ -915,8 +912,8 @@ Windows Domain Authentication uses integrated security (Windows authentication),
 </Callout>
 
 **Refer to the [gMSA Configuration Templates](#gmsa-config-templates) section below** (after all installation tabs) for the complete NRDOT Collector configuration. Choose either:
-- **Full Configuration** (Host Metrics + Database Monitoring) - Recommended
-- **Database Monitoring Only** (Minimal)
+- **Full Configuration** (Host Metrics + Database Monitoring)
+- **Database Monitoring Only** - Recommended
 
 Both configurations use Windows integrated security and work for:
 - ✅ **Windows Domain Authentication** (domain user accounts)
@@ -1017,8 +1014,8 @@ GO
 </Callout>
 
 **Refer to the [gMSA Configuration Templates](#gmsa-config-templates) section below** (after all installation tabs) for the complete configuration. Choose either:
-- **Full Configuration** (Host Metrics + Database Monitoring) - Recommended
-- **Database Monitoring Only** (Minimal)
+- **Full Configuration** (Host Metrics + Database Monitoring)
+- **Database Monitoring Only** - Recommended
 
 In the datasource connection string, use your on-premises server hostname:
 ```
@@ -1217,13 +1214,464 @@ Run the following script as a `root user/sysadmin` to create the `newrelic` moni
 
 ### Configure NRDOT Collector [#configure-collector-linux]
 
-Replace your `config.yaml` file at `/etc/nrdot-collector/config.yaml` with the configuration content provided in the Windows SQL Authentication section above. The configuration is the same for both environments.
+Select your configuration type based on your monitoring needs:
+
+<CollapserGroup>
+  <Collapser
+    id="full-config-linux"
+    title="NRDOT Collector with Host Metrics + Database Monitoring"
+  >
+
+This configuration includes both infrastructure host metrics and database monitoring.
+
+Replace your `config.yaml` file at `/etc/nrdot-collector/config.yaml`:
 
 <Callout variant="important">
 
 If you're an existing NRDOT Collector user, ensure to merge the configuration with your existing `config.yaml` file. This includes adding the new receivers, processors, and exporters for MSSQL Database monitoring while retaining your current configurations.
 
 </Callout>
+
+```yaml
+# NRDOT Collector Configuration for New Relic SQL Server Integration
+
+extensions:
+  health_check:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+  host_metrics:
+    collection_interval: 60s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.time:
+            enabled: false
+          system.cpu.utilization:
+            enabled: true
+      load:
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      paging:
+        metrics:
+          system.paging.utilization:
+            enabled: false
+          system.paging.faults:
+            enabled: false
+      filesystem:
+        metrics:
+          system.filesystem.utilization:
+            enabled: true
+      disk:
+        metrics:
+          system.disk.merged:
+            enabled: false
+          system.disk.pending_operations:
+            enabled: false
+          system.disk.weighted_io_time:
+            enabled: false
+      network:
+        metrics:
+          system.network.connections:
+            enabled: false
+
+  file_log:
+    include:
+      - /var/log/alternatives.log
+      - /var/log/cloud-init.log
+      - /var/log/auth.log
+      - /var/log/dpkg.log
+      - /var/log/syslog
+      - /var/log/messages
+      - /var/log/secure
+      - /var/log/yum.log
+
+  nrsqlserver:
+    collection_interval: 15s
+    username: "<YOUR_USERNAME>"
+    password: "<YOUR_PASSWORD>"
+    server: "<YOUR_SERVER>"
+    port: 1433
+
+    # Only 2 specific metrics kept enabled
+    metrics:
+      sqlserver.computer.uptime:
+        enabled: true
+      sqlserver.cpu.count:
+        enabled: true
+
+    # Query performance monitoring (QPM) settings
+    events:
+      db.server.query_sample:
+        enabled: true  
+      db.server.top_query:
+        enabled: true  
+
+    top_query_collection:
+      lookback_time: 15s              
+      max_query_sample_count: 1000    
+      top_query_count: 20             
+      collection_interval: 15s        
+
+    query_sample_collection:
+      max_rows_per_query: 20          
+
+    collect_full_query_text: true
+    allowed_comment_keys:
+      - nr_service_guid
+
+processors:
+  metrics_transform:
+    transforms:
+      - include: system.cpu.utilization
+        action: update
+        operations:
+          - action: aggregate_labels
+            label_set: [ state ]
+            aggregation_type: mean
+      - include: system.paging.operations
+        action: update
+        operations:
+          - action: aggregate_labels
+            label_set: [ direction ]
+            aggregation_type: sum
+
+  filter/exclude_cpu_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+
+  filter/exclude_memory_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+
+  filter/exclude_memory_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+        - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+
+  filter/exclude_filesystem_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+
+  filter/exclude_filesystem_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+        - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+
+  filter/exclude_filesystem_inodes_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+        - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+
+  filter/exclude_system_disk:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+
+  filter/exclude_system_paging:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+        - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+
+  filter/exclude_network:
+    metrics:
+      datapoint:
+        - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+
+  attributes/exclude_system_paging:
+    include:
+      match_type: strict
+      metric_names:
+        - system.paging.operations
+    actions:
+      - key: type
+        action: delete
+
+  cumulativetodelta:
+
+  transform/host:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(metric.description, "")
+          - set(metric.unit, "")
+
+  transform:
+    trace_statements:
+      - context: span
+        statements:
+          - truncate_all(span.attributes, 4095)
+          - truncate_all(resource.attributes, 4095)
+    log_statements:
+      - context: log
+        statements:
+          - truncate_all(log.attributes, 4095)
+          - truncate_all(resource.attributes, 4095)
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+  resource_detection:
+    detectors: ["system"]
+    system:
+      hostname_sources: ["os"]
+      resource_attributes:
+        host.id:
+          enabled: true
+
+  resource_detection/cloud:
+    detectors: ["gcp", "ec2", "azure"]
+    timeout: 2s
+    override: true
+
+  resource_detection/env:
+    detectors: ["env"]
+    timeout: 2s
+    override: true
+
+exporters:
+  otlphttp:
+    endpoint: <YOUR_OTLP_ENDPOINT>
+    headers:
+      api-key: <YOUR_LICENSE_KEY>
+    tls:
+      insecure: false
+    compression: gzip
+
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+service:
+  telemetry:
+    metrics:
+      level: none
+
+  extensions: [health_check]
+
+  pipelines:
+    metrics/host:
+      receivers: [host_metrics, nrsqlserver]
+      processors:
+        - memory_limiter
+        - metrics_transform
+        - filter/exclude_cpu_utilization
+        - filter/exclude_memory_utilization
+        - filter/exclude_memory_usage
+        - filter/exclude_filesystem_utilization
+        - filter/exclude_filesystem_usage
+        - filter/exclude_filesystem_inodes_usage
+        - filter/exclude_system_disk
+        - filter/exclude_network
+        - attributes/exclude_system_paging
+        - transform/host
+        - resource_detection
+        - resource_detection/cloud
+        - resource_detection/env
+        - cumulativetodelta
+        - batch
+      exporters: [otlphttp, debug]
+
+    logs/host:
+      receivers: [file_log, nrsqlserver]
+      processors:
+        - memory_limiter
+        - transform
+        - resource_detection
+        - resource_detection/cloud
+        - resource_detection/env
+        - batch
+      exporters: [otlphttp, debug]
+
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+      exporters: [otlphttp, debug]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+      exporters: [otlphttp, debug]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+      exporters: [otlphttp, debug]
+```
+
+  </Collapser>
+
+  <Collapser
+    id="db-only-config-linux"
+    title="Database Monitoring Only (Recommended)"
+  >
+
+This configuration focuses only on database monitoring without host infrastructure metrics.
+
+Replace your `config.yaml` file at `/etc/nrdot-collector/config.yaml`:
+
+```yaml
+receivers:
+  nrsqlserver:
+    collection_interval: 15s
+    # Connection details
+    username: "<YOUR_USERNAME>"
+    password: "<YOUR_PASSWORD>"
+    server: "<YOUR_SERVER>"
+    port: 1433
+
+    # Enable query performance monitoring
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+    # Top query collection
+    top_query_collection:
+      lookback_time: 15s
+      max_query_sample_count: 1000
+      top_query_count: 20
+      collection_interval: 15s
+
+    # Query sample collection
+    query_sample_collection:
+      max_rows_per_query: 20
+
+    # APM correlation
+    collect_full_query_text: true
+    allowed_comment_keys:
+      - nr_service_guid
+
+    # Core metrics (uptime, CPU count only)
+    metrics:
+      sqlserver.computer.uptime:
+        enabled: true
+      sqlserver.cpu.count:
+        enabled: true
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+exporters:
+  otlphttp:
+    endpoint: "<YOUR_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_LICENSE_KEY>"
+    compression: gzip
+
+  debug:
+    verbosity: detailed
+
+service:
+  telemetry:
+    metrics:
+      level: none
+
+  pipelines:
+    metrics:
+      receivers: [nrsqlserver]
+      processors: [batch]
+      exporters: [otlphttp, debug]
+
+    logs:
+      receivers: [nrsqlserver]
+      processors: [batch]
+      exporters: [otlphttp, debug]
+```
+
+<Callout variant="tip">
+
+This configuration provides database monitoring only for a smaller resource footprint. Replace the placeholder values with your actual SQL Server connection details and New Relic credentials.
+
+</Callout>
+
+  </Collapser>
+</CollapserGroup>
+
+#### Configuration parameters
+
+The following table describes the key configuration parameters for the `nrsqlserver` receiver:
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`<YOUR_USERNAME>`</td>
+    <td>Enter your database username for authentication</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_PASSWORD>`</td>
+    <td>Enter your database password for authentication</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_SERVER>`</td>
+    <td>Enter your SQL Server hostname or IP address</td>
+  </tr>
+  <tr>
+    <td>`port`</td>
+    <td>Enter your SQL Server port number. The default value is 1433.</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_OTLP_ENDPOINT>`</td>
+    <td>
+    Enter the New Relic OTLP endpoint (e.g., https://otlp.nr-data.net). For more information, refer to [New Relic OTLP endpoints documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/).
+    </td>
+  </tr>
+  <tr>
+    <td>`<YOUR_LICENSE_KEY>`</td>
+    <td>Enter your New Relic license key.</td>
+  </tr>
+  <tr>
+    <td>`collection_interval`</td>
+    <td>Interval in seconds to collect database metrics. Default: 15s</td>
+  </tr>
+  <tr>
+    <td>`top_query_count`</td>
+    <td>Number of top queries to track. Default: 20</td>
+  </tr>
+  <tr>
+    <td>`max_rows_per_query`</td>
+    <td>Maximum rows per query sample. Default: 20</td>
+  </tr>
+</tbody>
+</table>
 
 </Step>
 
@@ -1376,384 +1824,7 @@ Update your NRDOT Collector configuration file at `C:\Program Files\NRDOT Collec
 
 </Callout>
 
-
-Select your configuration type based on your monitoring needs:
-
-<CollapserGroup>
-  <Collapser
-    id="rds-full-config-sql"
-    title="NRDOT Collector with Host Metrics + Database Monitoring"
-  >
-
-This configuration includes both infrastructure host metrics and database monitoring. **Enter your values below and see the configuration update in real-time:**
-
-Replace your `config.yaml` file at `C:\Program Files\NRDOT Collector Host\config.yaml`:
-
-<Callout variant="important">
-
-  If you're an existing NRDOT Collector user, ensure to merge this configuration with your existing `config.yaml` file. This includes adding the new receivers, processors, and exporters for MSSQL Database monitoring while retaining your current configurations.
-
-</Callout> 
-
-<AgentConfig
-  inputOptions={[
-    {
-      name: 'username',
-      label: 'SQL Server Username',
-      codeLine: 62,
-      defaultValue: 'newrelic',
-      toolTip: 'Enter your SQL Server username for authentication',
-    },
-    {
-      name: 'password',
-      label: 'SQL Server Password',
-      codeLine: 63,
-      defaultValue: 'your_password',
-      toolTip: 'Enter your SQL Server password for authentication',
-    },
-    {
-      name: 'server',
-      label: 'RDS Endpoint',
-      codeLine: 64,
-      defaultValue: 'mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com',
-      toolTip: 'Enter your RDS SQL Server endpoint',
-    },
-    {
-      name: 'port',
-      label: 'Server Port',
-      codeLine: 65,
-      defaultValue: '1433',
-      toolTip: 'Enter your SQL Server port number (default: 1433)',
-    },
-    {
-      name: 'endpoint',
-      label: 'New Relic OTLP Endpoint',
-      codeLine: 224,
-      defaultValue: 'https://otlp.nr-data.net',
-      toolTip: 'Enter your New Relic OTLP endpoint (e.g., https://otlp.nr-data.net or https://otlp.eu01.nr-data.net)',
-    },
-    {
-      name: 'licenseKey',
-      label: 'New Relic License Key',
-      codeLine: 226,
-      defaultValue: 'YOUR_LICENSE_KEY',
-      toolTip: 'Enter your New Relic license key',
-    },
-  ]}
-  config={`# NRDOT Collector Configuration for New Relic SQL Server Integration
-# Host Metrics + Database Monitoring Configuration
-
-extensions:
-  health_check:
-
-receivers:
-  otlp:
-    protocols:
-      grpc:
-      http:
-
-  host_metrics:
-    collection_interval: 60s
-    scrapers:
-      cpu:
-        metrics:
-          system.cpu.time:
-            enabled: false
-          system.cpu.utilization:
-            enabled: true
-      load:
-      memory:
-        metrics:
-          system.memory.utilization:
-            enabled: true
-      paging:
-        metrics:
-          system.paging.utilization:
-            enabled: false
-          system.paging.faults:
-            enabled: false
-      filesystem:
-        metrics:
-          system.filesystem.utilization:
-            enabled: true
-      disk:
-        metrics:
-          system.disk.merged:
-            enabled: false
-          system.disk.pending_operations:
-            enabled: false
-          system.disk.weighted_io_time:
-            enabled: false
-      network:
-        metrics:
-          system.network.connections:
-            enabled: false
-
-  file_log:
-    include:
-      - /var/log/alternatives.log
-      - /var/log/cloud-init.log
-      - /var/log/auth.log
-      - /var/log/dpkg.log
-      - /var/log/syslog
-      - /var/log/messages
-      - /var/log/secure
-      - /var/log/yum.log
-
-  nrsqlserver:
-    collection_interval: 15s
-    username: "<input1>"
-    password: "<input2>"
-    server: "<input3>"
-    port: <input4>
-
-    # Only 2 specific metrics kept enabled
-    metrics:
-      sqlserver.computer.uptime:
-        enabled: true
-      sqlserver.cpu.count:
-        enabled: true
-
-    # Query performance monitoring (QPM) settings
-    events:
-      db.server.query_sample:
-        enabled: true  
-      db.server.top_query:
-        enabled: true  
-
-    top_query_collection:
-      lookback_time: 15s              
-      max_query_sample_count: 1000    
-      top_query_count: 20             
-      collection_interval: 15s        
-
-    query_sample_collection:
-      max_rows_per_query: 20          
-
-    collect_full_query_text: true
-    allowed_comment_keys:
-      - nr_service_guid
-
-processors:
-  metrics_transform:
-    transforms:
-      - include: system.cpu.utilization
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [ state ]
-            aggregation_type: mean
-      - include: system.paging.operations
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [ direction ]
-            aggregation_type: sum
-
-  filter/exclude_cpu_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
-
-  filter/exclude_memory_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
-
-  filter/exclude_memory_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
-
-  filter/exclude_filesystem_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
-
-  filter/exclude_filesystem_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_filesystem_inodes_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_system_disk:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
-
-  filter/exclude_system_paging:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
-        - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
-
-  filter/exclude_network:
-    metrics:
-      datapoint:
-        - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
-
-  attributes/exclude_system_paging:
-    include:
-      match_type: strict
-      metric_names:
-        - system.paging.operations
-    actions:
-      - key: type
-        action: delete
-
-  cumulativetodelta:
-
-  transform/host:
-    metric_statements:
-      - context: metric
-        statements:
-          - set(metric.description, "")
-          - set(metric.unit, "")
-
-  transform:
-    trace_statements:
-      - context: span
-        statements:
-          - truncate_all(span.attributes, 4095)
-          - truncate_all(resource.attributes, 4095)
-    log_statements:
-      - context: log
-        statements:
-          - truncate_all(log.attributes, 4095)
-          - truncate_all(resource.attributes, 4095)
-
-  memory_limiter:
-    check_interval: 1s
-    limit_mib: \${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
-
-  batch:
-    timeout: 10s
-    send_batch_size: 1024
-
-  resource_detection:
-    detectors: ["system"]
-    system:
-      hostname_sources: ["os"]
-      resource_attributes:
-        host.id:
-          enabled: true
-
-  resource_detection/cloud:
-    detectors: ["gcp", "ec2", "azure"]
-    timeout: 2s
-    override: true
-
-  resource_detection/env:
-    detectors: ["env"]
-    timeout: 2s
-    override: true
-
-exporters:
-  otlphttp:
-    endpoint: <input5>
-    headers:
-      api-key: <input6>
-    tls:
-      insecure: false
-    compression: gzip
-
-  debug:
-    verbosity: detailed
-    sampling_initial: 5
-    sampling_thereafter: 200
-
-service:
-  telemetry:
-    metrics:
-      level: none
-
-  extensions: [health_check]
-
-  pipelines:
-    metrics/host:
-      receivers: [host_metrics, nrsqlserver]
-      processors:
-        - memory_limiter
-        - metrics_transform
-        - filter/exclude_cpu_utilization
-        - filter/exclude_memory_utilization
-        - filter/exclude_memory_usage
-        - filter/exclude_filesystem_utilization
-        - filter/exclude_filesystem_usage
-        - filter/exclude_filesystem_inodes_usage
-        - filter/exclude_system_disk
-        - filter/exclude_network
-        - attributes/exclude_system_paging
-        - transform/host
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - cumulativetodelta
-        - batch
-      exporters: [otlphttp, debug]
-
-    logs/host:
-      receivers: [file_log, nrsqlserver]
-      processors:
-        - memory_limiter
-        - transform
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - batch
-      exporters: [otlphttp, debug]
-
-    traces:
-      receivers: [otlp]
-      processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp, debug]
-
-    metrics:
-      receivers: [otlp]
-      processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp, debug]
-
-    logs:
-      receivers: [otlp]
-      processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp, debug]`}
-  fileName="config.yaml"
-  tipMdx={{ body: null }}
-  onChange={() => {}}
-/>
-
-**What you get:**
-- **Database metrics**: Query performance monitoring with top 20 queries, query samples, and 2 core metrics (uptime, CPU count)
-- **Host metrics**: CPU, memory, disk, network, filesystem utilization
-- **Log collection**: System logs from /var/log/* directories
-- **Debug exporter**: Detailed logging for troubleshooting (optional)
-- **Complete observability**: Unified metrics, logs, and traces pipeline
-
-  </Collapser>
-
-  <Collapser
-    id="rds-db-only-config-sql"
-    title="Database Monitoring Only (Minimal) - Recommended"
-  >
-
-This minimal configuration focuses only on database monitoring without host infrastructure metrics. **Enter your values below and see the configuration update in real-time:**
+**Enter your values below and see the configuration update in real-time:**
 
 <AgentConfig
   inputOptions={[
@@ -1800,9 +1871,7 @@ This minimal configuration focuses only on database monitoring without host infr
       toolTip: 'Enter your New Relic license key',
     },
   ]}
-  config={`# NRDOT Collector Configuration (Database Monitoring Only)
-# Values update as you type in the form on the left
-
+  config={`
 receivers:
   nrsqlserver:
     collection_interval: 15s
@@ -1876,18 +1945,6 @@ service:
   tipMdx={{ body: null }}
   onChange={() => {}}
 />
-
-**What you get:**
-- Enhanced query performance monitoring with active query samples
-- Top 20 queries tracking aligned with NRI behavior
-- Core database metrics enabled (uptime, CPU count)
-- APM correlation support
-- Smaller resource footprint (no host metrics)
-- 15-second collection interval for real-time insights
-
-  </Collapser>
-</CollapserGroup>
-
 
 </Step>
 
@@ -2032,7 +2089,7 @@ Windows Domain Authentication uses the same configuration as gMSA (integrated se
 
 </Callout>
 
-**Scroll down to the [gMSA Configuration Templates section](#gmsa-config-templates)** and use either the Full Configuration or Database Only configuration.
+**Scroll down to the [gMSA Configuration Templates section](#gmsa-config-templates)** and use the **Database Monitoring Only** configuration.
 
 In the `datasource` line, replace the server value with your RDS endpoint:
 
@@ -2162,9 +2219,7 @@ The configuration uses Windows integrated security (gMSA). Simply update the `da
 
 </Callout>
 
-**Refer to the [gMSA Configuration Templates](#gmsa-config-templates) section below** (after all installation tabs) for the complete configuration. Choose either:
-- **Full Configuration** (Host Metrics + Database Monitoring) - Recommended
-- **Database Monitoring Only** (Minimal)
+**Refer to the [gMSA Configuration Templates](#gmsa-config-templates) section below** (after all installation tabs) for the complete configuration. Use the **Database Monitoring Only** configuration.
 
 In the datasource connection string, use your full RDS endpoint:
 ```
@@ -2531,10 +2586,10 @@ service:
 
   <Collapser
     id="gmsa-template-db-only"
-    title="Database Monitoring Only (Minimal)"
+    title="Database Monitoring Only"
   >
 
-This minimal configuration focuses only on database monitoring using gMSA authentication, without host infrastructure metrics.
+This configuration focuses only on database monitoring using gMSA authentication, without host infrastructure metrics.
 
 Replace your `config.yaml` file at `C:\Program Files\NRDOT Collector Host\config.yaml`:
 
