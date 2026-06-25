@@ -9,72 +9,78 @@ import {
   search,
   Spinner,
   Surface,
-  useLocale,
+  highlightText,
   useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
 import { navigate } from '@reach/router';
 
-import { usePagination, DOTS } from '../hooks/usePagination';
-
-const SearchResultPageView = ({ pageContext }) => {
+const SearchResultPageView = () => {
   const { queryParams } = useQueryParams();
   const query = queryParams.get('query');
-  const page = Number(queryParams.get('page') ?? 1);
-  const locale = useLocale();
-  const [results, setResults] = useState({ loading: true });
-  const { records, pageCount, loading, error } = results;
-  const { slug } = pageContext;
 
-  const totalPages = pageCount;
-  const totalResults = totalPages * 5;
-  const prevPage = page - 1;
-  const nextPage = page + 1;
-  const hasNextPage = nextPage <= totalPages;
-  const hasPrevPage = prevPage >= 1;
+  const [state, setState] = useState({ loading: true });
+  // SearchGPT paginates with opaque cursors (no random access to a page
+  // number), so we track the cursor for the current page plus a stack of the
+  // cursors for previously-visited pages to support "Previous".
+  const [cursor, setCursor] = useState(undefined);
+  const [cursorStack, setCursorStack] = useState([]);
 
-  const paginationRange = usePagination({
-    totalPageCount: totalPages,
-    siblingCount: 1,
-    currentPage: page,
-  });
+  const { results, totalCount, nextCursor, loading, error } = state;
+
+  // reset pagination whenever the query changes
+  useEffect(() => {
+    setCursor(undefined);
+    setCursorStack([]);
+  }, [query]);
 
   useEffect(() => {
     if (!query) {
       navigate('/');
+      return;
     }
+
+    let cancelled = false;
+    setState((s) => ({ ...s, loading: true }));
+
     (async () => {
-      const defaultSources = locale.isDefault
-        ? ['developer', 'docs', 'opensource', 'quickstarts']
-        : [
-            `developer-${locale.locale}`,
-            `docs-${locale.locale}`,
-            `opensource-${locale.locale}`,
-            `quickstarts`,
-          ];
       try {
-        const results = await search({
-          searchTerm: query,
-          defaultSources,
-          filters: [
-            { type: 'source', defaultFilters: [] },
-            { type: 'searchBy', defaultFilters: [] },
-          ],
-          page,
-          perPage: 5,
-        });
-        setResults({
-          pageCount: results.info.page.num_pages,
-          records: results.records.page,
+        const res = await search({ searchTerm: query, cursor });
+        if (cancelled) return;
+        setState({
+          results: res.results,
+          totalCount: res.totalCount,
+          nextCursor: res.nextCursor,
           loading: false,
         });
       } catch {
-        setResults({
+        setState({
           error: 'Unable to get search results, an error has occurred',
           loading: false,
         });
       }
     })();
-  }, [locale, page, query]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [query, cursor]);
+
+  const goNext = () => {
+    if (!nextCursor) return;
+    setCursorStack((stack) => [...stack, cursor]);
+    setCursor(nextCursor);
+  };
+
+  const goPrev = () => {
+    setCursorStack((stack) => {
+      const next = stack.slice(0, -1);
+      setCursor(stack[stack.length - 1]);
+      return next;
+    });
+  };
+
+  const hasPrevPage = cursorStack.length > 0;
+  const hasNextPage = Boolean(nextCursor);
 
   return (
     <PageContainer>
@@ -90,82 +96,51 @@ const SearchResultPageView = ({ pageContext }) => {
           />
         </LoadingContainer>
       )}
-      {records && (
+      {results && !loading && (
         <>
           <h2>
-            {totalResults} results for "{query}"
+            {totalCount} results for "{query}"
           </h2>
-          {records.map((result, i) => (
-            <Result key={`${i}-${result.title}`} result={result} />
+          {results.map((result, i) => (
+            <Result
+              key={`${i}-${result.title}`}
+              result={result}
+              query={query}
+            />
           ))}
           <PaginationContainer>
-            <Link
+            <PaginationButton
               disabled={!hasPrevPage}
-              to={`${slug}/?query=${query}&page=${prevPage}`}
+              onClick={goPrev}
+              css={css`
+                padding: 0.25rem 0.35rem;
+                margin-right: 0.5rem;
+              `}
             >
-              <PaginationButton
-                disabled={!hasPrevPage}
+              <Icon
+                name="fe-arrow-left"
                 css={css`
-                  padding: 0.25rem 0.35rem;
-                  margin-right: 0.5rem;
+                  margin-right: 0.25rem;
                 `}
-              >
-                <Icon
-                  name="fe-arrow-left"
-                  css={css`
-                    margin-right: 0.25rem;
-                  `}
-                />
-                Previous
-              </PaginationButton>
-            </Link>
-            {paginationRange.map((pageNumber) => {
-              if (pageNumber === DOTS) {
-                return <span>{DOTS}</span>;
-              }
-              return (
-                <Link
-                  key={`searchpage-${pageNumber}`}
-                  disabled={pageNumber === page}
-                  to={`${slug}/?query=${query}&page=${pageNumber}`}
-                >
-                  <PaginationButton
-                    disabled={pageNumber === page}
-                    css={css`
-                      padding: 0.25rem 0.35rem;
-                      ${pageNumber === page &&
-                      css`
-                        background: var(--primary-text-color);
-                        color: var(--primary-background-color);
-                        opacity: 1;
-                      `}
-                    `}
-                  >
-                    {pageNumber}
-                  </PaginationButton>
-                </Link>
-              );
-            })}
-            <Link
+              />
+              Previous
+            </PaginationButton>
+            <PaginationButton
               disabled={!hasNextPage}
-              to={`${slug}/?query=${query}&page=${nextPage}`}
+              onClick={goNext}
+              css={css`
+                padding: 0.25rem 0.35rem;
+                margin-left: 0.5rem;
+              `}
             >
-              <PaginationButton
-                disabled={!hasNextPage}
+              Next
+              <Icon
+                name="fe-arrow-right"
                 css={css`
-                  padding: 0.25rem 0.35rem;
-                  margin-left: 0.5rem;
+                  margin-left: 0.25rem;
                 `}
-              >
-                Next
-                <Icon
-                  name="fe-arrow-right"
-                  css={css`
-                    margin-left: 0.25rem;
-                  `}
-                />
-              </PaginationButton>
-            </Link>
+              />
+            </PaginationButton>
           </PaginationContainer>
         </>
       )}
@@ -232,13 +207,17 @@ const PaginationButton = ({ children, ...props }) => (
   </Button>
 );
 
-const Result = ({ result }) => {
+PaginationButton.propTypes = {
+  children: PropTypes.node,
+};
+
+const Result = ({ result, query }) => {
   return (
     <Surface
       as={Link}
       to={result.url}
       css={css`
-        em {
+        .highlight {
           color: #00ac69;
           font-style: normal;
         }
@@ -267,16 +246,21 @@ const Result = ({ result }) => {
           margin-bottom: 0;
           font-weight: 500;
         `}
-        dangerouslySetInnerHTML={{ __html: result.highlight.title }}
+        dangerouslySetInnerHTML={{
+          __html: highlightText(result.title, query),
+        }}
       />
-      <p dangerouslySetInnerHTML={{ __html: result.highlight.body }} />
+      <p dangerouslySetInnerHTML={{ __html: result.summary }} />
     </Surface>
   );
 };
 
-SearchResultPageView.propTypes = {
-  pageContext: PropTypes.shape({
-    slug: PropTypes.string,
+Result.propTypes = {
+  query: PropTypes.string,
+  result: PropTypes.shape({
+    url: PropTypes.string.isRequired,
+    title: PropTypes.string,
+    summary: PropTypes.string,
   }).isRequired,
 };
 
