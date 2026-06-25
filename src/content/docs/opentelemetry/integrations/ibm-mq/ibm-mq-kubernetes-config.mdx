@@ -1,0 +1,644 @@
+---
+title: "Configure OpenTelemetry for IBM MQ on Kubernetes"
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Kubernetes
+metaDescription: "Complete, standalone OpenTelemetry Collector configuration for shipping IBM MQ queue manager metrics to New Relic from Kubernetes via pod auto-discovery."
+freshnessValidatedDate: '2026-06-23'
+---
+
+This guide walks you through deploying a single OpenTelemetry Collector on Kubernetes that **auto-discovers every IBM MQ queue manager exporter pod in your cluster by annotation**. One Collector Deployment, one `prometheus` receiver, and one pipeline serve any number of queue managers. Adding a new queue manager requires zero collector configuration changes.
+
+This guide is entirely self-contained. You create every resource by copy-pasting from the steps below — no external scripts or repository files are required.
+
+<Callout variant="important">
+  This guide assumes your IBM MQ broker pods are already running and that each broker pod has an [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) exporter sidecar — the IBM MQ team's Prometheus metrics exporter for IBM MQ — exposing `/metrics` on port `9157`. The Collector discovers those pods by annotation. See the [pod annotation contract](#pod-annotation-contract) collapser below for the required annotations.
+</Callout>
+
+<Callout variant="caution">
+  **Entity stability — do not change `TARGET_NAME` after initial deploy.** `targetName` is the first segment of every `IBMMQ_MANAGER` and `IBMMQ_QUEUE` entity GUID (for example, `ibmmq-k3s:QM1`). Changing the `TARGET_NAME` environment variable after entities are created causes New Relic to synthesize brand-new entities and orphan the old ones, breaking dashboards and alerts. Choose a stable, cluster-scoped identifier before your first deploy and keep it constant across all future Helm upgrades.
+</Callout>
+
+## How in-cluster auto-discovery works [#discovery-overview]
+
+Before diving into configuration, it helps to understand the data flow end-to-end. There are three moving parts: your IBM MQ exporter pods, the OpenTelemetry Collector Deployment, and New Relic ingest.
+
+**IBM MQ exporter pods.** Each IBM MQ queue manager runs alongside an mq-metric-samples exporter sidecar (running the `mq_prometheus` program) that speaks standard Prometheus exposition format on port `9157` at path `/metrics`. These pods are ordinary Kubernetes workloads. The only requirement placed on them by this setup is that their pod templates carry three `prometheus.io/*` annotations. No changes to the exporter software itself are needed.
+
+**The OpenTelemetry Collector Deployment.** A single Collector pod runs in the `ibmmq` namespace. It does not sit in the data path between your applications and IBM MQ — it is purely a scraper and forwarder. Inside the Collector, the `prometheus/ibmmq` receiver is configured with a `kubernetes_sd_configs` block that continuously watches the Kubernetes API for pods matching the annotation criteria. Every 60 seconds the receiver resolves the current set of live, annotated, Running pods and scrapes their `/metrics` endpoints over the cluster network. The scraped time series flow through a processor chain and are forwarded to New Relic via OTLP/HTTP. Because the Collector talks to both the Kubernetes API and the exporter pods over the cluster network, it can live anywhere in the cluster — the `ibmmq` namespace is a convention for isolation, not a hard requirement.
+
+**Why `mode: deployment`, not `daemonset`.** A DaemonSet runs one pod per node. If this Collector were a DaemonSet, every node in your cluster would independently discover all annotated QM pods (because `kubernetes_sd` is a cluster-wide watch, not node-local) and scrape them. With three nodes you would get three copies of every metric. A Deployment runs a controlled number of replicas — one in this case — and is the correct topology for a centralized Prometheus-style scraper that targets pods by annotation across the whole cluster.
+
+**Entity model in New Relic.** New Relic's IBM MQ entity synthesis rule reads the `targetName` and `qmgr` labels from incoming `ibmmq_*` metrics. It creates one `IBMMQ_MANAGER` entity per unique `(targetName, qmgr)` pair and one `IBMMQ_QUEUE` entity per unique `(targetName, qmgr, queue)` triple. The entity GUIDs are stable as long as `targetName` and `qmgr` do not change — which is why the `TARGET_NAME` env var must be set once and kept constant. Queue entities are nested under their manager entity in the New Relic UI, giving you a hierarchical view of the cluster.
+
+<Steps>
+
+<Step>
+
+### Create the New Relic credentials secret [#create-secret]
+
+The Collector reads your <InlinePopover type="licenseKey"/> and OTLP endpoint from a Kubernetes Secret. Never commit these values to source control.
+
+**Why a Kubernetes Secret?** The Collector configuration (`values.yaml`) is typically stored in version control or in a CI/CD system. Embedding a license key directly in that file would expose it to anyone with repository access. Instead, the key lives in a Secret that is only present in the cluster at runtime. The Collector's `extraEnvsFrom` block (shown in the next step) injects every key in the Secret as an environment variable into the Collector container. The Collector's config file then references those variables with `${env:NEW_RELIC_LICENSE_KEY}` — so the sensitive value is never embedded in the config at all.
+
+First, ensure the `ibmmq` namespace exists:
+
+```bash
+kubectl get namespace ibmmq >/dev/null 2>&1 || kubectl create namespace ibmmq
+```
+
+Then create (or refresh) the Secret. The `--dry-run=client -o yaml | kubectl apply -f -` pattern is idempotent: it generates the Secret manifest in memory, then applies it. On first run this creates the Secret; on subsequent runs it updates it without erroring on "already exists":
+
+```bash
+kubectl create secret generic newrelic-otlp-secret \
+  --namespace ibmmq \
+  --from-literal=NEW_RELIC_LICENSE_KEY="<YOUR_LICENSE_KEY>" \
+  --from-literal=NEW_RELIC_OTLP_ENDPOINT="https://otlp.nr-data.net:4318" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+For EU accounts, replace the endpoint value with `https://otlp.eu01.nr-data.net:4318`.
+
+The Secret must live in the **same namespace** as the Collector (`ibmmq`). Kubernetes Secrets are namespace-scoped, so a Secret in the `default` namespace is invisible to a pod in `ibmmq`.
+
+Verify the Secret was created and contains the expected keys (the values are base64-encoded by Kubernetes and not shown by default):
+
+```bash
+kubectl -n ibmmq get secret newrelic-otlp-secret
+kubectl -n ibmmq get secret newrelic-otlp-secret -o jsonpath='{.data}' | python3 -c "import sys,json; d=json.load(sys.stdin); [print(k) for k in d]"
+```
+
+The second command prints the key names without decoding the values, confirming both `NEW_RELIC_LICENSE_KEY` and `NEW_RELIC_OTLP_ENDPOINT` are present.
+
+</Step>
+
+<Step>
+
+### Configure the collector Helm values [#configure-values]
+
+The Collector is installed via the `open-telemetry/opentelemetry-collector` Helm chart. All configuration lives in a single `values.yaml` file that you create locally. Copy the complete file below — it is the full, authoritative configuration with no external dependencies.
+
+#### Deployment model and replica count [#deployment-model]
+
+Setting `mode: deployment` tells the Helm chart to create a Kubernetes `Deployment` rather than a `DaemonSet` or `StatefulSet`. This is the correct choice for a centralized Prometheus scraper that discovers targets by annotation across a namespace. A DaemonSet would be wrong here: it runs one pod per node, and each pod would independently run `kubernetes_sd` (which is a cluster-wide watch, not node-local) and discover every annotated QM pod. The result is N copies of every metric for an N-node cluster — a silent cardinality explosion that is difficult to detect until dashboards show suspiciously large values.
+
+`replicaCount: 1` is load-bearing for correctness. With the standard `prometheus/ibmmq` receiver and no TargetAllocator, every Collector replica independently discovers and scrapes all matching pods. Two replicas produce two complete copies of every metric, which New Relic counts and bills as double the data points. If you need the Collector to survive a pod eviction without a scrape gap, the correct path is the [OpenTelemetry TargetAllocator](https://opentelemetry.io/docs/platforms/kubernetes/operator/target-allocator/): it distributes scrape targets across replicas so each target is covered by exactly one replica. The TargetAllocator setup is outside the scope of this guide.
+
+#### RBAC — why the Collector needs cluster permissions [#rbac-explanation]
+
+`kubernetes_sd_configs` (Kubernetes service discovery) works by calling the Kubernetes API to list and watch pod objects across the target namespace. Without the right RBAC permissions, the API server returns a `403 Forbidden` response and the receiver discovers zero targets — the Collector starts, processes zero metrics, and emits nothing to New Relic without any obvious error in the application logs.
+
+The `clusterRole.create: true` setting in the values causes the Helm chart to create:
+- A `ClusterRole` that grants `get`, `list`, and `watch` on `pods`, `nodes`, `nodes/proxy`, `nodes/metrics`, `services`, and `endpoints`.
+- A `ClusterRoleBinding` that attaches that role to the Collector's `ServiceAccount`.
+
+The `pods` permission is the minimum required for `role: pod` discovery. The `nodes` and `endpoints` permissions are included for completeness and future-proofing (some discovery modes require them). The `/metrics` non-resource URL is included so the Collector can scrape node-level metrics endpoints if needed in future pipelines.
+
+Without these permissions you will see log lines like `cannot list resource "pods" in API group "" at the cluster scope: pods is forbidden`. Check the ClusterRole exists with `kubectl get clusterrole ibmmq-collector-opentelemetry-collector`.
+
+#### `service.enabled: false` — why there is no inbound Service [#service-disabled]
+
+The chart's `service:` block normally creates a Kubernetes `Service` that routes inbound traffic to the Collector's receiver ports (OTLP gRPC on 4317, OTLP HTTP on 4318, Zipkin on 9411, and so on). This Collector has no inbound receivers — it scrapes outbound (Prometheus pull) and exports outbound (OTLP push). All the standard receiver ports are disabled in the `ports:` block.
+
+If `service.enabled` were left as its default (`true`), the chart would try to create a `Service` with an empty `ports` list. Kubernetes rejects a `Service` spec with zero ports with the error `Service "…" is invalid: spec.ports: Required value`. Setting `service.enabled: false` prevents the chart from generating that Service at all.
+
+The Collector's self-telemetry endpoint (`:8888`) is still reachable for debugging via `kubectl port-forward` to the pod directly — it does not require a Service object. This port is configured under `service.telemetry.metrics` in the `config:` block and is independent of the chart-level `service:` toggle.
+
+#### Environment variable wiring [#env-wiring]
+
+The values file wires credentials and identity into the Collector container through two mechanisms:
+
+`extraEnvsFrom` with a `secretRef` injects every key in the `newrelic-otlp-secret` Secret as an environment variable. This means `NEW_RELIC_LICENSE_KEY` and `NEW_RELIC_OTLP_ENDPOINT` are available to the Collector process at runtime without ever being written into the chart values or the collector config file.
+
+`extraEnvs` supplies two additional variables directly:
+- `TARGET_NAME`: the stable cluster-scoped identifier that becomes the first segment of every IBMMQ entity GUID. It is deliberately separate from the Secret so it can be reviewed and changed in version control without touching credentials.
+- `IBMMQ_CLUSTER_NAME`: a human-readable cluster label that appears on `IBMMQ_MANAGER` entities and dashboards. It does not affect entity GUIDs.
+
+Both variables are referenced in the collector config as `${env:TARGET_NAME}` and `${env:IBMMQ_CLUSTER_NAME}`. The OTel Collector's config loader expands `${env:...}` references before parsing the YAML further — this is the same expansion step that makes `$$` necessary for relabeling (see the callout below).
+
+#### The `$$1:$$2` relabeling escape [#dollar-escape]
+
+<Callout variant="tip">
+  The `$$1:$$2` in the relabel `replacement` field is not a typo. The OpenTelemetry Collector's config loader runs an environment variable expansion pass over the entire configuration YAML before any component sees it. Any `${...}` pattern is treated as an env var reference during this pass. Prometheus relabeling capture groups are written as `$1`, `$2`, etc. — but after the OTel expansion pass, a bare `$1` would be interpreted as an env var named `1`, which does not exist, and the replacement string would become empty, breaking address construction entirely. Using `$$` tells the OTel config loader to output a literal `$` without attempting env var substitution, so by the time the Prometheus relabeling engine receives the replacement string it sees `$1:$2` and correctly substitutes the regex capture groups (pod IP and port). If you ever apply this configuration as a hand-written `ConfigMap` without going through the Helm chart's template rendering (where the OTel config loader still runs), you still need `$$1:$$2` because the OTel loader always runs this expansion. Only if you were using a native Prometheus scraper — not the OTel `prometheus` receiver — would you use a single `$1:$2`.
+</Callout>
+
+Create a file named `values.yaml` with the following content. Update `TARGET_NAME` and `IBMMQ_CLUSTER_NAME` to match your environment before installing:
+
+```yaml
+mode: deployment
+replicaCount: 1   # Must stay 1 — kubernetes_sd scrapes every target from every replica.
+                  # For HA, use the OpenTelemetry TargetAllocator to shard targets.
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "latest"   # `latest` is fine for a trial; pin a specific tested version for production
+  pullPolicy: IfNotPresent
+
+# --- RBAC for kubernetes_sd_configs(role: pod) ---
+serviceAccount:
+  create: true
+  name: ""
+
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources:
+        - pods
+        - nodes
+        - nodes/proxy
+        - nodes/metrics
+        - services
+        - endpoints
+      verbs: ["get", "list", "watch"]
+    - nonResourceURLs: ["/metrics"]
+      verbs: ["get"]
+
+# --- New Relic credentials from the Secret (never hardcoded) ---
+extraEnvsFrom:
+  - secretRef:
+      name: newrelic-otlp-secret
+
+# TARGET_NAME is the STABLE first segment of every IBMMQ entity GUID.
+# Keep it constant across redeploys — changing it orphans existing entities.
+extraEnvs:
+  - name: TARGET_NAME
+    value: "ibmmq-k3s"       # <-- change to your stable cluster identifier
+  - name: IBMMQ_CLUSTER_NAME
+    value: "local-dev"       # <-- change to your cluster name
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 512Mi   # must stay above memory_limiter limit_mib so the soft limiter trips before the kubelet OOM-kills
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+# This Collector only scrapes outbound and exports outbound.
+# Disabling the Service prevents Kubernetes from rejecting a zero-port Service spec.
+# Self-metrics on :8888 are reachable via kubectl port-forward to the pod directly.
+service:
+  enabled: false
+
+# Disable chart default receivers/ports — only prometheus and health_check are used.
+ports:
+  otlp:
+    enabled: false
+  otlp-http:
+    enabled: false
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  metrics:
+    enabled: false
+
+# Disable chart presets — the full config is supplied below.
+presets:
+  kubernetesAttributes:
+    enabled: false
+  hostMetrics:
+    enabled: false
+  logsCollection:
+    enabled: false
+  kubeletMetrics:
+    enabled: false
+
+# --- Full Collector configuration ---
+config:
+  extensions:
+    health_check:
+      endpoint: 0.0.0.0:13133
+
+  receivers:
+    # One auto-discovery receiver discovers every pod in the ibmmq namespace
+    # that carries prometheus.io/scrape=true and scrapes podIP:<port><path>.
+    # Adding a new QM = deploy another annotated pod; no collector change needed.
+    prometheus/ibmmq:
+      config:
+        scrape_configs:
+          - job_name: 'ibmmq-k8s-pods'
+            scrape_interval: 60s
+            scrape_timeout: 15s
+            kubernetes_sd_configs:
+              - role: pod
+                namespaces:
+                  names:
+                    - ibmmq
+            relabel_configs:
+              # (1) Keep only pods that opted into scraping
+              - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                action: keep
+                regex: "true"
+              # (2) Skip non-Running pods (reduces target churn)
+              - source_labels: [__meta_kubernetes_pod_phase]
+                action: drop
+                regex: (Pending|Succeeded|Failed|Unknown)
+              # (3) Metrics path from annotation (defaults to /metrics)
+              - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                action: replace
+                target_label: __metrics_path__
+                regex: (.+)
+              # (4) __address__ = podIP:<prometheus.io/port>
+              #     $$ escapes to literal $ so Prometheus relabeling receives $1:$2
+              - source_labels:
+                  - __meta_kubernetes_pod_ip
+                  - __meta_kubernetes_pod_annotation_prometheus_io_port
+                action: replace
+                target_label: __address__
+                regex: (.+);(.+)
+                replacement: $$1:$$2
+              # (5) Stable entity GUID first segment (constant across all QMs)
+              - target_label: targetName
+                replacement: ${env:TARGET_NAME}
+              # (6) Cluster tag on IBMMQ_MANAGER entities
+              - target_label: clusterName
+                replacement: ${env:IBMMQ_CLUSTER_NAME}
+              # (7) Cosmetic identity labels (debug/visibility only)
+              - source_labels: [__meta_kubernetes_namespace]
+                action: replace
+                target_label: k8s_namespace
+              - source_labels: [__meta_kubernetes_pod_name]
+                action: replace
+                target_label: k8s_pod
+
+  processors:
+    # Drop go_* / process_* / promhttp_* / scrape_* overhead metrics
+    filter/ibmmq-overhead:
+      metrics:
+        exclude:
+          match_type: regexp
+          metric_names:
+            - "^go_.*"
+            - "^process_.*"
+            - "^promhttp_.*"
+            - "^scrape_.*"
+
+    # Exclude high-cardinality SYSTEM.* and AMQ.* internal queues
+    filter/ibmmq-queues:
+      metrics:
+        datapoint:
+          - 'attributes["queue"] != nil and IsMatch(attributes["queue"], "^SYSTEM\\.(ADMIN\\.|MQSC\\.|DEFAULT\\.|AUTH\\.|CHANNEL\\.|CHLAUTH\\.|CICS\\.|SYNCPOINT\\.|INTERNAL\\.|PENDING\\.|PROTECTION\\.|BROKER\\.|AMQP\\.|DOTNET\\.|REST\\.|RETAINED\\.|SELECTION\\.|DURABLE\\.|HIERARCHY\\.|DDELAY\\.)")'
+          - 'attributes["queue"] != nil and IsMatch(attributes["queue"], "^SYSTEM\\.CLUSTER\\.(COMMAND|HISTORY)\\.QUEUE$")'
+          - 'attributes["queue"] != nil and IsMatch(attributes["queue"], "^AMQ\\.")'
+
+    # Detect host/cloud resource attributes
+    resourcedetection:
+      detectors: [env, ec2, system]
+      system:
+        resource_attributes:
+          host.name:
+            enabled: true
+          host.id:
+            enabled: true
+
+    # Strip OTel auto-attributes that would land metrics on the wrong entity
+    # NOTE: qmgr and queue labels are NOT touched — entity synthesis depends on them
+    transform/ibmmq-cleanup:
+      metric_statements:
+        - context: resource
+          statements:
+            - delete_key(attributes, "service.name")
+            - delete_key(attributes, "service.instance.id")
+            - delete_key(attributes, "server.address")
+            - delete_key(attributes, "server.port")
+            - delete_key(attributes, "url.scheme")
+            - delete_key(attributes, "host.name")
+        - context: datapoint
+          statements:
+            - delete_key(attributes, "instance")
+            - delete_key(attributes, "job")
+
+    memory_limiter/ibmmq:
+      check_interval: 1s
+      limit_mib: 400
+      spike_limit_mib: 100
+
+    # Convert Prometheus monotonic counters to delta (required for NR rate metrics)
+    cumulativetodelta/ibmmq: {}
+
+    batch/ibmmq:
+      send_batch_size: 1000
+      timeout: 200ms
+
+  exporters:
+    otlphttp/ibmmq:
+      endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT:-https://otlp.nr-data.net:4318}
+      headers:
+        api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+  service:
+    extensions: [health_check]
+    # Expose collector self-telemetry on :8888 for kubectl port-forward inspection.
+    # This is separate from the inbound Service (which is disabled above).
+    telemetry:
+      metrics:
+        level: detailed
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: 0.0.0.0
+                  port: 8888
+    pipelines:
+      metrics/ibmmq:
+        receivers: [prometheus/ibmmq]
+        processors:
+          - filter/ibmmq-overhead
+          - filter/ibmmq-queues
+          - resourcedetection
+          - transform/ibmmq-cleanup
+          - memory_limiter/ibmmq
+          - cumulativetodelta/ibmmq
+          - batch/ibmmq
+        exporters: [otlphttp/ibmmq]
+```
+
+#### The auto-discovery receiver in depth [#receiver-explained]
+
+The `prometheus/ibmmq` receiver wraps the Prometheus scrape engine inside the OTel Collector. The `kubernetes_sd_configs` block with `role: pod` tells the Prometheus engine to use the Kubernetes API to enumerate pods rather than a static list of hosts. The `namespaces.names: [ibmmq]` constraint scopes discovery to the single namespace, which limits the watch load on the API server and prevents accidentally scraping unrelated workloads in other namespaces.
+
+The eight `relabel_configs` entries execute in order for every discovered pod target. Understanding each one is important for troubleshooting discovery failures:
+
+**Rule 1 — keep scrape-annotated pods only.** The `__meta_kubernetes_pod_annotation_prometheus_io_scrape` meta-label is set to the value of the `prometheus.io/scrape` annotation on each pod. The `action: keep` with `regex: "true"` drops every pod that does not have exactly the string `"true"` for this annotation. This is the primary gate: pods without the annotation (or with `"false"`) never appear as scrape targets. If your QM pods are not being scraped, this rule is the first place to check.
+
+**Rule 2 — drop non-Running pods.** The `__meta_kubernetes_pod_phase` meta-label carries the pod's lifecycle phase. Pods in `Pending` (not yet scheduled), `Succeeded` (completed Job pods), `Failed`, or `Unknown` states cannot serve metrics. Dropping them here prevents the scraper from accumulating connection errors in the self-telemetry and reduces noise in the target list during rolling restarts.
+
+**Rule 3 — metrics path from annotation.** The `__metrics_path__` internal label controls what URL path the scraper requests. Without this rule it defaults to `/metrics`. This rule replaces it with the value of `prometheus.io/path` if that annotation exists, making the path configurable per pod. If a future exporter serves metrics at a non-standard path (for example `/mq/metrics`), only the pod annotation needs to change — the Collector config stays the same.
+
+**Rule 4 — construct the scrape address.** This is the most mechanically interesting rule. It combines two meta-labels — `__meta_kubernetes_pod_ip` (the pod's IP address as seen inside the cluster) and `__meta_kubernetes_pod_annotation_prometheus_io_port` (the value of the `prometheus.io/port` annotation) — and writes their combination as `IP:PORT` into `__address__`, which is what the scraper actually connects to. The `regex: (.+);(.+)` captures both values (separated by the default `;` join character for multi-source labels), and `replacement: $$1:$$2` emits the `IP:PORT` string. Without this rule the scraper would try to connect to the pod IP on port 80, which is not where the MQ exporter listens.
+
+**Rules 5 and 6 — stamp constant labels.** These rules write the `targetName` and `clusterName` labels onto every scraped series. They are not relabeling of existing meta-labels — they create new labels from environment variable values. The `${env:TARGET_NAME}` and `${env:IBMMQ_CLUSTER_NAME}` references are expanded by the OTel config loader before the Prometheus engine starts, so by scrape time they are already the literal string values of those env vars. These labels survive through the processor chain and into New Relic, where they drive entity synthesis (`targetName`) and dashboard filtering (`clusterName`).
+
+**Rules 7 and 8 — cosmetic identity labels.** Copying `k8s_namespace` and `k8s_pod` from the Kubernetes meta-labels gives you human-readable context in raw metric queries and is useful when debugging which pod a metric came from. These labels do not affect entity synthesis.
+
+#### The processor chain — same as the Linux pipeline [#processor-chain]
+
+The eight processors in `metrics/ibmmq` run in the **same order, with the same rationale,** as the Linux pipeline — only the receiver layer (pod auto-discovery vs static targets) and the `memory_limiter` sizing differ. For the per-processor rationale and the order constraints, see:
+
+* the [processor-chain summary](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel#architecture-overview) on the overview page, and
+* the full [component reference](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-linux-config#component-reference) on the Linux page, where every processor is explained in depth.
+
+One detail is Kubernetes-specific: the **`memory_limiter/ibmmq`** soft limit (`limit_mib: 400`) is deliberately set below the container's `512Mi` memory limit, so the limiter sheds load *before* the kubelet OOM-kills the pod. Because it runs after the two `filter` processors, it also evaluates the already-reduced (post-filter) data volume.
+
+<CollapserGroup>
+  <Collapser id="pod-annotation-contract" title="Pod annotation contract — what your QM pods must carry">
+
+The auto-discovery receiver looks for pods in the `ibmmq` namespace that carry these three annotations on their **pod template** (not on the Deployment or StatefulSet object itself, but in `.spec.template.metadata.annotations`):
+
+```yaml
+metadata:
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9157"
+    prometheus.io/path: "/metrics"
+```
+
+**`prometheus.io/scrape: "true"`** is the primary gate. The relabel rule uses `action: keep` on this annotation, meaning any pod that does not have this annotation set to exactly the string `"true"` is silently dropped from the target list before any scrape attempt. Setting it to `True`, `yes`, or omitting it entirely all result in the pod not being scraped. This annotation must be on the pod template, not on a Service or Ingress object.
+
+**`prometheus.io/port: "9157"`** tells the Collector which port to connect to on the pod's IP. This must match the port that the mq-metric-samples exporter sidecar is actually listening on. The default IBM MQ Prometheus exporter port is `9157`. If your exporter is configured to listen on a different port, change this annotation to match — no other configuration change is needed. The Collector does not use a Kubernetes `Service` to resolve this address; it connects directly to the pod IP, bypassing any Service load balancing. This means the annotation must reflect the actual container port, not a Service port.
+
+**`prometheus.io/path: "/metrics"`** tells the Collector what HTTP path to request. The default for the IBM MQ Prometheus exporter is `/metrics`. If your exporter serves metrics at a different path, update this annotation. If the annotation is absent, the relabeling rule does not fire and the path defaults to `/metrics` anyway — but explicit is better than implicit.
+
+**Annotation placement in pod templates.** These annotations belong in `spec.template.metadata.annotations` of your Deployment, StatefulSet, or Pod manifest — not at the top-level `metadata.annotations` of the Deployment/StatefulSet itself. `kubernetes_sd` reads pod-level metadata, not controller metadata. A common mistake is placing the annotations on the Deployment's own metadata block, which causes the Collector to discover zero targets.
+
+**The `qmgr` label requirement.** The mq-metric-samples exporter must emit metrics with a `qmgr` label set to the queue manager name (for example `qmgr="QM1"`). This is the default behavior of the standard IBM MQ Prometheus exporter — do not suppress or rename this label. New Relic's entity synthesis rule reads `qmgr` to determine which `IBMMQ_MANAGER` entity to attach metrics to. If this label is missing or renamed, metrics arrive in New Relic but no `IBMMQ_MANAGER` entity is synthesized, and the metrics are not visible on IBM MQ dashboards.
+
+**The `queue` label requirement.** For queue-level metrics, the exporter must emit a `queue` label with the queue name. This is also default behavior. New Relic synthesizes `IBMMQ_QUEUE` entities from the `(targetName, qmgr, queue)` triple. Filtering out the `queue` label would collapse all queue metrics into a single anonymous entity.
+
+**Per-QM identity from the exporter label.** The Collector does not need to know how many queue managers exist or what they are named. Each pod's exporter carries the `qmgr` label on every metric it emits, and the Collector passes that label through unchanged. The single pipeline handles all QMs because they are distinguished entirely by their own metric labels, not by which Collector target they came from.
+
+**Verifying annotations on a running pod:**
+
+```bash
+kubectl -n ibmmq get pod <your-qm-pod-name> -o jsonpath='{.metadata.annotations}' | python3 -m json.tool
+```
+
+Confirm that `prometheus.io/scrape`, `prometheus.io/port`, and `prometheus.io/path` are all present and correctly valued.
+
+  </Collapser>
+
+  <Collapser id="add-queue-manager" title="Adding a new queue manager — zero collector changes required">
+
+Because discovery is annotation-driven, adding a fourth (or fifth, or tenth) queue manager requires only deploying a new annotated QM pod. The Collector configuration and Helm release do not change. This is the key operational advantage of the annotation-based discovery model over a static configuration: the Collector's view of queue managers is always current with what is running, with no human intervention on the monitoring side.
+
+**How the discovery refresh works.** The Prometheus receiver inside the Collector continuously re-runs the `kubernetes_sd_configs` watch in the background. When a new pod matching the annotation criteria enters `Running` phase, it appears in the target list within seconds. The Collector starts scraping it on the next scheduled scrape interval (up to 60 seconds after the pod becomes Running). When a pod is deleted, it disappears from the target list on the next refresh, and the Collector stops trying to scrape it. There is no scrape-timeout error logged for cleanly deleted pods.
+
+**Steps to add `QM4` as an example:**
+
+1. Create an mq-metric-samples exporter config for `QM4` (typically a ConfigMap with `queueManager: QM4` and the appropriate connection name and channel settings).
+2. Deploy a new pod with the IBM MQ broker and the mq-metric-samples exporter sidecar. Ensure the pod template carries all three `prometheus.io/*` annotations and that the exporter is configured with `MQ_QMGR_NAME=QM4` (or equivalent for your exporter version).
+3. Within one scrape interval (up to 60 seconds after the pod reaches `Running`), the Collector's `kubernetes_sd` discovers `QM4`'s pod, resolves its IP and port from the annotations, scrapes it, and ships the resulting `ibmmq_*` metrics with label `qmgr="QM4"`.
+4. New Relic synthesizes a new `IBMMQ_MANAGER` entity with GUID `ibmmq-k3s:QM4` automatically (using the `targetName` from the Collector's env var and the `qmgr` label from the exporter).
+5. The new entity appears under **All Entities > Infrastructure > IBMMQ_MANAGER** within a few minutes of the first metrics arriving.
+
+No changes to `values.yaml`, no Helm upgrade, no Collector pod restart required.
+
+**Removing a queue manager** is equally simple: delete the QM pod. The Collector stops scraping it at the next refresh. The `IBMMQ_MANAGER` and `IBMMQ_QUEUE` entities for `QM4` stop reporting new data and age out of the New Relic entity list roughly a day after they stop reporting (these IBM MQ entity types use a daily expiration window).
+
+  </Collapser>
+</CollapserGroup>
+
+</Step>
+
+<Step>
+
+### Install the collector with Helm [#install-helm]
+
+Add the OpenTelemetry Helm repository and install the Collector into the `ibmmq` namespace using the `values.yaml` you created in the previous step:
+
+```bash
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo update
+
+helm upgrade --install ibmmq-collector open-telemetry/opentelemetry-collector \
+  --namespace ibmmq \
+  --create-namespace \
+  --values values.yaml
+```
+
+Wait for the Collector to become ready:
+
+```bash
+kubectl -n ibmmq rollout status deploy/ibmmq-collector-opentelemetry-collector --timeout=180s
+kubectl -n ibmmq get pods -o wide
+```
+
+The Collector pod should show `1/1 Running`. If it stays in `Pending` or `CrashLoopBackOff`, inspect the logs:
+
+```bash
+kubectl -n ibmmq logs deploy/ibmmq-collector-opentelemetry-collector
+```
+
+Common startup errors and their root causes:
+
+- `cannot list resource "pods" … forbidden` — the ClusterRole or ClusterRoleBinding was not created. Verify `clusterRole.create: true` is present in your values. You can inspect the created role with `kubectl get clusterrole ibmmq-collector-opentelemetry-collector -o yaml`. If it is missing, the Helm chart may have been installed with an existing release that predates the RBAC values — run `helm upgrade --install` again with the current `values.yaml`.
+- `Service "…" is invalid: spec.ports: Required value` — `service.enabled: false` is missing from your values. This error occurs at Helm install/upgrade time, before the Collector pod even starts. Add the `service.enabled: false` line and retry.
+- `${env:NEW_RELIC_LICENSE_KEY}` appears unexpanded in logs — the Secret `newrelic-otlp-secret` does not exist or was not created in the `ibmmq` namespace. Verify with `kubectl -n ibmmq get secret newrelic-otlp-secret`. The `extraEnvsFrom` secretRef only injects env vars if the Secret exists at pod startup — a missing Secret causes the pod to fail with `CreateContainerConfigError`.
+- Pod stuck in `CreateContainerConfigError` — almost always caused by a missing Secret referenced in `extraEnvsFrom`. Run `kubectl -n ibmmq describe pod POD_NAME` and look at the `Events` section for `secret "newrelic-otlp-secret" not found`.
+- Pod starts but `receiver_accepted_metric_points` stays at 0 after several minutes — the discovery found no matching pods. Check that your QM pods are in the `ibmmq` namespace, are in `Running` phase, and carry all three `prometheus.io/*` annotations. Use `kubectl -n ibmmq get pods -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.annotations}{"\n"}{end}'` to list all pods and their annotations.
+
+</Step>
+
+<Step>
+
+### Verify the deployment [#verify]
+
+Verification has three layers: the Collector's own self-telemetry (is it scraping anything?), a direct check of the exporter sidecar (is the source working?), and NRQL queries in New Relic (did the data arrive and synthesize correctly?).
+
+#### Layer 1 — Collector self-telemetry on `:8888` [#verify-self-metrics]
+
+The Collector exposes its own operational metrics in Prometheus format on port `8888`. This endpoint is configured under `service.telemetry.metrics` in the `config:` block and is independent of the chart-level `service:` object (which is disabled). Because there is no Service object for this port, you must use `kubectl port-forward` to access it.
+
+```bash
+kubectl -n ibmmq port-forward deploy/ibmmq-collector-opentelemetry-collector 8888:8888 &
+curl -s http://localhost:8888/metrics | \
+  grep -E 'otelcol_(receiver_accepted|exporter_sent|exporter_send_failed)_metric_points'
+kill %1 2>/dev/null
+```
+
+Healthy output looks like:
+
+```
+otelcol_receiver_accepted_metric_points{receiver="prometheus/ibmmq",...} 2646
+otelcol_exporter_sent_metric_points{exporter="otlphttp/ibmmq",...} 1133
+otelcol_exporter_send_failed_metric_points{exporter="otlphttp/ibmmq",...} 0
+```
+
+**Reading the self-metrics:**
+
+- `otelcol_receiver_accepted_metric_points{receiver="prometheus/ibmmq"}` — the total number of individual metric data points (not metric names) that the receiver has successfully scraped and passed into the pipeline. A value greater than 0 confirms the Collector found at least one annotated Running pod and scraped it. If this is 0 after two minutes, no pods are being discovered. Check annotations and pod phase.
+- `otelcol_exporter_sent_metric_points{exporter="otlphttp/ibmmq"}` — the total data points successfully exported to New Relic. This will be lower than `receiver_accepted` because the `filter/ibmmq-overhead` and `filter/ibmmq-queues` processors drop a significant fraction of the raw scraped series. A value that increases over time confirms data is flowing to New Relic.
+- `otelcol_exporter_send_failed_metric_points{exporter="otlphttp/ibmmq"}` — the total data points that failed to export. Any non-zero value here indicates a problem with the OTLP connection or credentials. Check that the license key is correct and the endpoint is reachable from the cluster.
+
+You can also inspect the list of currently active scrape targets by looking for the `up` metric, which the Prometheus receiver emits for each discovered target:
+
+```bash
+kubectl -n ibmmq port-forward deploy/ibmmq-collector-opentelemetry-collector 8888:8888 &
+curl -s http://localhost:8888/metrics | grep 'target_info\|otelcol_scraper'
+kill %1 2>/dev/null
+```
+
+#### Layer 2 — Direct exporter spot-check [#verify-exporter]
+
+Before concluding that the Collector has a problem, confirm the exporter sidecar itself is serving metrics correctly. This rules out issues with the IBM MQ broker or exporter configuration:
+
+```bash
+kubectl -n ibmmq port-forward deploy/ibmmq-qm1 9157:9157 &
+curl -s http://localhost:9157/metrics | grep -E '^ibmmq_qmgr' | head
+kill %1 2>/dev/null
+```
+
+Healthy output shows lines like:
+
+```
+ibmmq_qmgr_status{qmgr="QM1"} 2
+ibmmq_qmgr_uptime{qmgr="QM1"} 3741
+ibmmq_qmgr_command_server_status{qmgr="QM1"} 2
+```
+
+If this curl returns nothing or a connection error, the problem is in the exporter sidecar, not the Collector. If it returns metrics but they do not have a `qmgr` label, entity synthesis will fail in New Relic.
+
+#### Layer 3 — NRQL queries in New Relic [#verify-nrql]
+
+These queries confirm that data arrived in New Relic, that entity synthesis ran, and that the metrics are queryable. Replace `ibmmq-k3s` with the value you set for `TARGET_NAME`.
+
+**Confirm metrics are arriving and all QMs are reporting.** This query counts raw metric data points by queue manager. A non-zero count per `qmgr` confirms that end-to-end flow is working — scrape, process, export, and ingest are all functioning.
+
+```sql
+FROM Metric SELECT count(*)
+WHERE metricName LIKE 'ibmmq_%' AND targetName = 'ibmmq-k3s'
+FACET qmgr SINCE 20 minutes ago
+```
+
+**QM health snapshot.** This query reads the most recent values of three key health indicators. `ibmmq_qmgr_status` should be `2` (running). `ibmmq_qmgr_command_server_status` should be `2` (command server active). `ibmmq_qmgr_uptime` is the number of seconds the queue manager has been running — divide by 60 to get minutes. See the [MQ status-code reference](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel#status-codes) on the overview page for the full set of status values.
+
+```sql
+FROM Metric
+SELECT latest(ibmmq_qmgr_status) AS status,
+       latest(ibmmq_qmgr_command_server_status) AS cmdSrv,
+       latest(ibmmq_qmgr_uptime) / 60 AS uptimeMin
+WHERE targetName = 'ibmmq-k3s'
+FACET qmgr SINCE 5 minutes ago
+```
+
+**Queue depth on application queues.** This query shows the current depth of queues matching `DEV.QUEUE.*`. Adjust the `queue LIKE` filter to match your actual application queue names.
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth)
+WHERE targetName = 'ibmmq-k3s' AND queue LIKE 'DEV.QUEUE.%'
+FACET qmgr, queue SINCE 5 minutes ago
+```
+
+**Why metric names use underscores.** IBM MQ's Prometheus exporter emits metric names like `ibmmq_qmgr_status` (with underscores). The OTel Collector passes these through unchanged. New Relic stores them exactly as received. NRQL queries must use the underscore form — do not use dotted names like `ibmmq.qmgr.status`. Some other New Relic integrations use dotted names, but this one does not.
+
+#### Entity synthesis — how entities appear in the UI [#verify-entities]
+
+New Relic synthesizes one `IBMMQ_MANAGER` entity per `(targetName, qmgr)` pair and one `IBMMQ_QUEUE` per `(targetName, qmgr, queue)` triple — see [The IBM MQ entity model](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel#entity-model) on the overview page for how synthesis keys off the metric shape.
+
+Entities appear under **All Entities > Infrastructure** in the New Relic UI. They typically appear within 2–5 minutes of the first metrics being ingested. If entities do not appear after 10 minutes but NRQL queries show data, verify that the `targetName` and `qmgr` labels are present on the incoming metrics:
+
+```sql
+FROM Metric SELECT uniques(targetName), uniques(qmgr)
+WHERE metricName = 'ibmmq_qmgr_status'
+SINCE 30 minutes ago
+```
+
+If `targetName` is empty or `qmgr` is missing, review the relabel rules and the `transform/ibmmq-cleanup` processor to ensure neither label is being accidentally deleted.
+
+<Callout variant="tip">
+  If no data appears in NRQL after five minutes, work through the layers in order: (1) check Collector self-metrics to confirm scraping is happening, (2) check the exporter directly to confirm it is serving metrics, (3) check Collector logs for export errors. Each layer isolates a different class of failure.
+</Callout>
+
+</Step>
+
+</Steps>
+
+<CollapserGroup>
+  <Collapser id="k8s-resource-sizing" title="Resource sizing and operational notes">
+
+**Memory and CPU sizing.** The default values request `256Mi` memory / `100m` CPU and cap at `512Mi` memory / `200m` CPU. The memory limit deliberately sits above the collector's `memory_limiter` (`limit_mib: 400`) so the soft limiter trips before the kubelet OOM-kills the pod. At three queue managers with approximately 450 post-filter series each and a 60-second scrape interval, the Collector typically uses 30–60 MiB RSS and less than 20m CPU. The headroom is intentional. Add roughly 50 MiB per 5 additional queue managers as a rough estimate, but always monitor actual usage via `kubectl -n ibmmq top pod`. If you shorten the scrape interval to 30 seconds you roughly double CPU usage (twice as many scrapes per minute) without proportionally increasing memory. If you add dozens of QMs, memory grows because the `cumulativetodelta` processor must maintain state (the previous value) for every active series.
+
+To check current resource usage:
+
+```bash
+kubectl -n ibmmq top pod -l app.kubernetes.io/name=opentelemetry-collector
+```
+
+**`replicaCount` must stay 1.** With the standard `prometheus/ibmmq` receiver (no TargetAllocator), every Collector replica independently runs `kubernetes_sd`, discovers the same full set of annotated pods, and scrapes each one. Two replicas produce two complete copies of every metric with identical label sets. New Relic counts both copies and charges for both. The duplicate data also makes NRQL aggregations return double the expected values (for example, `count(*)` returns 2x). The only correct way to run more than one replica is to deploy the [OpenTelemetry TargetAllocator](https://opentelemetry.io/docs/platforms/kubernetes/operator/target-allocator/), which distributes scrape targets across replicas so each target is covered by exactly one.
+
+**Scrape interval trade-offs.** The default `scrape_interval: 60s` means each metric in New Relic has a data point every 60 seconds. This is appropriate for queue depth and connection counts, which change slowly. If you need finer granularity for a specific use case (for example, monitoring a high-throughput queue during a load test), you can shorten the interval to `30s` or `15s` at the cost of higher CPU usage in the Collector and higher data ingest volume in New Relic. Do not shorten below `15s` — the IBM MQ Prometheus exporter itself refreshes its internal stats on a similar cadence, so sub-15-second scrapes do not produce more unique data.
+
+**Removing a QM.** Delete the QM pod (or scale its Deployment to 0). The target disappears from `kubernetes_sd` on the next discovery refresh (within seconds of the pod entering `Terminating` or being deleted). The Collector stops scraping it. The corresponding `IBMMQ_MANAGER` and `IBMMQ_QUEUE` entities stop receiving new data points and age out of the New Relic entity list roughly a day after they stop reporting (these IBM MQ entity types use a daily expiration window). Existing historical data is retained according to your account's data retention policy.
+
+**Upgrading the Collector image.** Change the `image.tag` in your `values.yaml` and run `helm upgrade --install` again. The Helm chart performs a rolling update of the Deployment. Because `replicaCount: 1`, there will be a brief scrape gap during the rollout (one old pod terminating, one new pod starting). This is typically less than 60 seconds — one missed scrape interval. If you need zero-gap upgrades, consider using a maintenance window or temporarily setting `replicaCount: 2` with the TargetAllocator before upgrading.
+
+**Upgrading the Helm chart version.** The `opentelemetry-collector` chart version and the Collector image version are independent. Bumping the chart version (for example, from `0.87.0` to `0.90.0`) may change the chart's template structure. Always run `helm diff upgrade` (with the `helm-diff` plugin) before upgrading to see what Kubernetes resources would change. The `values.yaml` content shown in this guide targets the chart's current stable API and should not need changes between minor chart versions.
+
+**Processor pipeline order is load-bearing and must not be changed.** The processors must run in this exact order:
+
+1. `filter/ibmmq-overhead` — drop before any transform to minimize data volume.
+2. `filter/ibmmq-queues` — drop internal queues before cardinality reaches `cumulativetodelta` state.
+3. `resourcedetection` — attach host/cloud attributes (`host.id`, `cloud.*`, `k8s.*`) before cleanup runs.
+4. `transform/ibmmq-cleanup` — remove the OTel auto-attributes (`service.*`, `server.*`, `host.name`) that would otherwise route metrics to the collector's own entity instead of an `IBMMQ_MANAGER`. Must run after `resourcedetection`.
+5. `memory_limiter/ibmmq` — placed after filtering so it evaluates the post-filter volume, not the raw scraped volume.
+6. `cumulativetodelta/ibmmq` — placed late so it only tracks state for the reduced post-filter series set, lowering memory usage.
+7. `batch/ibmmq` — placed last so it batches the final, fully-processed data before export.
+
+Running `transform/ibmmq-cleanup` before `resourcedetection` lets cleanup miss attributes that arrive afterward and can leave `host.name` in place, misrouting metrics to the collector's own host entity. Swapping `filter/ibmmq-queues` and `cumulativetodelta/ibmmq` causes the delta processor to accumulate state for internal queues that are subsequently dropped — wasting memory.
+
+  </Collapser>
+</CollapserGroup>
+
+## Next steps [#next-steps]
+
+* Confirm your data and explore queries: [Find your data](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel#find-data), including the [MQ status-code reference](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel#status-codes).
+* Build dashboards and alerts on the `ibmmq_*` metrics — for example, alert on `ibmmq_qmgr_status != 2`, or on `ibmmq_queue_depth` for `SYSTEM.DEAD.LETTER.QUEUE`. See [Next steps](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel#next-steps) on the overview.
+* For the conceptual overview and the Linux path, see [Monitor IBM MQ with OpenTelemetry](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel).

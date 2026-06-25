@@ -1,0 +1,425 @@
+---
+title: Monitor IBM MQ with OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Linux
+  - Kubernetes
+metaDescription: "Ship IBM MQ queue manager metrics to New Relic with the NRDOT (New Relic OpenTelemetry) collector, on a Linux host or on Kubernetes."
+freshnessValidatedDate: '2026-06-25'
+---
+
+Monitor your IBM MQ queue managers in New Relic by deploying the **NRDOT collector** — New Relic's supported, production-ready distribution of the [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/). The collector scrapes the Prometheus `/metrics` endpoint that the [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) exporter — the IBM MQ team's Prometheus metrics exporter for IBM MQ — publishes for each queue manager, reshapes those metrics so they map cleanly onto New Relic's IBM MQ entity model, and forwards them to New Relic over OTLP/HTTP (the OpenTelemetry-native wire protocol).
+
+The payoff: each queue manager becomes a first-class `IBMMQ_MANAGER` entity in New Relic, with its queues as child `IBMMQ_QUEUE` entities — ready for dashboards, alerts, golden-signal views, and entity relationships. This is a pure OpenTelemetry path: it needs no New Relic Infrastructure agent and no on-host integration package. If you already run the OpenTelemetry Collector elsewhere in your estate, IBM MQ monitoring becomes one more pipeline in the same tool you already operate.
+
+This guide covers two deployment shapes of the same pipeline:
+
+* **Linux host** — the collector runs under systemd and scrapes a fixed set of exporter endpoints through **static** Prometheus receivers (one per queue manager). Best when your queue managers live on VMs, bare metal, or EC2 and the set of queue managers changes rarely.
+* **Kubernetes** — the collector runs in-cluster as a Deployment and **auto-discovers** annotated queue manager pods through Prometheus `kubernetes_sd`. Best when your queue managers run as pods and the fleet scales up and down.
+
+Both shapes run the **same processing chain** and produce the **identical metric shape and entities** — they differ only in how the collector *finds* the exporters (hardcoded endpoints on Linux, pod auto-discovery on Kubernetes). Pick the platform that matches where your collector will run; the data in New Relic looks the same either way.
+
+<Callout variant="important">
+  This guide assumes your IBM MQ broker and the [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) exporter (the IBM MQ team's Prometheus metrics exporter, which runs its `mq_prometheus` program) are **already running and exposing `/metrics`** for each queue manager. It documents only the New Relic OpenTelemetry bridge — the collector configuration, environment variables, and verification queries needed to pipe that data into New Relic. Setting up the exporter itself is out of scope.
+</Callout>
+
+## Architecture [#architecture-overview]
+
+The data flows from each IBM MQ queue manager, through the mq-metric-samples exporter, into the NRDOT collector, and on to New Relic:
+
+```
+IBM MQ Queue Manager(s)        mq-metric-samples exporter         NRDOT / OTel collector            New Relic
+  QM1 / QM2 / QM3      ──PCF──▶  (mq_prometheus)       ──HTTP──▶  prometheus receiver(s)  ──OTLP/HTTP──▶  one IBMMQ_MANAGER
+  (broker)                       exposes /metrics                 → filter / transform /                  entity per QM
+                                                                  cumulativetodelta → otlphttp           (targetName:qmgr)
+```
+
+Reading that flow left to right:
+
+1. **Queue manager (broker).** Each IBM MQ queue manager exposes administrative statistics over PCF (Programmable Command Format). This is the source of truth — queue depths, channel status, connection counts, and queue-manager health all originate here.
+2. **mq-metric-samples exporter.** The exporter (one process per queue manager) polls the queue manager over PCF on an interval and translates the results into Prometheus text-format metrics on an HTTP `/metrics` endpoint. This component is **required** and assumed to be already running — see [Before you begin](#prerequisites).
+3. **NRDOT collector.** The collector scrapes each exporter's `/metrics`, runs the metrics through a processing chain (described below), and exports them. This is the only component this guide configures.
+4. **New Relic.** Metrics arrive over OTLP/HTTP and are synthesized into IBM MQ entities (described in [The IBM MQ entity model](#entity-model)).
+
+Inside the collector, each queue manager gets its own metrics pipeline with an identical, **order-sensitive** chain of processors:
+
+```
+prometheus → filter/ibmmq-overhead → filter/ibmmq-queues → resourcedetection
+           → transform/ibmmq-cleanup → memory_limiter → cumulativetodelta → batch → otlphttp
+```
+
+Each stage has a job, and the order matters:
+
+* **`prometheus`** — scrapes one exporter endpoint and attaches the entity-critical `targetName` (and optional `clusterName`) labels to every datapoint.
+* **`filter/ibmmq-overhead`** — drops the exporter's own self-metrics (`go_*`, `process_*`, `promhttp_*`, `scrape_*`), which carry no IBM MQ signal and would only add ingest cost.
+* **`filter/ibmmq-queues`** — cardinality control: drops noisy `SYSTEM.*` and `AMQ.*` internal queues so you don't pay to store thousands of low-value time series.
+* **`resourcedetection`** — discovers the host's identity (cloud, EC2, system) and stamps it on every metric, which populates the host and cloud widgets on New Relic's IBM MQ dashboards.
+* **`transform/ibmmq-cleanup`** — the most entity-critical step: strips OpenTelemetry's auto-added `service.*` attributes that would otherwise route IBM MQ metrics onto the *collector's* own entity instead of an `IBMMQ_MANAGER` entity. It must run *after* `resourcedetection`, which is why the order is load-bearing.
+* **`memory_limiter`** — applies back-pressure so the collector sheds load instead of being OOM-killed under a metric spike.
+* **`cumulativetodelta`** — converts Prometheus's cumulative counters to the delta temporality New Relic expects; without it, counter metrics render as flat lines.
+* **`batch`** — bundles datapoints to reduce the number of OTLP HTTP requests.
+* **`otlphttp`** — ships the finished metrics to your New Relic OTLP endpoint, authenticated with your license key.
+
+The full annotated configuration for each processor lives in the platform-specific guides linked below; this overview is enough to understand *why* the chain is shaped the way it is.
+
+### The IBM MQ entity model [#entity-model]
+
+New Relic turns the incoming metrics into **entities** — the durable, navigable objects you see in the UI — using *entity synthesis* rules that key off three things in the data:
+
+* the **underscore metric names** (`ibmmq_qmgr_status`, `ibmmq_queue_depth`, and so on),
+* the raw **`qmgr`** and **`queue`** labels, and
+* the **`targetName`** identity attribute the collector attaches at scrape time.
+
+From those, New Relic synthesizes:
+
+| Entity type | Composite key | What it represents |
+|---|---|---|
+| `IBMMQ_MANAGER` | `targetName:qmgr` | One queue manager (for example `prod-mq-01:QM1`) |
+| `IBMMQ_QUEUE` | `targetName:qmgr:queue` | One queue within a queue manager |
+
+Because the key starts with `targetName`, that value must be **stable for the life of the deployment** — it's effectively the entity's identity. The `clusterName` label rides along as a tag (useful for grouping queue managers that belong to the same MQ cluster) but is *not* part of the key, so you can leave it unset or change it later without orphaning entities.
+
+<Callout variant="caution">
+  **Do not rename or "dot" the metrics.** New Relic's IBM MQ entity synthesis depends on the raw Prometheus shape: underscore metric names (`ibmmq_*`) and the raw `qmgr` / `queue` labels. Renaming `qmgr` to something like `ibmmq.queue_manager`, or dotting the metric names, **breaks entity synthesis** and your `IBMMQ_MANAGER` dashboards go blank. Each queue manager synthesizes into one `IBMMQ_MANAGER` entity keyed as `targetName:qmgr`.
+</Callout>
+
+## Before you begin [#prerequisites]
+
+This guide documents only the New Relic OpenTelemetry bridge — the collector and its configuration. The two upstream components (the queue manager and the exporter) and your New Relic account must already be in place. Confirm all three before you start:
+
+* **A New Relic account and a license key.** You need a [New Relic account](https://newrelic.com/signup) and your <InlinePopover type="licenseKey"/>. The license key authenticates the collector's OTLP export; it's the single credential the collector needs to send data. Treat it as a secret — on Linux it lives in a root-owned env file, and on Kubernetes in a `Secret` (both covered in the platform guides). Note which New Relic region your account is in (US or EU): the OTLP endpoint differs, and sending to the wrong region will silently drop your data.
+
+* **A running IBM MQ broker with a monitoring channel.** You need one or more queue managers reachable by a user and server-connection channel that has PCF query rights. The exporter uses this channel to poll administrative statistics; if its credentials are missing the right authority, the exporter connects but returns no queue-manager data. A least-privilege monitoring channel (rather than an admin channel) is the recommended production setup.
+
+* **The mq-metric-samples exporter, already running (required).** [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) is the **official** IBM MQ metrics exporter, built and maintained by the IBM MQ team. It connects to a queue manager over PCF, polls its administrative statistics on an interval, and republishes them as Prometheus metrics on an HTTP `/metrics` endpoint by way of its `mq_prometheus` program. It is the **required** source of IBM MQ telemetry for this integration: the NRDOT collector is only a *scraper* — it can forward to New Relic exactly what the exporter publishes and nothing more — so a healthy exporter, one instance per queue manager, is a hard prerequisite.
+
+  <Callout variant="important">
+    Standing up and configuring mq-metric-samples is **outside the scope of this guide**. Follow the official [mq-metric-samples documentation](https://github.com/ibm-messaging/mq-metric-samples) from the IBM MQ team to install the exporter, point it at each queue manager, and expose `/metrics`. Return here once each exporter is live.
+  </Callout>
+
+  Verify each exporter is publishing IBM MQ metrics before you touch the collector:
+
+  ```bash
+  curl -s http://localhost:9157/metrics | grep '^ibmmq_qmgr_status'
+  ```
+
+  You should see one `ibmmq_qmgr_status{qmgr="..."}` line per queue manager with the value `2` (running). If the endpoint doesn't respond, the exporter isn't up; if it responds but `ibmmq_qmgr_status` is absent, the exporter can't reach the queue manager — check its channel name, connection name, credentials, and channel authority records against the mq-metric-samples documentation. The collector picks up automatically once `/metrics` is live.
+
+### New Relic region endpoints [#region-endpoints]
+
+The collector's OTLP endpoint must match your account's region. Sending to the wrong region **silently drops** your data — no error surfaces to the collector:
+
+| Region | `NEW_RELIC_OTLP_ENDPOINT` |
+|---|---|
+| US (default) | `https://otlp.nr-data.net:4318` |
+| EU | `https://otlp.eu01.nr-data.net:4318` |
+| FedRAMP | See [New Relic OTLP documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp) for the current FedRAMP ingest endpoint |
+
+## Choose your platform [#choose-platform]
+
+Once your account, broker, and exporter are confirmed, choose where the NRDOT collector will run. The two paths are **equivalent in outcome** — same metrics, same entities — and differ only in deployment mechanics: static exporter endpoints under systemd on Linux, or in-cluster pod auto-discovery on Kubernetes. Select the platform that matches your environment and follow its dedicated configuration guide.
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="/docs/opentelemetry/integrations/ibm-mq/ibm-mq-linux-config"
+    variant="primary"
+  >
+    Set up on Linux
+  </ButtonLink>
+  <ButtonLink
+    role="button"
+    to="/docs/opentelemetry/integrations/ibm-mq/ibm-mq-kubernetes-config"
+    variant="primary"
+  >
+    Set up on Kubernetes
+  </ButtonLink>
+</ButtonGroup>
+
+* **[Set up on Linux](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-linux-config)** — collector on a VM, bare metal, or EC2, under systemd, scraping static exporter endpoints. Choose this when queue managers run on hosts and the set of queue managers is stable.
+* **[Set up on Kubernetes](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-kubernetes-config)** — collector in-cluster as a Deployment, auto-discovering annotated queue manager pods. Choose this when queue managers run as pods and the fleet changes over time.
+
+### Set up on Linux [#linux]
+
+Run the NRDOT (New Relic OpenTelemetry) collector on your Linux host from a single, standalone configuration file. The collector scrapes each queue manager's mq-metric-samples exporter with one static Prometheus receiver per queue manager, normalizes the metrics, and ships them to New Relic over OTLP/HTTP — all driven by environment variables (`NEW_RELIC_LICENSE_KEY`, `TARGET_NAME`, and one `IBMMQ_QM<N>_ENDPOINT` per queue manager).
+
+At a glance, the Linux path is:
+
+1. Install the OpenTelemetry collector on the host.
+2. Save the standalone IBM MQ collector configuration locally.
+3. Set the required environment variables (license key, a stable `TARGET_NAME`, and one exporter endpoint per queue manager).
+4. Run the collector under systemd and confirm metrics arrive in New Relic.
+
+The complete, copy-paste Linux setup — install commands, the full collector configuration, the environment-variable reference, the systemd unit, and verification queries — lives in the dedicated configuration guide: **[Configure OpenTelemetry for IBM MQ on Linux](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-linux-config)**.
+
+<Callout variant="caution">
+  `TARGET_NAME` is the first segment of every `IBMMQ_MANAGER` and `IBMMQ_QUEUE` entity GUID (`targetName:qmgr`). On Linux it defaults to the host's short hostname — choose a stable value once and never change it, because changing it mints brand-new entities and orphans the old ones.
+</Callout>
+
+### Set up on Kubernetes [#kubernetes]
+
+Run a single collector in-cluster that **auto-discovers** every annotated IBM MQ exporter pod through the Prometheus `kubernetes_sd` mechanism. One collector Deployment serves any number of queue managers, and adding a queue manager needs zero collector changes.
+
+At a glance, the Kubernetes path is:
+
+1. Create a Kubernetes Secret holding your New Relic license key and OTLP endpoint.
+2. Define the collector's Helm values (the auto-discovery receiver, the processor pipeline, and the OTLP exporter).
+3. Install the collector with the `open-telemetry/opentelemetry-collector` Helm chart.
+4. Verify the collector pod is `1/1` and metrics arrive in New Relic.
+
+The complete, copy-paste Kubernetes setup — the New Relic credentials secret, the full Helm `values.yaml`, the install command, the pod-annotation contract, and verification queries — lives in the dedicated configuration guide: **[Configure OpenTelemetry for IBM MQ on Kubernetes](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-kubernetes-config)**.
+
+<Callout variant="caution">
+  Keep `targetName` stable. It is the first segment of every `IBMMQ_MANAGER` and `IBMMQ_QUEUE` entity GUID (`targetName:qmgr`); changing it after deploy mints new entities and orphans the old ones.
+</Callout>
+
+## Find your data [#find-data]
+
+After a few minutes, IBM MQ metrics appear in New Relic. The pipeline preserves the raw Prometheus shape — underscore metric names (`ibmmq_*`) and the raw `qmgr` and `queue` labels — and stamps a `targetName` identity onto every metric. New Relic uses these to synthesize one `IBMMQ_MANAGER` entity per queue manager, keyed as `targetName:qmgr` (for example, `ip-10-10-49-70:QM1` on a Linux host, or `ibmmq-k3s:QM1` on Kubernetes), plus an `IBMMQ_QUEUE` entity per queue.
+
+<Callout variant="tip">
+  Query metrics by their underscore names and raw labels — `ibmmq_qmgr_status`, `ibmmq_queue_depth`, `qmgr`, `queue`. The metric names are **not** dotted and the `qmgr` label is **not** renamed, so NRQL written against `ibmmq.*` or `ibmmq.queue_manager.name` will not match.
+</Callout>
+
+Confirm data is flowing — every IBM MQ metric:
+
+```sql
+FROM Metric SELECT count(*) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+```
+
+Count the queue managers reporting (each becomes one `IBMMQ_MANAGER` entity):
+
+```sql
+FROM Metric SELECT uniqueCount(qmgr) WHERE metricName LIKE 'ibmmq_%' FACET targetName SINCE 30 minutes ago
+```
+
+Queue manager status (`2` = running), one row per queue manager:
+
+```sql
+FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr SINCE 30 minutes ago
+```
+
+Current depth of every monitored queue:
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) FACET qmgr, queue SINCE 30 minutes ago
+```
+
+Dead-letter queue depth across the fleet (a common alert signal):
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr SINCE 30 minutes ago
+```
+
+To browse entities, go to **All entities** in the New Relic UI and filter for your `IBMMQ_MANAGER` and `IBMMQ_QUEUE` entities, or open a queue manager directly from any of the queries above.
+
+## Metrics reference [#metrics]
+
+The mq-metric-samples exporter publishes a large catalog of IBM MQ metrics — several hundred `ibmmq_*` time series per queue manager once MQI statistics are enabled — and the NRDOT collector forwards them to New Relic unchanged. All metrics keep the raw Prometheus shape: **underscore names** (`ibmmq_*`) and the raw **`qmgr`**, **`queue`**, **`channel`**, and **`topic`** labels (plus the `targetName` identity and optional `clusterName` tag the collector attaches).
+
+The tables below group the metrics you'll reach for most often by area. They are a representative selection, not the full catalog. To list every metric actually reporting in your account, run:
+
+```sql
+FROM Metric SELECT uniques(metricName, 2000) WHERE metricName LIKE 'ibmmq_%' SINCE 1 day ago
+```
+
+<Callout variant="tip">
+  Status metrics report numeric **enum** values, not `1`/`0` — see the [status-code reference](#status-codes) below before alerting on them. Counters are converted to delta temporality by the collector; use `sum()` / `rate()` over a window rather than `latest()` when charting them.
+</Callout>
+
+### Queue manager health and status [#metrics-qmgr-status]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_qmgr_status` | Queue manager run state (`2` = running). |
+| `ibmmq_qmgr_command_server_status` | Command server run state (`2` = running). |
+| `ibmmq_qmgr_channel_initiator_status` | Channel initiator run state (`2` = running). |
+| `ibmmq_qmgr_connection_count` | Current number of connections to the queue manager. |
+| `ibmmq_qmgr_uptime` | Queue manager uptime, in seconds. |
+| `ibmmq_qmgr_active_listeners` | Number of active listeners. |
+| `ibmmq_qmgr_active_services` | Number of active services. |
+| `ibmmq_qmgr_concurrent_connections_high_water_mark` | Peak concurrent connections. |
+
+### Queue manager resources (CPU, memory, log, file system) [#metrics-qmgr-resources]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_qmgr_cpu_load_one_minute_average_percentage` | 1-minute CPU load average for the queue manager (also `_five_` and `_fifteen_minute_`). |
+| `ibmmq_qmgr_user_cpu_time_percentage` | User-space CPU time consumed by the queue manager. |
+| `ibmmq_qmgr_system_cpu_time_percentage` | System (kernel) CPU time consumed by the queue manager. |
+| `ibmmq_qmgr_ram_total_bytes` | Total RAM on the host. |
+| `ibmmq_qmgr_ram_free_percentage` | Percentage of host RAM free. |
+| `ibmmq_qmgr_ram_total_estimate_for_queue_manager_bytes` | Estimated RAM in use by this queue manager. |
+| `ibmmq_qmgr_log_in_use_bytes` | Recovery log space currently in use. |
+| `ibmmq_qmgr_log_max_bytes` | Maximum recovery log size. |
+| `ibmmq_qmgr_log_primary_space_in_use_percentage` | Primary log space utilization. |
+| `ibmmq_qmgr_log_file_system_free_space_bytes` | Free space on the log file system. |
+| `ibmmq_qmgr_log_write_latency_seconds` | Recovery log write latency. |
+| `ibmmq_qmgr_queue_manager_file_system_in_use_bytes` | Queue manager file system space in use. |
+| `ibmmq_qmgr_queue_manager_file_system_free_space_percentage` | Free space on the queue manager file system. |
+| `ibmmq_qmgr_mq_fdc_file_count` | Number of FFST/FDC diagnostic files (a rising count signals errors). |
+
+### Queue depth, age, and handles [#metrics-queue-state]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_queue_depth` | Current number of messages on the queue. |
+| `ibmmq_queue_attribute_max_depth` | Configured maximum queue depth. |
+| `ibmmq_queue_oldest_message_age` | Age of the oldest message on the queue, in seconds. |
+| `ibmmq_queue_uncommitted_messages` | Number of uncommitted messages. |
+| `ibmmq_queue_time_since_put` | Seconds since the last `MQPUT` to the queue. |
+| `ibmmq_queue_time_since_get` | Seconds since the last `MQGET` from the queue. |
+| `ibmmq_queue_input_handles` / `ibmmq_queue_open_input_count` | Open handles / open count for input (consumers). |
+| `ibmmq_queue_output_handles` / `ibmmq_queue_open_output_count` | Open handles / open count for output (producers). |
+| `ibmmq_queue_browse_handles` / `ibmmq_queue_publish_handles` | Open browse / publish handles. |
+| `ibmmq_queue_qfile_current_size` / `ibmmq_queue_qfile_max_size` | Current / maximum queue file size on disk. |
+
+### Queue throughput and timing (MQI) [#metrics-queue-throughput]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_queue_mqput_count` | `MQPUT`/`MQPUT1` operations against the queue. |
+| `ibmmq_queue_mqget_count` | `MQGET` operations against the queue. |
+| `ibmmq_queue_mqput_bytes` / `ibmmq_queue_mqget_bytes` | Bytes put to / got from the queue. |
+| `ibmmq_queue_mqput_non_persistent_message_count` / `ibmmq_queue_mqput_persistent_message_count` | Non-persistent / persistent messages put. |
+| `ibmmq_queue_average_queue_time_seconds` | Average time messages spent on the queue. |
+| `ibmmq_queue_qtime_short` / `ibmmq_queue_qtime_long` | Short- / long-interval queue-time samples. |
+| `ibmmq_queue_avoided_puts_percentage` | Percentage of puts that went straight to a waiting getter. |
+| `ibmmq_queue_expired_messages` | Messages that expired on the queue. |
+| `ibmmq_queue_rolled_back_mqget_count` / `ibmmq_queue_rolled_back_mqput_count` | Rolled-back gets / puts. |
+
+### Channel metrics [#metrics-channel]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_channel_status` | Channel run state (`3` = running). |
+| `ibmmq_channel_status_squash` | Simplified channel status (fewer enum values, for coarse alerting). |
+| `ibmmq_channel_messages` | Messages sent over the channel. |
+| `ibmmq_channel_bytes_sent` / `ibmmq_channel_bytes_rcvd` | Bytes sent / received. |
+| `ibmmq_channel_buffers_sent` / `ibmmq_channel_buffers_rcvd` | Transmission buffers sent / received. |
+| `ibmmq_channel_cur_inst` | Current number of running channel instances. |
+| `ibmmq_channel_attribute_max_inst` / `ibmmq_channel_attribute_max_instc` | Max instances total / per client. |
+| `ibmmq_channel_time_since_msg` | Seconds since the last message on the channel. |
+| `ibmmq_channel_type` / `ibmmq_channel_instance_type` | Channel type / instance type. |
+| `ibmmq_channel_substate` | Channel sub-state. |
+
+### Topic and subscription (publish/subscribe) [#metrics-pubsub]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_topic_publisher_count` | Number of publishers on the topic. |
+| `ibmmq_topic_subscriber_count` | Number of subscribers on the topic. |
+| `ibmmq_topic_messages_received` | Messages published to the topic. |
+| `ibmmq_topic_time_since_msg_received` | Seconds since the last message on the topic. |
+| `ibmmq_subscription_type` | Subscription type (durable / non-durable). |
+| `ibmmq_subscription_messsages_received` | Messages received by the subscription. |
+| `ibmmq_subscription_time_since_message_published` | Seconds since the subscription last received a message. |
+
+### Queue manager MQI activity and errors [#metrics-qmgr-mqi]
+
+These queue-manager-wide counters summarize API activity and failures across all objects — useful for spotting application errors and transaction churn:
+
+| Metric | Description |
+|---|---|
+| `ibmmq_qmgr_mqput_message_count` / `ibmmq_qmgr_mqput1_message_count` | Total `MQPUT` / `MQPUT1` calls. |
+| `ibmmq_qmgr_mqopen_count` / `ibmmq_qmgr_mqclose_count` | Total `MQOPEN` / `MQCLOSE` calls. |
+| `ibmmq_qmgr_mqconn_mqconnx_count` / `ibmmq_qmgr_mqdisc_count` | Connect / disconnect calls. |
+| `ibmmq_qmgr_commit_count` / `ibmmq_qmgr_rollback_count` | Transaction commits / rollbacks. |
+| `ibmmq_qmgr_failed_mqput_count` / `ibmmq_qmgr_failed_mqget_count` | Failed put / get calls. |
+| `ibmmq_qmgr_failed_mqopen_count` / `ibmmq_qmgr_failed_mqconn_mqconnx_count` | Failed open / connect calls. |
+| `ibmmq_qmgr_expired_message_count` | Messages expired across the queue manager. |
+| `ibmmq_qmgr_purged_queue_count` | Queues purged. |
+
+### MQ status-code reference [#status-codes]
+
+IBM MQ status metrics report numeric enum values, **not** `1`/`0` — and the healthy ("running") value differs by metric (`2` for queue-manager-level status, `3` for channel status). Alert on *inequality* to the running value (for example, `ibmmq_qmgr_status != 2`):
+
+| Metric | Healthy value | Meaning |
+|---|---|---|
+| `ibmmq_qmgr_status` | `2` | Queue manager is running |
+| `ibmmq_qmgr_command_server_status` | `2` | Command server is running |
+| `ibmmq_qmgr_channel_initiator_status` | `2` | Channel initiator is running |
+| `ibmmq_channel_status` | `3` | Channel is running |
+
+Any other value (or a missing data point) means the component is not in its running state.
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser
+    id="metrics-but-no-entity"
+    title="Metrics show up in NRDB, but no IBMMQ_MANAGER entity appears"
+  >
+    This is almost always caused by altering the entity-critical metric shape. Entity synthesis keys on the raw underscore metrics (`ibmmq_*`), the raw `qmgr` label, and a `targetName` attribute. Check that:
+
+    * The metric names are **not** dotted (you should see `ibmmq_queue_depth`, not `ibmmq.queue.depth`).
+    * The `qmgr` label is **present and not renamed** (not `ibmmq.queue_manager.name`).
+    * `targetName` is set on the metrics:
+
+      ```sql
+      FROM Metric SELECT uniques(targetName), uniques(qmgr) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+      ```
+
+    The processor order in the collector configuration is load-bearing — `resourcedetection → transform/ibmmq-cleanup`. If you reordered or removed `transform/ibmmq-cleanup`, IBM MQ metrics route onto the collector's own entity instead of an `IBMMQ_MANAGER` entity. Restore the documented pipeline order.
+  </Collapser>
+
+  <Collapser
+    id="counters-flat"
+    title="Counter metrics appear as flat lines"
+  >
+    New Relic expects delta temporality for counters; Prometheus emits cumulative. The `cumulativetodelta/ibmmq` processor converts them in place. If counters look flat, confirm that processor is present in each metrics pipeline.
+  </Collapser>
+
+  <Collapser
+    id="new-stale-entities"
+    title="Old entities went stale after a redeploy"
+  >
+    `targetName` (Linux) / the `targetName` relabel value (Kubernetes) is the first segment of every `IBMMQ_MANAGER` and `IBMMQ_QUEUE` GUID. Changing it after deployment mints brand-new entities and the old ones go stale, breaking dashboards and alerts that point at the old GUIDs. Pick a stable value once and never change it.
+  </Collapser>
+
+  <Collapser
+    id="no-metrics-at-all"
+    title="No ibmmq_* metrics arrive in New Relic"
+  >
+    Work the pipeline back to front. First confirm the exporter is publishing — `curl -s http://<exporter-host>:9157/metrics | grep '^ibmmq_qmgr_status'` should return a line per queue manager (if not, the problem is the [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) exporter, not the collector). Then confirm the collector is scraping it (see *Is the collector healthy and scraping?* below). Finally, confirm the OTLP endpoint matches your account [region](#region-endpoints) and the license key is valid — a wrong region silently drops data with no collector-side error.
+  </Collapser>
+
+  <Collapser
+    id="enable-debug-logging"
+    title="Enable collector debug logging"
+  >
+    Turn up the collector's internal log level to see scrape and export activity.
+
+    On Linux, add to the collector config and restart:
+
+    ```yaml
+    service:
+      telemetry:
+        logs:
+          level: "debug"
+    ```
+
+    On Kubernetes (Helm), set the same block under `config:` in your `values.yaml` and run `helm upgrade`. You can also temporarily add the `debug` exporter to a pipeline to print datapoints to the collector log before they're sent to New Relic.
+  </Collapser>
+
+  <Collapser
+    id="check-health"
+    title="Is the collector healthy and scraping?"
+  >
+    The collector configuration enables a health endpoint at `:13133`:
+
+    ```bash
+    curl http://127.0.0.1:13133
+    ```
+
+    A healthy collector returns `{"status":"Server available", ...}`. The collector's own self-metrics (scrape counts, export successes/failures) are exposed on `:8888` — check `otelcol_exporter_send_failed_metric_points` for export problems and `scrape_*` activity for receiver problems.
+  </Collapser>
+</CollapserGroup>
+
+## Next steps [#next-steps]
+
+* Build dashboards and alerts on the `ibmmq_*` metrics — for example, alert on `ibmmq_qmgr_status != 2`, or on `ibmmq_queue_depth` for `SYSTEM.DEAD.LETTER.QUEUE`.
+* Add more queue managers: on Linux, add a receiver and pipeline (and an `IBMMQ_QM<N>_ENDPOINT` env var); on Kubernetes, just deploy another annotated queue manager pod — the collector discovers it with zero config change.
+* Correlate IBM MQ with the applications that produce and consume from it by instrumenting those apps with OpenTelemetry and sending them to the same New Relic account.
