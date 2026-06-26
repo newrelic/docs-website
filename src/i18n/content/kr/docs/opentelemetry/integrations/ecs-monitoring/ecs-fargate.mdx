@@ -140,6 +140,14 @@ ECS Fargate 작업에 대한 모니터링을 설정하려면 다음 단계를 �
               - action: add_label
                 new_label: operation
                 new_value: write
+      transform/promote_cluster_keys:
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["aws.ecs.cluster.name"], resource.attributes["aws.ecs.cluster.name"]) where resource.attributes["aws.ecs.cluster.name"] != nil
+              - set(attributes["cloud.account.id"], resource.attributes["cloud.account.id"]) where resource.attributes["cloud.account.id"] != nil
+              - set(attributes["cloud.region"], resource.attributes["cloud.region"]) where resource.attributes["cloud.region"] != nil
+              - set(attributes["aws.ecs.task.arn"], resource.attributes["aws.ecs.task.arn"]) where resource.attributes["aws.ecs.task.arn"] != nil
       metricstransform/cluster_aggregation:
         transforms:
           - include: container.cpu.utilization
@@ -170,6 +178,36 @@ ECS Fargate 작업에 대한 모니터링을 설정하려면 다음 단계를 �
               - action: aggregate_labels
                 label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
                 aggregation_type: sum
+          - include: container.cpu.utilization
+            action: insert
+            new_name: ecs.cluster.running_task_count
+            operations:
+              - action: aggregate_labels
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region, aws.ecs.task.arn]
+                aggregation_type: mean
+              - action: aggregate_labels
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
+                aggregation_type: count
+          - include: container.memory.usage.limit
+            action: insert
+            new_name: ecs.cluster.memory.limit
+            operations:
+              - action: aggregate_labels
+                label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
+                aggregation_type: sum
+      transform/running_task_count_one:
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(value_double, 1.0) where metric.name == "ecs.cluster.running_task_count"
+      metricstransform/running_task_count_sum:
+          transforms:
+            - include: ecs.cluster.running_task_count
+              action: update
+              operations:
+                - action: aggregate_labels
+                  label_set: [aws.ecs.cluster.name, cloud.account.id, cloud.region]
+                  aggregation_type: sum
       filter/cluster_metrics:
         metrics:
           include:
@@ -281,7 +319,10 @@ ECS Fargate 작업에 대한 모니터링을 설정하려면 다음 단계를 �
           receivers: [awsecscontainermetrics]
           processors: [
             metricstransform/base,
+            transform/promote_cluster_keys, 
             metricstransform/cluster_aggregation,
+            transform/running_task_count_one,
+            metricstransform/running_task_count_sum, 
             filter/cluster_metrics,
             transform/cluster_identifier,
             resource/cluster,
