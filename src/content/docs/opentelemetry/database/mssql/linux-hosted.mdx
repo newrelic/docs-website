@@ -1,0 +1,223 @@
+---
+title: "Linux self-hosted MSSQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Linux
+metaDescription: Set up Microsoft SQL Server monitoring with NRDOT collector on Linux self-hosted environments
+freshnessValidatedDate: never
+---
+
+Set up Microsoft SQL Server monitoring using the NRDOT collector on Linux self-hosted environments including physical servers, virtual machines, and containerized Linux deployments.
+
+<Steps>
+
+<Step>
+
+### Prerequisites [#prerequisites]
+
+Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
+
+</Step>
+
+<Step>
+
+## Set up the NRDOT Collector [#setup]
+
+Install the NRDOT Collector on your Linux flavour:
+
+<Callout variant="important">
+  It is recommended to install the NRDOT Collector on the same host as your SQL Server instance to view infrastructure-level metrics for query performance monitoring.
+</Callout>
+
+
+<CollapserGroup>
+  <Collapser
+    id="os"
+    title="For RedHat/CentOS/Amazon Linux"
+  >
+
+1. Get the latest version tag from GitHub API:
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}')
+    ```
+
+2. Download the package:
+
+    * For AMD64 architecture:
+
+      ```bash
+      curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector-experimental_${NRDOT_VERSION}_linux_amd64.rpm" \ --output nrdot-collector.rpm
+      ```
+
+    * For ARM64 architecture:
+
+      ```bash
+      curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector-experimental_${NRDOT_VERSION}_linux_arm64.rpm" \ --output nrdot-collector.rpm
+      ```
+
+3. Install the package:
+
+    ```bash
+    sudo rpm -ivh nrdot-collector.rpm
+    ```
+
+</Collapser>
+
+  <Collapser
+    id="deb"
+    title="For Debian/Ubuntu-based distributions"
+  >
+
+1. Get the latest version tag from GitHub API:
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}')
+    ```
+
+2. Download the package:
+
+    * For AMD64 architecture:
+
+      ```bash
+      curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector-experimental_${NRDOT_VERSION}_linux_amd64.deb" \ --output nrdot-collector.deb
+      ```
+
+    * For ARM64 architecture:
+
+      ```bash
+      curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector-experimental_${NRDOT_VERSION}_linux_arm64.deb" \ --output nrdot-collector.deb
+      ```
+
+3. Install the package:
+
+    ```bash
+    sudo dpkg -i nrdot-collector.deb
+    ```
+
+</Collapser>
+
+</CollapserGroup>
+
+</Step>
+
+<Step>
+
+## Configure database user [#user]
+
+Run the following script as a `root user/sysadmin` to create the `newrelic` monitoring user and grant global read permissions.
+
+1. To create a `newrelic` monitoring user in Linux, create a file named `nr-grant-permission.sql` on your Linux instance with the following content:
+
+    ```sql
+    USE [master];
+    GO
+    CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
+    GO
+    -- Instance-level permissions
+    GRANT VIEW SERVER STATE TO [newrelic];
+    GRANT VIEW ANY DEFINITION TO [newrelic];
+    GRANT VIEW ANY DATABASE TO [newrelic];
+    GO
+    -- Grant read access privileges to all user databases
+    DECLARE @name SYSNAME;
+    DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name]
+    FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master', 'msdb', 'tempdb', 'model', 'rdsadmin', 'distribution')
+    AND [state] = 0; -- Only online databases
+
+    OPEN db_cursor;
+    FETCH NEXT FROM db_cursor INTO @name;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+      BEGIN TRY
+        PRINT 'Processing database: ' + @name;
+        EXEC('USE [' + @name + '];
+        IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+        BEGIN
+          CREATE USER [newrelic] FOR LOGIN [newrelic];
+        END;
+        GRANT VIEW DATABASE STATE TO [newrelic];
+        GRANT VIEW DEFINITION TO [newrelic];
+        ALTER ROLE db_datareader ADD MEMBER [newrelic];');
+        PRINT 'Success: ' + @name;
+      END TRY
+      BEGIN CATCH
+        PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+      END CATCH
+      FETCH NEXT FROM db_cursor INTO @name;
+    END
+
+    CLOSE db_cursor;
+    DEALLOCATE db_cursor;
+    GO
+    ```
+
+2. To execute the script, run the following command. Replace `<Your_SA_Password>` with your SQL Server administrator password:
+
+    ```bash
+    sqlcmd -S localhost -U sa -P '<Your_SA_Password>' -C -i nr-grant-permission.sql
+    ```
+
+3. *(Optional)* To verify that the user was created successfully and has the correct permissions, run the following command. Replace `<Your_SA_Password>` with your SQL Server administrator password:
+
+    ```bash
+    sqlcmd -S localhost -U sa -P '<Your_SA_Password>' -C -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = 'newrelic';"
+    ```
+
+    **Expected Output:**
+    ```
+    User Permission_Granted
+    -------------------------------------------------------------------------------------
+    <your_username> CONNECT SQL
+    <your_username> VIEW ANY DEFINITION
+    <your_username> VIEW ANY DATABASE
+    <your_username> VIEW SERVER STATE
+    ```
+
+This output confirms that your user has been created successfully with the required server-level permissions.
+
+</Step>
+
+<Step>
+
+## Configure NRDOT Collector [#configure]
+
+Replace your `config.yaml` file at `/etc/nrdot-collector/config.yaml` with the configuration content provided in the Windows SQL Authentication section above. The configuration is the same for both environments.
+
+<Callout variant="important">
+  If you're an existing NRDOT Collector user, ensure to merge the configuration with your existing `config.yaml` file. This includes adding the new receivers, processors, and exporters for MSSQL Database monitoring while retaining your current configurations.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Restart NRDOT collector [#restart]
+
+After updating your configuration, restart the NRDOT Collector service:
+
+```bash
+sudo systemctl restart nrdot-collector
+```
+
+<Callout variant="tip">
+  Always restart the NRDOT collector service after making configuration changes to ensure the new settings take effect.
+</Callout>
+
+</Step>
+
+</Steps>
+
+## Next steps
+
+After setting up Linux self-hosted monitoring:
+
+- **[Set up APM-database correlation →](/docs/opentelemetry/database/database-service-identification/)**
+- **[Explore available metrics →](/docs/opentelemetry/database/mssql/mssql-nrdot-metrics)**
+- **[Troubleshoot issues →](/docs/opentelemetry/database/mssql/troubleshooting-nrdot)**
+- **[Find and use your data →](/docs/opentelemetry/database/mssql/introduction#find-and-use-your-data)**

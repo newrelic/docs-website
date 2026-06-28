@@ -1,0 +1,265 @@
+---
+title: "Linux RDS MSSQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Linux
+  - RDS
+  - AWS
+metaDescription: Set up Microsoft SQL Server monitoring with NRDOT collector on Linux for AWS RDS SQL Server instances
+freshnessValidatedDate: never
+---
+
+Set up Microsoft SQL Server monitoring using the NRDOT collector on Linux environments to monitor AWS RDS for SQL Server instances.
+
+<Steps>
+
+<Step>
+
+### Prerequisites [#prerequisites]
+
+Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
+
+</Step>
+
+<Step>
+
+### Set up the NRDOT Collector [#setup-collector]
+
+Install the NRDOT Collector on your Linux EC2 instance or local Linux machine that can connect to your RDS SQL Server instance.
+
+<Callout variant="important">
+  Install the NRDOT Collector on an EC2 instance or local machine that has network connectivity to your RDS SQL Server instance. Ensure your security group allows inbound connections on port 1433 (or your custom port).
+</Callout>
+
+1. **Debian / Ubuntu**
+
+**For AMD64 (x86_64) Architecture:**
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+**For ARM64 Architecture:**
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+2. **RHEL / CentOS**
+
+**For AMD64 (x86_64) Architecture:**
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+**For ARM64 Architecture:**
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+</Step>
+
+<Step>
+
+### Configure database user [#configure-user]
+
+Connect to your RDS SQL Server instance and create the `newrelic` monitoring user with appropriate permissions.
+
+1. Create a file named `nr-grant-permission-rds.sql` on your Linux instance with the following content:
+
+  ```sql
+  USE [master];
+  GO
+  CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
+  GO
+  -- Instance-level permissions
+  GRANT VIEW SERVER STATE TO [newrelic];
+  GRANT VIEW ANY DEFINITION TO [newrelic];
+  GRANT VIEW ANY DATABASE TO [newrelic];
+  GO
+  -- Grant read access privileges to all user databases
+  DECLARE @name SYSNAME;
+  DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+  SELECT [name]
+  FROM [master].[sys].[databases]
+  WHERE [name] NOT IN ('master', 'msdb', 'tempdb', 'model', 'rdsadmin', 'distribution')
+  AND [state] = 0; -- Only online databases
+  OPEN db_cursor;
+  FETCH NEXT FROM db_cursor INTO @name;
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    BEGIN TRY
+      PRINT 'Processing database: ' + @name;
+      EXEC('USE [' + @name + '];
+      IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+      BEGIN
+        CREATE USER [newrelic] FOR LOGIN [newrelic];
+      END;
+      GRANT VIEW DATABASE STATE TO [newrelic];
+      GRANT VIEW DEFINITION TO [newrelic];
+      ALTER ROLE db_datareader ADD MEMBER [newrelic];');
+      PRINT 'Success: ' + @name;
+    END TRY
+    BEGIN CATCH
+      PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+    END CATCH
+    FETCH NEXT FROM db_cursor INTO @name;
+  END
+  CLOSE db_cursor;
+  DEALLOCATE db_cursor;
+  GO
+  ```
+
+2. Execute the script using your RDS master user credentials. Replace `<YOUR-RDS-ENDPOINT>` with your actual RDS endpoint and `<Your_Master_Password>` with your master password:
+
+  ```bash
+  sqlcmd -S <YOUR-RDS-ENDPOINT> -U <YOUR_MASTER_USER> -P '<Your_Master_Password>' -C -i nr-grant-permission-rds.sql
+  ```
+
+3. *(Optional)* Verify the user was created successfully:
+
+  ```bash
+  sqlcmd -S <YOUR-RDS-ENDPOINT> -U <YOUR_MASTER_USER> -P '<Your_Master_Password>' -C -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = 'newrelic';"
+  ```
+
+<Callout variant="tip">
+  **For RDS:** Use your RDS master username and password to execute these commands. The script automatically excludes the `rdsadmin` database which is reserved by AWS.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Configure NRDOT Collector [#configure-collector]
+
+Replace your `config.yaml` file at `/etc/nrdot-collector/config.yaml`:
+
+<Callout variant="important">
+  If you're an existing NRDOT Collector user, ensure to merge the configuration with your existing `config.yaml` file. This includes adding the new receivers, processors, and exporters for MSSQL Database monitoring while retaining your current configurations.
+</Callout>
+
+```yaml
+receivers:
+  nrsqlserver:
+    collection_interval: 15s
+    # Connection details - Use your RDS endpoint
+    username: <YOUR_USERNAME>
+    password: <YOUR_NEWRELIC_PASSWORD>
+    server: <YOUR-RDS-ENDPOINT>
+    port: 1433
+
+    # Enable query performance monitoring
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+    # Top query collection
+    top_query_collection:
+      lookback_time: 15s
+      max_query_sample_count: 1000
+      top_query_count: 20
+      collection_interval: 15s
+
+    # Query sample collection
+    query_sample_collection:
+      max_rows_per_query: 20
+
+    # APM correlation
+    collect_full_query_text: true
+    allowed_comment_keys:
+      - nr_service_guid
+
+    # Core metrics (uptime, CPU count only)
+    metrics:
+      sqlserver.computer.uptime:
+        enabled: true
+      sqlserver.cpu.count:
+        enabled: true
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+exporters:
+  otlphttp:
+    endpoint: <YOUR_OTLP_ENDPOINT>
+    headers:
+      api-key: <YOUR_LICENSE_KEY>
+    compression: gzip
+
+  debug:
+    verbosity: detailed
+
+service:
+  telemetry:
+    metrics:
+      level: none
+
+  pipelines:
+    metrics:
+      receivers: [nrsqlserver]
+      processors: [batch]
+      exporters: [otlphttp, debug]
+
+    logs:
+      receivers: [nrsqlserver]
+      processors: [batch]
+      exporters: [otlphttp, debug]
+```
+
+<Callout variant="tip">
+  **Replace the placeholder values:**
+  - `<YOUR_USERNAME>`: Enter your database username for authentication
+  - `<YOUR-RDS-ENDPOINT>`: Your RDS SQL Server endpoint (e.g., `mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com`)
+  - `<YOUR_NEWRELIC_PASSWORD>`: The password you set for the newrelic user
+  - `<YOUR_OTLP_ENDPOINT>`: Your New Relic OTLP endpoint (e.g., `https://otlp.nr-data.net`)
+  - `<YOUR_LICENSE_KEY>`: Your New Relic license key
+</Callout>
+
+</Step>
+
+<Step>
+
+### Validate NRDOT Collector configuration [#validate]
+
+Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
+
+```bash
+sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/config.yaml
+```
+
+</Step>
+
+<Step>
+
+### Restart NRDOT collector [#restart]
+
+After updating your configuration, restart the NRDOT Collector service:
+
+```bash
+sudo systemctl restart nrdot-collector
+```
+
+<Callout variant="tip">
+  Always restart the NRDOT collector service after making configuration changes to ensure the new settings take effect.
+</Callout>
+
+</Step>
+
+</Steps>
+
+## Next steps
+
+After setting up Linux RDS monitoring:
+
+- **[Set up APM-database correlation →](/docs/opentelemetry/database/database-service-identification/)**
+- **[Explore available metrics →](/docs/opentelemetry/database/mssql/metrics-reference)**
+- **[Troubleshoot issues →](/docs/opentelemetry/database/mssql/troubleshooting)**
+- **[Find and use your data →](/docs/opentelemetry/database/mssql/introduction#find-and-use-your-data)**
