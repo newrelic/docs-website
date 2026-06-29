@@ -22,16 +22,18 @@ Azure Virtual Network (VNet) Flow Logs allow you to log information about IP tra
 
 ## How it works [#how-it-works]
 
-The VNet Flow Logs Forwarder consists of two Azure Functions that work together:
+The VNet Flow Logs Forwarder is an event-driven Azure Function App:
 
-1. **VNetFlowRelay**: An Event Grid-triggered function that listens for `BlobCreated` events on your flow-log storage container. It relays each event to an Event Hub with the blob path as the partition key to guarantee per-file chronological ordering.
+1. **Event Grid → Event Hub**: An Event Grid subscription on your flow-log storage account listens for `BlobCreated` events on the PT1H.json blobs and delivers them directly to an Event Hub. The blob path (event subject) is used as the partition key to guarantee per-file chronological ordering. There is no separate relay function.
 
-2. **VNetFlowConsumer**: An Event Hub-triggered function that processes each blob event by:
+2. **VNetFlowLogsConsumer**: An Event Hub-triggered function that processes each blob event by:
    * Reading a cursor from Azure Table Storage to determine what's already been processed.
    * Downloading only newly appended blocks from the PT1H.json blob (delta reads).
    * Parsing VNet flow log records (flow tuples) into structured log entries.
    * Sending the parsed records to New Relic via the Logs API.
    * Committing the updated cursor on successful delivery.
+
+3. **VNetFlowLogsCleanup**: A timer-triggered function that periodically removes stale cursor entries from Azure Table Storage (by default, daily at 03:00 UTC).
 
 This architecture ensures efficient, incremental processing — only new data is read and forwarded, avoiding duplicate processing of already-seen records.
 
@@ -46,9 +48,8 @@ This architecture ensures efficient, incremental processing — only new data is
 
 * An Azure subscription with VNet Flow Logs enabled on the target virtual networks. See [Microsoft's documentation on enabling VNet Flow Logs](https://learn.microsoft.com/en-us/azure/network-watcher/vnet-flow-logs-overview).
 * A Storage Account where your VNet Flow Logs are being written (PT1H.json blobs).
-* An Event Hub namespace and Event Hub for relay messaging (can be created automatically by the ARM/Bicep template).
-* An Azure Storage Account for cursor table storage (can be created automatically by the ARM/Bicep template).
-* For private networking deployment: Basic or higher App Service Plan to support VNet integration.
+* An Event Hub namespace and Event Hub for event delivery (can be created automatically by the ARM/Bicep template).
+* An Azure Storage Account for the Function App runtime and cursor table storage (can be created automatically by the ARM/Bicep template).
 
 ## Deploy the VNet Flow Logs Forwarder [#deploy]
 
@@ -69,22 +70,26 @@ Follow these steps:
 7. Select the <DNT>**Resource group**</DNT> where you want to create the necessary resources, and a <DNT>**Region**</DNT>. We recommend installing the template in a new resource group to avoid accidentally deleting components.
 8. In the <DNT>**New Relic license key**</DNT> field, paste the previously copied API key.
 9. Ensure the [New Relic endpoint](/docs/logs/log-api/introduction-log-api/#endpoint) is set to the one corresponding to your account (US, EU, or JP).
-10. Enter the <DNT>**Source Storage Account Name**</DNT> where your VNet Flow Logs are stored.
-11. Optional: Configure existing Event Hub namespace and Event Hub names, or leave blank to create new ones automatically.
-12. Optional: Select <DNT>**Disable Public Access To Storage Account**</DNT> to enable private networking mode with VNet integration and private endpoints.
-13. Optional: Configure advanced settings:
+10. Optional: Enter the <DNT>**Source Storage Account Name**</DNT> where your VNet Flow Logs are stored. It must be in the same resource group as this deployment. Leave it blank to create a new source storage account automatically.
+11. Optional: Select <DNT>**Disable Public Access To Storage Account**</DNT> to enable private networking mode with VNet integration and private endpoints.
+12. Optional: Configure advanced settings:
     * <DNT>**New Relic Tags**</DNT>: Semicolon-separated tags (format: `key1:value1;key2:value2`)
     * <DNT>**Max Retries**</DNT>: Maximum delivery retry attempts (default: 3)
     * <DNT>**Retry Interval**</DNT>: Milliseconds between retries (default: 2000)
-    * <DNT>**Event Hub Batch Size**</DNT>: Maximum events per batch (default: 10)
-    * <DNT>**Debug Logging Enabled**</DNT>: Enable verbose debug logs
-14. Click <DNT>**Review + create**</DNT>, review the configuration, and click <DNT>**Create**</DNT>.
+    * <DNT>**Cursor Retention Hours**</DNT>: Hours to retain blob-cursor records before cleanup (default: 48)
+    * <DNT>**Cursor Cleanup Schedule**</DNT>: NCRONTAB schedule for the cursor cleanup timer (default: `0 0 3 * * *`, daily at 03:00 UTC)
+    * <DNT>**Max Consecutive Failures**</DNT>: Consecutive failures per blob before it is skipped as a poison event (default: 3)
+    * <DNT>**Maximum Instance Count**</DNT>: Maximum Flex Consumption instances the Function App can scale to, 1–1000 (default: 100)
+    * <DNT>**Instance Memory MB**</DNT>: Memory per Flex Consumption instance — 512, 2048, or 4096 (default: 2048)
+    * <DNT>**Event Hub Scaling Mode**</DNT>: `Basic` (1 throughput unit, 4 partitions, no auto-inflate — low-to-medium traffic) or `Enterprise` (auto-inflate up to 40 throughput units, 32 partitions — high-throughput volumes) (default: `Basic`)
+13. Click <DNT>**Review + create**</DNT>, review the configuration, and click <DNT>**Create**</DNT>.
 
 The template will automatically:
-* Create or use an existing Event Hub namespace and Event Hub
-* Deploy the Function App with VNet Flow Forwarder functions
-* Create a Storage Account for cursor tracking
-* Set up Event Grid subscription to forward blob creation events
+* Create an Event Hub namespace, Event Hub, and consumer group
+* Deploy the Function App (Flex Consumption plan, Node.js 22) with the VNet Flow Logs functions
+* Create a Storage Account for the Function App runtime and cursor tracking
+* Create an Event Grid system topic and subscription that routes PT1H.json blob-creation events directly to the Event Hub
+* Assign a managed identity with the required role assignments
 * Configure all necessary application settings
 * Optionally enable private networking with VNet integration and private endpoints
 
@@ -93,27 +98,26 @@ The template will automatically:
 The ARM/Bicep template supports two deployment modes:
 
 **Standard deployment** (default):
-* Event Grid monitors blob creation in source storage account
-* Routes events to Event Hub for ordered processing
+* Event Grid monitors blob creation in the source storage account
+* Routes events directly to Event Hub for ordered processing (subject used as partition key)
 * Function App processes VNet flow logs and forwards to New Relic
-* Public network access enabled on Function and cursor storage accounts
+* Public network access enabled on the Function App, its storage account, and the Event Hub
 
-**Private networking deployment** (optional):
+**Private networking deployment** (optional, `disablePublicAccessToStorageAccount=true`):
 * All features of standard deployment
-* Disabled public network access on Function and cursor storage accounts
+* Isolates the Function App, its storage account, and the Event Hub within a private virtual network; public network access to them is disabled
 * VNet integration with private endpoints for storage services (blob, file, queue, table)
 * Private DNS zones for name resolution
-* Requires Basic or higher App Service Plan for VNet integration
-* Source storage account network configuration remains unchanged
+* The source storage account (containing the VNet Flow Logs) is not modified and is expected to keep public network access enabled
 
 ### Manual deployment [#manual-deploy]
 
 If you prefer manual deployment or need custom configuration:
 
-1. Deploy the [newrelic-azure-functions](https://github.com/newrelic/newrelic-azure-functions) Function App to your Azure subscription.
-2. Ensure the `VNetFlowForwarder` functions are included in the deployment.
+1. Deploy the [azure-vnet-flow-logs](https://github.com/newrelic/azure-vnet-flow-logs) Function App to your Azure subscription.
+2. Ensure the `VNetFlowForwarder` functions (`VNetFlowLogsConsumer` and `VNetFlowLogsCleanup`) are included in the deployment.
 3. Configure the required environment variables (application settings) listed below.
-4. Set up an Event Grid subscription on your flow-log storage account to route `BlobCreated` events to the VNetFlowRelay function.
+4. Set up an Event Grid subscription on your flow-log storage account to route `BlobCreated` events directly to the Event Hub, using the event subject as the partition key.
 
 ## Configuration [#configuration]
 
@@ -153,16 +157,12 @@ Configure the following application settings on your Azure Function App:
       <td>`EVENTHUB_NAME`</td>
       <td>Name of the Event Hub instance.</td>
     </tr>
-    <tr>
-      <td>`VNETFLOW_RELAY_ENABLED`</td>
-      <td>Set to `true` to enable the VNetFlowRelay function.</td>
-    </tr>
-    <tr>
-      <td>`VNETFLOWLOGS_FORWARDER_ENABLED`</td>
-      <td>Set to `true` to enable the VNetFlowConsumer function.</td>
-    </tr>
   </tbody>
 </table>
+
+<Callout variant="tip">
+  Provide either `NR_LICENSE_KEY` or `NR_INSERT_KEY` — at least one is required. The forwarder uses the license key if both are set.
+</Callout>
 
 ### Optional settings [#optional-settings]
 
@@ -196,27 +196,31 @@ Configure the following application settings on your Azure Function App:
       <td>`2000`</td>
     </tr>
     <tr>
-      <td>`CURSOR_TABLE_NAME`</td>
-      <td>Azure Table Storage table name for cursor persistence.</td>
-      <td>`vnetflowlogcursors`</td>
-    </tr>
-    <tr>
       <td>`EVENTHUB_CONSUMER_GROUP`</td>
       <td>Event Hub consumer group.</td>
       <td>`$Default`</td>
     </tr>
     <tr>
-      <td>`EVENTHUB_BATCH_SIZE`</td>
-      <td>Maximum number of Event Hub messages per batch.</td>
-      <td>`10`</td>
+      <td>`CURSOR_RETENTION_HOURS`</td>
+      <td>Number of hours to retain blob-cursor records before the cleanup job removes them.</td>
+      <td>`48`</td>
     </tr>
     <tr>
-      <td>`DEBUG_ENABLED`</td>
-      <td>Set to `true` to enable verbose debug logging.</td>
-      <td>`false`</td>
+      <td>`CURSOR_CLEANUP_SCHEDULE`</td>
+      <td>NCRONTAB schedule for the cursor cleanup timer trigger.</td>
+      <td>`0 0 3 * * *` (daily at 03:00 UTC)</td>
+    </tr>
+    <tr>
+      <td>`MAX_CONSECUTIVE_FAILURES`</td>
+      <td>Number of consecutive failures per blob before the forwarder skips it as a poison event.</td>
+      <td>`5`</td>
     </tr>
   </tbody>
 </table>
+
+<Callout variant="important">
+  The cursor table name is fixed at `nrvnetflowlogscursors` and is no longer configurable. Debug logging is now controlled through Azure Functions log levels in `host.json` (or the `AzureFunctionsJobHost__logging__logLevel__*` app settings) rather than a `DEBUG_ENABLED` flag.
+</Callout>
 
 ## Enable VNet Flow Logs in Azure [#enable-flow-logs]
 
@@ -234,21 +238,22 @@ For more details, see [Microsoft's documentation on VNet Flow Logs](https://lear
 
 ## Set up the Event Grid subscription [#event-grid]
 
-To connect your storage account to the relay function:
+If you deploy with the ARM/Bicep template, this subscription is created for you. To connect your storage account manually:
 
 1. In the Azure portal, navigate to your flow-log storage account.
 2. Under <DNT>**Events**</DNT>, click <DNT>**+ Event Subscription**</DNT>.
 3. Set the <DNT>**Event Types**</DNT> filter to `Blob Created`.
-4. Set the endpoint type to <DNT>**Azure Function**</DNT> and select the `VNetFlowRelay` function.
-5. Optionally, add a subject filter to only forward events from your flow-log container (for example, subject begins with `/blobServices/default/containers/insights-logs-flowlogflowevent`).
-6. Click <DNT>**Create**</DNT>.
+4. Set the endpoint type to <DNT>**Event Hub**</DNT> and select the Event Hub created for the forwarder.
+5. Add a subject filter so only PT1H.json blob events are forwarded (for example, subject ends with `PT1H.json`, or begins with `/blobServices/default/containers/insights-logs-flowlogflowevent`).
+6. Under the delivery settings, set the <DNT>**Delivery Properties**</DNT> so the Event Hub partition key is set to the event subject (the blob path). This guarantees per-file chronological ordering.
+7. Click <DNT>**Create**</DNT>.
 
 ## View flow log data [#find-data]
 
 Once configured, VNet Flow Log data will appear in New Relic. You can query it using NRQL:
 
 ```sql
-SELECT * FROM Log WHERE plugin.type = 'azure' AND azure.forwardername = 'VNetFlowConsumer'
+SELECT * FROM Log WHERE instrumentation.provider = 'azure' AND instrumentation.name = 'vnet-app'
 ```
 
 Each flow log record includes the following attributes:
@@ -266,7 +271,7 @@ Each flow log record includes the following attributes:
       <td>Source IP address</td>
     </tr>
     <tr>
-      <td>`dstAddr`</td>
+      <td>`destAddr`</td>
       <td>Destination IP address</td>
     </tr>
     <tr>
@@ -274,7 +279,7 @@ Each flow log record includes the following attributes:
       <td>Source port</td>
     </tr>
     <tr>
-      <td>`dstPort`</td>
+      <td>`destPort`</td>
       <td>Destination port</td>
     </tr>
     <tr>
@@ -294,23 +299,103 @@ Each flow log record includes the following attributes:
       <td>Flow state (Begin, Continuing, End)</td>
     </tr>
     <tr>
-      <td>`bytesSrcToDst`</td>
+      <td>`bytesSrcToDest`</td>
       <td>Bytes from source to destination</td>
     </tr>
     <tr>
-      <td>`bytesDstToSrc`</td>
+      <td>`bytesDestToSrc`</td>
       <td>Bytes from destination to source</td>
     </tr>
     <tr>
-      <td>`packetsSrcToDst`</td>
+      <td>`packetsSrcToDest`</td>
       <td>Packets from source to destination</td>
     </tr>
     <tr>
-      <td>`packetsDstToSrc`</td>
+      <td>`packetsDestToSrc`</td>
       <td>Packets from destination to source</td>
+    </tr>
+    <tr>
+      <td>`aclID`</td>
+      <td>Access control list ID associated with the flow</td>
+    </tr>
+    <tr>
+      <td>`rule`</td>
+      <td>NSG/ACL rule name that matched the flow</td>
+    </tr>
+    <tr>
+      <td>`subscriptionId`</td>
+      <td>Azure subscription ID</td>
+    </tr>
+    <tr>
+      <td>`resourceGroup`</td>
+      <td>Resource group name</td>
+    </tr>
+    <tr>
+      <td>`resourceType`</td>
+      <td>Azure resource type (for example, `virtualNetworks`)</td>
+    </tr>
+    <tr>
+      <td>`resourceName`</td>
+      <td>Azure resource name</td>
+    </tr>
+    <tr>
+      <td>`targetResourceID`</td>
+      <td>Full Azure resource ID of the monitored target resource</td>
+    </tr>
+    <tr>
+      <td>`targetResourceType`</td>
+      <td>Target resource type path derived from `targetResourceID`</td>
+    </tr>
+    <tr>
+      <td>`virtualNetworkName`</td>
+      <td>Virtual network name (when the target is a VNet or subnet)</td>
+    </tr>
+    <tr>
+      <td>`subnetName`</td>
+      <td>Subnet name (when applicable)</td>
+    </tr>
+    <tr>
+      <td>`networkInterfaceName`</td>
+      <td>Network interface name (when the target is a NIC)</td>
+    </tr>
+    <tr>
+      <td>`macAddress`</td>
+      <td>MAC address associated with the flow log record</td>
+    </tr>
+    <tr>
+      <td>`category`</td>
+      <td>Log category (for example, `FlowLogFlowEvent`)</td>
+    </tr>
+    <tr>
+      <td>`operationName`</td>
+      <td>Operation name from the flow log record</td>
+    </tr>
+    <tr>
+      <td>`flowLogVersion`</td>
+      <td>VNet Flow Logs schema version</td>
+    </tr>
+    <tr>
+      <td>`flowLogGUID`</td>
+      <td>Unique identifier of the flow log resource</td>
+    </tr>
+    <tr>
+      <td>`flowLogResourceID`</td>
+      <td>Azure resource ID of the flow log</td>
+    </tr>
+    <tr>
+      <td>`timestampParseFallback`</td>
+      <td>`true` when the tuple timestamp could not be parsed and an ingest-time timestamp was used</td>
+    </tr>
+    <tr>
+      <td>`rawTimestampField`</td>
+      <td>Original unparsed timestamp value (only set when `timestampParseFallback` is `true`)</td>
     </tr>
   </tbody>
 </table>
+
+<Callout variant="tip">
+  Each forwarded log also carries the common attributes `instrumentation.provider` (`azure`), `instrumentation.name` (`vnet-app`), and `instrumentation.version` (the forwarder version), plus any custom key/value pairs you set in `NR_TAGS`. The raw flow tuple CSV is preserved in the log `message` field.
+</Callout>
 
 ## Troubleshooting [#troubleshooting]
 
@@ -320,11 +405,11 @@ Each flow log record includes the following attributes:
     id="no-data"
     title="No flow log data in New Relic"
   >
-    * Verify that both `VNETFLOW_RELAY_ENABLED` and `VNETFLOWLOGS_FORWARDER_ENABLED` are set to `true`.
     * Confirm that `NR_LICENSE_KEY` or `NR_INSERT_KEY` is correctly configured.
     * Check that VNet Flow Logs are enabled and actively writing PT1H.json blobs to your storage account.
-    * Verify the Event Grid subscription is active and routing events to the relay function.
-    * Check the Function App logs in Azure for errors.
+    * Verify the Event Grid subscription is active and routing `BlobCreated` events to the Event Hub.
+    * Confirm the `EVENTHUB_CONSUMER_CONNECTION` and `EVENTHUB_NAME` settings match the Event Hub receiving the events.
+    * Check the Function App logs in Azure for errors. To see verbose logs, set the `AzureFunctionsJobHost__logging__logLevel__Function` app setting to `Debug`.
   </Collapser>
 
   <Collapser
@@ -342,6 +427,6 @@ Each flow log record includes the following attributes:
     id="poison-events"
     title="Events being skipped (poison event protection)"
   >
-    After 3 consecutive failures processing the same blob, it is marked as a poison event and skipped. Check the Function App logs for the root cause of the initial failures, fix the issue, and reset the cursor by deleting the corresponding row from the `vnetflowlogcursors` table.
+    After `MAX_CONSECUTIVE_FAILURES` consecutive failures (default 5) processing the same blob, it is marked as a poison event and skipped to prevent infinite retries. Check the Function App logs for the root cause of the initial failures, fix the issue, and reset the cursor by deleting the corresponding row from the `nrvnetflowlogscursors` table. New Relic delivery errors (429, 5xx, and retryable network errors) are retried within the forwarder first; the failure counter only increments after those retries are exhausted or another hard failure occurs.
   </Collapser>
 </CollapserGroup>
