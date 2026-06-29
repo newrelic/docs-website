@@ -25,6 +25,6 @@ The new `dashboardWidgetCreateSnapshotUrl` mutation lets you generate a PNG imag
 
 This opens up new automation possibilities: generate chart images on demand from your own tooling and embed them in Slack notifications, email reports, or status pages — without first creating and maintaining a dashboard in the UI.
 
-Both endpoints support our latest visualization features, from thresholds to the new gauge visualization.
+Both `dashboardCreateSnapshotUrl` and `dashboardWidgetCreateSnapshotUrl` endpoints support our latest visualization features, from thresholds to the new gauge visualization.
 
 Both mutations are available today in the [NerdGraph API Explorer](https://api.newrelic.com/graphiql).
