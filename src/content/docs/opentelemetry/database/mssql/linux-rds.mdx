@@ -65,7 +65,7 @@ Install the NRDOT Collector on your Linux EC2 instance or local Linux machine th
 **For ARM64 Architecture:**
 
   ```bash
-  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
   ```
 
 </Step>
@@ -93,23 +93,15 @@ Connect to your RDS SQL Server instance and create the `newrelic` monitoring use
   DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
   SELECT [name]
   FROM [master].[sys].[databases]
-  WHERE [name] NOT IN ('master', 'msdb', 'tempdb', 'model', 'rdsadmin', 'distribution')
+  WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
   AND [state] = 0; -- Only online databases
   OPEN db_cursor;
   FETCH NEXT FROM db_cursor INTO @name;
   WHILE @@FETCH_STATUS = 0
   BEGIN
-    BEGIN TRY
-      PRINT 'Processing database: ' + @name;
-      EXEC('USE [' + @name + '];
-      IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
-      BEGIN
-        CREATE USER [newrelic] FOR LOGIN [newrelic];
-      END;
-      GRANT VIEW DATABASE STATE TO [newrelic];
-      GRANT VIEW DEFINITION TO [newrelic];
-      ALTER ROLE db_datareader ADD MEMBER [newrelic];');
-      PRINT 'Success: ' + @name;
+    EXEC('USE [' + @name + '];
+            IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+                CREATE USER [newrelic] FOR LOGIN [newrelic];');
     END TRY
     BEGIN CATCH
       PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
@@ -143,57 +135,81 @@ Connect to your RDS SQL Server instance and create the `newrelic` monitoring use
 
 ### Configure NRDOT Collector [#configure-collector]
 
-Replace your `mssql-config.yaml` file at `/etc/nrdot-collector/mssql-config.yaml`:
+1. Create the configuration file. The filename must be `mssql-config.yaml`:
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
 
+2. **Add the configuration content below to the mssql-config.yaml file** you created in the previous step.
 <Callout variant="important">
   If you're an existing NRDOT Collector user, ensure to merge the configuration with your existing `mssql-config.yaml` file. This includes adding the new receivers, processors, and exporters for MSSQL Database monitoring while retaining your current configurations.
 </Callout>
+Use the configuration below with your RDS endpoint:
 
 ```yaml
 receivers:
   nrsqlserver:
-    collection_interval: 15s
+    collection_interval: 10s
     # Connection details - Use your RDS endpoint
     username: <YOUR_USERNAME>
     password: <YOUR_NEWRELIC_PASSWORD>
     server: <YOUR-RDS-ENDPOINT>
     port: 1433
 
-    # Enable query performance monitoring
+    # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
+
+    # Enable top query and query sample log collection
     events:
       db.server.query_sample:
         enabled: true
       db.server.top_query:
         enabled: true
 
-    # Top query collection
+    # Top query collection configuration
     top_query_collection:
-      lookback_time: 15s
+      lookback_time: 60s
       max_query_sample_count: 1000
-      top_query_count: 20
-      collection_interval: 15s
+      top_query_count: 250
+      collection_interval: 60s
 
-    # Query sample collection
-    query_sample_collection:
-      max_rows_per_query: 20
-
-    # APM correlation
     collect_full_query_text: true
     allowed_comment_keys:
       - nr_service_guid
 
-    # Core metrics (uptime, CPU count only)
-    metrics:
-      sqlserver.computer.uptime:
-        enabled: true
-      sqlserver.cpu.count:
-        enabled: true
+    # Query sample collection configuration
+    query_sample_collection:
+      max_rows_per_query: 100
 
 processors:
   memory_limiter:
     check_interval: 1s
     limit_mib: $\{env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
-  
+
   batch:
     timeout: 10s
     send_batch_size: 1024
@@ -203,10 +219,9 @@ exporters:
     endpoint: <YOUR_OTLP_ENDPOINT>
     headers:
       api-key: <YOUR_LICENSE_KEY>
+    tls:
+      insecure: false
     compression: gzip
-
-  debug:
-    verbosity: detailed
 
 service:
   telemetry:
@@ -217,12 +232,12 @@ service:
     metrics:
       receivers: [nrsqlserver]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp, debug]
+      exporters: [otlphttp]
 
     logs:
       receivers: [nrsqlserver]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp, debug]
+      exporters: [otlphttp]
 ```
 
 <Callout variant="tip">
@@ -233,6 +248,24 @@ service:
   - `<YOUR_OTLP_ENDPOINT>`: Your New Relic OTLP endpoint (e.g., `https://otlp.nr-data.net`)
   - `<YOUR_LICENSE_KEY>`: Your New Relic license key
 </Callout>
+
+</Step>
+
+<Step>
+
+### Update the collector configuration file [#update-config-rds-linux]
+
+1. **Run the following command to edit the service configuration:**
+
+   ```bash
+   sudo nano /etc/nrdot-collector/nrdot-collector.conf
+   ```
+
+2. **Update the config path to point to your new mssql-config.yaml file:**
+
+   ```bash
+   OTELCOL_CONFIG="/etc/nrdot-collector/mssql-config.yaml"
+   ```
 
 </Step>
 

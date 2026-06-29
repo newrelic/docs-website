@@ -25,7 +25,7 @@ Based on your SQL Server security configuration, you can choose from three authe
 <Tabs>
 <TabsBar>
 <TabsBarItem id="sql">SQL Server Authentication</TabsBarItem>
-<TabsBarItem id="auth">Windows Domain Authentication</TabsBarItem>
+<TabsBarItem id="auth">Windows Authentication</TabsBarItem>
 <TabsBarItem id="gmsa">gMSA</TabsBarItem>
 </TabsBar>
 
@@ -44,21 +44,15 @@ Ensure your environment meets our [compatibility and prerequisites](/docs/opente
 
 <Step>
 
-### Set up the NRDOT Collector [#setup]
+### Setup the NRDOT Collector [#setup]
 
-Install the NRDOT Collector on your Windows system:
+Install the NRDOT Collector on your Windows system.
 
-<Callout variant="important">
-  It is recommended to install the NRDOT Collector on the same host as your SQL Server instance to view infrastructure-level metrics for query performance monitoring.
-</Callout>
-
-1. Download the installer by pasting this URL into your browser:
+1. Download and install the NRDOT Collector using PowerShell:
 
    ```powershell
-   https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-windows-amd64-latest.msi
+   $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i nrdot-collector.msi /qn /norestart" -Wait
    ```
-
-2. Locate your downloaded file and double-click it to install the NRDOT Collector.
 
 
 </Step>
@@ -76,33 +70,29 @@ USE [master];
 GO
 CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
 GO
--- Instance-level permissions
+
 GRANT VIEW SERVER STATE TO [newrelic];
 GRANT VIEW ANY DEFINITION TO [newrelic];
 GRANT VIEW ANY DATABASE TO [newrelic];
 GO
--- Grant read access privileges to all user databases
+
 DECLARE @name SYSNAME;
 DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
 SELECT [name]
 FROM [master].[sys].[databases]
-WHERE [name] NOT IN ('master', 'msdb', 'tempdb', 'model', 'rdsadmin', 'distribution')
-AND [state] = 0; -- Only online databases
+WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+AND [state] = 0;
 OPEN db_cursor;
 FETCH NEXT FROM db_cursor INTO @name;
 WHILE @@FETCH_STATUS = 0
 BEGIN
   BEGIN TRY
-    PRINT 'Processing database: ' + @name;
     EXEC('USE [' + @name + '];
     IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
     BEGIN
       CREATE USER [newrelic] FOR LOGIN [newrelic];
     END;
-    GRANT VIEW DATABASE STATE TO [newrelic];
-    GRANT VIEW DEFINITION TO [newrelic];
-    ALTER ROLE db_datareader ADD MEMBER [newrelic];');
-    PRINT 'Success: ' + @name;
+    GRANT VIEW DATABASE STATE TO [newrelic];');
   END TRY
   BEGIN CATCH
     PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
@@ -128,9 +118,17 @@ Select your configuration type based on your monitoring needs:
     title="NRDOT Collector with Host Metrics + Database Monitoring"
   >
 
-This configuration includes both infrastructure host metrics and database monitoring. **Enter your values below and see the configuration update in real-time:**
+This configuration includes both infrastructure host metrics and database monitoring.
 
-Replace your `mssql-config.yaml` file at `C:\Program Files\NRDOT Collector Host\mssql-config.yaml`:
+1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
+
+2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
+
+**Enter your values below and see the configuration update in real-time:**
 
 <Callout variant="important">
 
@@ -143,42 +141,42 @@ Replace your `mssql-config.yaml` file at `C:\Program Files\NRDOT Collector Host\
     {
       name: 'username',
       label: 'SQL Server Username',
-      codeLine: 62,
+      codeLine: 63,
       defaultValue: 'newrelic',
       toolTip: 'Enter your SQL Server username for authentication',
     },
     {
       name: 'password',
       label: 'SQL Server Password',
-      codeLine: 63,
+      codeLine: 64,
       defaultValue: 'your_password',
       toolTip: 'Enter your SQL Server password for authentication',
     },
     {
       name: 'server',
       label: 'Server Hostname/IP',
-      codeLine: 64,
+      codeLine: 65,
       defaultValue: 'sqlserver.example.com',
       toolTip: 'Enter your SQL Server hostname or IP address',
     },
     {
       name: 'port',
       label: 'Server Port',
-      codeLine: 65,
+      codeLine: 66,
       defaultValue: '1433',
       toolTip: 'Enter your SQL Server port number (default: 1433)',
     },
     {
       name: 'endpoint',
       label: 'New Relic OTLP Endpoint',
-      codeLine: 224,
+      codeLine: 228,
       defaultValue: 'https://otlp.nr-data.net',
       toolTip: 'Enter your New Relic OTLP endpoint (e.g., https://otlp.nr-data.net or https://otlp.eu01.nr-data.net)',
     },
     {
       name: 'licenseKey',
       label: 'New Relic License Key',
-      codeLine: 226,
+      codeLine: 230,
       defaultValue: 'YOUR_LICENSE_KEY',
       toolTip: 'Enter your New Relic license key',
     },
@@ -244,35 +242,58 @@ receivers:
       - /var/log/yum.log
 
   nrsqlserver:
-    collection_interval: 15s
+    collection_interval: 10s
     username: "<input1>"
     password: "<input2>"
     server: "<input3>"
     port: <input4>
 
-    # Only 2 specific metrics kept enabled
+    # Enable comprehensive database metrics
     metrics:
-      sqlserver.computer.uptime:
+      sqlserver.database.count:
         enabled: true
-      sqlserver.cpu.count:
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
         enabled: true
 
-    # Query performance monitoring (QPM) settings
+    # Enable query performance monitoring
     events:
       db.server.query_sample:
-        enabled: true  
+        enabled: true
       db.server.top_query:
-        enabled: true  
+        enabled: true
 
+    # Top query collection - enhanced settings
     top_query_collection:
-      lookback_time: 15s              
-      max_query_sample_count: 1000    
-      top_query_count: 20             
-      collection_interval: 15s        
+      lookback_time: 60s
+      max_query_sample_count: 250
+      top_query_count: 250
+      collection_interval: 60s
 
+    # Query sample collection
     query_sample_collection:
-      max_rows_per_query: 20          
+      max_rows_per_query: 20
 
+    # APM correlation
     collect_full_query_text: true
     allowed_comment_keys:
       - nr_service_guid
@@ -548,7 +569,17 @@ The following table describes the key configuration parameters for the `nrsqlser
     title="Database Monitoring Only (Recommended)"
   >
 
-This minimal configuration focuses only on database monitoring without host infrastructure metrics. **Enter your values below and see the configuration update in real-time:**
+This minimal configuration focuses only on database monitoring without host infrastructure metrics.
+
+1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
+
+2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
+
+**Enter your values below and see the configuration update in real-time:**
 
 <AgentConfig
   inputOptions={[
@@ -583,14 +614,14 @@ This minimal configuration focuses only on database monitoring without host infr
     {
       name: 'endpoint',
       label: 'New Relic OTLP Endpoint',
-      codeLine: 52,
+      codeLine: 50,
       defaultValue: 'https://otlp.nr-data.net',
       toolTip: 'Enter your New Relic OTLP endpoint (e.g., https://otlp.nr-data.net or https://otlp.eu01.nr-data.net)',
     },
     {
       name: 'licenseKey',
       label: 'New Relic License Key',
-      codeLine: 54,
+      codeLine: 52,
       defaultValue: 'YOUR_LICENSE_KEY',
       toolTip: 'Enter your New Relic license key',
     },
@@ -600,57 +631,79 @@ This minimal configuration focuses only on database monitoring without host infr
 
 receivers:
   nrsqlserver:
-    collection_interval: 15s
-    # Connection details
+    collection_interval: 10s
+    # Direct connection to SQL Server
     username: "<input1>"
     password: "<input2>"
     server: "<input3>"
     port: <input4>
 
-    # Enable query performance monitoring
+    # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
+
+    # Enable top query and query sample log collection
     events:
       db.server.query_sample:
         enabled: true
       db.server.top_query:
         enabled: true
 
-    # Top query collection
+    # Top query collection configuration
     top_query_collection:
-      lookback_time: 15s
+      lookback_time: 60s
       max_query_sample_count: 1000
-      top_query_count: 20
-      collection_interval: 15s
+      top_query_count: 250
+      collection_interval: 60s
 
-    # Query sample collection
-    query_sample_collection:
-      max_rows_per_query: 20
-
-    # APM correlation
     collect_full_query_text: true
     allowed_comment_keys:
       - nr_service_guid
 
-    # Core metrics (uptime, CPU count only)
-    metrics:
-      sqlserver.computer.uptime:
-        enabled: true
-      sqlserver.cpu.count:
-        enabled: true
+    # Query sample collection configuration
+    query_sample_collection:
+      max_rows_per_query: 100
 
 processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: $\{env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+
   batch:
     timeout: 10s
     send_batch_size: 1024
 
 exporters:
   otlphttp:
-    endpoint: "<input5>"
+    endpoint: <input5>:4318
     headers:
-      api-key: "<input6>"
+      api-key: <input6>
+    tls:
+      insecure: false
     compression: gzip
-
-  debug:
-    verbosity: detailed
 
 service:
   telemetry:
@@ -660,13 +713,13 @@ service:
   pipelines:
     metrics:
       receivers: [nrsqlserver]
-      processors: [batch]
-      exporters: [otlphttp, debug]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
 
     logs:
       receivers: [nrsqlserver]
-      processors: [batch]
-      exporters: [otlphttp, debug]`}
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]`}
   fileName="mssql-config.yaml"
   tipMdx={{ body: null }}
   onChange={() => {}}
@@ -680,6 +733,46 @@ Use the form above to enter your specific values, and the configuration will upd
 
   </Collapser>
 </CollapserGroup>
+
+  </Step>
+
+  <Step>
+
+### Update Windows Service Registry [#update-registry-sql]
+
+Update the Windows Service Registry to use the new mssql-config.yaml file.
+
+**Method 1: PowerShell**
+
+Run the following command in PowerShell as Administrator:
+
+```powershell
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+```
+
+**Method 2: Command Prompt (Alternative)**
+
+If PowerShell is not available, you can use Command Prompt instead:
+
+1. Open your Start Menu, type `cmd`
+2. Right-click Command Prompt and choose **Run as administrator**
+3. Copy and paste this exact command into the black CMD window and hit Enter:
+
+```cmd
+sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+```
+
+  </Step>
+
+  <Step>
+
+### Validate NRDOT Collector Configuration [#validate-config-sql]
+
+Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
+
+```powershell
+& "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+```
 
   </Step>
 
@@ -750,7 +843,7 @@ To find your SQL Server database entity in New Relic:
 
 Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
 
-**Additional requirements for Windows Domain Authentication:**
+**Additional requirements for Windows Authentication:**
 - Windows domain environment with Active Directory
 - SQL Server configured to accept Windows Authentication  
 - Domain user account with appropriate SQL Server permissions
@@ -760,66 +853,135 @@ Ensure your environment meets our [compatibility and prerequisites](/docs/opente
 
 <Step>
 
-### Set up the NRDOT Collector [#setup-domain]
+### Setup the NRDOT Collector [#setup-domain]
 
-Install the NRDOT Collector on your Windows system:
+Install the NRDOT Collector on your Windows system.
 
-<Callout variant="important">
-  It is recommended to install the NRDOT Collector on the same host as your SQL Server instance to view infra-level metrics for query performance monitoring.
-</Callout>
-
-1. Download the installer by pasting this URL into your browser:
+1. Download and install the NRDOT Collector using PowerShell:
 
    ```powershell
-   https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-windows-amd64-latest.msi
+   $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i nrdot-collector.msi /qn /norestart" -Wait
    ```
-
-2. Locate your downloaded file and double-click it to install the NRDOT Collector.
 
 </Step>
 
 <Step>
 
-### Enable your Microsoft SQL Server [#configure-user-domain]
+### Verify Windows Authentication Setup [#verify-windows-auth]
 
-1. Create a new login and grant CONNECT and VIEW permissions:
+Ensure your SQL Server is configured for Windows Authentication and verify connectivity.
 
+1. **Verify the Windows username:**
    ```sql
-   USE master;
-   CREATE LOGIN [DomainName\DomainUser] FROM windows;
-   GRANT CONNECT SQL TO [DomainName\DomainUser];
-   GRANT VIEW SERVER STATE TO [DomainName\DomainUser];
-   GRANT VIEW ANY DEFINITION TO [DomainName\DomainUser];
-   GO
+   SELECT SYSTEM_USER;
    ```
 
-2. Use the following statements to grant READ access privileges to the user:
-
+2. **Run the below command to verify necessary permissions are granted** (update `<account_name>` with the username from step 1):
    ```sql
-   DECLARE @name SYSNAME
-   DECLARE db_cursor CURSOR
-   READ_ONLY FORWARD_ONLY
-   FOR
-   SELECT NAME
-   FROM master.sys.databases
-   WHERE NAME NOT IN ('master','msdb','tempdb','model','rdsadmin','distribution')
-   
-   OPEN db_cursor
-   FETCH NEXT FROM db_cursor INTO @name 
-   
+   DECLARE @TargetUser SYSNAME = '<account_name>'; -- <-- Set your Windows user here
+
+   -- 1. Create the checklist of required permissions from your script
+   DECLARE @Checklist TABLE (Scope NVARCHAR(50), [Database] SYSNAME, [Permission] NVARCHAR(128));
+
+   INSERT INTO @Checklist VALUES
+   ('Server', 'ALL', 'VIEW SERVER STATE'),
+   ('Server', 'ALL', 'VIEW ANY DEFINITION'),
+   ('Server', 'ALL', 'VIEW ANY DATABASE');
+
+   INSERT INTO @Checklist
+   SELECT 'Database Role', [name], 'db_datareader' FROM sys.databases WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution') AND [state] = 0
+   UNION ALL
+   SELECT 'Database Explicit', [name], 'VIEW DATABASE STATE' FROM sys.databases WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution') AND [state] = 0
+   UNION ALL
+   SELECT 'Database Explicit', [name], 'VIEW DEFINITION' FROM sys.databases WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution') AND [state] = 0;
+
+   -- 2. Gather existing explicit permissions
+   WITH ExplicitPerms AS (
+       SELECT 'Server' AS Scope, CAST('ALL' AS NVARCHAR(128)) COLLATE DATABASE_DEFAULT AS [Database], p.permission_name COLLATE DATABASE_DEFAULT AS [Permission]
+       FROM sys.server_permissions p JOIN sys.server_principals l ON p.grantee_principal_id = l.principal_id WHERE l.name = @TargetUser
+       UNION ALL
+       SELECT 'Database Role', d.name COLLATE DATABASE_DEFAULT, r.name COLLATE DATABASE_DEFAULT
+       FROM sys.databases d CROSS APPLY (SELECT dp_role.name FROM sys.database_role_members drm JOIN sys.database_principals dp_role ON drm.role_principal_id = dp_role.principal_id JOIN sys.database_principals dp_user ON drm.member_principal_id = dp_user.principal_id JOIN sys.server_principals sp ON dp_user.sid = sp.sid WHERE sp.name = @TargetUser) r WHERE d.state = 0
+       UNION ALL
+       SELECT 'Database Explicit', d.name COLLATE DATABASE_DEFAULT, p.permission_name COLLATE DATABASE_DEFAULT
+       FROM sys.databases d CROSS APPLY (SELECT db_p.permission_name FROM sys.database_permissions db_p JOIN sys.database_principals dp_user ON db_p.grantee_principal_id = dp_user.principal_id JOIN sys.server_principals sp ON dp_user.sid = sp.sid WHERE sp.name = @TargetUser) p WHERE d.state = 0
+   )
+   -- 3. Output the exact verification matrix
+   SELECT
+       chk.Scope,
+       chk.[Database],
+       chk.[Permission] AS [Required Permission],
+       CASE
+           WHEN exp.[Permission] IS NOT NULL THEN 'GRANTED'
+           WHEN IS_SRVROLEMEMBER('sysadmin', @TargetUser) = 1 THEN 'PASSED (via SysAdmin Role)'
+           ELSE 'MISSING'
+       END AS [Verification Status]
+   FROM @Checklist chk
+   LEFT JOIN ExplicitPerms exp ON chk.Scope = exp.Scope AND chk.[Database] = exp.[Database] AND chk.[Permission] = exp.[Permission]
+   ORDER BY chk.Scope, chk.[Database], chk.[Permission];
+   ```
+
+3. **If you don't have the necessary permissions**, run the following grants (replace `<account_name>` with your Windows account):
+   ```sql
+   USE [master];
+   GO
+
+   -- 1. Grant Instance-level permissions to your Windows Account
+   GRANT VIEW SERVER STATE TO [<account_name>];
+   GRANT VIEW ANY DEFINITION TO [<account_name>];
+   GRANT VIEW ANY DATABASE TO [<account_name>];
+   GO
+
+   -- 2. Loop through all user databases and grant read/visibility permissions
+   DECLARE @name SYSNAME;
+   DECLARE @sql NVARCHAR(MAX);
+
+   DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+   SELECT [name]
+   FROM [master].[sys].[databases]
+   WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+     AND [state] = 0; -- Only online databases
+
+   OPEN db_cursor;
+   FETCH NEXT FROM db_cursor INTO @name;
+
    WHILE @@FETCH_STATUS = 0
    BEGIN
-       EXECUTE('USE "' + @name + '"; CREATE USER [DomainName\DomainUser] FOR LOGIN [DomainName\DomainUser];' );
-       FETCH next FROM db_cursor INTO @name
+       BEGIN TRY
+           PRINT 'Granting permissions on database: ' + @name;
+
+           -- Create the database user mapping if it doesn't exist, then grant roles
+           SET @sql = '
+               USE [' + @name + '];
+               IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<account_name>'')
+               BEGIN
+                   CREATE USER [<account_name>] FOR LOGIN [<account_name>];
+               END;
+               GRANT VIEW DATABASE STATE TO [<account_name>];
+               GRANT VIEW DEFINITION TO [<account_name>];
+               ALTER ROLE db_datareader ADD MEMBER [<account_name>];';
+
+           EXEC sp_executesql @sql;
+           PRINT 'Success: ' + @name;
+       END TRY
+       BEGIN CATCH
+           PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+       END CATCH
+
+       FETCH NEXT FROM db_cursor INTO @name;
    END
-   
-   CLOSE db_cursor
-   DEALLOCATE db_cursor
+
+   CLOSE db_cursor;
+   DEALLOCATE db_cursor;
    GO
    ```
 
-<Callout variant="tip">
-  Run these SQL scripts using SQL Server Management Studio (SSMS) or `sqlcmd` utility. Make sure to replace `[DomainName\DomainUser]` with your actual Windows domain and username (e.g., `[CONTOSO\SQLMonitor]`).
+<Callout variant="important">
+**Important Notes:**
+
+- Replace all instances of `<account_name>` with your actual Windows account name (e.g., `ComputerName\Username`)
+- Run these scripts using SQL Server Management Studio (SSMS) or sqlcmd utility
+- The verification script will show you exactly which permissions are missing
 </Callout>
 
 </Step>
@@ -828,25 +990,20 @@ Install the NRDOT Collector on your Windows system:
 
 ### Configure NRDOT Collector [#configure-domain]
 
-<Callout variant="important">
-  Windows Domain Authentication uses integrated security (Windows authentication), which uses the same configuration approach as gMSA authentication. The configurations support **both Windows Domain Authentication and gMSA authentication methods**.
-</Callout>
+**Host Metrics + Database Monitoring**
 
-Select your configuration type based on your monitoring needs:
+This configuration includes both infrastructure host metrics and database monitoring using gMSA authentication.
 
-<CollapserGroup>
-  <Collapser
-    id="domain-full-config"
-    title="Full Configuration (Host Metrics + Database Monitoring)"
-  >
+1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
 
-This configuration includes both infrastructure host metrics and database monitoring using Windows Domain Authentication.
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
 
-Replace your `mssql-config.yaml` file at `C:\Program Files\NRDOT Collector Host\mssql-config.yaml`:
+2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
 
 ```yaml
-# NRDOT Collector Configuration for SQL Server with Windows Domain Authentication
-# Works for both On-Premises and RDS SQL Server
+# NRDOT Collector Configuration for New Relic SQL Server Integration
 
 extensions:
   health_check:
@@ -905,33 +1062,62 @@ receivers:
       - /var/log/secure
       - /var/log/yum.log
 
-  # SQL Server Receiver with Windows Domain authentication
   nrsqlserver:
     collection_interval: 10s
     datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
-    
+
     metrics:
+      # Enable comprehensive database metrics
       sqlserver.computer.uptime:
         enabled: true
       sqlserver.cpu.count:
         enabled: true
+      sqlserver.memory.usage:
+        enabled: true
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
 
-    # Query performance monitoring (QPM) settings
+    # Enable query performance monitoring
     events:
       db.server.query_sample:
-        enabled: true  
+        enabled: true
       db.server.top_query:
-        enabled: true  
+        enabled: true
 
+    # Top query collection - enhanced settings
     top_query_collection:
-      lookback_time: 15s              
-      max_query_sample_count: 1000    
-      top_query_count: 20             
-      collection_interval: 15s        
+      lookback_time: 60s
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
 
+    # Query sample collection
     query_sample_collection:
-      max_rows_per_query: 20          
+      max_rows_per_query: 100
 
+    # APM correlation
     collect_full_query_text: true
     allowed_comment_keys:
       - nr_service_guid
@@ -1069,24 +1255,21 @@ processors:
 
 exporters:
   otlphttp:
-    endpoint: https://otlp.nr-data.net
+    endpoint: <YOUR_NEWRELIC_OTLP_ENDPOINT>
     headers:
-      api-key: YOUR_LICENSE_KEY
+      api-key: <YOUR_NEWRELIC_LICENSE_KEY>
     tls:
       insecure: false
     compression: gzip
 
   debug:
     verbosity: detailed
-    sampling_initial: 5
-    sampling_thereafter: 200
 
 service:
+  extensions: [health_check]
   telemetry:
     metrics:
       level: none
-
-  extensions: [health_check]
 
   pipelines:
     metrics/host:
@@ -1138,73 +1321,103 @@ service:
       exporters: [otlphttp, debug]
 ```
 
-<Callout variant="tip">
-  **For On-Premises SQL Server:** Use `server=<hostname>` in the datasource (e.g., `server=SQLServer01`)
-  **For Amazon RDS SQL Server:** Use `server=<RDS-endpoint>` in the datasource (e.g., `server=mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com`)
+<Callout variant="important">
+Replace the following values:
+
+- `<HOSTNAME-OR-RDS-ENDPOINT>`: Your server hostname (on-premises) or RDS endpoint
+- `<YOUR_NEWRELIC_OTLP_ENDPOINT>`: Your New Relic OTLP endpoint (e.g., https://otlp.nr-data.net)
+- `<YOUR_NEWRELIC_LICENSE_KEY>`: Your New Relic license key
 </Callout>
 
-  </Collapser>
-
+<CollapserGroup>
   <Collapser
-    id="domain-db-only"
-    title="Database Monitoring Only (Recommended)"
+    id="database-monitoring-collapse"
+    title="Database monitoring collapse"
   >
 
-This minimal configuration focuses only on database monitoring without host infrastructure metrics using Windows Domain Authentication:
+1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
+
+2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
 
 ```yaml
-# NRDOT Collector Configuration (Database Monitoring Only) - Windows Domain Auth
+# NRDOT Collector Configuration for SQL Server with gMSA Authentication
+# Database Monitoring Only - Works for both On-Premises and RDS
 
 receivers:
   nrsqlserver:
-    collection_interval: 15s
-    # Windows integrated security - no username/password needed
+    collection_interval: 10s
     datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
 
-    # Enable query performance monitoring
+    # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
+
+    # Enable top query and query sample log collection
     events:
       db.server.query_sample:
         enabled: true
       db.server.top_query:
         enabled: true
 
-    # Top query collection
+    # Top query collection configuration
     top_query_collection:
-      lookback_time: 15s
+      lookback_time: 60s
       max_query_sample_count: 1000
-      top_query_count: 20
-      collection_interval: 15s
+      top_query_count: 250
+      collection_interval: 60s
 
-    # Query sample collection
-    query_sample_collection:
-      max_rows_per_query: 20
-
-    # APM correlation
     collect_full_query_text: true
     allowed_comment_keys:
       - nr_service_guid
 
-    # Core metrics (uptime, CPU count only)
-    metrics:
-      sqlserver.computer.uptime:
-        enabled: true
-      sqlserver.cpu.count:
-        enabled: true
+    # Query sample collection configuration
+    query_sample_collection:
+      max_rows_per_query: 100
 
 processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: $\{env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+
   batch:
     timeout: 10s
     send_batch_size: 1024
 
 exporters:
   otlphttp:
-    endpoint: "https://otlp.nr-data.net"
+    endpoint: <YOUR_NEWRELIC_OTLP_ENDPOINT>
     headers:
-      api-key: "YOUR_LICENSE_KEY"
+      api-key: <YOUR_NEWRELIC_LICENSE_KEY>
+    tls:
+      insecure: false
     compression: gzip
-
-  debug:
-    verbosity: detailed
 
 service:
   telemetry:
@@ -1214,21 +1427,65 @@ service:
   pipelines:
     metrics:
       receivers: [nrsqlserver]
-      processors: [batch]
-      exporters: [otlphttp, debug]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
 
     logs:
       receivers: [nrsqlserver]
-      processors: [batch]
-      exporters: [otlphttp, debug]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
 ```
 
-<Callout variant="tip">
-  Replace `<HOSTNAME-OR-RDS-ENDPOINT>` with your SQL Server hostname or RDS endpoint. Copy this configuration to `C:\Program Files\NRDOT Collector Host\mssql-config.yaml` for database-only monitoring.
+<Callout variant="important">
+Replace the following values:
+
+- `<HOSTNAME-OR-RDS-ENDPOINT>`: Your server hostname (on-premises) or RDS endpoint
+- `<YOUR_NEWRELIC_OTLP_ENDPOINT>`: Your New Relic OTLP endpoint (e.g., https://otlp.nr-data.net)
+- `<YOUR_NEWRELIC_LICENSE_KEY>`: Your New Relic license key
 </Callout>
 
   </Collapser>
 </CollapserGroup>
+
+</Step>
+
+<Step>
+
+### Update Windows Service Registry [#update-registry-domain]
+
+Update the Windows Service Registry to use the new mssql-config.yaml file.
+
+**Method 1: PowerShell**
+
+Run the following command in PowerShell as Administrator:
+
+```powershell
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+```
+
+**Method 2: Command Prompt (Alternative)**
+
+If PowerShell is not available, you can use Command Prompt instead:
+
+1. Open your Start Menu, type `cmd`
+2. Right-click Command Prompt and choose **Run as administrator**
+3. Copy and paste this exact command into the black CMD window and hit Enter:
+
+```cmd
+sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+```
+
+</Step>
+
+<Step>
+
+### Validate NRDOT Collector Configuration [#validate-config-domain]
+
+Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
+
+```powershell
+& "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+```
 
 </Step>
 
@@ -1327,9 +1584,7 @@ To find your SQL Server database entity in New Relic:
 Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
 
 **Additional requirements for gMSA (Group Managed Service Account):**
-- Windows Server 2012 or later
 - Active Directory environment with gMSA support
-- Domain controller with Key Distribution Service (KDS) root key configured
 - gMSA account created and configured for SQL Server access
 - Windows host must be domain-joined and authorized to use the gMSA account
 
@@ -1337,21 +1592,15 @@ Ensure your environment meets our [compatibility and prerequisites](/docs/opente
 
 <Step>
 
-### Set up the NRDOT Collector [#setup-gmsa]
+### Setup the NRDOT Collector [#setup-gmsa]
 
-Install the NRDOT Collector on your Windows system:
+Install the NRDOT Collector on your Windows system.
 
-<Callout variant="important">
-  It is recommended to install the NRDOT Collector on the same host as your SQL Server instance to view infra-level metrics for query performance monitoring.
-</Callout>
-
-1. Download the installer by pasting this URL into your browser:
+1. Download and install the NRDOT Collector using PowerShell:
 
    ```powershell
-   https://download.newrelic.com/database-monitoring/nrdot-collector/nrdot-collector-windows-amd64-latest.msi
+   $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i nrdot-collector.msi /qn /norestart" -Wait
    ```
-
-2. Locate your downloaded file and double-click it to install the NRDOT Collector.
 
 </Step>
 
@@ -1364,15 +1613,42 @@ Open SSMS, log in via Windows Authentication, open a New Query, and execute the 
 ```sql
 USE master;
 GO
--- Provision an engine login identity for the newly created gMSA
-CREATE LOGIN [dev\SQL_gMSA$] FROM WINDOWS;
+
+-- Provision an engine login identity for the gMSA
+CREATE LOGIN [<DOMAIN>\<gMSA_NAME>$] FROM WINDOWS;
 GO
--- Elevate the gMSA to a full System Administrator role
-ALTER SERVER ROLE [sysadmin] ADD MEMBER [dev\SQL_gMSA$];
+
+-- Grant monitoring permissions
+GRANT VIEW SERVER STATE TO [<DOMAIN>\<gMSA_NAME>$];
+GRANT VIEW ANY DEFINITION TO [<DOMAIN>\<gMSA_NAME>$];
+GRANT VIEW ANY DATABASE TO [<DOMAIN>\<gMSA_NAME>$];
 GO
--- Grant visibility permissions to look at diagnostic DMVs and system metrics
-GRANT VIEW SERVER STATE TO [dev\SQL_gMSA$];
-GRANT VIEW ANY DEFINITION TO [dev\SQL_gMSA$];
+
+-- Grant access to all databases (required for query monitoring and tempdb metrics)
+DECLARE @name SYSNAME;
+DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+SELECT [name] FROM [master].[sys].[databases]
+WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+AND [state] = 0;
+OPEN db_cursor;
+FETCH NEXT FROM db_cursor INTO @name;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+  BEGIN TRY
+    EXEC('USE [' + @name + '];
+    IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<DOMAIN>\<gMSA_NAME>$'')
+    BEGIN
+      CREATE USER [<DOMAIN>\<gMSA_NAME>$] FOR LOGIN [<DOMAIN>\<gMSA_NAME>$];
+    END;
+    GRANT VIEW DATABASE STATE TO [<DOMAIN>\<gMSA_NAME>$];');
+  END TRY
+  BEGIN CATCH
+    PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+  END CATCH
+  FETCH NEXT FROM db_cursor INTO @name;
+END
+CLOSE db_cursor;
+DEALLOCATE db_cursor;
 GO
 ```
 
@@ -1384,27 +1660,49 @@ GO
 
 <Step>
 
-### Configure NRDOT Collector [#configure-gmsa]
+### Configure NRDOT Collector Service to Run as gMSA [#configure-service-gmsa]
+
+After installing the NRDOT Collector, configure the service to run as your gMSA account using PowerShell:
+
+```powershell
+# Stop the NRDOT Collector service
+Stop-Service nrdot-collector
+
+# Configure service to use gMSA account
+# Use cmd /c to avoid PowerShell treating $ as a variable
+cmd /c 'sc config nrdot-collector obj= "OTEL\sqlotel$" password= ""'
+
+# Verify the configuration
+Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, StartName
+
+# start the NRDOT Collector service
+Start-Service nrdot-collector
+```
 
 <Callout variant="important">
-  gMSA requires a **different configuration** than SQL/Domain authentication. The NRDOT collector authenticates using the Windows service account (gMSA) without requiring username/password fields in the config.
+  Replace `DOMAIN\gMSA-Account$` with your actual gMSA account name. Note the `$` at the end is required for gMSA accounts. No password is needed as gMSA handles authentication automatically.
 </Callout>
 
-Select your configuration type based on your monitoring needs:
+</Step>
 
-<CollapserGroup>
-  <Collapser
-    id="gmsa-full-config"
-    title="Full Configuration (Host Metrics + Database Monitoring)"
-  >
+<Step>
+
+### Configure NRDOT Collector [#configure-gmsa]
+
+**Host Metrics + Database Monitoring**
 
 This configuration includes both infrastructure host metrics and database monitoring using gMSA authentication.
 
-Replace your `mssql-config.yaml` file at `C:\Program Files\NRDOT Collector Host\mssql-config.yaml`:
+1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
+
+2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
 
 ```yaml
-# NRDOT Collector Configuration for SQL Server with gMSA Authentication
-# Works for both On-Premises and RDS SQL Server
+# NRDOT Collector Configuration for New Relic SQL Server Integration
 
 extensions:
   health_check:
@@ -1463,33 +1761,62 @@ receivers:
       - /var/log/secure
       - /var/log/yum.log
 
-  # SQL Server Receiver with gMSA authentication
   nrsqlserver:
     collection_interval: 10s
     datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
-    
+
     metrics:
+      # Enable comprehensive database metrics
       sqlserver.computer.uptime:
         enabled: true
       sqlserver.cpu.count:
         enabled: true
+      sqlserver.memory.usage:
+        enabled: true
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
 
-    # Query performance monitoring (QPM) settings
+    # Enable query performance monitoring
     events:
       db.server.query_sample:
-        enabled: true  
+        enabled: true
       db.server.top_query:
-        enabled: true  
+        enabled: true
 
+    # Top query collection - enhanced settings
     top_query_collection:
-      lookback_time: 15s              
-      max_query_sample_count: 1000    
-      top_query_count: 20             
-      collection_interval: 15s        
+      lookback_time: 60s
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
 
+    # Query sample collection
     query_sample_collection:
-      max_rows_per_query: 20          
+      max_rows_per_query: 100
 
+    # APM correlation
     collect_full_query_text: true
     allowed_comment_keys:
       - nr_service_guid
@@ -1627,24 +1954,21 @@ processors:
 
 exporters:
   otlphttp:
-    endpoint: https://otlp.nr-data.net
+    endpoint: <YOUR_NEWRELIC_OTLP_ENDPOINT>
     headers:
-      api-key: YOUR_LICENSE_KEY
+      api-key: <YOUR_NEWRELIC_LICENSE_KEY>
     tls:
       insecure: false
     compression: gzip
 
   debug:
     verbosity: detailed
-    sampling_initial: 5
-    sampling_thereafter: 200
 
 service:
+  extensions: [health_check]
   telemetry:
     metrics:
       level: none
-
-  extensions: [health_check]
 
   pipelines:
     metrics/host:
@@ -1696,73 +2020,103 @@ service:
       exporters: [otlphttp, debug]
 ```
 
-<Callout variant="tip">
-  **For On-Premises SQL Server:** Use `server=<hostname>` in the datasource (e.g., `server=SQLServer01`)
-  **For Amazon RDS SQL Server:** Use `server=<RDS-endpoint>` in the datasource (e.g., `server=mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com`)
+<Callout variant="important">
+Replace the following values:
+
+- `<HOSTNAME-OR-RDS-ENDPOINT>`: Your server hostname (on-premises) or RDS endpoint
+- `<YOUR_NEWRELIC_OTLP_ENDPOINT>`: Your New Relic OTLP endpoint (e.g., https://otlp.nr-data.net)
+- `<YOUR_NEWRELIC_LICENSE_KEY>`: Your New Relic license key
 </Callout>
 
-  </Collapser>
-
+<CollapserGroup>
   <Collapser
-    id="gmsa-db-only"
-    title="Database Monitoring Only (Recommended)"
+    id="database-monitoring-collapse-gmsa"
+    title="Database monitoring collapse"
   >
 
-This minimal configuration focuses only on database monitoring without host infrastructure metrics using gMSA authentication:
+1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
+
+2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
 
 ```yaml
-# NRDOT Collector Configuration (Database Monitoring Only) - gMSA Authentication
+# NRDOT Collector Configuration for SQL Server with gMSA Authentication
+# Database Monitoring Only - Works for both On-Premises and RDS
 
 receivers:
   nrsqlserver:
-    collection_interval: 15s
-    # gMSA integrated security - no username/password needed
+    collection_interval: 10s
     datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
 
-    # Enable query performance monitoring
+    # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
+
+    # Enable top query and query sample log collection
     events:
       db.server.query_sample:
         enabled: true
       db.server.top_query:
         enabled: true
 
-    # Top query collection
+    # Top query collection configuration
     top_query_collection:
-      lookback_time: 15s
+      lookback_time: 60s
       max_query_sample_count: 1000
-      top_query_count: 20
-      collection_interval: 15s
+      top_query_count: 250
+      collection_interval: 60s
 
-    # Query sample collection
-    query_sample_collection:
-      max_rows_per_query: 20
-
-    # APM correlation
     collect_full_query_text: true
     allowed_comment_keys:
       - nr_service_guid
 
-    # Core metrics (uptime, CPU count only)
-    metrics:
-      sqlserver.computer.uptime:
-        enabled: true
-      sqlserver.cpu.count:
-        enabled: true
+    # Query sample collection configuration
+    query_sample_collection:
+      max_rows_per_query: 100
 
 processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: $\{env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+
   batch:
     timeout: 10s
     send_batch_size: 1024
 
 exporters:
   otlphttp:
-    endpoint: "https://otlp.nr-data.net"
+    endpoint: <YOUR_NEWRELIC_OTLP_ENDPOINT>
     headers:
-      api-key: "YOUR_LICENSE_KEY"
+      api-key: <YOUR_NEWRELIC_LICENSE_KEY>
+    tls:
+      insecure: false
     compression: gzip
-
-  debug:
-    verbosity: detailed
 
 service:
   telemetry:
@@ -1772,17 +2126,21 @@ service:
   pipelines:
     metrics:
       receivers: [nrsqlserver]
-      processors: [batch]
-      exporters: [otlphttp, debug]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
 
     logs:
       receivers: [nrsqlserver]
-      processors: [batch]
-      exporters: [otlphttp, debug]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
 ```
 
-<Callout variant="tip">
-  Replace `<HOSTNAME-OR-RDS-ENDPOINT>` with your SQL Server hostname or RDS endpoint. Copy this configuration to `C:\Program Files\NRDOT Collector Host\mssql-config.yaml` for database-only monitoring.
+<Callout variant="important">
+Replace the following values:
+
+- `<HOSTNAME-OR-RDS-ENDPOINT>`: Your server hostname (on-premises) or RDS endpoint
+- `<YOUR_NEWRELIC_OTLP_ENDPOINT>`: Your New Relic OTLP endpoint (e.g., https://otlp.nr-data.net)
+- `<YOUR_NEWRELIC_LICENSE_KEY>`: Your New Relic license key
 </Callout>
 
   </Collapser>
@@ -1792,33 +2150,44 @@ service:
 
 <Step>
 
-### Configure NRDOT Collector Service to Run as gMSA [#configure-service-gmsa]
+### Update Windows Service Registry [#update-registry-gmsa]
 
-After installing the NRDOT Collector, configure the service to run as your gMSA account using PowerShell:
+Update the Windows Service Registry to use the new mssql-config.yaml file.
+
+**Method 1: PowerShell**
+
+Run the following command in PowerShell as Administrator:
 
 ```powershell
-# Stop the NRDOT Collector service
-Stop-Service nrdot-collector
-
-# Configure service to use gMSA account
-$serviceName = "nrdot-collector"
-$gmsaAccount = "DOMAIN\gMSA-Account$"
-
-# Set service to run as gMSA (no password needed for gMSA)
-sc.exe config $serviceName obj= $gmsaAccount
-
-# Start the service
-Start-Service nrdot-collector
-
-# Verify service is running under gMSA
-Get-WmiObject -Class Win32_Service -Filter "Name='nrdot-collector'" | Select-Object Name, StartName, State
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
 ```
 
-<Callout variant="important">
-  Replace `DOMAIN\gMSA-Account$` with your actual gMSA account name. Note the `$` at the end is required for gMSA accounts. No password is needed as gMSA handles authentication automatically.
-</Callout>
+**Method 2: Command Prompt (Alternative)**
+
+If PowerShell is not available, you can use Command Prompt instead:
+
+1. Open your Start Menu, type `cmd`
+2. Right-click Command Prompt and choose **Run as administrator**
+3. Copy and paste this exact command into the black CMD window and hit Enter:
+
+```cmd
+sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+```
 
 </Step>
+
+<Step>
+
+### Validate NRDOT Collector Configuration [#validate-config-gmsa]
+
+Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
+
+```powershell
+& "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+```
+
+</Step>
+
 
 <Step>
 
