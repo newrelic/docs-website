@@ -1,0 +1,184 @@
+---
+title: Conecte-se ao New Relic via BTP Integration Suite
+metaDescription: Configure SAP Cloud Integration as middleware to transmit monitoring data to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Configure o SAP BTP Integration Suite (integração na nuvem) como middleware para transmitir dados de monitoramento para o New Relic quando a conectividade direta não estiver disponível.
+
+## Visão geral
+
+O programa collection manager fornece uma opção para enviar dados para o New Relic usando o SAP Cloud Integration (SAP CPI) como middleware em vez de transmissão direta.
+
+| **Método**            | **Descrição**                                              |
+| --------------------- | ---------------------------------------------------------- |
+| Direto                | Transmissão direta do SAP para o New Relic (método padrão) |
+| SAP Cloud Integration | Usando o SAP CPI como middleware                           |
+
+## Etapas de configuração
+
+<Steps>
+  <Step>
+    ## Determine o método de autorização
+
+    Selecione o tipo de autorização que você usará para o iFlow:
+
+    * <DNT>**ClientId/Secret**</DNT> (OAuth2)
+    * <DNT>**Certificate**</DNT>
+    * <DNT>**External Certificate**</DNT>
+  </Step>
+
+  <Step>
+    ## Crie uma instância de serviço e uma chave
+
+    1. Crie uma instância de serviço para <DNT>**SAP Process Integration Runtime**</DNT>.
+    2. Atribua um <DNT>**service key**</DNT> ou <DNT>**certificate**</DNT> usando o método de autorização selecionado.
+    3. Baixe o <DNT>**service key**</DNT> para uso posterior.
+
+    Para obter instruções detalhadas, consulte [Obter chave de serviço para <DNT>**BTP Monitoring**</DNT>](/docs/sap-solutions/install-and-configure/obtain-service-key/process-integration-runtime).
+  </Step>
+
+  <Step>
+    ## Configure e implante o iFlow
+
+    Use o <DNT>**iFlow**</DNT> fornecido pela New Relic como modelo:
+
+    1. Copie o modelo <DNT>**iFlow**</DNT>.
+    2. Atualize o método de autorização para corresponder à sua seleção da Etapa 1.
+    3. Certifique-se de que os seguintes mapeamentos estejam configurados:
+
+    ### Cabeçalhos permitidos
+
+    Configure <DNT>**allowed headers**</DNT> para conter:
+
+    ```
+    API-Key|targetURL
+    ```
+
+    ### Método de autorização
+
+    * Para <DNT>**ClientId/Secret**</DNT> ou <DNT>**Certificate**</DNT>: selecione <DNT>**User Role**</DNT>
+    * Para <DNT>**External Certificate**</DNT>: selecione <DNT>**Client Certificate**</DNT> e adicione <DNT>**root certificates**</DNT>
+
+    ### Modificador de conteúdo da solicitação
+
+    Configure <DNT>**exchange properties**</DNT> para conter:
+
+    * <DNT>**targeturl**</DNT>
+    * <DNT>**apikey**</DNT>
+
+    ### Script Groovy
+
+    Adicione um <DNT>**script**</DNT> para definir cabeçalhos dinamicamente:
+
+    ```groovy
+    import com.sap.gateway.ip.core.customdev.util.Message;
+    def Message processData(Message message) {
+
+      message.setHeader("API-Key", message.getProperty("apikey"));
+      message.setHeader("Content-Type", "application/json");
+      message.setHeader("Accept", "application/json");
+
+      message.setHeader("CamelHttpUri", message.getProperty("targeturl"));
+
+      def turl = message.getHeader("CamelHttpUri", String);
+
+      def logText = "---Headers---\n";
+
+      message.getHeaders().each { k, v -> logText += "\${k} = \${v}\n" };
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("AllHeaders", logText, "text/plain");
+
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("URL", turl, "text/plain");
+
+      return message;
+    }
+    ```
+
+    ### Response content modifier
+
+    Configure o <DNT>**message body**</DNT> para retornar:
+
+    ```json
+    {
+      "statusCode": "\${header.CamelHttpResponseCode}",
+      "response": \${body}
+    }
+    ```
+
+    ### Configurações de conexão HTTP
+
+    * <DNT>**Address**</DNT>: `\${header.CamelHttpUri}`
+    * <DNT>**Method**</DNT>: <DNT>**POST**</DNT>
+    * <DNT>**Timeout**</DNT>: <DNT>**60000 ms**</DNT>
+    * <DNT>**Request Headers**</DNT>: `*`
+    * <DNT>**Response Headers**</DNT>: `*`
+
+    4. Implantar o <DNT>**iFlow**</DNT>.
+    5. Observe <DNT>**iFlow endpoint URL**</DNT>.
+  </Step>
+
+  <Step>
+    ## Criar destino RFC
+
+    1. Use a transação <DNT>**SM59**</DNT> para criar um novo <DNT>**RFC destination**</DNT>.
+
+    2. Insira as seguintes informações:
+
+       * <DNT>**RFC Destination**</DNT>: Um nome descritivo (por exemplo, <DNT>**NR\_CPI\_ENDPOINT**</DNT>)
+       * <DNT>**Connection Type**</DNT>: <DNT>**G**</DNT> (Conexão HTTP para Servidor Externo)
+       * <DNT>**Description**</DNT>: conexão com o New Relic via integração na nuvem
+
+    3. Na guia <DNT>**Technical Settings**</DNT>:
+
+       * <DNT>**Target Host**</DNT>: O host do seu <DNT>**iFlow endpoint**</DNT>
+       * <DNT>**Service No.**</DNT>: <DNT>**443**</DNT>
+       * <DNT>**Path Prefix**</DNT>: o caminho do seu <DNT>**iFlow endpoint**</DNT>
+
+    4. Na guia <DNT>**Logon &amp; Security**</DNT>:
+
+       * Configure a autenticação com base no seu método selecionado:
+
+         * Para <DNT>**ClientId/Secret**</DNT>: insira <DNT>**ClientId**</DNT> como nome de usuário e <DNT>**ClientSecret**</DNT> como senha
+         * Para <DNT>**Certificate**</DNT>: configure o <DNT>**certificate details**</DNT>
+
+    5. Na guia <DNT>**Security Options**</DNT>:
+       * Selecione <DNT>**Active**</DNT> para <DNT>**SSL**</DNT>
+
+    6. Salve a configuração.
+
+    7. Clique em <DNT>**Connection Test**</DNT> para verificar a conexão.
+  </Step>
+
+  <Step>
+    ## Configure o gerenciador de coleta
+
+    1. Execute a transação <DNT>**/NEWR/ONE\_COLLECTION**</DNT> ou crie um <DNT>**variant**</DNT> para <DNT>**/NEWR/ABAP\_COLLECTION\_MANAGERN**</DNT>.
+    2. Na seção <DNT>**Data Transmission to NR**</DNT> :
+       * Selecione <DNT>**SAP Cloud Integration**</DNT> em vez de <DNT>**Direct**</DNT>
+    3. No campo <DNT>**iFlow Endpoint**</DNT>:
+       * Digite o <DNT>**RFC destination name**</DNT> criado na Etapa 4 (por exemplo, <DNT>**NR\_CPI\_ENDPOINT**</DNT>)
+    4. Salve o <DNT>**variant**</DNT>.
+    5. Agende ou execute o <DNT>**collection job**</DNT>.
+  </Step>
+</Steps>
+
+## Verifique a transmissão de dados
+
+1. Execute o <DNT>**collection manager job**</DNT>.
+
+2. Verifique o <DNT>**iFlow monitoring**</DNT> em <DNT>**SAP Cloud Integration**</DNT>:
+
+   * Faça login em <DNT>**SAP BTP Integration Suite**</DNT>
+   * Vá para <DNT>**Monitor**</DNT> &gt; <DNT>**Integrations**</DNT>
+   * Verifique o processamento bem-sucedido de mensagens
+
+3. Verifique a chegada de dados em <DNT>**New Relic**</DNT>:
+
+   * Faça login em <DNT>**New Relic**</DNT>
+   * Navegue até seu <DNT>**SAP dashboards**</DNT>
+   * Verifique se os dados de monitoramento estão sendo recebidos
+
+<Callout variant="important">
+  Se você modificar o <DNT>**iFlow template**</DNT> padrão, certifique-se de que todos os mapeamentos e cabeçalhos necessários sejam preservados para manter a compatibilidade com o <DNT>**collection manager program**</DNT>.
+</Callout>

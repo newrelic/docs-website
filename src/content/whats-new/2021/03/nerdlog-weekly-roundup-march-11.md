@@ -3,7 +3,7 @@ title: 'Nerdlog Roundup: See hosts, services, containers, and more in one view w
 summary: 'See hundreds of entities in a compact, high-level view'
 releaseDate: '2021-03-10'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/#view-navigator'
-getStartedLink: 'https://one.nr/08dQeNpWowe'
+getStartedLink: 'https://onenr.io/08dQeNpWowe'
 ---
 In the modern microservice world, we all have more hosts, services, and containers running than any person can easily keep track of. 
 

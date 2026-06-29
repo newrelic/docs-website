@@ -9,9 +9,15 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
+<Callout variant="important">
+  A partir da versão 14.0.0 do agente Node.js, os clientes do Apollo Server não precisam mais instalar e usar `@newrelic/apollo-server-plugin`. A instrumentação é aplicada automaticamente a cada instância do Apollo Server.
+
+  Consulte nosso [Guia de Migração do Apollo Server](/docs/apm/agents/nodejs-agent/installation-configuration/update-nodejs-agent/#apollo-server-migration-guide) para obter mais detalhes.
+</Callout>
+
 O plugin New Relic Apollo Server utiliza seu aplicativo Apollo Server para dar visibilidade à sua carga GraphQL. Isso ajuda você a descobrir e diagnosticar a causa de sua [consulta lenta do GraphQL](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph). A versão suportada do Apollo Server é 2.14 ou posterior.
 
-Nosso plugin registra os tempos gerais para consulta e usa [distributed tracing](/docs/understand-dependencies/distributed-tracing/get-started/how-new-relic-distributed-tracing-works) para descobrir o problema da rota. Use esta instrumentação para ver se o problema surge da resolução de um dado solicitado ou se decorre de trabalho realizado em outros serviços ou banco de dados.
+O plug-in registra os tempos gerais das consultas e usa o [distributed tracing](/docs/understand-dependencies/distributed-tracing/get-started/how-new-relic-distributed-tracing-works) para descobrir problemas de rota. Use esta instrumentação para verificar se o problema decorre da resolução de um dado solicitado ou do trabalho realizado em outros serviços ou banco de dados.
 
 ## Compatibilidade
 
@@ -20,7 +26,7 @@ O plug-in New Relic funciona com os seguintes módulos do Apollo Server:
 * `@apollo/server`
 * `@apollo/gateway`
 * `@apollo/subgraph`
-* `apollo-server` (>= 2,14)
+* `apollo-server` (&gt;= 2,14)
 * `apollo-server-express`
 * `apollo-server-hapi`
 * `apollo-server-koa`
@@ -29,6 +35,533 @@ O plug-in New Relic funciona com os seguintes módulos do Apollo Server:
 
 Outros plug-ins podem funcionar, dependendo da implementação subjacente, mas não foram verificados.
 
-## Documentação do GitHub [#github]
+## Métrica
 
-Para obter informações detalhadas sobre instalação, configuração, detalhes de transações, métricas, segmentos, erros, testes, resolução de problemas e muito mais, consulte [a documentação do plug-in Apollo Server da New Relic no GitHub](https://github.com/newrelic/newrelic-node-apollo-server-plugin/blob/main/README.md).
+Duas novas métricas foram introduzidas para entender o comportamento das suas operações GraphQL dentro e entre transações. Leia mais sobre eles abaixo ou vá para a seção [Visualizações](#visualizations) para ver algumas maneiras recomendadas de usar esses dados.
+
+Para mais informações sobre como consultar métricas e criar gráficos, consulte a seção [Recursos](#resources).
+
+### Métricas de Operação
+
+`/GraphQL/operation/ApolloServer/[operation-type]/[operation-name]/[deepest-unique-path]`
+
+As métricas de operação incluem o tipo de operação, o nome da operação e o caminho mais profundo. Essas métricas representam as durações de consultas ou mutações individuais. Use-os para comparar o desempenho fora do contexto de transações individuais, que podem conter múltiplas consultas.
+
+**Tipo de operação:** indica se a operação foi uma consulta ou uma mutação.
+
+**Nome da operação:** o nome da operação quando fornecido ou `<anonymous>`.
+
+**Caminho Único Mais Profundo:** o caminho mais profundo incluído no conjunto de seleção de uma consulta em que apenas um campo foi selecionado em cada nível. Como os nomes de operação podem ser reutilizados, isso ajuda a determinar ainda mais a unicidade de uma determinada operação. Consulte a descrição na seção de [transações](#deepest-unique-path) para obter mais detalhes.
+
+### Métricas de Resolução de Campo
+
+`/GraphQL/resolve/ApolloServer/[parent-type].[field-name]`
+
+As métricas de resolução capturam o tempo gasto para resolver uma parte específica dos dados GraphQL solicitados. Use-os para encontrar resolvers específicos que possam contribuir para a lentidão das consultas de entrada, para distinguir resolvers de campo com o mesmo nome em tipos diferentes, ou para identificar o mesmo resolver aplicado em diferentes tipos.
+
+Estes diferem ligeiramente na nomenclatura de seus equivalentes de segmento e span. Para visualizar melhor os relacionamentos, o caminho completo para um campo é representado em segmentos e spans (por exemplo, `libraries.books.title`). Para entender a duração agregada em todos os usos e transações, essas métricas usam o nome do campo sem o caminho completo.
+
+### Métricas de Campo e Argumento
+
+`/GraphQL/field/ApolloServer/[parent-type].[field-name]` `/GraphQL/arg/ApolloServer/[parent-type].[field-name]/[arg-name]`
+
+As métricas de campo só são capturadas quando `config.apollo_server.field_metrics` for `true`. Ao contrário das métricas de resolução de campo, isso captura cada vez que um campo ou argumento de resolver é visto. Use essas métricas para determinar se um campo em um schema GraphQL ainda está em uso e se é seguro removê-lo.
+
+#### Todos os campos e argumentos que foram solicitados no último dia
+
+```sql
+FROM Metric SELECT count(newrelic.timeslice.value) where appName = 'YOUR_APP_NAME' WITH METRIC_FORMAT 'GraphQL/{kind}/ApolloServer/{field}' where kind = 'arg' or kind = 'field' FACET kind, field limit max since 1 day ago
+```
+
+### Exibições [#visualizations]
+
+As consultas a seguir usam essas métricas para ajudar você a entender o comportamento dos seus aplicativos Apollo GraphQL.
+
+#### Top 10 Operações
+
+Para obter uma lista das 10 operações mais lentas, use a seguinte consulta sob demanda ou como parte de um dashboard.
+
+```sql
+FROM Metric SELECT average(newrelic.timeslice.value) * 1000 WHERE appName = 'YOUR_APP_NAME' WITH METRIC_FORMAT 'GraphQL/operation/ApolloServer/{operation}' FACET operation LIMIT 10
+```
+
+O tipo de gráfico de **barras (Bar)** fornece uma visualização semelhante à visão geral da transação.
+
+Um tipo de gráfico de **Tabela (Table)** também é útil para mostrar um detalhamento das operações. Use o `METRIC_FORMAT` para flexibilidade adicional de ordenação e visualização. A consulta a seguir gera colunas para tipo de operação, nome da operação, caminho mais profundo e **AVG Duration (MS)**.
+
+```sql
+FROM Metric SELECT average(newrelic.timeslice.value) * 1000 as 'AVG Duration (MS)' WHERE appName = 'YOUR_APP_NAME' WITH METRIC_FORMAT 'GraphQL/operation/ApolloServer/{type}/{name}/{deepest-path}' FACET type, name, `deepest-path` LIMIT 20
+```
+
+#### Tempo médio de operação
+
+Para rastrear a duração média ao longo do tempo para operações, use uma consulta semelhante com `TIMESERIES`.
+
+```sql
+FROM Metric SELECT average(newrelic.timeslice.value) WHERE appName = 'YOUR_APP_NAME' WITH METRIC_FORMAT 'GraphQL/operation/ApolloServer/{operation}' TIMESERIES FACET operation
+```
+
+Visualize isso com o tipo de gráfico de **linha (Line)**, que permite ver todas as operações ou alternar operações individuais.
+
+#### Top 10 Resolvedores
+
+Para obter uma lista dos 10 resolvedores mais lentos, use a seguinte consulta sob demanda ou como parte de um dashboard.
+
+```sql
+FROM Metric
+SELECT average(newrelic.timeslice.value) * 1000 as 'Average Duration (MS)' WHERE appName = 'YOUR_APP_NAME' WITH METRIC_FORMAT 'GraphQL/resolve/ApolloServer/{type}.{field}' FACET field LIMIT 20
+```
+
+Se você quiser incluir o tipo pai:
+
+```sql
+FROM Metric
+SELECT average(newrelic.timeslice.value) * 1000 as 'Average Duration (MS)' WHERE appName = 'YOUR_APP_NAME' WITH METRIC_FORMAT 'GraphQL/resolve/ApolloServer/{field}' FACET field LIMIT 20
+```
+
+O tipo de gráfico de **barras (Bar)** fornece uma visualização semelhante à visão geral da transação. O tipo de gráfico **tabela (Table)** também é útil para mostrar um detalhamento de campo e **Average Duration (MS)**.
+
+#### Tempo médio do resolvedor
+
+Para acompanhar a duração média ao longo do tempo para resolvers, use uma consulta semelhante com `TIMESERIES`.
+
+```sql
+FROM Metric
+SELECT average(newrelic.timeslice.value) * 1000 as 'Average Duration (MS)' TIMESERIES WHERE appName = 'YOUR_APP_NAME' WITH METRIC_FORMAT 'GraphQL/resolve/ApolloServer/{field}' FACET field
+```
+
+Visualize isso com o tipo de gráfico de **linha (Line)**, que permite ver todos os resolvers ou alternar os individuais.
+
+### Recursos [#resources]
+
+* [Consulta métrica APM de dados de fração de tempo com NRQL](/docs/data-apis/understand-data/metric-data/query-apm-metric-timeslice-data-nrql/)
+
+* [Adicionar e personalizar gráficos de métricas](/docs/nrql/get-started/introduction-nrql-new-relics-query-language/)
+
+## Segmentos e Spans
+
+Segmentos e spans (quando o distributed tracing está ativado) são capturados para operações GraphQL, resolução de campos e trabalho instrumentado adicional que ocorre como parte da resolução de campos, como fazer uma consulta a um banco de dados.
+
+### Segmentos/Spans de Operação
+
+`/GraphQL/operation/ApolloServer/[operation-type]/[operation-name]/[deepest-unique-path]`
+
+Segmentos de operação e spans incluem o tipo de operação, nome da operação e o caminho exclusivo mais profundo. Estes representam a duração individual e os atributos de uma invocação específica dentro de uma transação ou trace.
+
+Para mais detalhes sobre as partes, consulte a seção de [transações](#details).
+
+**Atributo**
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        **Nome**
+      </th>
+
+      <th>
+        **Descrição**
+      </th>
+
+      <th>
+        **Padrão**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.operation.type`
+      </td>
+
+      <td>
+        `query` ou `mutation`
+      </td>
+
+      <td>
+        Incluído
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.operation.name`
+      </td>
+
+      <td>
+        Nome dado à operação ou `anonymous`
+      </td>
+
+      <td>
+        Incluído
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.operation.query`
+      </td>
+
+      <td>
+        A consulta GraphQL original com argumentos ofuscados
+      </td>
+
+      <td>
+        Incluído
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para excluir o atributo de consulta (ou qualquer atributo), adicione o nome do atributo à lista de exclusão `attributes` ou às listas de exclusão de atributos de segmento e span individualmente.
+
+Para obter mais informações sobre como incluir e excluir atributos, consulte a [documentação de atributos](/docs/apm/agents/nodejs-agent/attributes/nodejs-agent-attributes/#configure-attributes).
+
+### Campo Resolver Segmentos/Spans
+
+`/GraphQL/resolve/ApolloServer/[path]`
+
+Segmentos e spans de resolução usam o caminho de resolução do campo individual para se diferenciarem melhor dentro de um determinado trace ou transação. Por exemplo, o caminho `libraries.books` é usado em vez de apenas `books`. Estes representam a duração individual e os atributos de um campo específico sendo resolvido como parte da operação GraphQL.
+
+**Atributo**
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        **Nome**
+      </th>
+
+      <th>
+        **Descrição**
+      </th>
+
+      <th>
+        **Padrão**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.field.name`
+      </td>
+
+      <td>
+        Nome do campo resolvido
+      </td>
+
+      <td>
+        Incluído
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.returnType`
+      </td>
+
+      <td>
+        Tipo de retorno (`Book!`, `[String]`, etc.) do campo resolvido
+      </td>
+
+      <td>
+        Incluído
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.parentType`
+      </td>
+
+      <td>
+        Tipo do pai deste campo (`[Book]`)
+      </td>
+
+      <td>
+        Incluído
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.path`
+      </td>
+
+      <td>
+        Caminho de resolução completo do campo (`libraries.books`)
+      </td>
+
+      <td>
+        Incluído
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.args`
+      </td>
+
+      <td>
+        Arg passado para a consulta ou mutação do GraphQL para este resolver capturado como pares de valor principal
+      </td>
+
+      <td>
+        Excluído
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para capturar atributos de args, adicione `graphql.field.args.*` à lista de inclusão `attributes` ou às listas de inclusão de atributos de segmento e span individualmente.
+
+Para obter mais informações sobre como incluir e excluir atributos, consulte a [documentação de atributos](/docs/apm/agents/nodejs-agent/attributes/nodejs-agent-attributes/#configure-attributes).
+
+## Transação
+
+```graphql
+query {
+  libraries {
+    books {
+      title
+      author {
+        name
+      }
+    }
+  }
+}
+```
+
+`post /query/<anonymous>/libraries.books`
+
+Transações são capturadas como transações da web, associadas ao framework subjacente (Express, Koa, etc.), e nomeadas com base nas operações GraphQL executadas.
+
+O agente usa vários detalhes para agrupar representações únicas de consulta em um nome de transação: método HTTP, tipo de operação, nome da operação e o caminho resolvido mais profundo (o primeiro, se houver vários).
+
+A representação bruta de uma transação é semelhante a esta: `/WebTransaction/{framework-name}/POST//{operation-type}/{operation-name}/{deepest-unique-path}`
+
+Para um uso do Apollo Server com Express, isso pode ser algo como: `/WebTransaction/Expressjs/POST//query/<anonymous>/libraries.books`
+
+A transação no New Relic One acabará sendo exibida de forma semelhante a: `post /query/<anonymous>/libraries.books`.
+
+### Detalhes [#details]
+
+#### Método HTTP
+
+O método HTTP para a requisição web. As requisições podem chegar via GET ou POST, sendo exibidas de forma semelhante a outras transações da web.
+
+#### Tipo de operação
+
+Indica se a operação foi uma consulta ou uma mutação.
+
+#### Nome da Operação
+
+O nome da operação quando fornecido ou `<anonymous>`.
+
+`query { libraries }` usaria o nome da operação `<anonymous>` porque um nome não foi fornecido.
+
+Uma consulta nomeada como `query GetLibraries { libraries }` usaria o nome da operação `GetLibraries`.
+
+#### Caminho Único Mais Profundo [#deepest-unique-path]
+
+O caminho mais profundo incluído no conjunto de seleção de uma consulta onde apenas um campo foi selecionado em cada nível. Como os nomes das operações podem ser reutilizados, isso ajuda a determinar ainda mais a exclusividade de uma determinada operação.
+
+O agente usa o caminho único mais profundo (em vez do caminho mais profundo) para evitar tomar uma decisão arbitrária de nomenclatura que possa implicar ou ocultar detalhes sobre o que causa lentidão em um aplicativo.
+
+Para a consulta:
+
+```graphql
+query {
+  libraries {
+    branch
+    booksInStock {
+      isbn,
+      title,
+      author
+    }
+    magazinesInStock {
+      issue,
+      title
+    }
+  }
+}
+```
+
+O caminho único mais profundo é resolvido para `libraries` porque vários campos são selecionados além desse ponto. Qualquer resolver executado além desse ponto pode contribuir para as características de desempenho da transação.
+
+Se a consulta seleciona apenas um campo por resolver, o caminho completo é usado porque cada conjunto de seleção é único.
+
+A consulta:
+
+```graphql
+query {
+  libraries {
+    booksInStock {
+      title
+    }
+  }
+}
+```
+
+Resultados no caminho único mais profundo: `libraries.booksInStock.title`.
+
+`id` e os campos `__typename` são automaticamente excluídos da decisão de nomenclatura.
+
+Por exemplo, uma consulta de subgrafo federado:
+
+```graphql
+query {
+  libraries {
+    branch
+    __typename
+    id
+  }
+}
+```
+
+Resultados no caminho único mais profundo: `libraries.branch`.
+
+### Tipos de União e Fragmentos Inline
+
+Para tipos de união que usam fragmentos inline, o nome da transação usa colchetes `< ... >` para indicar o campo selecionado subjacente quando apenas um tipo de resultado é especificado na consulta.
+
+Para o seguinte esquema:
+
+```graphql
+union SearchResult = Book | Author
+
+type Book {
+  title: String!
+}
+
+type Author {
+  name: String!
+}
+
+type Query {
+  search(contains: String): [SearchResult!]
+}
+```
+
+E a seguinte consulta:
+
+```graphql
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+  }
+}
+```
+
+Resulta no seguinte nome de transação:
+
+`post /query/example/search<Author>.name`
+
+No entanto, se a consulta retornar tanto Livro quanto Autor:
+
+```graphql
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+    ... on Book {
+      title
+    }
+  }
+}
+```
+
+O nome da transação resultante é:
+
+`post /query/example/search`
+
+### Nomeação no Erro
+
+Erros ao analisar ou validar uma requisição GraphQL podem impactar a nomenclatura da transação.
+
+#### Erros de Validação
+
+Se uma requisição foi analisada, mas falhou na validação, o agente nomeia a transação com base no que foi tentado. Por exemplo, isso ocorre quando um campo na consulta GraphQL recebida não existe.
+
+Nesta situação, o agente usa o documento analisado para indicar cada parte pretendida, incluindo calcular o caminho pretendido mais profundo.
+
+Aqui está um exemplo de consulta de um campo que não existe (`doesnotexist`) e como isso aparece no NR One.
+
+```graphql
+query GetBooksByLibrary {
+  libraries {
+    books {
+      doesnotexist {
+        name
+      }
+    }
+  }
+}
+```
+
+`post /query/GetBooksByLibrary/libraries.books.doesnotexist.name`
+
+#### Erros de Análise
+
+Se uma operação solicitada não puder ser analisada, o agente nomeia a transação usando um curinga (`*`) no lugar das partes usuais da operação. Nesta situação, a consulta é inválida e não há partes identificáveis para prosseguir.
+
+Aqui está um exemplo faltando um `}` de fechamento que não pode ser analisado e como isso aparece no NR One.
+
+```graphql
+query GetBooksByLibrary {
+  libraries {
+    books {
+      title
+      author {
+        name
+      }
+    }
+  }
+// missing closing }
+```
+
+`post /*`
+
+Nessas situações, o atributo `query` no span de operação associado ao erro é a melhor maneira de identificar o ofensor específico.
+
+#### Consultas em Lote
+
+O Apollo Server suporta consultas em lote. Nessas situações, há múltiplas operações em jogo que afetam a nomenclatura.
+
+Para identificar melhor os agrupamentos de transações, o agente agrega os nomes das operações após um indicador `/batch` adicional. Esses nomes podem ser bastante longos.
+
+Aqui está um exemplo de uma consulta em lote e como ela se parece no NR One.
+
+```
+[
+  {
+    query: query GetBookForLibrary {
+      library(branch: "downtown") {
+        books {
+          title
+          author {
+            name
+          }
+        }
+      }
+    }
+  },
+  {
+    query: mutation {
+      addThing(name: "added thing!")
+    }
+  }
+]
+```
+
+`post /batch/query/GetBookForLibrary/library.books/mutation/<anonymous>/addThing`
+
+Aqui você vê `batch/` seguido por `query/GetBookForLibrary/library.books` e `mutation/<anonymous>/addThing`.

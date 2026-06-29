@@ -11,6 +11,10 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
+<Callout variant="tip">
+  プライベートロケーションでモニターを実行している場合は、SJMのデプロイメント手順およびプライベートロケーション固有のトラブルシューティングについて、[プライベートロケーションランタイム移行ガイド](/docs/synthetics/synthetic-monitoring/private-locations/runtime-transition-guide)を参照してください。
+</Callout>
+
 ## Node.js 22へのアップグレードに関する問題
 
 以下の問題は、モニターをNode.js 22にアップグレードする際に特有のものです。
@@ -200,7 +204,85 @@ clearTimeout(timerId);
 
 **症状：**スクリプトは終了したように見えるが、検証が失敗する。**原因：** Promiseが適切に待機または処理されていない。
 
-**解決策:**すべてのプロミスが`.then()` 、 `.catch()`であるか、 `await`で編集されていることを確認します。
+すべてのプロミスに`.then()`、`.catch()`があるか、または`await`されていることを確認します。
+
+#### 問題のあるコード
+
+```javascript
+// ❌ Problematic code - Promise not awaited
+const $http = require('request');
+
+$http.get('https://api.example.com/data', (error, response, body) => {
+  console.log('Response:', body);
+  // Script ends before response is processed
+});
+```
+
+#### 推奨されるアプローチ
+
+async/awaitを使用してレスポンスを適切に待機します：
+
+```javascript
+// ✅ Better approach - Using async/await
+const $http = require('request');
+const { promisify } = require('util');
+const httpGet = promisify($http.get);
+
+async function checkAPI() {
+  try {
+    const response = await httpGet('https://api.example.com/data');
+    console.log('Response:', response.body);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+await checkAPI();
+```
+
+### 閉じられていないHTTP接続 [#unclosed-http]
+
+**症状：**オープンハンドルエラーによりモニターの検証に失敗する **原因：**awaitやクリーンアップを行わずにループ内でHTTP接続が行われている
+
+#### 問題のあるコード
+
+```javascript
+// ❌ Problematic code - Connection pool not cleaned up
+const $http = require('request');
+
+// Multiple requests without cleanup
+for (let i = 0; i < 10; i++) {
+  $http.get(`https://api.example.com/item/${i}`);
+}
+```
+
+#### 推奨されるアプローチ
+
+接続を適切に待機して処理する：
+
+```javascript
+// ✅ Better approach - Properly handle connections
+const $http = require('request');
+const { promisify } = require('util');
+const httpGet = promisify($http.get);
+
+async function fetchItems() {
+  const promises = [];
+
+  for (let i = 0; i < 10; i++) {
+    promises.push(httpGet(`https://api.example.com/item/${i}`));
+  }
+
+  try {
+    const results = await Promise.all(promises);
+    console.log('All requests completed');
+  } catch (error) {
+    console.error('Request failed:', error);
+  }
+}
+
+await fetchItems();
+```
 
 ## Chromeランタイムのアップグレードに関する問題
 
@@ -210,7 +292,7 @@ clearTimeout(timerId);
 
 **症状:** `findElement`およびその他のメソッドは新しいランタイムでは失敗しますが、従来のランタイムでは機能します**原因:** Seleniumのバージョン間の相違点の処理を Promise にしているウェブサイト
 
-古いランタイムで作成されたモニターを[Chrome 100 (またはそれ以降) ランタイム](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100)に対して検証する場合、プロミス処理の違いにより、 `findElement`やページ上の要素を検索および操作するためのその他のメソッドが失敗する可能性があります。モニターがレガシー ランタイムでは成功し、新しいランタイムでは失敗し、要素がスクリーンショットに存在する場合は、Promise 処理ロジックを改善してください。
+古いランタイムで作成されたモニターを[**最新の**Chromeランタイム](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100)に対して検証する場合、Promiseの処理の違いにより、`findElement`やページ上の要素を検索して操作するためのその他のメソッドが失敗する可能性があります。モニターがレガシーランタイムで成功し、新しいランタイムで失敗し、スクリーンショットに要素が存在する場合は、Promise の処理ロジックを改善してください。
 
 Seleniumウェブの意見 Promise Manager と制御フローにより、Promise を管理せずに、レガシー ランタイムで一部の関数を順番に実行できるようになりました。 この機能はSeleniumウェブ意見 4.0 で削除され、ランタイムでは使用できなくなりました。 すべての非同期関数と Promise は、 `await`または`.then` Promise チェーンを使用して管理する必要があります。 これにより、スクリプト関数が期待どおりの順序で実行されるようになります。
 
@@ -227,7 +309,7 @@ $browser.findElement($driver.By.css('h1'));
 
 #### 推奨されるアプローチ
 
-[Chrome 100（またはそれ以降）ランタイム](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100)では、Promiseを返すメソッドは、手順を適切に順序付けるために、awaitまたは`.then`構文を使用する必要があります。構文がより簡潔で使いやすいため、await の使用が推奨されますが、 `.then`プロミス チェーンも引き続きサポートされています。
+[**最新の**Chromeランタイム](/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100)では、Promiseを返すメソッドはすべて、ステップを適切に順序付けるためにawaitまたは`.then`構文を使用する必要があります。構文がよりクリーンで使いやすいため、awaitの使用が推奨されますが、`.then`promiseチェーンも引き続きサポートされています。
 
 ```js
 // ✅ Better approach - Using await

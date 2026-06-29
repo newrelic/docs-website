@@ -1,0 +1,184 @@
+---
+title: BTPインテグレーションスイート経由でNew Relicに接続する
+metaDescription: Configure SAP Cloud Integration as middleware to transmit monitoring data to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+直接接続が利用できない場合に監視データをNew Relicに送信するミドルウェアとして、SAP BTP Integration Suite（クラウドインテグレーション）を設定します。
+
+## 概要
+
+コレクションマネージャープログラムは、直接送信する代わりに、ミドルウェアとしてSAP クラウドインテグレーション（SAP CPI）を使用してNew Relicにデータを送信するオプションを提供します。
+
+| **方法**            | **説明**                       |
+| ----------------- | ---------------------------- |
+| 直接                | SAPからNew Relicへの直接送信（標準的な方法） |
+| SAP クラウドインテグレーション | SAP CPIをミドルウェアとして使用する        |
+
+## 設定手順
+
+<Steps>
+  <Step>
+    ## 承認方法の決定
+
+    iFlowに使用する認証タイプを選択します：
+
+    * <DNT>**ClientId/Secret**</DNT> （OAuth2）
+    * <DNT>**Certificate**</DNT>
+    * <DNT>**External Certificate**</DNT>
+  </Step>
+
+  <Step>
+    ## サービスインスタンスとキーを作成する
+
+    1. <DNT>**SAP Process Integration Runtime**</DNT>のサービスインスタンスを作成します。
+    2. 選択した認可方法を使用して、<DNT>**service key**</DNT>または<DNT>**certificate**</DNT>を割り当てます。
+    3. 後で使用するために<DNT>**service key**</DNT>をダウンロードします。
+
+    詳細な手順については、[<DNT>**BTP Monitoring**</DNT>のサービスキーの取得](/docs/sap-solutions/install-and-configure/obtain-service-key/process-integration-runtime)を参照してください。
+  </Step>
+
+  <Step>
+    ## iFlowの設定とデプロイ
+
+    New Relicが提供する<DNT>**iFlow**</DNT>をテンプレートとして使用します：
+
+    1. テンプレート<DNT>**iFlow**</DNT>をコピーします。
+    2. ステップ1での選択に合わせて認証方法を更新します。
+    3. 以下のマッピングが設定されていることを確認します：
+
+    ### 許可されるヘッダー
+
+    <DNT>**allowed headers**</DNT>に以下が含まれるように設定します：
+
+    ```
+    API-Key|targetURL
+    ```
+
+    ### 認証メソッド
+
+    * <DNT>**ClientId/Secret**</DNT>または<DNT>**Certificate**</DNT>の場合：選択 <DNT>**User Role**</DNT>
+    * <DNT>**External Certificate**</DNT>の場合：<DNT>**Client Certificate**</DNT>を選択して追加します <DNT>**root certificates**</DNT>
+
+    ### リクエストコンテンツ修飾子
+
+    以下を保持するように<DNT>**exchange properties**</DNT>を設定します：
+
+    * <DNT>**targeturl**</DNT>
+    * <DNT>**apikey**</DNT>
+
+    ### Groovyスクリプト
+
+    <DNT>**script**</DNT>を追加して、ヘッダーを動的に設定します：
+
+    ```groovy
+    import com.sap.gateway.ip.core.customdev.util.Message;
+    def Message processData(Message message) {
+
+      message.setHeader("API-Key", message.getProperty("apikey"));
+      message.setHeader("Content-Type", "application/json");
+      message.setHeader("Accept", "application/json");
+
+      message.setHeader("CamelHttpUri", message.getProperty("targeturl"));
+
+      def turl = message.getHeader("CamelHttpUri", String);
+
+      def logText = "---Headers---\n";
+
+      message.getHeaders().each { k, v -> logText += "\${k} = \${v}\n" };
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("AllHeaders", logText, "text/plain");
+
+      messageLogFactory.getMessageLog(message)?.addAttachmentAsString("URL", turl, "text/plain");
+
+      return message;
+    }
+    ```
+
+    ### レスポンスコンテンツ修飾子
+
+    以下を返すように<DNT>**message body**</DNT>を設定します：
+
+    ```json
+    {
+      "statusCode": "\${header.CamelHttpResponseCode}",
+      "response": \${body}
+    }
+    ```
+
+    ### HTTP接続設定
+
+    * <DNT>**Address**</DNT>： `\${header.CamelHttpUri}`
+    * <DNT>**Method**</DNT>： <DNT>**POST**</DNT>
+    * <DNT>**Timeout**</DNT>： <DNT>**60000 ms**</DNT>
+    * <DNT>**Request Headers**</DNT>： `*`
+    * <DNT>**Response Headers**</DNT>： `*`
+
+    4. <DNT>**iFlow**</DNT>をデプロイします。
+    5. <DNT>**iFlow endpoint URL**</DNT>に注意してください。
+  </Step>
+
+  <Step>
+    ## RFCの宛先を作成する
+
+    1. トランザクション<DNT>**SM59**</DNT>を使用して新しい<DNT>**RFC destination**</DNT>を作成します。
+
+    2. 次の情報を入力します。
+
+       * <DNT>**RFC Destination**</DNT>: 分かりやすい名前（例：<DNT>**NR\_CPI\_ENDPOINT**</DNT>）
+       * <DNT>**Connection Type**</DNT>: <DNT>**G**</DNT> (外部サーバーへの HTTP 接続)
+       * <DNT>**Description**</DNT>: クラウドインテグレーション経由のNew Relicへの接続
+
+    3. <DNT>**Technical Settings**</DNT>タブで：
+
+       * <DNT>**Target Host**</DNT>：あなたのホスト <DNT>**iFlow endpoint**</DNT>
+       * <DNT>**Service No.**</DNT>： <DNT>**443**</DNT>
+       * <DNT>**Path Prefix**</DNT>：ご使用の <DNT>**iFlow endpoint**</DNT>
+
+    4. <DNT>**Logon &amp; Security**</DNT>タブで：
+
+       * 選択した方法に基づいて認証を設定します：
+
+         * <DNT>**ClientId/Secret**</DNT>の場合：ユーザー名として<DNT>**ClientId**</DNT>を、パスワードとして<DNT>**ClientSecret**</DNT>を入力します。
+         * <DNT>**Certificate**</DNT>の場合：設定 <DNT>**certificate details**</DNT>
+
+    5. <DNT>**Security Options**</DNT>タブで：
+       * <DNT>**Active**</DNT>を選択します <DNT>**SSL**</DNT>
+
+    6. 設定を保存します。
+
+    7. <DNT>**Connection Test**</DNT>をクリックして接続を確認します。
+  </Step>
+
+  <Step>
+    ## コレクションマネージャーの設定
+
+    1. トランザクション<DNT>**/NEWR/ONE\_COLLECTION**</DNT>を実行するか、<DNT>**/NEWR/ABAP\_COLLECTION\_MANAGERN**</DNT>の<DNT>**variant**</DNT>を作成します。
+    2. <DNT>**Data Transmission to NR**</DNT>セクション:
+       * 代わりに<DNT>**SAP Cloud Integration**</DNT>を選択 <DNT>**Direct**</DNT>
+    3. \{…} フィールドに：
+       * ステップ 4 で作成した<DNT>**RFC destination name**</DNT>を入力します（例：<DNT>**NR\_CPI\_ENDPOINT**</DNT>）
+    4. <DNT>**variant**</DNT>を保存します。
+    5. <DNT>**collection job**</DNT>をスケジュールまたは実行します。
+  </Step>
+</Steps>
+
+## データ転送を確認する
+
+1. <DNT>**collection manager job**</DNT>を実行します。
+
+2. <DNT>**SAP Cloud Integration**</DNT>で<DNT>**iFlow monitoring**</DNT>を確認します：
+
+   * ログイン <DNT>**SAP BTP Integration Suite**</DNT>
+   * <DNT>**Monitor**</DNT> &gt; に移動します <DNT>**Integrations**</DNT>
+   * メッセージ処理が成功したことを確認する
+
+3. <DNT>**New Relic**</DNT>でのデータ到着を確認します：
+
+   * ログイン <DNT>**New Relic**</DNT>
+   * 〜へ移動してください <DNT>**SAP dashboards**</DNT>
+   * 監視データが受信されていることを確認します。
+
+<Callout variant="important">
+  標準の<DNT>**iFlow template**</DNT>を変更する場合は、<DNT>**collection manager program**</DNT>との互換性を維持するために、必要なすべてのマッピングとヘッダーが保持されていることを確認します。
+</Callout>

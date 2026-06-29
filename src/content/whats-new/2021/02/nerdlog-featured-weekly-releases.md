@@ -6,7 +6,7 @@ learnMoreLink: 'https://newrelic.com/blog/nerdlog/introducing-the-nerdlog'
 ---
 ## Use ServiceNow integration to keep correlated issues in sync
 
-Senior Product Manager Shachar Brenner showed us how to keep correlated issues in sync with the ServiceNow integration. [Follow these instructions](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#) to configure Incident Intelligence or go directly to [New Relic One](https://one.nr/0e1wZy9L4Q6) to add a destination.
+Senior Product Manager Shachar Brenner showed us how to keep correlated issues in sync with the ServiceNow integration. [Follow these instructions](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#) to configure Incident Intelligence or go directly to [New Relic One](https://onenr.io/0e1wZy9L4Q6) to add a destination.
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/29Ms4wfziB8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
