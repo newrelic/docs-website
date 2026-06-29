@@ -5,7 +5,13 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-Monitore seus servidores NGINX auto-hospedados com o OpenTelemetry usando o coletor NRDOT (recomendado) ou o OpenTelemetry Collector Contrib para enviar métricas de desempenho e dados de telemetria para o New Relic.
+Monitore seus servidores NGINX auto-hospedados com o OpenTelemetry para enviar métricas de desempenho e dados de telemetria para o New Relic.
+
+Você pode escolher entre três opções de coletor:
+
+* **NRDOT:** Distribuição New Relic do OpenTelemetry
+* **OTel Collector Contrib:** Coletor OpenTelemetry padrão com componentes contribuídos pela comunidade
+* **Prometheus Receiver:** para ambientes que já executam o [nginx-prometheus-exporter](https://github.com/nginxinc/nginx-prometheus-exporter)
 
 ## Antes de você começar [#prerequisites]
 
@@ -25,6 +31,22 @@ Certifique-se de ter:
   * Endpoint de status stub HTTP do NGINX
   * [Endpoint OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)da New Relic
 
+{/* Verify NGINX status module:
+```bash
+nginx -V 2>&1 | grep -o with-http_stub_status_module
+```
+Expected output: `with-http_stub_status_module`
+
+Test network connectivity:
+```bash
+# For US region
+curl -I https://otlp.nr-data.net
+
+# For EU region
+curl -I https://otlp.eu01.nr-data.net
+```
+Expected output: HTTP/2 200 response */}
+
 ## Configurar o monitoramento do NGINX [#setup]
 
 Escolha seu coletor preferido e siga as etapas:
@@ -37,6 +59,10 @@ Escolha seu coletor preferido e siga as etapas:
 
     <TabsBarItem id="otelcol-prereqs">
       OpenTelemetry Collector Contrib
+    </TabsBarItem>
+
+    <TabsBarItem id="prometheus">
+      Receptor Prometheus
     </TabsBarItem>
   </TabsBar>
 
@@ -776,6 +802,277 @@ Escolha seu coletor preferido e siga as etapas:
              ```
 
              Aguarde um tempo para que os dados iniciais apareçam no New Relic e, em seguida, [acesse seu dashboard do NGINX](/docs/opentelemetry/integrations/nginx/find-and-query-your-data#find-data) para verificar a coleta de dados.
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="prometheus">
+      Use essa abordagem se você já tiver o [nginx-prometheus-exporter](https://github.com/nginxinc/nginx-prometheus-exporter) em execução no seu ambiente ou se estiver migrando de uma stack de monitoramento baseada no Prometheus.
+
+      <Callout variant="tip">
+        **Recomendado:** se você ainda não tem um exportador Prometheus em execução, use as guias do **coletor NRDOT** ou do **OpenTelemetry Collector Contrib** em vez disso. Eles se conectam diretamente ao endpoint de status stub do NGINX sem precisar de um componente exportador adicional.
+      </Callout>
+
+      <CollapserGroup>
+        <Collapser id="configure-prometheus-host" title="Etapa 1: configurar o coletor">
+          Esta configuração funciona tanto com o **NRDOT** quanto com o **OTel Collector Contrib**. Coloque-o no local de configuração apropriado:
+
+          * **NRDOT:** `/etc/nrdot-collector/config.yaml`
+          * **OTel Collector Contrib:** `/etc/otelcol-contrib/config.yaml`
+
+          <Callout variant="tip">
+            **Faça backup da sua configuração existente antes de fazer alterações:**
+
+            ```bash
+            # For NRDOT
+            sudo cp /etc/nrdot-collector/config.yaml /etc/nrdot-collector/config.yaml.backup
+
+            # For OTel Collector Contrib
+            sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup
+            ```
+          </Callout>
+
+          Substitua o conteúdo do arquivo pela seguinte configuração:
+
+          <Callout variant="important">
+            Substitua `<YOUR_STUB_STATUS_ENDPOINT>` pela sua URL de status stub do NGINX (por exemplo, `http://127.0.0.1:8080/nginx_status`) e `<DEPLOYMENT_NAME>` por um nome exclusivo para este servidor NGINX.
+          </Callout>
+
+          ```yaml
+          receivers:
+            prometheus/nginx:
+              config:
+                scrape_configs:
+                  - job_name: nginx
+                    scrape_interval: 30s
+                    static_configs:
+                      - targets: ["localhost:9113"]  # Update if exporter runs on a different port
+
+          processors:
+            resourcedetection/prom:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: false
+                  host.id:
+                    enabled: true
+
+            resource/nginx_prom:
+              attributes:
+                - key: nginx.server.endpoint
+                  value: "<YOUR_STUB_STATUS_ENDPOINT>"  # Replace with your stub status URL
+                  action: upsert
+                - key: nginx.deployment.name
+                  value: "<DEPLOYMENT_NAME>"            # Replace with a unique server name
+                  action: upsert
+                # Strip prometheus receiver auto-labels — absent from nginxreceiver output
+                - key: service.name
+                  action: delete
+                - key: service.instance.id
+                  action: delete
+                - key: net.host.name
+                  action: delete
+                - key: net.host.port
+                  action: delete
+                - key: server.address
+                  action: delete
+                - key: server.port
+                  action: delete
+
+            # Rename prometheus metric names to nginxreceiver schema names
+            metricstransform/nginx_prom:
+              transforms:
+                - include: nginx_http_requests_total
+                  action: update
+                  new_name: nginx.requests
+                - include: nginx_connections_accepted
+                  action: update
+                  new_name: nginx.connections_accepted
+                - include: nginx_connections_handled
+                  action: update
+                  new_name: nginx.connections_handled
+                - include: ^nginx_connections_(?P<state>active|reading|writing|waiting)$
+                  match_type: regexp
+                  action: combine
+                  new_name: nginx.connections_current
+
+            # Keep only the 4 renamed nginx.* metrics
+            filter/nginx_prom_only:
+              metrics:
+                include:
+                  match_type: regexp
+                  metric_names:
+                    - ^nginx\..*
+
+            transform/nginx_metrics_prom:
+              metric_statements:
+                - context: resource
+                  statements:
+                    - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+
+            transform/metadata_nullify_prom:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+
+            batch/nginx_prom:
+              timeout: 30s
+              send_batch_size: 1024
+
+          exporters:
+            otlphttp/nginx_prom:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          service:
+            pipelines:
+              metrics/nginx_prometheus:
+                receivers: [prometheus/nginx]
+                processors:
+                  - resourcedetection/prom
+                  - resource/nginx_prom
+                  - metricstransform/nginx_prom
+                  - filter/nginx_prom_only
+                  - transform/nginx_metrics_prom
+                  - transform/metadata_nullify_prom
+                  - batch/nginx_prom
+                exporters: [otlphttp/nginx_prom]
+          ```
+
+          #### Parâmetro de configuração
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  Parâmetro
+                </th>
+
+                <th>
+                  Descrição
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `<YOUR_STUB_STATUS_ENDPOINT>`
+                </td>
+
+                <td>
+                  Sua URL de status stub do NGINX (por exemplo, 
+
+                  `http://127.0.0.1:8080/nginx_status`
+
+                  ). Usado como o atributo de recurso 
+
+                  `nginx.server.endpoint`
+
+                  .
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<DEPLOYMENT_NAME>`
+                </td>
+
+                <td>
+                  Nome exclusivo para este servidor NGINX (por exemplo, 
+
+                  `production-web-01`
+
+                  ). Aparece nos dashboards do New Relic.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `targets`
+                </td>
+
+                <td>
+                  Endereço do nginx-prometheus-exporter (padrão 
+
+                  `localhost:9113`
+
+                  ). Atualize se estiver em execução em um host ou porta diferente.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `scrape_interval`
+                </td>
+
+                <td>
+                  Com que frequência coletar métricas do exportador. Padrão: 
+
+                  `30s`
+
+                  .
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Collapser>
+
+        <Collapser id="env-vars-prometheus-host" title="Etapa 2: definir variáveis de ambiente">
+          Crie um override do systemd para injetar as variáveis de ambiente necessárias. Substitua `<collector-service>` pelo nome do seu serviço de coletor (`nrdot-collector` ou `otelcol-contrib`):
+
+          ```bash
+          sudo mkdir -p /etc/systemd/system/<collector-service>.service.d
+          ```
+
+          Crie o arquivo `/etc/systemd/system/<collector-service>.service.d/environment.conf`:
+
+          ```ini
+          [Service]
+          Environment="OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+          Environment="NEW_RELIC_LICENSE_KEY=YOUR_NEW_RELIC_LICENSE_KEY"
+          ```
+
+          Substitua `YOUR_NEW_RELIC_LICENSE_KEY` pelo seu <InlinePopover type="licenseKey" />.
+
+          <Callout variant="tip">
+            Para contas da UE, use `OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.eu01.nr-data.net:4318`. Consulte [Configurar endpoint, porta e protocolo](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) para obter a lista completa de endpoints regionais.
+          </Callout>
+        </Collapser>
+
+        <Collapser id="start-prometheus-host" title="Etapa 3: inicie o coletor">
+          Aplique a configuração e reinicie o coletor. Substitua `<collector-service>` por `nrdot-collector` ou `otelcol-contrib`:
+
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl restart <collector-service>.service
+          ```
+
+          Verifique se o serviço está em execução:
+
+          ```bash
+          sudo systemctl status <collector-service>.service
+          sudo journalctl -u <collector-service>.service -n 20
+          ```
+
+          Saída esperada: `Active: active (running)` sem erros.
+        </Collapser>
+
+        <Collapser id="verify-prometheus-host" title="Etapa 4: verifique os dados no New Relic">
+          Após alguns minutos, execute esta consulta NRQL para confirmar que os dados estão fluindo. Substitua `<DEPLOYMENT_NAME>` pelo valor definido na configuração:
+
+          ```sql
+          FROM Metric SELECT *
+          WHERE metricName LIKE 'nginx.%'
+            AND nginx.deployment.name = '<DEPLOYMENT_NAME>'
+          SINCE 10 minutes ago
+          ```
+
+          Aguarde um tempo para que os dados iniciais apareçam no New Relic e, em seguida, [acesse seu dashboard do NGINX](/docs/opentelemetry/integrations/nginx/find-and-query-your-data#find-data) para verificar a coleta de dados.
         </Collapser>
       </CollapserGroup>
     </TabsPageItem>
