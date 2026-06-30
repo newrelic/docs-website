@@ -5,7 +5,13 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-NRDOT 수집기(권장) 또는 OpenTelemetry Collector Contrib를 사용하여 OpenTelemetry 로 자체 호스팅된 NGINX 서버를 모니터링하여 성능 지표 및 텔레메트리 데이터를 뉴렐릭으로 보냅니다.
+OpenTelemetry로 자체 호스팅 NGINX 서버를 모니터하여 성능 메트릭과 텔레메트리 데이터를 뉴렐릭으로 전송하세요.
+
+세 가지 수집기 옵션 중에서 선택할 수 있습니다:
+
+* **NRDOT:** 뉴럴릭 OpenTelemetry배포
+* **OTel Collector Contrib:** 커뮤니티에서 제공한 구성 요소를 포함하는 표준 OpenTelemetry Collector
+* **Prometheus Receiver:** 이미 [nginx-prometheus-exporter](https://github.com/nginxinc/nginx-prometheus-exporter)를 실행 중인 환경의 경우
 
 ## 시작하기 전에 [#prerequisites]
 
@@ -25,6 +31,22 @@ NRDOT 수집기(권장) 또는 OpenTelemetry Collector Contrib를 사용하여 O
   * NGINX HTTP 스텁 상태 엔드포인트
   * 뉴렐릭의 [OTLP 엔드포인트](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
 
+{/* Verify NGINX status module:
+```bash
+nginx -V 2>&1 | grep -o with-http_stub_status_module
+```
+Expected output: `with-http_stub_status_module`
+
+Test network connectivity:
+```bash
+# For US region
+curl -I https://otlp.nr-data.net
+
+# For EU region
+curl -I https://otlp.eu01.nr-data.net
+```
+Expected output: HTTP/2 200 response */}
+
 ## NGINX 모니터링을 설정하세요 [#setup]
 
 원하는 수집기를 선택하고 다음 단계를 따르세요.
@@ -37,6 +59,10 @@ NRDOT 수집기(권장) 또는 OpenTelemetry Collector Contrib를 사용하여 O
 
     <TabsBarItem id="otelcol-prereqs">
       OpenTelemetry Collector 기여
+    </TabsBarItem>
+
+    <TabsBarItem id="prometheus">
+      Prometheus 수신자
     </TabsBarItem>
   </TabsBar>
 
@@ -776,6 +802,277 @@ NRDOT 수집기(권장) 또는 OpenTelemetry Collector Contrib를 사용하여 O
              ```
 
              뉴렐릭에 초기 데이터가 나타날 때까지 기다린 후 [NGINX에 접속하여](/docs/opentelemetry/integrations/nginx/find-and-query-your-data#find-data) 데이터 수집을 확인하십시오.
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="prometheus">
+      환경에서 이미 [nginx-prometheus-exporter](https://github.com/nginxinc/nginx-prometheus-exporter) 를 실행 중이거나 Prometheus 기반 모니터링 스택에서 마이그레이션하는 경우 이 접근 방식을 사용하세요.
+
+      <Callout variant="tip">
+        **권장:** 아직 Prometheus 익스포터를 실행하고 있지 않다면, 대신 **NRDOT 수집기** 또는 **OpenTelemetry Collector Contrib** 탭을 사용하세요. 추가 익스포터 구성 요소 없이 NGINX stub status 엔드포인트에 직접 연결합니다.
+      </Callout>
+
+      <CollapserGroup>
+        <Collapser id="configure-prometheus-host" title="1단계: 수집기 설정">
+          이 설정은 **NRDOT** 및 **OTel Collector Contrib** 모두에서 작동합니다. 적절한 설정 위치에 배치합니다:
+
+          * **NRDOT:** `/etc/nrdot-collector/config.yaml`
+          * **OTel Collector Contrib:** `/etc/otelcol-contrib/config.yaml`
+
+          <Callout variant="tip">
+            **변경하기 전에 기존 설정을 백업하세요:**
+
+            ```bash
+            # For NRDOT
+            sudo cp /etc/nrdot-collector/config.yaml /etc/nrdot-collector/config.yaml.backup
+
+            # For OTel Collector Contrib
+            sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup
+            ```
+          </Callout>
+
+          파일 내용을 다음 설정으로 바꿉니다:
+
+          <Callout variant="important">
+            `<YOUR_STUB_STATUS_ENDPOINT>` 을 NGINX stub status URL(예: `http://127.0.0.1:8080/nginx_status`)로 바꾸고 `<DEPLOYMENT_NAME>` 를 이 NGINX 서버의 고유한 이름으로 바꿉니다.
+          </Callout>
+
+          ```yaml
+          receivers:
+            prometheus/nginx:
+              config:
+                scrape_configs:
+                  - job_name: nginx
+                    scrape_interval: 30s
+                    static_configs:
+                      - targets: ["localhost:9113"]  # Update if exporter runs on a different port
+
+          processors:
+            resourcedetection/prom:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: false
+                  host.id:
+                    enabled: true
+
+            resource/nginx_prom:
+              attributes:
+                - key: nginx.server.endpoint
+                  value: "<YOUR_STUB_STATUS_ENDPOINT>"  # Replace with your stub status URL
+                  action: upsert
+                - key: nginx.deployment.name
+                  value: "<DEPLOYMENT_NAME>"            # Replace with a unique server name
+                  action: upsert
+                # Strip prometheus receiver auto-labels — absent from nginxreceiver output
+                - key: service.name
+                  action: delete
+                - key: service.instance.id
+                  action: delete
+                - key: net.host.name
+                  action: delete
+                - key: net.host.port
+                  action: delete
+                - key: server.address
+                  action: delete
+                - key: server.port
+                  action: delete
+
+            # Rename prometheus metric names to nginxreceiver schema names
+            metricstransform/nginx_prom:
+              transforms:
+                - include: nginx_http_requests_total
+                  action: update
+                  new_name: nginx.requests
+                - include: nginx_connections_accepted
+                  action: update
+                  new_name: nginx.connections_accepted
+                - include: nginx_connections_handled
+                  action: update
+                  new_name: nginx.connections_handled
+                - include: ^nginx_connections_(?P<state>active|reading|writing|waiting)$
+                  match_type: regexp
+                  action: combine
+                  new_name: nginx.connections_current
+
+            # Keep only the 4 renamed nginx.* metrics
+            filter/nginx_prom_only:
+              metrics:
+                include:
+                  match_type: regexp
+                  metric_names:
+                    - ^nginx\..*
+
+            transform/nginx_metrics_prom:
+              metric_statements:
+                - context: resource
+                  statements:
+                    - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+
+            transform/metadata_nullify_prom:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+
+            batch/nginx_prom:
+              timeout: 30s
+              send_batch_size: 1024
+
+          exporters:
+            otlphttp/nginx_prom:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          service:
+            pipelines:
+              metrics/nginx_prometheus:
+                receivers: [prometheus/nginx]
+                processors:
+                  - resourcedetection/prom
+                  - resource/nginx_prom
+                  - metricstransform/nginx_prom
+                  - filter/nginx_prom_only
+                  - transform/nginx_metrics_prom
+                  - transform/metadata_nullify_prom
+                  - batch/nginx_prom
+                exporters: [otlphttp/nginx_prom]
+          ```
+
+          #### 구성 매개변수
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  매개변수
+                </th>
+
+                <th>
+                  설명
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `<YOUR_STUB_STATUS_ENDPOINT>`
+                </td>
+
+                <td>
+                  NGINX stub status URL(예: 
+
+                  `http://127.0.0.1:8080/nginx_status`
+
+                  ). 
+
+                  `nginx.server.endpoint`
+
+                   리소스 속성으로 사용됩니다.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<DEPLOYMENT_NAME>`
+                </td>
+
+                <td>
+                  이 NGINX 서버의 고유한 이름(예: 
+
+                  `production-web-01`
+
+                  ). 뉴렐릭 대시보드에 표시됩니다.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `targets`
+                </td>
+
+                <td>
+                  nginx-prometheus-exporter의 주소(기본값 
+
+                  `localhost:9113`
+
+                  ). 다른 호스트나 포트에서 실행 중인 경우 업데이트하세요.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `scrape_interval`
+                </td>
+
+                <td>
+                  익스포터에서 메트릭을 스크랩하는 빈도입니다. 기본값: 
+
+                  `30s`
+
+                  .
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Collapser>
+
+        <Collapser id="env-vars-prometheus-host" title="2단계: 환경 변수 설정">
+          필요한 환경 변수를 주입하려면 systemd 재정의를 생성하십시오. `<collector-service>` 을(를) 수집기 서비스 이름(`nrdot-collector` 또는 `otelcol-contrib`)(으)로 바꿉니다:
+
+          ```bash
+          sudo mkdir -p /etc/systemd/system/<collector-service>.service.d
+          ```
+
+          `/etc/systemd/system/<collector-service>.service.d/environment.conf` 파일을 생성합니다:
+
+          ```ini
+          [Service]
+          Environment="OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+          Environment="NEW_RELIC_LICENSE_KEY=YOUR_NEW_RELIC_LICENSE_KEY"
+          ```
+
+          `YOUR_NEW_RELIC_LICENSE_KEY` <InlinePopover type="licenseKey" />로 바꾸세요.
+
+          <Callout variant="tip">
+            EU 계정의 경우 `OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.eu01.nr-data.net:4318`을 사용하세요. 지역 엔드포인트의 전체 목록은 [엔드포인트, 포트 및 프로토콜 설정](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 을 참조하세요.
+          </Callout>
+        </Collapser>
+
+        <Collapser id="start-prometheus-host" title="3단계: 수집기 시작">
+          설정을 적용하고 수집기를 다시 시작합니다. `<collector-service>` 을 `nrdot-collector` 또는 `otelcol-contrib`로 바꿉니다:
+
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl restart <collector-service>.service
+          ```
+
+          서비스가 실행 중인지 확인하십시오.
+
+          ```bash
+          sudo systemctl status <collector-service>.service
+          sudo journalctl -u <collector-service>.service -n 20
+          ```
+
+          예상 출력: 오류 없는 `Active: active (running)`.
+        </Collapser>
+
+        <Collapser id="verify-prometheus-host" title="4단계: 뉴렐릭에서 데이터 확인">
+          몇 분 후, 이 NRQL 쿼리를 실행하여 데이터가 흐르고 있는지 확인합니다. `<DEPLOYMENT_NAME>` 을 설정에서 지정한 값으로 바꿉니다:
+
+          ```sql
+          FROM Metric SELECT *
+          WHERE metricName LIKE 'nginx.%'
+            AND nginx.deployment.name = '<DEPLOYMENT_NAME>'
+          SINCE 10 minutes ago
+          ```
+
+          뉴렐릭에 초기 데이터가 나타날 때까지 기다린 후 [NGINX에 접속하여](/docs/opentelemetry/integrations/nginx/find-and-query-your-data#find-data) 데이터 수집을 확인하십시오.
         </Collapser>
       </CollapserGroup>
     </TabsPageItem>
