@@ -57,7 +57,7 @@ Install the NRDOT Collector on an EC2 Windows instance or a local Windows machin
 1. Download and install the NRDOT Collector using PowerShell:
 
    ```powershell
-   $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i nrdot-collector.msi /qn /norestart" -Wait
+   [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
    ```
 
 2. Ensure your security group allows inbound connections from the NRDOT Collector host to your RDS instance on port 1433 (or your custom port).
@@ -113,16 +113,6 @@ GO
 
 <Callout variant="tip">
   **For RDS:** Use your RDS master username (or a user with `rds_superuser` role) to execute these commands. The script automatically excludes the `rdsadmin` database which is reserved by AWS.
-</Callout>
-
-<Callout variant="tip">
-**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
-
-```yaml
-receivers:
-  nrsqlserver:
-    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
-```
 </Callout>
 
 </Step>
@@ -195,7 +185,7 @@ Create a new NRDOT Collector configuration file for your RDS SQL Server setup.
   config={`
 receivers:
   nrsqlserver:
-    collection_interval: 10s
+    collection_interval: 15s
     username: <input1>
     password: <input2>
     server: <input3>
@@ -250,43 +240,56 @@ receivers:
     query_sample_collection:
       max_rows_per_query: 100
 
-processors:
-  memory_limiter:
-    check_interval: 1s
-    limit_mib: $\{env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+    processors:
+      memory_limiter:
+        check_interval: $\{env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib:       $\{env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: $\{env:NR_MEM_LIMITER_SPIKE_MIB:-50}
 
-  batch:
-    timeout: 10s
-    send_batch_size: 1024
+      batch:
 
-exporters:
-  otlphttp:
-    endpoint: <YOUR_OTLP_ENDPOINT>
-    headers:
-      api-key: <YOUR_LICENSE_KEY>
-    tls:
-      insecure: false
-    compression: gzip
+    exporters:
+      otlphttp:
+        endpoint: <input5>
+        headers:
+          api-key: <input6>
+        tls:
+          insecure: false
+        compression: gzip
 
-service:
-  telemetry:
-    metrics:
-      level: none
+    service:
+      telemetry:
+        metrics:
+          level: none
 
-  pipelines:
-    metrics:
-      receivers: [nrsqlserver]
-      processors: [memory_limiter, batch]
-      exporters: [otlphttp]
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp]
 
-    logs:
-      receivers: [nrsqlserver]
-      processors: [memory_limiter, batch]
-      exporters: [otlphttp]`}
+        logs:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp]`}
   fileName="mssql-config.yaml"
   tipMdx={{ body: null }}
   onChange={() => {}}
 />
+
+<Callout variant="tip">
+**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
+
+```yaml
+receivers:
+  nrsqlserver:
+    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+```
+</Callout>
+
+<Callout variant="tip">
+**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
+</Callout>
 
 </Step>
 
@@ -434,46 +437,36 @@ GO
 Use the following statements to grant READ access privileges to the domain user across all databases:
 
 ```sql
-  DECLARE @principal SYSNAME = N'DomainName\DomainUser';   
-                                                                                                                                                           
+-- Grant access to all databases (required for query monitoring and tempdb metrics)
   DECLARE @name SYSNAME;
-  DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR                                                                                                      
-      SELECT [name] FROM master.sys.databases                                                                                                              
-      WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
-        AND [state] = 0;                                                                                                           
-  OPEN db_cursor;                                                                                                                                        
-  FETCH NEXT FROM db_cursor INTO @name;                                                                                                                    
-  WHILE @@FETCH_STATUS = 0                                                                                                                                 
-  BEGIN                                                                                                                                                    
-      BEGIN TRY                                                                                                          
-          DECLARE @sql nvarchar(max) = N'                                                                                                                  
-              USE [' + @name + '];
-              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''' + @principal + ''')                                                    
-                  CREATE USER [' + @principal + '] FOR LOGIN [' + @principal + '];                                                                         
-              GRANT VIEW DATABASE STATE TO [' + @principal + '];';
-          EXEC sp_executesql @sql;                                                                                                                         
-      END TRY                                                                                                                                            
-      BEGIN CATCH                                                                                                                                          
-          PRINT 'Skipped ' + @name + ': ' + ERROR_MESSAGE();                                                                                             
-      END CATCH                                                                                                                                            
-      FETCH NEXT FROM db_cursor INTO @name;
-  END                                                                                                                                                      
-  CLOSE db_cursor;                                                                                                                                       
-  DEALLOCATE db_cursor; 
+  DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name] FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+      AND [state] = 0;
+  OPEN db_cursor;
+  FETCH NEXT FROM db_cursor INTO @name;
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    BEGIN TRY
+      EXEC('USE [' + @name + '];
+      IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''DomainName\DomainUser'')
+      BEGIN
+        CREATE USER [DomainName\DomainUser] FOR LOGIN [DomainName\DomainUser];
+      END;
+      GRANT VIEW DATABASE STATE TO [DomainName\DomainUser];');
+    END TRY
+    BEGIN CATCH
+      PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+    END CATCH
+    FETCH NEXT FROM db_cursor INTO @name;
+  END
+  CLOSE db_cursor;
+  DEALLOCATE db_cursor;
+  GO
 ```
 
 <Callout variant="tip">
   **For RDS:** The script automatically excludes the `rdsadmin` database which is reserved by AWS. Ensure you replace `DomainName\DomainUser` with your actual domain credentials.
-</Callout>
-
-<Callout variant="tip">
-**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
-
-```yaml
-receivers:
-  nrsqlserver:
-    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
-```
 </Callout>
 
 </Step>
@@ -491,7 +484,7 @@ Install the NRDOT Collector on a domain-joined EC2 Windows instance or a local W
 1. Download and install the NRDOT Collector using PowerShell:
 
    ```powershell
-   $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i nrdot-collector.msi /qn /norestart" -Wait
+   [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
    ```
 
 2. **Change Service Logon to Domain Account (Using PowerShell):**
@@ -553,8 +546,8 @@ Use the configuration below with your RDS endpoint:
 
 receivers:
   nrsqlserver:
-    collection_interval: 10s
-    datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+    collection_interval: 15s
+    datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;port=1433;integrated security=true;encrypt=true;TrustServerCertificate=true;"
 
     # Enable comprehensive database metrics
     metrics:
@@ -607,12 +600,11 @@ receivers:
 
 processors:
   memory_limiter:
-    check_interval: 1s
-    limit_mib: $\{env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+    check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
 
   batch:
-    timeout: 10s
-    send_batch_size: 1024
 
 exporters:
   otlphttp:
@@ -640,10 +632,19 @@ service:
       exporters: [otlphttp]
 ```
 
-Example with RDS endpoint:
+<Callout variant="tip">
+**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
+
 ```yaml
-datasource: "server=mydb-instance.c9akciq32.us-east-1.rds.amazonaws.com;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+receivers:
+  nrsqlserver:
+    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
 ```
+</Callout>
+
+<Callout variant="tip">
+**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
+</Callout>
 
 </Step>
 
@@ -787,46 +788,36 @@ GRANT VIEW ANY DEFINITION TO [DomainName\gMSA];
 Use the following statements to grant READ access privileges to the gMSA account across all databases:
 
 ```sql
-DECLARE @principal SYSNAME = N'DomainName\DomainUser';   
-                                                                                                                                                           
+-- Grant access to all databases (required for query monitoring and tempdb metrics)
   DECLARE @name SYSNAME;
-  DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR                                                                                                      
-      SELECT [name] FROM master.sys.databases                                                                                                              
-      WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
-        AND [state] = 0;                                                                                                           
-  OPEN db_cursor;                                                                                                                                        
-  FETCH NEXT FROM db_cursor INTO @name;                                                                                                                    
-  WHILE @@FETCH_STATUS = 0                                                                                                                                 
-  BEGIN                                                                                                                                                    
-      BEGIN TRY                                                                                                          
-          DECLARE @sql nvarchar(max) = N'                                                                                                                  
-              USE [' + @name + '];
-              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''' + @principal + ''')                                                    
-                  CREATE USER [' + @principal + '] FOR LOGIN [' + @principal + '];                                                                         
-              GRANT VIEW DATABASE STATE TO [' + @principal + '];';
-          EXEC sp_executesql @sql;                                                                                                                         
-      END TRY                                                                                                                                            
-      BEGIN CATCH                                                                                                                                          
-          PRINT 'Skipped ' + @name + ': ' + ERROR_MESSAGE();                                                                                             
-      END CATCH                                                                                                                                            
-      FETCH NEXT FROM db_cursor INTO @name;
-  END                                                                                                                                                      
-  CLOSE db_cursor;                                                                                                                                       
-  DEALLOCATE db_cursor;                                                                                                                                                                           
+  DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name] FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+    AND [state] = 0;
+  OPEN db_cursor;
+  FETCH NEXT FROM db_cursor INTO @name;
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    BEGIN TRY
+      EXEC('USE [' + @name + '];
+      IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<DOMAIN>\<gMSA_NAME>$'')
+      BEGIN
+        CREATE USER [<DOMAIN>\<gMSA_NAME>$] FOR LOGIN [<DOMAIN>\<gMSA_NAME>$];
+      END;
+      GRANT VIEW DATABASE STATE TO [<DOMAIN>\<gMSA_NAME>$];');
+    END TRY
+    BEGIN CATCH
+      PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+    END CATCH
+    FETCH NEXT FROM db_cursor INTO @name;
+  END
+  CLOSE db_cursor;
+  DEALLOCATE db_cursor;
+  GO
 ```
 
 <Callout variant="important">
 Replace `DomainName\gMSA` with your actual domain name and gMSA account name (e.g., `CORP\SQL-gMSA$`). This script creates a database user for the gMSA account in all user databases, excluding system databases and RDS-specific databases.
-</Callout>
-
-<Callout variant="tip">
-**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
-
-```yaml
-receivers:
-  nrsqlserver:
-    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
-```
 </Callout>
 
 </Step>
@@ -844,7 +835,7 @@ Install the NRDOT Collector on an EC2 Windows instance that is domain-joined and
 1. Download and install the NRDOT Collector using PowerShell:
 
    ```powershell
-   $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i nrdot-collector.msi /qn /norestart" -Wait
+   [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
    ```
 
 </Step>
@@ -865,6 +856,9 @@ cmd /c 'sc config nrdot-collector obj= "DomainName\gMSA" password= ""'
 
 # Verify the configuration
 Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, StartName
+
+# Start the NRDOT Collector service 
+Start-Service nrdot-collector
 ```
 
 <Callout variant="important">
@@ -898,61 +892,77 @@ Create a new NRDOT Collector configuration file for your RDS SQL Server setup.
 Use the configuration below with your RDS endpoint:
 
 ```yaml
-# NRDOT Collector Configuration for RDS SQL Server - gMSA Authentication
+
 receivers:
   nrsqlserver:
     collection_interval: 15s
-    # gMSA integrated security - no username/password needed
-    datasource: "server=<YOUR-RDS-ENDPOINT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+    datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;port=1433;integrated security=true;encrypt=true;TrustServerCertificate=true;"
 
-    # Enable query performance monitoring
+    # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
+
+    # Enable top query and query sample log collection
     events:
       db.server.query_sample:
         enabled: true
       db.server.top_query:
         enabled: true
 
-    # Top query collection
+    # Top query collection configuration
     top_query_collection:
-      lookback_time: 15s
+      lookback_time: 60s
       max_query_sample_count: 1000
-      top_query_count: 20
-      collection_interval: 15s
+      top_query_count: 250
+      collection_interval: 60s
 
-    # Query sample collection
-    query_sample_collection:
-      max_rows_per_query: 20
-
-    # APM correlation
     collect_full_query_text: true
     allowed_comment_keys:
       - nr_service_guid
 
-    # Core metrics (uptime, CPU count only)
-    metrics:
-      sqlserver.computer.uptime:
-        enabled: true
-      sqlserver.cpu.count:
-        enabled: true
+    # Query sample collection configuration
+    query_sample_collection:
+      max_rows_per_query: 100
 
 processors:
   memory_limiter:
-    check_interval: 1s
-    limit_mib: $\{env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
-  
+    check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
   batch:
-    timeout: 10s
-    send_batch_size: 1024
 
 exporters:
   otlphttp:
-    endpoint: <YOUR_OTLP_ENDPOINT>
+    endpoint: <YOUR_NEWRELIC_OTLP_ENDPOINT>
     headers:
-      api-key: <YOUR_LICENSE_KEY>
+      api-key: <YOUR_NEWRELIC_LICENSE_KEY>
+    tls:
+      insecure: false
     compression: gzip
-
-  debug:
-    verbosity: detailed
 
 service:
   telemetry:
@@ -963,15 +973,29 @@ service:
     metrics:
       receivers: [nrsqlserver]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp, debug]
+      exporters: [otlphttp]
 
     logs:
       receivers: [nrsqlserver]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp, debug]
+      exporters: [otlphttp]
 ```
 
 Example with RDS endpoint: `server=mydb-instance.c9akciq32.us-east-1.rds.amazonaws.com`
+
+<Callout variant="tip">
+**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
+
+```yaml
+receivers:
+  nrsqlserver:
+    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+```
+</Callout>
+
+<Callout variant="tip">
+**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
+</Callout>
 
 </Step>
 
