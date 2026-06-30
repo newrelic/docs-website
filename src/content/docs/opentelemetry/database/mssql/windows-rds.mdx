@@ -185,7 +185,7 @@ Create a new NRDOT Collector configuration file for your RDS SQL Server setup.
   config={`
 receivers:
   nrsqlserver:
-    collection_interval: 10s
+    collection_interval: 15s
     username: <input1>
     password: <input2>
     server: <input3>
@@ -242,12 +242,11 @@ receivers:
 
     processors:
       memory_limiter:
-        check_interval: 1s
-        limit_mib: \${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+        check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
 
       batch:
-        timeout: 10s
-        send_batch_size: 1024
 
     exporters:
       otlphttp:
@@ -286,6 +285,10 @@ receivers:
   nrsqlserver:
     max_concurrent_queries: 4  # default is 4 if omitted or set to 0
 ```
+</Callout>
+
+<Callout variant="tip">
+**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
 </Callout>
 
 </Step>
@@ -434,32 +437,32 @@ GO
 Use the following statements to grant READ access privileges to the domain user across all databases:
 
 ```sql
-  DECLARE @principal SYSNAME = N'DomainName\DomainUser';   
-                                                                                                                                                           
+-- Grant access to all databases (required for query monitoring and tempdb metrics)
   DECLARE @name SYSNAME;
-  DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR                                                                                                      
-      SELECT [name] FROM master.sys.databases                                                                                                              
-      WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
-        AND [state] = 0;                                                                                                           
-  OPEN db_cursor;                                                                                                                                        
-  FETCH NEXT FROM db_cursor INTO @name;                                                                                                                    
-  WHILE @@FETCH_STATUS = 0                                                                                                                                 
-  BEGIN                                                                                                                                                    
-      BEGIN TRY                                                                                                          
-          DECLARE @sql nvarchar(max) = N'                                                                                                                  
-              USE [' + @name + '];
-              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''' + @principal + ''')                                                    
-                  CREATE USER [' + @principal + '] FOR LOGIN [' + @principal + '];                                                                         
-              GRANT VIEW DATABASE STATE TO [' + @principal + '];';
-          EXEC sp_executesql @sql;                                                                                                                         
-      END TRY                                                                                                                                            
-      BEGIN CATCH                                                                                                                                          
-          PRINT 'Skipped ' + @name + ': ' + ERROR_MESSAGE();                                                                                             
-      END CATCH                                                                                                                                            
-      FETCH NEXT FROM db_cursor INTO @name;
-  END                                                                                                                                                      
-  CLOSE db_cursor;                                                                                                                                       
-  DEALLOCATE db_cursor; 
+  DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name] FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+      AND [state] = 0;
+  OPEN db_cursor;
+  FETCH NEXT FROM db_cursor INTO @name;
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    BEGIN TRY
+      EXEC('USE [' + @name + '];
+      IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''DomainName\DomainUser'')
+      BEGIN
+        CREATE USER [DomainName\DomainUser] FOR LOGIN [DomainName\DomainUser];
+      END;
+      GRANT VIEW DATABASE STATE TO [DomainName\DomainUser];');
+    END TRY
+    BEGIN CATCH
+      PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+    END CATCH
+    FETCH NEXT FROM db_cursor INTO @name;
+  END
+  CLOSE db_cursor;
+  DEALLOCATE db_cursor;
+  GO
 ```
 
 <Callout variant="tip">
@@ -543,7 +546,7 @@ Use the configuration below with your RDS endpoint:
 
 receivers:
   nrsqlserver:
-    collection_interval: 10s
+    collection_interval: 15s
     datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;port=1433;integrated security=true;encrypt=true;TrustServerCertificate=true;"
 
     # Enable comprehensive database metrics
@@ -597,12 +600,11 @@ receivers:
 
     processors:
   memory_limiter:
-    check_interval: 1s
-    limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+    check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
 
   batch:
-    timeout: 10s
-    send_batch_size: 1024
 
 exporters:
   otlphttp:
@@ -638,6 +640,10 @@ receivers:
   nrsqlserver:
     max_concurrent_queries: 4  # default is 4 if omitted or set to 0
 ```
+</Callout>
+
+<Callout variant="tip">
+**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
 </Callout>
 
 </Step>
@@ -782,32 +788,32 @@ GRANT VIEW ANY DEFINITION TO [DomainName\gMSA];
 Use the following statements to grant READ access privileges to the gMSA account across all databases:
 
 ```sql
-DECLARE @principal SYSNAME = N'DomainName\gMSA';
-
+-- Grant access to all databases (required for query monitoring and tempdb metrics)
   DECLARE @name SYSNAME;
   DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
-      SELECT [name] FROM master.sys.databases
-      WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
-        AND [state] = 0;
+    SELECT [name] FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+    AND [state] = 0;
   OPEN db_cursor;
   FETCH NEXT FROM db_cursor INTO @name;
   WHILE @@FETCH_STATUS = 0
   BEGIN
-      BEGIN TRY
-          DECLARE @sql nvarchar(max) = N'
-              USE [' + @name + '];
-              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''' + @principal + ''')
-                  CREATE USER [' + @principal + '] FOR LOGIN [' + @principal + '];
-              GRANT VIEW DATABASE STATE TO [' + @principal + '];';
-          EXEC sp_executesql @sql;
-      END TRY
-      BEGIN CATCH
-          PRINT 'Skipped ' + @name + ': ' + ERROR_MESSAGE();
-      END CATCH
-      FETCH NEXT FROM db_cursor INTO @name;
+    BEGIN TRY
+      EXEC('USE [' + @name + '];
+      IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<DOMAIN>\<gMSA_NAME>$'')
+      BEGIN
+        CREATE USER [<DOMAIN>\<gMSA_NAME>$] FOR LOGIN [<DOMAIN>\<gMSA_NAME>$];
+      END;
+      GRANT VIEW DATABASE STATE TO [<DOMAIN>\<gMSA_NAME>$];');
+    END TRY
+    BEGIN CATCH
+      PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+    END CATCH
+    FETCH NEXT FROM db_cursor INTO @name;
   END
   CLOSE db_cursor;
   DEALLOCATE db_cursor;
+  GO
 ```
 
 <Callout variant="important">
@@ -889,7 +895,7 @@ Use the configuration below with your RDS endpoint:
 
 receivers:
   nrsqlserver:
-    collection_interval: 10s
+    collection_interval: 15s
     datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;port=1433;integrated security=true;encrypt=true;TrustServerCertificate=true;"
 
     # Enable comprehensive database metrics
@@ -943,12 +949,11 @@ receivers:
 
     processors:
   memory_limiter:
-    check_interval: 1s
-    limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+    check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
 
   batch:
-    timeout: 10s
-    send_batch_size: 1024
 
 exporters:
   otlphttp:
@@ -986,6 +991,10 @@ receivers:
   nrsqlserver:
     max_concurrent_queries: 4  # default is 4 if omitted or set to 0
 ```
+</Callout>
+
+<Callout variant="tip">
+**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
 </Callout>
 
 </Step>
