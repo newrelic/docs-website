@@ -108,6 +108,50 @@ To use the .NET agent API, make sure you have the [latest .NET agent release](/d
 
 * View and download the API package from the [NuGet Package Library](https://www.nuget.org/packages/NewRelic.Agent.Api/).
 
+## Notes on Dependency Injection
+
+If you consume the agent API through `Microsoft.Extensions.DependencyInjection` (or a similar container), there are two pitfalls that will silently disable your custom instrumentation without producing any error. Both stem from the fact that [`IAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent) is a long-lived handle, but [`CurrentTransaction`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ITransaction) and [`CurrentSpan`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) are request-scoped views that must be re-read on every call.
+
+### Register `IAgent` lazily, not eagerly
+
+[`GetAgent()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#GetAgent) must be called **after** the profiler has finished attaching. If you resolve it eagerly while the DI container is being built, you may cache the no-op placeholder the API returns before the agent is live, leaving the application with a silently disabled API for the lifetime of the process. Use a factory lambda so the call is deferred to first resolution:
+
+```cs
+// ❌ Eager — may capture the no-op placeholder
+builder.Services.AddSingleton<IAgent>(NewRelic.Api.Agent.NewRelic.GetAgent());
+
+// ✅ Lazy — GetAgent() runs on first resolution, after the profiler is ready
+builder.Services.AddSingleton<IAgent>(_ => NewRelic.Api.Agent.NewRelic.GetAgent());
+```
+
+### Do not cache `ITransaction` or `ISpan` in fields
+
+`IAgent` itself is safe to store, but `CurrentTransaction` and `CurrentSpan` must be read fresh each time you use them. Capturing them in a constructor or field binds your service to whichever request happened to be in flight when the field was first assigned. Every subsequent call then writes attributes, errors, and events to a transaction that has already ended, and the data never appears on the transactions you are actually looking at.
+
+```cs
+// ❌ Captures one request's transaction forever
+public class BuggyService
+{
+    private readonly ITransaction _transaction;
+    public BuggyService(IAgent agent) => _transaction = agent.CurrentTransaction;
+}
+
+// ✅ Fetch per-call
+public class WorkService
+{
+    private readonly IAgent _agent;
+    public WorkService(IAgent agent) => _agent = agent;
+
+    public void DoWork()
+    {
+        var transaction = _agent.CurrentTransaction;
+        transaction.AddCustomAttribute("key", "value");
+    }
+}
+```
+
+For a complete, runnable walkthrough, including compile-checked anti-pattern examples, see the [api-dependency-injection example](https://github.com/newrelic/newrelic-dotnet-examples/tree/main/api-dependency-injection) in the `newrelic-dotnet-examples` repository.
+
 ## List of API calls
 
 The following list contains the different calls you can make with the API, including syntax, requirements, functionality, and examples:
@@ -921,6 +965,16 @@ The following list contains the different calls you can make with the API, inclu
 
             <tr>
               <td>
+                `arrays`, `Lists`, and other `IEnumerable` types
+              </td>
+
+              <td>
+                Serialized as a JSON array. Individual elements follow the same type conversion rules above. Null elements are filtered out. Empty arrays and arrays containing only null values are not recorded. Requires .NET agent version 10.50.0 or later.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
                 everything else
               </td>
 
@@ -947,7 +1001,9 @@ The following list contains the different calls you can make with the API, inclu
         transaction.AddCustomAttribute("customerName","Bob Smith")
             .AddCustomAttribute("currentAge",31)
             .AddCustomAttribute("birthday", new DateTime(2000, 02, 14))
-            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842));
+            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842))
+            .AddCustomAttribute("colors", new[] { "red", "green", "blue" })
+            .AddCustomAttribute("ids", new List<int> { 1, 2, 3 });
         ```
       </Collapser>
 
@@ -1346,6 +1402,16 @@ The following list contains the different calls you can make with the API, inclu
 
                     <tr>
                       <td>
+                        `arrays`, `Lists`, and other `IEnumerable` types
+                      </td>
+
+                      <td>
+                        Serialized as a JSON array. Individual elements follow the same type conversion rules above. Null elements are filtered out. Empty arrays and arrays containing only null values are not recorded. Requires .NET agent version 10.50.0 or later.
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td>
                         everything else
                       </td>
 
@@ -1371,14 +1437,16 @@ The following list contains the different calls you can make with the API, inclu
         ### Examples
 
         ```cs
-        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent(); 
-        ISpan currentSpan = agent.CurrentSpan; 
+        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+        ISpan currentSpan = agent.CurrentSpan;
 
         currentSpan
             .AddCustomAttribute("customerName","Bob Smith")
             .AddCustomAttribute("currentAge",31)
             .AddCustomAttribute("birthday", new DateTime(2000, 02, 14))
-            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842));
+            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842))
+            .AddCustomAttribute("colors", new[] { "red", "green", "blue" })
+            .AddCustomAttribute("ids", new List<int> { 1, 2, 3 });
         ```
       </Collapser>
 
@@ -1596,6 +1664,8 @@ The following list contains the different calls you can make with the API, inclu
     If this method is invoked within a [transaction](/docs/glossary/glossary/#transaction), the agent reports the exception within the parent transaction. If it is invoked outside of a transaction, the agent creates an [error trace](/docs/errors-inbox/apm-tab//#trace-details) and categorizes the error in the New Relic UI as a `NewRelic.Api.Agent.NoticeError` API call. If invoked outside of a transaction, the `NoticeError()` call will not contribute to the error rate of an application.
 
     The agent adds the attributes only to the traced error; it does not send them to New Relic. For more information, see [`AddCustomAttribute()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#AddCustomAttribute).
+
+    When passing an exception to `NoticeError()`, determine the innermost exception using Microsoft's `Exception.GetBaseException()` API. This innermost exception represents the root cause of the error and is what is displayed in APM. The entire stack trace from the top-level exception is reported, as it provides relevant context and execution details. This approach offers the most specific error information from the base exception while preserving the complete context of how the error propagated through the application.
 
     Errors reported with this API are still sent to New Relic when they are reported within a transaction that results in an HTTP status code, such as a `404`, that is configured to be ignored by agent configuration. For more information, see our documentation about [managing errors in APM](/docs/apm/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected).
 

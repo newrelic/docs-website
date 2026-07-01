@@ -9,7 +9,7 @@ Improve your incident response. These features help you detect problems before t
 
 ## Free automatic proactive anomaly detection
 
-Applied Intelligence automatically spots anomalies based on golden signals like throughput, errors, and latency across all applications and services—and it’s now automatically enabled for all your instrumented apps and services without configuration, and at no additional cost. With a [real-time feed](https://one.nr/01qwL999rR5) of every anomaly and in-depth analytics, you can create dashboards and query your anomaly data and even integrate it with Incident Intelligence. Click on any anomaly to bring up an automatic analysis of likely causes and see related signals for upstream and downstream services. Get notified in your collaboration tool of choice, like Slack so you can troubleshoot faster and prevent potential problems from impacting customers.
+Applied Intelligence automatically spots anomalies based on golden signals like throughput, errors, and latency across all applications and services—and it’s now automatically enabled for all your instrumented apps and services without configuration, and at no additional cost. With a [real-time feed](https://onenr.io/01qwL999rR5) of every anomaly and in-depth analytics, you can create dashboards and query your anomaly data and even integrate it with Incident Intelligence. Click on any anomaly to bring up an automatic analysis of likely causes and see related signals for upstream and downstream services. Get notified in your collaboration tool of choice, like Slack so you can troubleshoot faster and prevent potential problems from impacting customers.
 
 ![anomaly-overview.gif](/images/anomaly-overview.gif 'Anomaly Overview and Analysis')
 
@@ -23,6 +23,6 @@ We now offer a new capability that uses machine learning to automatically cluste
 
 ## Investigate alerts analytics
 
-A [new integrated landing page](https://one.nr/0X8woKKdqwx) highlights insights and analytics about how your alert configurations are performing.
+A [new integrated landing page](https://onenr.io/0X8woKKdqwx) highlights insights and analytics about how your alert configurations are performing.
 
 ![alerts-overview.gif](/images/alerts-overview.gif 'Alerts and AI overview')

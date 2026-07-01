@@ -27,6 +27,50 @@ Para emplear la API del agente .NET, cerciorar de tener la [última versión del
 
 * Vea y descargue el paquete API desde la [biblioteca de paquetes NuGet](https://www.nuget.org/packages/NewRelic.Agent.Api/).
 
+## Notas sobre la inyección de dependencias
+
+Si consume la API del agente a través de `Microsoft.Extensions.DependencyInjection` (o un contenedor similar), hay dos obstáculos que deshabilitarán silenciosamente su instrumentación personalizada sin producir ningún error. Ambos se deben al hecho de que [`IAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent) es un identificador de larga duración, pero [`CurrentTransaction`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ITransaction) y [`CurrentSpan`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) son vistas de ámbito de solicitud que deben volver a leerse en cada llamada.
+
+### Registre `IAgent` de forma diferida, no anticipada
+
+[`GetAgent()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#GetAgent) debe llamarse **después** de que el generador de perfiles haya terminado de adjuntarse. Si lo resuelve de forma anticipada mientras se construye el contenedor de DI, es posible que almacene en caché el marcador de posición no-op que devuelve la API antes de que el agente esté activo, dejando a la aplicación con una API deshabilitada silenciosamente durante el tiempo de vida del proceso. Usa una lambda de fábrica para que la llamada se difiera hasta la primera resolución:
+
+```cs
+// ❌ Eager — may capture the no-op placeholder
+builder.Services.AddSingleton<IAgent>(NewRelic.Api.Agent.NewRelic.GetAgent());
+
+// ✅ Lazy — GetAgent() runs on first resolution, after the profiler is ready
+builder.Services.AddSingleton<IAgent>(_ => NewRelic.Api.Agent.NewRelic.GetAgent());
+```
+
+### No almacene en caché `ITransaction` o `ISpan` en los campos
+
+`IAgent` en sí es seguro de almacenar, pero `CurrentTransaction` y `CurrentSpan` deben leerse de nuevo cada vez que se utilicen. Capturarlos en un constructor o campo vincula su servicio a cualquier solicitud que estuviera en curso cuando el campo se asignó por primera vez. Cada llamada posterior escribe entonces atributos, errores y eventos en una transacción que ya finalizó, y los datos nunca aparecen en las transacciones que realmente está viendo.
+
+```cs
+// ❌ Captures one request's transaction forever
+public class BuggyService
+{
+    private readonly ITransaction _transaction;
+    public BuggyService(IAgent agent) => _transaction = agent.CurrentTransaction;
+}
+
+// ✅ Fetch per-call
+public class WorkService
+{
+    private readonly IAgent _agent;
+    public WorkService(IAgent agent) => _agent = agent;
+
+    public void DoWork()
+    {
+        var transaction = _agent.CurrentTransaction;
+        transaction.AddCustomAttribute("key", "value");
+    }
+}
+```
+
+Para obtener un tutorial completo y ejecutable, que incluye ejemplos de antipatrones verificados por compilación, consulte el [ejemplo de inyección de dependencia de la API](https://github.com/newrelic/newrelic-dotnet-examples/tree/main/api-dependency-injection) en el respositorio `newrelic-dotnet-examples`.
+
 ## Lista de llamadas de API
 
 La siguiente lista contiene las diferentes llamadas que puede realizar con la API, incluida la sintaxis, los requisitos, la funcionalidad y los ejemplos:
@@ -802,6 +846,16 @@ La siguiente lista contiene las diferentes llamadas que puede realizar con la AP
 
             <tr>
               <td>
+                `arrays`, `Lists` y otros tipos de `IEnumerable`
+              </td>
+
+              <td>
+                Serializado como un arreglo JSON. Los elementos individuales siguen las mismas reglas de conversión de tipos anteriores. Se filtran los elementos nulos. Los arreglos vacíos y los arreglos que contienen solo valores nulos no se registran. Requiere el agente .NET versión 10.50.0 o posterior.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
                 todo lo demas
               </td>
 
@@ -828,7 +882,9 @@ La siguiente lista contiene las diferentes llamadas que puede realizar con la AP
         transaction.AddCustomAttribute("customerName","Bob Smith")
             .AddCustomAttribute("currentAge",31)
             .AddCustomAttribute("birthday", new DateTime(2000, 02, 14))
-            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842));
+            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842))
+            .AddCustomAttribute("colors", new[] { "red", "green", "blue" })
+            .AddCustomAttribute("ids", new List<int> { 1, 2, 3 });
         ```
       </Collapser>
 
@@ -1218,6 +1274,16 @@ La siguiente lista contiene las diferentes llamadas que puede realizar con la AP
 
                     <tr>
                       <td>
+                        `arrays`, `Lists` y otros tipos de `IEnumerable`
+                      </td>
+
+                      <td>
+                        Serializado como un arreglo JSON. Los elementos individuales siguen las mismas reglas de conversión de tipos anteriores. Se filtran los elementos nulos. Los arreglos vacíos y los arreglos que contienen solo valores nulos no se registran. Requiere el agente .NET versión 10.50.0 o posterior.
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td>
                         todo lo demas
                       </td>
 
@@ -1243,14 +1309,16 @@ La siguiente lista contiene las diferentes llamadas que puede realizar con la AP
         ### Ejemplos
 
         ```cs
-        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent(); 
-        ISpan currentSpan = agent.CurrentSpan; 
+        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+        ISpan currentSpan = agent.CurrentSpan;
 
         currentSpan
             .AddCustomAttribute("customerName","Bob Smith")
             .AddCustomAttribute("currentAge",31)
             .AddCustomAttribute("birthday", new DateTime(2000, 02, 14))
-            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842));
+            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842))
+            .AddCustomAttribute("colors", new[] { "red", "green", "blue" })
+            .AddCustomAttribute("ids", new List<int> { 1, 2, 3 });
         ```
       </Collapser>
 
@@ -1453,6 +1521,8 @@ La siguiente lista contiene las diferentes llamadas que puede realizar con la AP
     Si este método se invoca dentro de una [transacción](/docs/glossary/glossary/#transaction), el agente informa la excepción dentro de la transacción principal. Si se invoca fuera de una transacción, el agente crea una [traza](/docs/errors-inbox/apm-tab//#trace-details) de error y categoriza el error en la New Relic UI como una de `NewRelic.Api.Agent.NoticeError` llamada API. Si se invoca fuera de una transacción, la llamada `NoticeError()` no contribuirá a la tasa de errores de una aplicación.
 
     El agente agrega el atributo sólo al error de traza; no los envía a New Relic. Para obtener más información, consulte [`AddCustomAttribute()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#AddCustomAttribute).
+
+    Al pasar una excepción a `NoticeError()`, determine la excepción más interna empleando la API `Exception.GetBaseException()` de Microsoft. Esta excepción más interna representa la causa raíz del error y es lo que se muestra en APM. Se informa todo el rastreo de la stack desde la excepción de nivel superior, ya que proporciona contexto relevante y detalles de ejecución. Este enfoque ofrece la información de error más específica de la excepción base y al mismo tiempo preserva el contexto completo de cómo se propagó el error a través de la aplicación.
 
     Los errores informados con esta API aún se envían a New Relic cuando se informan dentro de una transacción que genera un código de estado HTTP, como `404`, que está configurado para ser ignorado por la configuración del agente. Para obtener más información, consulte nuestra documentación sobre [la gestión de errores en APM](/docs/apm/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected).
 
@@ -2087,7 +2157,7 @@ La siguiente lista contiene las diferentes llamadas que puede realizar con la AP
           <td>
             `$callback`
 
-            *&apos;Func&lt;IReadOnlyDictionary&lt;string,object&gt;,string&gt;&apos;*
+            *\{&apos;Func&lt;IReadOnlyDictionary&lt;string,object&gt;,string&gt;&apos;}*
           </td>
 
           <td>

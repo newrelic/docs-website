@@ -1,0 +1,525 @@
+---
+title: Solução de problemas de automação de fluxo de trabalho
+tags:
+  - workflow automation
+  - troubleshooting
+  - workflow errors
+metaDescription: 'Common issues and solutions for Workflow Automation including AWS credentials, workflow execution, and dashboard problems.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esta página fornece soluções para problemas comuns que você pode encontrar ao usar o fluxo de trabalho Automation. Para obter suporte adicional, consulte o [Fórum de Suporte da New Relic](https://discuss.newrelic.com/) ou entre em contato com [o Suporte da New Relic](https://support.newrelic.com/).
+
+## Credenciais e autenticação da AWS
+
+### Erros de acesso negado [#access-denied-errors]
+
+**Problema:** Seu fluxo de trabalho falha com um erro de autorização da AWS.
+
+**Soluções:**
+
+1. **Verifique o ID da sua conta:** Verifique se você usou `253490767857` (e não `754728514883`) na política de confiança. O ID da conta de integração na nuvem (`754728514883`) é diferente do ID da conta de automação de fluxo de trabalho.
+
+2. **Verificar ID externo:** Confirme se o ID externo em sua política de confiança corresponde exatamente ao ID da sua conta New Relic (encontrado em [Configurações da conta](/docs/accounts/accounts-billing/account-structure/account-id)).
+
+3. **Revisar permissões:** Garanta que sua função ou usuário do IAM tenha as permissões específicas da AWS que seu fluxo de trabalho exige. Consulte a tabela [Permissões necessárias](/docs/workflow-automation/setup-and-configure/set-up-aws-credentials#required-permissions).
+
+4. **Teste com a AWS CLI:** Execute `aws sts assume-role` localmente para verificar se a função pode ser assumida:
+
+   ```yaml
+      aws sts assume-role \
+      --role-arn "arn:aws:iam::YOUR_ACCOUNT:role/NewRelicWorkflowAutomationRole" \
+      --role-session-name "TestSession" \
+      --external-id "YOUR_NR_ACCOUNT_ID"
+   ```
+
+### token inválido ou credenciais expiradas
+
+**Problema:** fluxo de trabalho falha com erros de expiração token.
+
+**Soluções:**
+
+1. **Para o token de sessão:** verifique o timestampde expiração — os tokens de sessão geralmente duram de 1 a 12 horas. Gere novas antes que expirem usando:
+
+   ```yaml
+      aws sts assume-role \
+      --role-arn "arn:aws:iam::YOUR_ACCOUNT:role/YOUR_ROLE" \
+      --role-session-name "WorkflowAutomationSession"
+   ```
+
+2. **Para chaves de acesso:** Verifique se o ID da chave de acesso e a Chave de acesso secreta estão armazenados corretamente no [gerenciador de segredos](/docs/workflow-automation/limitations-and-faq/workflow-best-practices#secure-credentials). Verifique novamente os valores no [NerdGraph GraphiQL explorer](https://one.newrelic.com/nerdgraph-graphiql).
+
+3. **Verifique a sintaxe dos segredos:** Certifique-se de estar usando o formato `${{ :secrets:keyName }}`, e não `${{ secrets.keyName }}`. O prefixo de dois pontos (`:secrets:`) é obrigatório.
+
+### Não consigo encontrar o ARN da minha função.
+
+**Problema:** Você precisa do ARN, mas não consegue encontrá-lo na AWS.
+
+**Solução:**
+
+1. Faça login no [Console do AWS IAM.](https://console.aws.amazon.com/iam/)
+2. Selecione **Roles** na barra de navegação.
+3. Procure pelo nome da sua função (ex: `NewRelicWorkflowAutomationRole`)
+4. Selecione a função — o ARN aparece na seção Resumo.
+5. O formato ARN é: `arn:aws:iam::<YOUR_AWS_ACCOUNT>:role/<ROLE_NAME>`
+
+### fluxo de trabalho não pode acessar recursos específicos AWS
+
+**Problema:** Sua função possui permissões, mas o fluxo de trabalho ainda não consegue acessar determinados recursos.
+
+**Soluções:**
+
+1. **Permissões em nível de recurso:** verifique se sua política do IAM restringe o acesso a ARNs de recursos específicos. Você pode precisar adicionar um curinga (`*`) para testes e, em seguida, restringir a recursos específicos.
+
+   ```json
+   {
+      "Effect": "Allow",
+      "Action": "ec2:DescribeInstances",
+      "Resource": "*"  // Change from specific ARN to * for testing
+   }
+   ```
+
+2. **Políticas de controle de serviço (SCPs):** Se você estiver em uma organização da AWS, as SCPs podem bloquear determinadas ações. Entre em contato com o administrador da AWS para revisar as políticas da organização.
+
+3. **Incompatibilidade de região:** verifique se suas permissões do IAM especificam a região correta da AWS onde seus recursos estão localizados. Atualize o parâmetro `awsRegion` do fluxo de trabalho para corresponder à localização do seu recurso.
+
+## Problemas na execução do fluxo de trabalho
+
+### Guia rápido de resolução de problemas
+
+**Comece aqui:** Use esta referência rápida para diagnosticar problemas comuns.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Sintoma
+      </th>
+
+      <th>
+        Verificar
+      </th>
+
+      <th>
+        Solução
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        O fluxo de trabalho falha em uma etapa específica.
+      </td>
+
+      <td>
+        Ver logs de execução para mensagem de erro
+      </td>
+
+      <td>
+        Corrija a configuração, as credenciais ou os dados de entrada para essa ação.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        O fluxo de trabalho é executado, mas produz resultados incorretos.
+      </td>
+
+      <td>
+        Verifique os dados que passam entre as etapas.
+      </td>
+
+      <td>
+        Verificar sintaxe do modelo `${{ .steps.name.outputs.field }}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        O fluxo de trabalho agendado não está sendo executado.
+      </td>
+
+      <td>
+        Verifique o histórico de execuções para identificar execuções ignoradas.
+      </td>
+
+      <td>
+        Verificar configuração de agendamento e status do fluxo de trabalho (Ativo)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        O fluxo de trabalho expira
+      </td>
+
+      <td>
+        Verificar duração da execução
+      </td>
+
+      <td>
+        Reduza a frequência de polling ou divida em fluxos de trabalho menores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        As alterações não surtem efeito.
+      </td>
+
+      <td>
+        Verificar histórico de versões
+      </td>
+
+      <td>
+        Atualize as execuções agendadas para usar a nova versão.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para instruções detalhadas sobre como visualizar o status e o histórico de execução do fluxo de trabalho, consulte [Visualizar fluxos de trabalho](/docs/workflow-automation/manage-workflows/managing-workflow#view-workflows).
+
+### O fluxo de trabalho aparece com o status &quot;Falha&quot;.
+
+**Problema:** Um fluxo de trabalho aparece com o status &quot;Falha&quot; no dashboard.
+
+**Etapas de diagnóstico:**
+
+1. Verifique o histórico de execução:
+
+   * Acesse **All Capabilities &gt; Workflow Automation**
+   * Clique no nome do fluxo de trabalho.
+   * Visualizar **Run history**
+
+2. Revise os logs de execução:
+
+   * Clique em **View logs** na execução com falha
+   * Identifique a ação específica que falhou
+
+**Causas comuns:**
+
+* **Credenciais inválidas** - Tokens expirados ou sintaxe de segredos incorreta
+* **Permissões ausentes** - Permissões do IAM ou acesso à API insuficientes
+* **Recursos excluídos** - instâncias EC2, canais do Slack ou bancos de dados não existem mais
+* **Limites de taxa** - Muitas solicitações para AWS, Slack ou outros serviços
+* **Tempos limite** - APIs externas não respondendo rápido o suficiente
+
+**Próximo passo:** Corrija o problema e, em seguida, [acione manualmente o fluxo de trabalho](/docs/workflow-automation/workflow-automation-apis/start-workflow-run) para verificar se funciona.
+
+### A execução do fluxo de trabalho está demorando muito.
+
+**Problema:** As execuções do fluxo de trabalho excedem a duração esperada ou o tempo limite.
+
+**Soluções:**
+
+1. **Revisar a sequência de ações**: verificar os logs para identificar ações lentas. Procure por ações com tempos de execução superiores a 30 segundos.
+
+2. **Otimizar consulta**: Se estiver usando consultas NRQL, otimize-as para melhor desempenho:
+
+   * Adicione intervalos de tempo específicos em vez de consultar todos os dados.
+   * Use `LIMIT` para reduzir o tamanho do conjunto de resultados.
+   * Filtrar antecipadamente com cláusulas `WHERE`
+
+3. **Verifique as APIs externas**: Respostas lentas de serviços integrados (AWS, Slack) podem atrasar a execução. Teste API tempo de resposta separadamente.
+
+4. **Considere os limites do fluxo de trabalho**: revise [os limites do fluxo de trabalho](/docs/workflow-automation/limitations-and-faq/workflow-limits) para restrições de tempo limite (normalmente 15 minutos por fluxo de trabalho).
+
+5. **Divida o fluxo de trabalho menor**: divida o fluxo de trabalho complexo em automações menores e focadas que podem ser executadas em paralelo.
+
+### As alterações no fluxo de trabalho não surtem efeito.
+
+**Problema:** Você editou um fluxo de trabalho, mas as alterações não são aplicadas quando ele é executado.
+
+**Soluções:**
+
+1. **Verifique se você salvou**: Confira se você clicou em **Save** após editar a configuração do fluxo de trabalho.
+
+2. **Verifique a versão**:
+
+   * Acesse os detalhes do fluxo de trabalho.
+   * Clique na guia **Version history**
+   * Certifique-se de que suas alterações mais recentes apareçam como uma nova versão.
+   * Verifique se esta versão está marcada como ativa.
+
+3. **Atualizar execuções agendadas**: Se o fluxo de trabalho for executado de acordo com um agendamento, atualize o agendamento para usar a nova versão:
+
+   * Acesse **All Capabilities &gt; Workflow Automation**
+   * Encontre corridas programadas
+   * Atualize o cronograma para fazer referência à nova versão do fluxo de trabalho.
+
+## problemas dashboard fluxo de trabalho
+
+### Não consigo encontrar um fluxo de trabalho no dashboard
+
+**Problema:** Um fluxo de trabalho que você criou não aparece na lista dashboard.
+
+**Soluções:**
+
+1. **Verifique os filtros**:
+
+   * Clique no dropdowndo filtro.
+   * Selecione &quot;Todos&quot; para os filtros de status.
+   * Limpar a barra de pesquisa
+
+2. **Verificar conta**: Confirme se você está conectado à conta correta do New Relic onde o fluxo de trabalho foi criado. Verifique o seletor de contas no canto superior direito.
+
+3. **Verifique as permissões**: Certifique-se de que seu perfil do usuário tenha acesso para visualizar o fluxo de trabalho. Entre em contato com o administrador do New Relic se precisar de permissões de acesso ao fluxo de trabalho.
+
+4. **Atualize a página**: o cache Browser às vezes pode ocultar alterações recentes. Tente uma atualização completa da página (Ctrl+Shift+R ou Cmd+Shift+R).
+
+### Não é possível excluir um fluxo de trabalho.
+
+**Problema:** A opção de excluir está desativada ou a exclusão falha.
+
+**Soluções:**
+
+1. **Verifique permissões**: Verifique se seu perfil do usuário possui permissões de exclusão para fluxo de trabalho. Se necessário, entre em contato com o administrador da sua conta.
+
+2. **Interromper execuções agendadas**: Cancele todas as execuções agendadas ativas antes de excluí-las.
+
+   * Acesse os detalhes do fluxo de trabalho.
+   * Acesse a aba **Scheduled runs**
+   * Cancelar todos os agendamentos ativos
+
+3. **Verifique dependência**: Alguns fluxos de trabalho não podem ser excluídos se outras automações dependerem deles. Verifique se o fluxo de trabalho é referenciado por:
+
+   * Outros fluxos de trabalho que o chamam
+   * política de alertas que o acionam
+   * Sistemas externos que o iniciam via API
+
+4. **Contate o suporte**: Se o problema persistir após tentar as soluções acima, entre em contato com [o Suporte da New Relic](https://support.newrelic.com/) para obter assistência.
+
+### Desativação da Automação de fluxo de trabalho (FCM)
+
+**Problema:** Você está desativando a Workflow Automation por meio do Feature Control Management (FCM) e precisa garantir um encerramento limpo.
+
+<Callout variant="important">
+  **Para clientes desativando o FCM**: Certifique-se de que todos os fluxos de trabalho agendados futuros sejam removidos antes de desativar o Workflow Automation. Isso evita confusão e alertas desnecessários após o recurso ser desativado.
+</Callout>
+
+**Soluções:**
+
+1. **Remova todos os fluxos de trabalho agendados primeiro**: Se você desativou o FCM, certifique-se de que todos os fluxos de trabalho agendados futuros sejam removidos para evitar confusão ou alertas:
+
+   * Acesse **All Capabilities &gt; Workflow Automation**
+   * Revise cada fluxo de trabalho e verifique se há agendamentos ativos
+   * Clique nos fluxos de trabalho com agendamentos para visualizar seus detalhes
+   * Vá para a aba **Scheduled runs**
+   * Exclua todos os agendamentos ativos usando a [API DeleteSchedule](/docs/workflow-automation/workflow-automation-apis/delete-schedule)
+
+2. **Verifique se todos os agendamentos foram removidos**: Confirme se não há execuções agendadas ativas antes de desativar o FCM
+
+3. **Desativar o FCM**: Assim que todos os agendamentos forem removidos, você pode desativar a Workflow Automation com segurança por meio das configurações do FCM
+
+<Callout variant="important">
+  **Por que remover cronogramas?** Workflows agendados não podem ser executados quando o Workflow Automation está desabilitado por meio do FCM. Agendamentos ativos restantes no sistema podem causar confusão ou gerar alertas desnecessários.
+</Callout>
+
+## Questões específicas de integração
+
+### A notificação do Slack não aparece
+
+**Problema:** O fluxo de trabalho é concluído com sucesso, mas as mensagens do Slack não aparecem.
+
+**Soluções:**
+
+1. **Verifique o ID do canal**: Certifique-se de usar o **ID** do canal do Slack (por exemplo, `C01234ABCD`), e não o nome do canal. Encontre o ID no Slack:
+
+   * Clique com o botão direito do mouse no nome do canal.
+   * Selecione **View channel details**.
+   * Copie o ID do canal que está na parte inferior.
+
+2. **Verifique as permissões do bot**: verifique se o seu bot do Slack possui os seguintes escopos:
+
+   * `chat:write` - Publicar mensagens
+   * `channels:read` - Ver canais públicos
+   * `groups:read` - Visualizar canais privados (se aplicável)
+
+3. **Verifique se o bot está no canal**: Adicione o bot ao canal Destino:
+
+   * Digite `/invite @YourBotName` no canal
+   * Confirme se o bot aparece na lista de membros.
+
+4. **Verificar token nos segredos**: Verifique se o token do Slack armazenado no [gerenciador de segredos](/docs/workflow-automation/limitations-and-faq/workflow-best-practices#secure-credentials) está correto e não expirou.
+
+### As operações do AWS Systems Manager falham.
+
+**Problema:** Os documentos ou comandos de automação do SSM não são executados.
+
+**Soluções:**
+
+1. **Verifique as permissões do SSM**: Adicione estas permissões à sua política de função do IAM:
+
+   ```yaml
+   {
+     "Effect": "Allow",
+     "Action": [
+       "ssm:CreateDocument",
+       "ssm:DeleteDocument",
+       "ssm:StartAutomationExecution",
+       "ssm:GetAutomationExecution"
+     ],
+     "Resource": "*"
+   }
+   ```
+
+2. **Verifique o agente SSM**: verifique se as instâncias de destino do EC2 têm o agente SSM instalado e em execução:
+
+   `aws ssm describe-instance-information --region us-east-1`
+
+3. **Verifique o perfil da instância**: as instâncias do EC2 precisam de um perfil de instância IAM com permissões SSM para executar comandos.
+
+4. **Verificar se o documento existe**: Se estiver usando um documento SSM existente, verifique se ele existe em sua conta e região da AWS.
+
+### Criando fluxos de trabalho personalizados
+
+**Canal do Slack não encontrado:** Use o **ID** do canal do Slack (`C01234ABCD`), não o nome do canal. Encontre nos detalhes do canal do Slack.
+
+**Ações da AWS falham silenciosamente:** Certifique-se de que as credenciais da AWS tenham as permissões `ec2:StopInstances`, `ec2:ModifyInstanceAttribute`, `ec2:StartInstances` e `ssm:*`. Permissões ausentes falham silenciosamente.
+
+**O SSM excede o tempo limite, mas a instância ainda está em transição:** Se o SSM exceder o tempo limite, a instância EC2 ainda pode estar em transição entre estados. Verifique o Console da AWS para confirmar o status real da instância antes de executar novamente.
+
+**Vazamentos de recursos e cobranças inesperadas:** Sempre faça a limpeza. Estruture os fluxos de trabalho para que a limpeza seja executada mesmo quando as etapas anteriores falharem. Isso evita vazamentos de recursos e cobranças inesperadas da AWS.
+
+## Problemas específicos do modelo
+
+### GUID da entidade não encontrado
+
+**Problema:** Os modelos falham com erros `Entity not found`.
+
+**Soluções:**
+
+1. **Encontre o GUID da entidade correta**:
+
+   * Acesse a página de recursos monitorados no New Relic.
+   * Verifique o URL ou os metadados da entidade para obter o GUID.
+   * Use [a pesquisa de entidade](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic#find) para localizar entidade
+
+2. **Verificar se a entidade existe na conta correta**: Confirme se você está usando a entidade da mesma conta onde o fluxo de trabalho está implantado.
+
+3. **Confirme os dados de reporte da entidade**: verifique se a entidade mostra **Last seen** — entidades desatualizadas podem ter sido removidas.
+
+4. **Para entidade AWS **: Certifique-se de que [a integração](/docs/infrastructure/amazon-integrations/get-started/introduction-aws-integrations) esteja ativa
+
+<Callout variant="tip">
+  **Os GUIDs de entidade são específicos da conta.** Mover o fluxo de trabalho entre contas requer a atualização de todos os GUIDs da entidade.
+</Callout>
+
+### A consulta NRQL não retornou resultados.
+
+**Problema:** Os modelos que utilizam NRQL consultam o conteúdo, mas retornam conjuntos de dados vazios.
+
+**Soluções:**
+
+1. **Teste a consulta primeiro**: Use [o criador de consulta](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) para validar a consulta antes de adicionar aos modelos
+
+2. **Verificar tipo de dados e nomes de eventos**:
+
+   * Use `FROM Transaction`, não `FROM Transactions`
+   * Verifique se os nomes dos atributos correspondem exatamente (diferenciando maiúsculas de minúsculas).
+
+3. **Ajustar intervalos de tempo**: Para dados esparsos, expanda a janela de tempo:
+
+   * Adicione `SINCE 1 hour ago` para dados recentes.
+   * Use `SINCE 1 day ago` para tendências
+
+4. **Simplifique e teste incrementalmente**: Comece com uma consulta básica e adicione filtros um de cada vez.
+
+5. **Verificar [sintaxe NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)**: Verificar se a estrutura da consulta corresponde aos requisitos NRQL.
+
+### A implantação do modelo falha
+
+**Problema:** Template não implanta ou apresenta erros durante a implantação.
+
+**Soluções:**
+
+1. **Verifique todas as informações necessárias**: Certifique-se de ter preenchido todos os campos obrigatórios (credenciais, GUIDs, consulta).
+2. **Verifique o formato das credenciais**: os segredos devem usar o formato `${{ :secrets:keyName }}` com o prefixo de dois pontos.
+3. **Teste as credenciais de forma independente**: Antes da implantação, teste as credenciais AWS com AWS CLI e o token do Slack na APIdo Slack.
+4. **Verifique os requisitos do modelo**: Cada modelo lista pré-requisitos específicos — verifique se todos foram atendidos.
+5. **Verifique a presença de caracteres especiais**: Alguns campos (nomes de canais, consulta) podem não conter caracteres especiais — utilize caracteres alfanuméricos sempre que possível.
+
+### Aprovação fluxo de trabalho não responde
+
+**Problema:** Os modelos que exigem aprovação do Slack (reversão do API Gateway, redimensionamento do EC2) não detectam reações.
+
+**Soluções:**
+
+1. **Verificar escopos de token do bot**:
+
+   * `reactions:read`- Necessário para detectar reações com emojis
+   * `chat:write`- É necessário publicar mensagens de aprovação.
+
+2. **Verifique o formato da reação**: Use o emoji exato especificado no fluxo de trabalho (por exemplo, `thumbsup` para aprovação).
+
+3. **Verifique as configurações de tempo limite**: requests de aprovação expiram após o tempo limite configurado (geralmente de 5 a 10 minutos).
+
+4. **Garantir que o bot possa ler as mensagens**: O bot deve estar no canal e ter permissão para ler o histórico de mensagens.
+
+5. **Teste com aprovação simples**: Crie um fluxo de trabalho de teste com apenas lógica de aprovação para isolar o problema.
+
+### problemas de gerenciamento de instâncias do EC2
+
+**Problema:** o modelo EC2 não consegue redimensionar ou gerenciar a estrutura.
+
+**Soluções:**
+
+1. **Verifique se [CloudWatch Metric Streams](/install/aws-cloudwatch/) estão configurados**: Necessário para métricas EC2 em tempo real.
+2. **Verifique se a [integração de monitoramento do EC2](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-ec2-monitoring-integration#activate) está ativa**: Garante que os dados da instância fluam para o New Relic
+3. **Confirme o estado do participante**: o participante deve estar no estado `running` ou `stopped` — estados de transição (pendente, parando) causam falhas.
+4. **Verifique a compatibilidade do tipo de instância**: nem todos os tipos de instância suportam todas as operações de redimensionamento - verifique [a documentação do tipo de instânciaAWS](https://aws.amazon.com/ec2/instance-types/)
+5. **Verificar permissões de parada/início**: a função IAM precisa de `ec2:StopInstances` e `ec2:StartInstances` além de `ec2:ModifyInstanceAttribute`
+
+### O modelo de análise JSON não está registrando dados.
+
+**Problema:** O modelo de análise JSON é executado com sucesso, mas nenhum dado aparece nos logs New Relic.
+
+**Soluções:**
+
+1. **Verifique os endpointda API**: Teste a URL da página de status em um navegador — certifique-se de que ela retorne um JSON válido.
+2. **Verifique a estrutura JSON**: o modelo espera um formato específico — verifique se os campos de integridade do componente correspondem à estrutura esperada.
+3. **Revisar filtros de log**: Garantir que a ação de registro utilize o tipo de evento e o atributo corretos.
+4. **Teste com um endpoint simples**: Use um endpoint JSON básico (como [https://httpbin.org/json](https://httpbin.org/json)) para verificar se a mecânica do template funciona.
+5. **Verificar permissões da conta**: Verifique se o fluxo de trabalho tem permissão para gravar logs no New Relic.
+
+### Modelos de resolução de problemas
+
+Se o seu fluxo de trabalho falhar ou não se comportar como esperado:
+
+1. **Verifique o histórico de execução**: Vá para **Workflow Automation &gt; \[Seu fluxo de trabalho] &gt; Run History** para ver logs de execução e mensagem de erro
+
+2. **Revise problemas comuns**: Consulte [resolução de problemas de fluxo de trabalho Automação](/docs/workflow-automation/troubleshooting) para soluções para:
+
+   * Erros de credenciais e permissões da AWS
+   * Problemas de integração com o Slack
+   * Problemas com o GUID da entidade
+   * falhas de consultoria NRQL
+   * Tempo limite do fluxo de trabalho
+   * Resolução de problemas específica do modelo
+
+<Callout variant="important">
+  **Teste templates com segurança**: Sempre teste primeiro em ambiente não produção. Modelos que alteram a infraestrutura (EC2, API Gateway) podem afetar a disponibilidade se estiverem configurados incorretamente.
+</Callout>
+
+## Tópicos relacionados [#related-topics]
+
+<DocTiles>
+  <DocTile title="Melhores práticas de fluxo de trabalho" path="/docs/workflow-automation/limitations-and-faq/workflow-best-practices">
+    Tratamento de erros e estratégias de teste para evitar problemas
+  </DocTile>
+
+  <DocTile title="Configure as credenciais da AWS." path="/docs/workflow-automation/setup-and-configure/set-up-aws-credentials">
+    Corrigir erros de autenticação e permissão da AWS
+  </DocTile>
+
+  <DocTile title="Criar destinos" path="/docs/workflow-automation/setup-and-configure/create-destinations">
+    Configure as integrações do Slack e de notificações corretamente
+  </DocTile>
+
+  <DocTile title="Limites do fluxo de trabalho" path="/docs/workflow-automation/limitations-and-faq/workflow-limits">
+    Entenda as restrições e os tempos limite do sistema
+  </DocTile>
+</DocTiles>

@@ -104,7 +104,7 @@ Kafka 이벤트 수집을 활성화하려면:
 3. [이벤트 탐색기](/docs/insights/use-insights-ui/explore-data/event-explorer-query-chart-your-event-data) 를 사용하여 `KafkaMetrics` 이벤트 유형에 있는 Kafka 이벤트를 봅니다. 또는 [NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql) 을 사용하여 이벤트를 직접 쿼리합니다. 예를 들어:
 
    ```sql
-   SELECT average('producer-metrics.record-send-rate') from KafkaMetrics SINCE 30 minutes ago timeseries
+   SELECT average('producer-metrics.record-send-rate') FROM KafkaMetrics SINCE 30 minutes ago TIMESERIES
    ```
 
    Kafka Streams 측정항목을 쿼리하는 경우 `KafkaStreamsMetrics` 이벤트 유형을 사용하여 스트림별 측정항목에 액세스하세요.
@@ -202,12 +202,34 @@ Kafka에서 분산 추적을 수집하려면 다음을 수행합니다.
         enabled: true
       ```
 
-    * 구성 파일에 다음을 추가하여 Kafka 관련 분산 추적 기능을 활성화합니다.
+    * 다음을 구성 파일에 추가하여 일반적인 Kafka 특정 분산 추적 기능을 활성화하세요.
 
       ```yml
       class_transformer:
         com.newrelic.instrumentation.kafka-clients-spans-0.11.0.0:
           enabled: true
+      ```
+
+    * spring-kafka 측정, 에이전트 버전 `8.21` 이상에 대해 활성화합니다.
+
+      <Callout variant="important">
+        이로 인해 수집 및 메모리 사용량이 급증할 수 있으므로 비활성화됩니다.
+      </Callout>
+
+      ```yml
+      class_transformer:
+        com.newrelic.instrumentation.spring-kafka-2.2.0:
+          enabled: true
+      ```
+
+    * 에이전트 버전 `8.21` 이상에 대해 Kafka의 일괄 호출에 대한 분산 추적을 활성화합니다. (일괄 호출 거래 트레이스는 기본적으로 비활성화되어 있습니다. 트랜잭션은 메시지에서 1개의 상위 트레이스만 허용할 수 있기 때문입니다.)
+
+      ```yml
+      kafka:
+        spans:
+          distributed_trace: 
+            consume_many:
+              enabled: true
       ```
   </Collapser>
 
@@ -230,7 +252,9 @@ Kafka에서 분산 추적을 수집하려면 다음을 수행합니다.
   </Collapser>
 
   <Collapser id="instrument-kafka-consumer" title="3. Kafka 소비자 계측">
-    Kafka 소비자를 계측하려면 메시지가 처리될 때 트랜잭션을 시작해야 합니다. 에이전트는 `newrelic` 키 또는 W3C의 `traceparent` 및 `tracestate` 키 아래에 분산 추적 페이로드 헤더를 저장합니다. 헤더를 검색한 다음 New Relic 트랜잭션 API를 호출하여 페이로드를 수락합니다.
+    ### 시나리오 1: Kafka 클라이언트에서 수동 측정 사용
+
+    수동 설치를 통해 Kafka Consumer를 모니터링하려면 메시지가 처리되는 동안 트랜잭션을 시작해야 합니다. 에이전트는 분산 추적 페이로드 헤더를 `newrelic` 키 또는 W3C의 `traceparent` 및 `tracestate` 키 아래에 저장합니다. 헤더를 검색한 다음, 뉴렐릭 트랜잭션 API 호출하여 페이로드를 수락합니다.
 
     예를 들어:
 
@@ -261,6 +285,37 @@ Kafka에서 분산 추적을 수집하려면 다음을 수행합니다.
 
       // Accept distributed tracing headers to link this request to the originating request
       NewRelic.getAgent().getTransaction().acceptDistributedTraceHeaders(TransportType.Kafka, dtHeaders);
+    }
+    ```
+
+    ### 시나리오 2: Kafka 클라이언트에 자동 측정, 자동 로그 사용
+
+    이는 `8.21` 이상의 에이전트 버전에만 적용됩니다. 자동 측정, 자동 반환을 활용하여 kafka 소비자에 대한 금지 추적을 읽을 수도 있습니다. 이는 트랜잭션을 시작하고 트랜잭션이 발생할 때 소비자의 `poll(...)` 메서드를 호출하여 수행됩니다.
+
+    이 기능은 기본적으로 비활성화되어 있습니다. 소비자 폴링은 기본적으로 여러 메시지를 허용하고 트랜잭션은 부모 트레이스를 하나만 가질 수 있으므로 메시지를 하나만 읽습니다.
+
+    Kafka 소비자 폴링에 대해 반사 추적을 자동으로 허용하려면 1단계에 표시된 대로 일괄 호출에 대해 반사 추적을 활성화해야 합니다.
+
+    사용자화된 kafka 소비자 설문 조사의 예:
+
+    ```java
+    @Trace(dispatcher = true)
+    private void consumeMessage(KafkaConsumer<String, String> consumer) {
+      final ConsumerRecords<String, String> records = consumer.poll(1000);
+      // Process your records ....
+    }
+    ```
+
+    ### 시나리오 3: Spring Kafka 사용
+
+    Spring Kafka를 사용하는 경우, 에이전트 버전 `8.21.0` 이상을 사용하는 경우 `@KafkaListener` 을 사용하여 메소드에 대해 자동 측정, 자동 리소스를 활성화할 수 있습니다. 이는 소비자를 위한 거래 및 자동 수락을 생성합니다. Kafka는 처리량이 높은 플랫폼이기 때문에 과도한 수집과 메모리 오버헤드를 방지하기 위해 비활성화됩니다. 1단계에서 표시된 구성을 사용하여 spring-kafka 도구를 활성화할 수 있습니다.
+
+    예시:
+
+    ```java
+    @KafkaListener(id = "foo", topics = "myTopic", clientIdPrefix = "myClientId")
+    public void listen(String data) {
+      ...
     }
     ```
 

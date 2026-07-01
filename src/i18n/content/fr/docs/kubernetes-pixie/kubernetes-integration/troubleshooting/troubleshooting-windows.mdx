@@ -1,0 +1,111 @@
+---
+title: Limitations pour l'intégration Windows
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Windows
+metaDescription: 'New Relic''s Kubernetes integration: About the integration on Windows-based nodes'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cette page fournit des informations sur les limitations et le dépannage pour l’intégration Kubernetes de New Relic lors de l’exécution sur des nœuds basés sur Windows.
+
+## Vérification de la version de Windows [#windows-version]
+
+<Callout variant="important">
+  Lors de l&apos;utilisation de conteneur sous Windows, la version hôte du conteneur et la version de l&apos;image du conteneur doivent être identiques. Notre intégration Kubernetes peut fonctionner sur les versions Windows LTSC 2019 et LTSC 2022.
+</Callout>
+
+Pour vérifier votre version de Windows, ouvrez une fenêtre Powershell ou d&apos;invite de commande et exécutez :
+
+```shell
+  systeminfo
+```
+
+Recherchez les lignes commençant par `OS Name` et `OS Version`. Ces lignes fournissent les informations sur le système d&apos;exploitation et le numéro de build. Cette vérification sert uniquement à confirmer que votre environnement est compatible ; vous n&apos;avez pas besoin de spécifier ces informations de version lors de l&apos;installation.
+
+* Windows Server LTSC 2019 : correspond au numéro de build `10.0.17763`.
+* Windows Server LTSC 2022 : correspond au numéro de build `10.0.20348`.
+
+## Ensembles de démons Windows [#windows-daemonsets]
+
+Lorsque Windows monitoring est activée, un DaemonSet Kubernetes est créé pour chaque version Windows prise en charge, mais les pods sont créés uniquement pour les versions de nœuds Windows qui existent dans le cluster. Cela signifie que vous pouvez voir plusieurs `DaemonSets` spécifiques à Windows, mais tous n&apos;auront pas un nombre pod `"desired"`.
+
+Par exemple, dans un cluster avec deux nœuds Linux, un nœud Windows LTSC 2022 et aucun nœud Windows LTSC 2019, la sortie serait similaire à ceci :
+
+```shell
+kubectl -n newrelic get daemonsets
+NAME                                                DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR                                                          AGE
+<...snip...>
+newrelic-bundle-nrk8s-kubelet                       2         2         2       2            2           kubernetes.io/os=linux                                                 24h
+newrelic-bundle-nrk8s-kubelet-windows-ltsc2019      0         0         0       0            0           kubernetes.io/os=windows,node.kubernetes.io/windows-build=10.0.17763   24h
+newrelic-bundle-nrk8s-kubelet-windows-ltsc2022      1         1         1       1            1           kubernetes.io/os=windows,node.kubernetes.io/windows-build=10.0.20348   24h
+```
+
+Si vous le souhaitez, vous pouvez empêcher le graphique de créer `DaemonSets` inutiles en incluant la clé `windowsOsList` dans votre fichier `values.yaml` personnalisé lors de l&apos;installation via Helm Chart et en spécifiant uniquement la version souhaitée :
+
+```yaml
+windowsOsList:
+  - version: ltsc2022                      # Human-readable version identifier
+    imageTagSuffix: ltsc2022               # Tag to be used for nodes running the windows version above
+    buildNumber: 10.0.20348                # Build number for the nodes running the version above. Used as a selector.
+```
+
+## Limitations de l&apos;intégration de Kubernetes pour Windows [#k8-windows-limitations]
+
+L’agent New Relic pour Windows envoie des [échantillons de données Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/find-use-your-kubernetes-data/#event-types), tels que `K8sNodeSample` et `K8sPodSample`. Les limitations qui s&apos;appliquent dépendent de si vous exécutez en mode privilégié (HostProcess) ou en mode non privilégié.
+
+### Limitations du mode non privilégié [#unprivileged-mode-limitations]
+
+Lors de l&apos;exécution en mode non privilégié (`windows.privileged=false`), l&apos;isolation des conteneurs Windows standard empêche l&apos;agent d&apos;accéder directement aux ressources de l&apos;hôte. Les échantillons suivants ne sont pas générés :
+
+* `SystemSample`
+* `StorageSample`
+* `NetworkSample`
+* `ProcessSample`
+
+De plus, `hostNetwork: true` ne peut pas être défini dans la spécification pod pour les conteneurs Windows standard. Il s&apos;agit d&apos;une limitation Kubernetes qui ne s&apos;applique pas lors de l&apos;utilisation de pod HostProcess en mode privilégié.
+
+### Lacunes dans les métriques du kubelet Windows [#kubelet-gaps]
+
+Les [métriques Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/find-use-your-kubernetes-data/#event-types) suivantes sont indisponibles sur tous les nœuds Windows quel que soit le mode, car le kubelet Windows soit ne les expose pas, soit elles ne sont pas applicables sur Windows :
+
+* Nœud:
+
+  * `memoryMajorPageFaultsPerSecond`: Renvoie toujours `0`.
+
+  * `memoryPageFaults`: Renvoie toujours `0`.
+
+  * `memoryRssBytes`: Renvoie toujours `0`.
+
+  * `net.errorsPerSecond`: Non envoyé.
+
+  * `net.rxBytesPerSecond`: Non envoyé.
+
+  * `net.txBytesPerSecond`: Non envoyé.
+
+  * Non pertinent pour Windows :
+
+    * `fsInodes`: Non envoyé.
+    * `fsInodesFree`: Non envoyé.
+    * `fsInodesUsed`: Non envoyé.
+    * `runtimeInodes`: Non envoyé.
+    * `runtimeInodesFree`: Non envoyé.
+    * `runtimeInodesUsed`: Non envoyé.
+
+* conteneur:
+
+  * `containerID`: Non envoyé.
+  * `containerImageID`: Non envoyé.
+  * `memoryMappedFileBytes`: Non envoyé.
+  * `memoryUsedBytes`: Non envoyé. Utilisez `memoryWorkingSetBytes` comme alternative.
+  * `memoryUtilization`: Non envoyé (repose sur `memoryUsedBytes`). Vous pouvez calculer une métrique similaire en utilisant `memoryWorkingSetBytes`/`memoryLimitBytes`.
+  * `requestedMemoryUtilization`: Non envoyé (repose sur `memoryUsedBytes`). Vous pouvez calculer une métrique similaire en utilisant `memoryWorkingSetBytes`/`memoryRequestedBytes`.
+  * Non pertinent pour Windows :
+    * `cpuCfs*`: Toutes les valeurs `cpuCfs*` ne sont pas envoyées.
+
+* Volume:
+
+  * `fsUsedBytes`: Renvoie toujours `0`.
+  * `fsUsedPercent`: Renvoie toujours `0` (s&apos;appuie sur `fsUsedBytes`).

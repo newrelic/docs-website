@@ -1,0 +1,1341 @@
+---
+title: RabbitMQ OpenTelemetry 메트릭 참조
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - RabbitMQ
+metaDescription: Complete reference for RabbitMQ OpenTelemetry metrics with NRQL examples.
+freshnessValidatedDate: '2024-12-24T00:00:00.000Z'
+translationType: machine
+---
+
+이 종합 참조 문서는 OpenTelemetry Collector 통합을 통해 수집된 모든 RabbitMQ 메트릭을 설명합니다. 각 항목에는 자세한 설명과 실용적인 NRQL 쿼리 예제가 포함되어 있습니다.
+
+<Callout variant="tip">
+  **RabbitMQ 모니터링이 처음이신가요?** 통합 추가 및 구현, 배포 옵션을 이해하려면 [개요 가이드](/docs/opentelemetry/integrations/rabbitmq/overview) 부터 시작하세요.
+</Callout>
+
+## RabbitMQ 메트릭 이해하기 [#overview]
+
+RabbitMQ OpenTelemetry 통합은 RabbitMQ 관리 API를 통해 메트릭을 수집하여 메시지 브로커의 상태 및 성능에 대한 포괄적인 가시성을 제공합니다.
+
+**지표 카테고리:**
+
+* **노드 메트릭** - 메모리, 디스크, 파일 디스크립터 및 Erlang VM 통계를 포함한 노드 수준의 리소스 사용량
+* **큐 메트릭** - 큐별 메시지 수, 소비자 활동 및 큐 수준 처리량
+* **메시지 게시율** - 메시지 게시, 전달 및 확인율
+* **I/O 범위** - 디스크 읽기/쓰기 작업 및 메시지 지속성을 위한 지연 시간
+* **연결 지표** - 연결 및 채널 수명주기 이벤트
+
+**공통 지표 속성:**
+
+모든 지표에는 필터링 및 그룹화를 위한 다음 속성이 포함됩니다.
+
+* `instrumentation.provider = 'opentelemetry'` - 이 통합에서 지표를 식별합니다.
+* `rabbitmq.deployment.name` - 귀하의 구현, 배포
+* `rabbitmq.server.endpoint` - 관리 API 엔드포인트
+* `host.name` - RabbitMQ 실행되는 호스트명
+
+<Callout variant="important">
+  RabbitMQ 메트릭을 쿼리할 때는 항상 WHERE 절에 `instrumentation.provider = 'opentelemetry'` 포함하여 이 통합에서 제공되는 데이터만 가져오도록 하십시오.
+</Callout>
+
+## 노드 리소스 메트릭 [#node-resource-metrics]
+
+노드 리소스 메트릭은 각 RabbitMQ 노드의 메모리, 디스크, 파일 디스크립터 및 Erlang VM 리소스를 추적합니다.
+
+### 메모리 메트릭
+
+<CollapserGroup>
+  <Collapser id="node-mem-used" title="rabbitmq.node.mem_used">
+    **유형**: 게이지\
+    **단위**: 바이트\
+    **설명**: RabbitMQ 노드에서 사용된 총 메모리 용량(바이트).
+
+    **사용 사례**: 노드의 메모리 사용량을 모니터링하여 메모리 부족 상황을 방지합니다.
+
+    **NRQL 예시:**
+
+    현재 메모리 사용량 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_used) / 1024 / 1024 AS 'Memory Used (MB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_used'
+    FACET host.name
+    ```
+
+    메모리 사용량 추세를 추적하세요:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_used) / 1024 / 1024 AS 'Memory Used (MB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_used'
+    FACET host.name
+    TIMESERIES
+    ```
+
+    메모리 사용률:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.mem_used) / latest(rabbitmq.node.mem_limit)) * 100 AS 'Memory Utilization %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-mem-limit" title="rabbitmq.node.mem_limit">
+    **유형**: 게이지\
+    **단위**: 바이트\
+    **설명**: RabbitMQ 노드에 대해 구성된 메모리 제한입니다.
+
+    **사용 사례**: 메모리 사용량을 비교하고, 이를 기반으로 활용률을 계산하여 경보를 발생시킵니다.
+
+    **NRQL 예시:**
+
+    메모리 제한 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_limit) / 1024 / 1024 / 1024 AS 'Memory Limit (GB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_limit'
+    FACET host.name
+    ```
+
+    메모리 여유 공간 계산:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.mem_limit) - latest(rabbitmq.node.mem_used)) / 1024 / 1024 AS 'Available Memory (MB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-mem-alarm" title="rabbitmq.node.mem_alarm">
+    **유형**: 게이지\
+    **단위**: 부울(0 또는 1)\
+    **설명**: 메모리 알람 상태 (0 = 알람 없음, 1 = 알람 발생).
+
+    **사용 사례**: 메모리 레버 값, 릴레이 위반이 발생할 때 공지.
+
+    **NRQL 예시:**
+
+    경보 상태를 확인하세요:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_alarm) AS 'Memory Alarm'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_alarm'
+    FACET host.name
+    ```
+
+    메모리 알람 관련 공지:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_alarm)
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_alarm'
+      AND rabbitmq.node.mem_alarm = 1
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-mem-used-rate" title="rabbitmq.node.mem_used_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 바이트\
+    **설명**: 초당 메모리 사용량 변화율.
+
+    **사용 사례**: 메모리 증가율을 모니터링하여 메모리 누수를 감지합니다.
+
+    **NRQL 예시:**
+
+    메모리 증가율 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mem_used_details.rate) / 1024 AS 'Memory Growth Rate (KB/s)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mem_used_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### 디스크 메트릭
+
+<CollapserGroup>
+  <Collapser id="node-disk-free" title="rabbitmq.node.disk_free">
+    **유형**: 게이지\
+    **단위**: 바이트\
+    **설명**: 사용 가능한 디스크 공간(바이트).
+
+    **사용 사례**: 디스크 공간 가용성을 모니터링하여 디스크 용량 부족 현상을 방지합니다.
+
+    **NRQL 예시:**
+
+    사용 가능한 디스크 공간을 확인하세요:
+
+    ```sql
+    SELECT latest(rabbitmq.node.disk_free) / 1024 / 1024 / 1024 AS 'Disk Free (GB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.disk_free'
+    FACET host.name
+    ```
+
+    디스크 사용률:
+
+    ```sql
+    SELECT 
+      ((latest(rabbitmq.node.disk_free_limit) - latest(rabbitmq.node.disk_free)) / latest(rabbitmq.node.disk_free_limit)) * 100 AS 'Disk Usage %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-disk-free-limit" title="rabbitmq.node.disk_free_limit">
+    **유형**: 게이지\
+    **단위**: 바이트\
+    **설명**: 디스크 여유 공간 한계 값, 참조.
+
+    **사용 사례**: 디스크 여유 공간과 비교하여 사용률을 계산합니다.
+
+    **NRQL 예시:**
+
+    디스크 여유 공간 제한 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.disk_free_limit) / 1024 / 1024 / 1024 AS 'Disk Free Limit (GB)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.disk_free_limit'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-disk-free-alarm" title="rabbitmq.node.disk_free_alarm">
+    **유형**: 게이지\
+    **단위**: 부울(0 또는 1)\
+    **설명**: 디스크 여유 공간 부족 경보 상태 (0 = 경보 없음, 1 = 경보 발생).
+
+    **사용 사례**: 디스크 공간 고대값, 릴레이 위반이 발생할 때 공지.
+
+    **NRQL 예시:**
+
+    디스크 알람 상태를 확인하십시오.
+
+    ```sql
+    SELECT latest(rabbitmq.node.disk_free_alarm) AS 'Disk Alarm'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.disk_free_alarm'
+    FACET host.name
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### 파일 디스크립터 및 소켓 메트릭
+
+<CollapserGroup>
+  <Collapser id="node-fd-used" title="rabbitmq.node.fd_사용됨">
+    **유형**: 게이지\
+    **단위**: 파일 디스크립터\
+    **설명**: 현재 사용 중인 파일 디스크립터 수입니다.
+
+    **사용 사례**: 파일 디스크립터 사용량을 추적하여 고갈을 방지합니다.
+
+    **NRQL 예시:**
+
+    파일 디스크립터 사용량 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.fd_used) AS 'FDs Used'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.fd_used'
+    FACET host.name
+    ```
+
+    파일 디스크립터 활용률:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.fd_used) / latest(rabbitmq.node.fd_total)) * 100 AS 'FD Utilization %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-fd-total" title="rabbitmq.node.fd_total">
+    **유형**: 게이지\
+    **단위**: 파일 디스크립터\
+    **설명**: 사용 가능한 파일 디스크립터의 총 개수입니다.
+
+    **사용 사례**: 사용률 계산에 사용되는 파일 디스크립터와 비교합니다.
+
+    **NRQL 예시:**
+
+    파일 디스크립터 제한 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.fd_total) AS 'Total FDs'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.fd_total'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-sockets-used" title="rabbitmq.node.sockets_used">
+    **유형**: 게이지\
+    **단위**: 소켓\
+    **설명**: 현재 사용 중인 네트워크 소켓 수입니다.
+
+    **사용 사례**: 소켓 사용량을 모니터링하여 연결 활동을 추적합니다.
+
+    **NRQL 예시:**
+
+    소켓 사용량 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.sockets_used) AS 'Sockets Used'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.sockets_used'
+    FACET host.name
+    TIMESERIES
+    ```
+
+    소켓 사용률:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.sockets_used) / latest(rabbitmq.node.sockets_total)) * 100 AS 'Socket Utilization %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-sockets-total" title="rabbitmq.node.sockets_total">
+    **유형**: 게이지\
+    **단위**: 소켓\
+    **설명**: 사용 가능한 최대 소켓 수.
+
+    **사용 사례**: 사용률 계산에 사용되는 소켓과 비교합니다.
+
+    **NRQL 예시:**
+
+    뷰 소켓 제한:
+
+    ```sql
+    SELECT latest(rabbitmq.node.sockets_total) AS 'Total Sockets'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.sockets_total'
+    FACET host.name
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Erlang VM 메트릭
+
+<CollapserGroup>
+  <Collapser id="node-proc-used" title="rabbitmq.node.proc_used">
+    **유형**: 게이지\
+    **단위**: 프로세스\
+    **설명**: 현재 사용 중인 Erlang 프로세스 수입니다.
+
+    **사용 사례**: Erlang 프로세스 사용량을 모니터링하여 프로세스 제한 소진을 방지합니다.
+
+    **NRQL 예시:**
+
+    Erlang 프로세스 사용량 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.proc_used) AS 'Erlang Processes Used'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.proc_used'
+    FACET host.name
+    ```
+
+    공정 활용률:
+
+    ```sql
+    SELECT 
+      (latest(rabbitmq.node.proc_used) / latest(rabbitmq.node.proc_total)) * 100 AS 'Process Utilization %'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-proc-total" title="rabbitmq.node.proc_total">
+    **유형**: 게이지\
+    **단위**: 프로세스\
+    **설명**: 허용되는 최대 Erlang 프로세스 수입니다.
+
+    **사용 사례**: 활용률 계산에 사용되는 프로세스와 비교합니다.
+
+    **NRQL 예시:**
+
+    Erlang 프로세스 제한 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.proc_total) AS 'Max Erlang Processes'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.proc_total'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-run-queue" title="rabbitmq.node.run_queue">
+    **유형**: 게이지\
+    **단위**: 프로세스\
+    **설명**: 실행 대기 중인 Erlang 프로세스 수입니다.
+
+    **사용 사례**: Erlang VM 스케줄러 큐 길이를 모니터링하여 CPU 포화 상태를 감지합니다.
+
+    **NRQL 예시:**
+
+    실행 대기열 깊이 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.run_queue) AS 'Run Queue Depth'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.run_queue'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-processors" title="rabbitmq.node.프로세서">
+    **유형**: 게이지\
+    **단위**: 프로세서\
+    **설명**: 노드에서 사용 가능한 CPU 프로세서 수입니다.
+
+    **사용 사례**: 용량 계획을 위한 시스템 리소스 정보.
+
+    **NRQL 예시:**
+
+    CPU 사용량 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.processors) AS 'CPU Count'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.processors'
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-uptime" title="Rabbitmq.node.업타임">
+    **유형**: 게이지\
+    **단위**: 밀리초\
+    **설명**: 노드 업타임(밀리초).
+
+    **사용 사례**: 노드 안정성을 모니터링하고 재시작을 감지합니다.
+
+    **NRQL 예시:**
+
+    노드 업타임 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.uptime) / 1000 / 60 / 60 / 24 AS 'Uptime (days)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.uptime'
+    FACET host.name
+    ```
+
+    최근 재시작 감지:
+
+    ```sql
+    SELECT latest(rabbitmq.node.uptime) / 1000 / 60 AS 'Uptime (minutes)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.uptime'
+      AND rabbitmq.node.uptime < 3600000
+    FACET host.name
+    ```
+  </Collapser>
+
+  <Collapser id="node-context-switches-rate" title="rabbitmq.node.context_switches_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 스위치 수\
+    **설명**: 초당 컨텍스트 전환율.
+
+    **사용 사례**: Erlang VM 성능 및 스케줄러 활동을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    보기 컨텍스트 전환율:
+
+    ```sql
+    SELECT latest(rabbitmq.node.context_switches_details.rate) AS 'Context Switches/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.context_switches_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### 가비지 컬렉션 메트릭
+
+<CollapserGroup>
+  <Collapser id="node-gc-num-rate" title="rabbitmq.node.gc_num_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 GC 실행 횟수\
+    **설명**: 초당 가비지 컬렉션 실행 횟수.
+
+    **사용 사례**: GC 빈도를 모니터링하여 메모리 부족 현상을 감지합니다.
+
+    **NRQL 예시:**
+
+    GC 비율 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.gc_num_details.rate) AS 'GC Runs/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.gc_num_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-gc-bytes-reclaimed-rate" title="rabbitmq.node.gc_bytes_reclaimed_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 바이트\
+    **설명**: 초당 가비지 컬렉션에 의해 회수된 바이트 수.
+
+    **사용 사례**: GC 효율성 및 메모리 회수 모니터링.
+
+    **NRQL 예시:**
+
+    GC 회수율 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.gc_bytes_reclaimed_details.rate) / 1024 / 1024 AS 'GC Reclaimed (MB/s)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.gc_bytes_reclaimed_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## I/O 및 지속성 지표 [#io-metrics]
+
+I/O 는 디스크 읽기/쓰기 작업 및 메시지 지속성을 위한 지연 시간을 추적합니다.
+
+### 디스크 I/O 작업
+
+<CollapserGroup>
+  <Collapser id="node-io-read-count-rate" title="rabbitmq.node.io_read_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연산 횟수\
+    **설명**: 초당 I/O 읽기 작업 속도.
+
+    **사용 사례**: 메시지 검색을 위한 디스크 읽기 활동을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    읽기 작업 속도 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_read_count_details.rate) AS 'Read Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_read_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-read-bytes-rate" title="rabbitmq.node.io_read_bytes_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 바이트\
+    **설명**: 초당 읽은 바이트 수.
+
+    **사용 사례**: 디스크 읽기 처리량을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    읽기 처리량 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_read_bytes_details.rate) / 1024 / 1024 AS 'Read Throughput (MB/s)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_read_bytes_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-read-avg-time-rate" title="rabbitmq.node.io_read_avg_time_details.rate">
+    **유형**: 게이지\
+    **단위**: 밀리초\
+    **설명**: 평균 I/O 읽기 시간 비율.
+
+    **사용 사례**: 성능 문제에 대한 모니터 읽기 지연 시간.
+
+    **NRQL 예시:**
+
+    읽기 지연 시간 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_read_avg_time_details.rate) AS 'Avg Read Time (ms)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_read_avg_time_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-write-count-rate" title="rabbitmq.node.io_write_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연산 횟수\
+    **설명**: 초당 I/O 쓰기 작업 속도.
+
+    **사용 사례**: 메시지 영구 저장을 위한 디스크 쓰기 활동 모니터링.
+
+    **NRQL 예시:**
+
+    쓰기 작업 속도를 확인하세요:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_write_count_details.rate) AS 'Write Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_write_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-write-bytes-rate" title="rabbitmq.node.io_write_bytes_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 바이트\
+    **설명**: 초당 기록되는 바이트 수.
+
+    **사용 사례**: 디스크 쓰기 처리량을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    쓰기 처리량을 확인하세요:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_write_bytes_details.rate) / 1024 / 1024 AS 'Write Throughput (MB/s)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_write_bytes_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-write-avg-time-rate" title="rabbitmq.node.io_write_avg_time_details.rate">
+    **유형**: 게이지\
+    **단위**: 밀리초\
+    **설명**: 평균 I/O 쓰기 시간 비율.
+
+    **사용 사례**: 성능 문제에 대한 모니터 쓰기 지연 시간.
+
+    **NRQL 예시:**
+
+    쓰기 지연 시간 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_write_avg_time_details.rate) AS 'Avg Write Time (ms)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_write_avg_time_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-sync-count-rate" title="rabbitmq.node.io_sync_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연산 횟수\
+    **설명**: 초당 I/O 동기화 작업 속도.
+
+    **사용 사례**: 내구성 관련 작업에서 fsync 빈도를 모니터링합니다.
+
+    **NRQL 예시:**
+
+    동기화 작업 속도 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_sync_count_details.rate) AS 'Sync Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_sync_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-sync-avg-time-rate" title="rabbitmq.node.io_sync_avg_time_details.rate">
+    **유형**: 게이지\
+    **단위**: 밀리초\
+    **설명**: 평균 I/O 동기화 시간 비율.
+
+    **활용사례**: 내구성 성능을 위한 모니터 동기화 지연시간.
+
+    **NRQL 예시:**
+
+    동기화 지연 시간 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_sync_avg_time_details.rate) AS 'Avg Sync Time (ms)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_sync_avg_time_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-seek-count-rate" title="rabbitmq.node.io_seek_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연산 횟수\
+    **설명**: 초당 I/O 탐색 작업 속도.
+
+    **사용 사례**: 디스크 탐색 활동 모니터링.
+
+    **NRQL 예시:**
+
+    뷰 탐색 작업 속도:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_seek_count_details.rate) AS 'Seek Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_seek_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-seek-avg-time-rate" title="rabbitmq.node.io_seek_avg_time_details.rate">
+    **유형**: 게이지\
+    **단위**: 밀리초\
+    **설명**: 평균 I/O 탐색 시간 비율.
+
+    **사용 사례**: 모니터 탐색 지연 시간.
+
+    **NRQL 예시:**
+
+    탐색 지연 시간 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_seek_avg_time_details.rate) AS 'Avg Seek Time (ms)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_seek_avg_time_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-io-reopen-count-rate" title="rabbitmq.node.io_reopen_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연산 횟수\
+    **설명**: 초당 파일 다시 열기 작업 발생률.
+
+    **사용 사례**: 파일 핸들 변경 현황을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    재개장률 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.io_reopen_count_details.rate) AS 'Reopen Ops/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.io_reopen_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### 메시지 저장소 메트릭
+
+<CollapserGroup>
+  <Collapser id="node-msg-store-read-count-rate" title="rabbitmq.node.msg_store_read_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연산 횟수\
+    **설명**: 초당 메시지 저장소 읽기 작업 속도.
+
+    **사용 사례**: 메시지 지속성 읽기 모니터링.
+
+    **NRQL 예시:**
+
+    메시지 저장소 읽기 속도 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.msg_store_read_count_details.rate) AS 'Msg Store Reads/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.msg_store_read_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-msg-store-write-count-rate" title="rabbitmq.node.msg_store_write_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연산 횟수\
+    **설명**: 초당 메시지 저장소 쓰기 작업 속도.
+
+    **사용 사례**: 메시지 영구 저장 쓰기를 모니터링합니다.
+
+    **NRQL 예시:**
+
+    메시지 저장소 쓰기 속도 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.msg_store_write_count_details.rate) AS 'Msg Store Writes/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.msg_store_write_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-queue-index-read-count-rate" title="rabbitmq.node.queue_index_read_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연산 횟수\
+    **설명**: 초당 큐 인덱스 읽기 작업 속도.
+
+    **사용 사례**: 큐 인덱스 읽기 모니터링.
+
+    **NRQL 예시:**
+
+    뷰 큐 인덱스 읽기 속도:
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_index_read_count_details.rate) AS 'Queue Index Reads/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_index_read_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-queue-index-write-count-rate" title="rabbitmq.node.queue_index_write_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연산 횟수\
+    **설명**: 초당 큐 인덱스 쓰기 작업 속도.
+
+    **사용 사례**: 큐 인덱스 쓰기 모니터링.
+
+    **NRQL 예시:**
+
+    뷰 큐 인덱스 쓰기 속도:
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_index_write_count_details.rate) AS 'Queue Index Writes/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_index_write_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Mnesia 데이터베이스 지수
+
+<CollapserGroup>
+  <Collapser id="node-mnesia-ram-tx-count-rate" title="rabbitmq.node.mnesia_ram_tx_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 거래 건수\
+    **설명**: Mnesia RAM 트랜잭션 처리 속도(초당).
+
+    **사용 사례**: 데이터베이스 RAM 트랜잭션 활동을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    Mnesia RAM 트랜잭션 속도를 확인하세요:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mnesia_ram_tx_count_details.rate) AS 'Mnesia RAM Tx/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mnesia_ram_tx_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="node-mnesia-disk-tx-count-rate" title="rabbitmq.node.mnesia_disk_tx_count_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 거래 건수\
+    **설명**: Mnesia 디스크 트랜잭션 처리 속도(초당).
+
+    **사용 사례**: 데이터베이스 디스크 트랜잭션 활동을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    Mnesia 디스크 트랜잭션 속도를 확인하세요:
+
+    ```sql
+    SELECT latest(rabbitmq.node.mnesia_disk_tx_count_details.rate) AS 'Mnesia Disk Tx/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.mnesia_disk_tx_count_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 큐 메트릭 [#queue-metrics]
+
+대기열 지표는 대기열당 메시지 흐름, 백로그 및 소비자 활동에 대한 인사이트를 제공합니다.
+
+<CollapserGroup>
+  <Collapser id="consumer-count" title="Rabbitmq.소비자.count">
+    **유형**: 게이지\
+    **단위**: 소비자\
+    **설명**: 대기열에 연결된 소비자 수.
+
+    **크기**:
+
+    * `rabbitmq.queue.name`: 대기열 이름
+
+    **사용 사례**: 소비자 연결을 모니터링하여 연결 끊김을 감지합니다.
+
+    **NRQL 예시:**
+
+    대기열별 소비자 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.consumer.count) AS 'Consumers'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.consumer.count'
+    FACET rabbitmq.queue.name
+    ```
+
+    소비자가 없는 대기열을 찾으세요:
+
+    ```sql
+    SELECT latest(rabbitmq.consumer.count)
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.consumer.count'
+      AND rabbitmq.consumer.count = 0
+    FACET rabbitmq.queue.name
+    ```
+  </Collapser>
+
+  <Collapser id="message-current-ready" title="rabbitmq.message.current(state = 'ready')">
+    **유형**: 게이지\
+    **단위**: 메시지\
+    **설명**: 전달 준비가 완료된 메시지 수입니다.
+
+    **크기**:
+
+    * `rabbitmq.queue.name`: 대기열 이름
+    * `state`메시지 상태(준비됨, 확인 안 됨)
+
+    **사용 사례**: 메시지 누적을 감지하기 위해 큐 백로그를 모니터링합니다.
+
+    **NRQL 예시:**
+
+    큐별 준비 완료 메시지 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.message.current) AS 'Ready Messages'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.current'
+      AND state = 'ready'
+    FACET rabbitmq.queue.name
+    ```
+
+    준비된 메시지 추세를 추적하세요:
+
+    ```sql
+    SELECT latest(rabbitmq.message.current)
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.current'
+      AND state = 'ready'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="message-current-unacknowledged" title="rabbitmq.message.current(state = 'unacknowledged')">
+    **유형**: 게이지\
+    **단위**: 메시지\
+    **설명**: 전송되었지만 아직 확인되지 않은 메시지 수입니다.
+
+    **크기**:
+
+    * `rabbitmq.queue.name`: 대기열 이름
+    * `state`메시지 상태(준비됨, 확인 안 됨)
+
+    **사용 사례**: 응답하지 않은 메시지를 추적하여 느린 소비자를 감지합니다.
+
+    **NRQL 예시:**
+
+    확인하지 않은 메시지 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.message.current) AS 'Unacked Messages'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.current'
+      AND state = 'unacknowledged'
+    FACET rabbitmq.queue.name
+    ```
+  </Collapser>
+
+  <Collapser id="message-current-total" title="rabbitmq.message.current (모든 상태)">
+    **유형**: 게이지\
+    **단위**: 메시지\
+    **설명**: 모든 상태를 통틀어 큐에 있는 메시지의 총 개수입니다.
+
+    **크기**:
+
+    * `rabbitmq.queue.name`: 대기열 이름
+
+    **사용 사례**: 전체 대기열 깊이 모니터링.
+
+    **NRQL 예시:**
+
+    큐별 총 메시지 수를 확인하세요.
+
+    ```sql
+    SELECT sum(rabbitmq.message.current) AS 'Total Messages'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.current'
+    FACET rabbitmq.queue.name
+    ```
+  </Collapser>
+
+  <Collapser id="message-published" title="rabbitmq.message.published">
+    **유형**: 카운터\
+    **단위**: 메시지\
+    **설명**: 큐에 게시된 메시지의 총 개수입니다.
+
+    **크기**:
+
+    * `rabbitmq.queue.name`: 대기열 이름
+
+    **사용 사례**: 메시지 수집 속도 모니터링.
+
+    **NRQL 예시:**
+
+    메시지 게시율 보기:
+
+    ```sql
+    SELECT rate(sum(rabbitmq.message.published), 1 minute) AS 'Publish Rate (msg/min)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.published'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="message-delivered" title="rabbitmq.메시지.전달됨">
+    **유형**: 카운터\
+    **단위**: 메시지\
+    **설명**: 소비자에게 전달된 총 메시지 수.
+
+    **크기**:
+
+    * `rabbitmq.queue.name`: 대기열 이름
+
+    **사용 사례**: 메시지 전달 처리량을 추적합니다.
+
+    **NRQL 예시:**
+
+    메시지 전달률을 확인하세요:
+
+    ```sql
+    SELECT rate(sum(rabbitmq.message.delivered), 1 minute) AS 'Delivery Rate (msg/min)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.delivered'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="message-acknowledged" title="rabbitmq.message.acknowledged">
+    **유형**: 카운터\
+    **단위**: 메시지\
+    **설명**: 소비자가 확인 응답한 메시지의 총 개수입니다.
+
+    **크기**:
+
+    * `rabbitmq.queue.name`: 대기열 이름
+
+    **사용 사례**: 메시지 처리 완료 여부를 모니터링합니다.
+
+    **NRQL 예시:**
+
+    확인 응답률 보기:
+
+    ```sql
+    SELECT rate(sum(rabbitmq.message.acknowledged), 1 minute) AS 'Ack Rate (msg/min)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.acknowledged'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="message-dropped" title="rabbitmq.message.dropped">
+    **유형**: 카운터\
+    **단위**: 메시지\
+    **설명**: 전송이 중단된(거부되거나 만료된) 메시지 수.
+
+    **크기**:
+
+    * `rabbitmq.queue.name`: 대기열 이름
+
+    **사용 사례**: 메시지 손실을 식별합니다.
+
+    **NRQL 예시:**
+
+    삭제된 메시지 보기:
+
+    ```sql
+    SELECT sum(rabbitmq.message.dropped) AS 'Dropped Messages'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.dropped'
+    FACET rabbitmq.queue.name
+    SINCE 1 hour ago
+    ```
+
+    트랙 드롭률:
+
+    ```sql
+    SELECT rate(sum(rabbitmq.message.dropped), 1 minute) AS 'Drop Rate (msg/min)'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.message.dropped'
+    FACET rabbitmq.queue.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 연결 및 수명 주기 [#connection-metrics]
+
+연결 및 수명 주기 추적은 연결, 채널 및 큐 수명 주기 이벤트를 추적합니다.
+
+<CollapserGroup>
+  <Collapser id="connection-created-rate" title="rabbitmq.node.connection_created_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연결 수\
+    **설명**: 초당 생성되는 새로운 연결 수.
+
+    **사용 사례**: 연결 설정 패턴을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    연결 생성률 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.connection_created_details.rate) AS 'Connections Created/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.connection_created_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="connection-closed-rate" title="rabbitmq.node.connection_closed_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 연결 수\
+    **설명**: 초당 연결 종료율.
+
+    **사용 사례**: 연결 종료 패턴을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    연결 종료율 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.connection_closed_details.rate) AS 'Connections Closed/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.connection_closed_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+
+    연결 생성과 연결 종료를 비교하세요:
+
+    ```sql
+    SELECT 
+      latest(rabbitmq.node.connection_created_details.rate) AS 'Created',
+      latest(rabbitmq.node.connection_closed_details.rate) AS 'Closed'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="channel-created-rate" title="rabbitmq.node.channel_created_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 채널 수\
+    **설명**: 초당 생성되는 채널 수.
+
+    **사용 사례**: 채널 수명 주기 모니터링.
+
+    **NRQL 예시:**
+
+    채널 생성률 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.channel_created_details.rate) AS 'Channels Created/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.channel_created_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="channel-closed-rate" title="rabbitmq.node.channel_closed_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 채널 수\
+    **설명**: 초당 닫히는 채널 수.
+
+    **사용 사례**: 채널 종료 모니터링.
+
+    **NRQL 예시:**
+
+    뷰 채널 폐쇄율:
+
+    ```sql
+    SELECT latest(rabbitmq.node.channel_closed_details.rate) AS 'Channels Closed/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.channel_closed_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="queue-declared-rate" title="rabbitmq.node.queue_declared_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 대기열 수\
+    **설명**: 초당 선언된 대기열 수.
+
+    **사용 사례**: 큐 선언 활동을 모니터링합니다.
+
+    **NRQL 예시:**
+
+    대기열 선언률 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_declared_details.rate) AS 'Queues Declared/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_declared_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="queue-created-rate" title="rabbitmq.node.queue_created_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 대기열 수\
+    **설명**: 초당 생성되는 대기열 수.
+
+    **사용 사례**: 모니터링 큐 생성.
+
+    **NRQL 예시:**
+
+    대기열 생성률 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_created_details.rate) AS 'Queues Created/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_created_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser id="queue-deleted-rate" title="rabbitmq.node.queue_deleted_details.rate">
+    **유형**: 게이지\
+    **단위**: 초당 대기열 수\
+    **설명**: 초당 삭제되는 큐의 비율.
+
+    **사용 사례**: 모니터링 큐 삭제.
+
+    **NRQL 예시:**
+
+    대기열 삭제율 보기:
+
+    ```sql
+    SELECT latest(rabbitmq.node.queue_deleted_details.rate) AS 'Queues Deleted/sec'
+    FROM Metric
+    WHERE instrumentation.provider = 'opentelemetry'
+      AND metricName = 'rabbitmq.node.queue_deleted_details.rate'
+    FACET host.name
+    TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 다음은 뭐지? [#whats-next]
+
+이제 RabbitMQ 메트릭에 대한 완벽한 참조 자료를 확보했으니, 이 지식을 활용해 보세요.
+
+**더 알아보기:**
+
+* [개요](/docs/opentelemetry/integrations/rabbitmq/overview) - RabbitMQ 통합 및 구현, 배포 옵션에 대해 알아보세요.
+* [데이터 찾기 및 쿼리](/docs/opentelemetry/integrations/rabbitmq/find-and-query-data) - 뉴렐릭 UI 탐색하고 NRQL 쿼리 작성
+
+**행동에 나서세요:**
+
+* [알림 구성](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-alerts) - 큐 깊이, 메모리 사용량 및 디스크 공간에 대한 알림을 설정합니다.
+* [대시보드 구축](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) - RabbitMQ 지표를 시각화하기 위한 맞춤형 대시보드 생성

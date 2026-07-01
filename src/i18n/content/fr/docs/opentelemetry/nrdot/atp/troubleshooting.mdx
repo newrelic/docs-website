@@ -1,0 +1,189 @@
+---
+title: Monitorer et dépanner ATP
+metaDescription: 'Learn how to monitor ATP performance, verify data filtering effectiveness, and troubleshoot common configuration issues.'
+tags:
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - NRDOT
+  - Adaptive Telemetry Processor
+  - ATP
+  - Monitoring
+  - Troubleshooting
+  - Performance
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Aperçu">
+  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
+
+  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Apprenez à vérifier le bon fonctionnement de l&apos;ATP et à résoudre les problèmes de configuration courants dans les environnements hôtes et Kubernetes.
+
+## Vérifier que l&apos;ATP fonctionne [#verify-atp]
+
+Après avoir installé ATP, vérifiez que New Relic reçoit des données de processus en exécutant ces requêtes dans le [générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+<CollapserGroup>
+  <Collapser id="host-verification" title="Environnements hôtes">
+    * Pour afficher les métriques récentes des processus :
+
+    ```sql
+    FROM Metric SELECT *
+    WHERE metricName LIKE 'process.%'
+    LIMIT 100
+    ```
+
+    * Pour compter les types de métriques de processus uniques :
+
+    ```sql
+    FROM Metric SELECT uniqueCount(metricName)
+    WHERE metricName LIKE 'process.%'
+    ```
+  </Collapser>
+
+  <Collapser id="kubernetes-verification" title="Environnements Kubernetes">
+    * Pour afficher les métriques de processus récentes de votre cluster :
+
+    ```sql
+    FROM Metric SELECT *
+    WHERE k8s.cluster.name='your-cluster-name'
+    AND metricName LIKE 'process.%'
+    LIMIT 100
+    ```
+
+    * Pour compter les types de métriques de processus uniques pour votre cluster :
+
+    ```sql
+    FROM Metric SELECT uniqueCount(metricName)
+    WHERE k8s.cluster.name='your-cluster-name'
+    AND metricName LIKE 'process.%'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Dépanner les problèmes ATP [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="atp-filtering" title="ATP ne filtre pas les métriques">
+    **Problème**: Toutes les métriques de processus sont envoyées, non filtrées.
+
+    <CollapserGroup>
+      <Collapser id="host-atp-filtering" title="Solutions d'environnement hôte">
+        1. Vérifiez que l&apos;ATP figure dans la liste des processeurs du pipeline.
+        2. Vérifiez si `metric_thresholds` sont configurés.
+        3. Assurez-vous que les métriques de processus sont collectées.
+        4. Examinez les logs du collecteur pour détecter des erreurs d&apos;initialisation ATP.
+      </Collapser>
+
+      <Collapser id="kubernetes-atp-filtering" title="Solutions pour les environnements Kubernetes">
+        1. Vérifier que l&apos;ATP est activé :
+
+           ```bash
+           kubectl get configmap -n newrelic nr-k8s-otel-collector-daemonset-config -o yaml | grep adaptivetelemetry
+           ```
+
+        2. Vérifiez que l&apos;ATP est dans le pipeline : recherchez `adaptivetelemetry` dans le pipeline `metrics/nr`
+
+        3. Vérifiez que vous utilisez la bonne image du collecteur :
+
+           ```bash
+           kubectl get daemonset -n newrelic nr-k8s-otel-collector-daemonset -o yaml | grep "image:"
+           ```
+
+           Attendu : `newrelic/nrdot-collector:11.0` (ou ultérieur)\
+           **NON**: `newrelic/nrdot-collector-k8s:1.11.0`
+
+        4. **Vérifiez que `enable_atp` est défini sur `true`** dans votre `values.yaml` ou ConfigMap
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser id="high-memory" title="Utilisation élevée de la mémoire">
+    **Problème**: La mémoire du collecteur augmente au fil du temps
+
+    **Solution**: Ajustez les paramètres de rétention :
+
+    ```yaml
+    processors:
+      adaptivetelemetry:
+        retention_minutes: 15  # Reduce from default 30
+    ```
+  </Collapser>
+
+  <Collapser id="missing-processes" title="Processus non capturés">
+    **Problème**: Les processus attendus sont absents de la télémétrie
+
+    **Solution**: Vous devez utiliser le chemin complet pour ajouter des processus à la liste d&apos;inclusion. Les entrées sans séparateur de chemin ne correspondront à aucun processus. Par exemple :
+
+    ```yaml
+    processors:
+      adaptivetelemetry:
+        include_process_list:
+          - "/usr/bin/myapp"  # Always captured regardless of thresholds
+    ```
+  </Collapser>
+
+  <Collapser id="data-stopped" title="Les données ATP ont cessé de s'alimenter">
+    **Problème**: Auparavant, les données ATP s&apos;affichaient, mais ce n&apos;est plus le cas. Cela pourrait être dû à l&apos;atteinte des limites de cardinalité. ATP filtre de nombreux processus pour réduire le volume de télémétrie, mais si vous avez un nombre très élevé de processus uniques, vous pourriez tout de même atteindre les limites. Vous pouvez [monitorer votre utilisation de la cardinalité](/docs/data-apis/ingest-apis/metric-api/monitor-cardinality/) pour suivre cela.
+
+    **Solution**:
+
+    Pour le dépannage, vérifiez si vous avez atteint les limites de cardinalité en vous rendant sur la [page de gestion de la cardinalité](/docs/data-apis/ingest-apis/metric-api/cardinality-management/#per-metric-limit-adjustment) dans New Relic. Si vous avez dépassé les limites, vous pouvez augmenter votre [limite de cardinalité](/docs/data-apis/ingest-apis/metric-api/cardinality-management/#per-metric-limit-adjustment).
+
+    <Callout variant="tip">
+      Si ce problème est récurrent, vous pouvez également augmenter le `metric_thresholds` de l&apos;ATP pour filtrer davantage de processus et réduire le volume de métriques entrantes. Cela permettra d&apos;éviter d&apos;atteindre les limites de cardinalité à l&apos;avenir. Par exemple, vous pouvez augmenter les seuils d&apos;utilisation du CPU et de la mémoire pour ne capturer que les processus les plus gourmands en ressources :
+
+      ```yaml
+      processors:
+        adaptivetelemetry:
+          metric_thresholds:
+            process.cpu.utilization: 0.10  # Increase from 0.05 to 0.10 (10% CPU)
+            process.memory.utilization: 0.10  # Filter out more processes
+      ```
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Prérequis de configuration [#config-requirements]
+
+<CollapserGroup>
+  <Collapser id="persistence-file" title="Activer la fonctionnalité de fichier de persistance">
+    Pour activer la fonctionnalité de fichier de persistance d&apos;ATP, vous devez exécuter le binaire avec des privilèges élevés.
+
+    Ajoutez ce qui suit au fichier `daemonset.yaml` de votre chart Helm :
+
+    ```yaml
+    hostPID: true
+    ```
+  </Collapser>
+
+  <Collapser id="disk-io" title="Activer les données disk.io">
+    Pour activer la collecte de données `disk.io` par le récepteur hostmetrics OpenTelemetry, vous avez besoin de privilèges élevés car les données d&apos;E/S stockées à `/proc/[PID]/io` nécessitent un accès root. Ce n&apos;est pas une exigence ATP, ATP traite uniquement les données qui ont déjà été collectées par OpenTelemetry.
+
+    Ajoutez le contexte de sécurité suivant à votre chart Helm :
+
+    ```yaml
+    securityContext:
+      allowPrivilegeEscalation: true
+      privileged: true
+      readOnlyRootFilesystem: false
+      runAsNonRoot: false
+      runAsUser: 0
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Ressources connexes [#related-resources]
+
+<DocTiles>
+  <DocTile title="Fonctionnalités-avancées" path="/docs/opentelemetry/nrdot/atp/advanced-features">
+    Découvrez comment activer les fonctionnalités avancées de votre déploiement ATP.
+  </DocTile>
+
+  <DocTile title="Interrogez vos données" path="/docs/opentelemetry/nrdot/atp/query">
+    Apprenez à interroger les données ATP dans New Relic à l&apos;aide de NRQL.
+  </DocTile>
+</DocTiles>

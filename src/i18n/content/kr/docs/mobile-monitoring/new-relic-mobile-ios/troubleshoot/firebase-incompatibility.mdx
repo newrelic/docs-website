@@ -5,27 +5,53 @@ tags:
   - Mobile monitoring
   - New Relic Mobile iOS
   - Troubleshoot
-metaDescription: New Relic iOS agent cannot coexist with Firebase PerfMon SDK
+metaDescription: New Relic iOS agent conflicts with Firebase performance monitoring and Crashlytics SDKs due to overlapping instrumentation.
 freshnessValidatedDate: never
 translationType: machine
 ---
 
 ## 문제
 
-충돌, 비정상 종료 또는 오류는 New Relic iOS 에이전트와 Firebase와 같은 타사 원격 측정 데이터 추적 에이전트가 모두 앱 내에 포함된 경우 표시될 수 있습니다.
+동일한 앱에 뉴렐릭 iOS 에이전트와 특정 Firebase SDK를 모두 포함하면 측정, 도구의 중복으로 인해 충돌이 발생할 수 있습니다. 영향을 받는 Firebase SDK는 다음과 같습니다.
 
-알려진 오류:
+* **FirebasePerformance** — 네트워크 모니터링을 위한 `NSURLSession` 및 화면 트레이스의 `UIViewController` 수명 주기 메서드를 재구성하며 뉴렐릭의 자동 측정 로그와 직접적으로 겹칩니다.
+* **FirebaseCrashlytics** 는 자체적으로 처리되지 않은 예외 처리기와 신호 처리기(SIGABRT, SIGSEGV 등)를 설치하는데, 이는 초기화 순서에 따라 뉴렐릭의 크래시 리포터를 덮어쓰거나 뉴렐릭의 크래시 리포터에 의해 덮어쓰여질 수 있습니다.
 
-* 계측된 함수에서 충돌이 발생합니다.
-* 충돌 로그를 캡처하지 못했습니다.
+알려진 증상은 다음과 같습니다.
+
+* 자동 계산된 함수에서 충돌이 발생하는 이유는 `NSURLSession` 또는 `UIViewController` 메서드 스위즐링이 충돌하기 때문입니다.
+* 한 번에 하나의 예외 처리기만 활성화될 수 있기 때문에 두 도구 중 하나 또는 둘 다에서 충돌 보고서가 누락되거나 불완전할 수 있습니다.
+* 뉴렐릭 또는 Firebase 콘솔에 중복된 네트워크 이벤트가 나타납니다.
 
 ## 해결책
 
-iOS 에이전트와 Firebase와 같은 타사 원격 측정 데이터 추적 에이전트를 동시에 사용하면 안 됩니다. 이 문제를 방지하려면 둘 중 하나만 활성화하는 것이 좋습니다.
+### 권장 사항: 충돌하는 Firebase 구성 요소를 제거합니다.
 
-다른 SDK를 제거하는 옵션이 아닌 경우 이러한 충돌을 방지하기 위해 사용할 수 있는 몇 가지 단계가 있습니다.
+충돌 보고와 네트워크 모니터링을 하나의 소스에서만 필요로 한다면, 가장 깔끔한 해결책은 충돌하는 Firebase 파드를 제거하는 것입니다.
 
-* 다른 타사 SDK를 시작하기 전에 에이전트를 시작하십시오.
-* 에이전트의 일부 기능을 비활성화합니다. 이것이 작동하는 옵션인 경우 자세한 내용은 [API 가이드를](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings/) 참조하세요.
+* `FirebasePerformance` 제거하여 `NSURLSession` 과 `UIViewController` 스위즐링 충돌을 없애십시오.
+* 예외 및 신호 처리기 충돌을 제거하려면 `FirebaseCrashlytics` 제거하십시오.
+
+분석 또는 기타 기능(예: `FirebaseAnalytics`, `FirebaseAuth`, `FirebaseFirestore`)을 위해 Firebase를 사용하는 경우 해당 파드가 뉴렐릭 에이전트와 충돌하지 않고 그대로 유지될 수 있습니다.
+
+### 대안: 겹치는 기능 비활성화
+
+Firebase 구성 요소를 제거하는 것이 불가능하다면, 중복되는 측정 및 계측 기능을 명시적으로 비활성화하십시오.
+
+**Firebase 성능 측정을 비활성화합니다.**
+
+```swift
+// In your AppDelegate, before FirebaseApp.configure()
+Performance.sharedInstance().isInstrumentationEnabled = false
+Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(false)
+```
+
+**Crashlytics와 중복되는 뉴렐릭 기능을 비활성화합니다.**
+
+`NRFeatureFlag_CrashReporting` 및 `NRFeatureFlag_NSURLSessionInstrumentation` 등의 플래그에 대해서는 [뉴렐릭 iOS SDK 설정 가이드를](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings/) 참조하세요.
+
+### 초기화 순서
+
+두 SDK가 모두 활성화된 상태로 유지되면 `FirebaseApp.configure()` 이전에 `application(_:didFinishLaunchingWithOptions:)` 의 첫 번째 호출로 가능한 한 빨리 뉴렐릭 창을 초기화합니다. 이렇게 하면 뉴렐릭의 예외 및 신호 핸들러가 먼저 등록되지만 Crashlytics는 앱 코드가 실행되기 전에 실행되는 `+load` 메서드를 통해 여전히 이를 덮어쓸 수 있습니다.
 
 추가 도움이 필요하면 [support.newrelic.com](https://support.newrelic.com) 에서 지원을 받으십시오.

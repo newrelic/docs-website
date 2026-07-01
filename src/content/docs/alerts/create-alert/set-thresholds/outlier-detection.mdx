@@ -1,0 +1,145 @@
+---
+title: Outlier detection
+metaDescription: "Learn how outlier detection identifies entities behaving differently from their peers using DBSCAN clustering."
+freshnessValidatedDate: never
+---
+
+New Relic's outlier detection is an advanced feature designed to automatically identify entities that are behaving significantly differently from their peers. Unlike traditional anomaly detection, which looks for unusual patterns over time, outlier detection focuses on deviations within a group at a specific moment.
+
+This functionality helps you proactively identify potential issues, such as:
+- A single server experiencing high CPU usage compared to others in its cluster
+- A Kafka broker not processing messages correctly
+
+By pinpointing these "outliers," you can quickly find related downstream systems and infer the likelihood of failure, thereby reducing Mean Time to Detection (MTTD) and Mean Time to Recovery (MTTR).
+
+## Key concepts [#key-concepts]
+
+Understanding these core concepts will help you configure outlier detection effectively:
+
+- **DBSCAN:** A density-based clustering algorithm that groups together points that are closely packed together while identifying outliers as points that don't belong to any cluster.
+
+- **Epsilon (Eps):** Defines the maximum distance between two points for them to be considered part of the same neighborhood. A smaller value creates tighter clusters, while a larger value creates looser clusters.
+
+- **Minimum points (MinPts):** The minimum number of points required to form a cluster. A value greater than 3 is recommended for most use cases.
+
+- **Evaluation groups:** Allows you to segment your outlier analysis by different facets (such as environment, region, or application) so that outliers are detected within each group separately rather than across the entire dataset. This ensures outliers are detected within each group separately, reducing the need for multiple alert conditions.
+
+### Auto vs. manual mode
+You have two distinct modes for setting the core parameters, ensuring you get the right alert for your data:
+
+**Auto mode** is the quickest way to configure your outlier alert. It lets you skip the technical details of the algorithm, freeing you from needing to understand complex machine learning parameters.
+
+Instead of setting technical parameters, you adjust a simple Sensitivity Slider. The system uses automatic estimates to instantly calculate the optimal Epsilon (Eps) and Minimum Points (MinPts) values corresponding to your selected sensitivity level.
+
+To check if the automatic estimates are right for your data, observe the data visualization. If the signals flagged as outliers on the chart align with your common-sense understanding of an anomaly, the auto mode is working effectively.
+
+**Manual mode** is for advanced users or situations where the system's automatic estimates don't quite fit your data's unique characteristics. Switching to manual mode allows you to directly control the DBSCAN parameters.
+
+You should switch to manual mode if the results from auto mode are inaccurate:
+- The system flags signals as outliers that are visually still part of a cluster.
+- The system fails to flag a signal that is clearly distant from the main data cluster.
+- Moving the Sensitivity Slider across its full range produces little to no meaningful change in the detected outliers.
+
+## Create an outlier detection alert condition [#create-condition]
+
+Follow these steps to create an alert condition with outlier detection:
+
+1. In your New Relic account, go to **one.newrelic.com > All capabilities > Alerts > Alert Conditions**.
+
+2. Click **+ New alert condition** and select either **Use guided mode** or **Query** mode**. Irrespective of which mode you choose, you set thresholds for your alert condition on the set thresholds page.
+
+3. Proceed through the steps until you reach the set thresholds page.
+
+4. Select **outliers**.
+
+5. Choose the algorithm mode:
+    - If you choose the **Auto** mode, adjust the sensitivity slider to fine-tune the detection. In this mode, the system automatically determines the optimal internal parameters (like Epsilon and Minimum points for DBSCAN) based on your historical data.
+    - If you choose the **Manual** mode, you can specify the Epsilon and Minimum points values yourself.
+
+6. Optionally, configure an evaluation group.
+
+7. Complete the rest of the alert condition setup.
+
+## Configuration best practices [#best-practices]
+
+### Choosing epsilon values [#epsilon]
+- Start with default values and adjust based on your data characteristics.
+- Monitor false positive rates and adjust accordingly.
+- Smaller epsilon for more sensitive detection.
+- Larger epsilon for less sensitive detection.
+
+### Setting minimum points [#minpts]
+- Use values greater than 3 for most scenarios.
+- Higher values reduce noise but may miss subtle outliers.
+- Consider your typical group sizes when setting this value.
+
+### Using evaluation groups effectively [#evaluation-groups]
+- Group by logical boundaries (environment, region, service).
+- Avoid over-segmentation which can reduce effectiveness.
+- Consider seasonality and business patterns when grouping.
+
+### Handling delayed data and older timestamps [#handling-delayed-data-and-older-timestamps]
+
+Outlier detection works by comparing metrics from multiple entities at the same point in time. To make a fair comparison, all entities must report data for the same time window.
+
+#### The problem with delayed timestamps
+
+Imagine you're monitoring CPU usage across three servers at 2:00 PM:
+
+- **Server A** reports 45% CPU with timestamp `2:00 PM`
+- **Server B** reports 50% CPU with timestamp `2:00 PM`
+- **Server C** reports 95% CPU with timestamp `1:30 PM`
+
+Server C's data has an older timestamp (1:30 PM instead of 2:00 PM). The system cannot compare 1:30 PM data to 2:00 PM data—it's like comparing apples to oranges. As a result, Server C is excluded from the outlier analysis entirely. Even though Server C is clearly experiencing a problem, you won't get an alert because it was never evaluated.
+
+This happens when an entity consistently reports data with older timestamps than the current time window being analyzed.
+
+#### Common causes
+
+- **Cloud-provider polling:** AWS CloudWatch and similar services collect metrics on a schedule, then New Relic polls them later. For example, a metric representing 2:00 PM might not arrive at New Relic until 2:05 PM, creating a 5-minute delay.
+
+- **Long-running transactions:** Background jobs are timestamped when they start, not when they finish. A job that starts at 1:30 PM and runs for 30 minutes will have a 1:30 PM timestamp when its data arrives at 2:00 PM.
+
+- **Buffered data:** Network issues or agent settings can cause data to queue locally. When connectivity is restored, all buffered data arrives with its original timestamps.
+
+#### Identifying excluded entities
+
+To see which entities are being excluded and why, query the `NrAiSignal` event:
+
+```sql
+FROM NrAiSignal
+SELECT *
+WHERE conditionId = 1234
+  AND outlierProcessingSkippedReason IS NOT NULL
+```
+
+Replace `1234` with your alert condition ID. Key fields to examine:
+
+- **`outlierProcessingSkippedReason`**: Why the signal was excluded (typically shows `LATE` for delayed data)
+- **`outlierProcessingSkippedTimeDelta`**: The time difference in seconds between the data's timestamp and the current evaluation window
+
+#### Resolving the issue
+
+If you see a warning in the condition editor that signals are being excluded:
+
+**Option 1: Split the condition (Recommended)**
+
+Create separate alert conditions for entities with different reporting behaviors:
+- One condition for real-time application servers
+- Another condition for cloud-polled resources (like AWS CloudWatch metrics)
+
+This ensures each condition's aggregation window matches how its entities actually report data.
+
+**Option 2: Increase the aggregation window**
+
+Expand your aggregation window to accommodate delays. For example, if your data is consistently 3-5 minutes late, use a 5-minute aggregation window instead of 1 minute.
+
+**Trade-off:** Larger windows smooth out short-term spikes and increase the time before an alert triggers. A server that spikes at 2:00 PM might not trigger an alert until 2:05 PM or later.
+
+## Use cases and examples [#use-cases]
+
+- **Imbalanced Kafka brokers:** Quickly identify brokers with abnormal CPU I/O wait times, allowing administrators to proactively rebalance workloads before performance is impacted.
+- **Resource utilization outliers:** Pinpoint resources that are consistently underutilized or overutilized. This enables better capacity planning and prevents waste or potential bottlenecks.
+- **"Noisy neighbor" identification:** Detect resource-hogging entities that are consuming an disproportionate amount of shared resources. This allows for corrective action to balance resource allocation.
+- **Java application memory issues:** Early detection of Java Virtual Machines (JVMs) with abnormal Out of Memory (OOM) error rates, enabling timely intervention to prevent widespread application failure.
+- **Environment-specific monitoring:** Use evaluation groups to monitor staging and production environments separately, ensuring that outliers in one environment don't interfere with detection in another.

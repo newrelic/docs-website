@@ -20,4 +20,10 @@ module.exports.connection = new Sequelize({
   ...connectionInfo,
   dialect: 'postgres',
   logging: false,
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
+  }
 });

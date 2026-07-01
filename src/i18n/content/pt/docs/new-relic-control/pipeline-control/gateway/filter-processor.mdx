@@ -1,0 +1,397 @@
+---
+title: Processador de filtro
+metaDescription: Use the filter processor to drop unwanted telemetry data or attributes using OTTL boolean expressions.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+O processador de filtro descarta registros de telemetria ou atributos específicos com base em expressões booleanas da OTTL (OpenTelemetry Transformation Language). Use-o para remover dados de teste, logs de depuração, verificações de integridade ou qualquer telemetria de baixo valor antes que saia da sua rede.
+
+## Quando usar o processador de filtro
+
+Use o processador de filtro quando precisar:
+
+* **Descarte PII ou dados de ambiente de teste**: Remova dados que não devem sair da sua rede
+* **Remova logs de nível debug da produção**: Filtre por severidade para reduzir o ruído
+* **Filtrar solicitações de verificação de integridade**: Descarte tráfego de monitoramento repetitivo e de baixo valor
+* **Descarte métricas com prefixos ou padrões específicos**: Remova fluxos de métricas desnecessários
+* **Remova telemetria de baixo valor com base em atributos**: Filtre por nome do serviço, ambiente ou tags personalizadas
+
+## Como funciona o processador de filtro
+
+O processador de filtro avalia expressões booleanas OTTL em relação a cada registro de telemetria. **Quando uma condição é avaliada como `true`, o registro é descartado.**
+
+Isso é o oposto de muitas linguagens de consulta onde `WHERE status = 'ERROR'` significa &quot;manter erros.&quot; No processador de filtro, `status == 'ERROR'` significa &quot;descartar erros&quot;.
+
+## Configuração
+
+Adicione um processador de filtro ao seu pipeline:
+
+```yaml
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        config:
+          error_mode: ignore
+          rules:
+            - name: drop the log records
+              description: drop all records which has severity text INFO
+              conditions:
+                - log.severity_text == "INFO"
+```
+
+**Campos de configuração**:
+
+* `rules`: Matriz de regras de filtragem avaliadas em ordem.
+
+  * `name`: Identificador da regra.
+  * `context`: O tipo de dados a avaliar. Valores suportados: `log`, `span`, `span_event`, `metric`, `datapoint`.
+  * `conditions`: uma lista de expressões booleanas OTTL.
+
+**Múltiplas condições**: Quando você fornece várias expressões no array, elas são avaliadas com a lógica OU. Se **qualquer** condição for verdadeira, o registro é descartado.
+
+## Operadores booleanos OTTL
+
+### Operadores de comparação
+
+* `==` - Igual a
+* `!=` - Diferente de
+* `<` - Menor que
+* `<=` - Menor ou igual a
+* `>` - Maior que
+* `>=` - Maior ou igual a
+
+### Operadores lógicos
+
+* `and` - Ambas as condições devem ser verdadeiras
+* `or` - Uma das condições deve ser verdadeira
+* `not` - Nega uma condição
+
+### Correspondência de padrões
+
+* `IsMatch` - Correspondência de padrão de regex
+
+```yaml
+rules:
+  - name: match-health-logs
+    conditions:
+      - 'IsMatch(body, ".*health.*") or IsMatch(attributes["http.url"], ".*\\/api\\/v1\\/health.*")'
+```
+
+## Exemplos completos
+
+### Exemplo 1: Descartar dados do ambiente de teste
+
+Remova toda a telemetria dos ambientes de teste e desenvolvimento:
+
+```yaml
+config:
+  rules:
+    - name: drop-test-environment
+      description: Drop logs from test environment
+      conditions: 
+        - 'resource.attributes["environment"] == "test"'
+      context: log
+    - name: drop-dev-environment
+      description: Drop logs from dev environment
+      conditions: 
+        - 'resource.attributes["environment"] == "dev"'
+      context: log
+```
+
+### Exemplo 2: Descartar logs de debug em produção
+
+Mantenha apenas níveis de log significativos em produção:
+
+```yaml
+config:
+  rules:
+    - name: drop-debug-logs
+      description: Drop all DEBUG severity logs
+      conditions: 
+        - 'severity_text == "DEBUG"'
+      context: log
+    - name: drop-low-severity-logs
+      description: Drop INFO and below severity logs
+      conditions: 
+        - "severity_number < 9"
+      context: log
+```
+
+**Referência do número de gravidade**:
+
+* TRACE = 1-4
+* DEBUG = 5-8
+* INFO = 9-12
+* WARN = 13-16
+* ERRO = 17-20
+* FATAL = 21-24
+
+### Exemplo 3: Descartar spans de verificação de integridade
+
+Remova o tráfego de verificação de integridade que não agrega valor diagnóstico:
+
+```yaml
+config:
+  rules:
+    - name: drop-health-endpoint
+      description: Drop spans from /health endpoint
+      conditions: 
+        - 'attributes["http.path"] == "/health"'
+      context: span
+    - name: drop-health-check-spans
+      description: Drop spans named health_check
+      conditions: 
+        - 'name == "health_check"'
+      context: span
+```
+
+### Exemplo 4: Descartar por nome do serviço
+
+Filtrar serviços específicos ou padrões de serviço:
+
+```yaml
+config:
+  rules:
+    - name: drop-legacy-api
+      description: Drop logs from legacy API v1 service
+      conditions: 
+        - 'resource.attributes["service.name"] == "legacy-api-v1"'
+      context: log
+    - name: drop-canary-services
+      description: Drop logs from canary deployment services
+      conditions: 
+        - 'IsMatch(resource.attributes["service.name"], ".*-canary")'
+      context: log
+```
+
+### Exemplo 5: Descartar métricas com prefixos específicos
+
+Remova fluxos de métricas desnecessários:
+
+```yaml
+config:
+  rules:
+    - name: drop-internal-metrics
+      description: Drop metrics with internal prefix
+      conditions: 
+        - 'IsMatch(name, "^internal\\.")'
+      context: metric
+    - name: drop-debug-datapoints
+      description: Drop datapoints marked as debug type
+      conditions: 
+        - 'attributes["metric.type"] == "debug"'
+      context: datapoint
+```
+
+### Exemplo 6: Condições combinadas com AND
+
+Descartar apenas quando múltiplas condições forem verdadeiras:
+
+```yaml
+config:
+  rules:
+    - name: drop-debug-logs-from-test
+      description: Drop DEBUG logs from background-worker service in test environment
+      conditions:
+        - 'severity_text == "DEBUG"'
+        - 'resource.attributes["service.name"] == "background-worker"'
+        - 'resource.attributes["environment"] == "test"'
+      context: log
+```
+
+### Exemplo 7: Manter erros, descartar o restante
+
+Inverta a lógica para manter apenas dados valiosos:
+
+```yaml
+config:
+  rules:
+    - name: drop-non-error-logs
+      description: Drop everything below ERROR severity level
+      conditions: 
+        - "severity_number < 17"
+      context: log
+```
+
+Ou use a lógica NOT:
+
+```yaml
+filter/Logs:
+  description: "Drop non-errors"
+  config:
+    error_mode: ignore
+    rules:
+      - name: drop-non-error-logs
+        description: Drop logs that are not ERROR or FATAL
+        conditions:
+          - 'not (severity_text == "ERROR" or severity_text == "FATAL")'
+        context: log
+```
+
+### Exemplo 8: Correspondência de padrões no corpo do log
+
+Descartar logs que contenham padrões específicos:
+
+```yaml
+config:
+  rules:
+    - name: drop-health-check-logs
+      description: Drop logs with health check in body
+      conditions: 
+        - 'IsMatch(body, ".*health check.*")'
+      context: log
+```
+
+### Exemplo 9: Descartar spans de alto volume e baixo valor
+
+Remova spans que ocorrem com frequência, mas agregam pouco valor:
+
+```yaml
+config:
+  rules:
+    - name: drop-fast-cache-hits
+      description: Drop cache hit operations faster than 1ms
+      conditions:
+        - 'attributes["db.operation"] == "get"'
+        - 'end_time_unix_nano - start_time_unix_nano < 1000000'
+        - 'attributes["cache.hit"] == true'
+      context: span
+```
+
+### Exemplo 10: Descarte baseado no status HTTP
+
+Filtrar requisições bem-sucedidas, manter erros:
+
+```yaml
+config:
+  rules:
+    - name: drop-successful-requests
+      description: Drop HTTP requests with status code less than 400
+      conditions: 
+        - 'attributes["http.status_code"] < 400'
+      context: span
+```
+
+### Exemplo 11: Múltiplas condições com OU
+
+Descartar se alguma condição corresponder:
+
+```yaml
+config:
+    rules:
+      - name: drop-test-health-debug
+        description: Drop logs from test environment, health checks, or debug severity
+        conditions:
+          - 'resource.attributes["environment"] == "test"'
+          - 'IsMatch(body, ".*health.*")'
+          - 'severity_text == "DEBUG"'
+        context: log 
+```
+
+## Descartar dados vs. descartar atributos
+
+O processador de filtro pode descartar registros inteiros (como mostrado acima) ou descartar atributos específicos de registros que são mantidos.
+
+Para descartar atributos mantendo o registro, você precisa usar a função `delete_key()` do processador de transformação, e não o processador de filtro. O processador de filtro descarta apenas registros inteiros.
+
+**Abordagem incorreta** (isso não funcionará):
+
+```yaml
+filter/Logs:
+  config:
+    rules:
+      - name: wrong-attribute-drop
+        description: Identify and drop logs containing specific sensitive attributes
+        conditions:
+          - 'delete attributes["sensitive_field"]'  # Filter conditions must be boolean, not actions
+        context: log
+```
+
+**Abordagem correta** (use o processador de transformação em vez disso):
+
+```yaml
+transform/Logs:
+  description: "Remove sensitive attribute"
+  config:
+    rules:
+      - name: remove-sensitive-field
+        description: "Redacts the 'sensitive_field' attribute from log records to ensure privacy compliance."
+        statements:
+          - 'delete_key(attributes, "sensitive_field")'
+  output: 
+    - nrexporter/newrelic
+```
+
+## Considerações de desempenho
+
+* **A ordem importa**: Coloque os processadores de filtro no início do seu pipeline para descartar dados indesejados antes de um processamento custoso
+* **Combine condições**: Use a lógica `and`/`or` em uma única expressão em vez de encadear vários processadores de filtro
+* **Desempenho de regex**: `IsMatch` é mais custoso do que verificações de igualdade exata. Use `==` quando possível.
+
+**Exemplo de ordenação eficiente**:
+
+```yaml
+    steps:
+      # ... receive steps ...
+      # ... probabilistic sampler steps ...
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          rules:
+            - name: drop the log records
+              description: drop all records which has severity text INFO
+              conditions:
+                - log.severity_text == "INFO"
+              context: log
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          rules:
+            - name: drop-internal-metrics
+              description: drop internal metric
+              conditions:
+                - IsMatch(name, "^internal\\.")
+              context: metric
+            - name: drop-debug-datapoints
+              description: drop-debug-datapoints
+              conditions:
+                - attributes["metric.type"] == "debug"
+              context: datapoint
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          rules:
+            - name: drop-health-endpoint
+              description: drop-health-endpoint
+              conditions:
+                - attributes["http.path"] == "/health"
+              context: span
+            - name: drop-debug-events
+              description: drop-debug-events
+              conditions:
+                - name == "debug_event"
+              context: span_event
+        # ... transformer steps...
+```
+
+## Referência de expressão booleana OTTL
+
+Para a sintaxe completa do OTTL e operadores adicionais:
+
+* [Expressões booleanas OTTL](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/README.md)
+* [Documentação do processador de filtro](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor)
+
+## Próximos passos
+
+* Saiba mais sobre o [Transform processor](/docs/new-relic-control/pipeline-control/gateway/transform-processor) para modificar dados antes da filtragem
+* Veja [Processador de amostragem](/docs/new-relic-control/pipeline-control/gateway/sampling-processor) para redução probabilística de volume
+* Consulte a [referência de configuração YAML](/docs/new-relic-control/pipeline-control/gateway/yaml-overview) para a sintaxe completa
