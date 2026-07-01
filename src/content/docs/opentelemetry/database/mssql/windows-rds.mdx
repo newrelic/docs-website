@@ -1,0 +1,1107 @@
+---
+title: "Windows RDS MSSQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Windows
+  - RDS
+  - AWS
+metaDescription: Set up Microsoft SQL Server monitoring with NRDOT collector on Windows for AWS RDS SQL Server instances
+freshnessValidatedDate: never
+---
+
+import AgentConfig from '../../../../../components/AgentConfig';
+
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Set up Microsoft SQL Server monitoring using the NRDOT collector on Windows environments to monitor AWS RDS for SQL Server instances.
+
+Based on your RDS SQL Server security configuration, you can choose from three authentication methods to connect the NRDOT Collector to your RDS instance:
+
+<Tabs>
+<TabsBar>
+<TabsBarItem id="sql">SQL Server Authentication</TabsBarItem>
+<TabsBarItem id="domain">Windows Domain Authentication</TabsBarItem>
+<TabsBarItem id="gmsa">gMSA</TabsBarItem>
+</TabsBar>
+
+<TabsPages>
+<TabsPageItem id="sql">
+
+<Steps>
+
+<Step>
+
+### Prerequisites [#prerequisites-sql]
+
+Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
+
+</Step>
+
+<Step>
+
+### Setup the NRDOT Collector [#setup-sql]
+
+Install the NRDOT Collector on an EC2 Windows instance or a local Windows machine that can connect to your RDS SQL Server instance.
+
+<Callout variant="important">
+  For RDS monitoring, install the NRDOT Collector on an EC2 instance in the same VPC as your RDS instance for optimal network connectivity and lower latency.
+</Callout>
+
+1. Download and install the NRDOT Collector using PowerShell:
+
+   ```powershell
+   [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+   ```
+
+2. Ensure your security group allows inbound connections from the NRDOT Collector host to your RDS instance on port 1433 (or your custom port).
+
+</Step>
+
+<Step>
+
+### Configure database user [#configure-user-sql]
+
+Connect to your RDS SQL Server instance using SQL Server Management Studio (SSMS) or sqlcmd with your admin credentials.
+
+Run the following script to create the `newrelic` monitoring user with appropriate permissions:
+
+```sql
+USE [master];
+GO
+CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
+GO
+
+GRANT VIEW SERVER STATE TO [newrelic];
+GRANT VIEW ANY DEFINITION TO [newrelic];
+GRANT VIEW ANY DATABASE TO [newrelic];
+GO
+
+DECLARE @name SYSNAME;
+DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+SELECT [name]
+FROM [master].[sys].[databases]
+WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+AND [state] = 0;
+OPEN db_cursor;
+FETCH NEXT FROM db_cursor INTO @name;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+  BEGIN TRY
+    EXEC('USE [' + @name + '];
+    IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+    BEGIN
+      CREATE USER [newrelic] FOR LOGIN [newrelic];
+    END;
+    GRANT VIEW DATABASE STATE TO [newrelic];');
+  END TRY
+  BEGIN CATCH
+    PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+  END CATCH
+  FETCH NEXT FROM db_cursor INTO @name;
+END
+CLOSE db_cursor;
+DEALLOCATE db_cursor;
+GO
+```
+
+<Callout variant="tip">
+  **For RDS:** Use your RDS master username (or a user with `rds_superuser` role) to execute these commands. The script automatically excludes the `rdsadmin` database which is reserved by AWS.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Configure NRDOT Collector [#configure-sql]
+
+Create a new NRDOT Collector configuration file for your RDS SQL Server setup.
+
+<Callout variant="tip">
+  **RDS Endpoint Format:** Your RDS endpoint will be in the format: `your-db-instance.xxxxxxxxxxxx.region.rds.amazonaws.com` (e.g., `mydb-instance.c9akciq32.us-east-1.rds.amazonaws.com`). Find this in your AWS RDS Console under "Connectivity & security".
+</Callout>
+
+1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
+
+2. **Add the configuration content below to the mssql-config.yaml file** you created in the previous step.
+
+**Enter your values below and see the configuration update in real-time:**
+
+<AgentConfig
+  inputOptions={[
+    {
+      name: 'username',
+      label: 'SQL Server Username',
+      codeLine: 4,
+      defaultValue: 'newrelic',
+      toolTip: 'Enter your SQL Server username',
+    },
+    {
+      name: 'password',
+      label: 'SQL Server Password',
+      codeLine: 5,
+      defaultValue: 'your_password',
+      toolTip: 'Enter your SQL Server password',
+    },
+    {
+      name: 'server',
+      label: 'RDS Endpoint',
+      codeLine: 6,
+      defaultValue: 'mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com',
+      toolTip: 'Enter your RDS SQL Server endpoint',
+    },
+    {
+      name: 'port',
+      label: 'Server Port',
+      codeLine: 7,
+      defaultValue: '1433',
+      toolTip: 'Enter your SQL Server port number (default: 1433)',
+    },
+    {
+      name: 'endpoint',
+      label: 'New Relic OTLP Endpoint',
+      codeLine: 69,
+      defaultValue: 'https://otlp.nr-data.net',
+      toolTip: 'Enter your New Relic OTLP endpoint (e.g., https://otlp.nr-data.net or https://otlp.eu01.nr-data.net)',
+    },
+    {
+      name: 'licenseKey',
+      label: 'New Relic License Key',
+      codeLine: 71,
+      defaultValue: 'YOUR_LICENSE_KEY',
+      toolTip: 'Enter your New Relic license key',
+    },
+  ]}
+  config={`
+receivers:
+  nrsqlserver:
+    collection_interval: 15s
+    username: <input1>
+    password: <input2>
+    server: <input3>
+    port: <input4>
+
+    # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
+
+    # Enable top query and query sample log collection
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+    # Top query collection configuration
+    top_query_collection:
+      lookback_time: 60s
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
+
+    collect_full_query_text: true
+    allowed_comment_keys:
+      - nr_service_guid
+
+    # Query sample collection configuration
+    query_sample_collection:
+      max_rows_per_query: 100
+
+    processors:
+      memory_limiter:
+        check_interval: $\{env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib:       $\{env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: $\{env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+      batch:
+
+    exporters:
+      otlphttp:
+        endpoint: <input5>
+        headers:
+          api-key: <input6>
+        tls:
+          insecure: false
+        compression: gzip
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp]
+
+        logs:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp]`}
+  fileName="mssql-config.yaml"
+  tipMdx={{ body: null }}
+  onChange={() => {}}
+/>
+
+<Callout variant="tip">
+**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
+
+```yaml
+receivers:
+  nrsqlserver:
+    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+```
+</Callout>
+
+<Callout variant="tip">
+**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Update Windows Service Registry [#update-registry-sql]
+
+Update the Windows Service Registry to use the new mssql-config.yaml file.
+
+**Method 1: PowerShell**
+
+Run the following command in PowerShell as Administrator:
+
+```powershell
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+```
+
+**Method 2: Command Prompt (Alternative)**
+
+If PowerShell is not available, you can use Command Prompt instead:
+
+1. Open your Start Menu, type `cmd`
+2. Right-click Command Prompt and choose **Run as administrator**
+3. Copy and paste this exact command into the black CMD window and hit Enter:
+
+```cmd
+sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+```
+
+</Step>
+
+<Step>
+
+### Validate NRDOT Collector Configuration [#validate-sql]
+
+Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
+
+```powershell
+& "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+```
+
+</Step>
+
+<Step>
+
+### Restart NRDOT collector [#restart-sql]
+
+After updating your configuration, restart the NRDOT Collector service on your EC2 or local Windows machine:
+
+```powershell
+net stop nrdot-collector
+net start nrdot-collector
+```
+
+<Callout variant="tip">
+  Always restart the NRDOT collector service after making configuration changes to ensure the new settings take effect.
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Set up APM-database correlation [#correlation-sql]
+
+To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/database-service-identification/) to get APM-database correlation in New Relic.
+
+<Callout variant="important">
+  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Configure secret management [#secret-management-sql]
+
+The secret management feature allows you to securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files. For more information, refer to [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management).
+
+</Step>
+
+<Step>
+
+### Find and use your data [#find-sql]
+
+Once your data is being collected, you can access comprehensive SQL Server database monitoring through New Relic's UI.
+
+To find your SQL Server database entity in New Relic:
+
+1. Go to <DNT>**[https://one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MSSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your SQL Server database from the list of entities.
+
+</Step>
+
+</Steps>
+
+</TabsPageItem>
+
+<TabsPageItem id="domain">
+
+<Steps>
+
+<Step>
+
+### Prerequisites [#prerequisites-domain]
+
+Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
+
+**Additional requirements for Windows Domain Authentication with RDS:**
+- Windows domain environment with Active Directory
+- Domain-joined Windows EC2 instance or local machine 
+- RDS SQL Server configured to accept Windows Authentication
+- Domain user account with appropriate SQL Server permissions
+- Security group configured to allow connections on SQL Server port (default 1433)
+
+</Step>
+
+<Step>
+
+### Enable your Microsoft SQL Server [#enable-sql-server-domain]
+
+Connect to your RDS SQL Server instance using SQL Server Management Studio (SSMS) or sqlcmd with your admin credentials.
+
+Run the following script to create a Windows domain login and grant necessary permissions:
+
+```sql
+USE master;
+CREATE LOGIN [DomainName\DomainUser] FROM WINDOWS;
+GRANT VIEW ANY DATABASE   TO [DomainName\DomainUser];
+GRANT VIEW SERVER STATE TO [DomainName\DomainUser];
+GRANT VIEW ANY DEFINITION TO [DomainName\DomainUser];
+GO
+```
+
+<Callout variant="important">
+  Replace `DomainName\DomainUser` with your actual domain and username (e.g., `CORP\SQLMonitor`).
+</Callout>
+
+</Step>
+
+<Step>
+
+### Grant READ access privileges [#grant-permissions-domain]
+
+Use the following statements to grant READ access privileges to the domain user across all databases:
+
+```sql
+-- Grant access to all databases (required for query monitoring and tempdb metrics)
+  DECLARE @name SYSNAME;
+  DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name] FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+      AND [state] = 0;
+  OPEN db_cursor;
+  FETCH NEXT FROM db_cursor INTO @name;
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    BEGIN TRY
+      EXEC('USE [' + @name + '];
+      IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''DomainName\DomainUser'')
+      BEGIN
+        CREATE USER [DomainName\DomainUser] FOR LOGIN [DomainName\DomainUser];
+      END;
+      GRANT VIEW DATABASE STATE TO [DomainName\DomainUser];');
+    END TRY
+    BEGIN CATCH
+      PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+    END CATCH
+    FETCH NEXT FROM db_cursor INTO @name;
+  END
+  CLOSE db_cursor;
+  DEALLOCATE db_cursor;
+  GO
+```
+
+<Callout variant="tip">
+  **For RDS:** The script automatically excludes the `rdsadmin` database which is reserved by AWS. Ensure you replace `DomainName\DomainUser` with your actual domain credentials.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Set up the NRDOT Collector [#setup-domain]
+
+Install the NRDOT Collector on a domain-joined EC2 Windows instance or a local Windows machine that is part of the same domain and can connect to your RDS SQL Server instance.
+
+<Callout variant="important">
+  For RDS monitoring, install the NRDOT Collector on an EC2 instance in the same VPC as your RDS instance for optimal network connectivity and lower latency.
+</Callout>
+
+1. Download and install the NRDOT Collector using PowerShell:
+
+   ```powershell
+   [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+   ```
+
+2. **Change Service Logon to Domain Account (Using PowerShell):**
+
+   Configure the NRDOT Collector service to run as your domain user using PowerShell:
+
+   ```powershell
+   # Configure service to use domain account
+   # The space after obj= and password= is required syntax for sc.exe
+   sc.exe config "nrdot-collector" obj= "DomainName\DomainUser" password= "<password>"
+   
+   # Restart the service
+   Restart-Service nrdot-collector
+   ```
+
+   Verify the service identity:
+
+   ```powershell
+   Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, State, StartName
+   # Expected: StartName = DomainName\DomainUser
+   ```
+
+   <Callout variant="important">
+     Replace `DomainName\DomainUser` with your actual domain and username (e.g., `CORP\SQLMonitor`), and `<password>` with the domain user's password.
+   </Callout>
+
+3. Ensure your security group allows inbound connections from the NRDOT Collector host to your RDS instance on port 1433 (or your custom port).
+
+</Step>
+
+<Step>
+
+### Configure NRDOT Collector [#configure-domain]
+
+Create a new NRDOT Collector configuration file for your RDS SQL Server setup.
+
+<Callout variant="tip">
+  **RDS Endpoint Format:** Your RDS endpoint will be in the format: `your-db-instance.xxxxxxxxxxxx.region.rds.amazonaws.com`. Find this in your AWS RDS Console under "Connectivity & security".
+</Callout>
+
+<Callout variant="important">
+  Windows Domain Authentication uses integrated security (Windows authentication), which uses the same configuration approach as gMSA authentication. Simply update the `datasource` server value to your RDS endpoint. The NRDOT service will authenticate using the domain account you configured in Step 3.
+</Callout>
+
+1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
+
+2. **Add the configuration content below to the mssql-config.yaml file** you created in the previous step.
+
+Use the configuration below with your RDS endpoint:
+
+```yaml
+# NRDOT Collector Configuration for RDS SQL Server - Windows Domain Auth
+# NRDOT Collector Configuration for SQL Server with gMSA Authentication
+# Database Monitoring Only - Works for both On-Premises and RDS
+
+receivers:
+  nrsqlserver:
+    collection_interval: 15s
+    datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;port=1433;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+
+    # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
+
+    # Enable top query and query sample log collection
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+    # Top query collection configuration
+    top_query_collection:
+      lookback_time: 60s
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
+
+    collect_full_query_text: true
+    allowed_comment_keys:
+      - nr_service_guid
+
+    # Query sample collection configuration
+    query_sample_collection:
+      max_rows_per_query: 100
+
+processors:
+  memory_limiter:
+    check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+  batch:
+
+exporters:
+  otlphttp:
+    endpoint: <YOUR_NEWRELIC_OTLP_ENDPOINT>
+    headers:
+      api-key: <YOUR_NEWRELIC_LICENSE_KEY>
+    tls:
+      insecure: false
+    compression: gzip
+
+service:
+  telemetry:
+    metrics:
+      level: none
+
+  pipelines:
+    metrics:
+      receivers: [nrsqlserver]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
+
+    logs:
+      receivers: [nrsqlserver]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
+```
+
+<Callout variant="tip">
+**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
+
+```yaml
+receivers:
+  nrsqlserver:
+    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+```
+</Callout>
+
+<Callout variant="tip">
+**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Update Windows Service Registry [#update-registry-domain]
+
+Update the Windows Service Registry to use the new mssql-config.yaml file.
+
+**Method 1: PowerShell**
+
+Run the following command in PowerShell as Administrator:
+
+```powershell
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+```
+
+**Method 2: Command Prompt (Alternative)**
+
+If PowerShell is not available, you can use Command Prompt instead:
+
+1. Open your Start Menu, type `cmd`
+2. Right-click Command Prompt and choose **Run as administrator**
+3. Copy and paste this exact command into the black CMD window and hit Enter:
+
+```cmd
+sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+```
+
+</Step>
+
+<Step>
+
+### Validate NRDOT Collector Configuration [#validate-domain]
+
+Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
+
+```powershell
+& "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+```
+
+</Step>
+
+<Step>
+
+### Restart NRDOT collector [#restart-domain]
+
+After updating your configuration, restart the NRDOT Collector service on your domain-joined EC2 Windows instance:
+
+```powershell
+net stop nrdot-collector
+net start nrdot-collector
+```
+
+<Callout variant="tip">
+  Verify the service is running under the domain account by checking Windows Services (services.msc). The "Log On As" column should show your domain account (e.g., `CORP\SQLMonitor`).
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Set up APM-database correlation [#correlation-domain]
+
+To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/database-service-identification/) to get APM-database correlation in New Relic.
+
+<Callout variant="important">
+  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Configure secret management [#secret-management-domain]
+
+The secret management feature allows you to securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files. For more information, refer to [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management).
+
+</Step>
+
+<Step>
+
+### Find and use your data [#find-domain]
+
+Once your data is being collected, you can access comprehensive SQL Server database monitoring through New Relic's UI.
+
+To find your SQL Server database entity in New Relic:
+
+1. Go to <DNT>**[https://one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MSSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your SQL Server database from the list of entities.
+
+</Step>
+
+</Steps>
+
+</TabsPageItem>
+
+<TabsPageItem id="gmsa">
+
+<Steps>
+
+<Step>
+
+### Prerequisites [#prerequisites-gmsa]
+
+Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
+
+**Additional requirements for gMSA (Group Managed Service Account) with RDS:**
+- Active Directory environment with gMSA support
+- gMSA account created and configured for SQL Server access
+- Domain-joined Windows EC2 instance authorized to use the gMSA account
+- Security group configured to allow connections on SQL Server port (default 1433)
+
+</Step>
+
+<Step>
+
+### Enable your Microsoft SQL Server [#enable-sql-server-gmsa]
+
+Connect to your RDS SQL Server instance and run the following SQL commands to create a login for the gMSA account and grant necessary permissions:
+
+```sql
+USE master;
+CREATE LOGIN [DomainName\gMSA] FROM WINDOWS;
+GRANT VIEW ANY DATABASE TO [DomainName\gMSA];
+GRANT VIEW SERVER STATE TO [DomainName\gMSA];
+GRANT VIEW ANY DEFINITION TO [DomainName\gMSA];
+```
+
+<Callout variant="important">
+  Replace `DomainName\gMSA` with your actual domain name and gMSA account name (e.g., `CORP\SQL-gMSA$`). Note that gMSA accounts typically end with a `$` symbol.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Grant READ access privileges [#grant-read-access-rds-gmsa]
+
+Use the following statements to grant READ access privileges to the gMSA account across all databases:
+
+```sql
+-- Grant access to all databases (required for query monitoring and tempdb metrics)
+  DECLARE @name SYSNAME;
+  DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name] FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+    AND [state] = 0;
+  OPEN db_cursor;
+  FETCH NEXT FROM db_cursor INTO @name;
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    BEGIN TRY
+      EXEC('USE [' + @name + '];
+      IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<DOMAIN>\<gMSA_NAME>$'')
+      BEGIN
+        CREATE USER [<DOMAIN>\<gMSA_NAME>$] FOR LOGIN [<DOMAIN>\<gMSA_NAME>$];
+      END;
+      GRANT VIEW DATABASE STATE TO [<DOMAIN>\<gMSA_NAME>$];');
+    END TRY
+    BEGIN CATCH
+      PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+    END CATCH
+    FETCH NEXT FROM db_cursor INTO @name;
+  END
+  CLOSE db_cursor;
+  DEALLOCATE db_cursor;
+  GO
+```
+
+<Callout variant="important">
+Replace `DomainName\gMSA` with your actual domain name and gMSA account name (e.g., `CORP\SQL-gMSA$`). This script creates a database user for the gMSA account in all user databases, excluding system databases and RDS-specific databases.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Set up the NRDOT Collector [#setup-gmsa]
+
+Install the NRDOT Collector on an EC2 Windows instance that is domain-joined and authorized to use the gMSA account.
+
+<Callout variant="important">
+  For RDS with gMSA, the NRDOT Collector **must** be installed on a domain-joined Windows EC2 instance that has permissions to use the gMSA account. Ensure your security group allows connections to RDS on port 1433.
+</Callout>
+
+1. Download and install the NRDOT Collector using PowerShell:
+
+   ```powershell
+   [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+   ```
+
+</Step>
+
+<Step>
+
+### Configure NRDOT Collector Service to Run as gMSA [#configure-service-gmsa]
+
+After installing the NRDOT Collector, configure the service to run as your gMSA account using PowerShell:
+
+```powershell
+# Stop the NRDOT Collector service
+Stop-Service nrdot-collector
+
+# Configure service to use gMSA account
+# Use cmd /c to avoid PowerShell treating $ as a variable
+cmd /c 'sc config nrdot-collector obj= "DomainName\gMSA" password= ""'
+
+# Verify the configuration
+Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, StartName
+
+# Start the NRDOT Collector service 
+Start-Service nrdot-collector
+```
+
+<Callout variant="important">
+  Replace `DomainName\gMSA` with your actual domain and gMSA account name (e.g., `CORP\SQL-gMSA$`). Note the empty password - gMSA accounts don't require passwords.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Configure NRDOT Collector [#configure-gmsa]
+
+Create a new NRDOT Collector configuration file for your RDS SQL Server setup.
+
+<Callout variant="tip">
+  **RDS Endpoint Format:** Your RDS endpoint will be in the format: `your-db-instance.xxxxxxxxxxxx.region.rds.amazonaws.com`. Find this in your AWS RDS Console under "Connectivity & security".
+</Callout>
+
+<Callout variant="important">
+  The configuration uses Windows integrated security (gMSA). Simply update the `datasource` server value to your RDS endpoint.
+</Callout>
+
+1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
+
+2. **Add the configuration content below to the mssql-config.yaml file** you created in the previous step.
+
+Use the configuration below with your RDS endpoint:
+
+```yaml
+
+receivers:
+  nrsqlserver:
+    collection_interval: 15s
+    datasource: "server=<HOSTNAME-OR-RDS-ENDPOINT>;port=1433;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+
+    # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
+
+    # Enable top query and query sample log collection
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+    # Top query collection configuration
+    top_query_collection:
+      lookback_time: 60s
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
+
+    collect_full_query_text: true
+    allowed_comment_keys:
+      - nr_service_guid
+
+    # Query sample collection configuration
+    query_sample_collection:
+      max_rows_per_query: 100
+
+processors:
+  memory_limiter:
+    check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+  batch:
+
+exporters:
+  otlphttp:
+    endpoint: <YOUR_NEWRELIC_OTLP_ENDPOINT>
+    headers:
+      api-key: <YOUR_NEWRELIC_LICENSE_KEY>
+    tls:
+      insecure: false
+    compression: gzip
+
+service:
+  telemetry:
+    metrics:
+      level: none
+
+  pipelines:
+    metrics:
+      receivers: [nrsqlserver]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
+
+    logs:
+      receivers: [nrsqlserver]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
+```
+
+Example with RDS endpoint: `server=mydb-instance.c9akciq32.us-east-1.rds.amazonaws.com`
+
+<Callout variant="tip">
+**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
+
+```yaml
+receivers:
+  nrsqlserver:
+    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+```
+</Callout>
+
+<Callout variant="tip">
+**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Update Windows Service Registry [#update-registry-gmsa]
+
+Update the Windows Service Registry to use the new mssql-config.yaml file.
+
+**Method 1: PowerShell**
+
+Run the following command in PowerShell as Administrator:
+
+```powershell
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+```
+
+**Method 2: Command Prompt (Alternative)**
+
+If PowerShell is not available, you can use Command Prompt instead:
+
+1. Open your Start Menu, type `cmd`
+2. Right-click Command Prompt and choose **Run as administrator**
+3. Copy and paste this exact command into the black CMD window and hit Enter:
+
+```cmd
+sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+```
+
+</Step>
+
+<Step>
+
+### Validate NRDOT Collector Configuration [#validate-gmsa]
+
+Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
+
+```powershell
+& "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+```
+
+</Step>
+
+<Step>
+
+### Restart NRDOT collector [#restart-gmsa]
+
+After updating your configuration, restart the NRDOT Collector service on your domain-joined EC2 Windows instance:
+
+```powershell
+net stop nrdot-collector
+net start nrdot-collector
+```
+
+<Callout variant="tip">
+  Verify the service is running under the gMSA account by checking Windows Services (services.msc). The "Log On As" column should show your gMSA account (e.g., `CORP\SQL-gMSA$`).
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Set up APM-database correlation [#correlation-gmsa]
+
+To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/database-service-identification/) to get APM-database correlation in New Relic.
+
+<Callout variant="important">
+  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Configure secret management [#secret-management-gmsa]
+
+The secret management feature allows you to securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files. For more information, refer to [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management).
+
+</Step>
+
+<Step>
+
+### Find and use your data [#find-gmsa]
+
+Once your data is being collected, you can access comprehensive SQL Server database monitoring through New Relic's UI.
+
+To find your SQL Server database entity in New Relic:
+
+1. Go to <DNT>**[https://one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MSSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your SQL Server database from the list of entities.
+
+</Step>
+
+</Steps>
+
+</TabsPageItem>
+
+</TabsPages>
+
+</Tabs>
+
+## Next steps
+
+After setting up Windows RDS monitoring:
+
+- [Set up APM-database correlation](/docs/opentelemetry/database/database-service-identification/)
+- [Explore available metrics](/docs/opentelemetry/database/mssql/metrics-reference)
+- [Troubleshoot issues](/docs/opentelemetry/database/mssql/troubleshooting)
