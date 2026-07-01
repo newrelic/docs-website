@@ -9,7 +9,7 @@ Effective June 30, 2027, the New Relic REST API v2 (including the Alerts endpoin
 
 ## Background
 
-This retirement is part of our ongoing work to improve our platform and streamline our APIs, ensuring continued innovation and a more sustainable system. All REST API v2 functionality is available through NerdGraph, New Relic's GraphQL API, which offers a single unified endpoint, precise data fetching, and strong typing — providing a more robust, consistent, and unified experience.
+This retirement is part of the ongoing work to improve our platform and streamline our APIs, ensuring continued innovation and a more sustainable system. All REST API v2 functionality is available through NerdGraph, New Relic's GraphQL API, which offers a single unified endpoint, precise data fetching, and strong data typing — providing a more robust, consistent, and unified experience.
 
 ## What's changing
 
@@ -19,18 +19,28 @@ The following API endpoints will be permanently retired on June 30, 2027:
 * `https://api.eu.newrelic.com/v2/`: EU datacenter (including the Alerts endpoints, `/v2/alerts*`)
 * `https://rpm.newrelic.com/deployments`: Legacy Deployments v0 API
 
-**A note on the Alerts endpoints:** The Alerts endpoints (`/v2/alerts*`) are part of this EOL and will be retired on June 30, 2027. Detailed migration guidance for the Alerts endpoints will follow in a supplemental announcement.
+### Alerts endpoints EOL
 
-**Not affected:**
+Following Alerts endpoints are being retired. Each one has a NerdGraph replacement that covers the common use cases:
 
-* The NerdGraph GraphQL API hosted on the same domain (`https://api.newrelic.com/graphql`, `https://api.eu.newrelic.com/graphql`) is not affected.
-* New Relic agent communication and data ingest are not affected.
+   * `alerts_violations`: EOL the REST violations endpoint; customers can use the NerdGraph Incident API (`NrAiIncident`) 
+   * `alerts_incidents`: EOL the REST incidents endpoint; customers migrate to the NerdGraph Issues API (`NrAiIssue`). (**Note**: "incident" was renamed to "issue" in the modern model)
+   * `alerts_channels`:  EOL the REST channels endpoint; customers migrate to Notifications Workflows and Destinations by updating to use the NerdGraph apis or update your terraform to use the workflows and destinations resources.
+   * `alerts_events` — EOL the REST events endpoint; most accounts use it for deployments and migrate to the NerdGraph change tracking API. Accounts using the feature flag for alert-related event data have no direct replacement today — handled case-by-case via Support.
+
+If NerdGraph doesn't support something you use yet, contact Support and we'll track your request and look into adding it. Many common use cases are already covered, so you can begin migrating now.
+
+**Not affected**: 
+
+   * `alerts_policies` and `alerts_conditions` are not affected: no action needed.
+   * The NerdGraph GraphQL API hosted on the same domain (`https://api.newrelic.com/graphql`, `https://api.eu.newrelic.com/graphql`) is not affected
+   * New Relic agent communication and data ingest are not affected
 
 ## How do I know if I'm affected?
 
 You may be affected if your account has made calls to the REST API v2 within the past 3 months. This includes accounts that use the Alerts endpoints (`/v2/alerts*`). To determine what action you need to take:
 
-1. **Identify your REST API v2 usage:** Search your codebase, CI/CD pipelines, and automation scripts for calls to `api.newrelic.com/v2/` or `api.eu.newrelic.com/v2/`.
+1. **Identify your REST API v2 usage:** Search your codebase, CI/CD pipelines, and automation scripts for calls to `api.newrelic.com/v2/`, `api.eu.newrelic.com/v2/` or . `https://rpm.newrelic.com/deployments`
 
    Common integrations include:
 
