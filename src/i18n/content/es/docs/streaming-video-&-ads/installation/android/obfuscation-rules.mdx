@@ -1,0 +1,314 @@
+---
+title: Regla de ofuscación de Android
+metaDescription: Configure regex-based obfuscation rules to mask sensitive data before the Android streaming media agent transmits it to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Las reglas de ofuscación le permiten enmascarar datos confidenciales antes de que el agente los transmita a New Relic. Cada regla es un patrón regex emparejado con una cadena de reemplazo. El agente aplica las reglas en orden a cada valor de atributo de cadena en cada evento saliente — incluyendo <DNT>QoE events</DNT> y eventos recuperados de fallas.
+
+## Cómo funciona [#how-it-works]
+
+1. Define una lista de objetos `ObfuscationRule`, cada uno con un patrón de expresión regular y una cadena de reemplazo.
+2. Pase la lista a `.withObfuscationRules()` en el generador de configuración.
+3. Justo antes de cada transmisión HTTP, `ObfuscationEngine` itera cada atributo de cadena de cada evento en el lote y aplica las reglas en orden.
+4. Solo se procesan los valores de cadena — los enteros, largos, booleanos y nulos se pasan sin cambios.
+5. Los objetos de evento originales nunca se mutan, por lo que los lotes fallidos se pueden reintentar limpiamente sin doble ofuscación.
+
+## Configuración [#configuration]
+
+```java
+import com.newrelic.videoagent.core.ObfuscationRule;
+import java.util.Arrays;
+import java.util.List;
+
+// Define rules — each rule is a regex pattern and a replacement string.
+// Rules are applied in order on every string attribute of every outgoing event.
+List<ObfuscationRule> obfuscationRules = Arrays.asList(
+    // Mask account IDs:  "account-83729"  →  "ACCOUNT_ID"
+    new ObfuscationRule("account-\\d+", "ACCOUNT_ID"),
+
+    // Mask auth tokens:  "token=abc123xyz"  →  "token=REDACTED"
+    new ObfuscationRule("token=[^&\"]+", "token=REDACTED"),
+
+    // Mask user path segments:  "/users/john_doe"  →  "/users/USER_ID"
+    new ObfuscationRule("/users/[^\"/]+", "/users/USER_ID")
+);
+
+NRVideoConfiguration config = new NRVideoConfiguration.Builder("application-token")
+        .autoDetectPlatform(getApplicationContext())
+        .withHarvestCycle(5 * 60)
+        .withObfuscationRules(obfuscationRules)
+        .build();
+
+NRVideo.newBuilder(getApplicationContext()).withConfiguration(config).build();
+```
+
+## `ObfuscationRule` [#constructor]
+
+```java
+new ObfuscationRule(String pattern, String replacement)
+```
+
+<table>
+  <thead>
+    <tr>
+      <th width="20%">
+        Parámetro
+      </th>
+
+      <th width="10%">
+        Tipo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `pattern`
+      </td>
+
+      <td>
+        `String`
+      </td>
+
+      <td>
+        Una cadena de patrón regex de Java. Compilado de forma anticipada — un patrón inválido arroja `IllegalArgumentException` en el momento de la construcción.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `replacement`
+      </td>
+
+      <td>
+        `String`
+      </td>
+
+      <td>
+        La cadena a sustituir para cada coincidencia. Usa `""` para eliminar coincidencias. `$` y `\` se tratan como caracteres simples, no como referencias inversas.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## `obfuscationRules` [#parameter]
+
+Una lista de objetos `ObfuscationRule` aplicados a cada atributo de cadena de cada evento saliente inmediatamente antes de la transmisión HTTP. Las reglas se ejecutan en el orden en que se declaran — la salida de una regla alimenta a la siguiente. **Predeterminado: lista vacía** (sin ofuscación).
+
+## Patrones comunes [#common-patterns]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Qué enmascarar
+      </th>
+
+      <th>
+        Patrón
+      </th>
+
+      <th>
+        Reemplazo
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        ID de cuenta numéricos
+      </td>
+
+      <td>
+        `account-\\d+`
+      </td>
+
+      <td>
+        `ACCOUNT_ID`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Tokens de autenticación/portador
+      </td>
+
+      <td>
+        `token=[^&\"]+`
+      </td>
+
+      <td>
+        `token=REDACTED`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Segmentos de ruta de usuario
+      </td>
+
+      <td>
+        `/users/[^\"/]+`
+      </td>
+
+      <td>
+        `/users/USER_ID`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Correos electrónicos
+      </td>
+
+      <td>
+        `[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}`
+      </td>
+
+      <td>
+        `EMAIL_REDACTED`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        UUID
+      </td>
+
+      <td>
+        `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
+      </td>
+
+      <td>
+        `UUID_REDACTED`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ordenamiento de reglas [#rule-ordering]
+
+Las reglas se aplican de izquierda a derecha. La salida de la regla N se convierte en la entrada de la regla N + 1. El orden importa cuando el reemplazo de una regla podría coincidir con el patrón de una regla posterior.
+
+```java
+// Rule 1 turns "/john" into "/USER", then Rule 2 sees "/USER_profile" and masks it.
+new ObfuscationRule("john", "USER"),
+new ObfuscationRule("USER_profile", "PROFILE")
+// Result: "/john_profile" → "/USER_profile" → "/PROFILE"
+```
+
+## Casos extremos [#edge-cases]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Situación
+      </th>
+
+      <th>
+        Comportamiento
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Sin reglas configuradas
+      </td>
+
+      <td>
+        No-op — cero sobrecarga, la lista original se devuelve tal cual.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        El patrón no coincide con nada
+      </td>
+
+      <td>
+        El valor se transmite sin cambios.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Reemplazo vacío `""`
+      </td>
+
+      <td>
+        El contenido coincidente se elimina.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$` o `\` en el reemplazo
+      </td>
+
+      <td>
+        Tratados como caracteres simples (no como referencias inversas de expresiones regulares).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Valor Integer / Long / Boolean
+      </td>
+
+      <td>
+        Omitido — solo se procesan los valores `String`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `null` valor
+      </td>
+
+      <td>
+        Omitido — sin NullPointerException.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Patrón regex inválido
+      </td>
+
+      <td>
+        `IllegalArgumentException` arrojado en la construcción de `new ObfuscationRule(...)` — falla rápido en el inicio, no silenciosamente en el momento de la recolección.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `null` reemplazo
+      </td>
+
+      <td>
+        `IllegalArgumentException` lanzado en la construcción.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Falla el envío HTTP → reintento de dead-letter
+      </td>
+
+      <td>
+        Los eventos originales (sin ofuscar) se reintentan; la ofuscación se vuelve a aplicar correctamente en la pasada de reintento.
+      </td>
+    </tr>
+  </tbody>
+</table>
