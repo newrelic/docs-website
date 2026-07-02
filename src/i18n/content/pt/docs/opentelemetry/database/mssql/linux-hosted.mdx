@@ -1,0 +1,650 @@
+---
+title: Monitoramento de MSSQL auto-hospedado no Linux com NRDOT
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Linux
+metaDescription: Set up Microsoft SQL Server monitoring with NRDOT collector on Linux self-hosted environments
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Visualização">
+  Ainda estamos trabalhando nesse recurso, mas adoraríamos que você experimentasse!
+
+  Atualmente, esse recurso é fornecido como parte de uma prévia, de acordo com nossas [políticas de pré-lançamento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Configure o monitoramento do Microsoft SQL Server usando o coletor NRDOT em ambientes auto-hospedados Linux, incluindo servidores físicos, máquinas virtuais e implantações Linux em contêineres.
+
+<Steps>
+  <Step>
+    ### Pré-requisitos [#prerequisites]
+
+    Certifique-se de que seu ambiente atenda à nossa [compatibilidade e pré-requisitos](/docs/opentelemetry/database/mssql/compatibility).
+  </Step>
+
+  <Step>
+    ## Configurar o NRDOT Collector [#setup]
+
+    Instale o NRDOT Collector na sua distribuição Linux:
+
+    <Callout variant="important">
+      Recomenda-se instalar o NRDOT Collector no mesmo host que sua instância do SQL Server para visualizar métricas de nível de infraestrutura para monitoramento de desempenho de consultas.
+    </Callout>
+
+    1. **Debian/Ubuntu**
+
+    **Para a arquitetura AMD64 (x86\_64):**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+    **Para a arquitetura ARM64:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+    2. **RHEL/CentOS**
+
+    **Para a arquitetura AMD64 (x86\_64):**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+    ```
+
+    **Para a arquitetura ARM64:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+    ```
+  </Step>
+
+  <Step>
+    ## Configurar usuário do banco de dados [#user]
+
+    Execute o seguinte script como um `root user/sysadmin` para criar o usuário de monitoramento `newrelic` e conceder permissões globais de leitura.
+
+    1. Para criar um usuário de monitoramento `newrelic` no Linux, crie um arquivo chamado `nr-grant-permission.sql` na sua instância Linux com o seguinte conteúdo:
+
+       ```sql
+       USE [master];
+       GO
+       CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
+       GO
+       -- Instance-level permissions
+       GRANT VIEW SERVER STATE TO [newrelic];
+       GRANT VIEW ANY DEFINITION TO [newrelic];
+       GRANT VIEW ANY DATABASE TO [newrelic];
+       GO
+       -- Grant read access privileges to all user databases
+       DECLARE @name SYSNAME;
+       DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+       SELECT [name]
+       FROM [master].[sys].[databases]
+       WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+       AND [state] = 0; -- Only online databases
+       OPEN db_cursor;
+       FETCH NEXT FROM db_cursor INTO @name;
+       WHILE @@FETCH_STATUS = 0
+       BEGIN
+         EXEC('USE [' + @name + '];
+                 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+                     CREATE USER [newrelic] FOR LOGIN [newrelic];');
+         END TRY
+         BEGIN CATCH
+           PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+         END CATCH
+         FETCH NEXT FROM db_cursor INTO @name;
+       END
+       CLOSE db_cursor;
+       DEALLOCATE db_cursor;
+       GO
+       ```
+
+    2. Para executar o script, execute o seguinte comando. Substitua `<Your_SA_Password>` pela sua senha de administrador do SQL Server:
+
+       ```bash
+       sqlcmd -S localhost -U sa -P '<Your_SA_Password>' -C -i nr-grant-permission.sql
+       ```
+
+    3. *(Opcional)* Para verificar se o usuário foi criado com sucesso e possui as permissões corretas, execute o seguinte comando. Substitua `<Your_SA_Password>` pela sua senha de administrador do SQL Server:
+
+       ```bash
+       sqlcmd -S localhost -U sa -P '<Your_SA_Password>' -C -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = 'newrelic';"
+       ```
+
+       **Saída esperada:**
+
+       ```
+       User Permission_Granted
+       -------------------------------------------------------------------------------------
+       <your_username> CONNECT SQL
+       <your_username> VIEW ANY DEFINITION
+       <your_username> VIEW ANY DATABASE
+       <your_username> VIEW SERVER STATE
+       ```
+
+    Esta saída confirma que seu usuário foi criado com sucesso com as permissões necessárias em nível de servidor.
+  </Step>
+
+  <Step>
+    ## Configurar o NRDOT Collector [#configure]
+
+    Selecione o seu tipo de configuração com base nas suas necessidades de monitoramento:
+
+    <CollapserGroup>
+      <Collapser id="host-database-monitoring" title="NRDOT Collector com Métricas de Host + Monitoramento de Banco de Dados">
+        Esta configuração inclui tanto métricas de host de infraestrutura quanto monitoramento de banco de dados.
+
+        1. **Crie o arquivo de configuração.** O nome do arquivo deve ser `mssql-config.yaml`:
+
+           ```bash
+           sudo nano /etc/nrdot-collector/mssql-config.yaml
+           ```
+
+        2. **Adicione o conteúdo de configuração abaixo ao arquivo mssql-config.yaml** que você criou na etapa anterior.
+
+        <Callout variant="important">
+          Se você já é um usuário do NRDOT Collector, certifique-se de mesclar a configuração com o seu arquivo config.yaml existente. Isso inclui adicionar os novos receptores, processadores e exportadores para o monitoramento de banco de dados MSSQL, mantendo suas configurações atuais.
+        </Callout>
+
+        ```yaml
+        # NRDOT Collector Configuration for New Relic SQL Server Integration
+
+        extensions:
+          health_check:
+
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+              http:
+
+          host_metrics:
+            collection_interval: 60s
+            scrapers:
+              cpu:
+                metrics:
+                  system.cpu.time:
+                    enabled: false
+                  system.cpu.utilization:
+                    enabled: true
+              load:
+              memory:
+                metrics:
+                  system.memory.utilization:
+                    enabled: true
+              paging:
+                metrics:
+                  system.paging.utilization:
+                    enabled: false
+                  system.paging.faults:
+                    enabled: false
+              filesystem:
+                metrics:
+                  system.filesystem.utilization:
+                    enabled: true
+              disk:
+                metrics:
+                  system.disk.merged:
+                    enabled: false
+                  system.disk.pending_operations:
+                    enabled: false
+                  system.disk.weighted_io_time:
+                    enabled: false
+              network:
+                metrics:
+                  system.network.connections:
+                    enabled: false
+
+          file_log:
+            include:
+              - /var/log/alternatives.log
+              - /var/log/cloud-init.log
+              - /var/log/auth.log
+              - /var/log/dpkg.log
+              - /var/log/syslog
+              - /var/log/messages
+              - /var/log/secure
+              - /var/log/yum.log
+
+          nrsqlserver:
+            collection_interval: 15s
+            username: <YOUR_USERNAME>
+            password: <YOUR_PASSWORD>
+            server: <YOUR_SERVER>
+            port: 1433
+
+            # Enable comprehensive database metrics
+            metrics:
+              sqlserver.database.count:
+                enabled: true
+              sqlserver.database.io:
+                enabled: true
+              sqlserver.database.latency:
+                enabled: true
+              sqlserver.database.operations:
+                enabled: true
+              sqlserver.database.tempdb.space:
+                enabled: true
+              sqlserver.database.tempdb.version_store.size:
+                enabled: true
+              sqlserver.deadlock.rate:
+                enabled: true
+              sqlserver.os.wait.duration:
+                enabled: true
+              sqlserver.processes.blocked:
+                enabled: true
+              sqlserver.memory.grants.pending.count:
+                enabled: true
+              sqlserver.database.file.size:
+                enabled: true
+              sqlserver.memory.area:
+                enabled: true
+
+            # Enable top query and query sample log collection
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+
+            # Top query collection configuration
+            top_query_collection:
+              lookback_time: 60s
+              max_query_sample_count: 1000
+              top_query_count: 250
+              collection_interval: 60s
+
+            collect_full_query_text: true
+            allowed_comment_keys:
+              - nr_service_guid
+
+            # Query sample collection configuration
+            query_sample_collection:
+              max_rows_per_query: 100
+
+        processors:
+          metrics_transform:
+            transforms:
+              - include: system.cpu.utilization
+                action: update
+                operations:
+                  - action: aggregate_labels
+                    label_set: [ state ]
+                    aggregation_type: mean
+              - include: system.paging.operations
+                action: update
+                operations:
+                  - action: aggregate_labels
+                    label_set: [ direction ]
+                    aggregation_type: sum
+
+          filter/exclude_cpu_utilization:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+
+          filter/exclude_memory_utilization:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+
+          filter/exclude_memory_usage:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+                - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+
+          filter/exclude_filesystem_utilization:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+
+          filter/exclude_filesystem_usage:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+                - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+
+          filter/exclude_filesystem_inodes_usage:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+                - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+
+          filter/exclude_system_disk:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+
+          filter/exclude_system_paging:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+                - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+
+          filter/exclude_network:
+            metrics:
+              datapoint:
+                - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+
+          attributes/exclude_system_paging:
+            include:
+              match_type: strict
+              metric_names:
+                - system.paging.operations
+            actions:
+              - key: type
+                action: delete
+
+          cumulativetodelta:
+
+          transform/host:
+            metric_statements:
+              - context: metric
+                statements:
+                  - set(metric.description, "")
+                  - set(metric.unit, "")
+
+          transform:
+            trace_statements:
+              - context: span
+                statements:
+                  - truncate_all(span.attributes, 4095)
+                  - truncate_all(resource.attributes, 4095)
+            log_statements:
+              - context: log
+                statements:
+                  - truncate_all(log.attributes, 4095)
+                  - truncate_all(resource.attributes, 4095)
+
+          memory_limiter:
+            check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+            limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+            spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+          batch:
+
+          resource_detection:
+            detectors: ["system"]
+            system:
+              hostname_sources: ["os"]
+              resource_attributes:
+                host.id:
+                  enabled: true
+
+          resource_detection/cloud:
+            detectors: ["gcp", "ec2", "azure"]
+            timeout: 2s
+            override: true
+
+          resource_detection/env:
+            detectors: ["env"]
+            timeout: 2s
+            override: true
+
+        exporters:
+          otlphttp:
+            endpoint: <YOUR_OTLP_ENDPOINT>
+            headers:
+              api-key: <YOUR_LICENSE_KEY>
+            tls:
+              insecure: false
+            compression: gzip
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+
+          extensions: [health_check]
+
+          pipelines:
+            metrics/host:
+              receivers: [host_metrics, nrsqlserver]
+              processors:
+                - memory_limiter
+                - metrics_transform
+                - filter/exclude_cpu_utilization
+                - filter/exclude_memory_utilization
+                - filter/exclude_memory_usage
+                - filter/exclude_filesystem_utilization
+                - filter/exclude_filesystem_usage
+                - filter/exclude_filesystem_inodes_usage
+                - filter/exclude_system_disk
+                - filter/exclude_network
+                - attributes/exclude_system_paging
+                - transform/host
+                - resource_detection
+                - resource_detection/cloud
+                - resource_detection/env
+                - cumulativetodelta
+                - batch
+              exporters: [otlphttp]
+
+            logs/host:
+              receivers: [file_log, nrsqlserver]
+              processors:
+                - memory_limiter
+                - transform
+                - resource_detection
+                - resource_detection/cloud
+                - resource_detection/env
+                - batch
+              exporters: [otlphttp]
+
+            traces:
+              receivers: [otlp]
+              processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+              exporters: [otlphttp]
+
+            metrics:
+              receivers: [otlp]
+              processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+              exporters: [otlphttp]
+
+            logs:
+              receivers: [otlp]
+              processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+              exporters: [otlphttp]
+        ```
+      </Collapser>
+
+      <Collapser id="database-monitoring-only" title="Apenas Monitoramento de Banco de Dados (Recomendado)">
+        Esta configuração foca apenas no monitoramento de banco de dados sem métricas de infraestrutura do host.
+
+        1. **Crie o arquivo de configuração.** O nome do arquivo deve ser `mssql-config.yaml`:
+
+           ```bash
+           sudo nano /etc/nrdot-collector/mssql-config.yaml
+           ```
+
+        2. **Adicione o conteúdo de configuração abaixo ao arquivo mssql-config.yaml** que você criou na etapa anterior.
+
+        ```yaml
+        # NRDOT Collector Configuration for SQL Server with SQL Authentication
+        # Database Monitoring Only
+
+        receivers:
+          nrsqlserver:
+            collection_interval: 15s
+            # Direct connection to SQL Server
+            username: <YOUR_USERNAME>
+            password: <YOUR_PASSWORD>
+            server: <YOUR_SERVER>
+            port: 1433
+
+            # Enable comprehensive database metrics
+            metrics:
+              sqlserver.database.count:
+                enabled: true
+              sqlserver.database.io:
+                enabled: true
+              sqlserver.database.latency:
+                enabled: true
+              sqlserver.database.operations:
+                enabled: true
+              sqlserver.database.tempdb.space:
+                enabled: true
+              sqlserver.database.tempdb.version_store.size:
+                enabled: true
+              sqlserver.deadlock.rate:
+                enabled: true
+              sqlserver.os.wait.duration:
+                enabled: true
+              sqlserver.processes.blocked:
+                enabled: true
+              sqlserver.memory.grants.pending.count:
+                enabled: true
+              sqlserver.database.file.size:
+                enabled: true
+              sqlserver.memory.area:
+                enabled: true
+
+            # Enable top query and query sample log collection
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+
+            # Top query collection configuration
+            top_query_collection:
+              lookback_time: 60s
+              max_query_sample_count: 1000
+              top_query_count: 250
+              collection_interval: 60s
+
+            collect_full_query_text: true
+            allowed_comment_keys:
+              - nr_service_guid
+
+            # Query sample collection configuration
+            query_sample_collection:
+              max_rows_per_query: 100
+
+        processors:
+          memory_limiter:
+            check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+            limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+            spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+          batch:
+
+        exporters:
+          otlphttp:
+            endpoint: <YOUR_OTLP_ENDPOINT>
+            headers:
+              api-key: <YOUR_LICENSE_KEY>
+            tls:
+              insecure: false
+            compression: gzip
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+
+          pipelines:
+            metrics:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+
+            logs:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="tip">
+      **Nota:** a opção `max_concurrent_queries` controla quantas consultas de métrica o receiver executa em paralelo no SQL Server durante cada ciclo de scrape.
+
+      ```yaml
+      receivers:
+        nrsqlserver:
+          max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+      ```
+    </Callout>
+
+    ### Parâmetro de configuração
+
+    A tabela a seguir descreve os principais parâmetros de configuração para o receptor nrsqlserver:
+
+    | Parâmetro              | Descrição                                                                                                                                                                                |
+    | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_USERNAME>`      | Insira seu nome de usuário do banco de dados para autenticação                                                                                                                           |
+    | `<YOUR_PASSWORD>`      | Insira a senha do seu banco de dados para autenticação                                                                                                                                   |
+    | `<YOUR_SERVER>`        | Insira o nome do host ou endereço IP do SQL Server                                                                                                                                       |
+    | `port`                 | Insira o número da porta do SQL Server. O valor padrão é 1433.                                                                                                                           |
+    | `<YOUR_OTLP_ENDPOINT>` | Insira o endpoint OTLP da New Relic (por exemplo, [https://otlp.nr-data.net](https://otlp.nr-data.net)). Para mais informações, consulte a documentação dos endpoints OTLP da New Relic. |
+    | `<YOUR_LICENSE_KEY>`   | Insira sua chave de licença do New Relic.                                                                                                                                                |
+    | `collection_interval`  | Intervalo em segundos para coletar métricas de banco de dados. Padrão: 15s                                                                                                               |
+
+    <Callout variant="tip">
+      **Observação:** se você habilitar todas as métricas disponíveis, aumente o valor de `limit_mib` (por exemplo, 1.000) para evitar que o limitador de memória descarte dados.
+    </Callout>
+
+    3. **Atualize o arquivo de configuração do coletor**
+
+       Execute o seguinte comando para editar a configuração do serviço:
+
+       ```bash
+       sudo nano /etc/nrdot-collector/nrdot-collector.conf
+       ```
+
+       Atualize o caminho da configuração para apontar para o seu novo arquivo mssql-config.yaml:
+
+       ```bash
+       OTELCOL_CONFIG="/etc/nrdot-collector/mssql-config.yaml"
+       ```
+
+    4. **Validar a Configuração do NRDOT Collector**
+
+       Valide a configuração do Collector NRDOT para garantir que esteja formatada corretamente e funcione adequadamente:
+
+       ```bash
+       sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mssql-config.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## Reiniciar o coletor NRDOT [#restart]
+
+    Após atualizar sua configuração, reinicie o serviço NRDOT Collector:
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      Sempre reinicie o serviço do coletor NRDOT após fazer alterações na configuração para garantir que as novas configurações entrem em vigor.
+    </Callout>
+  </Step>
+</Steps>
+
+## Próximos passos
+
+Após configurar o monitoramento auto-hospedado do Linux:
+
+* [Configurar a correlação entre APM e banco de dados](/docs/opentelemetry/database/database-service-identification/)
+* [Explorar as métricas disponíveis](/docs/opentelemetry/database/mssql/metrics-reference)
+* [Solucionar problemas](/docs/opentelemetry/database/mssql/troubleshooting)
+* [Encontre e use seus dados](/docs/opentelemetry/database/mssql/introduction#find-and-use-your-data)
