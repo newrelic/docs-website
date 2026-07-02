@@ -1,0 +1,198 @@
+---
+title: 'IBM MQ OpenTelemetry metrics and attributes reference'
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Metrics
+metaDescription: "Reference of IBM MQ metrics collected via OpenTelemetry — queue manager, queue, and channel metrics — with resource attributes for host and Kubernetes deployments."
+freshnessValidatedDate: never
+---
+
+This reference covers the IBM MQ metrics and attributes collected via OpenTelemetry: the metrics the [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) exporter publishes and the collector forwards to New Relic. It applies to both the [Linux host](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-host) and [Kubernetes](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-kubernetes) deployments — the metric shape is identical.
+
+## Metric collection [#collection]
+
+All metrics keep the raw Prometheus shape the exporter emits: **underscore names** (`ibmmq_*`) and the raw **`qmgr`**, **`queue`**, and **`channel`** labels, plus the `target.name` identity attribute and optional `cluster.name` tag the collector attaches. New Relic's IBM MQ entity synthesis depends on this shape, so the collector forwards the names and labels unchanged.
+
+<Callout variant="important">
+  **Enable MQI statistics on each queue manager, or the throughput and timing metrics stay empty.** Queue-manager health, queue depth, and channel status report out of the box, but the MQI activity metrics (the [queue throughput](#metrics-queue-throughput) and [queue manager MQI activity](#metrics-qmgr-mqi) tables — `ibmmq_queue_mqput_count`, `ibmmq_queue_average_queue_time_seconds`, and so on) require statistics collection to be **on**, which is **off by default**. Enable it once per queue manager with MQSC — for example `ALTER QMGR STATMQI(ON) STATQ(ON)`, then `ALTER QLOCAL(...) STATQ(ON)` for any queue you want per-queue stats on (or rely on the queue-manager `STATQ` default). Without this, the exporter is healthy and the entity appears, but those panels render blank. See the [mq-metric-samples documentation](https://github.com/ibm-messaging/mq-metric-samples) for the exact statistics each metric depends on.
+</Callout>
+
+<Callout variant="tip">
+  Status metrics report numeric **enum** values, not `1`/`0` — see the [status-code reference](#status-codes) below before alerting on them. Counters are converted to delta temporality by the collector, so use `sum()` / `rate()` over a window rather than `latest()` when charting them.
+</Callout>
+
+The tables below group the OpenTelemetry metrics by area. To list every metric actually reporting in your account, run:
+
+```sql
+FROM Metric SELECT uniques(metricName, 2000) WHERE metricName LIKE 'ibmmq_%' SINCE 1 day ago
+```
+
+## Metrics [#metrics]
+
+### Queue manager health and status [#metrics-qmgr-status]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_qmgr_status` | Queue manager run state (`2` = running). |
+| `ibmmq_qmgr_command_server_status` | Command server run state (`2` = running). |
+| `ibmmq_qmgr_channel_initiator_status` | Channel initiator (the queue-manager process that starts and manages MQ channels) run state (`2` = running). |
+| `ibmmq_qmgr_connection_count` | Current number of connections to the queue manager. |
+| `ibmmq_qmgr_uptime` | Queue manager uptime, in seconds. |
+| `ibmmq_qmgr_active_listeners` | Number of active listeners. |
+| `ibmmq_qmgr_active_services` | Number of active services. |
+| `ibmmq_qmgr_concurrent_connections_high_water_mark` | Peak concurrent connections. |
+
+### Queue manager resources (CPU, memory, log, file system) [#metrics-qmgr-resources]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_qmgr_cpu_load_one_minute_average_percentage` | 1-minute CPU load average for the queue manager (also `_five_` and `_fifteen_minute_`). |
+| `ibmmq_qmgr_user_cpu_time_percentage` | User-space CPU time consumed by the queue manager. |
+| `ibmmq_qmgr_system_cpu_time_percentage` | System (kernel) CPU time consumed by the queue manager. |
+| `ibmmq_qmgr_ram_total_bytes` | Total RAM on the host. |
+| `ibmmq_qmgr_ram_free_percentage` | Percentage of host RAM free. |
+| `ibmmq_qmgr_ram_total_estimate_for_queue_manager_bytes` | Estimated RAM in use by this queue manager. |
+| `ibmmq_qmgr_log_in_use_bytes` | Recovery log space currently in use. |
+| `ibmmq_qmgr_log_max_bytes` | Maximum recovery log size. |
+| `ibmmq_qmgr_log_current_primary_space_in_use_percentage` | Primary log space utilization. |
+| `ibmmq_qmgr_log_file_system_free_space_bytes` | Free space on the log file system. |
+| `ibmmq_qmgr_log_write_latency_seconds` | Recovery log write latency. |
+| `ibmmq_qmgr_queue_manager_file_system_in_use_bytes` | Queue manager file system space in use. |
+| `ibmmq_qmgr_queue_manager_file_system_free_space_percentage` | Free space on the queue manager file system. |
+| `ibmmq_qmgr_mq_fdc_file_count` | Number of IBM MQ diagnostic dump files (FFST/FDC — written when the queue manager logs an internal error). A rising count signals problems worth investigating. |
+
+### Queue depth, age, and handles [#metrics-queue-state]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_queue_depth` | Current number of messages on the queue. |
+| `ibmmq_queue_attribute_max_depth` | Configured maximum queue depth. |
+| `ibmmq_queue_oldest_message_age` | Age of the oldest message on the queue, in seconds. |
+| `ibmmq_queue_uncommitted_messages` | Number of uncommitted messages. |
+| `ibmmq_queue_time_since_put` | Seconds since the last `MQPUT` to the queue. |
+| `ibmmq_queue_time_since_get` | Seconds since the last `MQGET` from the queue. |
+| `ibmmq_queue_input_handles` | Open input handles (consumers) on the queue. |
+| `ibmmq_queue_output_handles` | Open output handles (producers) on the queue. |
+| `ibmmq_queue_browse_handles` | Open browse handles on the queue. |
+| `ibmmq_queue_publish_handles` | Open publish handles on the queue. |
+| `ibmmq_queue_qfile_current_size` | Current queue file size on disk. |
+| `ibmmq_queue_qfile_max_size` | Maximum queue file size on disk. |
+
+### Queue throughput and timing (MQI) [#metrics-queue-throughput]
+
+These counters track IBM MQ's core message API calls per queue: **`MQPUT`** / **`MQPUT1`** (put a message onto a queue) and **`MQGET`** (get a message from a queue). They require MQI statistics to be enabled on the queue manager (see [Metric collection](#collection)).
+
+| Metric | Description |
+|---|---|
+| `ibmmq_queue_mqput_count` | `MQPUT`/`MQPUT1` operations against the queue. |
+| `ibmmq_queue_mqget_count` | `MQGET` operations against the queue. |
+| `ibmmq_queue_mqput_bytes` / `ibmmq_queue_mqget_bytes` | Bytes put to / got from the queue. |
+| `ibmmq_queue_mqput_non_persistent_message_count` / `ibmmq_queue_mqput_persistent_message_count` | Non-persistent / persistent messages put. |
+| `ibmmq_queue_average_queue_time_seconds` | Average time messages spent on the queue. |
+| `ibmmq_queue_qtime_short` / `ibmmq_queue_qtime_long` | Short- / long-interval queue-time samples. |
+| `ibmmq_queue_avoided_puts_percentage` | Percentage of puts that went straight to a waiting getter. |
+| `ibmmq_queue_expired_messages` | Messages that expired on the queue. |
+| `ibmmq_queue_rolled_back_mqget_count` / `ibmmq_queue_rolled_back_mqput_count` | Rolled-back gets / puts. |
+
+### Channel metrics [#metrics-channel]
+
+| Metric | Description |
+|---|---|
+| `ibmmq_channel_status` | Channel run state (`3` = running). |
+| `ibmmq_channel_status_squash` | Simplified channel status with fewer enum values (informational; for alerting, use `ibmmq_channel_status` and the [status-code reference](#status-codes)). |
+| `ibmmq_channel_messages` | Messages sent over the channel. |
+| `ibmmq_channel_bytes_sent` / `ibmmq_channel_bytes_rcvd` | Bytes sent / received. |
+| `ibmmq_channel_buffers_sent` / `ibmmq_channel_buffers_rcvd` | Transmission buffers sent / received. |
+| `ibmmq_channel_cur_inst` | Current number of running channel instances. |
+| `ibmmq_channel_attribute_max_inst` / `ibmmq_channel_attribute_max_instc` | Max instances total / per client. |
+| `ibmmq_channel_time_since_msg` | Seconds since the last message on the channel. |
+| `ibmmq_channel_type` / `ibmmq_channel_instance_type` | Channel type / instance type. |
+| `ibmmq_channel_substate` | Channel sub-state. |
+
+### Queue manager MQI activity and errors [#metrics-qmgr-mqi]
+
+These queue-manager-wide counters summarize API activity and failures across all objects — useful for spotting application errors and transaction churn. They require MQI statistics to be enabled (see [Metric collection](#collection)).
+
+| Metric | Description |
+|---|---|
+| `ibmmq_qmgr_interval_mqput_mqput1_total_count` | Total `MQPUT` + `MQPUT1` calls in the interval. |
+| `ibmmq_qmgr_interval_destructive_get_total_count` | Total destructive `MQGET` calls in the interval. |
+| `ibmmq_qmgr_published_to_subscribers_message_count` | Messages published to subscribers (publish/subscribe throughput). |
+| `ibmmq_qmgr_mqopen_count` / `ibmmq_qmgr_mqclose_count` | Total `MQOPEN` / `MQCLOSE` calls. |
+| `ibmmq_qmgr_mqconn_mqconnx_count` / `ibmmq_qmgr_mqdisc_count` | Connect / disconnect calls. |
+| `ibmmq_qmgr_commit_count` / `ibmmq_qmgr_rollback_count` | Transaction commits / rollbacks. |
+| `ibmmq_qmgr_failed_mqput_count` / `ibmmq_qmgr_failed_mqput1_count` | Failed `MQPUT` / `MQPUT1` calls. |
+| `ibmmq_qmgr_failed_mqget_count` / `ibmmq_qmgr_failed_mqopen_count` | Failed get / open calls. |
+| `ibmmq_qmgr_failed_mqconn_mqconnx_count` | Failed connect calls. |
+| `ibmmq_qmgr_expired_message_count` | Messages expired across the queue manager. |
+| `ibmmq_qmgr_purged_queue_count` | Queues purged. |
+
+### MQ status-code reference [#status-codes]
+
+IBM MQ status metrics report numeric enum values, **not** `1`/`0` — and the healthy ("running") value differs by metric (`2` for queue-manager-level status, `3` for channel status). Alert on *inequality* to the running value (for example, `ibmmq_qmgr_status != 2`):
+
+| Metric | Healthy value | Meaning |
+|---|---|---|
+| `ibmmq_qmgr_status` | `2` | Queue manager is running |
+| `ibmmq_qmgr_command_server_status` | `2` | Command server is running |
+| `ibmmq_qmgr_channel_initiator_status` | `2` | Channel initiator is running |
+| `ibmmq_channel_status` | `3` | Channel is running |
+
+Any other value (or a missing data point) means the component is not in its running state.
+
+## Resource attributes [#resource-attributes]
+
+The collector attaches identity and context attributes to every IBM MQ metric. Some are common to all deployments; others depend on whether the collector runs on a Linux host or in Kubernetes.
+
+### Common attributes [#common-attributes]
+
+| Attribute | Description | Example |
+|---|---|---|
+| `target.name` | Stable identity attribute — the first segment of every IBM MQ entity GUID. Injected as the `targetName` scrape label, then renamed to `target.name` by the collector. | `prod-mq-01`, `prod-mq-cluster` |
+| `qmgr` | Queue manager name (raw exporter label; entity synthesis keys on it). | `QM1` |
+| `queue` | Queue name (on queue-scoped metrics). | `APP.ORDERS.IN` |
+| `channel` | Channel name (on channel-scoped metrics). | `APP.SVRCONN` |
+| `cluster.name` | Optional grouping tag for queue managers in the same MQ cluster. Not part of the entity GUID; safe to leave unset or change later. | `prod-mq` |
+| `instrumentation.provider` | Always `opentelemetry` for this integration; use it to scope queries to the OpenTelemetry path. | `opentelemetry` |
+
+### On-host deployment attributes [#on-host-attributes]
+
+| Attribute | Description | Example |
+|---|---|---|
+| `host.id` | Identifier of the host running the collector, from the `resourcedetection` processor (`system` / `ec2` detectors). Links the queue manager to its underlying host entity. | `i-1234567890abcdef0` |
+
+### Kubernetes deployment attributes [#kubernetes-attributes]
+
+| Attribute | Description | Example |
+|---|---|---|
+| `k8s_namespace` | Namespace of the discovered exporter pod, stamped by the collector's relabel rules. | `ibmmq` |
+| `k8s_pod` | Name of the discovered exporter pod. | `qm1-0` |
+| `host.id` | Identifier of the node running the pod, from `resourcedetection`. | `ip-10-0-1-23` |
+
+## Metric collection details [#collection-details]
+
+### Collection frequency
+- **Default interval**: 60 seconds (the collector's `scrape_interval`). It must be greater than or equal to the mq-metric-samples exporter's own `pollInterval`.
+- **Configurable**: adjust `IBMMQ_SCRAPE_INTERVAL` (Linux) or `scrape_interval` in the Helm `values.yaml` (Kubernetes).
+
+### Data source
+All metrics originate from the [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) exporter, which polls each queue manager over PCF and republishes the statistics as Prometheus metrics on an HTTP `/metrics` endpoint. The collector's `prometheus` receiver scrapes that endpoint.
+
+### Metric types
+- **Gauges** — point-in-time values such as `ibmmq_qmgr_status`, `ibmmq_queue_depth`, and `ibmmq_channel_status`. Chart with `latest()`.
+- **Counters** — cumulative totals such as `ibmmq_queue_mqput_count`. The collector's `cumulativetodelta` processor converts them to delta temporality, so chart with `sum()` or `rate()` rather than `latest()`.
+
+## Related documentation [#related-docs]
+
+**Setup guides:**
+- [Monitor self-hosted IBM MQ](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-host) — Linux host setup
+- [Monitor IBM MQ on Kubernetes](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-kubernetes) — Kubernetes setup
+
+**Data usage:**
+- [Find and query your data](/docs/opentelemetry/integrations/ibm-mq/find-and-query-your-data) — dashboards, NRQL queries, and alerts
+
+**Technical reference:**
+- [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) — the IBM MQ Prometheus exporter
+- [OpenTelemetry Collector Prometheus receiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver)

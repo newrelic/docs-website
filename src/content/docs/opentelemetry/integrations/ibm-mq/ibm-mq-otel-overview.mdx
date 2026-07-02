@@ -1,0 +1,131 @@
+---
+title: IBM MQ OpenTelemetry monitoring overview
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+metaDescription: "Monitor IBM MQ queue managers with the OpenTelemetry Collector: ship queue manager, queue, and channel metrics to New Relic from a Linux host or Kubernetes."
+redirects:
+  - /docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel
+freshnessValidatedDate: never
+---
+
+Monitor your IBM MQ queue managers with the OpenTelemetry Collector for real-time visibility into message flow, queue depth, and broker health. The collector scrapes the Prometheus `/metrics` endpoint published by the [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) exporter — the IBM MQ team's official metrics exporter — reshapes those metrics onto New Relic's IBM MQ entity model, and forwards them to New Relic over OTLP. Each queue manager becomes an `IBMMQ_MANAGER` entity with its queues as child `IBMMQ_QUEUE` entities — ready for dashboards, alerts, and golden-signal views. This is a pure OpenTelemetry path: no New Relic Infrastructure agent and no on-host integration package required.
+
+<img
+  title="IBM MQ OpenTelemetry dashboard"
+  alt="New Relic dashboard showing IBM MQ queue manager health, connections, message rates, and queue depth"
+  src="/images/IBMMQOtelDashboard.png"
+/>
+
+<figcaption>
+  Visualize queue manager health, connections, message throughput, and queue depth on New Relic's IBM MQ dashboards.
+</figcaption>
+
+## Collector options [#collector-options]
+
+New Relic supports two OpenTelemetry Collector distributions for IBM MQ monitoring, both offering identical functionality with the same configuration files and monitoring capabilities.
+
+* **NRDOT Collector** (recommended): New Relic's distribution of the OpenTelemetry Collector, with New Relic support for assistance. For more information, see the [NRDOT Collector GitHub repository](https://github.com/newrelic/nrdot-collector-releases/tree/main/distributions/nrdot-collector).
+* **OpenTelemetry Collector**: The upstream community distribution. For more information, see the [OpenTelemetry Collector Contrib GitHub repository](https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib).
+
+Choose the collector that best fits your support and operational requirements, then proceed to [set up monitoring](#get-started) for your environment.
+
+## Why monitor IBM MQ with OpenTelemetry? [#why-monitor]
+
+Monitor IBM MQ to keep message-driven applications reliable and responsive. OpenTelemetry provides a standardized, vendor-neutral way to collect and analyze queue manager telemetry.
+
+- **Prevent message backlogs**: Alert on rising queue depth, uncommitted messages, and stalled channels before they delay the applications that depend on your messaging backbone.
+- **Optimize throughput**: Track MQPUT/MQGET rates, queue times, and connection counts to find bottlenecks in message processing.
+- **Plan capacity**: Watch log and filesystem usage, active handles, and connection counts to scale queue managers proactively.
+- **Ensure reliable delivery**: Monitor channel status, dead-letter queue depth, and failed MQI calls to catch delivery failures early.
+
+### Common use case
+
+IBM MQ monitoring helps you catch problems before they ripple through the systems that depend on your messaging backbone. Get alerted when a queue manager stops running, when a queue's depth climbs toward its maximum, or when a channel drops — the kinds of failures that stall payments, orders, and inter-service messaging in banking, insurance, retail, and logistics workloads.
+
+## How it works [#how-it-works]
+
+The data flows from each IBM MQ queue manager, through the mq-metric-samples exporter, into the collector, and on to New Relic:
+
+```
+IBM MQ Queue Manager(s)        mq-metric-samples exporter         NRDOT / OTel collector            New Relic
+  QM1 / QM2 / QM3      ──PCF──▶  (mq_prometheus)       ──HTTP──▶  prometheus receiver(s)  ──OTLP/HTTP──▶  one IBMMQ_MANAGER
+  (broker)                       exposes /metrics                 → filter / transform /                  entity per QM
+                                                                  cumulativetodelta → otlphttp           (target.name:qmgr)
+```
+
+1. **Queue manager (broker).** Each IBM MQ queue manager exposes administrative statistics over PCF (Programmable Command Format) — queue depths, channel status, connection counts, and queue-manager health.
+2. **mq-metric-samples exporter.** The exporter (one process per queue manager) polls the queue manager over PCF and republishes the results as Prometheus metrics on an HTTP `/metrics` endpoint. This component is **required** and assumed to be already running — each platform setup guide begins with a prerequisites checklist.
+3. **OpenTelemetry collector.** The collector scrapes each exporter's `/metrics`, runs the metrics through a processing chain, and exports them to New Relic. This is the only component you configure.
+4. **New Relic.** Metrics arrive over OTLP/HTTP and are synthesized into IBM MQ entities.
+
+Inside the collector, each queue manager's metrics run through an identical, **order-sensitive** processor chain:
+
+```
+prometheus → filter/ibmmq-overhead → filter/ibmmq-queues → resourcedetection
+           → transform/ibmmq-cleanup → memory_limiter → cumulativetodelta → batch → otlphttp
+```
+
+The chain drops the exporter's own self-metrics and noisy internal queues, stamps host identity, renames the injected identity labels to the dotted OTel form New Relic's entity synthesis expects (`targetName` → `target.name`), caps memory, and converts cumulative counters to delta temporality. The full annotated configuration lives in the platform setup guides linked under [Get started](#get-started).
+
+## The IBM MQ entity model [#entity-model]
+
+New Relic turns the incoming metrics into **entities** — the durable, navigable objects you see in the UI — using *entity synthesis* rules that key off three things in the data:
+
+* the **underscore metric names** (`ibmmq_qmgr_status`, `ibmmq_queue_depth`, and so on),
+* the raw **`qmgr`** and **`queue`** labels, and
+* the **`target.name`** identity attribute the collector attaches (injected as the `targetName` scrape label, then renamed to `target.name`).
+
+From those, New Relic synthesizes:
+
+| Entity type | Composite key | What it represents |
+|---|---|---|
+| `IBMMQ_MANAGER` | `target.name:qmgr` | One queue manager (for example `prod-mq-01:QM1`) |
+| `IBMMQ_QUEUE` | `target.name:qmgr:queue` | One queue within a queue manager |
+
+Because the key starts with `target.name`, that value must be **stable for the life of the deployment** — it's effectively the entity's identity. An effective value for the same could be the QMID of the Queue Manager. The `cluster.name` tag rides along (useful for grouping queue managers that belong to the same MQ cluster) but is *not* part of the key, so you can leave it unset or change it later without orphaning entities.
+
+<Callout variant="caution">
+  **Do not rename or "dot" the metric names or the `qmgr` / `queue` labels.** New Relic's IBM MQ entity synthesis depends on the raw Prometheus shape: underscore metric names (`ibmmq_*`) and the raw `qmgr` / `queue` labels. Renaming `qmgr` to something like `ibmmq.queue_manager`, or dotting the metric names, **breaks entity synthesis** and your `IBMMQ_MANAGER` dashboards go blank. The two *identity* attributes are the deliberate exception: the `targetName` / `clusterName` scrape labels are renamed to the dotted OTel form `target.name` / `cluster.name` by `transform/ibmmq-cleanup`, because that is what synthesis keys on.
+</Callout>
+
+## Get started [#get-started]
+
+Choose where the collector will run to begin monitoring. Each setup guide includes prerequisites, the complete collector configuration, and verification steps.
+
+<TechTileGrid>
+  <TechTile
+    name="Linux host"
+    to="/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-host"
+    icon="logo-linux"
+  />
+
+  <TechTile
+    name="Kubernetes"
+    to="/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-kubernetes"
+    icon="logo-kubernetes"
+  />
+</TechTileGrid>
+
+## Available metrics [#metrics]
+
+The collector gathers queue manager, queue, and channel metrics from the mq-metric-samples exporter, including:
+
+- **Queue manager health** — running status, connection counts, and command-server and channel-initiator status
+- **Queue state and throughput** — depth, maximum depth, oldest-message age, MQPUT/MQGET rates, and queue times
+- **Channel and messaging** — channel status, messages and bytes transferred, and publish/subscribe activity
+
+Throughput and timing metrics (MQPUT/MQGET counts, queue times) appear only once MQI statistics are enabled on the queue manager — each setup guide shows how.
+
+**For the complete metric list, types, and attributes:** see the [IBM MQ OpenTelemetry metrics reference](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-metrics-reference).
+
+## Next steps [#next-steps]
+
+**Set up monitoring:**
+- [Monitor IBM MQ on a Linux host](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-host)
+- [Monitor IBM MQ on Kubernetes](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-kubernetes)
+
+**After setup:**
+- [Find and query your data](/docs/opentelemetry/integrations/ibm-mq/find-and-query-your-data)
+- [IBM MQ metrics reference](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-metrics-reference)

@@ -1,0 +1,176 @@
+---
+title: 'Find and query your IBM MQ data in New Relic'
+metaDescription: 'Find your IBM MQ metrics in New Relic, query queue managers and queues with NRQL, create dashboards and alerts, and troubleshoot data visibility.'
+freshnessValidatedDate: never
+---
+
+Once the collector is running and data is flowing, you can view your IBM MQ metrics in New Relic, query them with NRQL, build dashboards, and set up alerts. Each queue manager appears as an `IBMMQ_MANAGER` entity (keyed as `target.name:qmgr`) with its queues as child `IBMMQ_QUEUE` entities.
+
+## View your IBM MQ data in New Relic [#find-data]
+
+After a few minutes, IBM MQ metrics appear in New Relic. The pipeline preserves the raw Prometheus shape — underscore metric names (`ibmmq_*`) and the raw `qmgr` and `queue` labels — and stamps a `target.name` identity onto every metric, which New Relic uses to synthesize the entities.
+
+<CollapserGroup>
+
+<Collapser id="via-entity-explorer" title="Through the entity explorer">
+1. Go to <DNT>[one.newrelic.com](https://one.newrelic.com) > **All entities**</DNT>.
+2. Filter for `IBMMQ_MANAGER` and `IBMMQ_QUEUE`, or search for a queue manager name.
+3. Open a queue manager to see its golden metrics — connections, put/get message rates — and its pre-built IBM MQ dashboard, with its queues listed as related entities.
+</Collapser>
+
+<Collapser id="via-dashboard" title="Through the IBM MQ dashboard">
+When you open an `IBMMQ_MANAGER` entity, New Relic shows a pre-built dashboard summarizing queue manager health, connections, message throughput, errors, and file-system usage. Open an `IBMMQ_QUEUE` entity for per-queue depth, message age, and throughput. You can also build your own — see [Create custom dashboards](#dashboards).
+</Collapser>
+
+</CollapserGroup>
+
+## Query your data with NRQL [#query-data]
+
+<Callout variant="tip">
+  Query metrics by their underscore names and raw labels — `ibmmq_qmgr_status`, `ibmmq_queue_depth`, `qmgr`, `queue`. The metric names are **not** dotted and the `qmgr` label is **not** renamed, so NRQL written against `ibmmq.*` or `ibmmq.queue_manager.name` will not match.
+</Callout>
+
+Confirm data is flowing — every IBM MQ metric:
+
+```sql
+FROM Metric SELECT count(*) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+```
+
+Count the queue managers reporting (each becomes one `IBMMQ_MANAGER` entity):
+
+```sql
+FROM Metric SELECT uniqueCount(qmgr) WHERE metricName LIKE 'ibmmq_%' FACET target.name SINCE 30 minutes ago
+```
+
+Queue manager status (`2` = running), one row per queue manager:
+
+```sql
+FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr SINCE 30 minutes ago
+```
+
+Channel status (`3` = running):
+
+```sql
+FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel SINCE 30 minutes ago
+```
+
+Current depth of every monitored queue:
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) FACET qmgr, queue SINCE 30 minutes ago
+```
+
+Dead-letter queue depth across the fleet (a common alert signal):
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr SINCE 30 minutes ago
+```
+
+Queue throughput — puts and gets per minute (requires MQI statistics enabled):
+
+```sql
+FROM Metric SELECT rate(sum(ibmmq_queue_mqput_count), 1 minute) AS 'Puts/min', rate(sum(ibmmq_queue_mqget_count), 1 minute) AS 'Gets/min' FACET qmgr, queue TIMESERIES SINCE 1 hour ago
+```
+
+To browse entities directly, go to <DNT>**All entities**</DNT> in the New Relic UI and filter for your `IBMMQ_MANAGER` and `IBMMQ_QUEUE` entities, or open a queue manager from any of the queries above.
+
+## Create custom dashboards [#dashboards]
+
+To build your own IBM MQ dashboard:
+
+1. Go to <DNT>[one.newrelic.com](https://one.newrelic.com) > **Dashboards**</DNT> and click <DNT>**Create a dashboard**</DNT>.
+2. Add a widget, choose <DNT>**Add a chart**</DNT>, and paste any of the [NRQL queries above](#query-data).
+3. Group widgets by focus area for an at-a-glance view:
+   - **Queue manager health** — `ibmmq_qmgr_status`, `ibmmq_qmgr_connection_count`, `ibmmq_channel_status`
+   - **Queue depth and backlog** — `ibmmq_queue_depth`, `ibmmq_queue_oldest_message_age`, `ibmmq_queue_uncommitted_messages`
+   - **Throughput** — `ibmmq_queue_mqput_count`, `ibmmq_queue_mqget_count` (charted as a rate)
+   - **Capacity** — `ibmmq_qmgr_log_in_use_bytes`, `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`
+
+## Set up alerts [#alerts]
+
+Create [NRQL alert conditions](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) on the `ibmmq_*` metrics to catch problems before they affect the applications that depend on your messaging. Recommended starting points:
+
+<CollapserGroup>
+
+<Collapser id="alert-qmgr-down" title="Queue manager not running">
+Alerts when a queue manager leaves its running state (`2`).
+
+```sql
+FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr, target.name
+```
+
+**Recommended threshold:** critical when the value is not equal to `2` for at least 2 minutes.
+</Collapser>
+
+<Collapser id="alert-channel-down" title="Channel not running">
+Alerts when a channel leaves its running state (`3`).
+
+```sql
+FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel
+```
+
+**Recommended threshold:** critical when the value is not equal to `3` for at least 5 minutes (allow for channels that legitimately stop and start).
+</Collapser>
+
+<Collapser id="alert-queue-depth" title="Queue filling toward its maximum">
+Alerts when a queue's depth approaches its configured maximum.
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) / latest(ibmmq_queue_attribute_max_depth) * 100 AS 'Depth %' FACET qmgr, queue
+```
+
+**Recommended threshold:** warning at 80%, critical at 95%.
+</Collapser>
+
+<Collapser id="alert-dlq" title="Messages on the dead-letter queue">
+Alerts when messages land on the dead-letter queue — usually a sign of undeliverable messages.
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr
+```
+
+**Recommended threshold:** critical when the value is greater than `0`.
+</Collapser>
+
+</CollapserGroup>
+
+## Troubleshoot data visibility [#troubleshoot]
+
+<CollapserGroup>
+
+  <Collapser id="metrics-but-no-entity" title="Metrics show up in NRDB, but no IBMMQ_MANAGER entity appears">
+    This is almost always caused by altering the entity-critical metric shape. Entity synthesis keys on the raw underscore metrics (`ibmmq_*`), the raw `qmgr` label, and a `target.name` attribute. Check that:
+
+    * The metric names are **not** dotted (you should see `ibmmq_queue_depth`, not `ibmmq.queue.depth`).
+    * The `qmgr` label is **present and not renamed** (not `ibmmq.queue_manager.name`).
+    * `target.name` is set on the metrics (and the camelCase `targetName` is **not** — if `targetName` is still present, `transform/ibmmq-cleanup` isn't running or is misordered):
+
+      ```sql
+      FROM Metric SELECT uniques(target.name), uniques(qmgr) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+      ```
+
+    The processor order in the collector configuration is load-bearing — `resourcedetection → transform/ibmmq-cleanup`. If you reordered or removed `transform/ibmmq-cleanup`, IBM MQ metrics route onto the collector's own entity instead of an `IBMMQ_MANAGER` entity. Restore the documented pipeline order.
+  </Collapser>
+
+  <Collapser id="counters-flat" title="Counter metrics appear as flat lines">
+    New Relic expects delta temporality for counters; Prometheus emits cumulative. The `cumulativetodelta/ibmmq` processor converts them in place. If counters look flat, confirm that processor is present in each metrics pipeline.
+  </Collapser>
+
+  <Collapser id="new-stale-entities" title="Old entities went stale after a redeploy">
+    The `target.name` value (set via the `TARGET_NAME` env on Linux, or the `targetName` relabel on Kubernetes) is the first segment of every `IBMMQ_MANAGER` and `IBMMQ_QUEUE` GUID. Changing it after deployment mints brand-new entities and the old ones go stale, breaking dashboards and alerts that point at the old GUIDs. Pick a stable value once and never change it.
+
+    If you've already changed it, restore the original `TARGET_NAME` value and restart the collector. The correctly-named entities resume reporting; the duplicates created under the wrong name stop receiving data and age out of the UI after New Relic's entity reporting window.
+  </Collapser>
+
+</CollapserGroup>
+
+## Next steps [#next-steps]
+
+**Learn more about your data:**
+- [IBM MQ OpenTelemetry metrics reference](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-metrics-reference) — every metric with descriptions, types, and the status-code reference
+- [Introduction to NRQL](/docs/nrql/get-started/introduction-nrql-new-relics-query-language/) — New Relic's query language for advanced analysis
+- [Create NRQL alert conditions](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) — set up custom alerts on your IBM MQ metrics
+
+**Setup guides:**
+- [Monitor self-hosted IBM MQ](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-host) — Linux host setup
+- [Monitor IBM MQ on Kubernetes](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-kubernetes) — Kubernetes setup
