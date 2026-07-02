@@ -1,0 +1,116 @@
+---
+title: ストリーミングメディアエージェントデータの難読化
+tags:
+  - Streaming Video & Ads
+  - Obfuscation
+  - Privacy
+  - iOS
+  - Roku
+metaDescription: Configure regex-based obfuscation rules to mask sensitive data before your iOS or Roku streaming media agent transmits it to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+難読化ルールを使用すると、エージェントがNew Relicに送信する前に機密データをマスクできます。各ルールは、正規表現パターンと置換文字列のペアです。エージェントは、すべての送信イベントのすべての文字列属性値に順番にルールを適用します — QoEイベントやクラッシュから回復したイベントも含まれます。
+
+## iOS [#ios]
+
+### 構成 [#ios-configuration]
+
+<DNT>**Objective-C**</DNT>
+
+```objectivec
+NRVAVideoConfiguration *config = [[[[NRVAVideoConfiguration builder]
+    withApplicationToken:@"YOUR_NEW_RELIC_TOKEN"]
+    withObfuscationRules:@[
+        @{ @"regex": @"account-\\d+",  @"replacement": @"ACCOUNT_ID" },
+        @{ @"regex": @"token=[^&\"]+", @"replacement": @"token=REDACTED" },
+    ]]
+    build];
+[[[NRVAVideo newBuilder] withConfiguration:config] build];
+```
+
+<DNT>**Swift**</DNT>
+
+```swift
+let config = NRVAVideoConfiguration.builder()
+    .withApplicationToken("YOUR_NEW_RELIC_TOKEN")
+    .withObfuscationRules([
+        ["regex": "account-\\d+",  "replacement": "ACCOUNT_ID"],
+        ["regex": "token=[^&\"]+", "replacement": "token=REDACTED"],
+    ])
+    .build()
+NRVAVideo.newBuilder().with(configuration: config).build()
+```
+
+### 使い方 [#ios-how-it-works]
+
+* エージェントは、生のJSONペイロードに対してではなく、文字列属性値ごとにルールを適用します — 数値およびブール値の属性は影響を受けません。
+* すべてのルールは、通常、ライブ、QoE、およびクラッシュから復旧したイベントを含む、送信されるすべてのイベントに対して実行されます。
+* ルールは宣言した順序で実行されます。2つのルールが同じ値に一致する可能性がある場合、順序が重要になります。
+* エージェントは`applicationToken`やHTTP認証ヘッダーを難読化することはありません — 難読化はイベント属性値にのみ適用されます。
+
+### エッジケース [#ios-edge-cases]
+
+| シナリオ                             | 行動                                                                                                                           |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| ルールが設定されていない                     | エージェントは、パフォーマンスに影響を与えることなく、すべての属性値を変更せずにそのまま渡します。                                                                            |
+| 空の置換文字列                          | エージェントは、値から一致したコンテンツを削除します。                                                                                                  |
+| 無効な正規表現パターン                      | `withObfuscationRules:` イベントが送信される前の設定時に`NSInvalidArgumentException`をスローします。                                                 |
+| 非文字列属性値                          | エージェントは属性をスキップします。文字列値のみが処理されます。                                                                                             |
+| 不正な形式のルール配列エントリ                  | エージェントはディクショナリではないエントリをスキップし、ログに警告を書き込みます。                                                                                   |
+| `applicationToken` およびHTTP認証ヘッダー | これらがイベント属性に含まれることはなく、難読化ルールの影響も受けません。                                                                                        |
+| ルールの順序                           | ルールは、配列で宣言されている順序で実行されます。                                                                                                    |
+| 破滅的なバックトラッキング                    | `NSRegularExpression` iOSには組み込みのタイムアウトがありません。無制限のネストされた数量子を持つパターンは避けてください（たとえば、`(a+)+`）。デプロイする前に、最悪のケースの入力に対してルールをテストしてください。 |
+
+## Roku [#roku]
+
+エージェントがNew Relicにイベントを送信する前に機密データをマスクするように、正規表現ベースの難読化ルールを使用してエージェントを設定できます。`contentSrc`、`contentTitle`、`origUrl`などのフィールド、またはカスタムアトリビュートに、ユーザーID、トークン、またはその他のPIIが誤って含まれる可能性がある場合に、この機能を使用します。
+
+エージェントは、イベントが内部バッファに入る前に、送信されるすべてのイベント — ビデオ、広告（RAFおよびIMA）、QOE、システム、カスタムイベントなど — のすべての文字列属性にルールを適用します。
+
+### 構成 [#roku-configuration]
+
+エージェントを作成した後に`nrSetObfuscationRules`を呼び出します。各ルールは、`regex`文字列と`replacement`文字列を含む連想配列です：
+
+```brightscript
+m.nr = NewRelic("ACCOUNT_ID", "API_KEY", "APP_NAME", "APP_TOKEN")
+nrSetObfuscationRules(m.nr, [
+    { regex: "account-[0-9]+",  replacement: "ACCOUNT_ID" },
+    { regex: "token=[^&]+",     replacement: "token=REDACTED" },
+    { regex: "/users/[^/]+",    replacement: "/users/USER_ID" }
+])
+```
+
+実行時にすべてのルールを削除するには、空の配列を使用して`nrSetObfuscationRules`を呼び出します：
+
+```brightscript
+nrSetObfuscationRules(m.nr, [])
+```
+
+### ルールの順序 [#roku-rule-ordering]
+
+エージェントは、配列に現れる順序でルールを適用します。あるルールの出力は、次のルールの入力になります。パターンが重複する可能性がある場合は、順序が重要になります：
+
+```brightscript
+nrSetObfuscationRules(m.nr, [
+    ' Applied first — masks the specific token format
+    { regex: "auth-token-[a-z0-9]+", replacement: "AUTH_TOKEN" },
+    ' Applied second — masks any remaining bare token references
+    { regex: "token=[^&]+",          replacement: "token=REDACTED" }
+])
+```
+
+### 動作とエッジケース [#roku-edge-cases]
+
+| ケース                | 行動                                                                  |
+| ------------------ | ------------------------------------------------------------------- |
+| ルールが設定されていない       | エージェントは、パフォーマンスに影響を与えることなく、すべての属性値を変更せずにそのまま渡します。                   |
+| 空の`replacement`文字列 | エージェントは、値から一致したコンテンツを削除します。                                         |
+| 無効な正規表現パターン        | エージェントはルールをスキップし、ログに警告を書き込みます。                                      |
+| 文字列以外の属性値          | エージェントはこれらを変更せずにそのまま渡します。文字列値のみが処理されます。                             |
+| すべてのルールの置換         | 新しい配列を使用して`nrSetObfuscationRules`を再度呼び出します。エージェントは以前のすべてのルールを破棄します。 |
+
+<Callout variant="important">
+  Rokuはパターンマッチングに`roRegex`を使用します。Rokuは複雑な先読み/後読みアサーションをサポートしていません。JavaScriptまたはJavaの正規表現で有効なパターンでも、Roku用に簡略化する必要がある場合があります。
+</Callout>
