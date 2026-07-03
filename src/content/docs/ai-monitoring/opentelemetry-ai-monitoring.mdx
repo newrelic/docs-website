@@ -1,0 +1,270 @@
+---
+title: 'Send Your GenAI Traces to New Relic with OpenTelemetry'
+metaDescription: 'Learn how to send OpenTelemetry GenAI traces to New Relic so the AI monitoring view shows every LLM call, tool call, and agent step your service makes.'
+freshnessValidatedDate: never
+---
+
+After your application is sending OpenTelemetry (OTel) GenAI traces to New Relic, the AI monitoring view shows:
+
+* Every LLM call made by your service — prompt, completion, model, latency, token counts, and finish reason.
+* Tool calls and agent steps as part of the full request trace, so you can see why a model made a decision.
+* Errors, rate-limit failures, and slow calls surfaced alongside the rest of your APM data.
+
+No New Relic agent is required. If your app already emits OpenTelemetry traces, you're most of the way there.
+
+## Before you start
+
+You will need:
+
+* A New Relic account with AI monitoring enabled. If you're not sure whether it's turned on, contact your New Relic account team.
+* A New Relic ingest license key. Go to <DNT>**Account settings > API keys > Ingest - License**</DNT>.
+* An application that calls an LLM. Python examples for OpenAI, Anthropic, LangChain, and AWS Bedrock are shown below. Other languages with OpenTelemetry GenAI instrumentation work the same way.
+* Network egress from your app to `otlp.nr-data.net` (US) or `otlp.eu01.nr-data.net` (EU) on port 443.
+
+<Callout variant="important">
+  OTel GenAI instrumentations can capture the exact prompts and completions your users send and receive. That may include PII, credentials, or regulated data. Content capture is off by default. Before turning it on, review your organization's data-handling policies and see [Controlling what prompts and completions are sent](#controlling-content).
+</Callout>
+
+<Steps>
+  <Step>
+    ### Point your OpenTelemetry exporter at New Relic [#step-1]
+
+    Set these environment variables on the process running your application:
+
+    ```sh
+    # US datacenter. For EU use https://otlp.eu01.nr-data.net:443
+    export OTEL_EXPORTER_OTLP_ENDPOINT="https://otlp.nr-data.net:443"
+    export OTEL_EXPORTER_OTLP_HEADERS="api-key=$NEW_RELIC_LICENSE_KEY"
+
+    # Name that will identify this service in New Relic
+    export OTEL_SERVICE_NAME="my-genai-service"
+
+    # Allow long prompts and completions through without truncation
+    export OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+    export OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+    ```
+
+    For the current list of New Relic OTLP endpoints, supported ports, and ingest limits, see the [New Relic OpenTelemetry documentation](/docs/opentelemetry/best-practices/opentelemetry-best-practices-overview).
+  </Step>
+
+  <Step>
+    ### Add the right instrumentation package [#step-2]
+
+    Pick the section that matches what your application uses. You can combine more than one — for example, a LangChain app that calls Bedrock would install both.
+
+    <Callout variant="tip">
+      Exact package names and versions evolve quickly in the OpenTelemetry GenAI ecosystem. Always check the OpenTelemetry Python contrib registry and the New Relic AI monitoring docs for the package your team currently supports.
+    </Callout>
+
+    <CollapserGroup>
+      <Collapser
+        id="openai"
+        title="OpenAI"
+      >
+        Install the official OpenAI GenAI instrumentation from the OpenTelemetry project, then either run your app with `opentelemetry-instrument` or call the instrumentor explicitly:
+
+        ```python
+        from opentelemetry.instrumentation.openai_v2 import OpenAIInstrumentor
+        OpenAIInstrumentor().instrument()
+
+        from openai import OpenAI
+        OpenAI().chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+        ```
+      </Collapser>
+
+      <Collapser
+        id="anthropic"
+        title="Anthropic"
+      >
+        Install an OpenTelemetry Anthropic instrumentation (available from the OpenTelemetry contrib registry and from community distributions such as OpenLLMetry). Then enable it:
+
+        ```python
+        from opentelemetry.instrumentation.anthropic import AnthropicInstrumentor
+        AnthropicInstrumentor().instrument()
+
+        import anthropic
+        anthropic.Anthropic().messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+        ```
+      </Collapser>
+
+      <Collapser
+        id="langchain"
+        title="LangChain"
+      >
+        LangChain instrumentation covers the chain, any tool calls, and the underlying model client in one package. Install the community LangChain instrumentation of your choice and enable it at startup:
+
+        ```python
+        from opentelemetry.instrumentation.langchain import LangchainInstrumentor
+        LangchainInstrumentor().instrument()
+        ```
+
+        Your existing `ChatOpenAI`, `ChatAnthropic`, or similar chains will be traced automatically. Tool and agent steps appear as child spans under the parent chain invocation.
+      </Collapser>
+
+      <Collapser
+        id="aws-bedrock"
+        title="AWS Bedrock"
+      >
+        Bedrock traffic goes through the AWS SDK. Install the AWS SDK (botocore) OpenTelemetry instrumentation and enable it:
+
+        ```python
+        from opentelemetry.instrumentation.botocore import BotocoreInstrumentor
+        BotocoreInstrumentor().instrument()
+
+        import boto3, json
+        boto3.client("bedrock-runtime", region_name="us-east-1").invoke_model(
+            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 256,
+                "messages": [{"role": "user", "content": "Hello"}],
+            }),
+        )
+        ```
+
+        Verify that your installed version emits GenAI attributes (`gen_ai.system`, `gen_ai.request.model`, and token usage) for Bedrock calls — support has landed incrementally across versions.
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ### Verify that your data is arriving [#step-3]
+
+    1. Restart your application so the new environment variables and instrumentation take effect.
+
+    2. Trigger a small amount of real traffic — a handful of chat completions is enough.
+
+    3. In New Relic, open <DNT>**Query Your Data**</DNT> and run:
+
+       ```sql
+       SELECT count(*) FROM Span
+       WHERE gen_ai.system IS NOT NULL OR gen_ai.provider.name IS NOT NULL
+       SINCE 30 minutes ago
+       FACET service.name, gen_ai.operation.name
+       ```
+
+    4. Within one to two minutes you should see rows faceted by your service name and operation (`chat`, `completion`, `embeddings`).
+
+    5. Go to <DNT>**APM & Services > AI monitoring**</DNT> and select your service to see the GenAI view populate.
+  </Step>
+</Steps>
+
+## Control what prompts and completions are sent [#controlling-content]
+
+By default, most OpenTelemetry GenAI instrumentations do not capture the text of prompts or completions. Spans will include the model, token counts, latency, and status, but not the message bodies.
+
+To make message content visible in AI monitoring, opt in explicitly. The flag name depends on the instrumentation package you installed — check the documentation for that specific package. Common examples include:
+
+* `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` for OpenTelemetry-maintained instrumentations.
+* `TRACELOOP_TRACE_CONTENT=true` for community (OpenLLMetry-family) instrumentations.
+
+Before you enable content capture in production, do the following:
+
+* Review the data your prompts contain. If your users submit PII, credentials, or regulated data, that content will be stored in New Relic.
+* Consider drop filters or attribute-level obfuscation to strip or hash specific fields before they leave your environment. See [New Relic's data-handling documentation](/docs/ai-monitoring/drop-sensitive-data).
+* Check your organization's retention and compliance requirements (for example, GDPR, HIPAA, or PCI).
+
+If you only need latency, token, and error visibility — not message bodies — leave content capture disabled.
+
+## Troubleshooting
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        What you see
+      </th>
+
+      <th>
+        What to try
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        The query in step 3 returns zero rows
+      </td>
+
+      <td>
+        Confirm your OTLP endpoint matches your account's region, and that the `api-key` header holds a valid ingest license key (not a user key).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Traces arrive in New Relic but the service does not appear in AI monitoring
+      </td>
+
+      <td>
+        New Relic automatically enables the AI monitoring view for services whose spans carry GenAI attributes. If the service doesn't appear, confirm its spans include `gen_ai.system` or `gen_ai.provider.name`, and upgrade the instrumentation package if they don't.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Spans arrive but the AI monitoring view is empty for your service
+      </td>
+
+      <td>
+        The spans may not be tagged with the expected GenAI attributes. Upgrade the instrumentation package, or contact New Relic support with a sample span.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Long prompts are cut off
+      </td>
+
+      <td>
+        Raise `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT` and `OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT` on the application side.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Token counts are missing
+      </td>
+
+      <td>
+        The LLM provider returned them, but your instrumentation version does not record them yet. Upgrade the instrumentation package.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AI monitoring shows traces but prompts/completions are blank
+      </td>
+
+      <td>
+        Content capture is disabled. See [Controlling what prompts and completions are sent](#controlling-content).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        You expect AI monitoring to be available but the view doesn't appear
+      </td>
+
+      <td>
+        Contact your New Relic account team to confirm AI monitoring is enabled on your account.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Get help
+
+If you're stuck after working through the steps above:
+
+* File a New Relic support case and include a sample span payload and your service name.
+* Reach out to your New Relic account team for account-level configuration questions.
+* For general OpenTelemetry GenAI questions, see the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/), the authoritative reference.
