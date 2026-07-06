@@ -1,0 +1,165 @@
+---
+title: 'Troubleshoot IBM MQ OpenTelemetry monitoring'
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Troubleshooting
+metaDescription: "Troubleshoot common issues when monitoring IBM MQ with OpenTelemetry collectors on Linux hosts and Kubernetes."
+freshnessValidatedDate: never
+---
+
+When monitoring IBM MQ with OpenTelemetry collectors, you might encounter issues with collector startup, data flow, or entity synthesis. This guide helps you diagnose and fix common problems for both Linux host and Kubernetes deployments.
+
+
+## Collector won't start or stay running [#not-start]
+
+
+<CollapserGroup>
+
+  <Collapser id="linux-1" title="For Self-hosted environments">
+
+Validate your collector's status and check logs to identify the problem:
+
+  ```bash
+  sudo systemctl status nrdot-collector.service --no-pager
+  sudo journalctl -u nrdot-collector.service -n 200 --no-pager
+  ```
+
+**Configuration issues:**
+* YAML syntax errors: Check your collector config file indentation and syntax
+* Missing environment file: Make sure `/etc/nrdot-collector/ibmmq-env` exists
+* Invalid license key: You'll see `401` or `403` errors. Verify your New Relic license key
+
+
+</Collapser>
+
+  <Collapser id="k8s-1" title="For Kubernetes environments">
+
+Validate your collector's status and check logs to identify the problem:
+
+  ```bash
+  kubectl -n ibmmq logs deploy/ibmmq-collector-opentelemetry-collector
+  ```
+
+### Common causes and solutions
+
+Look for these error patterns in your logs:
+
+**Configuration issues:**
+* YAML syntax errors: Check your collector config file indentation and syntax
+* Missing environment file: Ensure the `newrelic-otlp-secret` Secret exists in the `ibmmq` namespace
+* Invalid license key: You'll see `401` or `403` errors. Verify your New Relic license key
+
+**Kubernetes-specific issues:**
+* `CreateContainerConfigError`: Missing `newrelic-otlp-secret` Secret. Re-run the [Create New Relic credentials secret](/docs/opentelemetry/integrations/ibm-mq/kubernetes#create-secret) step
+* `spec.ports: Required value`: `service.enabled: false` is missing from `values.yaml`
+* `cannot list resource "pods" … forbidden`: Missing RBAC. Ensure `clusterRole.create: true` is set in your Helm values
+
+  </Collapser>
+
+</CollapserGroup>
+
+
+## No IBM MQ metrics appear in New Relic [#no-data]
+
+When your collector is running but no IBM MQ metrics reach New Relic, troubleshoot systematically:
+
+<CollapserGroup>
+
+  <Collapser id="linux-2" title="For Self-hosted environments">
+
+1. Verify that your IBM MQ exporters are working:
+
+  ```bash
+  curl -s http://<exporter-host>:9157/metrics | grep '^ibmmq_qmgr_status'
+  ```
+
+  You should see one line per queue manager. If you don't see any output, the exporter isn't working properly.
+
+2. Check that your collector is healthy and discovering targets.
+
+  ```bash
+  curl http://127.0.0.1:13133
+  # Expected: {"status":"Server available", ...}
+  ```
+
+  `otelcol_receiver_accepted_metric_points` greater than 0 confirms the collector found targets. `otelcol_exporter_send_failed_metric_points` should stay at `0`.
+
+3. Check target discovery issues
+
+  * Verify your `IBMMQ_QMN_ENDPOINT` variables point to working exporters
+  * Ensure the collector can reach each exporter endpoint
+  * Check that your static target configuration is correct
+
+4. Verify if metrics are being collected but don't appear in New Relic:
+  * **OTLP endpoint region**: Confirm your endpoint matches your New Relic account region (US vs EU)
+  * **License key**: Verify your license key is valid and has the correct permissions
+  * **Network connectivity**: Ensure the collector can reach the New Relic OTLP endpoint
+
+  A wrong region silently drops data with no collector-side error.
+
+
+</Collapser>
+
+  <Collapser id="k8s-2" title="For Kubernetes environments">
+
+1. Verify that your IBM MQ exporters are working:
+
+  ```bash
+  curl -s http://<exporter-host>:9157/metrics | grep '^ibmmq_qmgr_status'
+  ```
+
+  You should see one line per queue manager. If you don't see any output, the exporter isn't working properly.
+
+2. Check that your collector is healthy and discovering targets.
+
+  ```bash
+  kubectl -n ibmmq port-forward deploy/ibmmq-collector-opentelemetry-collector 8888:8888 &
+  curl -s http://localhost:8888/metrics | \
+    grep -E 'otelcol_(receiver_accepted|exporter_sent|exporter_send_failed)_metric_points'
+  kill %1 2>/dev/null
+  ```
+
+  `otelcol_receiver_accepted_metric_points` greater than 0 confirms the collector found targets. `otelcol_exporter_send_failed_metric_points` should stay at `0`.
+
+
+3. Check if `otelcol_receiver_accepted_metric_points` stays at 0:
+  * Your queue manager pods must carry the [required annotations](/docs/opentelemetry/integrations/ibm-mq/kubernetes#pod-annotation-contract) on the **pod template**, with `prometheus.io/scrape` set to exactly `"true"`
+  * The pods must run in the `ibmmq` namespace
+  * Ensure `clusterRole.create: true` is applied — without it, `kubernetes_sd` returns `403 Forbidden`
+
+4. Verify if metrics are being collected but don't appear in New Relic:
+  * **OTLP endpoint region**: Confirm your endpoint matches your New Relic account region (US vs EU)
+  * **License key**: Verify your license key is valid and has the correct permissions
+  * **Network connectivity**: Ensure the collector can reach the New Relic OTLP endpoint
+
+  A wrong region silently drops data with no collector-side error.
+
+  </Collapser>
+
+  </CollapserGroup>
+
+
+## No IBM MQ entities appear in New Relic [#no-entities]
+
+If you see IBM MQ metrics in New Relic but no `IBMMQ_MANAGER` or `IBMMQ_QUEUE` entities appear:
+
+
+1. Check processor order: The `transform/ibmmq-cleanup` processor **must run after** `resourcedetection`. If this order is reversed, metrics land on the collector's own entity instead of IBM MQ entities, and dashboards go blank.
+
+2. Verify required labels: Your metrics must include these labels:
+  * **`qmgr` label**: The mq-metric-samples exporter must emit this with the queue manager name (e.g., `qmgr="QM1"`)
+  * **`queue` label**: For queue-level metrics, must contain the queue name
+  * **`target.name` attribute**: Comes from your `TARGET_NAME` environment variable and forms the entity GUID
+
+3. Check `TARGET_NAME` consistency: Never change the `TARGET_NAME` value after initial deployment. This value becomes part of every entity GUID (`target.name:qmgr`), and changing it creates new entities and orphans existing ones, breaking dashboards and alerts.
+
+
+## Related documentation [#related-docs]
+
+<DocTiles>
+  <DocTile title="Self-hosted instrumentation for IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/host">Learn how to set up your IBM MQ for self-hosted monitoring in New Relic.</DocTile>
+  <DocTile title="Kubernetes instrumentation for IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">Learn how to set up your IBM MQ for Kubernetes monitoring in New Relic.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/integrations/ibm-mq/metrics">Learn about the IBM MQ metrics collected by New Relic.</DocTile>
+</DocTiles>
