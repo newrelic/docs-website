@@ -18,7 +18,7 @@ Choose the collector distribution that matches your environment:
 <Tabs>
   <TabsBar>
     <TabsBarItem id="nrdot">NRDOT Collector</TabsBarItem>
-    <TabsBarItem id="otel-contrib">OTel Collector Contrib</TabsBarItem>
+    <TabsBarItem id="otel-contrib">OpenTelemetry Collector Contrib</TabsBarItem>
     <TabsBarItem id="prometheus">Prometheus Receiver</TabsBarItem>
   </TabsBar>
 
@@ -90,7 +90,7 @@ processors:
     limit_mib: 512
     spike_limit_mib: 128
 
-  resourcedetection:
+  resource_detection:
     detectors: [env, system]
     timeout: 5s
     override: false
@@ -153,7 +153,7 @@ processors:
     timeout: 10s
 
 exporters:
-  otlphttp:
+  otlp_http:
     endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
     headers:
       api-key: ${env:NEW_RELIC_LICENSE_KEY}
@@ -162,12 +162,12 @@ exporters:
 service:
   extensions: [health_check]
   pipelines:
-    metrics:
+    metrics/redis:
       receivers: [redis]
       # If using resource/redis for custom name, add it to the processors list:
-      # processors: [memory_limiter, resourcedetection, resource/redis, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-      processors: [memory_limiter, resourcedetection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-      exporters: [otlphttp]
+      # processors: [memory_limiter, resource_detection, resource/redis, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
 ```
 
 <Callout variant="tip">
@@ -269,37 +269,73 @@ Add the filelog receiver to collect Redis log files:
 ```yaml
 receivers:
   # ... existing redis receiver ...
-  filelog/redis:
+  file_log/redis:
     include:
       - /var/log/redis/redis-server.log
     start_at: end
     operators:
       - type: regex_parser
-        regex: '^(?P<pid>\d+):(?P<role>[XCSM]) (?P<timestamp>\d+ \w+ \d+ \d+:\d+:\d+\.\d+) (?P<level>[.*#\-]) (?P<message>.*)$'
-        timestamp:
-          parse_from: attributes.timestamp
-          layout: '%d %b %Y %H:%M:%S.%L'
+        regex: '^\d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+        on_error: send
     resource:
       db.system: redis
 ```
 
-Add a logs pipeline to the service section:
+Log lines from the file have no Redis connection context on their own — you must explicitly attach identity attributes so New Relic associates the logs with your Redis entity. Add a `resource/redis_logs` processor with **hardcoded values matching your Redis entity's identity**:
+
+```yaml
+processors:
+  # ... existing processors ...
+  resource/redis_logs:
+    attributes:
+      - key: server.address
+        value: "localhost"  # Must match your redis receiver endpoint host
+        action: upsert
+      - key: server.port
+        value: 6379  # Must match your redis receiver endpoint port
+        action: upsert
+      - key: instrumentation.provider
+        value: opentelemetry
+        action: upsert
+```
+
+<Callout variant="tip">
+**Using a custom instance ID?** If you enabled the `resource/redis` processor for custom entity naming, replace `server.address` and `server.port` above with your `redis.instance.id`:
+
+```yaml
+  resource/redis_logs:
+    attributes:
+      - key: redis.instance.id
+        value: "my-redis-instance"  # Must match the value in resource/redis
+        action: upsert
+      - key: instrumentation.provider
+        value: opentelemetry
+        action: upsert
+```
+</Callout>
+
+Add a **separate** logs pipeline to the service section:
 
 ```yaml
 service:
   pipelines:
-    metrics:
+    metrics/redis:
       receivers: [redis]
-      processors: [memory_limiter, resourcedetection, attributes/entity_tags, batch]
-      exporters: [otlphttp]
-    logs:
-      receivers: [filelog/redis]
-      processors: [memory_limiter, resourcedetection, attributes/entity_tags, batch]
-      exporters: [otlphttp]
+      processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+    logs/redis:
+      receivers: [file_log/redis]
+      processors: [memory_limiter, resource/redis_logs, batch]
+      exporters: [otlp_http]
 ```
 
 <Callout variant="important">
-The collector must have read access to the Redis log file. Either `chmod 644` the log or add the collector user to the redis group.
+The collector must have read access to both the Redis log file and its parent directory. Run:
+
+```bash
+sudo chmod 755 /var/log/redis
+sudo chmod 644 /var/log/redis/redis-server.log
+```
 </Callout>
 
 </Step>
@@ -313,7 +349,7 @@ Add the hostmetrics receiver to correlate Redis performance with system resource
 ```yaml
 receivers:
   # ... existing receivers ...
-  hostmetrics:
+  host_metrics:
     collection_interval: 10s
     scrapers:
       cpu:
@@ -343,16 +379,21 @@ receivers:
           system.network.packets: {enabled: true}
 ```
 
-Add `hostmetrics` to your metrics pipeline receivers:
+Add a **separate** `metrics/host` pipeline for host metrics (do not add `hostmetrics` to the Redis pipeline):
 
 ```yaml
 service:
   pipelines:
-    metrics:
-      receivers: [redis, hostmetrics]
-      processors: [memory_limiter, resourcedetection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-      exporters: [otlphttp]
+    metrics/redis:
+      receivers: [redis]
+      processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+    metrics/host:
+      receivers: [host_metrics]
+      processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, batch]
+      exporters: [otlp_http]
 ```
+
 
 </Step>
 
@@ -383,11 +424,101 @@ Include the processor in your pipeline:
 ```yaml
 service:
   pipelines:
-    metrics:
+    metrics/redis:
       receivers: [redis]
-      processors: [memory_limiter, resourcedetection, resource/custom, attributes/entity_tags, batch]
-      exporters: [otlphttp]
+      processors: [memory_limiter, resource_detection, resource/custom, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
 ```
+
+</Step>
+
+<Step>
+
+### Optional: Enable Redis Cluster monitoring [#cluster-nrdot]
+
+If your Redis is running in [Cluster mode](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/) (multiple masters with hash slot distribution), add a separate pipeline to collect cluster-level health metrics.
+
+<Callout variant="important">
+This step is only for Redis Cluster deployments. Standalone Redis instances do not produce cluster metrics.
+</Callout>
+
+Add the following to your existing configuration file:
+
+**1. Add the cluster receiver** (after your existing `redis` receiver):
+
+```yaml
+  # Cluster metrics only — same endpoint, separate metric set
+  redis/cluster:
+    endpoint: "localhost:6379"  # Same endpoint as your instance receiver
+    collection_interval: 10s
+    metrics:
+      # Disable all instance metrics (handled by the instance receiver)
+      redis.clients.connected: {enabled: false}
+      redis.clients.blocked: {enabled: false}
+      redis.memory.used: {enabled: false}
+      redis.memory.rss: {enabled: false}
+      redis.memory.peak: {enabled: false}
+      redis.memory.lua: {enabled: false}
+      redis.memory.fragmentation_ratio: {enabled: false}
+      redis.commands.processed: {enabled: false}
+      redis.commands: {enabled: false}
+      redis.connections.received: {enabled: false}
+      redis.connections.rejected: {enabled: false}
+      redis.keyspace.hits: {enabled: false}
+      redis.keyspace.misses: {enabled: false}
+      redis.keys.evicted: {enabled: false}
+      redis.keys.expired: {enabled: false}
+      redis.net.input: {enabled: false}
+      redis.net.output: {enabled: false}
+      redis.cpu.time: {enabled: false}
+      redis.uptime: {enabled: false}
+      redis.slaves.connected: {enabled: false}
+      redis.db.keys: {enabled: false}
+      redis.db.expires: {enabled: false}
+      redis.db.avg_ttl: {enabled: false}
+      redis.rdb.changes_since_last_save: {enabled: false}
+      redis.latest_fork: {enabled: false}
+      redis.replication.offset: {enabled: false}
+      redis.maxmemory: {enabled: false}
+      redis.cmd.calls: {enabled: false}
+      redis.cmd.usec: {enabled: false}
+      # Enable only cluster metrics
+      redis.cluster.state: {enabled: true}
+      redis.cluster.slots_assigned: {enabled: true}
+      redis.cluster.slots_ok: {enabled: true}
+      redis.cluster.slots_pfail: {enabled: true}
+      redis.cluster.slots_fail: {enabled: true}
+      redis.cluster.known_nodes: {enabled: true}
+      redis.cluster.node.count: {enabled: true}
+      redis.cluster.stats_messages_sent: {enabled: true}
+      redis.cluster.stats_messages_received: {enabled: true}
+    resource_attributes:
+      server.address: {enabled: false}
+      server.port: {enabled: false}
+```
+
+**2. Add the cluster resource processor** (in your processors section):
+
+```yaml
+  resource/cluster:
+    attributes:
+      - key: redis.cluster.name
+        value: "my-redis-cluster"  # Update with your cluster name
+        action: upsert
+```
+
+**3. Add the cluster pipeline** (in your service pipelines section):
+
+```yaml
+    metrics/cluster:
+      receivers: [redis/cluster]
+      processors: [memory_limiter, resource_detection, resource/cluster, cumulativetodelta, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+```
+
+<Callout variant="tip">
+**All nodes report the same cluster metrics** — `CLUSTER INFO` returns identical data from any node. Enable this pipeline on all nodes for resilience (if one collector fails, others still report), or on just one node to minimize redundant data.
+</Callout>
 
 </Step>
 
@@ -400,11 +531,23 @@ Create the environment file:
 ```bash
 sudo tee /etc/nrdot-collector/nrdot-collector.conf > /dev/null <<'EOF'
 NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
-OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net
-OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"
+OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
+# US: https://otlp.nr-data.net
+# EU: https://otlp.eu01.nr-data.net
+OTELCOL_OPTIONS="--config=/etc/nrdot-collector/redis-collector-config.yaml"
 EOF
 sudo chmod 600 /etc/nrdot-collector/nrdot-collector.conf
 ```
+
+<Callout variant="tip">
+This configuration replaces the default NRDot configuration. If you need to preserve the default NRDot pipelines alongside Redis monitoring, add the default config file as well:
+
+```bash
+OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml --config=/etc/nrdot-collector/redis-collector-config.yaml"
+```
+
+When using multiple config files, ensure there are no conflicting component names between them. Rename any duplicate processors in your Redis config by adding a suffix (e.g., `memory_limiter/redis` instead of `memory_limiter`).
+</Callout>
 
 </Step>
 
@@ -412,10 +555,9 @@ sudo chmod 600 /etc/nrdot-collector/nrdot-collector.conf
 
 ### Restart and verify [#verify-nrdot]
 
-Update the collector service to use the new config and restart:
+Restart the collector to load the new configuration:
 
 ```bash
-sudo sed -i 's|--config=.*|--config=/etc/nrdot-collector/redis-collector-config.yaml|' /etc/systemd/system/nrdot-collector.service
 sudo systemctl daemon-reload
 sudo systemctl restart nrdot-collector
 sudo systemctl status nrdot-collector
@@ -530,7 +672,7 @@ processors:
     limit_mib: 512
     spike_limit_mib: 128
 
-  resourcedetection:
+  resource_detection:
     detectors: [env, system]
     timeout: 5s
     override: false
@@ -593,7 +735,7 @@ processors:
     timeout: 10s
 
 exporters:
-  otlphttp:
+  otlp_http:
     endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
     headers:
       api-key: ${env:NEW_RELIC_LICENSE_KEY}
@@ -602,12 +744,12 @@ exporters:
 service:
   extensions: [health_check]
   pipelines:
-    metrics:
+    metrics/redis:
       receivers: [redis]
       # If using resource/redis for custom name, add it to the processors list:
-      # processors: [memory_limiter, resourcedetection, resource/redis, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-      processors: [memory_limiter, resourcedetection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-      exporters: [otlphttp]
+      # processors: [memory_limiter, resource_detection, resource/redis, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
 ```
 
 <Callout variant="tip">
@@ -682,37 +824,73 @@ Add the filelog receiver to collect Redis log files:
 ```yaml
 receivers:
   # ... existing redis receiver ...
-  filelog/redis:
+  file_log/redis:
     include:
       - /var/log/redis/redis-server.log
     start_at: end
     operators:
       - type: regex_parser
-        regex: '^(?P<pid>\d+):(?P<role>[XCSM]) (?P<timestamp>\d+ \w+ \d+ \d+:\d+:\d+\.\d+) (?P<level>[.*#\-]) (?P<message>.*)$'
-        timestamp:
-          parse_from: attributes.timestamp
-          layout: '%d %b %Y %H:%M:%S.%L'
+        regex: '^\d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+        on_error: send
     resource:
       db.system: redis
 ```
 
-Add a logs pipeline to the service section:
+Log lines from the file have no Redis connection context on their own — you must explicitly attach identity attributes so New Relic associates the logs with your Redis entity. Add a `resource/redis_logs` processor with **hardcoded values matching your Redis entity's identity**:
+
+```yaml
+processors:
+  # ... existing processors ...
+  resource/redis_logs:
+    attributes:
+      - key: server.address
+        value: "localhost"  # Must match your redis receiver endpoint host
+        action: upsert
+      - key: server.port
+        value: 6379  # Must match your redis receiver endpoint port
+        action: upsert
+      - key: instrumentation.provider
+        value: opentelemetry
+        action: upsert
+```
+
+<Callout variant="tip">
+**Using a custom instance ID?** If you enabled the `resource/redis` processor for custom entity naming, replace `server.address` and `server.port` above with your `redis.instance.id`:
+
+```yaml
+  resource/redis_logs:
+    attributes:
+      - key: redis.instance.id
+        value: "my-redis-instance"  # Must match the value in resource/redis
+        action: upsert
+      - key: instrumentation.provider
+        value: opentelemetry
+        action: upsert
+```
+</Callout>
+
+Add a **separate** logs pipeline to the service section:
 
 ```yaml
 service:
   pipelines:
-    metrics:
+    metrics/redis:
       receivers: [redis]
-      processors: [memory_limiter, resourcedetection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-      exporters: [otlphttp]
-    logs:
-      receivers: [filelog/redis]
-      processors: [memory_limiter, resourcedetection, attributes/entity_tags, batch]
-      exporters: [otlphttp]
+      processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+    logs/redis:
+      receivers: [file_log/redis]
+      processors: [memory_limiter, resource/redis_logs, batch]
+      exporters: [otlp_http]
 ```
 
 <Callout variant="important">
-The collector must have read access to the Redis log file. Either `chmod 644` the log or add the collector user to the redis group.
+The collector must have read access to both the Redis log file and its parent directory. Run:
+
+```bash
+sudo chmod 755 /var/log/redis
+sudo chmod 644 /var/log/redis/redis-server.log
+```
 </Callout>
 
 </Step>
@@ -726,7 +904,7 @@ Add the hostmetrics receiver to correlate Redis performance with system resource
 ```yaml
 receivers:
   # ... existing receivers ...
-  hostmetrics:
+  host_metrics:
     collection_interval: 10s
     scrapers:
       cpu:
@@ -756,16 +934,110 @@ receivers:
           system.network.packets: {enabled: true}
 ```
 
-Add `hostmetrics` to your metrics pipeline receivers:
+Add a **separate** `metrics/host` pipeline for host metrics (do not add `host_metrics` to the Redis pipeline):
 
 ```yaml
 service:
   pipelines:
-    metrics:
-      receivers: [redis, hostmetrics]
-      processors: [memory_limiter, resourcedetection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-      exporters: [otlphttp]
+    metrics/redis:
+      receivers: [redis]
+      processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+    metrics/host:
+      receivers: [host_metrics]
+      processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, batch]
+      exporters: [otlp_http]
 ```
+
+</Step>
+
+<Step>
+
+### Optional: Enable Redis Cluster monitoring [#cluster-otel]
+
+If your Redis is running in [Cluster mode](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/) (multiple masters with hash slot distribution), add a separate pipeline to collect cluster-level health metrics.
+
+<Callout variant="important">
+This step is only for Redis Cluster deployments. Standalone Redis instances do not produce cluster metrics.
+</Callout>
+
+Add the following to your existing configuration file:
+
+**1. Add the cluster receiver** (after your existing `redis` receiver):
+
+```yaml
+  # Cluster metrics only — same endpoint, separate metric set
+  redis/cluster:
+    endpoint: "localhost:6379"  # Same endpoint as your instance receiver
+    collection_interval: 10s
+    metrics:
+      # Disable all instance metrics (handled by the instance receiver)
+      redis.clients.connected: {enabled: false}
+      redis.clients.blocked: {enabled: false}
+      redis.memory.used: {enabled: false}
+      redis.memory.rss: {enabled: false}
+      redis.memory.peak: {enabled: false}
+      redis.memory.lua: {enabled: false}
+      redis.memory.fragmentation_ratio: {enabled: false}
+      redis.commands.processed: {enabled: false}
+      redis.commands: {enabled: false}
+      redis.connections.received: {enabled: false}
+      redis.connections.rejected: {enabled: false}
+      redis.keyspace.hits: {enabled: false}
+      redis.keyspace.misses: {enabled: false}
+      redis.keys.evicted: {enabled: false}
+      redis.keys.expired: {enabled: false}
+      redis.net.input: {enabled: false}
+      redis.net.output: {enabled: false}
+      redis.cpu.time: {enabled: false}
+      redis.uptime: {enabled: false}
+      redis.slaves.connected: {enabled: false}
+      redis.db.keys: {enabled: false}
+      redis.db.expires: {enabled: false}
+      redis.db.avg_ttl: {enabled: false}
+      redis.rdb.changes_since_last_save: {enabled: false}
+      redis.latest_fork: {enabled: false}
+      redis.replication.offset: {enabled: false}
+      redis.maxmemory: {enabled: false}
+      redis.cmd.calls: {enabled: false}
+      redis.cmd.usec: {enabled: false}
+      # Enable only cluster metrics
+      redis.cluster.state: {enabled: true}
+      redis.cluster.slots_assigned: {enabled: true}
+      redis.cluster.slots_ok: {enabled: true}
+      redis.cluster.slots_pfail: {enabled: true}
+      redis.cluster.slots_fail: {enabled: true}
+      redis.cluster.known_nodes: {enabled: true}
+      redis.cluster.node.count: {enabled: true}
+      redis.cluster.stats_messages_sent: {enabled: true}
+      redis.cluster.stats_messages_received: {enabled: true}
+    resource_attributes:
+      server.address: {enabled: false}
+      server.port: {enabled: false}
+```
+
+**2. Add the cluster resource processor** (in your processors section):
+
+```yaml
+  resource/cluster:
+    attributes:
+      - key: redis.cluster.name
+        value: "my-redis-cluster"  # Update with your cluster name
+        action: upsert
+```
+
+**3. Add the cluster pipeline** (in your service pipelines section):
+
+```yaml
+    metrics/cluster:
+      receivers: [redis/cluster]
+      processors: [memory_limiter, resource_detection, resource/cluster, cumulativetodelta, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+```
+
+<Callout variant="tip">
+**All nodes report the same cluster metrics** — `CLUSTER INFO` returns identical data from any node. Enable this pipeline on all nodes for resilience (if one collector fails, others still report), or on just one node to minimize redundant data.
+</Callout>
 
 </Step>
 
@@ -773,14 +1045,28 @@ service:
 
 ### Set environment variables [#env-otel]
 
+Create the environment file:
+
 ```bash
-sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
-sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf > /dev/null <<'EOF'
-[Service]
-Environment="NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
-Environment="OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net"
+sudo tee /etc/otelcol-contrib/otelcol-contrib.conf > /dev/null <<'EOF'
+NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
+OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
+# US: https://otlp.nr-data.net
+# EU: https://otlp.eu01.nr-data.net
+OTELCOL_OPTIONS="--config=/etc/otelcol-contrib/redis-collector-config.yaml"
 EOF
+sudo chmod 600 /etc/otelcol-contrib/otelcol-contrib.conf
 ```
+
+<Callout variant="tip">
+This configuration replaces the default OTel Collector Contrib configuration. If you need to preserve the default config alongside Redis monitoring, add the default config file as well:
+
+```bash
+OTELCOL_OPTIONS="--config=/etc/otelcol-contrib/config.yaml --config=/etc/otelcol-contrib/redis-collector-config.yaml"
+```
+
+When using multiple config files, ensure there are no conflicting component names between them. Rename any duplicate processors in your Redis config by adding a suffix (e.g., `memory_limiter/redis` instead of `memory_limiter`).
+</Callout>
 
 </Step>
 
@@ -788,10 +1074,9 @@ EOF
 
 ### Restart and verify [#verify-otel]
 
-Update the collector service to use the new config and restart:
+Restart the collector to load the new configuration:
 
 ```bash
-sudo sed -i 's|--config=.*|--config=/etc/otelcol-contrib/redis-collector-config.yaml|' /etc/systemd/system/otelcol-contrib.service
 sudo systemctl daemon-reload
 sudo systemctl restart otelcol-contrib
 sudo systemctl status otelcol-contrib
@@ -952,7 +1237,7 @@ processors:
     limit_mib: 512
     spike_limit_mib: 128
 
-  resourcedetection:
+  resource_detection:
     detectors: [env, system]
     timeout: 5s
     override: false
@@ -963,13 +1248,14 @@ processors:
         host.id:
           enabled: true
 
-  # Uncomment the section below to use a custom human-readable name for your
-  # Redis entity instead of the default identifier.
-  # resource/redis_identity:
-  #   attributes:
-  #     - key: redis.instance.id
-  #       value: "my-redis-instance:6379"
-  #       action: upsert
+  # Required: Set a unique identifier for your Redis entity.
+  # The Prometheus receiver does not provide server.address/server.port,
+  # so redis.instance.id is required for entity creation in New Relic.
+  resource/redis_identity:
+    attributes:
+      - key: redis.instance.id
+        value: "my-redis-instance:6379"  # Update with a unique name for this Redis instance
+        action: upsert
 
   attributes/entity_tags:
     actions:
@@ -1023,7 +1309,7 @@ processors:
         new_name: redis.keyspace.misses
       - include: redis_evicted_keys_total
         action: update
-        new_name: redis.key.evicted
+        new_name: redis.keys.evicted
       - include: redis_expired_keys_total
         action: update
         new_name: redis.keys.expired
@@ -1085,7 +1371,7 @@ processors:
         - redis\.commands\.processed
         - redis\.connections\.received
         - redis\.connections\.rejected
-        - redis\.key\.evicted
+        - redis\.keys\.evicted
         - redis\.keys\.expired
         - redis\.keyspace\.hits
         - redis\.keyspace\.misses
@@ -1116,7 +1402,7 @@ processors:
     timeout: 10s
 
 exporters:
-  otlphttp:
+  otlp_http:
     endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
     headers:
       api-key: ${env:NEW_RELIC_LICENSE_KEY}
@@ -1127,43 +1413,209 @@ service:
   pipelines:
     metrics/redis:
       receivers: [prometheus]
-      # If using resource/redis_identity for custom name, add it to the processors list:
-      # processors: [memory_limiter, resourcedetection, resource/redis_identity, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-      processors: [memory_limiter, resourcedetection, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-      exporters: [otlphttp]
+      processors: [memory_limiter, resource_detection, resource/redis_identity, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
 ```
 
-<Callout variant="tip">
-**Want a user-friendly entity name?** Uncomment the `resource/redis_identity` section in the config above, set your preferred name in the `redis.instance.id` value, and add `resource/redis_identity` to the processors pipeline.
+<Callout variant="important">
+The `resource/redis_identity` processor with `redis.instance.id` is **required** for the Prometheus receiver approach. Unlike the native Redis receiver, the Prometheus receiver does not provide `server.address` or `server.port` — so `redis.instance.id` is the only way to identify your Redis entity in New Relic. Set it to a unique, descriptive name for each instance (e.g., `prod-redis-cache:6379`).
 </Callout>
 
 </Step>
 
 <Step>
 
-### Set environment variables [#env-prometheus]
+### Optional: Enable Redis Cluster monitoring [#cluster-prometheus]
 
-Configure environment variables for your collector.
+If your Redis is running in Cluster mode, start `redis_exporter` with the `--is-cluster` flag to automatically collect cluster health metrics from all nodes:
+
+```bash
+redis_exporter --redis.addr=redis://localhost:7000 --is-cluster
+```
+
+The Prometheus receiver configuration above already renames cluster metrics (e.g., `redis_cluster_state` → `redis.cluster.state`). To create a separate cluster entity in New Relic, add a `redis.cluster.name` resource attribute to a **separate pipeline** that does NOT include `redis.instance.id`:
+
+```yaml
+  resource/cluster:
+    attributes:
+      - key: redis.cluster.name
+        value: "my-redis-cluster"  # Update with your cluster name
+        action: upsert
+```
+
+Add a cluster pipeline to your service section:
+
+```yaml
+    metrics/cluster:
+      receivers: [prometheus]
+      processors: [memory_limiter, resource_detection, resource/cluster, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+```
+
+<Callout variant="important">
+The cluster entity requires `redis.cluster.name` to be present AND `redis.instance.id` to be absent. If both are set on the same metrics, only the instance entity will be created. Use separate pipelines for instance and cluster metrics.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Optional: Collect Redis logs [#logs-prometheus]
+
+Add the filelog receiver to collect Redis log files:
+
+```yaml
+receivers:
+  # ... existing prometheus receiver ...
+  file_log/redis:
+    include:
+      - /var/log/redis/redis-server.log
+    start_at: end
+    operators:
+      - type: regex_parser
+        regex: '^\d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+        on_error: send
+    resource:
+      db.system: redis
+```
+
+Log lines from the file have no Redis connection context on their own — you must explicitly attach identity attributes so New Relic associates the logs with your Redis entity. Add a `resource/redis_logs` processor with **hardcoded values matching your Redis entity's identity**:
+
+```yaml
+processors:
+  # ... existing processors ...
+  resource/redis_logs:
+    attributes:
+      - key: redis.instance.id
+        value: "my-redis-instance:6379"  # Must match the value in resource/redis_identity
+        action: upsert
+      - key: instrumentation.provider
+        value: opentelemetry
+        action: upsert
+```
+
+Add a **separate** logs pipeline to the service section:
+
+```yaml
+service:
+  pipelines:
+    metrics/redis:
+      receivers: [prometheus]
+      processors: [memory_limiter, resource_detection, resource/redis_identity, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+    logs/redis:
+      receivers: [file_log/redis]
+      processors: [memory_limiter, resource/redis_logs, batch]
+      exporters: [otlp_http]
+```
+
+<Callout variant="important">
+The collector must have read access to both the Redis log file and its parent directory. Run:
+
+```bash
+sudo chmod 755 /var/log/redis
+sudo chmod 644 /var/log/redis/redis-server.log
+```
+</Callout>
+
+</Step>
+
+<Step>
+
+### Optional: Collect host metrics [#hostmetrics-prometheus]
+
+Add the hostmetrics receiver to correlate Redis performance with system resources:
+
+```yaml
+receivers:
+  # ... existing receivers ...
+  host_metrics:
+    collection_interval: 10s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization: {enabled: true}
+          system.cpu.time: {enabled: true}
+      load:
+        metrics:
+          system.cpu.load_average.1m: {enabled: true}
+          system.cpu.load_average.5m: {enabled: true}
+          system.cpu.load_average.15m: {enabled: true}
+      memory:
+        metrics:
+          system.memory.usage: {enabled: true}
+          system.memory.utilization: {enabled: true}
+      disk:
+        metrics:
+          system.disk.io: {enabled: true}
+          system.disk.operations: {enabled: true}
+      filesystem:
+        metrics:
+          system.filesystem.usage: {enabled: true}
+          system.filesystem.utilization: {enabled: true}
+      network:
+        metrics:
+          system.network.io: {enabled: true}
+          system.network.packets: {enabled: true}
+```
+
+Add a **separate** `metrics/host` pipeline for host metrics (do not add `host_metrics` to the Redis pipeline):
+
+```yaml
+service:
+  pipelines:
+    metrics/redis:
+      receivers: [prometheus]
+      processors: [memory_limiter, resource_detection, resource/redis_identity, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+    metrics/host:
+      receivers: [host_metrics]
+      processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, batch]
+      exporters: [otlp_http]
+```
+
+</Step>
+
+<Step>
+
+### Set environment variables and config path [#env-prometheus]
+
+Configure environment variables and point to your Redis Prometheus config.
 
 For **NRDOT**:
 
 ```bash
 sudo tee /etc/nrdot-collector/nrdot-collector.conf > /dev/null <<'EOF'
 NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
-OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net
+OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
+# US: https://otlp.nr-data.net
+# EU: https://otlp.eu01.nr-data.net
+OTELCOL_OPTIONS="--config=/etc/nrdot-collector/redis-prometheus-config.yaml"
 EOF
 sudo chmod 600 /etc/nrdot-collector/nrdot-collector.conf
 ```
 
+<Callout variant="tip">
+This configuration replaces the default NRDot configuration. If you need to preserve the default NRDot pipelines alongside Redis monitoring, add the default config file as well:
+
+```bash
+OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml --config=/etc/nrdot-collector/redis-prometheus-config.yaml"
+```
+
+When using multiple config files, ensure there are no conflicting component names between them. Rename any duplicate processors in your Redis config by adding a suffix (e.g., `memory_limiter/redis` instead of `memory_limiter`).
+</Callout>
+
 For **OTel Collector Contrib**:
 
 ```bash
-sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
-sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf > /dev/null <<'EOF'
-[Service]
-Environment="NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
-Environment="OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net"
+sudo tee /etc/otelcol-contrib/otelcol-contrib.conf > /dev/null <<'EOF'
+NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
+OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
+# US: https://otlp.nr-data.net
+# EU: https://otlp.eu01.nr-data.net
+OTELCOL_OPTIONS="--config=/etc/otelcol-contrib/redis-prometheus-config.yaml"
 EOF
+sudo chmod 600 /etc/otelcol-contrib/otelcol-contrib.conf
 ```
 
 </Step>
@@ -1172,12 +1624,11 @@ EOF
 
 ### Restart and verify [#verify-prometheus]
 
-Update the collector to use the new config and restart.
+Restart the collector to load the new configuration.
 
 For **NRDOT**:
 
 ```bash
-sudo sed -i 's|--config=.*|--config=/etc/nrdot-collector/redis-prometheus-config.yaml|' /etc/systemd/system/nrdot-collector.service
 sudo systemctl daemon-reload
 sudo systemctl restart nrdot-collector
 sudo systemctl status nrdot-collector
@@ -1186,7 +1637,6 @@ sudo systemctl status nrdot-collector
 For **OTel Collector Contrib**:
 
 ```bash
-sudo sed -i 's|--config=.*|--config=/etc/otelcol-contrib/redis-prometheus-config.yaml|' /etc/systemd/system/otelcol-contrib.service
 sudo systemctl daemon-reload
 sudo systemctl restart otelcol-contrib
 sudo systemctl status otelcol-contrib
@@ -1208,7 +1658,7 @@ SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.
 </Tabs>
 
 <Callout variant="tip">
-**APM relationship:** To see your APM service connected to Redis in service maps, ensure your OTel-instrumented application has `db.system=redis` and `redis.instance.id` as resource attributes. The `redis.instance.id` value must match the identifier used in your Redis collector configuration.
+**Correlate APM with Redis**: To connect your APM application and Redis instance in service maps, include `db.system="redis"` along with your chosen entity identifier pattern — either `redis.instance.id` or `server.address` and `server.port` — as resource attributes in your APM metrics. The values must match what you configured in the collector. This enables cross-service visibility and faster troubleshooting within New Relic.
 </Callout>
 
 ## Next steps [#next-steps]

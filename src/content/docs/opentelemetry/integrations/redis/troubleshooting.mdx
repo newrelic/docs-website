@@ -214,6 +214,105 @@ This guide covers common issues you may encounter when installing and configurin
   </Collapser>
 </CollapserGroup>
 
+## Cluster monitoring issues [#cluster-issues]
+
+<CollapserGroup>
+  <Collapser id="no-cluster-entity" title="Cluster entity not appearing in New Relic">
+    **Symptoms:** Instance entities appear but no Redis Cluster entity is created.
+
+    **Common causes:**
+    - `redis.cluster.name` not set on the cluster pipeline
+    - `redis.instance.id` or `server.address` present on cluster metrics (prevents cluster entity rule from matching)
+    - Cluster metrics disabled (all cluster metrics are disabled by default in the Redis receiver)
+
+    **Fix:** Verify your cluster pipeline has:
+    - `redis.cluster.name` set via `resource/cluster` processor
+    - `server.address: {enabled: false}` and `server.port: {enabled: false}` on the cluster receiver
+    - No `redis.instance.id` on the cluster pipeline
+
+    **Verify with NRQL:**
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE redis.cluster.name IS NOT NULL
+    AND redis.instance.id IS NULL
+    AND server.address IS NULL
+    SINCE 5 minutes ago
+    ```
+    If this returns 0, cluster metrics are not flowing correctly.
+  </Collapser>
+
+  <Collapser id="cluster-metrics-missing" title="Cluster metrics show no data">
+    **Symptoms:** Cluster entity exists but dashboard shows empty widgets.
+
+    **Common causes:**
+    - Redis is not running in Cluster mode (standalone instances don't produce cluster metrics)
+    - Cluster metrics not enabled in the Redis receiver config
+
+    **Fix:** Verify Redis is in Cluster mode:
+    ```bash
+    redis-cli INFO cluster | grep cluster_enabled
+    ```
+    Should return `cluster_enabled:1`. If it returns `0`, your Redis is not in Cluster mode.
+
+    Verify cluster metrics are enabled in your receiver config:
+    ```yaml
+    redis/cluster:
+      metrics:
+        redis.cluster.state: {enabled: true}
+        redis.cluster.known_nodes: {enabled: true}
+        # ... all 9 cluster metrics must be explicitly enabled
+    ```
+  </Collapser>
+
+  <Collapser id="duplicate-cluster-entity" title="Multiple cluster entities for the same cluster">
+    **Symptoms:** More than one Redis Cluster entity appears for the same cluster.
+
+    **Cause:** Different collectors are using different `redis.cluster.name` values for the same cluster.
+
+    **Fix:** Ensure all collectors monitoring the same cluster use the exact same `redis.cluster.name` value in their `resource/cluster` processor. The cluster entity identifier is this name — different names create different entities.
+  </Collapser>
+
+  <Collapser id="cluster-instance-relationship" title="Cluster entity not linked to instance entities">
+    **Symptoms:** Both cluster and instance entities exist but no CONTAINS relationship appears in service maps.
+
+    **Cause:** Instance metrics don't carry the `redis.cluster.name` attribute, so the relationship rule can't link them.
+
+    **Fix:** Add `redis.cluster.name` to your instance pipeline's resource processor:
+    ```yaml
+    resource/redis_identity:
+      attributes:
+        - key: redis.instance.id
+          value: "my-instance:6379"
+          action: upsert
+        - key: redis.cluster.name
+          value: "my-redis-cluster"  # Must match the cluster pipeline value
+          action: upsert
+    ```
+  </Collapser>
+
+  <Collapser id="cluster-state-fail" title="Cluster state shows FAIL but Redis is running">
+    **Symptoms:** `redis.cluster.state` reports 0 (FAIL) even though Redis appears operational.
+
+    **Common causes:**
+    - Not all 16384 hash slots are assigned (incomplete cluster setup)
+    - A master node is down with no available replica for automatic failover
+    - Network partition between nodes
+
+    **Fix:**
+    ```bash
+    # Check cluster state directly
+    redis-cli CLUSTER INFO | grep cluster_state
+
+    # Check slot coverage
+    redis-cli CLUSTER INFO | grep cluster_slots
+
+    # Check for failed nodes
+    redis-cli CLUSTER NODES | grep fail
+    ```
+    If `cluster_slots_assigned` is less than 16384, some slots are unassigned. Fix by adding the missing slot ranges to available nodes.
+  </Collapser>
+</CollapserGroup>
+
 ## Next steps [#next-steps]
 
 - **[Installation guides](/docs/opentelemetry/integrations/redis/self-hosted)**: Revisit configuration steps

@@ -20,7 +20,7 @@ The composite pattern (`server.address:server.port`) is not supported in Kuberne
 <Tabs>
   <TabsBar>
     <TabsBarItem id="nrdot">NRDOT Collector</TabsBarItem>
-    <TabsBarItem id="otel-contrib">OTel Collector Contrib</TabsBarItem>
+    <TabsBarItem id="otel-contrib">OpenTelemetry Collector Contrib</TabsBarItem>
     <TabsBarItem id="prometheus">Prometheus Receiver</TabsBarItem>
   </TabsBar>
 
@@ -48,9 +48,12 @@ The composite pattern (`server.address:server.port`) is not supported in Kuberne
 ```bash
 kubectl create namespace newrelic
 
+# Set OTEL_EXPORTER_OTLP_ENDPOINT for your region:
+#   US: https://otlp.nr-data.net
+#   EU: https://otlp.eu01.nr-data.net
 kubectl create secret generic newrelic-credentials \
   --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
-  --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \
+  --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT \
   -n newrelic
 ```
 
@@ -130,6 +133,7 @@ data:
           redis:
             rule: type == "pod" && labels["app"] == "redis"  # Update with your Redis pod labels
             config:
+              endpoint: "`endpoint`:6379"
               collection_interval: 10s
               metrics:
                 redis.maxmemory:
@@ -167,6 +171,12 @@ data:
             value: "my-cluster.default:6379"  # Update with cluster.namespace:port
             action: upsert
 
+      attributes/entity_tags:
+        actions:
+          - key: instrumentation.provider
+            value: opentelemetry
+            action: upsert
+
       cumulativetodelta:
         include:
           match_type: regexp
@@ -201,10 +211,11 @@ data:
 
       batch:
         send_batch_size: 2048
+        send_batch_max_size: 4096
         timeout: 10s
 
     exporters:
-      otlphttp:
+      otlp_http:
         endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
         headers:
           api-key: ${env:NEW_RELIC_LICENSE_KEY}
@@ -215,8 +226,8 @@ data:
       pipelines:
         metrics/redis:
           receivers: [receiver_creator/redis]
-          processors: [memory_limiter, resource/k8s_cluster, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-          exporters: [otlphttp]
+          processors: [memory_limiter, resource/k8s_cluster, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+          exporters: [otlp_http]
 ```
 
 ```bash
@@ -234,11 +245,17 @@ To collect Redis logs, add the `filelog` receiver to your ConfigMap and mount `/
 Add to the `receivers` section in your ConfigMap:
 
 ```yaml
-    filelog/redis:
+    file_log/redis:
       include:
-        - /var/log/pods/<namespace>_*redis*/*/*.log  # Update namespace
+        - /var/log/pods/<namespace>_*redis*/*/*.log  # Update <namespace> with your Redis namespace (e.g., default, production)
       start_at: end
       include_file_path: true
+      operators:
+        - type: regex_parser
+          regex: '^\S+ stdout F \d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+          on_error: send
+      resource:
+        db.system: redis
 ```
 
 Add a `resource/redis_logs` processor:
@@ -249,8 +266,8 @@ Add a `resource/redis_logs` processor:
         - key: redis.instance.id
           value: "my-cluster.default:6379"  # Update with cluster.namespace:port
           action: upsert
-        - key: db.system
-          value: "redis"
+        - key: instrumentation.provider
+          value: "opentelemetry"
           action: upsert
 ```
 
@@ -262,12 +279,104 @@ Add a logs pipeline to the service section:
         metrics/redis:
           # ... existing metrics pipeline ...
         logs/redis:
-          receivers: [filelog/redis]
+          receivers: [file_log/redis]
           processors: [memory_limiter, resource/redis_logs, batch]
-          exporters: [otlphttp]
+          exporters: [otlp_http]
 ```
 
 Uncomment the `varlogpods` volume mount in the DaemonSet below.
+
+</Step>
+
+<Step>
+
+### Optional: Enable Redis Cluster monitoring [#cluster-nrdot]
+
+If your Redis is running in [Cluster mode](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/) (multiple masters with hash slot distribution), add a separate pipeline to collect cluster-level health metrics.
+
+<Callout variant="important">
+This step is only for Redis Cluster deployments. Standalone Redis instances do not produce cluster metrics.
+</Callout>
+
+In Kubernetes, the `receiver_creator` auto-discovers individual pods. For cluster metrics, point the cluster receiver at the Redis service endpoint (e.g., `redis.default.svc.cluster.local:6379`) since cluster-level data is the same from any node.
+
+Add the following to your existing ConfigMap configuration:
+
+**1. Add the cluster receiver** (after your existing `receiver_creator/redis` receiver):
+
+```yaml
+  # Cluster metrics only — same endpoint, separate metric set
+  redis/cluster:
+    endpoint: "redis.default.svc.cluster.local:6379"  # Redis service endpoint
+    collection_interval: 10s
+    metrics:
+      # Disable all instance metrics (handled by the instance receiver)
+      redis.clients.connected: {enabled: false}
+      redis.clients.blocked: {enabled: false}
+      redis.memory.used: {enabled: false}
+      redis.memory.rss: {enabled: false}
+      redis.memory.peak: {enabled: false}
+      redis.memory.lua: {enabled: false}
+      redis.memory.fragmentation_ratio: {enabled: false}
+      redis.commands.processed: {enabled: false}
+      redis.commands: {enabled: false}
+      redis.connections.received: {enabled: false}
+      redis.connections.rejected: {enabled: false}
+      redis.keyspace.hits: {enabled: false}
+      redis.keyspace.misses: {enabled: false}
+      redis.keys.evicted: {enabled: false}
+      redis.keys.expired: {enabled: false}
+      redis.net.input: {enabled: false}
+      redis.net.output: {enabled: false}
+      redis.cpu.time: {enabled: false}
+      redis.uptime: {enabled: false}
+      redis.slaves.connected: {enabled: false}
+      redis.db.keys: {enabled: false}
+      redis.db.expires: {enabled: false}
+      redis.db.avg_ttl: {enabled: false}
+      redis.rdb.changes_since_last_save: {enabled: false}
+      redis.latest_fork: {enabled: false}
+      redis.replication.offset: {enabled: false}
+      redis.maxmemory: {enabled: false}
+      redis.cmd.calls: {enabled: false}
+      redis.cmd.usec: {enabled: false}
+      # Enable only cluster metrics
+      redis.cluster.state: {enabled: true}
+      redis.cluster.slots_assigned: {enabled: true}
+      redis.cluster.slots_ok: {enabled: true}
+      redis.cluster.slots_pfail: {enabled: true}
+      redis.cluster.slots_fail: {enabled: true}
+      redis.cluster.known_nodes: {enabled: true}
+      redis.cluster.node.count: {enabled: true}
+      redis.cluster.stats_messages_sent: {enabled: true}
+      redis.cluster.stats_messages_received: {enabled: true}
+    resource_attributes:
+      server.address: {enabled: false}
+      server.port: {enabled: false}
+```
+
+**2. Add the cluster resource processor** (in your processors section):
+
+```yaml
+  resource/cluster:
+    attributes:
+      - key: redis.cluster.name
+        value: "my-redis-cluster"  # Update with your cluster name
+        action: upsert
+```
+
+**3. Add the cluster pipeline** (in your service pipelines section):
+
+```yaml
+    metrics/cluster:
+      receivers: [redis/cluster]
+      processors: [memory_limiter, resource/cluster, attributes/entity_tags, cumulativetodelta, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+```
+
+<Callout variant="tip">
+**All nodes report the same cluster metrics** — `CLUSTER INFO` returns identical data from any node. Enable this pipeline on all nodes for resilience (if one collector fails, others still report), or on just one node to minimize redundant data.
+</Callout>
 
 </Step>
 
@@ -322,6 +431,9 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/otel
+            - name: machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
             # Uncomment if collecting logs:
             # - name: varlogpods
             #   mountPath: /var/log/pods
@@ -340,6 +452,9 @@ spec:
         - name: config
           configMap:
             name: otel-collector-redis-config
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
         # Uncomment if collecting logs:
         # - name: varlogpods
         #   hostPath:
@@ -399,9 +514,12 @@ SINCE 5 minutes ago
 ```bash
 kubectl create namespace newrelic
 
+# Set OTEL_EXPORTER_OTLP_ENDPOINT for your region:
+#   US: https://otlp.nr-data.net
+#   EU: https://otlp.eu01.nr-data.net
 kubectl create secret generic newrelic-credentials \
   --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
-  --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \
+  --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT \
   -n newrelic
 ```
 
@@ -481,6 +599,7 @@ data:
           redis:
             rule: type == "pod" && labels["app"] == "redis"  # Update with your Redis pod labels
             config:
+              endpoint: "`endpoint`:6379"
               collection_interval: 10s
               metrics:
                 redis.maxmemory:
@@ -518,6 +637,12 @@ data:
             value: "my-cluster.default:6379"  # Update with cluster.namespace:port
             action: upsert
 
+      attributes/entity_tags:
+        actions:
+          - key: instrumentation.provider
+            value: opentelemetry
+            action: upsert
+
       cumulativetodelta:
         include:
           match_type: regexp
@@ -552,10 +677,11 @@ data:
 
       batch:
         send_batch_size: 2048
+        send_batch_max_size: 4096
         timeout: 10s
 
     exporters:
-      otlphttp:
+      otlp_http:
         endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
         headers:
           api-key: ${env:NEW_RELIC_LICENSE_KEY}
@@ -566,8 +692,8 @@ data:
       pipelines:
         metrics/redis:
           receivers: [receiver_creator/redis]
-          processors: [memory_limiter, resource/k8s_cluster, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-          exporters: [otlphttp]
+          processors: [memory_limiter, resource/k8s_cluster, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+          exporters: [otlp_http]
 ```
 
 ```bash
@@ -585,11 +711,17 @@ To collect Redis logs, add the `filelog` receiver to your ConfigMap and mount `/
 Add to the `receivers` section in your ConfigMap:
 
 ```yaml
-    filelog/redis:
+    file_log/redis:
       include:
-        - /var/log/pods/<namespace>_*redis*/*/*.log  # Update namespace
+        - /var/log/pods/<namespace>_*redis*/*/*.log  # Update <namespace> with your Redis namespace (e.g., default, production)
       start_at: end
       include_file_path: true
+      operators:
+        - type: regex_parser
+          regex: '^\S+ stdout F \d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+          on_error: send
+      resource:
+        db.system: redis
 ```
 
 Add a `resource/redis_logs` processor:
@@ -600,8 +732,8 @@ Add a `resource/redis_logs` processor:
         - key: redis.instance.id
           value: "my-cluster.default:6379"  # Update with cluster.namespace:port
           action: upsert
-        - key: db.system
-          value: "redis"
+        - key: instrumentation.provider
+          value: "opentelemetry"
           action: upsert
 ```
 
@@ -613,10 +745,102 @@ Add a logs pipeline to the service section:
         metrics/redis:
           # ... existing metrics pipeline ...
         logs/redis:
-          receivers: [filelog/redis]
+          receivers: [file_log/redis]
           processors: [memory_limiter, resource/redis_logs, batch]
-          exporters: [otlphttp]
+          exporters: [otlp_http]
 ```
+
+</Step>
+
+<Step>
+
+### Optional: Enable Redis Cluster monitoring [#cluster-otel]
+
+If your Redis is running in [Cluster mode](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/) (multiple masters with hash slot distribution), add a separate pipeline to collect cluster-level health metrics.
+
+<Callout variant="important">
+This step is only for Redis Cluster deployments. Standalone Redis instances do not produce cluster metrics.
+</Callout>
+
+In Kubernetes, the `receiver_creator` auto-discovers individual pods. For cluster metrics, point the cluster receiver at the Redis service endpoint (e.g., `redis.default.svc.cluster.local:6379`) since cluster-level data is the same from any node.
+
+Add the following to your existing ConfigMap configuration:
+
+**1. Add the cluster receiver** (after your existing `receiver_creator/redis` receiver):
+
+```yaml
+  # Cluster metrics only — same endpoint, separate metric set
+  redis/cluster:
+    endpoint: "redis.default.svc.cluster.local:6379"  # Redis service endpoint
+    collection_interval: 10s
+    metrics:
+      # Disable all instance metrics (handled by the instance receiver)
+      redis.clients.connected: {enabled: false}
+      redis.clients.blocked: {enabled: false}
+      redis.memory.used: {enabled: false}
+      redis.memory.rss: {enabled: false}
+      redis.memory.peak: {enabled: false}
+      redis.memory.lua: {enabled: false}
+      redis.memory.fragmentation_ratio: {enabled: false}
+      redis.commands.processed: {enabled: false}
+      redis.commands: {enabled: false}
+      redis.connections.received: {enabled: false}
+      redis.connections.rejected: {enabled: false}
+      redis.keyspace.hits: {enabled: false}
+      redis.keyspace.misses: {enabled: false}
+      redis.keys.evicted: {enabled: false}
+      redis.keys.expired: {enabled: false}
+      redis.net.input: {enabled: false}
+      redis.net.output: {enabled: false}
+      redis.cpu.time: {enabled: false}
+      redis.uptime: {enabled: false}
+      redis.slaves.connected: {enabled: false}
+      redis.db.keys: {enabled: false}
+      redis.db.expires: {enabled: false}
+      redis.db.avg_ttl: {enabled: false}
+      redis.rdb.changes_since_last_save: {enabled: false}
+      redis.latest_fork: {enabled: false}
+      redis.replication.offset: {enabled: false}
+      redis.maxmemory: {enabled: false}
+      redis.cmd.calls: {enabled: false}
+      redis.cmd.usec: {enabled: false}
+      # Enable only cluster metrics
+      redis.cluster.state: {enabled: true}
+      redis.cluster.slots_assigned: {enabled: true}
+      redis.cluster.slots_ok: {enabled: true}
+      redis.cluster.slots_pfail: {enabled: true}
+      redis.cluster.slots_fail: {enabled: true}
+      redis.cluster.known_nodes: {enabled: true}
+      redis.cluster.node.count: {enabled: true}
+      redis.cluster.stats_messages_sent: {enabled: true}
+      redis.cluster.stats_messages_received: {enabled: true}
+    resource_attributes:
+      server.address: {enabled: false}
+      server.port: {enabled: false}
+```
+
+**2. Add the cluster resource processor** (in your processors section):
+
+```yaml
+  resource/cluster:
+    attributes:
+      - key: redis.cluster.name
+        value: "my-redis-cluster"  # Update with your cluster name
+        action: upsert
+```
+
+**3. Add the cluster pipeline** (in your service pipelines section):
+
+```yaml
+    metrics/cluster:
+      receivers: [redis/cluster]
+      processors: [memory_limiter, resource/cluster, attributes/entity_tags, cumulativetodelta, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+```
+
+<Callout variant="tip">
+**All nodes report the same cluster metrics** — `CLUSTER INFO` returns identical data from any node. Enable this pipeline on all nodes for resilience (if one collector fails, others still report), or on just one node to minimize redundant data.
+</Callout>
 
 </Step>
 
@@ -671,6 +895,9 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/otel
+            - name: machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
             # Uncomment if collecting logs:
             # - name: varlogpods
             #   mountPath: /var/log/pods
@@ -689,6 +916,9 @@ spec:
         - name: config
           configMap:
             name: otel-collector-redis-config
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
         # Uncomment if collecting logs:
         # - name: varlogpods
         #   hostPath:
@@ -747,9 +977,12 @@ SINCE 5 minutes ago
 ```bash
 kubectl create namespace newrelic
 
+# Set OTEL_EXPORTER_OTLP_ENDPOINT for your region:
+#   US: https://otlp.nr-data.net
+#   EU: https://otlp.eu01.nr-data.net
 kubectl create secret generic newrelic-credentials \
   --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
-  --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net \
+  --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT \
   -n newrelic
 ```
 
@@ -930,7 +1163,7 @@ data:
             new_name: redis.keyspace.misses
           - include: redis_evicted_keys_total
             action: update
-            new_name: redis.key.evicted
+            new_name: redis.keys.evicted
           - include: redis_expired_keys_total
             action: update
             new_name: redis.keys.expired
@@ -992,7 +1225,7 @@ data:
             - redis\.commands\.processed
             - redis\.connections\.received
             - redis\.connections\.rejected
-            - redis\.key\.evicted
+            - redis\.keys\.evicted
             - redis\.keys\.expired
             - redis\.keyspace\.hits
             - redis\.keyspace\.misses
@@ -1019,10 +1252,11 @@ data:
 
       batch:
         send_batch_size: 2048
+        send_batch_max_size: 4096
         timeout: 10s
 
     exporters:
-      otlphttp:
+      otlp_http:
         endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
         headers:
           api-key: ${env:NEW_RELIC_LICENSE_KEY}
@@ -1034,12 +1268,99 @@ data:
         metrics/redis:
           receivers: [prometheus]
           processors: [memory_limiter, resource/redis_identity, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
-          exporters: [otlphttp]
+          exporters: [otlp_http]
 ```
 
 ```bash
 kubectl apply -f otel-collector-config.yaml
 ```
+
+</Step>
+
+<Step>
+
+### Optional: Enable Redis Cluster monitoring [#cluster-prometheus]
+
+If your Redis is running in Cluster mode, start `redis_exporter` with the `--is-cluster` flag to automatically collect cluster health metrics from all nodes:
+
+```bash
+redis_exporter --redis.addr=redis://localhost:7000 --is-cluster
+```
+
+The Prometheus receiver configuration above already renames cluster metrics (e.g., `redis_cluster_state` → `redis.cluster.state`). To create a separate cluster entity in New Relic, add a `redis.cluster.name` resource attribute to a **separate pipeline** that does NOT include `redis.instance.id`:
+
+```yaml
+  resource/cluster:
+    attributes:
+      - key: redis.cluster.name
+        value: "my-redis-cluster"  # Update with your cluster name
+        action: upsert
+```
+
+Add a cluster pipeline to your service section:
+
+```yaml
+    metrics/cluster:
+      receivers: [prometheus]
+      processors: [memory_limiter, resource/cluster, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+      exporters: [otlp_http]
+```
+
+<Callout variant="important">
+The cluster entity requires `redis.cluster.name` to be present AND `redis.instance.id` to be absent. If both are set on the same metrics, only the instance entity will be created. Use separate pipelines for instance and cluster metrics.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Optional: Collect Redis logs [#logs-prometheus]
+
+To collect Redis logs, add the `file_log` receiver to your ConfigMap and mount `/var/log/pods` in the Deployment.
+
+Add to the `receivers` section in your ConfigMap:
+
+```yaml
+    file_log/redis:
+      include:
+        - /var/log/pods/<namespace>_*redis*/*/*.log  # Update <namespace> with your Redis namespace (e.g., default, production)
+      start_at: end
+      include_file_path: true
+      operators:
+        - type: regex_parser
+          regex: '^\S+ stdout F \d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+          on_error: send
+      resource:
+        db.system: redis
+```
+
+Add a `resource/redis_logs` processor:
+
+```yaml
+    resource/redis_logs:
+      attributes:
+        - key: redis.instance.id
+          value: "my-cluster.default:6379"  # Must match the value in resource/redis_identity
+          action: upsert
+        - key: instrumentation.provider
+          value: "opentelemetry"
+          action: upsert
+```
+
+Add a logs pipeline to the service section:
+
+```yaml
+    service:
+      pipelines:
+        metrics/redis:
+          # ... existing metrics pipeline ...
+        logs/redis:
+          receivers: [file_log/redis]
+          processors: [memory_limiter, resource/redis_logs, batch]
+          exporters: [otlp_http]
+```
+
+Add the `/var/log/pods` volume mount to your Deployment (see deploy step below).
 
 </Step>
 
@@ -1090,6 +1411,10 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/otel
+            # Uncomment if collecting logs:
+            # - name: varlogpods
+            #   mountPath: /var/log/pods
+            #   readOnly: true
           livenessProbe:
             httpGet:
               path: /
@@ -1104,6 +1429,10 @@ spec:
         - name: config
           configMap:
             name: otel-collector-redis-config
+        # Uncomment if collecting logs:
+        # - name: varlogpods
+        #   hostPath:
+        #     path: /var/log/pods
 ```
 
 ```bash
@@ -1144,7 +1473,7 @@ SINCE 5 minutes ago
 </Tabs>
 
 <Callout variant="tip">
-**APM relationship:** To see your APM service connected to Redis in service maps, ensure your OTel-instrumented application has `db.system=redis` and `redis.instance.id` as resource attributes. The `redis.instance.id` value must match the identifier used in your Redis collector configuration.
+**Correlate APM with Redis**: To connect your APM application and Redis instance in service maps, include `db.system="redis"` and `redis.instance.id` as resource attributes in your APM metrics. The `redis.instance.id` value must match what you configured in the collector. This enables cross-service visibility and faster troubleshooting within New Relic.
 </Callout>
 
 ## Next steps [#next-steps]
