@@ -1,0 +1,650 @@
+---
+title: NRDOT를 사용한 Linux 자체 호스팅 MSSQL 모니터링
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Linux
+metaDescription: Set up Microsoft SQL Server monitoring with NRDOT collector on Linux self-hosted environments
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+물리적 서버, 가상 머신 및 컨테이너화된 Linux 배포를 포함한 Linux 자체 호스팅 환경에서 NRDOT 수집기를 사용하여 Microsoft SQL Server 모니터링을 설정합니다.
+
+<Steps>
+  <Step>
+    ### 전제 조건 [#prerequisites]
+
+    환경이 [호환성 및 필수 조건](/docs/opentelemetry/database/mssql/compatibility)을 충족하는지 확인하세요.
+  </Step>
+
+  <Step>
+    ## NRDOT Collector 설정 [#setup]
+
+    Linux 버전에 NRDOT Collector를 설치합니다:
+
+    <Callout variant="important">
+      쿼리 성능 모니터링을 위한 인프라 수준 메트릭을 보려면 SQL Server 인스턴스와 동일한 호스트에 NRDOT Collector를 설치하는 것이 좋습니다.
+    </Callout>
+
+    1. **Debian/Ubuntu**
+
+    **AMD64(x86\_64) 아키텍처의 경우:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+    **ARM64 아키텍처의 경우:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+    2. **RHEL/CentOS**
+
+    **AMD64(x86\_64) 아키텍처의 경우:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+    ```
+
+    **ARM64 아키텍처의 경우:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+    ```
+  </Step>
+
+  <Step>
+    ## 데이터베이스 사용자 구성 [#user]
+
+    다음 스크립트를 `root user/sysadmin` 사용자 권한으로 실행하여 `newrelic` 모니터링 사용자를 생성하고 전역 읽기 권한을 부여하십시오.
+
+    1. Linux에서 `newrelic` 모니터링 사용자를 생성하려면 Linux 인스턴스에 다음 내용이 포함된 `nr-grant-permission.sql` 이라는 파일을 생성하십시오.
+
+       ```sql
+       USE [master];
+       GO
+       CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
+       GO
+       -- Instance-level permissions
+       GRANT VIEW SERVER STATE TO [newrelic];
+       GRANT VIEW ANY DEFINITION TO [newrelic];
+       GRANT VIEW ANY DATABASE TO [newrelic];
+       GO
+       -- Grant read access privileges to all user databases
+       DECLARE @name SYSNAME;
+       DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+       SELECT [name]
+       FROM [master].[sys].[databases]
+       WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+       AND [state] = 0; -- Only online databases
+       OPEN db_cursor;
+       FETCH NEXT FROM db_cursor INTO @name;
+       WHILE @@FETCH_STATUS = 0
+       BEGIN
+         EXEC('USE [' + @name + '];
+                 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+                     CREATE USER [newrelic] FOR LOGIN [newrelic];');
+         END TRY
+         BEGIN CATCH
+           PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+         END CATCH
+         FETCH NEXT FROM db_cursor INTO @name;
+       END
+       CLOSE db_cursor;
+       DEALLOCATE db_cursor;
+       GO
+       ```
+
+    2. 스크립트를 실행하려면 다음 명령어를 실행하십시오. `<Your_SA_Password>` SQL Server 관리자 암호로 바꾸십시오.
+
+       ```bash
+       sqlcmd -S localhost -U sa -P '<Your_SA_Password>' -C -i nr-grant-permission.sql
+       ```
+
+    3. *(선택 사항)* 사용자가 성공적으로 생성되었고 올바른 권한을 가졌는지 확인하려면 다음 명령을 실행하십시오. `<Your_SA_Password>` SQL Server 관리자 암호로 바꾸십시오.
+
+       ```bash
+       sqlcmd -S localhost -U sa -P '<Your_SA_Password>' -C -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = 'newrelic';"
+       ```
+
+       **예상 출력:**
+
+       ```
+       User Permission_Granted
+       -------------------------------------------------------------------------------------
+       <your_username> CONNECT SQL
+       <your_username> VIEW ANY DEFINITION
+       <your_username> VIEW ANY DATABASE
+       <your_username> VIEW SERVER STATE
+       ```
+
+    이 출력은 필요한 서버 수준 권한을 가지고 사용자가 성공적으로 생성되었음을 확인시켜 줍니다.
+  </Step>
+
+  <Step>
+    ## NRDOT Collector구성 [#configure]
+
+    모니터링 요구 사항에 따라 설정 유형을 선택하십시오:
+
+    <CollapserGroup>
+      <Collapser id="host-database-monitoring" title="호스트 메트릭+데이터베이스 모니터링이 포함된 NRDOT Collector">
+        이 설정에는 인프라 호스트 메트릭과 데이터베이스 모니터링이 모두 포함됩니다.
+
+        1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다:
+
+           ```bash
+           sudo nano /etc/nrdot-collector/mssql-config.yaml
+           ```
+
+        2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
+
+        <Callout variant="important">
+          기존 NRDOT Collector 사용자인 경우 설정을 기존 config.yaml 파일과 병합해야 합니다. 여기에는 현재 설정을 유지하면서 MSSQL 데이터베이스 모니터링을 위한 새로운 수신기, 프로세서 및 내보내기 도구를 추가하는 것이 포함됩니다.
+        </Callout>
+
+        ```yaml
+        # NRDOT Collector Configuration for New Relic SQL Server Integration
+
+        extensions:
+          health_check:
+
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+              http:
+
+          host_metrics:
+            collection_interval: 60s
+            scrapers:
+              cpu:
+                metrics:
+                  system.cpu.time:
+                    enabled: false
+                  system.cpu.utilization:
+                    enabled: true
+              load:
+              memory:
+                metrics:
+                  system.memory.utilization:
+                    enabled: true
+              paging:
+                metrics:
+                  system.paging.utilization:
+                    enabled: false
+                  system.paging.faults:
+                    enabled: false
+              filesystem:
+                metrics:
+                  system.filesystem.utilization:
+                    enabled: true
+              disk:
+                metrics:
+                  system.disk.merged:
+                    enabled: false
+                  system.disk.pending_operations:
+                    enabled: false
+                  system.disk.weighted_io_time:
+                    enabled: false
+              network:
+                metrics:
+                  system.network.connections:
+                    enabled: false
+
+          file_log:
+            include:
+              - /var/log/alternatives.log
+              - /var/log/cloud-init.log
+              - /var/log/auth.log
+              - /var/log/dpkg.log
+              - /var/log/syslog
+              - /var/log/messages
+              - /var/log/secure
+              - /var/log/yum.log
+
+          nrsqlserver:
+            collection_interval: 15s
+            username: <YOUR_USERNAME>
+            password: <YOUR_PASSWORD>
+            server: <YOUR_SERVER>
+            port: 1433
+
+            # Enable comprehensive database metrics
+            metrics:
+              sqlserver.database.count:
+                enabled: true
+              sqlserver.database.io:
+                enabled: true
+              sqlserver.database.latency:
+                enabled: true
+              sqlserver.database.operations:
+                enabled: true
+              sqlserver.database.tempdb.space:
+                enabled: true
+              sqlserver.database.tempdb.version_store.size:
+                enabled: true
+              sqlserver.deadlock.rate:
+                enabled: true
+              sqlserver.os.wait.duration:
+                enabled: true
+              sqlserver.processes.blocked:
+                enabled: true
+              sqlserver.memory.grants.pending.count:
+                enabled: true
+              sqlserver.database.file.size:
+                enabled: true
+              sqlserver.memory.area:
+                enabled: true
+
+            # Enable top query and query sample log collection
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+
+            # Top query collection configuration
+            top_query_collection:
+              lookback_time: 60s
+              max_query_sample_count: 1000
+              top_query_count: 250
+              collection_interval: 60s
+
+            collect_full_query_text: true
+            allowed_comment_keys:
+              - nr_service_guid
+
+            # Query sample collection configuration
+            query_sample_collection:
+              max_rows_per_query: 100
+
+        processors:
+          metrics_transform:
+            transforms:
+              - include: system.cpu.utilization
+                action: update
+                operations:
+                  - action: aggregate_labels
+                    label_set: [ state ]
+                    aggregation_type: mean
+              - include: system.paging.operations
+                action: update
+                operations:
+                  - action: aggregate_labels
+                    label_set: [ direction ]
+                    aggregation_type: sum
+
+          filter/exclude_cpu_utilization:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+
+          filter/exclude_memory_utilization:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+
+          filter/exclude_memory_usage:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+                - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+
+          filter/exclude_filesystem_utilization:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+
+          filter/exclude_filesystem_usage:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+                - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+
+          filter/exclude_filesystem_inodes_usage:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+                - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+
+          filter/exclude_system_disk:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+
+          filter/exclude_system_paging:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+                - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+
+          filter/exclude_network:
+            metrics:
+              datapoint:
+                - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+
+          attributes/exclude_system_paging:
+            include:
+              match_type: strict
+              metric_names:
+                - system.paging.operations
+            actions:
+              - key: type
+                action: delete
+
+          cumulativetodelta:
+
+          transform/host:
+            metric_statements:
+              - context: metric
+                statements:
+                  - set(metric.description, "")
+                  - set(metric.unit, "")
+
+          transform:
+            trace_statements:
+              - context: span
+                statements:
+                  - truncate_all(span.attributes, 4095)
+                  - truncate_all(resource.attributes, 4095)
+            log_statements:
+              - context: log
+                statements:
+                  - truncate_all(log.attributes, 4095)
+                  - truncate_all(resource.attributes, 4095)
+
+          memory_limiter:
+            check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+            limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+            spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+          batch:
+
+          resource_detection:
+            detectors: ["system"]
+            system:
+              hostname_sources: ["os"]
+              resource_attributes:
+                host.id:
+                  enabled: true
+
+          resource_detection/cloud:
+            detectors: ["gcp", "ec2", "azure"]
+            timeout: 2s
+            override: true
+
+          resource_detection/env:
+            detectors: ["env"]
+            timeout: 2s
+            override: true
+
+        exporters:
+          otlphttp:
+            endpoint: <YOUR_OTLP_ENDPOINT>
+            headers:
+              api-key: <YOUR_LICENSE_KEY>
+            tls:
+              insecure: false
+            compression: gzip
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+
+          extensions: [health_check]
+
+          pipelines:
+            metrics/host:
+              receivers: [host_metrics, nrsqlserver]
+              processors:
+                - memory_limiter
+                - metrics_transform
+                - filter/exclude_cpu_utilization
+                - filter/exclude_memory_utilization
+                - filter/exclude_memory_usage
+                - filter/exclude_filesystem_utilization
+                - filter/exclude_filesystem_usage
+                - filter/exclude_filesystem_inodes_usage
+                - filter/exclude_system_disk
+                - filter/exclude_network
+                - attributes/exclude_system_paging
+                - transform/host
+                - resource_detection
+                - resource_detection/cloud
+                - resource_detection/env
+                - cumulativetodelta
+                - batch
+              exporters: [otlphttp]
+
+            logs/host:
+              receivers: [file_log, nrsqlserver]
+              processors:
+                - memory_limiter
+                - transform
+                - resource_detection
+                - resource_detection/cloud
+                - resource_detection/env
+                - batch
+              exporters: [otlphttp]
+
+            traces:
+              receivers: [otlp]
+              processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+              exporters: [otlphttp]
+
+            metrics:
+              receivers: [otlp]
+              processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+              exporters: [otlphttp]
+
+            logs:
+              receivers: [otlp]
+              processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+              exporters: [otlphttp]
+        ```
+      </Collapser>
+
+      <Collapser id="database-monitoring-only" title="데이터베이스 모니터링 전용(권장)">
+        이 설정은 호스트 인프라 메트릭 없이 데이터베이스 모니터링에만 중점을 둡니다.
+
+        1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다:
+
+           ```bash
+           sudo nano /etc/nrdot-collector/mssql-config.yaml
+           ```
+
+        2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
+
+        ```yaml
+        # NRDOT Collector Configuration for SQL Server with SQL Authentication
+        # Database Monitoring Only
+
+        receivers:
+          nrsqlserver:
+            collection_interval: 15s
+            # Direct connection to SQL Server
+            username: <YOUR_USERNAME>
+            password: <YOUR_PASSWORD>
+            server: <YOUR_SERVER>
+            port: 1433
+
+            # Enable comprehensive database metrics
+            metrics:
+              sqlserver.database.count:
+                enabled: true
+              sqlserver.database.io:
+                enabled: true
+              sqlserver.database.latency:
+                enabled: true
+              sqlserver.database.operations:
+                enabled: true
+              sqlserver.database.tempdb.space:
+                enabled: true
+              sqlserver.database.tempdb.version_store.size:
+                enabled: true
+              sqlserver.deadlock.rate:
+                enabled: true
+              sqlserver.os.wait.duration:
+                enabled: true
+              sqlserver.processes.blocked:
+                enabled: true
+              sqlserver.memory.grants.pending.count:
+                enabled: true
+              sqlserver.database.file.size:
+                enabled: true
+              sqlserver.memory.area:
+                enabled: true
+
+            # Enable top query and query sample log collection
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+
+            # Top query collection configuration
+            top_query_collection:
+              lookback_time: 60s
+              max_query_sample_count: 1000
+              top_query_count: 250
+              collection_interval: 60s
+
+            collect_full_query_text: true
+            allowed_comment_keys:
+              - nr_service_guid
+
+            # Query sample collection configuration
+            query_sample_collection:
+              max_rows_per_query: 100
+
+        processors:
+          memory_limiter:
+            check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+            limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+            spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+          batch:
+
+        exporters:
+          otlphttp:
+            endpoint: <YOUR_OTLP_ENDPOINT>
+            headers:
+              api-key: <YOUR_LICENSE_KEY>
+            tls:
+              insecure: false
+            compression: gzip
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+
+          pipelines:
+            metrics:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+
+            logs:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="tip">
+      **참고:** `max_concurrent_queries` 옵션은 각 스크랩 주기 동안 수신기가 SQL Server에 대해 병렬로 실행하는 메트릭 쿼리 수를 제어합니다.
+
+      ```yaml
+      receivers:
+        nrsqlserver:
+          max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+      ```
+    </Callout>
+
+    ### 구성 매개변수
+
+    다음 표는 nrsqlserver 수신기의 주요 설정 파라미터를 설명합니다:
+
+    | 매개변수                   | 설명                                                                                                                |
+    | ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_USERNAME>`      | 인증을 위해 데이터베이스 사용자 이름을 입력하세요.                                                                                      |
+    | `<YOUR_PASSWORD>`      | 인증을 위해 데이터베이스 비밀번호를 입력하세요.                                                                                        |
+    | `<YOUR_SERVER>`        | SQL Server 호스트명 또는 IP 주소를 입력하십시오.                                                                                 |
+    | `port`                 | SQL Server 포트 번호를 입력합니다. 기본값은 1433입니다.                                                                            |
+    | `<YOUR_OTLP_ENDPOINT>` | 뉴렐릭 OTLP 엔드포인트를 입력하세요(예: [https://otlp.nr-data.net](https://otlp.nr-data.net)). 자세한 내용은 뉴렐릭 OTLP 엔드포인트 문서를 참조하세요. |
+    | `<YOUR_LICENSE_KEY>`   | 귀하의 블루 클러스터 키를 입력하세요.                                                                                             |
+    | `collection_interval`  | 데이터베이스 메트릭을 수집하는 간격(초)입니다. 기본: 15s                                                                                |
+
+    <Callout variant="tip">
+      **참고:** 사용 가능한 모든 메트릭을 활성화하는 경우 메모리 제한기가 데이터를 삭제하지 않도록 `limit_mib` 값(예: 1,000)을 늘리세요.
+    </Callout>
+
+    3. **수집기 설정 파일 업데이트**
+
+       다음 명령을 실행하여 서비스 설정을 편집합니다:
+
+       ```bash
+       sudo nano /etc/nrdot-collector/nrdot-collector.conf
+       ```
+
+       새 mssql-config.yaml 파일을 가리키도록 설정 경로를 업데이트합니다:
+
+       ```bash
+       OTELCOL_CONFIG="/etc/nrdot-collector/mssql-config.yaml"
+       ```
+
+    4. **NRDOT Collector 설정 유효성 검사**
+
+       NRDOT Collector 설정을 검증하여 형식이 올바르고 제대로 작동하는지 확인합니다:
+
+       ```bash
+       sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mssql-config.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## NRDOT 수집기 재시작 [#restart]
+
+    설정을 업데이트한 후 NRDOT Collector 서비스를 다시 시작하십시오:
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      설정을 변경한 후에는 반드시 NRDOT 수집기 서비스를 다시 시작하여 새 설정이 적용되도록 하십시오.
+    </Callout>
+  </Step>
+</Steps>
+
+## 다음 단계
+
+Linux 자체 호스팅 모니터링을 설정한 후:
+
+* [APM-데이터베이스 상관관계 설정](/docs/opentelemetry/database/database-service-identification/)
+* [사용 가능한 메트릭 탐색](/docs/opentelemetry/database/mssql/metrics-reference)
+* [문제 해결](/docs/opentelemetry/database/mssql/troubleshooting)
+* [데이터 찾기 및 사용](/docs/opentelemetry/database/mssql/introduction#find-and-use-your-data)
