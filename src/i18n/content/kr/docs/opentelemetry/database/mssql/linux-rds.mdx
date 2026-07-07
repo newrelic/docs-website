@@ -1,0 +1,309 @@
+---
+title: NRDOT를 사용한 Linux RDS MSSQL 모니터링
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Linux
+  - RDS
+  - AWS
+metaDescription: Set up Microsoft SQL Server monitoring with NRDOT collector on Linux for AWS RDS SQL Server instances
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+AWS RDS for SQL Server 인스턴스를 모니터하려면 Linux 환경에서 NRDOT 수집기를 사용하여 Microsoft SQL Server 모니터링을 설정하세요.
+
+<Steps>
+  <Step>
+    ### 전제 조건 [#prerequisites]
+
+    환경이 [호환성 및 필수 조건](/docs/opentelemetry/database/mssql/compatibility)을 충족하는지 확인하세요.
+  </Step>
+
+  <Step>
+    ### NRDOT Collector 설정 [#setup-collector]
+
+    RDS SQL Server 인스턴스에 연결할 수 있는 Linux EC2 인스턴스 또는 로컬 Linux 머신에 NRDOT Collector를 설치합니다.
+
+    <Callout variant="important">
+      RDS SQL Server 인스턴스에 대한 네트워크 연결이 있는 EC2 인스턴스 또는 로컬 머신에 NRDOT Collector를 설치하세요. 보안 그룹이 포트 1433(또는 사용자 지정 포트)에서 인바운드 연결을 허용하는지 확인하세요.
+    </Callout>
+
+    1. **Debian/Ubuntu**
+
+    **AMD64(x86\_64) 아키텍처의 경우:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+    **ARM64 아키텍처의 경우:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+    2. **RHEL/CentOS**
+
+    **AMD64(x86\_64) 아키텍처의 경우:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+    ```
+
+    **ARM64 아키텍처의 경우:**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+    ```
+  </Step>
+
+  <Step>
+    ### 데이터베이스 사용자 구성 [#configure-user]
+
+    RDS SQL Server 인스턴스에 연결하고 적절한 권한을 가진 `newrelic` 모니터링 사용자를 생성합니다.
+
+    1. Linux 인스턴스에 다음 내용으로 `nr-grant-permission-rds.sql` 이라는 파일을 생성하세요:
+
+    ```sql
+    USE [master];
+    GO
+    CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
+    GO
+    -- Instance-level permissions
+    GRANT VIEW SERVER STATE TO [newrelic];
+    GRANT VIEW ANY DEFINITION TO [newrelic];
+    GRANT VIEW ANY DATABASE TO [newrelic];
+    GO
+    -- Grant read access privileges to all user databases
+    DECLARE @name SYSNAME;
+    DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name]
+    FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+    AND [state] = 0; -- Only online databases
+    OPEN db_cursor;
+    FETCH NEXT FROM db_cursor INTO @name;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+      EXEC('USE [' + @name + '];
+              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+                  CREATE USER [newrelic] FOR LOGIN [newrelic];');
+      END TRY
+      BEGIN CATCH
+        PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+      END CATCH
+      FETCH NEXT FROM db_cursor INTO @name;
+    END
+    CLOSE db_cursor;
+    DEALLOCATE db_cursor;
+    GO
+    ```
+
+    2. RDS 마스터 사용자 자격 증명을 사용하여 스크립트를 실행합니다. `<YOUR-RDS-ENDPOINT>` 을(를) 실제 RDS 엔드포인트로, `<Your_Master_Password>` 을(를) 마스터 비밀번호로 바꿉니다:
+
+    ```bash
+    sqlcmd -S <YOUR-RDS-ENDPOINT> -U <YOUR_MASTER_USER> -P '<Your_Master_Password>' -C -i nr-grant-permission-rds.sql
+    ```
+
+    3. *(선택 사항)* 사용자가 성공적으로 생성되었는지 확인합니다:
+
+    ```bash
+    sqlcmd -S <YOUR-RDS-ENDPOINT> -U <YOUR_MASTER_USER> -P '<Your_Master_Password>' -C -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = 'newrelic';"
+    ```
+
+    <Callout variant="tip">
+      **RDS의 경우:** RDS 마스터 사용자 이름과 비밀번호를 사용하여 이 명령을 실행합니다. 스크립트는 AWS에서 예약한 `rdsadmin` 데이터베이스를 자동으로 제외합니다.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### NRDOT Collector구성 [#configure-collector]
+
+    1. 설정 파일을 생성합니다. 파일 이름은 `mssql-config.yaml`이어야 합니다:
+
+       ```powershell
+       sudo nano /etc/nrdot-collector/mssql-config.yaml
+       ```
+
+    2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
+
+    <Callout variant="important">
+      기존 NRDOT Collector 사용자인 경우 설정을 기존 `mssql-config.yaml` 파일과 병합해야 합니다. 여기에는 현재 설정을 유지하면서 MSSQL 데이터베이스 모니터링을 위한 새 수신기, 프로세서 및 익스포터를 추가하는 것이 포함됩니다.
+    </Callout>
+
+    RDS 엔드포인트와 함께 아래 설정을 사용합니다:
+
+    ```yaml
+    receivers:
+      nrsqlserver:
+        collection_interval: 15s
+        # Connection details - Use your RDS endpoint
+        username: <YOUR_USERNAME>
+        password: <YOUR_NEWRELIC_PASSWORD>
+        server: <YOUR-RDS-ENDPOINT>
+        port: 1433
+
+        # Enable comprehensive database metrics
+        metrics:
+          sqlserver.database.count:
+            enabled: true
+          sqlserver.database.io:
+            enabled: true
+          sqlserver.database.latency:
+            enabled: true
+          sqlserver.database.operations:
+            enabled: true
+          sqlserver.database.tempdb.space:
+            enabled: true
+          sqlserver.database.tempdb.version_store.size:
+            enabled: true
+          sqlserver.deadlock.rate:
+            enabled: true
+          sqlserver.os.wait.duration:
+            enabled: true
+          sqlserver.processes.blocked:
+            enabled: true
+          sqlserver.memory.grants.pending.count:
+            enabled: true
+          sqlserver.database.file.size:
+            enabled: true
+          sqlserver.memory.area:
+            enabled: true
+
+        # Enable top query and query sample log collection
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+
+        # Top query collection configuration
+        top_query_collection:
+          lookback_time: 60s
+          max_query_sample_count: 1000
+          top_query_count: 250
+          collection_interval: 60s
+
+        collect_full_query_text: true
+        allowed_comment_keys:
+          - nr_service_guid
+
+        # Query sample collection configuration
+        query_sample_collection:
+          max_rows_per_query: 100
+
+    processors:
+      memory_limiter:
+        check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+      batch:
+
+    exporters:
+      otlphttp:
+        endpoint: <YOUR_OTLP_ENDPOINT>
+        headers:
+          api-key: <YOUR_LICENSE_KEY>
+        tls:
+          insecure: false
+        compression: gzip
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp]
+
+        logs:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp]
+    ```
+
+       <Callout variant="tip">
+         **플레이스홀더 값을 바꿉니다:**
+
+         * `<YOUR_USERNAME>`: 인증을 위해 데이터베이스 사용자 이름을 입력합니다
+         * `<YOUR-RDS-ENDPOINT>`: RDS SQL Server 엔드포인트(예: `mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com`)
+         * `<YOUR_NEWRELIC_PASSWORD>`: newrelic 사용자에 대해 설정한 비밀번호
+         * `<YOUR_OTLP_ENDPOINT>`: 뉴렐릭 OTLP 엔드포인트(예: `https://otlp.nr-data.net`)
+         * `<YOUR_LICENSE_KEY>`: 귀하의 뉴렐릭 라이선스 키
+       </Callout>
+
+    <Callout variant="tip">
+      **참고:** `max_concurrent_queries` 옵션은 각 스크랩 주기 동안 수신기가 SQL Server에 대해 병렬로 실행하는 메트릭 쿼리 수를 제어합니다.
+
+      ```yaml
+      receivers:
+        nrsqlserver:
+          max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+      ```
+    </Callout>
+
+    <Callout variant="tip">
+      **참고:** 사용 가능한 모든 메트릭을 활성화하는 경우 메모리 제한기가 데이터를 삭제하지 않도록 `limit_mib` 값(예: 1,000)을 늘리세요.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### 수집기 설정 파일 업데이트 [#update-config-rds-linux]
+
+    1. **다음 명령을 실행하여 서비스 설정을 편집합니다:**
+
+       ```bash
+       sudo nano /etc/nrdot-collector/nrdot-collector.conf
+       ```
+
+    2. **새 mssql-config.yaml 파일을 가리키도록 설정 경로를 업데이트합니다:**
+
+       ```bash
+       OTELCOL_CONFIG="/etc/nrdot-collector/mssql-config.yaml"
+       ```
+  </Step>
+
+  <Step>
+    ### NRDOT Collector 설정 유효성 검사 [#validate]
+
+    NRDOT Collector 설정의 유효성을 검사하여 형식이 올바르고 제대로 작동하는지 확인합니다.
+
+    ```bash
+    sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mssql-config.yaml
+    ```
+  </Step>
+
+  <Step>
+    ### NRDOT 수집기 재시작 [#restart]
+
+    설정을 업데이트한 후 NRDOT Collector 서비스를 다시 시작하십시오:
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      설정을 변경한 후에는 반드시 NRDOT 수집기 서비스를 다시 시작하여 새 설정이 적용되도록 하십시오.
+    </Callout>
+  </Step>
+</Steps>
+
+## 다음 단계
+
+Linux RDS 모니터링 설정 후:
+
+* [APM-데이터베이스 상관관계 설정](/docs/opentelemetry/database/database-service-identification/)
+* [사용 가능한 메트릭 탐색](/docs/opentelemetry/database/mssql/metrics-reference)
+* [문제 해결](/docs/opentelemetry/database/mssql/troubleshooting)
