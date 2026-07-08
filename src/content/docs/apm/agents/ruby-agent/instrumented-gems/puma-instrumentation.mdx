@@ -1,0 +1,140 @@
+---
+title: Puma instrumentation
+tags:
+  - Agents
+  - Ruby agent
+  - Instrumented gems
+metaDescription: How the New Relic Ruby agent samples Puma server statistics, what it captures, and example queries.
+freshnessValidatedDate: never
+---
+
+The New Relic Ruby agent can sample [Puma's](https://github.com/puma/puma) cluster-wide server statistics from the Puma master process and report them as `Ruby/Puma/*` [timeslice metrics](/docs/data-apis/understand-data/metric-data/query-apm-metric-timeslice-data-nrql/).
+
+This instrumentation is **disabled by default**.
+
+## Minimum requirements [#requirements]
+
+<table>
+  <thead>
+    <tr>
+      <th>Requirement</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Ruby agent version</td>
+      <td>10.7.0 or higher</td>
+    </tr>
+    <tr>
+      <td>Puma version</td>
+      <td>6.6.0 or higher</td>
+    </tr>
+    <tr>
+      <td>Puma mode</td>
+      <td>Single mode, or clustered mode with `preload_app!` enabled.</td>
+    </tr>
+  </tbody>
+</table>
+
+## Enabling the instrumentation [#enable]
+
+To enable Puma instrumentation, set `disable_puma_instrumentation` to `false` in your `newrelic.yml`:
+
+```yaml
+disable_puma_instrumentation: false
+```
+
+The agent samples statistics from the Puma master process, so it only collects metrics where the agent is loaded in the master:
+
+* **Single mode** (no workers): metrics are always collected.
+* **Clustered mode** (one or more workers): metrics are collected only when your application is preloaded, so that the agent is loaded in the master rather than in a worker. Add `preload_app!` to your `puma.rb`:
+
+  ```ruby
+  workers 2
+  preload_app!
+  ```
+
+  <Callout variant="important">
+    On Puma 6.x you must set `preload_app!` explicitly. Puma 6.x does not apply its `preload_app` default from the config block, so a clustered app with `workers` set but no explicit `preload_app!` loads the agent in a worker and **no Puma metrics are collected**. When this happens, the agent logs a warning.
+  </Callout>
+
+### Adjust the sample rate [#sample-rate]
+
+By default the agent samples Puma statistics every 60 seconds. Change this with the `puma.sample_rate` setting (in seconds):
+
+```yaml
+puma.sample_rate: 30
+```
+
+## What it captures [#metrics]
+
+All metrics are recorded under the `Ruby/Puma/` namespace. Per-worker values are summed across the cluster.
+
+<table>
+  <thead>
+    <tr>
+      <th>Metric</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`Ruby/Puma/backlog`</td>
+      <td>Gauge</td>
+      <td>Number of requests waiting for an available thread.</td>
+    </tr>
+    <tr>
+      <td>`Ruby/Puma/running`</td>
+      <td>Gauge</td>
+      <td>Number of worker threads currently spawned in the thread pool.</td>
+    </tr>
+    <tr>
+      <td>`Ruby/Puma/pool_capacity`</td>
+      <td>Gauge</td>
+      <td>Spare request capacity: idle threads plus threads not yet spawned but still allowed up to `max_threads`.</td>
+    </tr>
+    <tr>
+      <td>`Ruby/Puma/max_threads`</td>
+      <td>Gauge</td>
+      <td>Configured maximum number of threads.</td>
+    </tr>
+    <tr>
+      <td>`Ruby/Puma/requests_count`</td>
+      <td>Counter</td>
+      <td>Cumulative number of requests processed since the workers started.</td>
+    </tr>
+    <tr>
+      <td>`Ruby/Puma/workers`</td>
+      <td>Gauge</td>
+      <td>Number of Puma workers. Reported in clustered mode only.</td>
+    </tr>
+  </tbody>
+</table>
+
+## Example queries [#queries]
+
+Query these metrics with [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/) using the `Metric` type. Replace `YOUR_APP_NAME` with your application's name.
+
+To view all Puma metrics at once:
+
+```sql
+FROM Metric SELECT average(newrelic.timeslice.value)
+WHERE appName = 'YOUR_APP_NAME' AND metricTimesliceName LIKE 'Ruby/Puma/%'
+FACET metricTimesliceName TIMESERIES
+```
+
+To view a single metric, filter by its name:
+
+```sql
+FROM Metric SELECT average(newrelic.timeslice.value)
+WHERE appName = 'YOUR_APP_NAME' AND metricTimesliceName = 'Ruby/Puma/backlog'
+TIMESERIES
+```
+
+## How it works [#behavior]
+
+When enabled, the agent starts a reporting thread in the Puma master process to deliver these metrics. This runs an additional agent connection in the master, alongside your Puma workers' connections.
+
+The instrumentation records only integer gauges and counters through `NewRelic::Agent.record_metric`. It does not capture any request, query, or user data.
