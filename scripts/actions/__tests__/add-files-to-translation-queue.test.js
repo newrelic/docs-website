@@ -10,6 +10,7 @@ const MOCK_CONSTANTS = {
     kr: 'ko-KR',
     es: 'es-LA',
     pt: 'pt-BR',
+    fr: 'fr-FR',
   },
 };
 
@@ -46,12 +47,14 @@ describe('add-files-to-translation-queue tests', () => {
         'ko-KR': ['excluded/path'],
         'es-LA': ['excluded/path'],
         'pt-BR': ['excluded/path'],
+        'fr-FR': ['excluded/path'],
       },
       excludeType: {
         'ja-JP': ['excludedType'],
         'ko-KR': ['excludedType'],
         'es-LA': ['excludedType'],
         'pt-BR': ['excludedType'],
+        'fr-FR': ['excludedType'],
       },
     };
     const originalAdd = jest.requireActual('../utils/constants.js');
@@ -77,6 +80,7 @@ describe('add-files-to-translation-queue tests', () => {
         { filename: '/content/bar.mdx', locale: 'ko-KR', project_id: 'MT_ID' },
         { filename: '/content/bar.mdx', locale: 'es-LA', project_id: 'MT_ID' },
         { filename: '/content/bar.mdx', locale: 'pt-BR', project_id: 'MT_ID' },
+        { filename: '/content/bar.mdx', locale: 'fr-FR', project_id: 'MT_ID' },
       ]);
     });
 
@@ -91,6 +95,7 @@ describe('add-files-to-translation-queue tests', () => {
         { filename: '/content/bar.mdx', locale: 'ko-KR', project_id: 'MT_ID' },
         { filename: '/content/bar.mdx', locale: 'es-LA', project_id: 'MT_ID' },
         { filename: '/content/bar.mdx', locale: 'pt-BR', project_id: 'MT_ID' },
+        { filename: '/content/bar.mdx', locale: 'fr-FR', project_id: 'MT_ID' },
       ]);
     });
 
@@ -137,6 +142,11 @@ describe('add-files-to-translation-queue tests', () => {
           locale: 'pt-BR',
           project_id: 'MT_ID',
         },
+        {
+          filename: '/content/bar.mdx',
+          locale: 'fr-FR',
+          project_id: 'MT_ID',
+        },
       ]);
     });
 
@@ -146,6 +156,7 @@ describe('add-files-to-translation-queue tests', () => {
         { filename: 'included/path/content/foo.mdx', locale: 'ko-KR' },
         { filename: 'included/path/content/bar.mdx', locale: 'es-LA' },
         { filename: 'included/path/content/foo.mdx', locale: 'pt-BR' },
+        { filename: 'included/path/content/foo.mdx', locale: 'fr-FR' },
       ];
       setup();
       const { excludeFiles } = require('../add-files-to-translation-queue');
@@ -157,6 +168,7 @@ describe('add-files-to-translation-queue tests', () => {
         { filename: 'included/path/content/foo.mdx', locale: 'ko-KR' },
         { filename: 'included/path/content/bar.mdx', locale: 'es-LA' },
         { filename: 'included/path/content/foo.mdx', locale: 'pt-BR' },
+        { filename: 'included/path/content/foo.mdx', locale: 'fr-FR' },
       ]);
     });
 
@@ -235,6 +247,11 @@ describe('add-files-to-translation-queue tests', () => {
           filename: 'excluded/path/content/bar.mdx',
           contentType: 'doc',
           locale: 'ja-JP',
+        },
+        {
+          filename: 'excluded/path/content/bar.mdx',
+          contentType: 'doc',
+          locale: 'fr-FR',
         },
       ];
       setup();

@@ -1,0 +1,165 @@
+---
+title: Kubernetesを使用してデュアルスタック用の外形監視をインストール
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: Install and configure New Relic Synthetics for Dual Stack environments using Kubernetes to support both IPv4 and IPv6 testing.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このガイドでは、Kubernetes環境でデュアルスタック（IPv4とIPv6）ネットワーキングをサポートするためのNew Relic Syntheticsジョブマネージャーの設定とデプロイメントについて説明します。
+
+## 前提条件 [#prerequisites]
+
+始める前に、次のものを用意してください。
+
+* <DNT>**Kubernetes cluster**</DNT>：デュアルスタックサポートが有効になっている、実行中のKubernetesクラスタ（バージョン1.20以降を推奨）
+
+* <DNT>**Helm**</DNT>: Helm 3.xがマシンにインストールされていること
+
+* <DNT>**kubectl**</DNT>：クラスタと通信するようにkubectlがインストールおよび設定されている
+
+* <DNT>**Docker**</DNT>: Dockerがインストールされ、デュアルスタックサポートで実行されていること（Minikubeや同様のローカルクラスタを使用している場合）
+
+* <DNT>**Permissions**</DNT>：ネームスペースを作成し、リソースをデプロイするためのCluster管理者権限
+
+* <DNT>**Private location key**</DNT>: UIからのNew Relicプライベートロケーションキー
+
+* <DNT>**Public images**</DNT>: デュアルスタックのサポートには、Docker Hubで利用可能な次のイメージバージョン以降が必要です：
+
+  * [ジョブマネージャー`519`以降](https://docs.newrelic.com/docs/release-notes/synthetics-release-notes/job-manager-release-notes/job-manager-release-519/): `newrelic/synthetics-job-manager`
+  * [Pingランタイム`1.65.0`以降](https://docs.newrelic.com/docs/release-notes/synthetics-release-notes/ping-runtime-release-notes/ping-runtime-1.65.0/): `newrelic/synthetics-ping-runtime`
+  * [ノードAPIランタイム`rc1.15`以降](https://docs.newrelic.com/docs/release-notes/synthetics-release-notes/node-api-runtime-release-notes/node-api-runtime-rc1.15/): `newrelic/synthetics-node-api-runtime`
+  * [Nodeブラウザランタイム`rc1.15`以降](https://docs.newrelic.com/docs/release-notes/synthetics-release-notes/node-browser-runtime-release-notes/node-browser-runtime-rc1.15/): `newrelic/synthetics-node-browser-runtime`
+
+<Steps>
+  <Step>
+    ## インフラストラクチャの検証 [#validate-infrastructure]
+
+    続行する前に、Kubernetesクラスタおよび基盤となるインフラストラクチャがデュアルスタックネットワーキングをサポートしていることを確認してください。
+
+    1. ホストから`ping6 ipv6.google.com`または`ping -6 ipv6.google.com`、あるいはお使いのマシンでの同等のコマンドを実行して、IPv6接続をテストします。
+
+    2. Kubernetesクラスタのデュアルスタックサポートを確認する：
+
+       ```bash
+       kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+       ```
+
+       クラスタでデュアルスタックが有効になっている場合、IPv4アドレスとIPv6アドレスの両方が返されるはずです。
+
+    3. Dockerデュアルスタック設定を確認します（該当する場合）：
+
+       ```bash
+       docker network inspect bridge | grep IPv6
+       ```
+
+    <Callout variant="important">
+      検証に失敗した場合は、ネットワークインフラストラクチャ、VPC、サブネット、およびセキュリティグループが、IPv4とIPv6の両方のトラフィックを許可するように設定されていることを確認してください。続行する前に、Kubernetesクラスタにデュアルスタックサポートが設定されている必要があります。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Dockerがデュアルスタックの準備ができていることを確認する [#configure-docker]
+
+    KubernetesクラスタがDocker上で実行されている場合（Minikube、kind、またはDocker Desktopなど）、DockerがIPv4とIPv6の両方のトラフィックを処理するように構成されていることを確認してください。DockerでIPv6が有効になっていることを確認するには、次を実行します：
+
+    ```bash
+    docker info | grep -i ipv6
+    ```
+
+    出力で、IPv6が有効になっていることを確認できるはずです。そうでない場合は、先に進む前に[Dockerのドキュメント](https://docs.docker.com/config/daemon/ipv6/)を参照して、デュアルスタックサポートを有効にしてください。
+  </Step>
+
+  <Step>
+    ## Helmでインストール [#install-helm]
+
+    New Relic Helmチャートを使用して、Syntheticsジョブマネージャーをデプロイします。
+
+    1. New Relic Helm リポジトリを追加します。
+
+       ```bash
+       helm repo add YOUR_REPO_NAME https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. Syntheticsジョブマネージャーをインストールします：
+
+       ```bash
+       helm install YOUR_JOB_MANAGER_NAME YOUR_REPO_NAME/synthetics-job-manager \
+         -n YOUR_NAMESPACE \
+         --set synthetics.privateLocationKey=YOUR_PRIVATE_LOCATION_KEY
+       ```
+
+    3. ポッドが稼働していることを確認します：
+
+       ```bash
+       kubectl get -n YOUR_NAMESPACE pods
+       ```
+  </Step>
+
+  <Step>
+    ## インストールの確認 [#verify-installation]
+
+    外形監視ジョブマネージャーがIPv4およびIPv6リソースの両方にアクセスできることを確認してください。
+
+    1. ポッドのステータスを確認します。
+
+       ```bash
+       kubectl get pods -n YOUR_NAMESPACE
+       ```
+
+       すべてのポッドは`Running`ステータスを表示する必要があります。
+
+    2. ジョブマネージャーのログを表示：
+
+       ```bash
+       kubectl logs -n YOUR_NAMESPACE <job-manager-pod-name>
+       ```
+
+    3. ポッド内からデュアルスタック接続をテストします：
+
+       ```bash
+       # Test IPv6
+       kubectl exec -n YOUR_NAMESPACE <pod-name> -- curl -6 -v http://ipv6.google.com
+
+       # Test IPv4
+       kubectl exec -n YOUR_NAMESPACE <pod-name> -- curl -4 -v http://google.com
+       ```
+
+       両方のcurlコマンドが成功した場合、デュアルスタック設定は正しく機能しています。
+
+    4. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Synthetic monitoring &gt; Private locations**</DNT>に移動して、New Relic UIでプライベートロケーションのステータスを確認します。プライベートロケーションは正常と表示されるはずです。
+  </Step>
+</Steps>
+
+## トラブルシューティング [#troubleshooting]
+
+Dual スタック設定で問題が発生した場合：
+
+* **ポッドがIPv6アドレスに到達できない**:
+
+  * Kubernetesクラスタでデュアルスタックサポートが有効になっていることを確認してください。
+  * セキュリティグループとネットワークポリシーがIPv4とIPv6の両方のトラフィックを許可していることを確認してください。
+
+* **画像が見つかりません**:
+
+  * クラスタがDocker Hubにアクセスしてパブリックランタイムイメージをプルできることを確認してください。
+  * プルエラーを検査するには、`kubectl describe pod <pod-name> -n YOUR_NAMESPACE`を使用します。
+
+* **ジョブマネージャーが接続できない**:
+
+  * プライベートロケーションキーが正しいことを確認してください
+  * ジョブマネージャーのログで接続エラーを確認します： `kubectl logs -n YOUR_NAMESPACE <job-manager-pod-name>`
+
+追加のトラブルシューティングのガイダンスについては、[プライベートロケーションのトラブルシューティング](/docs/synthetics/synthetic-monitoring/private-locations/troubleshoot-private-locations)を参照してください。
+
+## 次は何ですか？ [#whats-next]
+
+Kubernetes でデュアルスタック対応のプライベートロケーションをセットアップした後、次のことができます：
+
+* プライベートロケーションを使用して、IPv4とIPv6の両方のエンドポイントをテストする[Syntheticモニターを作成](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors)します
+* 高度なオプションについては、[ジョブマネージャーの設定](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration)を参照してください
+* [プライベートロケーション](/docs/synthetics/synthetic-monitoring/private-locations/monitor-private-locations)のヘルスとパフォーマンスをモニターする

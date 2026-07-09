@@ -4,6 +4,7 @@ const LOCALE_IDS = {
   kr: 'ko-KR',
   es: 'es-LA',
   pt: 'pt-BR',
+  fr: 'fr-FR',
 };
 
 const LOCALES = Object.keys(LOCALE_IDS);

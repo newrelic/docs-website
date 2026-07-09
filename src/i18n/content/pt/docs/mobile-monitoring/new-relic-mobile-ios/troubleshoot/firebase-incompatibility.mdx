@@ -5,27 +5,53 @@ tags:
   - Mobile monitoring
   - New Relic Mobile iOS
   - Troubleshoot
-metaDescription: New Relic iOS agent cannot coexist with Firebase PerfMon SDK
+metaDescription: New Relic iOS agent conflicts with Firebase performance monitoring and Crashlytics SDKs due to overlapping instrumentation.
 freshnessValidatedDate: never
 translationType: machine
 ---
 
 ## Problema
 
-Conflitos, falhas ou erros podem aparecer quando o agente iOS da New Relic e outros agentes de rastreamento de dados de telemetria de terceiros, como o Firebase, estão incluídos em um aplicativo.
+Incluir o agente iOS da New Relic e certos SDKs do Firebase no mesmo aplicativo pode causar conflitos devido à sobreposição de instrumentação. Os SDKs do Firebase afetados são:
 
-Erros conhecidos:
+* **FirebasePerformance** — faz swizzling em `NSURLSession` para monitoramento de rede e em métodos de ciclo de vida de `UIViewController` para rastreamentos de tela, sobrepondo-se diretamente à instrumentação automática da New Relic.
+* **FirebaseCrashlytics** — instala seu próprio manipulador de exceções não tratadas e manipuladores de sinais (SIGABRT, SIGSEGV, etc.), que podem sobrescrever ou ser sobrescritos pelo relator de falhas da New Relic, dependendo da ordem de inicialização.
 
-* Crash nas funções do instrumento.
-* Falha ao capturar o log de falhas.
+Sintomas conhecidos incluem:
+
+* Falhas em funções autoinstrumentadas causadas por method swizzling conflitante de `NSURLSession` ou `UIViewController`.
+* Relatórios de falhas ausentes ou incompletos em uma ou ambas as ferramentas, pois apenas um manipulador de exceções pode estar ativo por vez.
+* Eventos de rede duplicados aparecendo nos consoles do New Relic ou Firebase.
 
 ## Solução
 
-Nosso agente iOS e outros agentes de rastreamento de dados de telemetria de terceiros, como o Firebase, não devem ser ativados ao mesmo tempo. Recomendamos ativar apenas um ou outro para evitar esse problema.
+### Preferencial: Remova componentes conflitantes do Firebase
 
-Se não for possível remover o outro SDK, existem algumas etapas que você pode usar para evitar esses conflitos.
+Se você precisa apenas de relatórios de falhas e monitoramento de rede de uma única fonte, a solução mais limpa é remover os pods do Firebase conflitantes:
 
-* Inicie nosso agente antes de iniciar qualquer outro SDK de terceiros.
-* Desative algumas das funcionalidades do nosso agente. Se esta for uma opção que funciona para você, consulte nosso [guia de API](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings/) para obter mais informações.
+* Remova `FirebasePerformance` para eliminar conflitos de swizzling de `NSURLSession` e `UIViewController`.
+* Remova `FirebaseCrashlytics` para eliminar conflitos de manipuladores de exceção e sinal.
+
+Se você estiver usando o Firebase para analytics ou outros recursos (por exemplo, `FirebaseAnalytics`, `FirebaseAuth`, `FirebaseFirestore`), esses pods não entram em conflito com o agente New Relic e podem permanecer.
+
+### Alternativa: Desativar recursos sobrepostos
+
+Se remover os componentes do Firebase não for uma opção, desative explicitamente a instrumentação sobreposta:
+
+**Desativar a instrumentação automática do Firebase Performance:**
+
+```swift
+// In your AppDelegate, before FirebaseApp.configure()
+Performance.sharedInstance().isInstrumentationEnabled = false
+Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(false)
+```
+
+**Desative os recursos do New Relic que se sobrepõem ao Crashlytics:**
+
+Consulte o [guia de configuração do New Relic iOS SDK](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings/) para flags como `NRFeatureFlag_CrashReporting` e `NRFeatureFlag_NSURLSessionInstrumentation`.
+
+### Ordem de inicialização
+
+Se ambos os SDKs permanecerem ativos, inicialize o agente New Relic o mais cedo possível — como a primeira chamada em `application(_:didFinishLaunchingWithOptions:)` — antes de `FirebaseApp.configure()`. Isso garante que os manipuladores de exceção e sinal da New Relic sejam registrados primeiro, embora o Crashlytics ainda possa sobrescrevê-los via métodos `+load` que são executados antes do código do seu aplicativo.
 
 Se precisar de ajuda adicional, obtenha suporte em [support.newrelic.com](https://support.newrelic.com).

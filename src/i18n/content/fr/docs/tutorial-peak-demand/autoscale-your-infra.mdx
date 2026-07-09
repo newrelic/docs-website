@@ -1,0 +1,175 @@
+---
+title: Mettez à l'échelle automatiquement votre infrastructure avec Kubernetes
+metaDescription: Automatically allocate and deallocate infrastructure resources to your pods with horizontal pod autoscaling.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Se préparer à un événement de pointe de demande demande du temps : il faut établir sa base de référence, évaluer ses accords de niveau de service et aligner toutes ses équipes autour des mêmes données. La mise à l’échelle de votre infrastructure comporte des considérations similaires, mais implique également de projeter les besoins du système par rapport aux coûts. Comment équilibrer les deux sans sacrifier les performances ? Où se situe le seuil du « suffisamment bon » ?
+
+Une solution est la mise à l’échelle automatique horizontale pod (HPA), qui est construite avec notre intégration Kubernetes avec Pixie. Une fois que vous avez configuré HPA, votre cluster Kubernetes alloue automatiquement davantage de pods lorsque la demande atteint un pic, puis les désalloue lorsque la demande diminue. Cela vous permet d’éviter les problèmes de coût lorsque vous anticipez la demande.
+
+<img title="Horizontal pod autoscaling" alt="Diagram demonstrating how HPA interacts with New Relic at a high level." src="/images/kubernetes_diagram_K8s-HPA.webp" />
+
+Le didacticiel suppose que vous utilisez le cluster Kubernetes. Pour configurer HPA, vous aurez besoin de :
+
+* Un [cluster Kubernetes exécutant une version prise en charge](/docs/kubernetes-pixie/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements).
+* Votre utilisateur New Relic<InlinePopover type="licenseKey" />
+* Aucun autre adaptateur métrique externe installé dans le cluster
+
+## Objectifs [#objectives]
+
+Ce didacticiel vous guide dans la configuration d&apos;un environnement de démonstration pour HPA. Vous serez:
+
+* Installer l&apos;intégration New Relic Kubernetes
+* Configurer un environnement d&apos;exemple pour tester la mise à l&apos;échelle automatique
+
+## Transférer les métriques vers Kubernetes [#k8s]
+
+<Steps>
+  <Step>
+    ### Cloner notre référentiel (repository) du laboratoire New Relic Pixie
+
+    Cloner le référentiel (repository) suivant depuis Github :
+
+    ```bash
+    git clone https://github.com/newrelic-experimental/pixie-lab-materials
+    ​​cd pixie-lab-materials/main
+    ./setup.sh
+    ```
+  </Step>
+
+  <Step>
+    Le script `setup.sh` lance un nouveau cluster minikube à l&apos;aide du pilote hyperkit pris en charge par Pixie. Il configure ensuite votre mémoire réseau et votre CPU pour des performances optimales avec Pixie et crée tous les pods et services qui composent l&apos;application de démonstration.
+
+    Dans une nouvelle fenêtre de terminal, ouvrez un tunnel minikube :
+
+    ```bash
+    minikube tunnel -p minikube-pixie-lab
+    ```
+
+    Vous devriez avoir deux terminaux :
+
+    * Votre tunnel, qui reste ouvert pour accéder à votre application de démonstration.
+    * Un endroit pour exécuter des commandes pour le didacticiel.
+  </Step>
+
+  <Step>
+    ### Installer l&apos;intégration Kubernetes avec Pixie
+
+    Suivez notre [installation guidée](https://one.newrelic.com/nr1-core?account=2498654&state=d1aae74b-0ad6-b0f3-093d-cc89ecf89234) pour installer l&apos;intégration New Relic Kubernetes. Cela connecte New Relic à votre cluster Kubernetes. Assurez-vous de :
+
+    * Cochez <DNT>**Instant service-level insights**</DNT>, <DNT>**Full-body requests**</DNT> et <DNT>**Application profiles through Pixie**</DNT> pour activer Pixie.
+
+    * Conservez tous les autres éléments cochés par défaut
+
+      Une fois que vous avez cliqué sur Continuer, copiez et collez cette commande dans votre environnement de développement.
+  </Step>
+
+  <Step>
+    ### Installer le nouvel adaptateur Relic Métriques
+
+    Pour installer l&apos;adaptateur Métriques New Relic, utilisez le graphique Helm `newrelic-k8s-metrics-adapter`. Si vous avez utilisé `nri-bundle-chart` pour déployer des composants New Relic Kubernetes, vous avez accès à ce graphique Helm.
+
+    ```bash
+    helm upgrade --install newrelic newrelic/nri-bundle \
+      --namespace newrelic --create-namespace --reuse-values \
+      --set metrics-adapter.enabled=true \
+      --set newrelic-k8s-metrics-adapter.personalAPIKey=YOUR_NEW_RELIC_PERSONAL_API_KEY \
+      --set newrelic-k8s-metrics-adapter.config.accountID=YOUR_NEW_RELIC_ACCOUNT_ID \
+      --set newrelic-k8s-metrics-adapter.config.externalMetrics.manipulate_average_requests.query="FROM Metric SELECT average(http.server.duration) WHERE instrumentation.provider='pixie'"
+    ```
+
+    Voici ce que font ces drapeaux :
+
+    * `metrics-adapter.enabled`: Définit sur `true` pour installer le graphique d&apos;adaptateur de métriques
+
+    * `newrelic-k8s-metrics-adapter.personalAPIKey`: Définit votre clé API New Relic.
+
+    * `newrelic-k8s-metrics-adapter.accountID`: L&apos;ID du compte qui transmet les métriques.
+
+    * `newrelic-k8s-metrics-adapter.config.externalMetrics.external_metric_name.query`: Ajoute une nouvelle métrique externe avec les informations suivantes :
+
+      * `external_metric_name`:Le nom de la métrique.
+      * `query`:La requête NRQL de base pour la métrique.
+  </Step>
+
+  <Step>
+    ### Confirmez que votre requête NRQL est exacte
+
+    Vous devez tester votre requête avant d’envoyer des métriques à l’autoscaler depuis New Relic. Accédez à <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Query your Data**</DNT>, puis copiez et collez la requête NRQL suivante :
+
+    ```sql
+    FROM Metric SELECT average(http.server.duration) WHERE instrumentation.provider='pixie'
+    ```
+  </Step>
+
+  <Step>
+    ### Configurez votre autoscaler
+
+    Depuis le répertoire `pixie-lab-materials/main/kube` , créez un nouveau fichier appelé `hpa.yml`. L&apos;adaptateur de métriques New Relic envoie des données au gestionnaire de contrôleur, qui est défini par la définition HPA dans ce fichier YAML.
+
+    ```yml
+    kind: HorizontalPodAutoscaler
+    apiVersion: autoscaling/v2beta2
+    metadata:
+        name: manipulate-scaler
+    spec:
+        scaleTargetRef:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: manipulation-service
+        minReplicas: 1
+        maxReplicas: 10
+        metrics:
+            - type: External
+                external:
+                    metric:
+                        name: manipulate_average_requests
+                    target:
+                        type: Value
+                        value: 100
+    ```
+
+    Appliquez le nouveau fichier YAML en exécutant :
+
+    ```bash
+    cd pixie-lab-materials/main/kube
+    kubectl apply -f hpa.yaml
+    ```
+  </Step>
+</Steps>
+
+## Vérifiez votre travail : ajoutez une charge pour déclencher la mise à l&apos;échelle automatique [#check]
+
+1. Accédez au déploiement de votre site avec `kubectl get services`.
+2. Ouvrez le `EXTERNAL-IP` de votre service frontal dans votre navigateur.
+3. Installez `hey` et passez à la version 1.17 avec `brew install hey`.
+4. Envoyer la requête GET au `EXTERNAL-IP` avec `hey -n 10 -c 2 -m GET http://<EXTERNAL-IP>`.
+5. Monitorez l&apos;appel automatique de votre HPA avec `watch kubnectl get hpa`.
+
+Vous avez configuré avec succès HPA si le pod met automatiquement à l&apos;échelle le nombre de répliques à mesure que le temps moyen de requête HTTP augmente. Vous pouvez ajuster la configuration de vos propres services afin que New Relic et HPA s&apos;adaptent automatiquement selon vos besoins.
+
+<DocTiles numbered>
+  <DocTile title="Get started" path="/docs/journey-demand/get-started">
+    Obtenez des données sur votre architecture avec les agents APM et d&apos;infrastructure
+  </DocTile>
+
+  <DocTile title="Create service levels for gameday" path="/docs/journey-demand/find-your-baseline/">
+    Créez un niveau de service éclairé par votre base de référence
+  </DocTile>
+</DocTiles>
+
+<DocTiles>
+  <DocTile title="Reduce noise with quality alerts" number="3" path="/docs/journey-demand/create-quality-alerts/">
+    Évaluez vos alertes grâce à la gestion de la qualité des alertes
+  </DocTile>
+
+  <DocTile title="Align your teams with workloads" number="4" path="/docs/journey-demand/organize-data-workloads/">
+    Alignez vos équipes autour des mêmes données
+  </DocTile>
+
+  <DocTile title="Autoscale your infrastructure with Kubernetes" number="5" path="/docs/journey-demand/autoscale-your-infra/" label={{text: "You are here", color: "orange"}}>
+    Adaptez vos ressources en fonction des pics de demande
+  </DocTile>
+</DocTiles>

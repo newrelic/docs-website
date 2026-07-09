@@ -1,0 +1,209 @@
+---
+title: Roku エージェントを使ってみる
+tags: null
+metaDescription: Learn how to install and configure the Roku agent for monitoring in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic Roku エージェントは、システムレベルおよびビデオ関連のイベントに焦点を当てて、Roku アプリケーションの動作を監視するように設計されています。 イベントAPIを使用して REST インターフェイス経由でデータを送信し、次の 5 種類のイベントをサポートします。
+
+* **ConnectedDeviceSystem** : システムイベント
+* **VideoAction** : ビデオイベント
+* **VideoErrorAction** : エラーイベント
+* **VideoAdAction** : 広告イベント
+* **VideoCustomAction** : カスタムイベント
+
+## 前提条件
+
+Roku のストリーミング ビデオ &amp; 広告エージェントをインストールする前に、次のことを確認してください。
+
+* あなたのNew Relic [アカウントID](/docs/accounts-partnerships/accounts/account-setup/account-id)
+* あなたのNew Relic<InlinePopover type="licenseKey" />
+* [ストリーミングビデオと広告エージェントの互換性要件](/docs/streaming-video-&-ads/installation/compatibility-requirements)を確認しました
+
+## Roku エージェントをインストールする
+
+<Steps>
+  <Step>
+    ### パッケージをダウンロードして解凍します。
+
+    Roku Video エージェント パッケージをダウンロードして解凍し、次のファイル構造にアクセスします。
+
+    ```brightscript
+    components/NewRelicAgent/
+        NRAgent.brs
+        NRAgent.xml
+        NRTask.brs
+        NRTask.xml
+    source/
+        NewRelicAgent.brs
+    ```
+  </Step>
+
+  <Step>
+    ### プロジェクトにファイルをコピーする
+
+    `NewRelicAgent`フォルダを`components`ディレクトリにコピーし、 `NewRelicAgent.brs`ファイルを Roku アプリ プロジェクトの`source`ディレクトリにコピーします。
+  </Step>
+
+  <Step>
+    ### エージェントの初期化
+
+    メインの BrightScript ファイル (例: `Main.brs`) で New Relic エージェントを初期化します。
+
+    ```brightscript
+    m.nr = NewRelic("ACCOUNT ID", "LICENSE KEY")
+    ```
+
+    <Callout variant="tip">
+      **詳細設定**：アプリ名、アプリケーショントークン、エンドポイントリージョン、ログ記録などをオプションで指定できます。
+
+      ```brightscript
+      m.nr = NewRelic("ACCOUNT ID", "LICENSE KEY", "APP NAME", "APPLICATION TOKEN", "US", true)
+      ```
+
+      デフォルトのエンドポイントは`US`です。EUのデータセンターの場合は、 `EU`を使用してください。
+    </Callout>
+  </Step>
+</Steps>
+
+## イベントキャプチャを有効にする
+
+Rokuデバイス向けのNew Relicメディアエージェントは、ビデオコンテンツの再生中に発生するイベントをキャプチャします。自動イベントキャプチャを有効にするには、アプリケーションに以下の呼び出しを追加してください。
+
+<Steps>
+  <Step>
+    ### アプリケーション起動ログ
+
+    エージェントの初期化後、アプリケーション起動イベントをログに記録します。
+
+    ```brightscript
+    nrAppStarted(m.nr, aa)
+    ```
+  </Step>
+
+  <Step>
+    ### システムとビデオの追跡を有効にする
+
+    システムおよびビデオイベントの追跡を有効にする：
+
+    ```brightscript
+    m.syslog = NewRelicSystemStart(m.port)
+    ```
+
+    ビデオトラッキングを行うには、シーンコンポーネント内で`NewRelicVideoStart(m.nr, m.video)`を呼び出してください。
+  </Step>
+
+  <Step>
+    ### 待機ループでメッセージを処理する
+
+    メインの待機ループでシステムイベントを処理します。
+
+    ```brightscript
+    if nrProcessMessage(m.nr, msg) = false
+        ' Process other messages
+    end if
+    ```
+  </Step>
+</Steps>
+
+## 完全な例
+
+以下は、 New Relicエージェントを Roku アプリケーションに統合する完全な例です。
+
+### メイン.brs
+
+```brightscript
+sub Main(aa as Object)
+    screen = CreateObject("roSGScreen")
+    m.port = CreateObject("roMessagePort")
+    screen.setMessagePort(m.port)
+
+    'Create the main scene that contains a video player
+    scene = screen.CreateScene("VideoScene")
+    screen.show()
+
+    'Init New Relic Agent
+    m.nr = NewRelic("ACCOUNT ID", "LICENSE KEY")
+
+    'Send APP_STARTED event
+    nrAppStarted(m.nr, aa)
+
+    'Pass NewRelicAgent object to the main scene
+    scene.setField("nr", m.nr)
+
+    'Activate system tracking
+    m.syslog = NewRelicSystemStart(m.port)
+
+    while (true)
+        msg = wait(0, m.port)
+        if nrProcessMessage(m.nr, msg) = false
+            'It is not a system message captured by New Relic Agent
+            if type(msg) = "roPosterScreenEvent"
+                if msg.isScreenClosed()
+                    exit while
+                end if
+            end if
+        end if
+    end while
+end sub
+```
+
+### ビデオシーン.xml
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="VideoScene" extends="Scene">
+	<interface>
+		<!-- Field used to pass the NewRelicAgent object to the scene -->
+		<field id="nr" type="node" onChange="nrRefUpdated" />
+	</interface>
+
+	<children>
+		<Video
+			id="myVideo"
+			translation="[0,0]"
+		/>
+	</children>
+
+	<!-- New Relic Agent Interface -->
+	<script type="text/brightscript" uri="pkg:/source/NewRelicAgent.brs"/>
+
+	<script type="text/brightscript" uri="pkg:/components/VideoScene.brs"/>
+</component>
+```
+
+### ビデオシーン.brs
+
+```brightscript
+sub init()
+    m.top.setFocus(true)
+    setupVideoPlayer()
+end sub
+
+function nrRefUpdated()
+    m.nr = m.top.nr
+
+    'Activate video tracking
+    NewRelicVideoStart(m.nr, m.video)
+end function
+
+function setupVideoPlayer()
+    videoUrl = "http://..."
+    videoContent = createObject("RoSGNode", "ContentNode")
+    videoContent.url = videoUrl
+    videoContent.title = "Any Video"
+    m.video = m.top.findNode("myVideo")
+    m.video.content = videoContent
+    m.video.control = "play"
+end function
+```
+
+## 次は何ですか？
+
+Roku エージェントをインストールした後、ストリーミング ビデオ監視を最大限に活用するには、次のリソースを参照してください。
+
+* [Roku エージェントAPIリファレンス](/docs/streaming-video-&-ads/installation/roku/agent-api/api-agent): カスタムイベント、メトリクス、高度な設定の完全なAPIを探索します
+* [Roku の広告追跡](/docs/streaming-video-&-ads/installation/roku/ad-tracking): RAF および Google IMA 広告イベントの監視を設定する
+* [New Relicでデータを表示](/docs/streaming-video-&-ads/view-data-in-newrelic/streaming-video-&-ads-features): すべてのプラットフォームにわたるビデオと広告の再生テレメトリーを探索

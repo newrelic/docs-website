@@ -1,0 +1,451 @@
+---
+title: Python métriques personnalisées
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: How to record additional custom metrics with the Python agent using the agent API.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Les métriques personnalisées vous permettent d&apos;enregistrer des métriques arbitraires à l&apos;aide d&apos;API fournies par l&apos;agent Python. Ceux-ci peuvent être utilisés pour enregistrer des mesures liées aux fonctions métier implémentées par votre application Web, ou peuvent être des mesures supplémentaires utilisées pour évaluer les performances de l&apos;application Web.
+
+Recommandation : Pour éviter d&apos;éventuels problèmes de données, maintenez le nombre total de métriques uniques introduites par les métriques personnalisées sous 2 000.
+
+<Callout variant="important">
+  Avant d’utiliser des métriques personnalisées, vous devez initialiser l’agent et l’intégrer au processus cible. Pour obtenir des instructions, consultez [Intégration de l&apos;agentPython ](/docs/agents/python-agent/installation-configuration/python-agent-integration).
+</Callout>
+
+## Cartographie métriques personnalisée
+
+Pour afficher des métriques personnalisées, [requêtez vos données](/docs/query-your-data/explore-query-data/explore-data/introduction-querying-new-relic-data) pour rechercher des métriques et créer des graphiques personnalisables.
+
+## Interfaces push versus pull
+
+L&apos;agent Python fournit deux manières différentes d&apos;enregistrer des métriques personnalisées. La première est une API de type push où vous pouvez décider quand enregistrer des métriques personnalisées. La seconde est une API de style pull dans laquelle vous enregistrez une source de données de mesures personnalisées et l&apos;agent interroge votre code pour les mesures une fois par [cycle de collecte](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle).
+
+L&apos;API de type pull est importante lorsque vous devez générer des mesures de taux ou d&apos;utilisation sur la période du cycle de collecte. Ceci est dû au fait que vous pouvez calculer correctement la durée du cycle de collecte et également garantir qu&apos;une seule métrique est enregistrée pour le cycle de collecte.
+
+## Enregistrement d&apos;une seule métrique [#recording-a-custom-metric]
+
+Pour enregistrer une seule métrique personnalisée, l&apos;agent Python propose la fonction :
+
+```py
+newrelic.agent.record_custom_metric(name, value, application=None)
+```
+
+Lorsqu&apos;il est appelé sans objet d&apos;application comme
+
+```py
+newrelic.agent.record_custom_metric('Custom/Value', value)
+```
+
+il doit alors être appelé dans le contexte d&apos;une transaction monitorée par l&apos;agent. Cela est dû au fait que la transaction en cours sera recherchée et que les métriques personnalisées seront initialement attachées à cette transaction.
+
+Tant que la transaction n&apos;est pas ultérieurement marquée comme devant être ignorée, les métriques personnalisées seront alors agrégées avec d&apos;autres métriques pour l&apos;application à laquelle la transaction est signalée, lorsque la transaction est terminée.
+
+Si cette fonction API est appelée en dehors du contexte d&apos;une transaction de monitoring, comme dans un thread d&apos;arrière-plan (qui n&apos;est pas suivi en tant que tâche d&apos;arrière-plan), alors l&apos;appel ne fait rien et les données sont supprimées. Afin de pouvoir enregistrer des métriques personnalisées dans une telle situation, il est nécessaire de fournir l&apos;objet d&apos;application correspondant à l&apos;application par rapport à laquelle les métriques personnalisées doivent être enregistrées.
+
+```py
+application = newrelic.agent.register_application()
+
+def report_custom_metrics():
+    while True:
+        newrelic.agent.record_custom_metric('Custom/Value', value(), application)
+        time.sleep(60.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+Dans le cas de l&apos;enregistrement de métriques personnalisées par rapport à la transaction en cours (en ne fournissant pas d&apos;objet d&apos;application), aucun verrouillage de thread n&apos;est requis au moment de l&apos;appel d&apos;API, car les métriques personnalisées seront initialement attachées à l&apos;objet de transaction. C&apos;est seulement lorsque l&apos;ensemble de la transaction est enregistré à la fin qu&apos;un verrouillage de thread doit être acquis. Il s&apos;agit du même verrou que celui qui doit être acquis pour fusionner toutes les métriques de la transaction avec la table métrique pour le cycle de collecte en cours. Ainsi, aucun verrouillage supplémentaire n’est requis en plus de ce qui est déjà requis.
+
+Cependant, lorsque l&apos;appel d&apos;API est fourni à l&apos;objet d&apos;application, il est nécessaire d&apos;acquérir un verrou pour chaque appel afin d&apos;enregistrer des métriques personnalisées. L&apos;enregistrement des métriques une par une de cette manière pour un grand nombre de métriques peut donc avoir des effets indésirables en raison du conflit de verrouillage des threads.
+
+## Enregistrement de plusieurs métriques
+
+Si vous enregistrez plusieurs métriques en une seule fois, pour réduire le besoin de verrouillage de thread, vous pouvez utiliser à la place la fonction :
+
+```py
+newrelic.agent.record_custom_metrics(metrics, application=None)
+```
+
+Cela fonctionne de la même manière que l&apos;appel `record_custom_metric()` , sauf qu&apos;un itérable peut être fourni à la place des arguments nom et valeur. L&apos;itérable peut être une liste, un uplet ou un autre objet itérable, y compris une fonction génératrice. L&apos;itérable doit renvoyer un uplet composé du nom et de la valeur des métriques personnalisées.
+
+```py
+import psutil
+import os
+ 
+def memory_metrics():
+    pid = os.getpid()
+    p = psutil.Process(os.getpid())
+    m = p.get_memory_info()
+
+    yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+    yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+ 
+application = newrelic.agent.register_application()
+
+def report_custom_metrics():
+    while True:
+        newrelic.agent.record_custom_metrics(memory_metrics(), application)
+        time.sleep(60.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+Lorsqu&apos;il est utilisé avec un objet d&apos;application, quel que soit le nombre de métriques personnalisées enregistrées, le verrouillage des threads n&apos;aura besoin d&apos;être effectué qu&apos;une seule fois pour chaque appel.
+
+## Dénomination des métriques personnalisées
+
+Toutes les métriques personnalisées signalées par l&apos;agent Python doivent commencer par le préfixe `Custom/`. Ceci serait généralement suivi d&apos;un nom de catégorie et d&apos;un segment d&apos;étiquette. Si la métrique `Custom/` n&apos;est pas utilisée, alors les métriques personnalisées peuvent ne pas être disponibles pour la sélection dans [métriques et événement](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer).
+
+## Pré-métrique agrégée
+
+Lors de l&apos;enregistrement d&apos;un ensemble de métriques en passant un itérable sur l&apos;ensemble des métriques disponibles, la même métrique nommée peut apparaître plusieurs fois. Dans cette situation, l’agent regrouperait alors les valeurs individuelles en un seul échantillon.
+
+Bien que cela soit possible, si la conservation puis la transmission ultérieure de tous les échantillons bruts individuels pour une seule métrique de cette manière n&apos;est pas pratique, alors la source des métriques peut à la place pré-agrégater les métriques et fournir l&apos;échantillon de données agrégées résultant.
+
+Au lieu que la valeur soit une valeur numérique, un dictionnaire serait transmis pour la valeur. Les champs du dictionnaire seraient :
+
+* `count`
+* `total`
+* `min`
+* `max`
+* `sum_of_squares`
+
+Une implémentation d&apos;une classe d&apos;assistance que vous pouvez utiliser pour effectuer une agrégation pour une seule métrique est :
+
+```py
+class Stats(dict):
+
+    def __init__(self, count=0, total=0.0, min=0.0, max=0.0, sum_of_squares=0.0):
+        self.count = count
+        self.total = total
+        self.min = min
+        self.max = max
+        self.sum_of_squares = sum_of_squares
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+    def __getattr__(self, name):
+        return self[name]
+
+    def merge_stats(self, other):
+        self.total += other.total
+        self.min = self.count and min(self.min, other.min) or other.min
+        self.max = max(self.max, other.max)
+        self.sum_of_squares += other.sum_of_squares
+        self.count += other.count
+
+    def merge_value(self, value):
+        self.total += value
+        self.min = self.count and min(self.min, value) or value
+        self.max = max(self.max, value)
+        self.sum_of_squares += value <DNT>** 2
+        self.count += 1
+```
+
+Cette classe est elle-même un dictionnaire et une instance de celle-ci peut donc être transmise directement comme valeur.
+
+Cela pourrait alors être utilisé comme :
+
+```py
+application = newrelic.agent.register_application()
+
+def sample_value():
+    return ...
+
+def report_custom_metrics():
+    count = 0
+    stats = Stats()
+
+    while True:
+        count += 1
+
+        stats.merge_value(sample_value())
+
+        if count % 60 == 0:
+            newrelic.agent.record_custom_metric('Custom/Value', stats, application)
+            stats = Stats()
+
+        time.sleep(1.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+## Sources de données métriques personnalisées
+
+Les appels d&apos;API `record_custom_metric()` et `record_custom_metrics()` nécessitent toujours une action explicite de votre part pour transmettre des mesures personnalisées à l&apos;agent.
+
+Cependant, l&apos;envoi de données à l&apos;agent, en particulier s&apos;il est effectué à partir d&apos;un thread d&apos;arrière-plan et sur un intervalle de 60 secondes, peut être problématique. Cela est dû au fait que lorsque les données sont transmises, elles peuvent ne pas être synchronisées précisément avec le moment où l&apos;agent renvoie les données au collecteur de données.
+
+Si un thread d&apos;arrière-plan a été pré-agrégé sur une période de 60 secondes, puis enregistré, si cela tombe à proximité du moment où l&apos;agent rapporte les données, cela peut se produire juste avant ou juste après que l&apos;agent ait rapporté les données. Ce manque de synchronisation dans le temps pourrait donc avoir pour conséquence qu&apos;aucune mesure pour cet échantillon ne soit rapportée dans un cycle de collecte et deux dans le suivant, alors que l&apos;intention serait qu&apos;il y en ait une par cycle de collecte.
+
+La solution à ce problème est que l&apos;agent récupère les métriques personnalisées auprès du producteur des métriques dans le cadre du processus de reporting des données pour garantir qu&apos;elles seront signalées immédiatement et synchronisées avec le cycle de collecte.
+
+La source de ces métriques dans cette API de type pull est appelée source de données métriques.
+
+## Enregistrement d&apos;une source de données
+
+La fonction API pour enregistrer une source de données métriques est :
+
+```
+newrelic.agent.register_data_source(source, application=None, name=None, settings=None, **</DNT>properties)
+```
+
+En raison des exigences variables concernant la manière dont les métriques personnalisées doivent être produites, un certain nombre de manières différentes sont disponibles pour implémenter la source de données.
+
+Le type de source de données le plus simple est celui qui fournit une jauge métrique. C&apos;est un cas où une certaine valeur à un moment précis est pertinente et ce qui s&apos;est passé historiquement n&apos;a pas d&apos;importance.
+
+```py
+import psutil
+import os
+
+@newrelic.agent.data_source_generator(name='Memory Usage')
+def memory_metrics():
+    pid = os.getpid()
+    p = psutil.Process(os.getpid())
+    m = p.get_memory_info()
+    yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+    yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+ 
+newrelic.agent.register_data_source(memory_metrics)
+```
+
+Le décorateur utilisé ici est :
+
+```
+newrelic.agent.data_source_generator(name=None, **properties)
+```
+
+Il est spécifiquement destiné à envelopper une fonction génératrice ou une fonction qui renvoie par ailleurs un itérable lorsqu&apos;elle est appelée.
+
+Le nom lors de l&apos;enregistrement d&apos;une source de données est facultatif. Son rôle principal est de permettre au message de donner un nom plus reconnaissable à la source de données lors du logging des erreurs. Si le nom n&apos;est pas passé à `register_data_source()`, alors tout nom associé à la source de données réelle utilisant le décorateur sera utilisé à la place, ou le nom de la fonction si la source de données elle-même n&apos;est pas nommée.
+
+Si un objet d&apos;application n&apos;est pas fourni lors de l&apos;enregistrement d&apos;une source de données, la source de données sera automatiquement associée à toutes les applications pour lesquelles des données sont signalées par l&apos;agent dans ce processus. Si une application est fournie, la source de données sera uniquement associée à cette application spécifique.
+
+Qu&apos;une source de données soit enregistrée explicitement pour une application ou appliquée à toutes les applications, l&apos;agent doit d&apos;abord être enregistré pour cette application. Cela se produit normalement lors de l&apos;utilisation d&apos;une source de données dans un processus d&apos;application Web existant qui est monitoré. Toutefois, si vous utilisez une source de données dans un programme autonome pour signaler uniquement des métriques personnalisées, vous devez toujours vous assurer que l&apos;appel d&apos;API `register_application()` est utilisé si nécessaire pour forcer l&apos;enregistrement de l&apos;agent pour une application avant que des données ne soient collectées.
+
+## Initialisation d&apos;une source de données
+
+Bien que le décorateur offre la possibilité de nommer une source de données, la raison la plus importante pour laquelle il existe est qu&apos;il masque la complexité d&apos;une séquence d&apos;étapes de configuration pour exécuter une source de données. La séquence de ces étapes est la suivante :
+
+1. La source de données est initialisée, avec un dictionnaire contenant toute configuration qui lui est transmise pour la configurer afin qu&apos;elle s&apos;exécute d&apos;une manière particulière.
+2. Lors de son initialisation, la source de données renvoie un dictionnaire de propriétés décrivant la source de données. Cela inclut une référence à une fonction d&apos;usine pour créer une instance spécifique du fournisseur de source de données.
+3. Une instance du fournisseur de source de données est ensuite créée pour un consommateur spécifique (application) en appelant la fabrique. La fonction factory reçoit un dictionnaire décrivant l&apos;environnement dans lequel elle s&apos;exécute, y compris le nom du consommateur.
+
+En réécrivant l&apos;exemple ci-dessus pour ne pas dépendre du décorateur, nous aurions :
+
+```py
+import os
+import psutil
+ 
+def memory_metrics_data_source(settings):
+    def memory_metrics():
+        pid = os.getpid()
+        p = psutil.Process(os.getpid())
+        m = p.get_memory_info()
+        yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+        yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+
+    def memory_metrics_factory(environ):
+        return memory_metrics
+ 
+    properties = {}
+    properties['name'] = 'Memory Usage'
+    properties['factory'] = memory_metrics_factory
+ 
+    return properties
+ 
+newrelic.agent.register_data_source(memory_metrics_data_source)
+```
+
+L’objectif du protocole sous-jacent plus complexe est de fournir suffisamment de points d’ancrage pour initialiser correctement les sources de données et les personnaliser en fonction de cette configuration et des spécificités du consommateur.
+
+## instance d&apos;une source de données
+
+Il n&apos;y avait rien d&apos;autre à faire dans l&apos;exemple précédent car les métriques de jauge, qui ne se soucient pas de la dernière fois où elles ont été générées, étaient renvoyées. Lorsqu&apos;une métrique reflète quelque chose qui se produit au fil du temps et doit donc conserver un certain état, nous avons cependant besoin de la possibilité de créer une instance de la source de données.
+
+La fonction d&apos;usine offre donc la possibilité de créer une instance d&apos;une source de données pour chaque application par rapport à laquelle des métriques sont signalées.
+
+Il est possible d&apos;avoir une instance de la source de données par application plutôt qu&apos;une par processus, car les heures de début et de fin du cycle de collecte pour différentes applications peuvent être différentes. S&apos;il n&apos;y en avait qu&apos;un par processus dans ce scénario et que la métrique avait un lien avec la durée du cycle de collecte, alors les métriques résultantes ne seraient pas correctes pour chaque application. Il est donc possible de donner à une instance de source de données la possibilité d&apos;être spécifique à une application.
+
+En utilisant des fonctions imbriquées comme ci-dessus, une source de données qui doit conserver un état pourrait donc être écrite comme suit.
+
+```py
+import os
+import time
+import multiprocessing
+ 
+@newrelic.agent.data_source_factory(name='CPU Usage')
+def cpu_metrics_data_source(settings, environ):
+    state = {}
+    state['last_timestamp'] = time.time()
+    state['times'] = os.times()
+
+    def cpu_metrics():
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - state['last_timestamp']
+        user_time = new_times[0] - state['times'][0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        state['last_timestamp'] = now
+        state['times'] = new_times
+
+        yield ('Custom/CPU/User Time', user_time)
+        yield ('Custom/CPU/User/Utilization', utilization)
+
+    return cpu_metrics
+ 
+newrelic.agent.register_data_source(cpu_metrics_data_source)
+```
+
+Le décorateur utilisé ici est :
+
+```py
+newrelic.agent.data_source_factory(name=None, **properties)
+```
+
+Dans ce cas, le décorateur enveloppe une fonction d&apos;usine. Étant donné que le décorateur renvoie automatiquement les propriétés de la source de données lorsque cela est nécessaire, l&apos;usine prend à la fois les paramètres et la description de l&apos;environnement dans lequel elle est utilisée.
+
+L&apos;utilisation de fonctions imbriquées est un peu magique et nécessite que le code utilise un dictionnaire sur la stack de la fonction externe pour conserver l&apos;état. L&apos;alternative consiste à implémenter la source de données en tant que classe réelle avec le décorateur appliqué à la classe.
+
+```py
+import os
+import time
+import multiprocessing
+ 
+@newrelic.agent.data_source_factory(name='CPU Usage')
+class CPUMetricsDataSource(object):
+
+    def __init__(self, settings, environ):
+        self.last_timestamp = time.time()
+        self.times = os.times()
+
+    def __call__(self):
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - self.last_timestamp
+        user_time = new_times[0] - self.times[0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        self.last_timestamp = now
+        self.times = new_times
+
+        yield ('Custom/CPU/User Time', user_time)
+        yield ('Custom/CPU/User/Utilization', utilization)
+
+newrelic.agent.register_data_source(CPUMetricsDataSource)
+```
+
+## cycle de vie d&apos;une source de données
+
+Bien qu&apos;une source de données puisse produire des métriques à tout moment, l&apos;agent lui-même ne signale pas toujours les métriques d&apos;une application. Plus précisément, il ne commencera à collecter des métriques et à les signaler qu&apos;une fois que l&apos;agent aura réussi à s&apos;enregistrer auprès du collecteur de données pour une application spécifique.
+
+Cette distinction est importante pour les sources de données qui génèrent des métriques basées sur une période donnée. Il serait nécessaire de disposer uniquement de mesures produites par une source de données pour couvrir la période remontant au moment où l&apos;enregistrement a eu lieu, ou remontant à la dernière fois où les mesures ont été signalées par l&apos;agent. Si cela n&apos;est pas fait, les métriques signalées ne s&apos;aligneront pas et il ne sera donc pas possible de garantir qu&apos;elles correspondent correctement aux métriques issues du suivi des transactions sur le Web ou des tâches en arrière-plan.
+
+Pour cette raison, l&apos;usine d&apos;une source de données ne sera appelée pour créer une instance de la source de données que lorsque l&apos;enregistrement de l&apos;application sera terminé et que la collecte des métriques aura commencé. Cela garantit que tout horodatage de référence sera correct.
+
+Si l&apos;agent exécuté pour une application particulière est interrompu, en raison d&apos;un redémarrage forcé côté serveur résultant de modifications de configuration côté serveur, ou en raison d&apos;échecs successifs de communication des données au collecteur de données, la source de données sera supprimée. Une nouvelle instance de la source de données sera alors créée lorsque l&apos;agent aura pu se réinscrire à nouveau pour l&apos;application.
+
+Le nettoyage correct d&apos;une source de données dans ce cas dépendra de la destruction prompt de l&apos;objet source de données lorsqu&apos;il est supprimé. En raison des cycles de comptage des références d&apos;objet, on ne peut pas s&apos;y fier. Il est également souhaitable d&apos;éviter qu&apos;une source de données ait besoin d&apos;ajouter une méthode `__del__()` afin de déclencher des actions de nettoyage en raison des problèmes qu&apos;une méthode `__del__()` introduit dans la manière d&apos;empêcher réellement la destruction prompt de l&apos;objet.
+
+Pour cette raison, si une source de données a besoin de plus de contrôle sur la configuration et l&apos;arrêt, y compris peut-être la possibilité de rester persistante en mémoire et de ne pas être supprimée, tout en suspendant les calculs pour les métriques, elle peut alors fournir les méthodes `start()` et `stop()` lors de son implémentation en tant qu&apos;instance de classe.
+
+```py
+import os
+import time
+import multiprocessing
+
+@newrelic.agent.data_source_factory(name='CPU Usage')
+class CPUMetricsDataSource(object):
+
+    def __init__(self, settings, environ):
+        self.last_timestamp = None
+        self.times = None
+ 
+    def start(self):
+        self.last_timestamp = time.time()
+        self.times = os.times()
+ 
+    def stop(self):
+        self.last_timestamp = None
+        self.times = None
+
+    def __call__(self):
+        if self.times is None:
+            return
+
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - self.last_timestamp
+        user_time = new_times[0] - self.times[0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        self.last_timestamp = now
+        self.times = new_times
+
+        yield ('CPU/User Time', user_time)
+        yield ('CPU/User/Utilization', utilization)
+
+newrelic.agent.register_data_source(CPUMetricsDataSource)
+```
+
+Avec les méthodes `start()` et `stop()` définies, l&apos;instance de la source de données ne sera pas détruite à la fin de l&apos;exécution de l&apos;agent mais conservée. À ce stade, l&apos;agent s&apos;attend alors à ce que la source de données gère elle-même la suspension de toute agrégation de métriques, en supprimant toutes les métriques accumulées et en garantissant que lorsque l&apos;agent réenregistre l&apos;application auprès du collecteur de données et appelle à nouveau `start()` , ce n&apos;est qu&apos;à ce moment-là que le suivi des métriques reprendra.
+
+## Configuration d&apos;une source de données
+
+Les sources de données ne sont pas toujours liées à une source d’information spécifique. Il peut être nécessaire d&apos;enregistrer une source de données par rapport à différentes sources d&apos;informations sous-jacentes à partir desquelles les métriques sont générées. Dans ce cas, des paramètres distincts peuvent être transmis lors de l&apos;enregistrement d&apos;une source de données à l&apos;aide de la fonction `register_data_source()` . Lors de l&apos;utilisation d&apos;une fabrique de données, ces paramètres seront alors disponibles lors de l&apos;initialisation de la source de données.
+
+```py
+@newrelic.agent.data_source_factory()
+class HostMonitorDataSource(object):
+ 
+    def __init__(self, settings, environ):
+        self.hostname = settings['hostname']
+
+    def __call__(self):
+        ...
+ 
+newrelic.agent.register_data_source(HostMonitorDataSource,
+  name='Host Monitor (host-1)', settings=dict(hostname='host-1'))
+newrelic.agent.register_data_source(HostMonitorDataSource,
+  name='Host Monitor (host-2)', settings=dict(hostname='host-2'))
+```
+
+Si la fourniture des paramètres est facultative, la source de données ne doit tenter d&apos;accéder aux paramètres que si l&apos;option `settings` n&apos;est pas `None`. Même si un dictionnaire est fourni, il doit également gérer les paramètres manquants dans le dictionnaire.
+
+## Installation à partir du fichier de configuration
+
+Bien que les exemples ici montrent l&apos;utilisation de l&apos;appel d&apos;API `register_data_source()` , cela ne serait pas la manière normale par laquelle les sources de données seraient enregistrées. Ce n’est pas la méthode préférée car cela nécessiterait des modifications de l’application pour importer le module de la source de données et l’enregistrer.
+
+Au lieu de cela, la principale façon de définir et d’intégrer des sources de données dans une application Web de monitoring existante serait de les répertorier dans le fichier configuration de l’agent. Cela implique l&apos;ajout d&apos;une section supplémentaire dans le fichier de configuration de l&apos;agent pour chaque source de données avec le préfixe `data-source:`:
+
+```ini
+[data-source:process-info]
+enabled = true
+function = samplers.process_info:process_info_data_source
+```
+
+Si vous enregistrez une source de données à partir du fichier de configuration de l&apos;agent, aucun enregistrement distinct pour la même source de données ne doit être effectué à l&apos;aide de la fonction `register_data_source()` apparaissant dans votre code d&apos;application ou dans le module définissant la source de données. Si tel est le cas, deux instances de la source de données finiront par être enregistrées.
+
+Si vous devez fournir des paramètres spécifiques pour une source de données, vous pouvez le faire en créant une section distincte dans le fichier de configuration de l&apos;agent et en faisant référence au nom de la section dans la valeur `settings` de la configuration de la source de données.
+
+```ini
+[data-source:host-monitor]
+enabled = true
+function = samplers.process_info:process_info_data_source
+name = Host Monitor (host-1)
+settings = host-monitor:host-1
+
+[host-monitor:host-1]
+hostname = host-1
+```
+
+Étant donné que les paramètres de source de données fournis via le fichier de configuration seront toujours transmis sous forme de valeurs de chaîne, il est recommandé que, même lors de l&apos;utilisation de `register_data_source()` avec le code d&apos;application pour enregistrer une source de données et fournir des paramètres explicitement, des chaînes soient utilisées pour définir des valeurs. La source de données doit ensuite gérer la conversion vers un type différent, tel qu&apos;une valeur numérique ou une liste de valeurs.

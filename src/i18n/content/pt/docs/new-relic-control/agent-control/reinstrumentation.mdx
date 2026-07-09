@@ -1,0 +1,226 @@
+---
+title: Gerencie a instrumentação existente com o Agent Control
+metaDescription: You can reinstall your current instrumentation to manage it through Agent Control
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  O Agent Control e o New Relic Control agora estão **disponíveis para o público geral** para Kubernetes! O suporte para hosts Linux e hosts Windows também está no programa de **public preview**, em conformidade com nossas [políticas de pré-lançamento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+## Migração do Kubernetes
+
+Se o seu cluster Kubernetes já estiver instrumentado com a New Relic, você pode fazer a transição dos seus agentes para serem gerenciados pelo Agent Control para usar seus recursos de gerenciamento. O processo de migração remove as instalações de agentes existentes e as substitui por instalações gerenciadas pelo Agent Control, configuradas centralmente por meio do Fleet Control.
+
+<Callout variant="important" title="A configuração remota sempre prevalece">
+  O Agent Control usa o Fleet Control como a fonte autoritativa para a configuração do agente. Quaisquer configurações do agente — versões, valores do chart e limites de recursos — devem ser definidas na configuração remota do Fleet Control, não na instalação local `values.yaml`. Se ambos existirem, a configuração remota tem precedência e sobrescreverá quaisquer valores locais.
+</Callout>
+
+<Callout variant="tip" title="Práticas medidas">
+  Para garantir a continuidade dos dados, use o mesmo nome de cluster e a mesma conta da New Relic durante a instalação do Agent Control. Você pode manter quaisquer agentes ou componentes que ainda não sejam suportados pelo Agent Control no cluster até que o suporte esteja disponível.
+</Callout>
+
+### Passo 1. Recupere sua configuração existente
+
+Primeiro, identifique quais dos seus agentes existentes podem ser gerenciados pelo Controle de Agentes.
+
+O Agent Control pode implantar e gerenciar os seguintes agentes a partir do chart do Helm `nri-bundle`, mapeados para os tipos de agente do Agent Control:
+
+* `newrelic-infrastructure`, `nri-kube-events`, `kube-state-metrics` e `nri-kube-events`: Gerenciados como o tipo de agente do New Relic Infrastructure
+* `newrelic-prometheus-configurator`: Gerenciado como o tipo de agente Prometheus da New Relic
+* `newrelic-logging`: Gerenciado como o tipo de agente Fluent Bit
+* `nr-k8s-otel-collector`: Gerenciado como o tipo de agente New Relic OpenTelemetry Collector
+
+Se você instalou o agente usando Helm, recupere sua configuração de instalação do cluster executando o seguinte comando:
+
+```sh
+# Find releases in a namespace (adjust as needed)
+helm list --namespace <namespace-name>
+
+# Get the values for a specific release
+$ helm get values <release-name> --namespace <namespace-name>
+```
+
+Se você tiver o arquivo de configuração original salvo da instalação, você pode usá-lo diretamente. Se você instrumentou o cluster via manifestos do Kubernetes (kubectl ou Kustomize), observe as opções definidas para cada agente — você as recriará como configurações remotas do Fleet Control.
+
+### Passo 2. Desinstale seus agentes antigos
+
+Antes de instalar o Agent Control, remova os agentes antigos do seu cluster.
+
+Para uma instalação do Helm, use o comando `helm uninstall`:
+
+```shell
+$ helm uninstall <release-name> -n <namespace>
+```
+
+Por exemplo, para desinstalar o `nri-bundle`:
+
+```shell
+$ helm uninstall nri-bundle -n newrelic
+```
+
+### Passo 3. Instale o Agent Control
+
+Inicie a [instalação guiada do Agent Control](/docs/new-relic-control/agent-control/setup/) e faça o download do `values.yaml` gerado. Este arquivo contém apenas a configuração do supervisor do Agent Control (credenciais, ID da frota e quais tipos de agente gerenciar) — **não adicione valores de chart específicos do agente aqui**. Esses pertencem à configuração remota do Fleet Control.
+
+Para uma instalação do Helm, você normalmente executaria:
+
+```shell
+$ helm upgrade --install agent-control-bootstrap -n newrelic newrelic/agent-control-bootstrap --create-namespace --values my_values.yaml
+```
+
+### Etapa 4. Recrie a configuração do agente no Fleet Control
+
+Depois que o Agent Control for instalado e conectado ao Fleet Control, implante seus agentes criando ou atualizando a configuração remota da frota com suas configurações anteriores. Este é o local definitivo para toda a configuração do agente.
+
+#### Exemplo: Migrando uma instalação do nri-bundle
+
+O exemplo a seguir mostra como traduzir valores existentes do Helm `nri-bundle` para uma configuração remota do Fleet Control.
+
+**Configuração `nri-bundle` existente:**
+
+```yaml
+global:
+  cluster: test-migration
+  licenseKey: ***
+kube-state-metrics:
+  enabled: false
+newrelic-prometheus-agent:
+  enabled: true
+newrelic-infrastructure:
+  enabled: true
+  kubelet:
+    tolerations:
+      - operator: "Exists"
+        effect: "NoSchedule"
+      - operator: "Exists"
+        effect: "NoExecute"
+      - operator: "Exists"
+        key: "MyToleration"
+  ksm:
+    enabled: false
+  common:
+    config:
+      interval: 29s
+newrelic-logging:
+  enabled: true
+  image:
+    tag: "latest"
+  resources:
+    limits:
+      cpu: 200m
+    requests:
+      cpu: 200m
+nri-kube-events:
+  enabled: true
+  customAttributes:
+    test_tag_label: test_tag_value
+```
+
+**Configuração remota equivalente do Fleet Control:**
+
+Defina isso como a configuração remota para sua frota no Fleet Control. O Agent Control o aplicará automaticamente.
+
+```yaml
+logs:
+  chart_version: "1.25.1"
+  chart_values:
+    newrelic-logging:
+      image:
+        tag: "latest"
+      resources:
+        limits:
+          cpu: 200m
+        requests:
+          cpu: 200m
+infrastructure:
+  chart_version: "5.0.109"
+  chart_values:
+    newrelic-infrastructure:
+      kubelet:
+        tolerations:
+          - operator: "Exists"
+            effect: "NoSchedule"
+          - operator: "Exists"
+            effect: "NoExecute"
+          - operator: "Exists"
+            key: "MyToleration"
+      ksm:
+        enabled: false
+      common:
+        config:
+          interval: 29s
+    nri-kube-events:
+      customAttributes:
+        test_tag_label: test_tag_value
+prometheus:
+  chart_version: "1.15.4"
+```
+
+## Migração do Linux
+
+<Callout variant="important">
+  O Agent Control não suporta a migração automática de agentes existentes no Linux. Se você já tiver o New Relic Infrastructure Agent instalado em seu host Linux, deverá desinstalá-lo manualmente antes de instalar o Agent Control. O Agent Control distribui agentes via pacotes compatíveis com OCI através do Fleet Control — ele não substitui nem herda a instalação existente do pacote `newrelic-infra`.
+</Callout>
+
+Para migrar de uma instalação autônoma do Infrastructure Agent no Linux para o Agent Control:
+
+1. **Anote sua configuração existente.** Antes de desinstalar, salve uma cópia da configuração do agente em `/etc/newrelic-infra/newrelic-infra.yml` e quaisquer configurações de integração on-host em `/etc/newrelic-infra/integrations.d/`. Você precisará recriá-las como configurações remotas do Fleet Control após instalar o Agent Control.
+
+2. **Desinstale o Agente de Infraestrutura existente.** Siga as etapas de desinstalação para sua distribuição:
+
+   <Tabs>
+     <TabsBar>
+       <TabsBarItem id="linux-uninstall-debian">Debian, Ubuntu</TabsBarItem> <TabsBarItem id="linux-uninstall-suse">SLES</TabsBarItem> <TabsBarItem id="linux-uninstall-redhat">Amazon Linux, CentOS, RHEL</TabsBarItem>
+     </TabsBar>
+
+     <TabsPages>
+       <TabsPageItem id="linux-uninstall-debian">
+         ```bash
+         sudo apt-get remove newrelic-infra -y
+         ```
+       </TabsPageItem>
+
+       <TabsPageItem id="linux-uninstall-suse">
+         ```bash
+         sudo zypper -n remove newrelic-infra
+         ```
+       </TabsPageItem>
+
+       <TabsPageItem id="linux-uninstall-redhat">
+         ```bash
+         sudo yum remove newrelic-infra -y
+         ```
+       </TabsPageItem>
+     </TabsPages>
+   </Tabs>
+
+3. **Instale o Agent Control.** Siga as [etapas de instalação do Linux](/docs/new-relic-control/agent-control/setup/) usando a instalação guiada, certificando-se de selecionar ou criar uma frota do tipo **&quot;Host - Linux&quot;**.
+
+4. **Recrie a configuração do seu agente no Fleet Control.** Depois que o Agent Control for instalado e conectado, implante o Infrastructure Agent por meio do Fleet Control e aplique suas configurações anteriores via configuração remota. Consulte [Configuração do Linux](/docs/new-relic-control/agent-control/configuration/#linux-configuration) para obter orientações sobre o formato de configuração.
+
+Dashboards personalizados e alertas que referenciam dados do agente de infraestrutura continuarão funcionando, desde que você use a mesma conta e nome do host.
+
+## Migração do Windows
+
+<Callout variant="important">
+  O Agent Control não suporta a migração automática de agentes existentes no Windows. Se você já tem o New Relic Infrastructure Agent instalado em seu host Windows, deve desinstalá-lo manualmente antes de instalar o Agent Control. Os agentes de APM não são gerenciados pelo Agent Control no Windows e podem permanecer instalados.
+</Callout>
+
+Para migrar de uma instalação autônoma do Infrastructure Agent no Windows para o Agent Control:
+
+1. **Desinstale o Agente de Infraestrutura existente.** Abra **Add or Remove Programs** (ou use o PowerShell) e desinstale o agente de infraestrutura do New Relic. Alternativamente, execute o desinstalador:
+
+   ```powershell
+   # Example using the MSI uninstaller
+   msiexec /x {PRODUCT_CODE} /quiet
+   ```
+
+2. **Anote sua configuração existente.** Antes de desinstalar, salve uma cópia da configuração do agente (normalmente em `C:\Program Files\New Relic\newrelic-infra\newrelic-infra.yml`) e de quaisquer configurações de integração on-host em `C:\Program Files\New Relic\newrelic-infra\integrations.d\`. Você precisará recriá-las como configurações remotas do Fleet Control após instalar o Agent Control.
+
+3. **Instale o Agent Control.** Siga as [etapas de instalação do Windows](/docs/new-relic-control/agent-control/setup/) usando a instalação guiada, certificando-se de selecionar ou criar uma frota do tipo **&quot;Host - Windows&quot;**.
+
+4. **Recrie a configuração do seu agente no Fleet Control.** Depois que o Agent Control for instalado e conectado, implante o Infrastructure Agent por meio do Fleet Control e aplique suas configurações anteriores via configuração remota. Consulte a [configuração do Windows](/docs/new-relic-control/agent-control/configuration/#windows-configuration) para obter orientações sobre o formato de configuração.
+
+Dashboards personalizados e alertas que referenciam dados do agente de infraestrutura continuarão funcionando, desde que você use a mesma conta e nome do host.

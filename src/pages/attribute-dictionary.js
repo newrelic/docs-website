@@ -9,8 +9,10 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
+  Trans,
   ComplexFeedback,
   Table,
+  useLocale,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import { TYPES } from '../utils/constants';
@@ -20,7 +22,8 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-import events from '../data/attribute-dictionary.json';
+import enJson from '../data/attribute-dictionary-en.json';
+import frJson from '../data/attribute-dictionary-fr.json';
 
 const AttributeDictionary = ({ location }) => {
   const [filteredEvents, setFilteredEvents] = useState([]);
@@ -28,12 +31,20 @@ const AttributeDictionary = ({ location }) => {
   const [searchedAttribute, setSearchedAttribute] = useState(null);
   const { queryParams } = useQueryParams();
 
+  const { locale } = useLocale();
+
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute(
       'pageType',
       'Interactive/AttributeDictionary'
     );
   }
+
+  const events = (() => {
+    if (locale === 'en') return enJson;
+    if (locale === 'fr') return frJson;
+    return enJson;
+  })();
 
   useEffect(() => {
     let filteredEvents = events;
@@ -109,7 +120,16 @@ const AttributeDictionary = ({ location }) => {
               margin-bottom: 1rem;
             `}
           >
-            <p>{t('strings.dataDictionary.intro')}</p>
+            <p>
+              <Trans
+                i18nKey="strings.dataDictionary.intro"
+                components={{
+                  1: (
+                    <Link to="https://docs.newrelic.com/docs/nrql/get-started/introduction-nrql-how-nrql-works/" />
+                  ),
+                }}
+              />
+            </p>
             <p>{t('strings.dataDictionary.introNot.0')}</p>
             <ul>
               <li>{t('strings.dataDictionary.introNot.1')}</li>

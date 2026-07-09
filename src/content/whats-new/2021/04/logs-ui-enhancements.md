@@ -3,7 +3,7 @@ title: 'A simpler, more intuitive log analytics experience'
 summary: "Check out the changes we've made to the UI to help you see details and debug faster!"
 releaseDate: '2021-04-12'
 learnMoreLink: 'https://docs.newrelic.com/docs/logs/log-management/ui-data/use-logs-ui/'
-getStartedLink: 'https://one.nr/0gbRKXPGdjE'
+getStartedLink: 'https://onenr.io/0gbRKXPGdjE'
 ---
 
 In collaboration with our customers, we’ve made significant changes in the Logs UI. With this new intuitive design, now you can efficiently find and use advanced features directly from your main screen. We’ve also dedicated more UI space to logs making it easier to see the details and debug faster.

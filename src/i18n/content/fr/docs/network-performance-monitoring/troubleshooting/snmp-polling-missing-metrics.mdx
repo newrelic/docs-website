@@ -1,0 +1,170 @@
+---
+title: Les résultats monitoring SNMP comportent des mesures manquantes
+tags:
+  - Integrations
+  - Network monitoring
+  - Troubleshooting
+metaDescription: 'SNMP monitoring is working, but expected metrics are missing.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problème [#problem]
+
+Lors de monitoring SNMP, vous ne voyez pas toutes les métriques attendues pour votre appareil.
+
+## Solution [#solution]
+
+Identifiez les métriques existantes dans New Relic en exécutant la requête NRQL suivante, en remplaçant `$DEVICE_NAME` si nécessaire :
+
+```sql
+FROM Metric SELECT 
+  uniques(metricName) 
+WHERE instrumentation.provider = 'kentik' 
+AND device_name = '$DEVICE_NAME'
+SINCE 1 HOUR AGO LIMIT MAX
+```
+
+Cette requête vous donnera une liste de toutes les mesures dimensionnelles collectées sur votre appareil au cours de la dernière heure. Si la métrique n&apos;est pas répertoriée, vous devriez essayer ces tests :
+
+<CollapserGroup>
+  <Collapser id="verify-device-response" title="Vérifiez que l'appareil répond à l'OID cible">
+    Exécutez l&apos;[utilitaire snmpwalk](/docs/network-performance-monitoring/troubleshooting/snmp-walk) à partir de l&apos;hôte sur lequel votre agent `ktranslate` s&apos;exécute, en utilisant les informations d&apos;identification SNMP que vous avez configurées dans le fichier de configuration `snmp-base.yaml` .
+
+    Si le test échoue, l’appareil ne prend probablement pas en charge l’OID que vous souhaitez collecter. Il s&apos;agit d&apos;une limitation de l&apos;appareil lui-même, contrôlée par le fournisseur.
+
+    <Callout variant="tip">
+      Si vous utilisez SNMPv3, validez la configuration de l&apos;utilisateur v3 sur l&apos;appareil. Dans la plupart des situations, l&apos;administrateur de l&apos;appareil doit accorder explicitement l&apos;accès aux MIB pour un compte utilisateur v3.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="verify-listed-profile" title="Vérifiez que l'OID est répertorié dans le profil SNMP">
+    Vérifiez si l&apos;OID existe dans le profil de l&apos;appareil lui-même. S&apos;il semble y avoir un problème avec un OID qui existe déjà dans le profil, [ouvrez un problème GitHub](https://github.com/kentik/snmp-profiles/issues/new/choose) pour contacter les responsables du référentiel afin qu&apos;ils travaillent à une résolution. Si l&apos;OID n&apos;existe pas dans le profil, vous pouvez [soumettre une demande de tirage](https://github.com/kentik/ktranslate/pulls) pour les faire ajouter. Suivez les étapes décrites dans la [documentation des profils SNMP](/docs/network-performance-monitoring/advanced/snmp-profiles/#public).
+
+    <Callout variant="tip">
+      La valeur de `instrumentation.name` sur vos métriques dimensionnelles correspond au nom du fichier de profil dans lequel la collection de métriques est configurée.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="verify-device-matches" title="Vérifiez que l'appareil correspond au profil SNMP correct">
+    Vérifiez que la valeur configurée pour `mib_profile` dans votre fichier `snmp-base.yaml` correspond au nom de fichier de profil correct. Par exemple:
+
+    ```yaml
+    devices:
+      deviceOne:
+        ...
+        mib_profile: cisco-catalyst.yml
+        ...
+    ```
+
+    Vous pouvez vérifier cela dans New Relic avec la requête NRQL suivante, en remplaçant `$DEVICE_NAME` si nécessaire :
+
+    ```sql
+    FROM Metric SELECT
+      latest(instrumentation.name)
+    WHERE instrumentation.provider = 'kentik'
+    AND device_name = '$DEVICE_NAME'
+    ```
+
+    La bibliothèque de profils SNMP est constamment mise à jour et il arrive parfois que l&apos;image de conteneur que vous utilisez ne dispose pas des paramètres de profil que vous recherchez. Si le `mib_profile` ne correspond pas au profil attendu, vous pouvez soit mettre à jour manuellement votre fichier de configuration, soit exécuter une nouvelle découverte.
+
+    Vous devez toujours extraire la dernière image de votre conteneur avant d&apos;effectuer des modifications en exécutant `docker pull kentik/ktranslate:v2`.
+
+    Alternativement, vous pouvez obtenir la dernière version via apt-get :
+
+    ```shell
+    curl -s https://packagecloud.io/install/repositories/kentik/ktranslate/script.deb.sh | sudo bash && \
+    sudo apt-get install ktranslate
+    ```
+  </Collapser>
+
+  <Collapser id="verify-ktranslate-polling" title="Vérifiez que KTranslate interroge le périphérique comme prévu">
+    Vérifiez votre compte pour les erreurs de gravité `Warn`qui signifient que `ktranslate` rencontre des problèmes lors de la collecte de certaines mesures à partir de votre appareil.
+
+    interface utilisateur du log :
+
+    ```shell
+    collector.name:"ktranslate" message:"*OID failed to return results*"
+    ```
+
+    NRQL:
+
+    ```sql
+    FROM Log SELECT * WHERE `collector.name` = 'ktranslate' AND `message` LIKE '%OID failed to return results%'
+    ```
+
+    Résultats attendus :
+
+    ```
+    KTranslate>cisco-7513 OID failed to return results, Metric Name: ipIfStatsHCInOctets, Profile: cisco-asr
+    ```
+
+    <Callout variant="tip">
+      Dans cet exemple, vous pouvez voir que le périphérique cible, `cisco-7513` , ne renvoie pas de métriques pour l&apos;OID `ipIfStatsHCInOctets` , qui se trouve dans le profil SNMP `cisco-asr` .
+    </Callout>
+
+    Ensuite, vous devez exécuter une seule interrogation SNMP sur votre appareil pour voir exactement ce que `ktranslate` reçoit de la demande, en utilisant la configuration fournie.
+
+    Pour ce faire, exécutez `ktranslate` en tant que conteneur de courte durée, en utilisant l’indicateur `-snmp_poll_now` . Vous pouvez exécuter ce conteneur à l&apos;aide de cette commande, en remplaçant `TARGET_DEVICE_NAME` par la valeur de `devices.[].device_name` dans votre fichier de configuration YAML pour le périphérique en question :
+
+    ```shell
+    docker run -d --name ktranslate-poll_now --rm --pull=always -p 162:1620/udp \
+    -v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+    kentik/ktranslate:v2 \
+      -snmp /snmp-base.yaml \
+      -service_name=poll_now \
+      -snmp_poll_now=$TARGET_DEVICE_NAME \
+      -format=new_relic_metric
+    ```
+
+    Les résultats de ce sondage peuvent être consultés dans le log du conteneur à l&apos;aide de `docker logs --follow ktranslate-poll_now`
+
+    Exemple de réussite de l&apos;interrogation des métadonnées de l&apos;appareil :
+
+    ```
+    2022-01-03T23:08:50.583 ktranslate/poll_now [Info] KTranslate SNMP Device Metadata: Data received: {SysName:router123 SysObjectID:.1.3.6.1.4.1.9.1.46 SysDescr:Cisco Internetwork Operating System Software ...}
+    2022-01-03T23:08:50.585 ktranslate/poll_now [Info] nrmFormat New Metadata for router123
+    ```
+
+    Exemple de réussite d&apos;une interrogation des statistiques d&apos;un appareil :
+
+    ```
+    [{"metrics":[{"name":"kentik.snmp.ifInErrors","type":"count","value":0,"attributes":{"if_Speed":2,"mib-name":"IF-MIB","poll_duration_sec":60,"if_Type":"proppointtopointserial", "if_AdminStatus":"up","objectIdentifier":".1.3.6.1.2.1.2.2.1.14","mib-table":"if","if_OperStatus":"up","device_name":"router123","provider":"kentik-router","if_interface_name":"Se11/0/0:16","instrumentation.name":"cisco-asr","if_Index":"63","if_Address":"10.201.0.65","eventType":"KSnmpInterfaceMetric","if_Netmask":"255.255.255.252","if_Alias":"pkt.ds1"}}]...}]
+    ```
+
+    En regardant le JSON *« embelli »* , vous pouvez voir ici que l’interrogation fonctionne comme prévu pour cet appareil :
+
+    ```json
+    [
+      {
+        "metrics": [
+          {
+            "name": "kentik.snmp.ifInErrors",
+            "type": "count",
+            "value": 0,
+            "attributes": {
+              "if_Speed": 2,
+              "mib-name": "IF-MIB",
+              "poll_duration_sec": 60,
+              "if_Type": "proppointtopointserial",
+              "if_AdminStatus": "up",
+              "objectIdentifier": ".1.3.6.1.2.1.2.2.1.14",
+              "mib-table": "if",
+              "if_OperStatus": "up",
+              "device_name": "router123",
+              "provider": "kentik-router",
+              "if_interface_name": "Se11/0/0:16",
+              "instrumentation.name": "cisco-asr",
+              "if_Index": "63",
+              "if_Address": "10.201.0.65",
+              "eventType": "KSnmpInterfaceMetric",
+              "if_Netmask": "255.255.255.252",
+              "if_Alias": "pkt.ds1"
+            }
+          }
+        ]
+      }
+    ]
+    ```
+  </Collapser>
+</CollapserGroup>

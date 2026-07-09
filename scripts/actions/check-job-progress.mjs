@@ -127,7 +127,16 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
       jobId,
     };
   } catch (error) {
-    const { errors } = JSON.parse(error.message);
+    let errors = [];
+
+    // Try to parse error message as JSON, but handle network errors
+    try {
+      const parsed = JSON.parse(error.message);
+      errors = parsed.errors || [];
+    } catch (parseError) {
+      // Error message is not JSON (e.g., network error)
+      log(`Network or parse error: ${error.message}`, 'warn', 4);
+    }
 
     await trackTranslationError({
       ...defaultTrackingMetadata,
@@ -249,6 +258,45 @@ const updateJobRecords = async (jobStatuses) => {
   );
 };
 
+/**
+ * Process items in batches with rate limiting to avoid API limits
+ * Smartling API allows 400 requests per 10 seconds
+ * Each batch item makes 2 API calls (batch data + job data), so effective limit is 200 items
+ * @param {Array} items - Items to process
+ * @param {Function} processor - Async function to process each item
+ * @param {number} batchSize - Number of items to process per batch (default: 180)
+ * @param {number} delayMs - Delay between batches in milliseconds (default: 10000)
+ * @returns {Promise<Array>}
+ */
+const processWithRateLimit = async (
+  items,
+  processor,
+  batchSize = 180,
+  delayMs = 10000
+) => {
+  const results = [];
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    log(
+      `Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(
+        items.length / batchSize
+      )} (${batch.length} items)`
+    );
+
+    const batchResults = await Promise.all(batch.map(processor));
+    results.push(...batchResults);
+
+    // Add delay between batches to respect rate limits (except for the last batch)
+    if (i + batchSize < items.length) {
+      log(`Waiting ${delayMs / 1000} seconds before next batch...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return results;
+};
+
 /** Entrypoint. */
 const main = async () => {
   try {
@@ -262,7 +310,8 @@ const main = async () => {
     });
 
     // get the status for all of the batch translation jobs
-    const batchStatuses = await Promise.all(batchUids.map(getBatchStatus));
+    // Use rate limiting to avoid exceeding API limits (400 requests per 10 seconds)
+    const batchStatuses = await processWithRateLimit(batchUids, getBatchStatus);
 
     // filter out any jobs that aren't ready to be brought back into the site
     const batchesToDeserialize = batchStatuses.filter(
@@ -278,7 +327,12 @@ const main = async () => {
     const slugStatuses = (
       await Promise.all(
         batchesToDeserialize.map(async (batch) => {
-          return (await fetchAndDeserializeFiles(batch)).map((status) => {
+          return (
+            await fetchAndDeserializeFiles({
+              ...batch,
+              jobId: batch.jobId,
+            })
+          ).map((status) => {
             return { ...status, jobId: batch.jobId };
           });
         })

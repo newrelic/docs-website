@@ -1,0 +1,294 @@
+---
+title: Instrumentação Linux
+metaDescription: Configure your Azure Functions with New Relic for Linux
+tags:
+  - Azure Functions
+  - Linux
+  - Instrumentation
+  - Configuration
+  - New Relic .NET Agent
+  - New Relic Python Agent
+  - New Relic Node.js Agent
+  - New Relic Azure Websites Extension
+  - Environment Variables
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Você pode configurar o monitoramento do New Relic para aplicativos de funções do Azure hospedados no Linux. Isso é alcançado instrumentando seu aplicativo de função com o agente New Relic apropriado para seu tempo de execução, como Node.js .NET ou Python. Essa instrumentação permite que você monitore o desempenho e a integridade do seu Azure Functions em tempo real no New Relic.
+
+<Steps>
+  <Step>
+    ## Pré-requisitos [#begin]
+
+    * Garanta que sua Função do Azure atenda à nossa [compatibilidade e requisitos](/docs/serverless-function-monitoring/azure-function-monitoring/compatibility-requirement-azure-monitoring).
+    * Vincule sua conta do Azure ao New Relic. Para obter mais informações, consulte [integraçãoAzure ](/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-functions-monitoring-integration/#polling).
+  </Step>
+
+  <Step>
+    ## Configurar o monitoramento do Azure Functions
+
+    Você pode configurar o monitoramento do Azure Functions para diferentes ambientes e várias combinações de tempos de execução e métodos de implantação:
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="node">Node.js</TabsBarItem> <TabsBarItem id="python">Python</TabsBarItem> <TabsBarItem id="net">.NET</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="node">
+          1. No diretório raiz do seu projeto do Node.js Azure Function App, instale o agente New Relic como uma dependência do projeto executando:
+
+          ```bash
+          npm i newrelic
+          ```
+
+          2. Para garantir que o agente New Relic seja instalado com a dependência do seu projeto durante o processo de implantação Azure, defina `SCM_DO_BUILD_DURING_DEPLOYMENT` como `true` nas configurações do seu aplicativo executando:
+
+             ```bash
+             az functionapp config appsettings set --name NAME_OF_YOUR_AZURE_FUNCTION_APP --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true
+             ```
+
+          3. Publique seu aplicativo de função do Azure usando a CLI do Azure ou seu método de publicação preferido. Você pode usar um dos seguintes comandos para publicar seu aplicativo de função do Azure:
+
+             ```bash
+             func azure functionapp publish NAME_OF_YOUR_AZURE_FUNCTION_APP
+             ```
+
+             OU
+
+             ```bash
+             az functionapp app up
+             ```
+
+             OU
+
+             ```bash
+             az functionapp deploy
+             ```
+
+          <Callout variant="important">
+            Os comandos mostrados aqui são exemplos e podem exigir parâmetros adicionais com base na sua configuração específica Azure e estratégia de implantação, como `OS`, `Node.js version`, `Azure resource group`, `Azure subscription`, `Azure storage account`, `Azure region` e assim por diante. Consulte a documentação Azure para saber mais sobre esses parâmetros para os métodos [`func azure functionapp publish`](https://learn.microsoft.com/en-us/azure/azure-functions/functions-core-tools-reference?tabs=v2#func-azure-functionapp-publish), [`az functionapp up`](https://learn.microsoft.com/en-us/cli/azure/functionapp/app?view=azure-cli-latest#az-functionapp-app-up) e [`az functionapp deploy`](https://learn.microsoft.com/en-us/cli/azure/functionapp?view=azure-cli-latest#az-functionapp-deploy).
+          </Callout>
+        </TabsPageItem>
+
+        <TabsPageItem id="python">
+          1. No diretório raiz do seu projeto do Python Azure Function App, abra o arquivo `requirements.txt`.
+
+          2. Adicione a seguinte linha ao seu arquivo `requirements.txt` para instalar o agente New Relic para instrumentação do Azure Function:
+
+             ```bash
+             newrelic
+             ```
+
+          3. Inicialize e registre o agente New Relic no seu código de função do Azure usando um dos seguintes métodos:
+
+          <CollapserGroup>
+            <Collapser id="option1" title="Opção 1: Atualizar manualmente o arquivo function_app.py">
+              1. Abra o arquivo `function_app.py` no seu projeto.
+              2. Para importar o agente New Relic, adicione a seguinte instrução no início do arquivo:
+
+              ```python
+              import newrelic.agent
+              ```
+
+              3. Inicialize o agente New Relic. Para obter mais informações, consulte [Inicializar agente Python.](/docs/apm/agents/python-agent/python-agent-api/initialize-python-agent-api/)
+              4. Registre o agente New Relic com sua função do Azure. Para obter mais informações, consulte [Registrar agente Python.](/docs/apm/agents/python-agent/python-agent-api/registerapplication-python-agent-api/)
+
+              <Callout variant="important">
+                O agente do New Relic usa variáveis de ambiente para nomear seu aplicativo na interface do usuário do New Relic. Certifique-se de que `NEW_RELIC_APP_NAME` (recomendado) ou `WEBSITE_SITE_NAME` (variável de nome de site padrão do Azure) esteja disponível como uma variável de ambiente para seu aplicativo de função.
+              </Callout>
+
+              Seu arquivo `function_app.py` deve se parecer com a seguinte estrutura:
+
+              ```python
+              import newrelic.agent
+              import os
+              import azure.functions as func
+
+              ...
+              newrelic.agent.initialize()
+              app_name = os.environ.get(
+                  "NEW_RELIC_APP_NAME", os.environ.get("WEBSITE_SITE_NAME", None)
+              )
+              newrelic.agent.register_application(app_name)
+              # Code here
+              ```
+            </Collapser>
+
+            <Collapser id="option2" title="Opção 2: Usando o script único fornecido pelo New Relic">
+              1. No diretório raiz do seu projeto do Python Azure Function App, crie um novo arquivo chamado `initialization.sh`.
+              2. Adicione o seguinte conteúdo de script ao arquivo `initialization.sh` :
+
+              ```shell
+              #!/bin/bash
+              # initialization.sh
+
+              #####################################################################
+              #
+              # This one-time use script performs the following tasks:
+              # 1. Creates a new function_app.py file with New Relic  
+              #   initialization and registration
+              # 2. Moves the original function_app.py file into a directory
+              #    named "original". 
+              # 3. Adds the "original" directory to the .funcignore file
+              #   to prevent duplication in published files.
+              #
+              #####################################################################
+
+              mkdir original
+              mv function_app.py ./original/
+
+              echo -e 'import newrelic.agent\nimport os\n\nnewrelic.agent.initialize()\napp_name = os.environ.get("NEW_RELIC_APP_NAME", os.environ.get("WEBSITE_SITE_NAME", None))\nnewrelic.agent.register_application(app_name)\n' | cat - ./original/function_app.py > function_app.py
+
+              echo 'original' >> .funcignore
+              ```
+
+              3. Salve o arquivo `initialization.sh`.
+              4. Forneça as permissões para o arquivo de script executando:
+
+              ```bash
+              chmod 755 initialization.sh
+              ```
+
+              5. Execute o script a partir do diretório raiz do seu projeto:
+
+              ```bash
+              ./initialization.sh
+              ```
+            </Collapser>
+          </CollapserGroup>
+
+          4. Publique seu aplicativo de função do Azure usando a CLI do Azure ou seu método de publicação preferido. Você pode usar o seguinte comando para publicar seu aplicativo de função do Azure:
+
+             ```bash
+             func azure functionapp publish $NAME_OF_YOUR_AZURE_FUNCTION_APP
+             ```
+        </TabsPageItem>
+
+        <TabsPageItem id="net">
+          1. Adicione a versão mais recente do pacote NuGet `NewRelic.Agent` ao seu projeto de aplicativo.
+
+          2. Use seu mecanismo de publicação preferido para implantar seu aplicativo atualizado no Azure.
+
+          Ao implantar seu aplicativo, o agente .NET é instalado na pasta `/home/site/wwwroot/newrelic` .
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ## Configurar variáveis de ambiente
+
+    Depois de publicar o aplicativo Azure Function, [configure as variáveis de ambiente](/docs/serverless-function-monitoring/azure-function-monitoring/env-variables-azure):
+
+    1. Navegue até suas Funções Azure no portal Azure .
+    2. Em **Settings** , clique em **Environment variables** e depois em **Advanced edit** .
+    3. Com base no tempo de execução da sua implantação, cole os seguintes valores:
+
+    <Callout variant="important">
+      Certifique-se de adicionar uma vírgula no final da última linha existente e atualize sua chave de licença na seguinte configuração.
+    </Callout>
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="nodejs">Node.js</TabsBarItem> <TabsBarItem id="py">Python</TabsBarItem> <TabsBarItem id=".net">.NET</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="nodejs">
+          ```json
+          {
+            "NODE_OPTIONS": "-r newrelic",
+            "NEW_RELIC_LICENSE_KEY": "YOUR_NEW_RELIC_LICENSE_KEY",
+            "NEW_RELIC_APP_NAME": "NAME_OF_YOUR_AZURE_FUNCTION_APP"
+          }
+          ```
+        </TabsPageItem>
+
+        <TabsPageItem id="py">
+          ```json
+          {
+            "NEW_RELIC_LICENSE_KEY": "YOUR_NEW_RELIC_LICENSE_KEY",  
+            "NEW_RELIC_APP_NAME":  "NAME_OF_YOUR_AZURE_FUNCTION_APP",  
+            "PYTHONPATH": "${PYTHONPATH}:/home/site/wwwroot:/home/site/wwwroot/.python_packages/lib/site-packages",  
+            "FUNCTIONS_WORKER_RUNTIME": "python",  
+            "PYTHON_ENABLE_WORKER_EXTENSIONS": 1 
+          }
+          ```
+        </TabsPageItem>
+
+        <TabsPageItem id=".net">
+          ```json
+          {
+            "name": "CORECLR_ENABLE_PROFILING",
+            "value": "1",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_NEW_RELIC_HOME",
+            "value": "/home/site/wwwroot/newrelic",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_PROFILER",
+            "value": "{36032161-FFC0-4B61-B559-F6C5D41BAE5A}",
+            "slotSetting": false
+          }, 
+          {
+            "name": "CORECLR_PROFILER_PATH",
+            "value": "/home/site/wwwroot/newrelic/libNewRelicProfiler.so",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LOG_DIRECTORY",
+            "value": "/home/LogFiles/NewRelic",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LICENSE_KEY",
+            "value": "YOUR_NEW_RELIC_LICENSE_KEY",
+            "slotSetting": false
+          }
+          ```
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ## Reinicie suas funções Azure
+
+    Depois de adicionar as variáveis de ambiente, reinicie o Azure Functions para aplicar as alterações.
+  </Step>
+
+  <Step>
+    ## Encontre e use dados [#find-data]
+
+    Depois de configurar sua Azure Function, você pode localizar e usar os dados na interface New Relic.
+
+    1. Acesse [https://one.newrelic.com](https://one.newrelic.com) &gt; **APM &amp; Services**.
+
+    2. No banner de pesquisa, defina os critérios de pesquisa como `isAzureFunction = true`:
+
+       <img title="Azure Function Search" alt="A screenshot showing the Azure Function search" src="/images/azure_filters.webp" />
+
+    3. Na lista exibida, selecione sua Função do Azure para visualizar os dados.
+  </Step>
+</Steps>
+
+## Artigos relacionados [#related-docs]
+
+<DocTiles>
+  <DocTile title="Compatibilidade e requisitos" path="/docs/serverless-function-monitoring/azure-function-monitoring/compatibility-requirement-azure-monitoring">
+    Requisitos para suas Azure Functions
+  </DocTile>
+
+  <DocTile title="Instrumentação Windows" path="/docs/serverless-function-monitoring/azure-function-monitoring/windows">
+    Aprenda a configurar o Azure Functions para Windows para monitorá-lo no New Relic.
+  </DocTile>
+
+  <DocTile title="contêiner instrumentação" path="/docs/serverless-function-monitoring/azure-function-monitoring/container">
+    Aprenda a configurar suas Azure Functions para contêiner para monitorá-las no New Relic.
+  </DocTile>
+</DocTiles>

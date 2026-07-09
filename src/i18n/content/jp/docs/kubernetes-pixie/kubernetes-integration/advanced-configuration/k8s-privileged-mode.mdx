@@ -1,0 +1,127 @@
+---
+title: 特権モードと非特権モード
+metaDescription: 'Understand why the New Relic Kubernetes integration defaults to privileged mode, what metrics are affected by disabling it, and how to configure it.'
+template: GuideTemplate
+freshnessValidatedDate: never
+translationType: machine
+---
+
+デフォルトでは、New Relic Kubernetesインテグレーションは**特権モード**で実行されます。これにより、Infrastructureエージェントは基盤となるホストの情報に直接アクセスできるようになります。
+
+これは最も完全なテレメトリーを提供しますが、一部のセキュリティ ポリシー (Pod セキュリティ標準や OpenShift 標準的契約条項など) では、ワークロードを**非特権モード**で実行する必要がある場合があります。
+
+## 特権モードが必要な理由
+
+New Relic Infrastructureエージェントは Kubelet ポッドに含まれており、ディープ システム メトリクスを収集するにはノードの OS への低レベルのアクセスが必要です。
+
+[共通ライブラリ](https://github.com/newrelic/helm-charts/blob/master/library/common-library/README.md)の`privileged`のデフォルト値は`false`です。ただし、このチャートでは、エージェントが次の操作を実行できるように、デフォルトで`true`に設定されています ([`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml)を参照)。
+
+* ホストの`/proc`および`/sys`ファイルシステムを読み取ります。
+* **基盤となるホスト**の正確な CPU、メモリ、ストレージ、およびネットワーク統計を収集します。
+* インフラストラクチャの健全性と Kubernetes オブジェクトを関連付ける完全なプロセス リストとメタデータを収集します。
+
+### 非特権モードで実行
+
+クラスタのセキュリティポリシーでポッドのセキュリティコンテキストでの`privileged`が許可されていない場合は、`privileged`を`false`に設定して無効にできます。
+
+### データ収集への影響
+
+<Callout variant="important">
+  特権モードを無効にすると、**ホストレベルのメトリクス**とメタデータが失われます。New Relicではホストエンティティは作成されません。
+</Callout>
+
+非特権モードでは、Infrastructureエージェントはホストのリソース使用量を確認できず、ホストエンティティは作成されません。以下を含む、標準のホストメトリクスへのアクセスが失われます：
+
+* **SystemSample:**ホスト レベルの CPU、メモリ、および負荷平均。
+* **StorageSample:**ノードのファイルシステムのディスク使用量と I/O。
+* **NetworkSample:**物理ネットワーク インターフェイスの統計。
+* **ProcessSample:** New Relic コンテナ外で実行されているプロセスに関するデータ。
+
+非特権モードで具体的にどの属性とメトリクスが利用できないかの詳細なリストについては、[Linuxエージェントの実行モードのドキュメント](/docs/infrastructure/infrastructure-agent/linux-installation/linux-agent-running-modes/#mode-metrics)を参照してください。
+
+### 設定方法
+
+カスタム値ファイルを更新して、グローバル特権フラグを`false`に設定します。
+
+```yaml
+global:
+  privileged: false
+```
+
+### Windowsノード
+
+Windowsノードは特権モードと非特権モードの両方をサポートしています。特権モードがコンテナのセキュリティコンテキストを介して動作するLinuxとは異なり、**Windowsの特権モードはHostProcessコンテナを使用します**。これは、コンテナにホストリソースへの直接アクセスを許可するためのWindowsネイティブのメカニズムです。
+
+#### HostProcessコンテナとは何ですか？
+
+`windows.privileged=true`（Windowsノードのデフォルト）を使用してデプロイすると、監視コンテナはWindows HostProcessコンテナとして実行されます。これは、標準のWindowsコンテナの分離とは根本的に異なる実行モデルです：
+
+* コンテナのプロセスは**WindowsホストOSのプロセス空間**で直接実行されます。これらはノード上のタスクマネージャーに表示され、コンテナのネームスペースには分離されていません。
+* `hostNetwork: true` が自動的に適用され、プロセスはノード上のすべてのネットワークインターフェースにアクセスできるようになります。
+* コンテナは**ホストファイルシステムとレジストリ**にアクセスできます。
+* これは、ローカル特権は制限されていますが、コンピューターアカウントとしてネットワークリソースに対して認証する機能を持つ組み込みのWindowsアカウントである`NT AUTHORITY\Local Service`として実行されます。
+
+Windowsノード自体からホストメトリクス — CPU、メモリ、ディスク、ネットワークインターフェース — を収集するには、HostProcessモードが必要です。
+
+#### Windows向け非特権モード
+
+`windows.privileged=false`を設定すると、コンテナはホストネットワークにアクセスせずに標準の`ContainerUser`として実行されます。エージェントは転送専用モードで動作します。kubeletインテグレーションスクレイパーからデータを転送しますが、ホストリソースには直接アクセスしません。このモードでは、ノードレベルのサンプル（`SystemSample`、`StorageSample`、`NetworkSample`）は収集されません。
+
+多くのノード関連メトリクスは、非特権モードでもK8sNodeSampleイベントを介して引き続き利用可能です。特権なしモードで利用できないメトリクスの完全なリストについては、[Windows用Kubernetesインテグレーションの制限](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/troubleshooting-windows/#k8-windows-limitations)を参照してください。
+
+#### Windows特権モードのセキュリティに関する懸念事項
+
+HostProcessコンテナはホストOSに直接アクセスして実行されるため、New Relicは`windows.privileged=true`を使用する際に以下のプラクティスを推奨しています：
+
+* **きめ細かなkubelet認可を有効にして**、より広範な`nodes/proxy`サブリソースではなく、インテグレーションが使用する特定の読み取り専用エンドポイントにRBACを制限します。これには、`KubeletFineGrainedAuthz` 機能ゲートを備えた Kubernetes 1.32+ が必要です。
+
+newrelic-infrastructure Helmチャートでは：
+
+```yaml
+rbac:
+  kubeletFineGrainedAuth: true
+```
+
+* `values.yaml`に埋め込んだり、シェル履歴や`helm get values`に表示されてしまう`--set`経由で渡したりするのではなく、**ライセンスキーをKubernetes Secretとして保存してください**：
+
+  ```bash
+  kubectl create secret generic newrelic-license \
+    --namespace newrelic \
+    --from-literal=licenseKey=<YOUR_KEY>
+  ```
+
+  ```yaml
+  global:
+    customSecretName: newrelic-license
+    customSecretLicenseKey: licenseKey
+  ```
+
+* `kubelet.windowsNodeSelector`を使用して、**DaemonSetを指定されたノードに固定します**。クラスタに異なるワークロード分類のWindowsノードがある場合、モニターする予定のノードのみに監視を制限できます。
+
+* Windows Defender ファイアウォールのルールまたはプロキシを使用して、**ノードレベルでネットワークイグレスを強制します**。`hostNetwork: true`がポッドのネットワークを完全にバイパスするため、Kubernetes`NetworkPolicy`オブジェクトはHostProcessポッドには適用されません。`NetworkPolicy`の適用はCNIプラグインにも依存することに注意してください — すべてのCNIプラグインがデフォルトでネットワークポリシーを適用するわけではありません。クラスタ内の別の場所でエグレス制御を`NetworkPolicy`に依存している場合は、それに依存する前に、適用が実際に有効になっていることを確認してください。プロキシを使用する場合：
+
+  ```yaml
+  global:
+    proxy: "http://your-proxy:3128"
+  ```
+
+* HostProcessコンテナはノードリソースを直接競合するため、ノードの安定性を保護するために**リソース制限を設定**してください。チャートではデフォルトでメモリ制限が設定されています — これを維持するか、独自に設定できます：
+
+  ```yaml
+  kubelet:
+    windows:
+      agent:
+        resources:
+          limits:
+            memory: 300Mi
+  ```
+
+  CPU制限は、デフォルトでは設定されていません。監視エージェントの場合、ハードCPUキャップは、ノードの負荷下でスクレイピング間隔を逃すリスクがあります。クラスタポリシーで必要とされる場合は、設定する前にそのトレードオフを比較検討してください。
+
+* **監視スタックを専用のネームスペースで実行し**、その中でリソースを作成または変更できるユーザーを制限します。HostProcessポッドは直接ホストアクセスで実行されるため、このネームスペースへのラテラルアクセスはノードアクセスと同等に扱う必要があります。
+
+* **既存のWindowsセキュリティ監視がこれらのノードを網羅していることを確認してください。**HostProcessコンテナプロセスは、ホストOSのプロセス空間で直接実行され、他のプロセスと同様にホストから認識されます。これらは`Get-Process`の出力に表示され、プロセス作成監査が有効になっている場合は、セキュリティログイベント4688（プロセス作成）および4689（プロセス終了）に表示されます。
+
+  セキュリティログにおけるHostProcessコンテナのリリースの識別可能なシグナルは、Creator Processとしての`containerd-shim-runhcs-v1.exe`が`cmd.exe`を`NT AUTHORITY\Local Service`として生成し、その後、チェーンのさらに下流にあるエージェントプロセス（`newrelic-infra.exe`および`nri-kubernetes`）が続くことです。
+
+  Windowsではプロセス作成監査はデフォルトで無効になっており、有効化およびセキュリティログの読み取りにはアドミニストレーターまたはSYSTEM特権が必要であることに注意してください。New Relicコンテナ自体の中から設定することはできません。組織がSIEM、Windowsイベント転送、またはEDRツールを使用してWindowsホストからイベントログを収集している場合は、その対象範囲がKubernetes Windowsノードにも及んでいることを確認してください。

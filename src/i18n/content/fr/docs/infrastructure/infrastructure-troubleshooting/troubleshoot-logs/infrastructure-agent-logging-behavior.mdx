@@ -1,0 +1,129 @@
+---
+title: Comportement du logging de l'agent d'infrastructure
+tags:
+  - Infrastructure
+  - Infrastructure monitoring troubleshooting
+  - Troubleshoot logs
+metaDescription: How New Relic generates and stores logs for the infrastructure agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+L&apos;agent infrastructure de New Relic collecte ses propres données ainsi que le log d&apos;intégration et les consolide dans une source unique. Par défaut, les logs apparaissent dans `standard-output` et sont ajoutés à un [fichier de log](/docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings#log-file). Pour désactiver la connexion dans la sortie standard, [consultez les options de configuration de l&apos;agent](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#stdout).
+
+## Configuration de base
+
+L&apos;exemple suivant montre une configuration typique pour le log de l&apos;agent dans un système Linux (modifier le chemin du fichier lors de l&apos;exécution Windows ou d&apos;une autre plateforme) :
+
+```yml
+log:
+  level: info
+  file: '/var/log/newrelic-infra/newrelic-infra.log'
+  rotate:
+    max_size_mb: 100
+    max_files: 5
+    compression_enabled: true
+    file_pattern: YYYY-MM-DD_hh-mm-ss.log
+```
+
+## Niveaux de gravité du logging [#security-levels]
+
+L&apos;infrastructure utilise un sous-ensemble des [niveaux de gravité standard<DNT>Syslog</DNT> ](https://en.wikipedia.org/wiki/Syslog#Severity_level):
+
+* `ERROR`: Conditions d&apos;erreur remplies
+* `WARN`: Conditions d&apos;avertissement remplies
+* `INFO`:Messages d&apos;information
+* `DEBUG`:Contient des messages de niveau débogage (utiles lors du dépannage)
+
+## formatage du log
+
+Pour [l&apos;agent infrastructure v1.4.9 ou supérieur](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes), les messages de log sont alignés avec les valeurs de contexte. Cela offre un meilleur regroupement et un meilleur filtrage ; par exemple :
+
+```
+containerized agent found in container
+     containerID: VALUE
+```
+
+Par défaut, les logs d’infrastructure sont formatés en texte :
+
+* En mode premier plan, la sortie log est colorée, sans horodatage :
+
+  ```
+  DEBUG Sending deltas divided in blocks component=PatchSender mentityKey=ohaimaci mnumberOfBlocks=1
+  ```
+
+* En mode arrière-plan, les logs sont des sorties d&apos;horodatage, utilisées lors de l&apos;exécution en tant que service ou du vidage du log dans un fichier :
+
+  ```
+  time="2019-07-12T09:54:15+02:00" level=info msg="Agent service manager shutdown completed successfully." component=AgentService service=newrelic-infra
+  ```
+
+Alternativement, le log peut être formaté sous forme de fichier JSON :
+
+```json
+{"context":{},"level":"info","msg":"upstart_interval_sec: 0","timestamp":"2019-07-11T18:24:03+02:00"}
+{"context":{},"level":"info","msg":"plugin_dir: ","timestamp":"2019-07-11T18:24:03+02:00"}
+```
+
+Pour modifier le format du log, consultez les [paramètres de configuration de l&apos;agent](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#log-format).
+
+## Rotation log intégrée [#builtin-log-rotation]
+
+Pour [l&apos;agent infrastructure v1.28.0 ou supérieur](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes), un mécanisme de rotation et de compression log intégré est disponible dans l&apos;agent.
+
+## Mode verbeux intelligent
+
+Pour [les versions d&apos;agent infrastructure 1.9.0 ou supérieures](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes), vous pouvez activer le mode verbeux intelligent pour le log.
+
+Le mode verbeux intelligent empêche les messages de débogage d&apos;être enregistrés jusqu&apos;à ce qu&apos;un message d&apos;erreur soit détecté. Une fois qu&apos;une erreur est détectée, les messages de débogage sont écrits dans le fichier log avant l&apos;erreur. Notez que seul le nombre le plus récent de messages de débogage configurés est enregistré. Par exemple, si vous avez configuré une limite de 10, lorsqu&apos;une erreur est détectée, les 10 messages de débogage les plus récents avant la détection de l&apos;erreur sont enregistrés.
+
+Pour plus d&apos;informations sur l&apos;activation du mode verbeux intelligent et de la limite des messages de débogage, consultez [Paramètres de configuration de l&apos;infrastructure](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#logging-variables).
+
+## intégration gestion des log
+
+intégration écriture JSON charge dans `STDOUT` et texte brut (JSON structuré dans le futur) log dans `STDERR`.
+
+L&apos;agent infrastructure gère les lignes d&apos;intégration `STDERR` et transmet cette sortie dans le log de l&apos;agent.
+
+L&apos;agent gère chaque ligne `STDERR` comme suit :
+
+* <DNT>**When agent runs in verbose mode**</DNT>: il transmet simplement la ligne `STDERR` complète en tant qu&apos;entrée log d&apos;agent DEBUG en plaçant les contextes de ligne d&apos;intégration dans le champ `msg`.
+* <DNT>**Otherwise**</DNT>:il analyse la ligne par rapport au format attendu (voir ci-dessous) et enregistre uniquement comme niveau d&apos;ERREUR de l&apos;agent, les entrées produites par l&apos;intégration avec les niveaux de gravité `fatal` ou `error` . Dans ce cas, les champs sont extraits et transmis de manière structurée (donc si la sortie JSON est activée pour l&apos;agent, les champs deviennent interrogeables).
+
+Par défaut, l&apos;agent infrastructure filtre toutes les erreurs d&apos;intégration qui n&apos;empêchent pas l&apos;exécution de l&apos;intégration. Vous ne verrez toutes les erreurs d&apos;une intégration que si le niveau de log est défini sur DEBUG ou si l&apos;intégration est spécifiquement répertoriée dans la log configuration. Par exemple, dans cette configuration, toutes les erreurs provenant de `nri-mssql` seront affichées, même si le niveau de log est INFO :
+
+```yml
+log:
+  include_filters:
+    integration_name:
+      - nri-mssql
+```
+
+### intégration format attendu STDERR
+
+Une ligne doit être une liste de paires valeur-clé séparées par un caractère égal. Les clés peuvent contenir n’importe quel caractère, tandis que les valeurs peuvent avoir trois formats différents :
+
+1. chaîne : &lt;quote&gt;tout caractère, y compris les guillemets échappés \\&quot;&lt;quote&gt;
+2. map: &amp;\{any character}
+3. mot : n&apos;importe quel caractère sauf les espaces
+
+En interne, l&apos;agent a utilisé cette expression régulière pour extraire les champs :
+
+```regex
+([^\s]*?)=(".*?[^\\]"|&{.*?}|[^\s]*)
+```
+
+Par instance, cette ligne :
+
+```
+time="2015-03-26T01:27:38-04:00" level=error msg="Foo bar baz" foo=bar
+```
+
+Génèrera une ligne log d&apos;agent structurée avec ces champs :
+
+```
+- "time": "2015-03-26T01:27:38-04:00"
+- "level": "error"
+- "msg": "Foo bar baz"
+- "foo": "bar"
+```

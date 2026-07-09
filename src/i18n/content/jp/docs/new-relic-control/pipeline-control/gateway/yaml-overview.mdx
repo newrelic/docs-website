@@ -1,0 +1,259 @@
+---
+title: ゲートウェイ YAML 設定リファレンス
+metaDescription: YAML configuration syntax reference for creating custom Pipeline Control Gateway configurations.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このリファレンスでは、上級ユーザーがカスタム ゲートウェイ設定を作成するための YAML 構文について説明します。 概念情報については、 [「ゲートウェイの概要」](/docs/new-relic-control/pipeline-control/gateway/overview)を参照してください。ガイド付きのエクスペリエンスの場合は、 [Gateway UI を](/docs/new-relic-control/pipeline-control/gateway/ui-guide)使用します。ゲートウェイUIはほとんどのユーザーに推奨されますが、YAML 設定はテレメトリー パイプライン構造を完全に制御できます。
+
+## 完全なYAML構造
+
+ゲートウェイ設定では宣言型 YAML 形式を使用します。
+
+```yaml
+version: 2.0.1
+autoscaling:
+  minReplicas: 6
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+configuration:
+  simplified/v2:
+    troubleshooting:
+      proxy: false
+      requestTraceLogs: false
+    steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          rules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              conditions:
+                - resource.attributes["service.name"] == "ruby-test-service"
+          default_sampling_percentage: 100
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          default_sampling_percentage: 100
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          rules:
+            - name: drop the log records
+              description: drop all records which has severity text INFO
+              conditions:
+                - log.severity_text == "INFO"
+              context: log
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          rules:
+            - name: drop-internal-metrics
+              description: drop internal metric
+              conditions:
+                - IsMatch(name, "^internal\\.")
+              context: metric
+            - name: drop-debug-datapoints
+              description: drop-debug-datapoints
+              conditions:
+                - attributes["metric.type"] == "debug"
+              context: datapoint
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          rules:
+            - name: drop-health-endpoint
+              description: drop-health-endpoint
+              conditions:
+                - attributes["http.path"] == "/health"
+              context: span
+            - name: drop-debug-events
+              description: drop-debug-events
+              conditions:
+                - name == "debug_event"
+              context: span_event
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          rules:
+            - name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          rules:
+            - name: adding a new attributes
+              description: adding a new field into a attributes
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          rules:
+            - name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+      nrexporter/newrelic:
+        description: Export to New Relic
+```
+
+<Callout variant="tip">
+  **インストレーションモードの注意:** `version`および`autoscaling`フィールドの動作は、フリートのインストレーションモードによって異なります：
+
+  * **Fluxの場合:** これらのフィールドはUIを通じてフルマネージドされます。変更はフリート内のすべてのクラスタに自動的にデプロイされます。
+  * **Fluxを使用しない場合:** これらのフィールドは、Horizontal Pod Autoscaler（HPA）を構成するために、初期インストレーション時に設定できます。ただし、インストレーション後のUI経由での変更は無視されます。`configuration.simplified/v2`セクション（パイプラインルール）のみが、引き続き`ConfigMap`経由で自動的にデプロイされます。HPAによるスケーリングとHelmアップグレードによるバージョンは、手動で更新する必要があります。詳細は[Fluxなしでのゲートウェイの管理](/docs/new-relic-control/pipeline-control/gateway/install-gateway-without-flux#manage-gateway-after-installation)を参照してください。
+</Callout>
+
+### トップレベルの構造
+
+* `version`: 設定形式のバージョン (現在`"2.0.1"`)
+* `autoscaling`: ゲートウェイレプリカスケーリング設定
+* `configuration.simplified/v2`: テレメトリーパイプラインを定義するための簡素化された抽象化レイヤー
+* `troubleshooting`: デバッグ設定
+
+## 設定階層
+
+ゲートウェイの設定は、各ステップがその動作を定義し、outputフィールドを使用してパイプライン内の次のステップを指し示す、有向非巡回グラフ（DAG）構造に従っています。これにより、明示的なデータフローが作成されます：データはレシーバーを通じて入力され、プロセッサー（変換、フィルター、サンプリング）を経由して流れ、エクスポーターを通じて出力されます。
+
+### ステップの命名規則
+
+* 受信者: `receivelogs` 、 `receivemetrics` 、 `receivetraces`
+
+* プロセッサ: `processortype/TelemetryType`形式:
+
+  * 変換: `transform/Logs` 、 `transform/Metrics` 、 `transform/Traces`
+  * フィルター: `filter/Logs` 、 `filter/Metrics` 、 `filter/Traces`
+  * サンプリング: `probabilistic_sampler/Logs` 、 `probabilistic_sampler/Traces`
+
+* 輸出業者: `nrexporter`
+
+### プロセッサーの設定
+
+Gateway は、テレメトリー データの変換、フィルタリング、サンプリングのために 3 つの主要なプロセッサ タイプをサポートしています。
+
+#### 変換プロセッサ
+
+OTTL (OpenTelemetry Transformation Language) を使用してテレメトリーを変更、拡充、または解析するために使用されます。
+
+設定フィールド:
+
+* metric\_statements: メトリクス変換の配列 (コンテキスト: メトリクス)
+* log\_statements: ログ変換の配列 (コンテキスト: ログ)
+* trace\_statements: トレース変換の配列 (コンテキスト: span)
+
+#### フィルタープロセッサ
+
+ブール式に基づいてテレメトリー レコードを削除するために使用されます。
+
+設定フィールド:
+
+* ログ: ログ フィルタリング用の OTTL ブール式の配列
+* スパン: メトリクス/トレース フィルタリング用の OTTL ブール式の配列
+
+#### サンプリングプロセッサ
+
+確率的サンプリング ロジックを実装するために使用されます。
+
+設定フィールド:
+
+* global\_sampling\_percentage: デフォルトのサンプリングレート（0～100）
+
+* conditionalSamplingRules: 条件付きルールの配列
+
+  * 名前: ルール識別子
+  * 説明: 人間が読める説明
+  * サンプリング率: 一致したデータのサンプリング率 (0-100)
+  * source\_of\_randomness: ランダム性に使用するフィールド (通常はトレース.id)
+  * 条件: 属性一致式
+
+## フィールド参照
+
+### トップレベルフィールド
+
+| フィールド                        | タイプ   | 必須  | デフォルト |
+| ---------------------------- | ----- | --- | ----- |
+| version                      | ストリング | はい  | -     |
+| 自動スケーリング.minReplicas         | 整数    | いいえ | 6     |
+| 自動スケーリング.maxReplicas         | 整数    | いいえ | 10    |
+| 自動スケーリング.targetCPU使用率        | 整数    | いいえ | 60    |
+| configuration.simplified/v2  | 物体    | はい  | -     |
+| トラブルシューティング.プロキシ             | ブール値  | いいえ | false |
+| トラブルシューティング.requestTraceLogs | ブール値  | いいえ | false |
+
+<Callout variant="tip">
+  **インストレーションモードの注意:** `version`および`autoscaling`フィールドの動作は、フリートのインストレーションモードによって異なります：
+
+  * **Fluxの場合:** これらのフィールドはUIを通じてフルマネージドされます。変更はフリート内のすべてのクラスタに自動的にデプロイされます。
+  * **Fluxを使用しない場合:** これらのフィールドは、Horizontal Pod Autoscaler（HPA）を構成するために、初期インストレーション時に設定できます。ただし、インストレーション後のUI経由での変更は無視されます。`configuration.simplified/v2`セクション（パイプラインルール）のみが、引き続き`ConfigMap`経由で自動的にデプロイされます。HPAによるスケーリングとHelmアップグレードによるバージョンは、手動で更新する必要があります。詳細は[Fluxなしでのゲートウェイの管理](/docs/new-relic-control/pipeline-control/gateway/install-gateway-without-flux#manage-gateway-after-installation)を参照してください。
+</Callout>
+
+### ステップフィールド
+
+| フィールド       | タイプ   | 必須   | 説明                        |
+| ----------- | ----- | ---- | ------------------------- |
+| description | ストリング | 推奨   | 人間が読める説明                  |
+| コンフィグ       | 物体    | 条件付き | 加工業者の場合は必須、受取人/輸出業者の場合は省略 |
+| 出力          | アレイ   | はい   | 次のステップ名（エクスポーターの場合は空の\[]） |
+
+## フィールドの命名規則
+
+* 例の大文字と小文字を正確に使用してください (YAML は大文字と小文字を区別します)。
+
+各ステップの出力配列は次のステップを指定します。
+
+## 検証とデプロイメント
+
+1. YAML リンターを使用して構文を検証します。
+2. まずは本番環境以外の環境へのデプロイ。
+3. テレメトリーがNew Relicに正しく到達することを確認します。
+4. ゲートウェイUIを通じて設定をアップロードします。
+
+## 追加リソース
+
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor)
+* [https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor)

@@ -11,9 +11,10 @@ import last from 'lodash/last.js';
 import yaml from 'js-yaml';
 import { visit } from 'unist-util-visit4';
 import { encode as htmlEncode } from 'html-entities';
-
+import { decode as htmlDecode } from 'html-entities';
 import handlers from './utils/handlers.mjs';
 import { configuration } from './configuration.js';
+import remarkGfm from 'remark-gfm';
 
 /**
  * Deserialize a node from the HTML AST into a node for the MDX AST.
@@ -92,6 +93,30 @@ const stripTranslateFrontmatter = () => {
   return transformer;
 };
 
+/**
+ * Replace tildes with hyphens in text nodes to prevent MDX parsing issues.
+ *
+ * Tildes (~) are used as code fence delimiters in Markdown/MDX (like ``` or ~~~)
+ * and cause parsing errors when used in regular text. Korean translations naturally
+ * use ~ for ranges (e.g., "7.9~10" meaning "7.9 to 10"), which breaks MDX validation.
+ *
+ * This transformer replaces all tildes with hyphens in text nodes to ensure
+ * MDX compatibility across all languages.
+ */
+const replaceTildesWithHyphens = () => {
+  const transformer = (tree) => {
+    visit(tree, 'text', (node) => {
+      if (node.value && typeof node.value === 'string') {
+        // Replace tildes with hyphens to prevent MDX parsing errors
+        node.value = node.value.replace(/~/g, '-');
+      }
+    });
+    return tree;
+  };
+
+  return transformer;
+};
+
 const inlineCodeAttribute = () => (tree) => {
   visit(tree, 'inlineCode', (node) => {
     node.type = 'mdxJsxSpanElement';
@@ -142,7 +167,10 @@ const processor = unified()
   // remark-mdx must come before remark-stringify, because it adds handlers
   // for MDX nodes like `mdxJsxTextElement` and otherwise, remark-stringfy
   // won't know how to stringify those nodes.
+  .use(remarkGfm)
   .use(remarkMdx)
+  // Note: htmlCommentsToJsxComments removed - let HTML comments stay as HTML
+  // This prevents issues with HTML comments from translators/Smartling
   .use(stringify, {
     bullet: '*',
     fences: true,
@@ -163,6 +191,15 @@ const processor = unified()
         // `mdast-util-to-markdown` supports adding new rules in the config
         // via the `unsafe` option, but not replacing the existing rules.
         // so we have to hack it out with a saw.
+
+
+        
+        // as we have encoded the text nodes in the stringify as the workaround to handle unsafe characters.
+        // in this processor, we are using `htmlEncode` to encode the text nodes.
+        // however, we have found some nodes which are already encoded int rehype2remark
+        // (like `&gt`), and they are getting double encoded
+        // so decoding here undos the double encoding.
+        node.value = htmlDecode(node.value);
         const index = state.unsafe.findIndex((rule) => rule.character === '&');
         if (index !== -1) {
           state.unsafe.splice(index, 1);
@@ -174,11 +211,12 @@ const processor = unified()
     },
   })
   .use(frontmatter, ['yaml'])
-  .use(stripTranslateFrontmatter);
+  .use(stripTranslateFrontmatter)
+  .use(replaceTildesWithHyphens);
 
 const deserializeHTML = async (html) => {
   const vfile = await processor.process(html);
-
+  
   return vfile.toString().trim();
 };
 

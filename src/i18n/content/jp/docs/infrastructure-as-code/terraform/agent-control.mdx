@@ -1,0 +1,198 @@
+---
+title: Terraform を使用したAgent Controlセットアップ
+metaDescription: 'Agent Control is an agent supervisor that can be used to deploy, update, and manage New Relic agents.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[New RelicAgent Control](/docs/new-relic-control/agent-control/overview)Terraform を使用したNew Relic により、特に複数のKubernetes クラスタを扱う場合に、 による大規模な監視がさらに容易になります。Terraform と Helm を使用すると、Kubernetes インフラストラクチャ全体にわたって、指定された繰り返し可能なスケーラブルな方法で New Relic Agent Control を設定できます。
+
+## 前提条件 [#prereqs]
+
+Terraform でこの統合を使用する前に、次のものが揃っていることを確認してください。
+
+* **Helm 3:**マシンに Helm バージョン 3 がインストールされている必要があります。インストール手順については、 [Helmのインストール」を](https://helm.sh/docs/intro/install)参照してください。
+* **New Relicライセンスキー:** New Relicアカウントにテレメトリーを報告するには、 New Relicライセンスキーが必要です。
+* **New Relic ユーザー キー:** `clientID`キーとシークレットをまだ取得していない場合は[、New Relic ユーザー キーが](/docs/apis/intro-apis/new-relic-api-keys/)必要になります。
+* **ユーザー権限:** New Relicユーザーには、認証ドメインマネージャーと組織製品管理者のロールがあります。
+* **New Relic OrgId:** New Relic `OrgId`は、クライアント ID キーとシークレットを取得する組織を識別します。
+* **Kubernetesクラスタ名:** Kubernetesクラスタの名前は、インストールプロセス中に参照されるため、準備しておきます。
+
+<Callout variant="tip">
+  Terraform で新しいクラスタを設定する場合は、エージェント コントロールの導入中に必ず同じクラスタ名を使用してください。
+</Callout>
+
+* **Terraform のHelmプロバイダー: インストレーションが**機能するように、Terraform スクリプトに[Helmプロバイダー](https://registry.terraform.io/providers/hashicorp/helm/latest/docs)を含めます。
+* **Terraform:**マシンに[Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)がインストールされていることを確認してください。
+
+## 互換性 [#compatibility]
+
+このソリューションと互換性のある Kubernetes バージョンを確認するには、概要の[互換性](/docs/new-relic-control/agent-control/overview/#compatibility)セクションを参照してください。
+
+## インストール [#installation]
+
+`clientId`と`clientSecret`がない場合は、次の[NerdGraph](https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) API を使用して取得します。
+
+```sh
+  curl -X POST \
+      https://api.newrelic.com/graphql \
+      -H 'Content-Type: application/json' \
+      -H 'x-api-key: [INSERT_USER_API_KEY]' \
+      --data-raw '{"query": "mutation SICreate { systemIdentityCreate(name: \"User Key for Agent Control\" organizationId: \"[INSERT_YOUR_ORG_ID]\") { clientId clientSecret } }"}' \
+      --compressed
+```
+
+コマンドでは、プレースホルダーの値を`organizationId`とユーザー キーに置き換えます。これにより、設定ファイルで使用する必要な資格情報が返されます。
+
+### ステップ1
+
+プロジェクト用のディレクトリを作成し、その中に`main.tf`ファイルを配置します。[Helm プロバイダー](https://registry.terraform.io/providers/hashicorp/helm/latest/docs)が Terraform ファイルに追加されたことを確認します。
+
+### ステップ2
+
+に のチャートを使用する リリースを使用して Terraform スクリプトを構成します。HelmNew RelicAgent Control以下のサンプル スクリプトを参照してください。
+
+```hcl
+provider "helm" {
+ kubernetes {
+   config_paths = [
+       "~/.kube/config"
+   ]
+ }
+}
+
+
+resource "helm_release" "newrelic" {
+   name = "agent-control"
+   repository = "https://newrelic.github.io/helm-charts/"
+   chart = "agent-control"
+   namespace = "newrelic"
+   create_namespace = "true"
+
+
+   values = [
+       file("./values-newrelic.yaml")
+   ]
+}
+```
+
+Terraform スクリプトは`values-newrelic.yaml`ファイルを参照することに注意してください。これは、New RelicAgent Control の設定に使用される 設定ファイルです。Agent ControlTerraform スクリプトと同じディレクトリに置く必要はありません。`helm_release`リソースの values 属性内の`file()`関数に正しいパスを指定することで、任意の場所から参照できます。
+
+または、 `values-newrelic.yaml`ファイルを Terraform プロジェクト ディレクトリに直接配置すると、 `main.tf`スクリプトによって自動的に参照されます。
+
+追加の設定が含まれていない基本的な`values-newrelic.yaml`ファイルの例を次に示します。
+
+```yaml
+global:
+ cluster: [YOUR_CLUSTER_NAME]
+ licenseKey: [YOUR_INGEST_LICENSE_KEY]
+
+
+agent-control-deployment:
+ identityClientId: [YOUR_IDENTITY_CLIENT_ID]
+ identityClientSecret: [YOUR_IDENTITY_CLIENT_SECRET]
+ config:
+   fleet_control:
+   # optional
+     fleet_id: [YOUR_FLEET_ENTITY_GUID]
+     auth:
+       organizationId: [ORG_ID]
+   agentControl:
+     content:
+       log:
+         level: trace
+```
+
+利用可能なすべての構成設定を確認するには、 [`values-newrelic.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/agent-control/values.yaml)を参照してください。
+
+### ステップ3
+
+Terraform スクリプトを初期化して確認します。
+
+```shell
+    terraform init
+```
+
+```shell
+    terraform plan
+```
+
+### ステップ4
+
+変更を適用します:
+
+```shell
+    terraform apply
+```
+
+### ステップ5
+
+Kube Control を使用してエージェント ポッドが正しく構築されていることを確認します。
+
+```shell
+    kubectl get pods -n newrelic
+```
+
+## 構成 [#configuration]
+
+`values-newrelic.yaml`では、複数の監視エージェントの導入を設定できます。 この例ではNew Relicのインフラストラクチャ エージェント、 Fluent Bitエージェント、 OpenTelemetryコレクター エージェント、および[New Relic Pipeline Control](/docs/new-relic-control/pipeline-control/overview)ゲートウェイ エージェントなどの利用可能なオプションを示します。
+
+```yaml
+agent-control-deployment:
+  identityClientId: [YOUR_IDENTITY_CLIENT_ID]
+  identityClientSecret: [YOUR_IDENTITY_CLIENT_SECRET]
+  config:
+    subAgents:
+      infrastructure:
+        type: newrelic/com.newrelic.infrastructure:0.1.0
+        content:
+          chart_version: "*"
+          chart_values:
+            newrelic-infrastructure:
+              enableProcessMetrics: true
+      logs:
+        type: newrelic/io.fluentbit:0.1.0
+        content:
+          # Ref: `https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging`
+          # Recommended: check and define an explicit chart version (latest stable)
+          chart_version: "*"
+            chart_values:
+              newrelic-logging:
+                sendMetrics: true
+      agent-operator:
+        type: com.newrelic.k8s_agent_operator:0.1.0
+        content:
+          chart_version: "*"
+      open-telemetry:
+        type: newrelic/com.newrelic.opentelemetry.collector:0.1.0
+        content:
+            # Ref: `https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/values.yaml`
+            # Recommended: check and define an explicit chart version (latest stable)
+            chart_version: "*"
+              chart_values:
+                nr-k8s-otel-collector:
+                  receivers.filelog.enabled: false
+      gateway:
+        type: newrelic/com.newrelic.pipeline_control_gateway:0.1.0
+        content:
+          chart_version: "*"
+          chart_values:
+            gateway:
+              autoscaling:
+                minReplicas: 2
+                maxReplicas: 10
+                targetCPUUtilizationPercentage: 70
+```
+
+## アンインストール [#uninstall]
+
+<Callout variant="important">
+  Terraform 設定からHelmリリース リソースを削除することは破壊的なアクションです。 この変更に従って`terraform apply`を実行すると、Terraform はKubernetesクラスタ内の関連リソースをアンインストールして破棄します。 これにより、そのHelmリリースによって管理されるリソースに関連付けられたデータと設定が失われる可能性があります。 続行する前に、環境に及ぼす潜在的な影響を十分に理解してください。
+
+  * 影響を受ける可能性のあるすべての依存関係とサービスを確認します。
+  * リリースにリンクされている永続的なデータや設定をバックアップすることを検討してください。
+  * このリリースを削除することが必要であり、インフラストラクチャ管理戦略に適合していることを確認します。インフラストラクチャに大幅な変更を加えるときは常に注意を払い、問題が発生した場合に備えて適切なロールバック手順が確立されていることを確認してください。
+</Callout>
+
+* `terraform plan`実行します: 設定からHelmリリース リソース ブロックを削除した後、 `terraform plan`コマンドを実行します。 これにより、Terraform がインフラストラクチャに対して行う予定の変更を確認できます。計画出力を慎重に調べて、意図したリソースのみが削除対象としてマークされていることを確認します。この手順は、意図しない削除や変更が発生しないことを確認するために不可欠です。
+* `terraform apply`実行: terraform プランの結果が期待どおりであれば、 `terraform apply`コマンドを実行して続行します。これにより、計画された変更が実装され、指定された Helm リリースが環境から実質的に削除されます。アンインストール処理を完了するプロンプトが表示されたら、実行を確認します。

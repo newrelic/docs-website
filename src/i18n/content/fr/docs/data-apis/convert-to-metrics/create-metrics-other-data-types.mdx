@@ -1,0 +1,314 @@
+---
+title: Créer des métriques à partir d’autres types de données
+tags:
+  - Ingest and manage data
+  - Convert data to metrics
+metaDescription: 'How to create a rule in New Relic to turn data for events, logs, or spans into metric data.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Utilisez [le service API métriques](/docs/introduction-events-metrics-api) de New Relic pour définir des règles de création [de métriques](/docs/telemetry-data-platform/ingest-manage-data/understand-data/metric-data-type) à partir de vos autres types de données, tels que des événements, des logs ou des étendues. Recommandation : avant de commencer, consultez nos [exigences et conseils pour créer des règles](/docs/telemetry-data-platform/ingest-manage-data/convert-data-metrics/creating-metric-rules-requirements-tips).
+
+## Créer une règle métrique [#overview-process]
+
+Pour créer une règle permettant de créer des métriques à partir d&apos;un événement, d&apos;un log ou d&apos;étendues :
+
+1. [Construisez la règle métriques en utilisant NRQL](#create-nrql).
+2. [Construisez une requête API NerdGraph (format GraphQL)](#create-request) qui contient votre règle NRQL.
+3. [Créez la métrique en effectuant la demande d&apos;API](#graphql-api-request).
+
+Une fois qu&apos;une métrique est créée, vous pouvez [l&apos;interroger et la représenter graphiquement à l&apos;aide de NRQL](#find-your-data).
+
+## Étape 1. Créer une règle de requête NRQL [#create-nrql]
+
+La partie la plus importante de [la création d&apos;une règle métrique](#overview-process) consiste à construire la requête NRQL qui définit la métrique de vos données à partir d&apos;un événement, d&apos;un log ou de plages. Vous pouvez créer jusqu&apos;à [10 métriques avec une seule requête NRQL](/docs/telemetry-data-platform/ingest-manage-data/convert-data-metrics/creating-metric-rules-requirements-tips#multiple-metrics) en suivant cette procédure :
+
+1. [À l’aide de l’interface NRQL de New Relic](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql#where), construisez une requête pour la métrique que vous souhaitez créer. Par exemple:
+
+   ```sql
+   FROM ProcessSample SELECT average(ioTotalReadBytes)
+   WHERE nr.entityType = 'HOST'
+   ```
+
+   <Callout variant="important">
+     Les règles [d&apos;événement à métriques](/docs/data-apis/convert-to-metrics/analyze-monitor-data-trends-metrics/) ne prennent pas en charge la clause `WITH ... AS` dans [la requête NRQL ](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/).
+   </Callout>
+
+2. Modifiez la requête pour utiliser l&apos;un des trois types de métriques disponibles :
+
+   * `summary`: À utiliser si la fonction de la requête est `min`, `max`, `sum`, `count` ou `average`.
+
+   * `uniqueCount`: À utiliser si la fonction de la requête est `uniqueCount`.
+
+   * `distribution`: À utiliser si la fonction de la requête est [`percentile`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#func-percentile) ou [`histogram`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#func-histogram).
+
+     Cet exemple de requête utilise `average`, utilisez donc `summary`:
+
+     ```sql
+     FROM ProcessSample SELECT summary(ioTotalReadBytes)
+     WHERE nr.entityType = 'HOST'
+     ```
+
+     Cet exemple de requête utilise `count` sur un champ non numérique :
+
+     ```sql
+     FROM ProcessSample SELECT count(hostname)
+     WHERE hostname LIKE '%prod%'
+     ```
+
+     Pour `summary` sur un champ non numérique, utilisez `summary(1)`:
+
+     ```sql
+     FROM ProcessSample SELECT summary(1)
+     WHERE hostname LIKE '%prod%'
+     ```
+
+     <Callout variant="tip">
+       Pour des informations plus détaillées sur l&apos;utilisation de ces types de métriques dans les règles, voir [Création de règles métriques : exigences et conseils](/docs/telemetry-data-platform/ingest-manage-data/convert-data-metrics/creating-metric-rules-requirements-tips).
+     </Callout>
+
+3. Décidez de l&apos;attribut que vous souhaitez attacher à la métrique, en respectant les [limites de cardinalité des combinaisons uniques nom-métrique/valeur-attribut](#attributes-limit).
+
+   Recommandation : exécutez une requête distincte pour garantir que la cardinalité maximale ne dépasse pas 50 000 pour une fenêtre de 30 secondes. Par exemple, la requête suivante trouvera la cardinalité maximale rencontrée sur une période de 30 secondes au cours des 3 dernières heures pour l&apos;événement `ProcessSample` en incluant les attributs `awsRegion`, `awsAvailabilityZone` et `commandName` :
+
+   ```sql
+   FROM (FROM ProcessSample
+   SELECT rate(uniqueCount(awsRegion, awsAvailabilityZone, commandName), 30 seconds) AS 'cardinalityRate'
+   WHERE nr.entityType = 'HOST' TIMESERIES 30 seconds) SELECT max(cardinalityRate) AS 'maxCardinalityRate' SINCE 3 hours AGO
+   ```
+
+4. Pour pouvoir agréger et filtrer vos métriques, ajoutez l&apos;attribut que vous souhaitez attacher à la métrique à l&apos;aide de la clause `FACET` . Par exemple:
+
+   ```sql
+   FROM ProcessSample
+   SELECT summary(ioTotalReadBytes) WHERE nr.entityType = 'HOST'
+   FACET awsRegion, awsAvailabilityZone, commandName
+   ```
+
+5. Définissez le [nom de la métrique](#naming) à l’aide de la fonction `AS` . Par exemple:
+
+   ```sql
+   FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes'
+   WHERE nr.entityType = 'HOST' FACET awsRegion, awsAvailabilityZone, commandName
+   ```
+
+Une fois votre règle NRQL terminée, utilisez-la pour [créer la demande d&apos;API](#create-request).
+
+## Étape 2. Créer une demande d&apos;API [#create-request]
+
+Après avoir créé la règle NRQL pour convertir les données d’événement, de log ou de spans en métriques, continuez à créer la demande d’API. Vous pouvez [utiliser notre outil API NerdGraph](/docs/introduction-events-metrics-api#use-graphql-api-tool) pour explorer la structure des données et pour construire et faire votre demande.
+
+Pour vérifier que la règle a été créée correctement, vous pouvez [exécuter une requête pour renvoyer cette règle en utilisant son ID](/docs/introduction-events-metrics-api#list-rule-by-rule-id). Pour obtenir des conseils sur l&apos;interrogation des métriques que vous avez créées, consultez [requête et tracez vos métriques](#find-your-data).
+
+<CollapserGroup>
+  <Collapser id="api-examoke" title="Exemple de requête API NerdGraph">
+    L’exemple de demande d’API NerdGraph suivant utilise la même règle NRQL que celle de l’étape 1. Le `IO Total Read Bytes Rule` crée une métrique nommée `io.totalread.bytes`. (Le nom de la règle peut contenir des espaces, ce qui diffère des [règles de dénomination métrique](#naming).)
+
+    ```graphql
+    mutation {
+      eventsToMetricsCreateRule(
+        rules: {
+          name: "io.totalread.bytes for computeSample entities",
+          description: "Created by Zach on March 27, 2019. Used by team Network.",
+          nrql: "FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes' WHERE nr.entityType = 'ComputeSample' FACET awsRegion, awsAvailabilityZone, commandName",
+          accountId: 123456
+        }
+      ) {
+        successes {
+          id
+          name
+          nrql
+          enabled
+        }
+        failures {
+          submitted {
+            name
+            nrql
+            accountId
+          }
+          errors {
+            reason
+            description
+          }
+        }
+      }
+    }
+    ```
+
+    Dans cette demande :
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Éléments de la demande
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `mutation`
+          </td>
+
+          <td>
+            L’un des [types d’opérations API](/docs/apis/graphql-api/getting-started/introduction-new-relic-graphql-api#tutorials) de base.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `eventsToMetricsCreateRule`
+          </td>
+
+          <td>
+            La méthode appelée pour créer une règle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rules`
+          </td>
+
+          <td>
+            Prend quatre paramètres :
+
+            * `name`:Le [nom de la règle](#naming).
+            * `description`: Facultatif. La description de la règle. Nous vous recommandons d&apos;inclure des informations sur la personne qui a créé les données métriques et sur celle qui les utilisera.
+            * `accountId`: L&apos; [ID de compte New Relic](/docs/accounts/install-new-relic/account-setup/account-id) où l&apos;événement, le log ou les étendues vivent et les métriques seront créées.
+            * `nrql`: La requête NRQL qui crée la règle. Pour en savoir plus, voir [Créer une requête NRQL](#create-nrql).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `successes` et `submitted` blocs
+          </td>
+
+          <td>
+            Ici, vous définissez les données renvoyées par une réponse réussie ou échouée. Les paramètres disponibles pour ces blocs incluent :
+
+            * `id` (`ruleId` pour `submitted`)
+            * `name`
+            * `description`
+            * `nrql`
+            * `enabled` (statut activé/désactivé)
+            * `accountId`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ruleId` et `accountId`
+          </td>
+
+          <td>
+            Si un échec se produit, les `ruleId` et `accountId` soumis seront renvoyés avec la raison de l&apos;erreur et la description de l&apos;erreur.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="example-response" title="Exemple de réponse de l'API NerdGraph">
+    Voici un exemple de réponse renvoyée :
+
+    ```json
+    {
+      "data": {
+        "eventsToMetricsCreateRule": {
+          "failures": [],
+          "successes": [
+            {
+              "enabled": true,
+              "id": "46",
+              "name": "io.totalread.bytes for computeSample entities",
+              "nrql": "FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes' WHERE nr.entityType = 'ComputeSample' FACET awsRegion, awsAvailabilityZone, commandName"
+            }
+          ]
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Étape 3. Créer une règle métrique avec une requête API [#graphql-api-request]
+
+Lorsque votre demande d&apos;API est prête, vous pouvez [utiliser l&apos;API NerdGraph](/docs/introduction-events-metrics-api#use-graphql-api-tool) pour effectuer la demande, ce qui créera les métriques.
+
+## Interrogez et tracez vos métriques [#find-your-data]
+
+Après avoir créé une règle métrique pour convertir les données de votre événement, de votre log ou de vos étendues, vous pouvez afficher les nouvelles données métriques dans l&apos;UI de New Relic. Pour visualiser vos données :
+
+1. Accédez à [l&apos;interface de requête NRQL de New Relic](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql#where).
+
+2. Exécutez la requête suivante pour voir le nom de toutes vos métriques :
+
+   ```sql
+   SELECT uniques(metricName) FROM Metric
+   ```
+
+3. Choisissez la métrique qui vous intéresse, puis exécutez la requête suivante pour voir l&apos;attribut disponible :
+
+   ```sql
+   SELECT * FROM Metric WHERE metricName = 'yourMetric'
+   ```
+
+4. Si vous ne voyez pas les données attendues, suivez les procédures [de dépannage](#troubleshooting) .
+
+Les [fonctions d&apos;agrégation NRQL ](/docs/insights/nrql-new-relic-query-language/nrql-reference/nrql-syntax-components-functions#functions)disponibles dépendent du [type de métrique](#summary-and-uniquecount) que vous avez créé. Voici quelques exemples.
+
+<CollapserGroup>
+  <Collapser id="summary" title="Exemple de métrique récapitulative">
+    Si vous avez créé un type métrique récapitulatif, vous pouvez utiliser les fonctions d&apos;agrégation `count`, `sum`, `max`, `min` et `average`, comme indiqué dans la requête suivante :
+
+    ```sql
+    SELECT count(appStartResponseTime), 
+      sum(appStartResponseTime), 
+      max(appStartResponseTime), 
+      min(appStartResponseTime), 
+      average(appStartResponseTime) 
+    FROM Metric
+    ```
+  </Collapser>
+
+  <Collapser id="uniqueCount" title="Exemple de métrique de comptage">
+    Si vous avez créé un type de métrique `uniqueCount`, vous ne pouvez utiliser que la fonction `uniqueCount`, comme indiqué dans la requête suivante :
+
+    ```sql
+    SELECT uniqueCount(playbackErrorStreamUniqueCount) * 100 / uniqueCount(streamUniqueCount) AS '% of Streams Impacted' FROM Metric
+    ```
+  </Collapser>
+
+  <Collapser id="distribution" title="Exemple de distribution métrique">
+    Si vous avez créé un type métrique `distribution`, utilisez les fonctions `percentile` ou `histogram`, comme indiqué dans la requête suivante :
+
+    ```sql
+    SELECT percentile(service.responseTime, 95) FROM Metric
+    ```
+
+    OU
+
+    ```sql
+    SELECT histogram(service.responseTime, 10, 20) FROM Metric
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Dépannage
+
+Si votre appel NerdGraph n&apos;est pas construit correctement, vous pouvez recevoir un message comme celui-ci :
+
+```
+Cannot parse the unexpected character "\u201C”
+```
+
+Vérifiez que les guillemets dans l&apos;appel NerdGraph ne sont pas des guillemets intelligents (guillemets bouclés). Notre API NerdGraph accepte uniquement les guillemets droits.

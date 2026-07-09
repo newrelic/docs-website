@@ -1,0 +1,256 @@
+---
+title: Intégration monitoring temporelle auto-hébergée
+tags:
+  - Temporal integration
+  - Temporal monitoring
+  - New Relic integrations
+metaDescription: Install our Temporal dashboards and see your Temporal data in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Notre intégration temporelle monitore les performances de vos données temporelles, vous aidant à diagnostiquer les problèmes dans vos applications distribuées en écriture, tolérantes aux pannes et évolutives. Notre intégration temporelle vous offre un dashboard prédéfini avec les métriques les plus importantes de votre application Temporal SDK.
+
+<img title="Temporal" alt="A screenshot depicting the Temporal dashboard" src="/images/infrastructure_screenshot-full_temporal-dashboard.webp" />
+
+<figcaption>
+  Après avoir configuré l&apos;intégration avec New Relic, visualisez vos données dans un dashboard comme celui-ci, dès la sortie de la boîte.
+</figcaption>
+
+<Steps>
+  <Step>
+    ## Installer l&apos; agent d&apos;infrastructure [#infra]
+
+    Pour utiliser l’intégration temporelle, vous devez d’abord [installer l’agent d’infrastructure](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic/) sur le même hôte. L&apos;agent infrastructure monitore l&apos;hôte lui-même, tandis que l&apos;intégration que vous installerez à l&apos;étape suivante étend votre monitoring avec des données spécifiques au temps telles que la base de données et les métriques instance .
+  </Step>
+
+  <Step>
+    ## exposer les métriques temporelles [#expose-temporal-metrics]
+
+    Les étapes suivantes exécuteront une instance locale du serveur temporaire à l&apos;aide du fichier de configuration par défaut `docker-compose.yml`:
+
+    1. Si vous ne l&apos;avez pas déjà, installez `docker` et `docker-compose` sur votre hôte :
+
+       ```shell
+       sudo apt install docker
+       sudo apt install docker-compose
+       ```
+
+    2. Cloner le référentiel :
+
+       ```shell
+       git clone https://github.com/temporalio/docker-compose.git
+       ```
+
+    3. Changer de répertoire vers la racine du projet :
+
+       ```shell
+       sudo nano docker-compose/docker-compose.yml
+       ```
+
+    4. Ajoutez le point de terminaison et le port Prometheus au fichier `docker-compose.yml` .
+
+       ```yml
+       Environment:
+       - PROMETHEUS_ENDPOINT=0.0.0.0:8000
+       ports:
+       - 8000:8000
+       ```
+
+    5. Exécutez la commande `docker-compose up` pour créer votre instance :
+
+       ```shell
+       sudo docker-compose up
+       ```
+
+    6. Confirmez que votre instance fonctionne correctement sur les URL suivantes :
+
+       * Le serveur Temporel sera disponible le `localhost:7233`.
+       * L&apos;UI Web temporelle sera disponible à l&apos;adresse `http://YOUR_DOMAIN:8080`
+       * Les métriques du serveur temporel seront disponibles sur le `http://YOUR_DOMAIN:8000/metrics`
+  </Step>
+
+  <Step>
+    ## exposer les métriques du SDK Java [#expose-java-sdk-metrics]
+
+    Vous allez maintenant exposer les métriques du client SDK que Prometheus va récupérer :
+
+    1. Créez un fichier `MetricsWorker.java` dans le dossier principal de votre projet :
+
+       ```java
+       //...
+       // You need to import the following packages to set up metrics in Java.
+       // See the Developer's guide for packages required for the other SDKs.
+       import com.sun.net.httpserver.HttpServer;
+       import com.uber.m3.tally.RootScopeBuilder;
+       import com.uber.m3.tally.Scope;
+       import com.uber.m3.util.Duration;
+       import com.uber.m3.util.ImmutableMap;
+
+       // See the Micrometer documentation for configuration details on other supported monitoring systems.
+       // This example shows how to set up the Prometheus registry and stats reported.
+
+       PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+       StatsReporter reporter = new MicrometerClientStatsReporter(registry);
+
+       // set up a new scope, report every 10 seconds
+           Scope scope = new RootScopeBuilder()
+                   .tags(ImmutableMap.of(
+                               "workerCustomTag1",
+                               "workerCustomTag1Value",
+                               "workerCustomTag2",
+                               "workerCustomTag2Value"))
+                   .reporter(reporter)
+                   .reportEvery(com.uber.m3.util.Duration.ofSeconds(10));
+
+       // For Prometheus collection, expose the scrape endpoint at port 8077. See Micrometer documentation for details on starting the Prometheus scrape endpoint. For example,
+       HttpServer scrapeEndpoint = MetricsUtils.startPrometheusScrapeEndpoint(registry, 8077); //note: MetricsUtils is a utility file with the scrape endpoint configuration. See Micrometer docs for details on this configuration.
+       // Stopping the starter stops the HTTP server that exposes the scrape endpoint.
+       //Runtime.getRuntime().addShutdownHook(new Thread(() -> scrapeEndpoint.stop(1)));
+
+       //Create Workflow service stubs to connect to the Frontend Service.
+       WorkflowServiceStubs service = WorkflowServiceStubs.newServiceStubs(
+               WorkflowServiceStubsOptions.newBuilder()
+                       .setMetricsScope(scope) //set the metrics scope for the WorkflowServiceStubs
+                       .build());
+
+       //Create a Workflow service client, which can be used to start, signal, and query Workflow Executions.
+       WorkflowClient yourClient = WorkflowClient.newInstance(service,
+               WorkflowClientOptions.newBuilder().build());
+
+       //...
+       ```
+
+    2. Accédez à votre répertoire de projet et créez votre projet :
+
+       ```shell
+       ./gradlew build
+       ```
+
+    3. Démarrer le travailleur :
+
+       ```shell
+       ./gradlew -q execute -PmainClass=<YOUR_METRICS_FILE>
+       ```
+
+    4. Vérifiez vos métriques de travail sur le point de terminaison Prometheus Scrape exposé : `http://YOUR_DOMAIN:8077/metrics`.
+
+    <Callout title="Note" variant="tip">
+      Pour plus d&apos;informations sur la configuration des métriques du SDK, consultez la [documentation](https://docs.temporal.io/self-hosted-guide/monitoring#sdk-metrics-setup) officielle de Temporal.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Configurer NRI-Prometheus [#configure-prometheus]
+
+    Après une installation réussie, effectuez ces configurations NRI-Prometheus :
+
+    1. Créez un fichier nommé `nri-prometheus-temporal-config.yml` dans ce chemin :
+
+       ```shell
+       cd /etc/newrelic-infra/integrations.d/
+       ```
+
+    2. Voici un exemple de fichier de configuration. Assurez-vous de mettre à jour les URL d&apos;espace réservé :
+
+       ```yml
+       integrations:
+       - name: nri-prometheus
+           config:
+           standalone: false
+           # Defaults to true. When standalone is set to `false`, `nri-prometheus` requires an infrastructure agent to send data.
+           emitters: infra-sdk
+           # When running with infrastructure agent emitters will have to include infra-sdk
+           cluster_name: Temporal_Server_Metrics
+           # Match the name of your cluster with the name seen in New Relic.
+           targets:
+               - description: Temporal_Server_Metrics
+               urls: ["http://<YOUR_DOMAIN>:8000/metrics", "http://<YOUR_DOMAIN>:8077/metrics"]
+           #    tls_config:
+           #      ca_file_path: "/etc/etcd/etcd-client-ca.crt"
+           #      cert_file_path: "/etc/etcd/etcd-client.crt"
+           #      key_file_path: "/etc/etcd/etcd-client.key"
+           verbose: false
+           # Defaults to false. This determines whether or not the integration should run in verbose mode.
+           audit: false
+           # Defaults to false and does not include verbose mode. Audit mode logs the uncompressed data sent to New Relic and can lead to a high log volume.
+           # scrape_timeout: "YOUR_TIMEOUT_DURATION"
+           # `scrape_timeout` is not a mandatory configuration and defaults to 30s. The HTTP client timeout when fetching data from endpoints.
+           scrape_duration: "5s"
+           # worker_threads: 4
+           # `worker_threads` is not a mandatory configuration and defaults to `4` for clusters with more than 400 endpoints. Slowly increase the worker thread until scrape time falls between the desired `scrape_duration`. Note: Increasing this value too much results in huge memory consumption if too many metrics are scraped at once.
+           insecure_skip_verify: false
+           # Defaults to false. Determins if the integration should skip TLS verification or not.
+           timeout: 10s
+       ```
+  </Step>
+
+  <Step>
+    ## Configurer le log temporel [#temporal-logs-configuration]
+
+    Pour configurer le log temporel, suivez les étapes décrites ci-dessous.
+
+    1. Exécutez cette commande Docker pour vérifier l’état d’exécution du conteneur :
+
+       ```shell
+       sudo docker ps
+       ```
+
+    2. Copiez l&apos;ID du conteneur pour le conteneur **temporalio/UI** et exécutez cette commande :
+
+       ```shell
+       sudo docker logs -f <container_id> &> /tmp/temporal.log &
+       ```
+
+    Vérifiez ensuite qu&apos;il existe un fichier de log nommé `temporal.log` situé dans le répertoire `/tmp/`.
+  </Step>
+
+  <Step>
+    ## Transférer le log vers New Relic [#temporal-logs-to-newrelic]
+
+    Vous pouvez utiliser notre [transfert de log](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) pour transférer les logs temporels vers New Relic.
+
+    1. Sur les machines Linux, assurez-vous que votre fichier de log nommé `logging.yml` se trouve dans ce chemin :
+
+       ```shell
+       cd /etc/newrelic-infra/logging.d/
+       ```
+
+    2. Une fois que vous avez trouvé le fichier de log dans le chemin ci-dessus, incluez ce script dans le fichier `logging.yml` :
+
+       ```yml
+       logs:
+       - name: temporal.log
+           file: /tmp/temporal.log
+           attributes:
+           logtype: temporal_logs
+       ```
+
+    3. Utilisez nos instructions [pour redémarrer votre agent d&apos;infrastructure](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/):
+
+       ```bash
+       sudo systemctl restart newrelic-infra.service
+       ```
+
+    4. Attendez quelques minutes jusqu&apos;à ce que les données commencent à arriver sur votre [compte New Relic](https://one.newrelic.com/).
+  </Step>
+
+  <Step>
+    ## Trouvez vos données [#find-your-data]
+
+    Vous pouvez choisir notre modèle dashboard prédéfini nommé Temporal pour monitorer vos métriques temporelles. Suivez ces étapes pour utiliser notre modèle dashboard prédéfini :
+
+    1. De [one.newrelic.com](https://one.newrelic.com/), allez sur la page **+ Integrations &amp; Agents** .
+    2. Cliquez sur **Dashboards**.
+    3. Dans la barre de recherche, tapez **Temporal**.
+    4. Lorsque le dashboard temporel apparaît, cliquez pour l&apos;installer.
+
+    Votre temporel dashboard est considéré comme un dashboard personnalisé et peut être trouvé dans l&apos;UI Dashboards. Pour obtenir des documents sur l&apos;utilisation et la modification du dashboard, consultez [notre documentation dashboard ](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/).
+
+    Voici une requête NRQL pour vérifier la somme de latence de la requête temporelle :
+
+    ```sql
+    SELECT sum(temporal_request_latency_sum) FROM Metric WHERE scrapedTargetURL = 'http://<YOUR_DOMAIN>:8000/metrics'
+    ```
+  </Step>
+</Steps>

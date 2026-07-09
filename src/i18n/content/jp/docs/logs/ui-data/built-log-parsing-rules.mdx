@@ -11,14 +11,132 @@ translationType: machine
 
 New Relic は組み込みのルールに従って一般的なログ形式を解析できるため、独自の解析ルールを作成する必要はありません。ログ解析ルール、 [Grok](https://github.com/thekrakken/java-grok/tree/master/src/main/resources/patterns)パターン、および解析されるフィールドは次のとおりです。
 
-* 組み込みのログ解析を有効にする[には、 `logtype`属性の追加](/docs/logs/ui-data/parsing#logtype)に関するドキュメントを参照してください。
-* プログラムで解析ルールを管理するには、GraphQL形式のAPIであるNerdGraphを [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql) でご利用いただけます。詳細については、 [NerdGraph チュートリアル](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial) を参照して、解析ルールの作成、照会、削除を行ってください。
+## 構文解析の例 [#parsing-example]
+
+良い例は、非構造化テキストを含むデフォルトの NGINX アクセス ログです。検索には便利ですが、それ以外はあまり役に立ちません。典型的な行の例を次に示します。
+
+```
+127.180.71.3 - - [10/May/1997:08:05:32 +0000] "GET /downloads/product_1 HTTP/1.1" 304 0 "-" "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+```
+
+解析されていない形式では、ほとんどの質問に答えるために全文検索を行う必要があります。解析後、ログは`response code`や`request URL`などの属性に整理されます。
+
+```json
+{
+  "remote_addr":"93.180.71.3",
+  "time":"1586514731",
+  "method":"GET",
+  "path":"/downloads/product_1",
+  "version":"HTTP/1.1",
+  "response":"304",
+  "bytesSent": 0,
+  "user_agent": "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+}
+```
+
+解析により、これらの値をファセットする[カスタムクエリ](/docs/using-new-relic/data/understand-data/query-new-relic-data)を簡単に作成できます。これは、リクエストURLごとの応答コードの分布を理解し、問題のあるページをすばやく見つけるのに役立ちます。
+
+## 追加する `logtype` [#logattr]
+
+ログを集約する際には、ログの整理、検索、解析を容易にするメタデータを提供することが重要です。これを行う簡単な方法の 1 つは、出荷時にログメッセージにプロパティ`logtype`を追加することです。 [組み込みの解析ルールは](/docs/logs/ui-data/built-log-parsing-rules)、特定の`logtype`値にデフォルトで適用されます。
+
+<Callout variant="tip">
+  フィールド`logType` 、 `logtype` 、および`LOGTYPE`はすべて、組み込みルールでサポートされています。検索を容易にするために、組織内の単一の構文に合わせるようにすることをお勧めします。
+</Callout>
+
+[サポートされている配送方法](/docs/logs/enable-new-relic-logs)のいくつかによって送信されたログに`logtype`を追加する方法の例を次に示します。
 
 <CollapserGroup>
-  <Collapser
-    id="apache"
-    title="Apache"
-  >
+  <Collapser className="freq-link" id="infrastructure-log-forwarder-example" title="NewRelicインフラストラクチャエージェントの例">
+    `logtype`を[`attribute`](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent#attributes) として追加します。名前付きソースごとにログタイプを設定する必要があります。
+
+    ```yml
+    logs:
+      - name: file-simple
+        file: /path/to/file
+        attributes:
+          logtype: fileRaw
+      - name: nginx-example
+        file: /var/log/nginx.log
+        attributes:
+          logtype: nginx
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="fluentd-example" title="流暢な例">
+    `.conf`ファイルにフィルター ブロックを追加します。このブロックでは、 `record_transformer`を使用して新しいフィールドを追加します。 この例では、 `nginx`の`logtype`を使用して、組み込みの NGINX 解析ルールをトリガーします。 他の[Fluentd の例](https://github.com/newrelic/fluentd-examples)を確認してください。
+
+    ```apacheconf
+    <filter containers>
+      @type record_transformer
+      enable_ruby true
+      <record>
+        #Add logtype to trigger a built-in parsing rule for nginx access logs
+        logtype nginx
+        #Set timestamp from the value contained in the field "time"
+        timestamp record["time"]
+        #Add hostname and tag fields to all records
+        hostname "#{Socket.gethostname}"
+        tag ${tag}
+      </record>
+    </filter>
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="fluentbit-example" title="流暢なビットの例">
+    `record_modifier`を使用して新しいフィールドを追加するフィルターブロックを`.conf`ファイルに追加します。この例では、 `nginx`の`logtype`を使用して、組み込みのNGINX解析ルールをトリガーします。他の[FluentBitの例](https://github.com/newrelic/fluentbit-examples)を確認してください。
+
+    ```ini
+    [FILTER]
+        Name   record_modifier
+        Match  *
+        Record logtype nginx
+        Record hostname ${HOSTNAME}
+        Record service_name Sample-App-Name
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="logstash-example" title="Logstashの例">
+    `add_field`変異フィルターを使用して新しいフィールドを追加するLogstash構成にフィルターブロックを追加します。この例では、 `logtype`の`nginx`を使用して、組み込みのNGINX解析ルールをトリガーします。他の[Logstashの例](https://github.com/newrelic/logstash-examples)を確認してください。
+
+    ```ini
+    filter {
+      mutate {
+        add_field => {
+          "logtype" => "nginx"
+          "service_name" => "myservicename"
+          "hostname" => "%{host}"
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="api-example" title="LogsAPIの例">
+    NewRelicに送信されるJSONリクエストに属性を追加できます。この例では、値`nginx`の`logtype`属性を追加して、組み込みのNGINX解析ルールをトリガーします。 [LogsAPI](/docs/logs/new-relic-logs/log-api/introduction-log-api)の使用の詳細をご覧ください。
+
+    ```
+    POST /log/v1 HTTP/1.1
+    Host: log-api.newrelic.com
+    Content-Type: application/json
+    X-License-Key: YOUR_LICENSE_KEY
+    Accept: */*
+    Content-Length: 133
+    {
+      "timestamp": TIMESTAMP_IN_UNIX_EPOCH,
+      "message": "User 'xyz' logged in",
+      "logtype": "nginx",
+      "service": "login-service",
+      "hostname": "login.example.com"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+プログラムで解析ルールを管理するには、GraphQL形式のAPIであるNerdGraphを [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql) でご利用いただけます。詳細については、 [NerdGraph チュートリアル](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial) を参照して、解析ルールの作成、照会、削除を行ってください。
+
+<CollapserGroup>
+  <Collapser id="apache" title="Apache">
     <DNT>**Source:**</DNT> `logtype = 'apache'`
 
     <DNT>
@@ -45,10 +163,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `agent`：クライアントのユーザーエージェント
   </Collapser>
 
-  <Collapser
-    id="apache_error"
-    title="Apacheエラー"
-  >
+  <Collapser id="apache_error" title="Apacheエラー">
     <DNT>**Source:**</DNT> `logtype = 'apache_error'`
 
     <DNT>
@@ -75,10 +190,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `apache_error.message`：エラーメッセージ
   </Collapser>
 
-  <Collapser
-    id="application-load-balancer"
-    title="アプリケーションロードバランサー"
-  >
+  <Collapser id="application-load-balancer" title="アプリケーションロードバランサー">
     <DNT>**Source:**</DNT> `logtype = 'alb'`
 
     <DNT>
@@ -437,10 +549,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     </table>
   </Collapser>
 
-  <Collapser
-    id="cassandra"
-    title="カサンドラ"
-  >
+  <Collapser id="cassandra" title="カサンドラ">
     ソース： `logtype = 'cassandra'`
 
     Grok
@@ -459,10 +568,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `cassandra.message`：生のカサンドラメッセージ
   </Collapser>
 
-  <Collapser
-    id="cloudfront"
-    title="CloudFront (標準ログ)"
-  >
+  <Collapser id="cloudfront" title="CloudFront (標準ログ)">
     <DNT>**Source:**</DNT> `logtype = 'cloudfront-web'`
 
     <DNT>
@@ -871,10 +977,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     </table>
   </Collapser>
 
-  <Collapser
-    id="cloudfront-rtl"
-    title="CloudFront (リアルタイム ログ)"
-  >
+  <Collapser id="cloudfront-rtl" title="CloudFront (リアルタイム ログ)">
     <DNT>**Source:**</DNT> `logtype = 'cloudfront-rtl'`
 
     <DNT>
@@ -1371,10 +1474,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     </table>
   </Collapser>
 
-  <Collapser
-    id="elastic-load-balancer"
-    title="弾性ロードバランサー"
-  >
+  <Collapser id="elastic-load-balancer" title="弾性ロードバランサー">
     <DNT>**Source:**</DNT> `logtype = 'elb'`
 
     <DNT>
@@ -1780,10 +1880,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     </table>
   </Collapser>
 
-  <Collapser
-    id="haproxy"
-    title="HAProxy"
-  >
+  <Collapser id="haproxy" title="HAProxy">
     <DNT>**Source:**</DNT> `logtype = 'haproxy_http'`
 
     <DNT>
@@ -1829,10 +1926,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `captured_response_headers`：応答からキャプチャされたヘッダー
   </Collapser>
 
-  <Collapser
-    id="ktranslate-health"
-    title="KTranslate Health"
-  >
+  <Collapser id="ktranslate-health" title="KTranslate Health">
     <DNT>**Source:**</DNT> `logtype = 'ktranslate-health'`
 
     <DNT>
@@ -1853,10 +1947,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `message`：メッセージフィールドには、イベントに関する情報を提供する自由形式のメッセージが含まれます
   </Collapser>
 
-  <Collapser
-    id="linux_cron"
-    title="Linux Cron（/ var / log / cron）"
-  >
+  <Collapser id="linux_cron" title="Linux Cron（/ var / log / cron）">
     <DNT>**Source:**</DNT> `logtype = 'linux_cron'`
 
     <DNT>
@@ -1879,10 +1970,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `linux_cron.message`：ログメッセージ
   </Collapser>
 
-  <Collapser
-    id="linux_messages"
-    title="Linuxメッセージ（/ var / log / messages）"
-  >
+  <Collapser id="linux_messages" title="Linuxメッセージ（/ var / log / messages）">
     <DNT>**Source:**</DNT> `logtype = 'linux_messages'`
 
     <DNT>
@@ -1904,10 +1992,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `linux_messages.message`：ログメッセージ
   </Collapser>
 
-  <Collapser
-    id="iis"
-    title="マイクロソフトIIS"
-  >
+  <Collapser id="iis" title="マイクロソフトIIS">
     <DNT>**Source:**</DNT> `logtype = 'iis_w3c'`
 
     <DNT>
@@ -1922,13 +2007,10 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
       **Results:**
     </DNT>
 
-    IISでは、いくつかの[構成オプション](https://docs.microsoft.com/en-us/previous-versions/iis/6.0-sdk/ms524877(v=vs.90))を使用できます。デフォルト以外のオプションを構成した場合、Grokパターンはログを解析しません。この場合、[カスタム解析](/docs/logs/ui-data/parsing/#custom-parsing)を使用することをお勧めします。
+    IISでは、いくつかの[構成オプション](https://docs.microsoft.com/en-us/previous-versions/iis/6.0-sdk/ms524877\(v=vs.90\))を使用できます。デフォルト以外のオプションを構成した場合、Grokパターンはログを解析しません。この場合、[カスタム解析](/docs/logs/ui-data/parsing/#custom-parsing)を使用することをお勧めします。
   </Collapser>
 
-  <Collapser
-    id="mongodb"
-    title="Mongodb"
-  >
+  <Collapser id="mongodb" title="Mongodb">
     <DNT>**Source:**</DNT> `logtype = 'mongodb'`
 
     <DNT>
@@ -1950,10 +2032,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `mongodb.message`：生のmongodbメッセージ
   </Collapser>
 
-  <Collapser
-    id="monit"
-    title="Monit"
-  >
+  <Collapser id="monit" title="Monit">
     <DNT>**Source:**</DNT> `logtype = 'monit'`
 
     <DNT>
@@ -1972,10 +2051,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `message`： メッセージ
   </Collapser>
 
-  <Collapser
-    id="mysql-error"
-    title="MySQLエラー"
-  >
+  <Collapser id="mysql-error" title="MySQLエラー">
     <DNT>**Source:**</DNT> `logtype = 'mysql-error'`
 
     <DNT>
@@ -1993,10 +2069,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `log_level`：ログ行の重大度
   </Collapser>
 
-  <Collapser
-    id="nginx"
-    title="NGINX"
-  >
+  <Collapser id="nginx" title="NGINX">
     <DNT>**Source:**</DNT> `logtype = 'nginx'`
 
     <DNT>
@@ -2023,10 +2096,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `agent`：クライアントのユーザーエージェント
   </Collapser>
 
-  <Collapser
-    id="nginx-error"
-    title="NGINXエラー"
-  >
+  <Collapser id="nginx-error" title="NGINXエラー">
     <DNT>**Source:**</DNT> `logtype = 'nginx-error'`
 
     <DNT>
@@ -2052,10 +2122,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `referrer`：HTTPリファラー
   </Collapser>
 
-  <Collapser
-    id="postgresql"
-    title="Postgresql"
-  >
+  <Collapser id="postgresql" title="Postgresql">
     ソース： `logtype = 'postgresql'`
 
     Grok:
@@ -2072,10 +2139,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `postgresql.message`：ログメッセージ
   </Collapser>
 
-  <Collapser
-    id="rabbitmq"
-    title="ラビットエムキュー"
-  >
+  <Collapser id="rabbitmq" title="ラビットエムキュー">
     <DNT>**Source:**</DNT> `logtype = 'rabbitmq'`
 
     <DNT>
@@ -2096,10 +2160,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `rabbitmq.message`：rabbitmqエラーメッセージ
   </Collapser>
 
-  <Collapser
-    id="redis"
-    title="Redis"
-  >
+  <Collapser id="redis" title="Redis">
     <DNT>**Source:**</DNT> `logtype = 'redis'`
 
     <DNT>
@@ -2121,10 +2182,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `redis.message`：redisエラーメッセージ
   </Collapser>
 
-  <Collapser
-    id="route53"
-    title="ルート53"
-  >
+  <Collapser id="route53" title="ルート53">
     <DNT>**Source:**</DNT> `logtype = 'route-53'`
 
     <DNT>
@@ -2150,10 +2208,7 @@ New Relic は組み込みのルールに従って一般的なログ形式を解�
     * `edns_client_subnet`：DNSリゾルバーから利用可能な場合、要求の発信元のクライアントの部分的なIPアドレス。
   </Collapser>
 
-  <Collapser
-    id="syslog-rfc5424"
-    title="シスログ RFC-5424"
-  >
+  <Collapser id="syslog-rfc5424" title="シスログ RFC-5424">
     <DNT>**Source:**</DNT> `logtype = 'syslog-rfc5424'`
 
     <DNT>

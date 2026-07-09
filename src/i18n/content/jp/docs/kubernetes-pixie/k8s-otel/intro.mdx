@@ -1,0 +1,499 @@
+---
+title: Kubernetes 向け OpenTelemetry の紹介
+tags:
+  - Kubernetes integration
+  - OpenTelemetry
+  - New Relic OpenTelemetry
+  - OpenTelemetry Collector
+  - OpenTelemetry Kubernetes
+  - OpenTelemetry Helm chart
+  - New Relic OpenTelemetry installation
+metaDescription: Learn how to monitor your Kubernetes Cluster using OpenTelemetry
+freshnessValidatedDate: '2025-06-30T00:00:00.000Z'
+translationType: machine
+---
+
+New RelicのOpenTelemetry 向けKubernetes オブザーバビリティは、クラスタを監視するための包括的なオープンソース ソリューションを提供します。[これは、 と当社独自の KubernetesKubernetes ](/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration)の両方と互換性のある当社の堅牢なKubernetesUI とOpenTelemetry に統合されます。プロバイダーに依存しない設計により、ニーズに最適な計装方法を選択できます。
+
+このドキュメントでは、 を使用してKubernetes クラスタを監視する方法を説明します。OpenTelemetryここでは、クラスタ内に[`nr-k8s-otel-collector`](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector) Helmチャートをインストールし、包括的な監視を可能にするために必要なコレクターをデプロイする方法について詳しく説明します。
+
+KubernetesコンポーネントをOpenTelemetry Collector に統合することで、メトリクス、イベント、ログをNew Relicに直接送信できるようになります。 これらのテレメトリー信号は、 [Kubernetes Navigator](/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer/#navigator-preview) 、 [概要ダッシュボード](/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer/#cluster-overview-dashboard)、 [Kubernetesイベント](/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer/#browse-your-kubernetes-events)、または[Kubernetes APM概要ページ](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/)などのすぐに使えるエクスペリエンスを自動的に強化します。
+
+## 使い方？ [#how-works]
+
+[`nr-k8s-otel-collector`](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector) Helmチャート デプロイOpenTelemetryコレクターは、 Kubernetesクラスタから包括的なテレメトリー データを収集するように構成されています。
+
+<img title="Kubernetes OpenTelemetry architecture diagram" alt="Architecture diagram showing OpenTelemetry Daemonset collectors on worker nodes pulling metrics from Kubelet and cAdvisor, and a Deployment collector pulling metrics from Kube-state-metrics, all processing data before sending to New Relic." src="/images/otel-k8s-arch.webp" />
+
+* **Daemonset Collector** : 各ワーカー ノードにデプロイされます。基盤となるホスト`cAdvisor`および`Kubelet`からメトリクスを収集し、コンテナからログを収集します。
+* **デプロイメントCollector** : コントロール プレーン ノード上のデプロイ。 `kube-state-metrics`とKubernetesクラスタ イベントからメトリクスを収集します。 このコレクターは、多くの場合、クラスター全体のデータを管理する単一のインスタンスです。
+
+### OpenTelemetryNew RelicKubernetesコレクターの コンポーネント [#otel-components]
+
+OpenTelemetry Collector 、さまざまな種類のコンポーネントを使用して、収集されたテレメトリー データを処理および変換します。 これらのコンポーネントは、データが New Relic に送信される前に、データを拡充、フィルタリング、フォーマットするために不可欠です。これらのコンポーネントを使用して、OpenTelemetry チャートの セクションを使用して Pipelines`extra_config` Helmを作成し、独自のカスタム設定を追加できます。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        コンポーネントタイプ
+      </th>
+
+      <th>
+        コンポーネント名
+      </th>
+
+      <th>
+        目的
+      </th>
+
+      <th>
+        コレクター
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        受信機
+      </td>
+
+      <td>
+        `OTLP`
+      </td>
+
+      <td>
+        HTTP 経由で送信されたテレメトリーを収集します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `prometheus/ksm`
+      </td>
+
+      <td>
+        デプロイメント、ポッド、ノードなど、 Kubernetesリソースの状態に関連するメトリクスをスクレイピングします。
+      </td>
+
+      <td>
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `prometheus/controlplane`
+      </td>
+
+      <td>
+        コントロール プレーン コンポーネントを監視します。
+      </td>
+
+      <td>
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `k8s_events`
+      </td>
+
+      <td>
+        ポッドの作成と削除、スケーリング アクティビティ、障害イベントなどのイベントをスクレイピングします。
+      </td>
+
+      <td>
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `hostmetrics`
+      </td>
+
+      <td>
+        基になるノードからメトリクスをスクレイピングします。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `kubeletstats`
+      </td>
+
+      <td>
+        Kubelet からメトリクスをスクレイピングします。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `prometheus`
+      </td>
+
+      <td>
+        cAdvisor からメトリクスをスクレイピングします。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `filelog`
+      </td>
+
+      <td>
+        コンテナからログを収集します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        プロセッサ
+      </td>
+
+      <td>
+        `batch`
+      </td>
+
+      <td>
+        テレメトリーデータのフローをバッチ化して最適化します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `groupbyattrs`
+      </td>
+
+      <td>
+        メトリクス、スパン、ログをグループ化します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `transform`
+
+         
+
+        `metrictransform`
+      </td>
+
+      <td>
+        インジェストをカスタマイズするためにテレメトリーを変更します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `filter`
+      </td>
+
+      <td>
+        関連のないテレメトリーを削除することで取り込みを最適化します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `resource`
+      </td>
+
+      <td>
+        リソース属性に変更を適用します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `resourcedetection`
+      </td>
+
+      <td>
+        リソース情報を検出します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `k8sattributes`
+      </td>
+
+      <td>
+        テレメトリーデータを K8s プロパティで強化します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `attributes`
+      </td>
+
+      <td>
+        テレメトリーをプロパティで強化します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `cumulativetodelta`
+      </td>
+
+      <td>
+        累積メトリクスをデルタに変換します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `memory_limiter`
+      </td>
+
+      <td>
+        メモリ消費を管理します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        `batch`
+      </td>
+
+      <td>
+        テレメトリーデータのフローをバッチ化して最適化します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        輸出業者
+      </td>
+
+      <td>
+        `otlphttp/newrelic`
+      </td>
+
+      <td>
+        OpenTelemetryプロトコルを使用してテレメトリーデータをNew Relicに送信します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        パイプライン
+      </td>
+
+      <td>
+        `metrics`
+      </td>
+
+      <td>
+        メトリクス データの取り込み、処理、エクスポートを管理します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        コネクタ
+      </td>
+
+      <td>
+        `routing/nr_pipelines`
+      </td>
+
+      <td>
+        テレメトリーデータをKubernetesメタデータで強化します。
+      </td>
+
+      <td>
+        [`Daemonset`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/daemonset-configmap.yaml)
+
+         、 
+
+        [`Deployment`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/templates/deployment-configmap.yaml)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 関連記事 [#related-docs]
+
+<DocTiles>
+  <DocTile title="Kubernetes用のOpenTelemetry Collectorをインストールする" path="/docs/kubernetes-pixie/k8s-otel/install/">
+    Collector を使用して、 で Kubernetesクラスタを計装します。New RelicOpenTelemetry
+  </DocTile>
+
+  <DocTile title="OpenTelemetry Kubernetesの高度な設定" path="/docs/kubernetes-pixie/k8s-otel/advance-config/">
+    で のOpenTelemetryCollector 設定をカスタマイズします。KubernetesNew Relic
+  </DocTile>
+
+  <DocTile title="Kubernetes の OpenTelemetry のトラブルシューティング" path="/docs/kubernetes-pixie/k8s-otel/troubleshooting/">
+    Kubernetes の OpenTelemetry Collector に関する問題をトラブルシューティングする方法を学びます。
+  </DocTile>
+</DocTiles>

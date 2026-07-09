@@ -1,0 +1,123 @@
+---
+title: Solucionar problemas de datos faltantes para AWS Lambda con OpenTelemetry
+type: troubleshooting
+tags:
+  - Serverless function monitoring
+  - AWS Lambda monitoring
+  - OpenTelemetry
+  - Troubleshooting
+metaDescription: 'Troubleshooting steps if CloudWatch metrics, invocations, or trace data doesn''t appear in New Relic for AWS Lambda functions instrumented with OpenTelemetry.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema: Las métricas o invocaciones de CloudWatch no aparecen [#missing-cloudwatch-metrics]
+
+Después de instrumentar tu función de AWS Lambda con OpenTelemetry e invocarla, la sección <DNT>**CloudWatch metrics**</DNT> o la pestaña <DNT>**Invocations**</DNT> no aparece en la UI de New Relic.
+
+## Solución [#solution-cloudwatch]
+
+New Relic requiere los siguientes atributos de recursos de OpenTelemetry para identificar y mostrar correctamente tu función Lambda en la interfaz de usuario:
+
+| Atributo    | Descripción                          | Valor de ejemplo                                                    |
+| ----------- | ------------------------------------ | ------------------------------------------------------------------- |
+| `faas.name` | El nombre de la función Lambda       | `my-lambda-function`                                                |
+| `faas.id`   | El ARN completo de la función Lambda | `arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function` |
+
+Si faltan estos atributos, establézcalos usando la variable de entorno `OTEL_RESOURCE_ATTRIBUTES`.
+
+**Plantilla de SAM:**
+
+```yaml
+yourFunctionHere:
+  Type: AWS::Serverless::Function
+  Properties:
+    # ...
+    Environment:
+      Variables:
+        OTEL_RESOURCE_ATTRIBUTES: "faas.name=my-lambda-function,faas.id=arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function"
+```
+
+<Callout variant="important">
+  Reemplace `my-lambda-function` y el ARN con el nombre real de su función y el ARN. El ARN debe coincidir exactamente con el valor mostrado en la consola de AWS Lambda.
+</Callout>
+
+**Consola de AWS:**
+
+1. Abra su función en [Lambda Console](https://console.aws.amazon.com/lambda).
+2. Elija <DNT>**Configuration**</DNT> y luego <DNT>**Environment variables**</DNT>.
+3. Elija <DNT>**Edit**</DNT> y luego <DNT>**Add environment variable**</DNT>.
+4. Establezca <DNT>**Key**</DNT> en `OTEL_RESOURCE_ATTRIBUTES` y <DNT>**Value**</DNT> en `faas.name=my-lambda-function,faas.id=arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function`.
+5. Elija <DNT>**Save**</DNT>.
+
+Si ya tiene otros atributos de recurso configurados, agregue los nuevos valores como pares clave-valor separados por comas:
+
+```
+OTEL_RESOURCE_ATTRIBUTES=service.name=my-service,faas.name=my-lambda-function,faas.id=arn:aws:lambda:us-east-1:123456789012:function:my-lambda-function
+```
+
+## Problema: Falta el ID de solicitud en las trazas [#missing-request-id]
+
+Las trazas de su función Lambda aparecen en New Relic, pero el ID de solicitud de AWS no es visible en el span raíz, lo que dificulta correlacionar las trazas con las entradas de CloudWatch Logs.
+
+## Solución [#solution-request-id]
+
+Establece el atributo `faas.execution` en el span raíz dentro de tu manejador. Las convenciones semánticas de OpenTelemetry definen este atributo como el ID de solicitud o invocación del proveedor de la nube.
+
+**Python:**
+
+```python
+from opentelemetry import trace
+
+def handler(event, context):
+    span = trace.get_current_span()
+    span.set_attribute("faas.execution", context.aws_request_id)
+
+    # Your handler logic here
+    return {"statusCode": 200, "body": "OK"}
+```
+
+**Node.js:**
+
+```js
+const { trace } = require('@opentelemetry/api');
+
+exports.handler = async (event, context) => {
+  const span = trace.getActiveSpan();
+  if (span) {
+    span.setAttribute('faas.execution', context.awsRequestId);
+  }
+
+  // Your handler logic here
+  return { statusCode: 200, body: 'OK' };
+};
+```
+
+**Java:**
+
+```java
+import io.opentelemetry.api.trace.Span;
+
+public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
+        Span span = Span.current();
+        span.setAttribute("faas.execution", context.getAwsRequestId());
+
+        // Your handler logic here
+        return new APIGatewayProxyResponseEvent().withStatusCode(200);
+    }
+}
+```
+
+<Callout variant="tip">
+  New Relic muestra `faas.execution` como <DNT>**Request ID**</DNT> en el panel de detalles de la traza, lo que facilita encontrar la entrada correspondiente de CloudWatch Logs para cualquier invocación.
+</Callout>
+
+## Más información [#more-info]
+
+Para más información, consulte lo siguiente:
+
+* [Rastrea tus funciones Lambda de Java con OpenTelemetry](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-java)
+* [Rastrea tus funciones Lambda de .NET con OpenTelemetry](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-dotnet)
+* [Inicio rápido de New Relic OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start)

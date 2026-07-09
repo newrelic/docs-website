@@ -1,6 +1,6 @@
 ---
 title: 'React 18 is here'
-summary: 'Insert a brief description of the feature'
+summary: 'Upgraded UI framework to React 18 for enhanced performance'
 releaseDate: '2025-01-23'
 ---
 

@@ -1,0 +1,226 @@
+---
+title: Agent Controlで既存の計装を管理
+metaDescription: You can reinstall your current instrumentation to manage it through Agent Control
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  Agent Control と New Relic Control が Kubernetes で**一般提供されまし**た。Linux ホストと Windows ホストのサポートも、弊社の**プレリリース ポリシー**に従って[パブリック プレビュー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)プログラムで提供されます。
+</Callout>
+
+## Kubernetesへの移行
+
+KubernetesクラスタがすでにNew Relicでインストゥルメントされている場合は、エージェントをAgent Controlで管理されるように移行して、その管理機能を使用できます。 移行プロセスでは、既存のエージェントインストールを削除し、Fleet Control を通じて一元的に構成された Agent Control 管理のインストールに置き換えます。
+
+<Callout variant="important" title="リモート設定が常に優先される">
+  Agent Control 、エージェント設定の信頼できるソースとしてFleet Control使用します。 エージェント設定 (バージョン、チャート値、リソース制限) は、ローカル インストレーションではなく、 Fleet Controlリモート設定で定義する必要があります。 `values.yaml` 。 両方の設定が存在する場合、リモート設定が優先され、ローカル設定の値はすべて上書きされます。
+</Callout>
+
+<Callout variant="tip" title="ベストプラクティス">
+  データの継続性を確保するには、 Agent Control中に同じクラスタ名と同じNew Relicアカウントを使用します。 Agent Controlでまだサポートされていないエージェントやコンポーネントは、サポートが利用可能になるまでクラスター上に保持しておくことができます。
+</Callout>
+
+### ステップ1. 既存の設定を取得します
+
+まず、既存のエージェントのうち、どのエージェントが Agent Control で管理できるかを特定します。
+
+Agent Control 、 Agent Controlタイプにマッピングされた、 `nri-bundle` Helmチャートから次のエージェントをデプロイして管理できます。
+
+* `newrelic-infrastructure`、 `nri-kube-events` 、 `kube-state-metrics` 、および`nri-kube-events` : New Relic Infrastructureタイプとして管理
+* `newrelic-prometheus-configurator`: New Relic Prometheus エージェント タイプとして管理
+* `newrelic-logging`： Fluent Bitエージェントタイプとして管理
+* `nr-k8s-otel-collector`: New Relic OpenTelemetry Collectorエージェント タイプとして管理
+
+Helmを使用してエージェントをインストールした場合は、次のコマンドを実行してクラスタからインストレーション構成を取得します。
+
+```sh
+# Find releases in a namespace (adjust as needed)
+helm list --namespace <namespace-name>
+
+# Get the values for a specific release
+$ helm get values <release-name> --namespace <namespace-name>
+```
+
+インストレーションから保存したオリジナルの設定ファイルがある場合は、それを直接使用できます。 Kubernetesマニフェスト (kubectl または KusTOMize) 経由でクラスタをインストゥルメントした場合は、各エージェントに設定されたオプションに注目してください。それらをFleet Controlリモート設定として再作成します。
+
+### ステップ2. 古いエージェントをアンインストールします
+
+Agent Controlをインストールする前に、クラスターから古いエージェントを削除してください。
+
+Helmの場合は、 `helm uninstall`コマンドを使用します。
+
+```shell
+$ helm uninstall <release-name> -n <namespace>
+```
+
+例えば、 `nri-bundle`をアンインストールするには、次のようにします。
+
+```shell
+$ helm uninstall nri-bundle -n newrelic
+```
+
+### ステップ3. Agent Controlをインストールする
+
+[Agent Controlガイド付きインストレーション](/docs/new-relic-control/agent-control/setup/)を開始し、生成された`values.yaml`をダウンロードします。 このファイルには、 Agent Controlスーパーバイザの設定 (認証情報、フリート ID、および管理するエージェント タイプ) のみが含まれています**。ここにエージェント固有のチャート値を追加しないでください**。 それらはFleet Controlリモート設定に属します。
+
+Helmの場合、通常は次を実行します。
+
+```shell
+$ helm upgrade --install agent-control-bootstrap -n newrelic newrelic/agent-control-bootstrap --create-namespace --values my_values.yaml
+```
+
+### ステップ 4. Fleet Controlでエージェント設定を再作成する
+
+Agent Controlがインストールされ、 Fleet Controlに接続されたら、以前の設定でフリートのリモート設定を作成または更新して、エージェントをデプロイします。 ここは、すべてのエージェント設定に関する公式な場所です。
+
+#### 例: nri-bundle インストレーションの移行
+
+以下は、既存の`nri-bundle` Helm値をFleet Controlリモート設定に変換する方法を示しています。
+
+**既存の`nri-bundle`設定:**
+
+```yaml
+global:
+  cluster: test-migration
+  licenseKey: ***
+kube-state-metrics:
+  enabled: false
+newrelic-prometheus-agent:
+  enabled: true
+newrelic-infrastructure:
+  enabled: true
+  kubelet:
+    tolerations:
+      - operator: "Exists"
+        effect: "NoSchedule"
+      - operator: "Exists"
+        effect: "NoExecute"
+      - operator: "Exists"
+        key: "MyToleration"
+  ksm:
+    enabled: false
+  common:
+    config:
+      interval: 29s
+newrelic-logging:
+  enabled: true
+  image:
+    tag: "latest"
+  resources:
+    limits:
+      cpu: 200m
+    requests:
+      cpu: 200m
+nri-kube-events:
+  enabled: true
+  customAttributes:
+    test_tag_label: test_tag_value
+```
+
+**同等のFleet Controlリモート設定:**
+
+Fleet Controlで、これをフリートのリモート設定として設定してください。 Agent Controlが自動的に適用します。
+
+```yaml
+logs:
+  chart_version: "1.25.1"
+  chart_values:
+    newrelic-logging:
+      image:
+        tag: "latest"
+      resources:
+        limits:
+          cpu: 200m
+        requests:
+          cpu: 200m
+infrastructure:
+  chart_version: "5.0.109"
+  chart_values:
+    newrelic-infrastructure:
+      kubelet:
+        tolerations:
+          - operator: "Exists"
+            effect: "NoSchedule"
+          - operator: "Exists"
+            effect: "NoExecute"
+          - operator: "Exists"
+            key: "MyToleration"
+      ksm:
+        enabled: false
+      common:
+        config:
+          interval: 29s
+    nri-kube-events:
+      customAttributes:
+        test_tag_label: test_tag_value
+prometheus:
+  chart_version: "1.15.4"
+```
+
+## Linuxへの移行
+
+<Callout variant="important">
+  Agent Controlは、Linux上の既存エージェントの自動移行をサポートしていません。Linux ホストにNew Relic Infrastructureエージェントが既にインストールされている場合は、 Agent Controlインストールする前に手動でアンインストールする必要があります。 Agent Control 、 Fleet Controlを介して OCI 準拠のパッケージを介してエージェントを配布します。既存の`newrelic-infra`パッケージ インストレーションを置き換えたり継承したりするものではありません。
+</Callout>
+
+Linux 上のスタンドアロン インフラストラクチャエージェント インストレーションからAgent Controlに移行するには、次の手順を実行します。
+
+1. **現在の設定をメモしておいてください。**アンインストールする前に、エージェント設定のコピーを`/etc/newrelic-infra/newrelic-infra.yml`に保存し、オンホストインテグレーション構成を`/etc/newrelic-infra/integrations.d/`に保存します。 Agent Controlをインストールした後、これらをFleet Controlリモート設定として再作成する必要があります。
+
+2. **既存のインフラストラクチャエージェントをアンインストールします。** お使いのディストリビューションに応じたアンインストール手順に従ってください。
+
+   <Tabs>
+     <TabsBar>
+       <TabsBarItem id="linux-uninstall-debian">Debian、Ubuntu</TabsBarItem> <TabsBarItem id="linux-uninstall-suse">SLES、</TabsBarItem> <TabsBarItem id="linux-uninstall-redhat">Amazon Linux、CentOS、RHEL</TabsBarItem>
+     </TabsBar>
+
+     <TabsPages>
+       <TabsPageItem id="linux-uninstall-debian">
+         ```bash
+         sudo apt-get remove newrelic-infra -y
+         ```
+       </TabsPageItem>
+
+       <TabsPageItem id="linux-uninstall-suse">
+         ```bash
+         sudo zypper -n remove newrelic-infra
+         ```
+       </TabsPageItem>
+
+       <TabsPageItem id="linux-uninstall-redhat">
+         ```bash
+         sudo yum remove newrelic-infra -y
+         ```
+       </TabsPageItem>
+     </TabsPages>
+   </Tabs>
+
+3. **Agent Controlをインストールしてください。** ガイド付きインストールを使用して[Linux のインストール手順](/docs/new-relic-control/agent-control/setup/)に従い、 **「Host - Linux」**タイプのフリートを選択または作成していることを確認します。
+
+4. **Fleet Controlでエージェントの設定を再作成してください。**Agent Controlインストールして接続したら、 Fleet Controlを通じてインフラストラクチャ エージェントをデプロイし、リモート設定を通じて以前の設定を適用します。 設定フォーマットについては、 [Linuxの設定](/docs/new-relic-control/agent-control/configuration/#linux-configuration)に関するドキュメントを参照してください。
+
+インフラストラクチャエージェントからのデータを参照するカスタムダッシュボードとアラートは、同じアカウントとホスト名を使用している限り引き続き機能します。
+
+## Windowsへの移行
+
+<Callout variant="important">
+  Agent Controlは、Windows上の既存エージェントの自動移行をサポートしていません。WindowsホストにNew Relic Infrastructureエージェントが既にインストールされている場合は、 Agent Controlインストールする前に手動でアンインストールする必要があります。 APMエージェントはWindows上のAgent Controlでは管理されず、インストールされたままにしておくことができます。
+</Callout>
+
+Windows上のスタンドアロン インフラストラクチャエージェント インストレーションからAgent Controlに移行するには、次の手順を実行します。
+
+1. **既存のインフラストラクチャエージェントをアンインストールします。** **Add or Remove Programs** \[プログラムの追加と削除]を開き (または PowerShell を使用)、 New Relic Infrastructureエージェントをアンインストールします。 または、アンインストーラーを実行してください。
+
+   ```powershell
+   # Example using the MSI uninstaller
+   msiexec /x {PRODUCT_CODE} /quiet
+   ```
+
+2. **現在の設定をメモしておいてください。**アンインストールする前に、エージェント設定のコピー (通常は`C:\Program Files\New Relic\newrelic-infra\newrelic-infra.yml`) とオンホストインテグレーション構成のコピーを`C:\Program Files\New Relic\newrelic-infra\integrations.d\`に保存します。 Agent Controlをインストールした後、これらをFleet Controlリモート設定として再作成する必要があります。
+
+3. **Agent Controlをインストールしてください。** ガイド付きインストールを使用して[Windowsレーションの手順](/docs/new-relic-control/agent-control/setup/)に従い、 **「Host - Windows 」**タイプのフリートを選択または作成していることを確認します。
+
+4. **Fleet Controlでエージェントの設定を再作成してください。**Agent Controlインストールして接続したら、 Fleet Controlを通じてインフラストラクチャ エージェントをデプロイし、リモート設定を通じて以前の設定を適用します。 設定形式については、 [Windowsの設定を](/docs/new-relic-control/agent-control/configuration/#windows-configuration)参照してください。
+
+インフラストラクチャエージェントからのデータを参照するカスタムダッシュボードとアラートは、同じアカウントとホスト名を使用している限り引き続き機能します。

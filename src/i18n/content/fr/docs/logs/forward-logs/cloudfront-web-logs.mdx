@@ -1,0 +1,144 @@
+---
+title: Transférer le log d'accès Amazon CloudFront
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Enable log monitoring in New Relic
+  - CloudFront
+metaDescription: 'Configure New Relic logging for your Amazon CloudFront distribution, so you can use enhanced log management capabilities.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Vous pouvez activer le logging à partir de votre distribution Amazon CloudFront pour envoyer le log d&apos;accès Web à New Relic.
+
+## Options d&apos;envoi du log [#log-types]
+
+Il existe deux options pour envoyer le log depuis CloudFront : le logging standard ou le log temps réel.
+
+<DNT>**Standard logs**</DNT> sont envoyés depuis CloudFront vers un bucket S3 où ils sont stockés. Vous utiliserez ensuite notre déclencheur AWS Lambda pour envoyer le log de S3 à New Relic. Consultez [la documentation Amazon CloudFront pour configurer et utiliser le log standard (log d’accès)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.html). Vous trouverez ici des informations détaillées sur la création de votre bucket S3 et la définition des autorisations appropriées. Le log standard inclut tous les champs de données et est envoyé à S3 puis à New Relic toutes les 5 minutes. Pour obtenir des instructions détaillées sur la façon de configurer le log standard dans la console Amazon et de les envoyer à New Relic via notre déclencheur S3 Lambda , consultez la [section Activer le logging standard](#enable-standard-logging).
+
+<DNT>**Real-time logs**</DNT> sont envoyés quelques secondes après la réception requests à l&apos;aide d&apos;un consommateur Kinesis Data Stream et d&apos;un Kinesis Data Firehose pour livraison à New Relic. Consultez [la documentation Amazon CloudFront pour configurer le log temps réel](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/real-time-logs.html). Les logs temps réels sont configurables et vous permettent de configurer un taux d&apos;échantillonnage (quel pourcentage de log à envoyer), de sélectionner des champs spécifiques à recevoir dans les enregistrements log et de définir des comportements de cache spécifiques (modèles de chemin) pour lesquels vous souhaitez recevoir le log. le log temps réel nécessite également un bucket de sauvegarde S3 pour envoyer soit toutes les données, soit uniquement les données ayant échoué. Ainsi, pour activer le log des temps réels, vous devez également suivre [nos instructions pour créer un bucket S3](#create-s3-bucket). Pour des instructions détaillées sur la façon de configurer le log standard dans la console Amazon et de les envoyer à New Relic via notre déclencheur S3 Lambda , consultez la section [Activer le log temps réel](#enable-real-time-logging).
+
+Pour les deux options, vous pouvez utiliser nos [règles d&apos;analyse log](/docs/logs/ui-data/built-log-parsing-rules) des intégrées pour analyser automatiquement votre log d&apos;accès CloudFront et notre quickstart dashboard pour obtenir immédiatement des informations détaillées sur vos données. Pour que les règles d&apos;analyse intégrées fonctionnent et remplissent les données dans le widget du quickstart dashboard fourni, vous devez configurer `logtype` l&apos;attribut comme défini dans les instructions. Pour plus de détails sur l&apos;analyse du temps réel log si vous ne sélectionnez que certains des champs de logging, consultez la [section Analyse](#parsing-real-time-logs)
+
+## Créer un bucket S3 pour stocker le log CloudFront [#create-s3-bucket]
+
+Pour activer le log standard ou le log temps réel pour votre distribution CloudFront, vous devez d&apos;abord créer un bucket S3 à utiliser pour stocker le log d&apos;accès CloudFront :
+
+1. Dans la console de gestion AWS, choisissez <DNT>**Services &gt; All services &gt; S3**</DNT>.
+2. Sélectionnez <DNT>**Create bucket**</DNT>.
+3. Saisissez un <DNT>**Bucket name**</DNT> et sélectionnez le <DNT>**AWS region**</DNT> de votre choix. (Notez que votre bucket S3 doit se trouver dans la même région que votre fonction Lambda que vous créez dans la section suivante si vous utilisez le logging standard.)
+4. Dans la section <DNT>**Object ownership**</DNT> , sélectionnez <DNT>**ACLs enabled**</DNT>.
+5. Sélectionnez <DNT>**Create bucket**</DNT>.
+
+Vous pouvez désormais activer le logging standard ou en temps réel. Pour obtenir des instructions sur ces options, continuez à lire.
+
+## Activer le logging standard [#enable-standard-logging]
+
+Mettez à jour votre distribution CloudFront pour activer le log standard :
+
+1. Dans la console de gestion AWS, choisissez <DNT>**Services &gt; All Services &gt; CloudFront**</DNT>.
+2. Cliquez sur votre distribution <DNT>**ID**</DNT>. Dans l’onglet Général, sélectionnez <DNT>**Edit**</DNT> dans la section Paramètres.
+3. Dans la section <DNT>**Standard logging**</DNT> , sélectionnez <DNT>**On**</DNT> pour activer le logging et afficher les paramètres de configuration du logging.
+4. Pour <DNT>**S3 bucket**</DNT>, recherchez et choisissez le nom du bucket S3 que vous avez créé ci-dessus.
+5. Facultatif : vous pouvez ajouter un préfixe log comme `cloudfront_logs`.
+6. Choisissez <DNT>**Save changes**</DNT>.
+
+Dans les cinq minutes, vous devriez commencer à voir le fichier de log apparaître dans votre compartiment S3 avec le format de nom de fichier suivant :
+
+```
+<optional prefix>/<distribution ID>.YYYY-MM-DD-HH.unique-ID.gz
+```
+
+Ensuite, vous devez installer et configurer notre fonction AWS Lambda `NewRelic-log-ingestion-s3` pour envoyer le log d&apos;accès dans S3 à New Relic. Vous aurez besoin d&apos;une seule fonction Lambda pour le log Amazon CloudFront afin de pouvoir définir la `LOG_TYPE` variable d&apos;environnement appropriée : cela vous permet d&apos;utiliser nos [règles d&apos;analyse intégrées à](/docs/logs/ui-data/built-log-parsing-rules/#cloudfront) CloudFront et le [quickstart dashboard](https://newrelic.com/instant-observability/amazon-cloudfront-web-logs). Si vous avez déjà cette fonction Lambda installée dans une région et que vous l&apos;utilisez pour envoyer d&apos;autres logs S3 à New Relic (par exemple un log ALB/NLB), vous devrez réinstaller la fonction Lambda dans une autre région. De plus, comme indiqué précédemment, votre bucket S3 pour stocker le log d&apos;accès et votre fonction Lambda pour envoyer le log S3 à New Relic doivent se trouver dans la même région.
+
+Pour effectuer ces étapes :
+
+7. Suivez les instructions ici pour [configurer AWS Lambda pour l&apos;envoi du log depuis S3](/docs/logs/forward-logs/aws-lambda-sending-logs-s3/).
+8. Une fois la fonction Lambda installée, sélectionnez <DNT>**Functions &gt; NewRelic-s3-log-ingestion**</DNT>.
+9. Sélectionnez le bouton <DNT>**+ Add trigger**</DNT> sous S3.
+10. Pour <DNT>**Trigger Configuration**</DNT>, sélectionnez S3.
+11. Pour <DNT>**Bucket**</DNT>, recherchez et choisissez le bucket S3 que vous avez créé ci-dessus.
+12. Dans la section <DNT>**Recursive invocation**</DNT> , cochez la case d’accusé de réception puis choisissez <DNT>**Add**</DNT>.
+13. Dans l’onglet <DNT>**Configuration**</DNT> de la fonction, choisissez l’option <DNT>**Environment variables**</DNT> sur la gauche.
+14. Sélectionnez <DNT>**Edit**</DNT> et pour `LOG_TYPE` entrez `cloudfront-web`.
+15. Sélectionnez <DNT>**Save**</DNT>.
+
+Dans cinq minutes, vous devriez commencer à voir votre log dans l’interface utilisateur du log. Pour confirmer que vous recevez le log, vous pouvez rechercher `logtype:cloudfront-web` dans la [barre de recherche de l&apos;interface utilisateur du log](/docs/logs/ui-data/use-logs-ui) ou exécuter une requête NRQL avec quelque chose comme `FROM Log SELECT * WHERE logtype='cloudfront-web'`
+
+## Activer le log des temps réels [#enable-real-time-logs]
+
+Pour activer le logging en temps réel pour votre distribution CloudFront, vous devez d&apos;abord créer un flux de données Kinesis pour recevoir le log CloudFront :
+
+1. Dans la console de gestion AWS, choisissez <DNT>**Services &gt; Kinesis**</DNT>.
+2. Sélectionnez <DNT>**Data streams**</DNT>, puis <DNT>**Create data stream**</DNT>.
+3. Entrez un <DNT>**Data stream name**</DNT>. Par exemple, `CloudFront-DataStream`.
+4. Sélectionnez un mode de capacité de flux de données de votre choix.
+5. Sélectionnez <DNT>**Create data stream**</DNT>.
+6. Dans la section <DNT>**Consumers**</DNT> , sélectionnez <DNT>**Process with delivery stream**</DNT>.
+7. Pour le <DNT>**Destination**</DNT>, sélectionnez <DNT>**New Relic**</DNT>.
+8. Entrez un <DNT>**Delivery stream name**</DNT>. Par exemple, `CloudFront-DeliveryStream`.
+9. Dans la section des paramètres <DNT>**Destination**</DNT> , pour l’URL du point de terminaison HTTP, sélectionnez <DNT>**New Relic logs - US**</DNT> ou <DNT>**New Relic logs - EU**</DNT>.
+10. Pour <DNT>**API key**</DNT>, saisissez le <InlinePopover type="licenseKey" />de votre compte New Relic.
+11. Sélectionnez <DNT>**Add parameter**</DNT>.
+12. Si vous sélectionnez tous les champs pour la connexion à l&apos;étape 21 ci-dessous, pour <DNT>**Key**</DNT>, entrez `logtype` et pour <DNT>**Value**</DNT> , entrez `cloudfront-rtl` . Si vous prévoyez de sélectionner un sous-ensemble de champs pour la connexion à l’étape 21 ci-dessous, saisissez `cloudfront-rtl-custom`. Si vous choisissez de ne pas sélectionner tous les champs, consultez la [section Analyse des logs en temps réel](#parsing-real-time-logs) ci-dessous pour obtenir des informations sur la façon de créer une règle d&apos;analyse personnalisée pour votre log.
+13. Dans la section <DNT>**Backup settings**</DNT> , vous pouvez choisir soit <DNT>**Failed data**</DNT> uniquement, soit <DNT>**All data**</DNT> pour l&apos;option <DNT>**Source record backup in Amazon S3**</DNT> , selon votre préférence.
+14. Pour le bucket de sauvegarde S3, sélectionnez <DNT>**Browse**</DNT> pour rechercher et sélectionner le nom du bucket S3 que vous avez créé ci-dessus pour stocker le log CloudFront.
+15. Choisissez <DNT>**Create delivery stream**</DNT>.
+
+Ensuite, créez une configuration de logging en temps réel et attachez-la à votre distribution CloudFront :
+
+16. Dans la console de gestion AWS, choisissez <DNT>**Services &gt; CloudFront**</DNT>.
+17. Dans le <DNT>**Telemetry section**</DNT> à gauche, sélectionnez <DNT>**Logs**</DNT>.
+18. Cliquez sur l’onglet <DNT>**Real-time configurations**</DNT> , puis choisissez <DNT>**Create configuration**</DNT>.
+19. Entrez un nom de configuration. Par exemple : `CloudFront-RealTimeLogs`.
+20. Saisissez un taux d’échantillonnage compris entre `1` et `100`.
+21. Pour <DNT>**Fields**</DNT>, sélectionnez <DNT>**All fields**</DNT> ou choisissez les champs que vous souhaitez inclure dans votre log.
+22. Pour <DNT>**Endpoint**</DNT>, sélectionnez le nom du flux de données que vous avez créé à l’étape 3. Par exemple : `CloudFront-DataStream`.
+23. Dans la section <DNT>**Distrubutions**</DNT> , sélectionnez votre ID de distribution CloudFront.
+24. Pour <DNT>**Cache behaviors**</DNT>, cochez <DNT>**Default (\*)**</DNT>.
+25. Choisissez <DNT>**Create configuration**</DNT>.
+
+Dans quelques minutes, vous devriez commencer à voir votre log dans notre [interface utilisateur de log](/docs/logs/ui-data/use-logs-ui). Pour confirmer que vous recevez le log des temps réels, vous pouvez rechercher `logtype:cloudfront-rtl*` dans la barre de recherche de l&apos;interface utilisateur du log ou via une requête NRQL comme `FROM Log SELECT * WHERE logtype LIKE 'cloudfront-rtl%'`
+
+## temps réel analyse des logs [#parsing-real-time-logs]
+
+Notre règle d&apos;analyse intégrée pour le temps réel log suppose que tous les champs seront logarithmiques. Si vous choisissez d&apos; log uniquement un sous-ensemble de champs, vous devez définir une règle d&apos;analyse personnalisée qui correspond à votre format log . Ceci est nécessaire pour que le log soit analysé correctement et pour utiliser notre [quickstart dashboard](https://newrelic.com/instant-observability/amazon-cloudfront-web-logs).
+
+Pour créer une règle d’analyse personnalisée, sélectionnez <DNT>**Parsing**</DNT> dans la section <DNT>**Manage data**</DNT> de l’interface utilisateur du log.
+
+1. Pour le <DNT>**Rule name**</DNT>, entrez `CloudFront custom parsing rule`.
+2. Pour <DNT>**Filter logs based on NRQL**</DNT>, entrez `logtype='cloundfront-rtl-custom'`.
+3. Mettez à jour la logique d&apos;analyse Grok ci-dessous afin qu&apos;elle inclue <DNT>**only**</DNT> les champs que vous avez sélectionnés dans la configuration du log temps réel. Par exemple, si vous choisissez de ne pas inclure le champ `cs_headers` , supprimez `%{SPACE}%{NOTSPACE:cs_headers}%` de Grok, et ainsi de suite.
+   ```
+   ^%{NOTSPACE:timestamp}.\d{3}%{SPACE}%{NOTSPACE:c_ip}%{SPACE}%{NUMBER:time_to_first_byte:INT}%{SPACE}%{NUMBER:sc_status:INT}%{SPACE}%{NUMBER:sc_bytes:INT}%{SPACE}%{WORD:cs_method}%{SPACE}%{NOTSPACE:cs_protocol}%{SPACE}%{NOTSPACE:cs_host}%{SPACE}%{NOTSPACE:cs_uri_stem}%{SPACE}%{NUMBER:cs_bytes:INT}%{SPACE}%{NOTSPACE:x_edge_location}%{SPACE}%{NOTSPACE:x_edge_request_id}%{SPACE}%{NOTSPACE:x_host_header}%{SPACE}%{NUMBER:time_taken:INT}%{SPACE}%{NOTSPACE:cs_protocol_version}%{SPACE}%{NOTSPACE:cs_ip_version}%{SPACE}%{NOTSPACE:cs_user_agent}%{SPACE}%{NOTSPACE:cs_referer}%{SPACE}%{NOTSPACE:cs_cookie}%{SPACE}%{NOTSPACE:cs_uri_query}%{SPACE}%{NOTSPACE:x_edge_response_result_type}%{SPACE}%{NOTSPACE:x_forwarded_for}%{SPACE}%{NOTSPACE:ssl_protocol}%{SPACE}%{NOTSPACE:ssl_cipher}%{SPACE}%{NOTSPACE:x_edge_result_type}%{SPACE}%{NOTSPACE:fle_encrypted_fields}%{SPACE}%{NOTSPACE:fle_status}%{SPACE}%{NOTSPACE:sc_content_type}%{SPACE}%{NOTSPACE:sc_content_len}%{SPACE}%{NOTSPACE:sc_range_start}%{SPACE}%{NOTSPACE:sc_range_end}%{SPACE}%{NUMBER:c_port:INT}%{SPACE}%{NOTSPACE:x_edge_detailed_result_type}%{SPACE}%{NOTSPACE:c_country}%{SPACE}%{NOTSPACE:cs_accept_encoding}%{SPACE}%{NOTSPACE:cs_accept}%{SPACE}%{NOTSPACE:cache_behavior_path_pattern}%{SPACE}%{NOTSPACE:cs_headers}%{SPACE}%{NOTSPACE:cs_header_names}%{SPACE}%{NOTSPACE:cs_headers_count}$
+   ```
+4. Collez le Grok mis à jour dans la section logique d&apos;analyse, puis sélectionnez <DNT>**Test grok**</DNT> pour valider que votre analyseur fonctionne.
+5. Activez la règle puis choisissez <DNT>**Save parsing rule**</DNT>.
+
+<img title="Creating a CloudFront custom parsing rule" alt="Creating a CloudFront custom parsing rule" src="/images/logs_screenshot-crop_Cloudfront-log-parsing.webp" />
+
+<figcaption>
+  Une capture d&apos;écran de la configuration d&apos;analyse personnalisée de CloudFront.
+</figcaption>
+
+## Quelle est la prochaine étape ? [#what-next]
+
+<img title="Dashboard in Amazon CloudFront Access Logs quickstart" alt="Dashboard in Amazon CloudFront Access Logs quickstart" src="/images/logs_screenshot-crop_Cloudfront-logs-dashboard.webp" />
+
+<figcaption>
+  Notre quickstart pour le log d&apos;accès Amazon CloudFront inclut un dashboard prédéfini.
+</figcaption>
+
+Voici quelques idées pour les prochaines étapes :
+
+* Démarrez en quelques minutes avec un dashboard prédéfini pour voir les mesures clés de vos logs d&apos;accès Amazon CloudFront. Accédez au [quickstart de Amazon CloudFront access logs](https://newrelic.com/instant-observability/amazon-cloudfront-web-logs) et cliquez sur <DNT>**Install now**</DNT>.
+* Explorez les données de logging sur votre plateforme avec notre [interface utilisateur de logs](/docs/logs/log-management/ui-data/use-logs-ui).
+* Obtenez une visibilité plus approfondie sur les données de performances de votre application et de votre plateforme en transmettant votre log avec nos capacités [de logs en contexte](/docs/logs/enable-log-management-new-relic/configure-logs-context/configure-logs-context-apm-agents) .
+* Configurer [des alertes](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions).
+* [Interrogez vos données](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) et [créez des dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+
+## Désactiver le transfert de log [#disable]
+
+Pour désactiver les fonctionnalités de transfert de log , il existe deux options. Si vous souhaitez simplement arrêter d&apos;envoyer le log S3 à New Relic, vous pouvez supprimer le déclencheur S3 dans la fonction Lambda `NewRelic-log-ingestion-s3`. Si vous souhaitez désactiver complètement le log d&apos;accès Amazon CloudFront, vous devrez supprimer le déclencheur et désactiver le logging dans les paramètres généraux de la distribution CloudFront.
