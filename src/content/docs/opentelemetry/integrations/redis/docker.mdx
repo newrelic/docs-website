@@ -11,13 +11,24 @@ freshnessValidatedDate: never
 
 Monitor your Redis instances using Docker Compose by deploying the OpenTelemetry Collector as a container alongside your existing Redis.
 
+## Before you begin [#prereq]
+
+You'll need the following before you set up the collector:
+
+* **Docker** and **Docker Compose** (v2 or later) installed
+* Your New Relic <InlinePopover type="licenseKey"/>
+* Redis running and accessible — version 6.0 or later recommended (4.0 and later works with a reduced metric set)
+* Outbound HTTPS (port 443) to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+
+Choose your collector distribution in [Installation options](#installation-options): the NRDOT collector, the OpenTelemetry Collector Contrib, or the Prometheus receiver. Each path's Docker Compose file pulls the images it needs, including the [redis_exporter](https://github.com/oliver006/redis_exporter) for the Prometheus receiver path.
+
 ## Installation options [#installation-options]
 
 <Tabs>
   <TabsBar>
-    <TabsBarItem id="nrdot">NRDOT Collector</TabsBarItem>
+    <TabsBarItem id="nrdot">NRDOT collector</TabsBarItem>
     <TabsBarItem id="otel-contrib">OpenTelemetry Collector Contrib</TabsBarItem>
-    <TabsBarItem id="prometheus">Prometheus Receiver</TabsBarItem>
+    <TabsBarItem id="prometheus">Prometheus receiver</TabsBarItem>
   </TabsBar>
 
   <TabsPages>
@@ -27,20 +38,13 @@ Monitor your Redis instances using Docker Compose by deploying the OpenTelemetry
 
 <Step>
 
-### Before you begin [#prereq-nrdot]
-
-Ensure you have:
-
-* **Docker** and **Docker Compose** (v2+) installed
-* Your New Relic <InlinePopover type="licenseKey"/>
-* **Redis** running and accessible (version 6.0+ recommended, 4.0+ supported with limited metrics)
-* Outbound HTTPS (port 443) to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
-
-</Step>
-
-<Step>
-
 ### Create the collector configuration [#config-nrdot]
+
+This configuration tells the collector how to gather Redis metrics and send them to New Relic. It handles three main jobs:
+
+* **Collect** metrics from Redis through the `redis` receiver
+* **Shape** the data — reduce cardinality, convert counters to deltas, and tag it for entity synthesis
+* **Export** the processed metrics to New Relic over OTLP
 
 Create `otel-collector-config.yaml` in your project directory:
 
@@ -160,6 +164,23 @@ service:
       exporters: [otlp_http]
 ```
 
+#### What this configuration does [#config-explanation-nrdot]
+
+Each component in the pipeline has a specific job:
+
+| Component | Description |
+|---|---|
+| `health_check` | Exposes a health endpoint on `0.0.0.0:13133` so you can confirm the collector is running. |
+| `redis` receiver | Connects to your Redis endpoint every 10 seconds and reads metrics from the Redis `INFO` command. `server.address` and `server.port` become the entity's identity. |
+| `memory_limiter` | Caps collector memory usage (512 MiB soft limit, 128 MiB spike) to protect the container. |
+| `resource_detection` | Detects the host and adds `host.name` and `host.id`, linking Redis metrics to the underlying host entity. |
+| `attributes/entity_tags` | Stamps `instrumentation.provider: opentelemetry` on every metric so you can scope queries to the OpenTelemetry path. |
+| `cumulativetodelta` | Converts Redis's cumulative counters — commands, keyspace hits, evictions, and so on — to delta values so New Relic charts rates correctly. |
+| `filter/cardinality` | Drops high-cardinality data points (CPU states other than `user` and `sys`, and per-command metrics for uncommon commands) to control ingest cost. |
+| `transform/metadata_nullify` | Clears metric descriptions and units to reduce payload size. |
+| `batch` | Groups data points before export (2,048 per batch, up to 4,096) and flushes at least every 10 seconds to reduce network overhead. |
+| `otlp_http` | Exports the processed metrics to New Relic over OTLP with gzip compression, authenticated with your license key. |
+
 <Callout variant="tip">
 **Want a user-friendly entity name?** By default, your Redis entity is named using the `server.address:server.port` combination. To use a custom human-readable name instead, uncomment the `resource/redis` section in the config above, set your preferred name in the `redis.instance.id` value, and add `resource/redis` to the processors pipeline.
 </Callout>
@@ -170,7 +191,7 @@ service:
 
 ### Optional: Configure authentication [#auth-nrdot]
 
-If your Redis instance requires authentication, add the credentials to the `redis` receiver section in your config:
+By default, the collector connects to Redis without credentials. If your Redis instance requires authentication, add the matching credentials to the `redis` receiver. Choose the option that matches your setup:
 
 <CollapserGroup>
 
@@ -234,6 +255,8 @@ receivers:
 <Step>
 
 ### Optional: Collect Redis logs [#logs-nrdot]
+
+Beyond metrics, the collector can forward Redis's log file to New Relic so you can correlate log events — restarts, persistence events, or errors — with metric spikes on the same entity.
 
 <Callout variant="important">
 By default, Redis in Docker logs to **stdout** (not to a file). To collect logs with the filelog receiver, you must configure Redis to write to a log file and share it via a Docker volume between the Redis and collector containers.
@@ -342,7 +365,7 @@ sudo chmod 644 /var/log/redis/redis.log
 
 ### Optional: Collect host metrics [#hostmetrics-nrdot]
 
-Add the hostmetrics receiver to your `otel-collector-config.yaml`. The `root_path: /hostfs` setting is required when running inside a Docker container so the collector reads the host filesystem (not the container's):
+Redis performance often tracks host resource pressure — CPU saturation, memory exhaustion, or disk I/O contention. Add the `hostmetrics` receiver to collect system metrics alongside Redis so you can correlate the two in New Relic. The `root_path: /hostfs` setting is required when running inside a Docker container so the collector reads the host filesystem, not the container's:
 
 ```yaml
 receivers:
@@ -400,7 +423,7 @@ service:
 
 ### Optional: Add custom metadata [#custom-metadata-nrdot]
 
-Add custom resource attributes for tagging and filtering in New Relic:
+Custom resource attributes tag every Redis metric with context — environment, team, or tier — so you can filter and group your data in New Relic. Add a `resource/custom` processor with the tags you want:
 
 ```yaml
 processors:
@@ -572,14 +595,21 @@ If you enabled any optional features (logs, host metrics, TLS, or authentication
 
 ### Create the environment file [#env-nrdot]
 
-Create a `.env` file in the same directory as your `docker-compose.yml`:
+Docker Compose reads deployment-specific values from a `.env` file in the same directory as your `docker-compose.yml`, which keeps your license key out of the compose file. Create the `.env` file:
 
 ```bash
 NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
 OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
-# US: https://otlp.nr-data.net
-# EU: https://otlp.eu01.nr-data.net
+# Set the New Relic OTLP endpoint for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 ```
+
+Replace the placeholders with your own values:
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEW_RELIC_LICENSE_KEY` | Yes | Your New Relic [ingest license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Yes | New Relic OTLP endpoint for your region. For more information, see [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
 
 </Step>
 
@@ -587,15 +617,21 @@ OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
 
 ### Start and verify [#verify-nrdot]
 
+Start the collector in the background:
+
 ```bash
 docker compose up -d
 ```
 
-Verify data in New Relic:
+Confirm the containers are running with `docker compose ps` — the collector should show a `running` status. If it exited, check its logs with `docker compose logs otel-collector` — the most common causes are YAML indentation errors and an unreachable Redis endpoint.
+
+Then confirm your metrics are reaching New Relic. Wait about a minute after startup, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
 
 ```sql
 SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.provider = 'opentelemetry' SINCE 5 minutes ago
 ```
+
+A non-zero count confirms Redis metrics are flowing. If it returns `0`, see [Troubleshoot Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
 
 </Step>
 
@@ -609,20 +645,13 @@ SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.
 
 <Step>
 
-### Before you begin [#prereq-otel]
-
-Ensure you have:
-
-* **Docker** and **Docker Compose** (v2+) installed
-* Your New Relic <InlinePopover type="licenseKey"/>
-* **Redis** running and accessible (version 6.0+ recommended, 4.0+ supported with limited metrics)
-* Outbound HTTPS (port 443) to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
-
-</Step>
-
-<Step>
-
 ### Create the collector configuration [#config-otel]
+
+This configuration tells the collector how to gather Redis metrics and send them to New Relic. It handles three main jobs:
+
+* **Collect** metrics from Redis through the `redis` receiver
+* **Shape** the data — reduce cardinality, convert counters to deltas, and tag it for entity synthesis
+* **Export** the processed metrics to New Relic over OTLP
 
 Create `otel-collector-config.yaml` in your project directory:
 
@@ -742,6 +771,23 @@ service:
       exporters: [otlp_http]
 ```
 
+#### What this configuration does [#config-explanation-otel]
+
+Each component in the pipeline has a specific job:
+
+| Component | Description |
+|---|---|
+| `health_check` | Exposes a health endpoint on `0.0.0.0:13133` so you can confirm the collector is running. |
+| `redis` receiver | Connects to your Redis endpoint every 10 seconds and reads metrics from the Redis `INFO` command. `server.address` and `server.port` become the entity's identity. |
+| `memory_limiter` | Caps collector memory usage (512 MiB soft limit, 128 MiB spike) to protect the container. |
+| `resource_detection` | Detects the host and adds `host.name` and `host.id`, linking Redis metrics to the underlying host entity. |
+| `attributes/entity_tags` | Stamps `instrumentation.provider: opentelemetry` on every metric so you can scope queries to the OpenTelemetry path. |
+| `cumulativetodelta` | Converts Redis's cumulative counters — commands, keyspace hits, evictions, and so on — to delta values so New Relic charts rates correctly. |
+| `filter/cardinality` | Drops high-cardinality data points (CPU states other than `user` and `sys`, and per-command metrics for uncommon commands) to control ingest cost. |
+| `transform/metadata_nullify` | Clears metric descriptions and units to reduce payload size. |
+| `batch` | Groups data points before export (2,048 per batch, up to 4,096) and flushes at least every 10 seconds to reduce network overhead. |
+| `otlp_http` | Exports the processed metrics to New Relic over OTLP with gzip compression, authenticated with your license key. |
+
 <Callout variant="tip">
 **Want a user-friendly entity name?** By default, your Redis entity is named using the `server.address:server.port` combination. To use a custom human-readable name instead, uncomment the `resource/redis` section in the config above, set your preferred name in the `redis.instance.id` value, and add `resource/redis` to the processors pipeline.
 </Callout>
@@ -752,7 +798,7 @@ service:
 
 ### Optional: Configure authentication [#auth-otel]
 
-If your Redis instance requires authentication, add the credentials to the `redis` receiver section in your config:
+By default, the collector connects to Redis without credentials. If your Redis instance requires authentication, add the matching credentials to the `redis` receiver. Choose the option that matches your setup:
 
 <CollapserGroup>
 
@@ -816,6 +862,8 @@ receivers:
 <Step>
 
 ### Optional: Collect Redis logs [#logs-otel]
+
+Beyond metrics, the collector can forward Redis's log file to New Relic so you can correlate log events — restarts, persistence events, or errors — with metric spikes on the same entity.
 
 <Callout variant="important">
 By default, Redis in Docker logs to **stdout** (not to a file). To collect logs with the filelog receiver, you must configure Redis to write to a log file and share it via a Docker volume between the Redis and collector containers.
@@ -924,7 +972,7 @@ sudo chmod 644 /var/log/redis/redis.log
 
 ### Optional: Collect host metrics [#hostmetrics-otel]
 
-Add the hostmetrics receiver to your `otel-collector-config.yaml`. The `root_path: /hostfs` setting is required when running inside a Docker container so the collector reads the host filesystem (not the container's):
+Redis performance often tracks host resource pressure — CPU saturation, memory exhaustion, or disk I/O contention. Add the `hostmetrics` receiver to collect system metrics alongside Redis so you can correlate the two in New Relic. The `root_path: /hostfs` setting is required when running inside a Docker container so the collector reads the host filesystem, not the container's:
 
 ```yaml
 receivers:
@@ -982,7 +1030,7 @@ service:
 
 ### Optional: Add custom metadata [#custom-metadata-otel]
 
-Add custom resource attributes for tagging and filtering in New Relic:
+Custom resource attributes tag every Redis metric with context — environment, team, or tier — so you can filter and group your data in New Relic. Add a `resource/custom` processor with the tags you want:
 
 ```yaml
 processors:
@@ -1154,14 +1202,21 @@ If you enabled any optional features (logs, host metrics, TLS, or authentication
 
 ### Create the environment file [#env-otel]
 
-Create a `.env` file in the same directory as your `docker-compose.yml`:
+Docker Compose reads deployment-specific values from a `.env` file in the same directory as your `docker-compose.yml`, which keeps your license key out of the compose file. Create the `.env` file:
 
 ```bash
 NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
 OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
-# US: https://otlp.nr-data.net
-# EU: https://otlp.eu01.nr-data.net
+# Set the New Relic OTLP endpoint for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 ```
+
+Replace the placeholders with your own values:
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEW_RELIC_LICENSE_KEY` | Yes | Your New Relic [ingest license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Yes | New Relic OTLP endpoint for your region. For more information, see [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
 
 </Step>
 
@@ -1169,15 +1224,21 @@ OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
 
 ### Start and verify [#verify-otel]
 
+Start the collector in the background:
+
 ```bash
 docker compose up -d
 ```
 
-Verify data in New Relic:
+Confirm the containers are running with `docker compose ps` — the collector should show a `running` status. If it exited, check its logs with `docker compose logs otel-collector` — the most common causes are YAML indentation errors and an unreachable Redis endpoint.
+
+Then confirm your metrics are reaching New Relic. Wait about a minute after startup, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
 
 ```sql
 SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.provider = 'opentelemetry' SINCE 5 minutes ago
 ```
+
+A non-zero count confirms Redis metrics are flowing. If it returns `0`, see [Troubleshoot Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
 
 </Step>
 
@@ -1191,20 +1252,14 @@ SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.
 
 <Step>
 
-### Before you begin [#prereq-prometheus]
-
-Ensure you have:
-
-* **Docker** and **Docker Compose** (v2+) installed
-* Your New Relic <InlinePopover type="licenseKey"/>
-* **Redis** running and accessible (version 4.0+)
-* Outbound HTTPS (port 443) to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
-
-</Step>
-
-<Step>
-
 ### Create the collector configuration [#config-prometheus]
+
+This configuration scrapes metrics from `redis_exporter` and sends them to New Relic. It handles these main jobs:
+
+* **Scrape** the `redis_exporter` Prometheus endpoint through the `prometheus` receiver
+* **Rename** the Prometheus metrics to New Relic's Redis metric names
+* **Shape** the data — reduce cardinality, convert counters to deltas, and tag it for entity synthesis
+* **Export** the processed metrics to New Relic over OTLP
 
 Create `otel-collector-config.yaml` in your project directory:
 
@@ -1412,6 +1467,25 @@ service:
       exporters: [otlp_http]
 ```
 
+#### What this configuration does [#config-explanation-prometheus]
+
+Each component in the pipeline has a specific job:
+
+| Component | Description |
+|---|---|
+| `health_check` | Exposes a health endpoint on `0.0.0.0:13133` so you can confirm the collector is running. |
+| `prometheus` receiver | Scrapes the `redis_exporter` endpoint (default `redis-exporter:9121`) every 10 seconds and drops the exporter's own `go_*`, `process_*`, `promhttp_*`, and `redis_exporter_*` metrics. |
+| `memory_limiter` | Caps collector memory usage (512 MiB soft limit, 128 MiB spike) to protect the container. |
+| `resource_detection` | Detects the host and adds `host.name` and `host.id`, linking Redis metrics to the underlying host entity. |
+| `resource/redis_identity` | Sets `redis.instance.id`, which identifies the Redis entity in New Relic. It's required here because the Prometheus receiver doesn't provide `server.address` or `server.port`. |
+| `attributes/entity_tags` | Stamps `instrumentation.provider: opentelemetry` on every metric so you can scope queries to the OpenTelemetry path. |
+| `metricstransform` | Renames the exporter's Prometheus metrics (for example, `redis_uptime_in_seconds`) to New Relic's Redis names (`redis.uptime`) and adds the `state` label to CPU metrics. |
+| `cumulativetodelta` | Converts cumulative counters — commands, keyspace hits, evictions, and so on — to delta values so New Relic charts rates correctly. |
+| `filter/cardinality` | Drops high-cardinality data points (CPU states other than `user` and `sys`, and per-command metrics for uncommon commands) to control ingest cost. |
+| `transform/metadata_nullify` | Clears metric descriptions and units to reduce payload size. |
+| `batch` | Groups data points before export (2,048 per batch, up to 4,096) and flushes at least every 10 seconds to reduce network overhead. |
+| `otlp_http` | Exports the processed metrics to New Relic over OTLP with gzip compression, authenticated with your license key. |
+
 <Callout variant="important">
 The `resource/redis_identity` processor with `redis.instance.id` is **required** for the Prometheus receiver approach. Unlike the native Redis receiver, the Prometheus receiver does not provide `server.address` or `server.port` — so `redis.instance.id` is the only way to identify your Redis entity in New Relic. Set it to a unique, descriptive name for each instance (e.g., `prod-redis-cache:6379`).
 </Callout>
@@ -1456,6 +1530,8 @@ The cluster entity requires `redis.cluster.name` to be present AND `redis.instan
 <Step>
 
 ### Optional: Collect Redis logs [#logs-prometheus]
+
+Beyond metrics, the collector can forward Redis's log file to New Relic so you can correlate log events — restarts, persistence events, or errors — with metric spikes on the same entity.
 
 <Callout variant="important">
 By default, Redis in Docker logs to **stdout** (not to a file). To collect logs with the filelog receiver, you must configure Redis to write to a log file and share it via a Docker volume between the Redis and collector containers.
@@ -1537,7 +1613,7 @@ service:
 
 ### Optional: Collect host metrics [#hostmetrics-prometheus]
 
-Add the hostmetrics receiver to your `otel-collector-config.yaml`. The `root_path: /hostfs` setting is required when running inside a Docker container so the collector reads the host filesystem (not the container's):
+Redis performance often tracks host resource pressure — CPU saturation, memory exhaustion, or disk I/O contention. Add the `hostmetrics` receiver to collect system metrics alongside Redis so you can correlate the two in New Relic. The `root_path: /hostfs` setting is required when running inside a Docker container so the collector reads the host filesystem, not the container's:
 
 ```yaml
 receivers:
@@ -1645,14 +1721,21 @@ To use the NRDOT collector instead, replace the `otel-collector` image with `new
 
 ### Create the environment file [#env-prometheus]
 
-Create a `.env` file in the same directory as your `docker-compose.yml`:
+Docker Compose reads deployment-specific values from a `.env` file in the same directory as your `docker-compose.yml`, which keeps your license key out of the compose file. Create the `.env` file:
 
 ```bash
 NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
 OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
-# US: https://otlp.nr-data.net
-# EU: https://otlp.eu01.nr-data.net
+# Set the New Relic OTLP endpoint for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 ```
+
+Replace the placeholders with your own values:
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEW_RELIC_LICENSE_KEY` | Yes | Your New Relic [ingest license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Yes | New Relic OTLP endpoint for your region. For more information, see [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
 
 </Step>
 
@@ -1660,15 +1743,21 @@ OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
 
 ### Start and verify [#verify-prometheus]
 
+Start the collector and `redis_exporter` in the background:
+
 ```bash
 docker compose up -d
 ```
 
-Verify data in New Relic:
+Confirm the containers are running with `docker compose ps` — both the collector and `redis-exporter` should show a `running` status. If the collector exited, check its logs with `docker compose logs otel-collector` — the most common causes are YAML indentation errors, an unreachable `redis_exporter`, or the exporter not running.
+
+Then confirm your metrics are reaching New Relic. Wait about a minute after startup, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
 
 ```sql
 SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.provider = 'opentelemetry' SINCE 5 minutes ago
 ```
+
+A non-zero count confirms Redis metrics are flowing. If it returns `0`, see [Troubleshoot Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
 
 </Step>
 
