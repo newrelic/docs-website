@@ -15,13 +15,25 @@ Monitor your Redis instances in Kubernetes by deploying the OpenTelemetry Collec
 The composite pattern (`server.address:server.port`) is not supported in Kubernetes. Pod IPs are ephemeral and change on every restart, which would create duplicate entities. Use the `redis.instance.id` pattern with a stable identifier (e.g., `cluster-name.namespace:port`).
 </Callout>
 
+## Before you begin [#prereq]
+
+You'll need the following before you set up the collector:
+
+* Your New Relic <InlinePopover type="licenseKey"/>
+* `kubectl` access to your Kubernetes cluster with admin permissions
+* Redis running in your Kubernetes cluster — version 6.0 or later recommended (4.0 and later works with a reduced metric set)
+* For the NRDOT and OpenTelemetry Collector Contrib paths, your Redis pods must carry a discoverable label (for example, `app: redis`)
+* Outbound HTTPS (port 443) to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+
+Choose your collector distribution in [Installation options](#installation-options): the NRDOT collector, the OpenTelemetry Collector Contrib, or the Prometheus receiver. The NRDOT and Contrib paths auto-discover Redis pods with `k8s_observer`; the Prometheus receiver path scrapes a [redis_exporter](https://github.com/oliver006/redis_exporter) you deploy alongside Redis.
+
 ## Installation options [#installation-options]
 
 <Tabs>
   <TabsBar>
-    <TabsBarItem id="nrdot">NRDOT Collector</TabsBarItem>
+    <TabsBarItem id="nrdot">NRDOT collector</TabsBarItem>
     <TabsBarItem id="otel-contrib">OpenTelemetry Collector Contrib</TabsBarItem>
-    <TabsBarItem id="prometheus">Prometheus Receiver</TabsBarItem>
+    <TabsBarItem id="prometheus">Prometheus receiver</TabsBarItem>
   </TabsBar>
 
   <TabsPages>
@@ -31,26 +43,15 @@ The composite pattern (`server.address:server.port`) is not supported in Kuberne
 
 <Step>
 
-### Before you begin [#prereq-nrdot]
-
-* Your New Relic <InlinePopover type="licenseKey"/>
-* `kubectl` access to your Kubernetes cluster with admin permissions
-* **Redis** running in your Kubernetes cluster (version 6.0+ recommended, 4.0+ supported with limited metrics)
-* Redis pods must have a discoverable label (e.g., `app: redis`)
-* Outbound HTTPS (port 443) to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
-
-</Step>
-
-<Step>
-
 ### Create namespace and credentials [#ns-nrdot]
+
+Create a `newrelic` namespace and store your license key and OTLP endpoint in a Kubernetes Secret, which the collector reads at runtime so your credentials stay out of the config:
 
 ```bash
 kubectl create namespace newrelic
 
-# Set OTEL_EXPORTER_OTLP_ENDPOINT for your region:
-#   US: https://otlp.nr-data.net
-#   EU: https://otlp.eu01.nr-data.net
+# Set OTEL_EXPORTER_OTLP_ENDPOINT for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 kubectl create secret generic newrelic-credentials \
   --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
   --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT \
@@ -107,6 +108,12 @@ kubectl apply -f rbac.yaml
 <Step>
 
 ### Configure the collector [#config-nrdot]
+
+This ConfigMap tells the collector how to discover Redis pods, gather their metrics, and send them to New Relic. It handles three main jobs:
+
+* **Discover** Redis pods automatically with `k8s_observer` and the `receiver_creator`
+* **Shape** the data — reduce cardinality, convert counters to deltas, and set the entity identity
+* **Export** the processed metrics to New Relic over OTLP
 
 Create `otel-collector-config.yaml`:
 
@@ -234,13 +241,31 @@ data:
 kubectl apply -f otel-collector-config.yaml
 ```
 
+#### What this configuration does [#config-explanation-nrdot]
+
+Each component in the pipeline has a specific job:
+
+| Component | Description |
+|---|---|
+| `health_check` | Exposes a health endpoint on `0.0.0.0:13133` so you can confirm the collector is running. |
+| `k8s_observer` | Watches the Kubernetes API for pods so the collector can discover Redis instances dynamically. |
+| `receiver_creator/redis` | Starts a `redis` receiver for each pod matching the rule (`labels["app"] == "redis"`) and reads its metrics from the Redis `INFO` command every 10 seconds. |
+| `memory_limiter` | Caps collector memory usage (256 MiB soft limit, 64 MiB spike) to protect the pod. |
+| `resource/k8s_cluster` | Sets `k8s.cluster.name` and `redis.instance.id`, the stable identity for your Redis entity (the composite `server.address:server.port` pattern isn't used on Kubernetes). |
+| `attributes/entity_tags` | Stamps `instrumentation.provider: opentelemetry` on every metric so you can scope queries to the OpenTelemetry path. |
+| `cumulativetodelta` | Converts Redis's cumulative counters — commands, keyspace hits, evictions, and so on — to delta values so New Relic charts rates correctly. |
+| `filter/cardinality` | Drops high-cardinality data points (CPU states other than `user` and `sys`, and per-command metrics for uncommon commands) to control ingest cost. |
+| `transform/metadata_nullify` | Clears metric descriptions and units to reduce payload size. |
+| `batch` | Groups data points before export (2,048 per batch, up to 4,096) and flushes at least every 10 seconds to reduce network overhead. |
+| `otlp_http` | Exports the processed metrics to New Relic over OTLP with gzip compression, authenticated with your license key. |
+
 </Step>
 
 <Step>
 
 ### Optional: Collect Redis logs [#logs-nrdot]
 
-To collect Redis logs, add the `filelog` receiver to your ConfigMap and mount `/var/log/pods` in the DaemonSet.
+Beyond metrics, the collector can forward Redis's logs to New Relic so you can correlate log events — restarts, persistence events, or errors — with metric spikes on the same entity. To collect them, add the `filelog` receiver to your ConfigMap and mount `/var/log/pods` in the DaemonSet.
 
 Add to the `receivers` section in your ConfigMap:
 
@@ -471,11 +496,15 @@ kubectl apply -f otel-collector-daemonset.yaml
 
 ### Verify [#verify-nrdot]
 
+Confirm the collector pod is running:
+
 ```bash
 kubectl get pods -n newrelic -l app=otel-collector-redis
 ```
 
-Verify in New Relic:
+The pod should show `Running` with all containers ready. If it's `CrashLoopBackOff` or `Error`, check its logs with `kubectl logs -n newrelic -l app=otel-collector-redis` — the most common causes are ConfigMap YAML errors, a missing RBAC ClusterRole, or the discovery rule not matching your Redis pod labels.
+
+Then confirm your metrics are reaching New Relic. Wait about a minute after the pod starts, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
 
 ```sql
 SELECT count(*) FROM Metric
@@ -484,6 +513,8 @@ AND instrumentation.provider = 'opentelemetry'
 AND k8s.cluster.name IS NOT NULL
 SINCE 5 minutes ago
 ```
+
+A non-zero count confirms Redis metrics are flowing. If it returns `0`, see [Troubleshoot Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
 
 </Step>
 
@@ -497,26 +528,15 @@ SINCE 5 minutes ago
 
 <Step>
 
-### Before you begin [#prereq-otel]
-
-* Your New Relic <InlinePopover type="licenseKey"/>
-* `kubectl` access to your Kubernetes cluster with admin permissions
-* **Redis** running in your Kubernetes cluster (version 6.0+ recommended, 4.0+ supported with limited metrics)
-* Redis pods must have a discoverable label (e.g., `app: redis`)
-* Outbound HTTPS (port 443) to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
-
-</Step>
-
-<Step>
-
 ### Create namespace and credentials [#ns-otel]
+
+Create a `newrelic` namespace and store your license key and OTLP endpoint in a Kubernetes Secret, which the collector reads at runtime so your credentials stay out of the config:
 
 ```bash
 kubectl create namespace newrelic
 
-# Set OTEL_EXPORTER_OTLP_ENDPOINT for your region:
-#   US: https://otlp.nr-data.net
-#   EU: https://otlp.eu01.nr-data.net
+# Set OTEL_EXPORTER_OTLP_ENDPOINT for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 kubectl create secret generic newrelic-credentials \
   --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
   --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT \
@@ -573,6 +593,12 @@ kubectl apply -f rbac.yaml
 <Step>
 
 ### Configure the collector [#config-otel]
+
+This ConfigMap tells the collector how to discover Redis pods, gather their metrics, and send them to New Relic. It handles three main jobs:
+
+* **Discover** Redis pods automatically with `k8s_observer` and the `receiver_creator`
+* **Shape** the data — reduce cardinality, convert counters to deltas, and set the entity identity
+* **Export** the processed metrics to New Relic over OTLP
 
 Create `otel-collector-config.yaml`:
 
@@ -700,13 +726,31 @@ data:
 kubectl apply -f otel-collector-config.yaml
 ```
 
+#### What this configuration does [#config-explanation-otel]
+
+Each component in the pipeline has a specific job:
+
+| Component | Description |
+|---|---|
+| `health_check` | Exposes a health endpoint on `0.0.0.0:13133` so you can confirm the collector is running. |
+| `k8s_observer` | Watches the Kubernetes API for pods so the collector can discover Redis instances dynamically. |
+| `receiver_creator/redis` | Starts a `redis` receiver for each pod matching the rule (`labels["app"] == "redis"`) and reads its metrics from the Redis `INFO` command every 10 seconds. |
+| `memory_limiter` | Caps collector memory usage (256 MiB soft limit, 64 MiB spike) to protect the pod. |
+| `resource/k8s_cluster` | Sets `k8s.cluster.name` and `redis.instance.id`, the stable identity for your Redis entity (the composite `server.address:server.port` pattern isn't used on Kubernetes). |
+| `attributes/entity_tags` | Stamps `instrumentation.provider: opentelemetry` on every metric so you can scope queries to the OpenTelemetry path. |
+| `cumulativetodelta` | Converts Redis's cumulative counters — commands, keyspace hits, evictions, and so on — to delta values so New Relic charts rates correctly. |
+| `filter/cardinality` | Drops high-cardinality data points (CPU states other than `user` and `sys`, and per-command metrics for uncommon commands) to control ingest cost. |
+| `transform/metadata_nullify` | Clears metric descriptions and units to reduce payload size. |
+| `batch` | Groups data points before export (2,048 per batch, up to 4,096) and flushes at least every 10 seconds to reduce network overhead. |
+| `otlp_http` | Exports the processed metrics to New Relic over OTLP with gzip compression, authenticated with your license key. |
+
 </Step>
 
 <Step>
 
 ### Optional: Collect Redis logs [#logs-otel]
 
-To collect Redis logs, add the `filelog` receiver to your ConfigMap and mount `/var/log/pods` in the DaemonSet.
+Beyond metrics, the collector can forward Redis's logs to New Relic so you can correlate log events — restarts, persistence events, or errors — with metric spikes on the same entity. To collect them, add the `filelog` receiver to your ConfigMap and mount `/var/log/pods` in the DaemonSet.
 
 Add to the `receivers` section in your ConfigMap:
 
@@ -935,11 +979,15 @@ kubectl apply -f otel-collector-daemonset.yaml
 
 ### Verify [#verify-otel]
 
+Confirm the collector pod is running:
+
 ```bash
 kubectl get pods -n newrelic -l app=otel-collector-redis
 ```
 
-Verify in New Relic:
+The pod should show `Running` with all containers ready. If it's `CrashLoopBackOff` or `Error`, check its logs with `kubectl logs -n newrelic -l app=otel-collector-redis` — the most common causes are ConfigMap YAML errors, a missing RBAC ClusterRole, or the discovery rule not matching your Redis pod labels.
+
+Then confirm your metrics are reaching New Relic. Wait about a minute after the pod starts, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
 
 ```sql
 SELECT count(*) FROM Metric
@@ -948,6 +996,8 @@ AND instrumentation.provider = 'opentelemetry'
 AND k8s.cluster.name IS NOT NULL
 SINCE 5 minutes ago
 ```
+
+A non-zero count confirms Redis metrics are flowing. If it returns `0`, see [Troubleshoot Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
 
 </Step>
 
@@ -961,25 +1011,15 @@ SINCE 5 minutes ago
 
 <Step>
 
-### Before you begin [#prereq-prometheus]
-
-* Your New Relic <InlinePopover type="licenseKey"/>
-* `kubectl` access to your Kubernetes cluster with admin permissions
-* **Redis** running in your Kubernetes cluster (version 4.0+)
-* Outbound HTTPS (port 443) to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
-
-</Step>
-
-<Step>
-
 ### Create namespace and credentials [#ns-prometheus]
+
+Create a `newrelic` namespace and store your license key and OTLP endpoint in a Kubernetes Secret, which the collector reads at runtime so your credentials stay out of the config:
 
 ```bash
 kubectl create namespace newrelic
 
-# Set OTEL_EXPORTER_OTLP_ENDPOINT for your region:
-#   US: https://otlp.nr-data.net
-#   EU: https://otlp.eu01.nr-data.net
+# Set OTEL_EXPORTER_OTLP_ENDPOINT for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 kubectl create secret generic newrelic-credentials \
   --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
   --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT \
@@ -1068,6 +1108,13 @@ curl -s http://localhost:9121/metrics | grep redis_up
 <Step>
 
 ### Configure the collector [#config-prometheus]
+
+This ConfigMap scrapes metrics from `redis_exporter` and sends them to New Relic. It handles these main jobs:
+
+* **Scrape** the `redis_exporter` Service through the `prometheus` receiver
+* **Rename** the Prometheus metrics to New Relic's Redis metric names
+* **Shape** the data — reduce cardinality, convert counters to deltas, and set the entity identity
+* **Export** the processed metrics to New Relic over OTLP
 
 Create `otel-collector-config.yaml`:
 
@@ -1275,6 +1322,24 @@ data:
 kubectl apply -f otel-collector-config.yaml
 ```
 
+#### What this configuration does [#config-explanation-prometheus]
+
+Each component in the pipeline has a specific job:
+
+| Component | Description |
+|---|---|
+| `health_check` | Exposes a health endpoint on `0.0.0.0:13133` so you can confirm the collector is running. |
+| `prometheus` receiver | Scrapes the `redis_exporter` Service (default `redis-exporter.default.svc.cluster.local:9121`) every 10 seconds and drops the exporter's own `go_*`, `process_*`, `promhttp_*`, and `redis_exporter_*` metrics. |
+| `memory_limiter` | Caps collector memory usage (256 MiB soft limit, 64 MiB spike) to protect the pod. |
+| `resource/redis_identity` | Sets `k8s.cluster.name` and `redis.instance.id`, the stable identity for your Redis entity. It's required here because the Prometheus receiver doesn't provide `server.address` or `server.port`. |
+| `attributes/entity_tags` | Stamps `instrumentation.provider: opentelemetry` on every metric so you can scope queries to the OpenTelemetry path. |
+| `metricstransform` | Renames the exporter's Prometheus metrics (for example, `redis_uptime_in_seconds`) to New Relic's Redis names (`redis.uptime`) and adds the `state` label to CPU metrics. |
+| `cumulativetodelta` | Converts cumulative counters — commands, keyspace hits, evictions, and so on — to delta values so New Relic charts rates correctly. |
+| `filter/cardinality` | Drops high-cardinality data points (CPU states other than `user` and `sys`, and per-command metrics for uncommon commands) to control ingest cost. |
+| `transform/metadata_nullify` | Clears metric descriptions and units to reduce payload size. |
+| `batch` | Groups data points before export (2,048 per batch, up to 4,096) and flushes at least every 10 seconds to reduce network overhead. |
+| `otlp_http` | Exports the processed metrics to New Relic over OTLP with gzip compression, authenticated with your license key. |
+
 </Step>
 
 <Step>
@@ -1316,7 +1381,7 @@ The cluster entity requires `redis.cluster.name` to be present AND `redis.instan
 
 ### Optional: Collect Redis logs [#logs-prometheus]
 
-To collect Redis logs, add the `file_log` receiver to your ConfigMap and mount `/var/log/pods` in the Deployment.
+Beyond metrics, the collector can forward Redis's logs to New Relic so you can correlate log events — restarts, persistence events, or errors — with metric spikes on the same entity. To collect them, add the `file_log` receiver to your ConfigMap and mount `/var/log/pods` in the Deployment.
 
 Add to the `receivers` section in your ConfigMap:
 
@@ -1449,11 +1514,15 @@ To use the NRDOT collector instead, replace the image with `newrelic/nrdot-colle
 
 ### Verify [#verify-prometheus]
 
+Confirm the collector pod is running:
+
 ```bash
 kubectl get pods -n newrelic -l app=otel-collector-redis
 ```
 
-Verify in New Relic:
+The pod should show `Running` with all containers ready. If it's `CrashLoopBackOff` or `Error`, check its logs with `kubectl logs -n newrelic -l app=otel-collector-redis` — the most common causes are ConfigMap YAML errors or an unreachable `redis_exporter` Service.
+
+Then confirm your metrics are reaching New Relic. Wait about a minute after the pod starts, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
 
 ```sql
 SELECT count(*) FROM Metric
@@ -1462,6 +1531,8 @@ AND instrumentation.provider = 'opentelemetry'
 AND k8s.cluster.name IS NOT NULL
 SINCE 5 minutes ago
 ```
+
+A non-zero count confirms Redis metrics are flowing. If it returns `0`, see [Troubleshoot Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
 
 </Step>
 
