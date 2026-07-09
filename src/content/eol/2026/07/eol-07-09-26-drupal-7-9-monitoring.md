@@ -1,8 +1,8 @@
 ---
-title: 'Drupal 7 and 9 monitoring support update'
+title: 'End of life for Drupal 7 and 9 monitoring in the PHP agent'
 summary: 'New Relic will end support for Drupal 7 and 9 monitoring in the PHP agent on October 15th, 2026, as both versions have reached end-of-life.'
-releaseDate: '2026-07-09'
-learnMoreLink: 'https://docs.newrelic.com/docs/apm/agents/php-agent/getting-started/introduction-new-relic-php/'
+publishDate: '2026-07-09'
+eolEffectiveDate: '2026-10-15'
 ---
 
 We are committed to continually improving experience and security with our platform, and as part of this effort, we will discontinue support for Drupal 7 and 9 monitoring within the PHP Agent.

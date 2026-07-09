@@ -1,8 +1,8 @@
 ---
-title: 'Node.js 20 runtime support EOL notification'
-summary: 'New Relic agents no longer support the Node.js 20 runtime, which reached end-of-life on April 30, 2026.'
-releaseDate: '2026-07-09'
-learnMoreLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-notes/nodejs-release-notes/node-agent-14-0-0/'
+title: 'End of life for Node.js 20 runtime support'
+summary: 'New Relic agents no longer support the Node.js 20 runtime, which reached end-of-life on April 30, 2026. Upgrade to Node.js 22 or newer before upgrading to Node.js agent v14.0.0 or newer.'
+publishDate: '2026-07-09'
+eolEffectiveDate: '2026-05-18'
 ---
 
 We are committed to continually improving user experience and the security with our platform, and as part of this effort, we have discontinued support for Node.js version 20 for all the current agents.
