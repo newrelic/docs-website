@@ -13,7 +13,7 @@ New Relic will no longer support Drupal 7 and 9 monitoring within the PHP Agent 
 
 ## Why
 
-Both Drupal 7 and 9 have reached their official end-of-life status (see [here](https://www.drupal.org/about/drupal-7/d7eol/partners) and [here](https://www.drupal.org/about/announcements/blog/drupal-9-is-end-of-life), respectively). While New Relic provided an extended support window through our partnerships with Acquia and WordPress Engine, we are now sunsetting these versions as continuing to run them can introduce significant security risks, and aligning with official Drupal deprecation schedules is the safest path forward.
+Both [Drupal 7](https://www.drupal.org/about/drupal-7/d7eol/partners) and [Drupal 9](https://www.drupal.org/about/announcements/blog/drupal-9-is-end-of-life) have reached their official end-of-life status. While New Relic provided an extended support window through our partnerships with Acquia and WordPress Engine, we are now sunsetting these versions as continuing to run them can introduce significant security risks, and aligning with official Drupal deprecation schedules is the safest path forward.
 
 ## What you need to do
 
