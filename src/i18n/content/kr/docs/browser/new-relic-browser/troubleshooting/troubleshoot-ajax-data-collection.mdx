@@ -89,6 +89,67 @@ translationType: machine
     * 각 JSONP 요청은 고유한 콜백 함수를 사용해야 합니다. jQuery와 같은 가장 인기 있는 라이브러리는 각 요청에 대해 동적으로 고유한 콜백 함수를 생성합니다.
     * New Relic에서 인식되려면 콜백 함수 이름이 포함된 쿼리 문자열의 이름을 `"callback"` 또는 `"cb"` 로 지정해야 합니다. 이는 가장 널리 사용되는 라이브러리의 기본 동작입니다.
   </Step>
+
+  <Step>
+    ## 페이로드 캡처 문제 해결 [#payload-capture-issues]
+
+    기본 AJAX 데이터는 표시되지만 페이로드 캡처가 예상대로 작동하지 않는 경우 다음 일반적인 문제를 확인하세요:
+
+    <CollapserGroup>
+      <Collapser id="payload-not-appearing" title="페이로드가 나타나지 않음">
+        페이로드 캡처를 활성화했지만 `AjaxRequest` 이벤트에 새 속성이 표시되지 않는 경우:
+
+        1. **캡처 모드 확인**: `capture_payloads` 이(가) `none`이(가) 아닌 `failures` 또는 `all` (으)로 설정되어 있는지 확인합니다.
+        2. **에이전트 버전 확인**: 브라우저 에이전트 버전 1.317.0 이상을 실행 중인지 확인하세요. 에이전트 설정 또는 텔레메트리의 `agentVersion` 속성을 통해 이를 확인할 수 있습니다.
+        3. **거부 목록 검토**: 엔드포인트가 거부 목록에 있는 경우 데이터(페이로드 포함)가 캡처되지 않습니다. 브라우저 앱 설정에서 거부 목록 설정을 확인합니다.
+        4. **GraphQL 오류 서명 확인**: 200 상태 코드가 있는 `failures` 모드의 경우 에이전트는 응답 본문에서 오류 표시기를 찾습니다. GraphQL API가 비표준 오류 형식을 사용하는 경우 페이로드가 캡처되지 않을 수 있습니다.
+      </Collapser>
+
+      <Collapser id="truncated" title="페이로드가 잘림">
+        모든 페이로드 속성은 4,096바이트로 엄격하게 제한됩니다. 데이터가 잘리는 경우:
+
+        * 에이전트는 잘림을 나타내기 위해 마지막 4바이트를 `…` (공백이 있는 줄임표)(으)로 바꿉니다.
+        * 캡처된 부분을 여전히 쿼리하고 검색할 수 있습니다.
+        * 4KB를 초과하는 전체 페이로드의 경우, 별도로 로깅하거나 세션 리플레이를 사용하여 전체 네트워크 활동을 확인하는 것을 고려하세요.
+      </Collapser>
+
+      <Collapser id="sensitive-data" title="민감한 데이터가 페이로드에 표시됩니다.">
+        캡처된 페이로드에 민감한 정보가 표시되는 경우:
+
+        1. **난독화 룰 추가**: 수집 전에 데이터를 마스크하려면 [난독화 설정](/docs/browser/new-relic-browser/configuration/obfuscate-browser-agent-data) 에서 정규식 패턴을 생성합니다.
+        2. **기본 제공 패턴 사용**: 브라우저 에이전트에는 `AjaxRequest` 이벤트에 적용되는 신용 카드 및 SSN에 대한 기본 패턴이 포함되어 있습니다.
+        3. **거부 목록 업데이트**: 절대 캡처해서는 안 되는 엔드포인트의 경우, 거부 목록에 추가하여 완전히 제외하세요.
+      </Collapser>
+
+      <Collapser id="performance-impact" title="성능 영향">
+        페이로드 캡처는 각 `AjaxRequest` 이벤트에 데이터를 추가하며, 이로 인해 다음이 증가할 수 있습니다.
+
+        * **네트워크 대역폭**: 페이로드는 수집 페이로드의 일부로 뉴렐릭에 전송됩니다.
+        * **데이터 수집 비용**: 이벤트 데이터가 많을수록 데이터 소비량이 증가합니다.
+        * **에이전트 오버헤드**: 페이로드를 직렬화하고 난독화하는 데 최소한의 CPU 시간이 추가됩니다.
+
+        영향을 최소화하려면:
+
+        * 오류 사례만 캡처하려면 `failures` 모드로 시작합니다.
+        * 난독화 룰을 사용하여 페이로드 크기를 줄이세요. 과도하거나 복잡한 난독화 패턴을 피하세요.
+        * 볼륨 변경 사항을 추적하려면 데이터 수집 대시보드를 모니터링하세요.
+      </Collapser>
+
+      <Collapser id="content-type-filtering" title="콘텐츠 유형 필터링">
+        페이로드 본문은 사람이 읽을 수 있는 콘텐츠 유형에 대해서만 캡처됩니다. 지원되는 유형은 다음과 같습니다:
+
+        * `text/*` (예: `text/html`, `text/plain`)
+        * `application/json`
+        * `application/xml`
+        * `application/xhtml+xml`
+        * `application/ld+json`
+        * `application/yaml`
+        * `application/x-www-form-urlencoded`
+
+        바이너리 콘텐츠 유형(이미지, 비디오, PDF)은 자동으로 제외됩니다. 특정 요청에 대한 페이로드가 표시되지 않는 경우 `Content-Type` 헤더를 확인하여 지원되는 형식인지 확인하세요.
+      </Collapser>
+    </CollapserGroup>
+  </Step>
 </Steps>
 
 <Callout variant="tip">
