@@ -22,7 +22,7 @@ You'll need the following before you set up the collector:
 * Redis running and accessible — version 6.0 or later recommended (4.0 and later works with a reduced metric set)
 * Network connectivity to your Redis endpoint (default `localhost:6379`)
 * Outbound HTTPS (port 443) to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
-* An OpenTelemetry Collector installed on that host — the NRDOT collector, the OpenTelemetry Collector Contrib, or either one running the Prometheus receiver — which you choose in [Installation options](#installation-options)
+* An OpenTelemetry Collector installed on that host — either the NRDOT collector or the OpenTelemetry Collector Contrib — which you choose in [Installation options](#installation-options)
 * For the Prometheus receiver path only, the [redis_exporter](https://github.com/oliver006/redis_exporter) running alongside Redis
 
 Each path's setup steps cover any installation you still need, whether that's the [NRDOT collector](/docs/opentelemetry/nrdot/nrdot-collector/), `otelcol-contrib`, or the redis_exporter.
@@ -47,13 +47,19 @@ Choose the collector distribution that matches your environment:
 
 ### Configure Redis monitoring [#configure-nrdot]
 
-Create the file `/etc/nrdot-collector/redis-collector-config.yaml`:
+This configuration tells the collector how to gather Redis metrics and send them to New Relic. It handles three main jobs:
+
+* **Collect** metrics from Redis through the `redis` receiver
+* **Shape** the data — reduce cardinality, convert counters to deltas, and tag it for entity synthesis
+* **Export** the processed metrics to New Relic over OTLP
+
+Create the collector configuration file:
 
 ```bash
 sudo nano /etc/nrdot-collector/redis-collector-config.yaml
 ```
 
-Paste the following configuration:
+Paste the following configuration, updating the Redis `endpoint` if it isn't `localhost:6379`:
 
 ```yaml
 extensions:
@@ -171,6 +177,23 @@ service:
       exporters: [otlp_http]
 ```
 
+#### What this configuration does [#config-explanation-nrdot]
+
+Each component in the pipeline has a specific job:
+
+| Component | Description |
+|---|---|
+| `health_check` | Exposes a health endpoint on `0.0.0.0:13133` so you can confirm the collector is running. |
+| `redis` receiver | Connects to your Redis endpoint every 10 seconds and reads metrics from the Redis `INFO` command. `server.address` and `server.port` become the entity's identity. |
+| `memory_limiter` | Caps collector memory usage (512 MiB soft limit, 128 MiB spike) to protect the host. |
+| `resource_detection` | Detects the host and adds `host.name` and `host.id`, linking Redis metrics to the underlying host entity. |
+| `attributes/entity_tags` | Stamps `instrumentation.provider: opentelemetry` on every metric so you can scope queries to the OpenTelemetry path. |
+| `cumulativetodelta` | Converts Redis's cumulative counters — commands, keyspace hits, evictions, and so on — to delta values so New Relic charts rates correctly. |
+| `filter/cardinality` | Drops high-cardinality data points (CPU states other than `user` and `sys`, and per-command metrics for uncommon commands) to control ingest cost. |
+| `transform/metadata_nullify` | Clears metric descriptions and units to reduce payload size. |
+| `batch` | Groups data points before export (2,048 per batch, up to 4,096) and flushes at least every 10 seconds to reduce network overhead. |
+| `otlp_http` | Exports the processed metrics to New Relic over OTLP with gzip compression, authenticated with your license key. |
+
 <Callout variant="tip">
 **Want a user-friendly entity name?** By default, your Redis entity is named using the `server.address:server.port` combination. To use a custom human-readable name instead, uncomment the `resource/redis` section in the config above, set your preferred name in the `redis.instance.id` value, and add `resource/redis` to the processors pipeline.
 </Callout>
@@ -181,7 +204,7 @@ service:
 
 ### Optional: Configure authentication [#auth-nrdot]
 
-If your Redis instance requires authentication, add the credentials to the `redis` receiver section:
+By default, the collector connects to Redis without credentials. If your Redis instance requires authentication, add the matching credentials to the `redis` receiver. Choose the option that matches your setup:
 
 <CollapserGroup>
 
@@ -265,7 +288,7 @@ If your Redis uses a self-signed certificate and you want to skip verification (
 
 ### Optional: Collect Redis logs [#logs-nrdot]
 
-Add the filelog receiver to collect Redis log files:
+Beyond metrics, the collector can forward Redis's log file to New Relic so you can correlate log events — restarts, persistence events, or errors — with metric spikes on the same entity. Add the `filelog` receiver to tail the Redis log:
 
 ```yaml
 receivers:
@@ -345,7 +368,7 @@ sudo chmod 644 /var/log/redis/redis-server.log
 
 ### Optional: Collect host metrics [#hostmetrics-nrdot]
 
-Add the hostmetrics receiver to correlate Redis performance with system resources:
+Redis performance often tracks host resource pressure — CPU saturation, memory exhaustion, or disk I/O contention. Add the `hostmetrics` receiver to collect system metrics from the host alongside Redis, so you can correlate the two in New Relic:
 
 ```yaml
 receivers:
@@ -402,7 +425,7 @@ service:
 
 ### Optional: Add custom metadata [#custom-metadata-nrdot]
 
-Add custom resource attributes for tagging and filtering in New Relic:
+Custom resource attributes tag every Redis metric with context — environment, team, or tier — so you can filter and group your data in New Relic. Add a `resource/custom` processor with the tags you want:
 
 ```yaml
 processors:
@@ -527,18 +550,26 @@ Add the following to your existing configuration file:
 
 ### Set environment variables [#env-nrdot]
 
-Create the environment file:
+The collector reads deployment-specific values — your license key, OTLP endpoint, and config path — from an environment file, which keeps secrets out of the config YAML. Create the environment file:
 
 ```bash
 sudo tee /etc/nrdot-collector/nrdot-collector.conf > /dev/null <<'EOF'
 NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
 OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
-# US: https://otlp.nr-data.net
-# EU: https://otlp.eu01.nr-data.net
+# Set the New Relic OTLP endpoint for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 OTELCOL_OPTIONS="--config=/etc/nrdot-collector/redis-collector-config.yaml"
 EOF
 sudo chmod 600 /etc/nrdot-collector/nrdot-collector.conf
 ```
+
+Replace the placeholders with your own values:
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEW_RELIC_LICENSE_KEY` | Yes | Your New Relic [ingest license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Yes | New Relic OTLP endpoint for your region. For more information, see [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
+| `OTELCOL_OPTIONS` | Yes | Points the collector at your Redis configuration file. |
 
 <Callout variant="tip">
 This configuration replaces the default NRDot configuration. If you need to preserve the default NRDot pipelines alongside Redis monitoring, add the default config file as well:
@@ -564,11 +595,15 @@ sudo systemctl restart nrdot-collector
 sudo systemctl status nrdot-collector
 ```
 
-Verify in New Relic:
+The `status` command should show `Active: active (running)`. If it shows `Active: failed`, check the logs with `journalctl -u nrdot-collector -n 100 --no-pager` — the most common causes are YAML indentation errors and an unreachable Redis endpoint.
+
+Then confirm your metrics are reaching New Relic. Wait about a minute after the restart, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
 
 ```sql
 SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.provider = 'opentelemetry' SINCE 5 minutes ago
 ```
+
+A non-zero count confirms Redis metrics are flowing. If it returns `0`, see [Troubleshoot Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
 
 </Step>
 
@@ -622,13 +657,19 @@ After installation, the collector is available as a systemd service named `otelc
 
 ### Configure Redis monitoring [#configure-otel]
 
-Create the file `/etc/otelcol-contrib/redis-collector-config.yaml`:
+This configuration tells the collector how to gather Redis metrics and send them to New Relic. It handles three main jobs:
+
+* **Collect** metrics from Redis through the `redis` receiver
+* **Shape** the data — reduce cardinality, convert counters to deltas, and tag it for entity synthesis
+* **Export** the processed metrics to New Relic over OTLP
+
+Create the collector configuration file:
 
 ```bash
 sudo nano /etc/otelcol-contrib/redis-collector-config.yaml
 ```
 
-Paste the following configuration:
+Paste the following configuration, updating the Redis `endpoint` if it isn't `localhost:6379`:
 
 ```yaml
 extensions:
@@ -746,6 +787,23 @@ service:
       exporters: [otlp_http]
 ```
 
+#### What this configuration does [#config-explanation-otel]
+
+Each component in the pipeline has a specific job:
+
+| Component | Description |
+|---|---|
+| `health_check` | Exposes a health endpoint on `0.0.0.0:13133` so you can confirm the collector is running. |
+| `redis` receiver | Connects to your Redis endpoint every 10 seconds and reads metrics from the Redis `INFO` command. `server.address` and `server.port` become the entity's identity. |
+| `memory_limiter` | Caps collector memory usage (512 MiB soft limit, 128 MiB spike) to protect the host. |
+| `resource_detection` | Detects the host and adds `host.name` and `host.id`, linking Redis metrics to the underlying host entity. |
+| `attributes/entity_tags` | Stamps `instrumentation.provider: opentelemetry` on every metric so you can scope queries to the OpenTelemetry path. |
+| `cumulativetodelta` | Converts Redis's cumulative counters — commands, keyspace hits, evictions, and so on — to delta values so New Relic charts rates correctly. |
+| `filter/cardinality` | Drops high-cardinality data points (CPU states other than `user` and `sys`, and per-command metrics for uncommon commands) to control ingest cost. |
+| `transform/metadata_nullify` | Clears metric descriptions and units to reduce payload size. |
+| `batch` | Groups data points before export (2,048 per batch, up to 4,096) and flushes at least every 10 seconds to reduce network overhead. |
+| `otlp_http` | Exports the processed metrics to New Relic over OTLP with gzip compression, authenticated with your license key. |
+
 <Callout variant="tip">
 **Want a user-friendly entity name?** By default, your Redis entity is named using the `server.address:server.port` combination. To use a custom human-readable name instead, uncomment the `resource/redis` section in the config above, set your preferred name in the `redis.instance.id` value, and add `resource/redis` to the processors pipeline.
 </Callout>
@@ -756,7 +814,7 @@ service:
 
 ### Optional: Configure authentication [#auth-otel]
 
-If your Redis instance requires authentication, add the credentials to the `redis` receiver section:
+By default, the collector connects to Redis without credentials. If your Redis instance requires authentication, add the matching credentials to the `redis` receiver. Choose the option that matches your setup:
 
 <CollapserGroup>
 
@@ -813,7 +871,7 @@ receivers:
 
 ### Optional: Collect Redis logs [#logs-otel]
 
-Add the filelog receiver to collect Redis log files:
+Beyond metrics, the collector can forward Redis's log file to New Relic so you can correlate log events — restarts, persistence events, or errors — with metric spikes on the same entity. Add the `filelog` receiver to tail the Redis log:
 
 ```yaml
 receivers:
@@ -893,7 +951,7 @@ sudo chmod 644 /var/log/redis/redis-server.log
 
 ### Optional: Collect host metrics [#hostmetrics-otel]
 
-Add the hostmetrics receiver to correlate Redis performance with system resources:
+Redis performance often tracks host resource pressure — CPU saturation, memory exhaustion, or disk I/O contention. Add the `hostmetrics` receiver to collect system metrics from the host alongside Redis, so you can correlate the two in New Relic:
 
 ```yaml
 receivers:
@@ -1039,18 +1097,26 @@ Add the following to your existing configuration file:
 
 ### Set environment variables [#env-otel]
 
-Create the environment file:
+The collector reads deployment-specific values — your license key, OTLP endpoint, and config path — from an environment file, which keeps secrets out of the config YAML. Create the environment file:
 
 ```bash
 sudo tee /etc/otelcol-contrib/otelcol-contrib.conf > /dev/null <<'EOF'
 NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
 OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
-# US: https://otlp.nr-data.net
-# EU: https://otlp.eu01.nr-data.net
+# Set the New Relic OTLP endpoint for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 OTELCOL_OPTIONS="--config=/etc/otelcol-contrib/redis-collector-config.yaml"
 EOF
 sudo chmod 600 /etc/otelcol-contrib/otelcol-contrib.conf
 ```
+
+Replace the placeholders with your own values:
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEW_RELIC_LICENSE_KEY` | Yes | Your New Relic [ingest license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Yes | New Relic OTLP endpoint for your region. For more information, see [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
+| `OTELCOL_OPTIONS` | Yes | Points the collector at your Redis configuration file. |
 
 <Callout variant="tip">
 This configuration replaces the default OTel Collector Contrib configuration. If you need to preserve the default config alongside Redis monitoring, add the default config file as well:
@@ -1076,11 +1142,15 @@ sudo systemctl restart otelcol-contrib
 sudo systemctl status otelcol-contrib
 ```
 
-Verify in New Relic:
+The `status` command should show `Active: active (running)`. If it shows `Active: failed`, check the logs with `journalctl -u otelcol-contrib -n 100 --no-pager` — the most common causes are YAML indentation errors and an unreachable Redis endpoint.
+
+Then confirm your metrics are reaching New Relic. Wait about a minute after the restart, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
 
 ```sql
 SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.provider = 'opentelemetry' SINCE 5 minutes ago
 ```
+
+A non-zero count confirms Redis metrics are flowing. If it returns `0`, see [Troubleshoot Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
 
 </Step>
 
@@ -1188,6 +1258,13 @@ ExecStart=/usr/local/bin/redis_exporter --redis.addr=rediss://localhost:6380
 <Step>
 
 ### Create the collector configuration [#config-prometheus]
+
+This configuration scrapes metrics from `redis_exporter` and sends them to New Relic. It handles these main jobs:
+
+* **Scrape** the `redis_exporter` Prometheus endpoint through the `prometheus` receiver
+* **Rename** the Prometheus metrics to New Relic's Redis metric names
+* **Shape** the data — reduce cardinality, convert counters to deltas, and tag it for entity synthesis
+* **Export** the processed metrics to New Relic over OTLP
 
 Create the config file. Use the path appropriate for your collector:
 * NRDOT: `/etc/nrdot-collector/redis-prometheus-config.yaml`
@@ -1397,6 +1474,25 @@ service:
       exporters: [otlp_http]
 ```
 
+#### What this configuration does [#config-explanation-prometheus]
+
+Each component in the pipeline has a specific job:
+
+| Component | Description |
+|---|---|
+| `health_check` | Exposes a health endpoint on `0.0.0.0:13133` so you can confirm the collector is running. |
+| `prometheus` receiver | Scrapes the `redis_exporter` endpoint (default `localhost:9121`) every 10 seconds and drops the exporter's own `go_*`, `process_*`, `promhttp_*`, and `redis_exporter_*` metrics. |
+| `memory_limiter` | Caps collector memory usage (512 MiB soft limit, 128 MiB spike) to protect the host. |
+| `resource_detection` | Detects the host and adds `host.name` and `host.id`, linking Redis metrics to the underlying host entity. |
+| `resource/redis_identity` | Sets `redis.instance.id`, which identifies the Redis entity in New Relic. It's required here because the Prometheus receiver doesn't provide `server.address` or `server.port`. |
+| `attributes/entity_tags` | Stamps `instrumentation.provider: opentelemetry` on every metric so you can scope queries to the OpenTelemetry path. |
+| `metricstransform` | Renames the exporter's Prometheus metrics (for example, `redis_uptime_in_seconds`) to New Relic's Redis names (`redis.uptime`) and adds the `state` label to CPU metrics. |
+| `cumulativetodelta` | Converts cumulative counters — commands, keyspace hits, evictions, and so on — to delta values so New Relic charts rates correctly. |
+| `filter/cardinality` | Drops high-cardinality data points (CPU states other than `user` and `sys`, and per-command metrics for uncommon commands) to control ingest cost. |
+| `transform/metadata_nullify` | Clears metric descriptions and units to reduce payload size. |
+| `batch` | Groups data points before export (2,048 per batch, up to 4,096) and flushes at least every 10 seconds to reduce network overhead. |
+| `otlp_http` | Exports the processed metrics to New Relic over OTLP with gzip compression, authenticated with your license key. |
+
 <Callout variant="important">
 The `resource/redis_identity` processor with `redis.instance.id` is **required** for the Prometheus receiver approach. Unlike the native Redis receiver, the Prometheus receiver does not provide `server.address` or `server.port` — so `redis.instance.id` is the only way to identify your Redis entity in New Relic. Set it to a unique, descriptive name for each instance (e.g., `prod-redis-cache:6379`).
 </Callout>
@@ -1442,7 +1538,7 @@ The cluster entity requires `redis.cluster.name` to be present AND `redis.instan
 
 ### Optional: Collect Redis logs [#logs-prometheus]
 
-Add the filelog receiver to collect Redis log files:
+Beyond metrics, the collector can forward Redis's log file to New Relic so you can correlate log events — restarts, persistence events, or errors — with metric spikes on the same entity. Add the `filelog` receiver to tail the Redis log:
 
 ```yaml
 receivers:
@@ -1504,7 +1600,7 @@ sudo chmod 644 /var/log/redis/redis-server.log
 
 ### Optional: Collect host metrics [#hostmetrics-prometheus]
 
-Add the hostmetrics receiver to correlate Redis performance with system resources:
+Redis performance often tracks host resource pressure — CPU saturation, memory exhaustion, or disk I/O contention. Add the `hostmetrics` receiver to collect system metrics from the host alongside Redis, so you can correlate the two in New Relic:
 
 ```yaml
 receivers:
@@ -1560,7 +1656,13 @@ service:
 
 ### Set environment variables and config path [#env-prometheus]
 
-Configure environment variables and point to your Redis Prometheus config.
+The collector reads deployment-specific values — your license key, OTLP endpoint, and config path — from an environment file, which keeps secrets out of the config YAML. Set these for whichever collector you installed:
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEW_RELIC_LICENSE_KEY` | Yes | Your New Relic [ingest license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Yes | New Relic OTLP endpoint for your region. For more information, see [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
+| `OTELCOL_OPTIONS` | Yes | Points the collector at your Redis Prometheus configuration file. |
 
 For **NRDOT**:
 
@@ -1568,8 +1670,8 @@ For **NRDOT**:
 sudo tee /etc/nrdot-collector/nrdot-collector.conf > /dev/null <<'EOF'
 NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
 OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
-# US: https://otlp.nr-data.net
-# EU: https://otlp.eu01.nr-data.net
+# Set the New Relic OTLP endpoint for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 OTELCOL_OPTIONS="--config=/etc/nrdot-collector/redis-prometheus-config.yaml"
 EOF
 sudo chmod 600 /etc/nrdot-collector/nrdot-collector.conf
@@ -1591,8 +1693,8 @@ For **OTel Collector Contrib**:
 sudo tee /etc/otelcol-contrib/otelcol-contrib.conf > /dev/null <<'EOF'
 NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
 OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
-# US: https://otlp.nr-data.net
-# EU: https://otlp.eu01.nr-data.net
+# Set the New Relic OTLP endpoint for your region.
+# See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
 OTELCOL_OPTIONS="--config=/etc/otelcol-contrib/redis-prometheus-config.yaml"
 EOF
 sudo chmod 600 /etc/otelcol-contrib/otelcol-contrib.conf
@@ -1622,11 +1724,15 @@ sudo systemctl restart otelcol-contrib
 sudo systemctl status otelcol-contrib
 ```
 
-Verify in New Relic:
+The `status` command should show `Active: active (running)`. If it shows `Active: failed`, check the logs with `journalctl -u nrdot-collector -n 100 --no-pager` (or `otelcol-contrib`) — the most common causes are YAML indentation errors, an unreachable `redis_exporter`, or the exporter not running.
+
+Then confirm your metrics are reaching New Relic. Wait about a minute after the restart, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
 
 ```sql
 SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.provider = 'opentelemetry' SINCE 5 minutes ago
 ```
+
+A non-zero count confirms Redis metrics are flowing. If it returns `0`, see [Troubleshoot Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
 
 </Step>
 
