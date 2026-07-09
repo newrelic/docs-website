@@ -21,7 +21,7 @@ If you are currently running Node.js 20, you must **upgrade your Node.js version
 
 As of [**May 18th, 2026**](https://docs.newrelic.com/docs/release-notes/agent-release-notes/nodejs-release-notes/), current New Relic Node agents do not support Node.js 20, and could lead to potential security vulnerabilities. For a full list, please see the [Node20 documentation](https://nodejs.org/en/about/eol).
 
-***Reminder:** We encourage all customers to regularly update to the most current versions of New Relic agents and supported runtimes to maintain optimal functionality and a hardened security posture.*
+**Reminder:** We encourage all customers to regularly update to the most current versions of New Relic agents and supported runtimes to maintain optimal functionality and a hardened security posture.
 
 ## Impact and upgrade sequence
 

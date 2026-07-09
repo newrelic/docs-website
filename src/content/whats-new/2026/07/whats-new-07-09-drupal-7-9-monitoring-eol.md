@@ -19,7 +19,7 @@ Both Drupal 7 and 9 have reached their official end-of-life status (see [here](h
 
 Before the support end date, please make sure to **upgrade to Drupal 10 or newer**. Only after upgrading to Drupal 10 or newer, then please make sure to upgrade to the most current version of the [PHP Agent](https://docs.newrelic.com/docs/apm/agents/php-agent/getting-started/introduction-new-relic-php/).
 
-***Reminder:** We encourage all customers to regularly update to the most current versions of New Relic agents and supported runtimes to maintain optimal functionality and a hardened security posture.*
+**Reminder:** We encourage all customers to regularly update to the most current versions of New Relic agents and supported runtimes to maintain optimal functionality and a hardened security posture.
 
 ## Impact
 
