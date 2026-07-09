@@ -9,7 +9,7 @@ We are committed to continually improving user experience and the security with 
 
 ## What's changing
 
-The New Relic Node.js Agent will no longer support Node.js 20 runtime because the Node.js 20 runtime reached its official End-of-Life effective **4/30/2026** (see [here](https://nodejs.org/en/about/eol)).
+The New Relic Node.js Agent will no longer support Node.js 20 runtime because the Node.js 20 runtime reached its official End-of-Life effective **4/30/2026** (see the [Node.js release and end-of-life schedule](https://nodejs.org/en/about/eol)).
 
 ## Why
 
@@ -27,7 +27,7 @@ As of [**May 18th, 2026**](https://docs.newrelic.com/docs/release-notes/agent-re
 
 To prevent reporting interruptions, you must complete the following upgrade steps in the order listed below. Upgrading the agent before updating your Node.js runtime may cause your agent to misreport or stop sending data entirely.
 
-1. **Upgrade Node.js:** Update your environment to Node.js version 22 or newer (see [here](https://nodejs.org/en/about/previous-releases)).
+1. **Upgrade Node.js:** Update your environment to Node.js version 22 or newer (see [Node.js previous releases](https://nodejs.org/en/about/previous-releases)).
 2. **Upgrade the New Relic Node.js Agent:** Once your Node.js version is updated, upgrade to [Node.js Agent v14.0.0](https://docs.newrelic.com/docs/release-notes/agent-release-notes/nodejs-release-notes/node-agent-14-0-0/) or newer.
 
 We understand that migrating systems can be challenging, and our team is here to assist. If you have questions regarding these transitions or need help identifying impacted accounts, please reach out to your account team or [**contact support**](https://docs.newrelic.com/docs/new-relic-solutions/solve-common-issues/find-help-get-support/).
