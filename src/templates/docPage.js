@@ -91,7 +91,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     });
   }, [tableOfContents]);
 
-  const { title, metaDescription, tags, translationType } = frontmatter;
+  const { title, metaDescription, tags, translationType, hideTOC } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
@@ -189,7 +189,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
               }
             `}
           >
-            <TableOfContents headings={headings} />
+            {!hideTOC && <TableOfContents headings={headings} />}
             <ComplexFeedback pageTitle={title} />
             <ContributingGuidelines
               pageTitle={title}
@@ -233,6 +233,7 @@ export const pageQuery = graphql`
         metaDescription
         tags
         translationType
+        hideTOC
       }
       fields {
         fileRelativePath
