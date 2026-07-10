@@ -15,8 +15,8 @@ This retirement is part of the ongoing work to improve our platform and streamli
 
 The following API endpoints will be permanently retired on July 31, 2027:
 
-* `https://api.newrelic.com/v2/`: US datacenter (including the Alerts endpoints, `/v2/alerts*` but excluding `alerts_policies` and `alerts_conditions`)
-* `https://api.eu.newrelic.com/v2/`: EU datacenter (including the Alerts endpoints, `/v2/alerts*` but excluding `alerts_policies` and `alerts_conditions`)
+* `https://api.newrelic.com/v2/`: US datacenter (including the Alerts endpoints, `/v2/alerts*`, but excluding the retained conditions and policies namespaces listed under **Not impacted** below)
+* `https://api.eu.newrelic.com/v2/`: EU datacenter (including the Alerts endpoints, `/v2/alerts*`, but excluding the retained conditions and policies namespaces listed under **Not impacted** below)
 * `https://rpm.newrelic.com/deployments`: Legacy Deployments v0 API
 
 ### Alerts
@@ -32,7 +32,14 @@ With NerdGraph now supporting many functions, we recommend beginning your migrat
 
 **Not impacted**:
 
-   * alerts_policies and alerts_conditions are not affected — no action needed. For example, https://api.newrelic.com/v2/alerts/alerts_policies are not impacted
+   * The following Alerts conditions and policies namespaces are **not** affected — no action needed:
+       * `/alerts_policies/*`
+       * `/alerts_conditions/*`
+       * `/alerts_nrql_conditions/*`
+       * `/alerts_external_service_conditions/*`
+       * `/alerts_synthetics_conditions/*`
+       * `/alerts_location_failure_conditions/policies/*`
+       * `/alerts_entity_conditions/*`
    * The NerdGraph GraphQL APIs hosted on the same domain (`https://api.newrelic.com/graphql`, `https://api.eu.newrelic.com/graphql`) are not affected
    * New Relic agent communication and data ingest are not affected
 
@@ -88,3 +95,5 @@ After July 31, 2027, any integrations, scripts, or tools that call the REST API 
 ## Additional support
 
 If you need assistance migrating your integrations, please contact [New Relic Support](https://support.newrelic.com/s/). Our support team can help you identify equivalent NerdGraph queries for your specific use cases.
+
+We understand that migrating your integration is challenging, and our team is here to assist. If you have questions regarding these transitions or need help identifying impacted accounts, please reach out to your account team or [**contact support**](https://docs.newrelic.com/docs/new-relic-solutions/solve-common-issues/find-help-get-support/).
