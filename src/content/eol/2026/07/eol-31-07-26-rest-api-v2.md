@@ -94,6 +94,4 @@ After July 31, 2027, any integrations, scripts, or tools that call the REST API 
 
 ## Additional support
 
-If you need assistance migrating your integrations, please contact [New Relic Support](https://support.newrelic.com/s/). Our support team can help you identify equivalent NerdGraph queries for your specific use cases.
-
 We understand that migrating your integration is challenging, and our team is here to assist. If you have questions regarding these transitions or need help identifying impacted accounts, please reach out to your account team or [**contact support**](https://docs.newrelic.com/docs/new-relic-solutions/solve-common-issues/find-help-get-support/).
