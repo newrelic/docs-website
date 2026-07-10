@@ -1,0 +1,174 @@
+---
+title: 하이브리드 에이전트를 사용한 Next.js 계측
+tags:
+  - Agents
+  - Nodejs agent
+  - Extend your instrumentation
+metaDescription: The New Relic Node.js agent can intercept native Next.js OpenTelemetry spans and produce necessary telemetry within New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<DNT>Next.js</DNT> 애플리케이션을 모니터하는 권장 방법은 에이전트의 내장된 <DNT>Next.js</DNT> 계측에 의존하기보다는 <DNT>Next.js</DNT> 에서 내보낸 기본 <DNT>OpenTelemetry</DNT> 스팬과 <DNT>Node.js</DNT> 에이전트의 하이브리드 에이전트 기능을 함께 사용하는 것입니다. 이 페이지에서는 하이브리드 에이전트를 활성화하는 방법을 설명하고, 예제 애플리케이션을 가리키며, 브라우저 에이전트를 주입하고 cloud 제공업체에 배포하는 것에 대한 일반적인 질문을 다룹니다.
+
+<Callout variant="important">
+  <DNT>Next.js OpenTelemetry</DNT>에 대한 네이티브 지원을 위해서는 <DNT>Node.js</DNT> 에이전트 버전 [14.1.0](https://github.com/newrelic/node-newrelic/releases/tag/v14.1.0) 이상이 필요합니다.하이브리드 에이전트는 <DNT>Node.js</DNT> 런타임만 계측하며 <DNT>Next.js</DNT> 엣지 런타임은 지원하지 않습니다. 이것이 바로 아래의 `register()` 예제가 `NEXT_RUNTIME`가 `nodejs`인 경우가 아니면 조기에 종료되는 이유입니다.
+</Callout>
+
+<DNT>Node.js</DNT> 에이전트는 2022년부터 [@newrelic/next](https://github.com/newrelic/newrelic-node-nextjs/releases/tag/v0.1.0)를 통해 <DNT>Next.js</DNT> 계측을 제공해 왔으며, 해당 계측은 [12.0.0](https://github.com/newrelic/node-newrelic/releases/tag/v12.0.0)에서 에이전트에 번들로 제공되었습니다. 하지만 이는 제한적이었으며 <DNT>[Vercel](https://vercel.com/frameworks/nextjs)</DNT>, <DNT>[AWS Amplify](https://aws.amazon.com/amplify/)</DNT>, <DNT>[Netlify](https://www.netlify.com/with/nextjs/)</DNT> 또는 <DNT>[Azure Static Web Apps](https://azure.microsoft.com/en-us/products/app-service/static)</DNT>와 같은 cloud 제공업체에 배포할 때 작동하지 않았습니다. [하이브리드 에이전트](/docs/apm/agents/manage-apm-agents/opentelemetry-api-support)의 도입으로 <DNT>Node.js</DNT> 에이전트는 <DNT>OpenTelemetry</DNT> 스팬을 가로채고 뉴렐릭 경험을 주도하는 텔레메트리를 합성할 수 있습니다. 기본 <DNT>Next.js OpenTelemetry</DNT> 계측은 [14.1.0](https://github.com/newrelic/node-newrelic/releases/tag/v14.1.0)에 추가되었습니다.
+
+## 하이브리드 에이전트 활성화 [#enable]
+
+하이브리드 에이전트를 활성화하고 <DNT>Next.js</DNT>와(과) 충돌하는 에이전트 계측을 비활성화하려면 `newrelic.js`에서 다음 설정을 지정하세요:
+
+```js
+'use strict'
+
+exports.config = {
+  app_name: ['Your application name'],
+  license_key: 'your-license-key',
+  opentelemetry: {
+    enabled: true
+  },
+  instrumentation: {
+    http: {
+      enabled: false
+    },
+    next: {
+      enabled: false
+    },
+    undici: {
+      enabled: false
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  기본 `fetch` 호출을 수행하는 경우 위와 같이 `undici` 계측을 비활성화해야 합니다. <DNT>Next.js</DNT> 은(는) `fetch` 을(를) 래핑하고 자체 클라이언트 스팬을 생성하므로 `undici` 을(를) 활성화된 상태로 두면 트레이스에 중복된 클라이언트 스팬이 생성됩니다.
+</Callout>
+
+환경 변수를 사용하려는 경우:
+
+```ini
+NEW_RELIC_LICENSE_KEY=<your-license-key>
+NEW_RELIC_APP_NAME=<your-application-name>
+NEW_RELIC_OPENTELEMETRY_ENABLED=true
+NEW_RELIC_INSTRUMENTATION_NEXT_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_HTTP_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_UNDICI_ENABLED=false
+```
+
+또한 애플리케이션의 나머지 부분보다 먼저 에이전트를 로드하려면 `instrumentation.js` 파일(<DNT>TypeScript</DNT>의 경우 `instrumentation.ts`)을 추가해야 합니다:
+
+```js
+async function loadNewRelicAgent() {
+  const { default: newrelic } = await import('newrelic')
+  const agent = newrelic?.agent
+  if (!agent || agent.collector?.isConnected?.()) {
+    return
+  }
+
+  await new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer)
+      agent.removeListener('started', done)
+      agent.removeListener('errored', done)
+      resolve()
+    }
+    const timer = setTimeout(done, 8000)
+    agent.once('started', done)
+    agent.once('errored', done)
+  })
+}
+
+export async function register() {
+  // The agent only instruments the Node.js runtime, not the edge runtime.
+  if (process.env.NEXT_RUNTIME !== 'nodejs') {
+    return
+  }
+
+  await loadNewRelicAgent()
+}
+```
+
+이 설정에 대한 더 완전한 예제는 <DNT>Next.js App Router</DNT> [예제 애플리케이션](https://github.com/newrelic/newrelic-node-examples/tree/9fa74c516926014fa33758cbd6e3737334ed4f98/nextjs/nextjs-app-router) 을 확인하세요.
+
+## <DNT>Next.js</DNT> 계측 <DNT>Vercel</DNT> [#vercel]
+
+<DNT>Vercel</DNT> 에 배포하면 정적 페이지와 동적 페이지가 서로 다른 환경으로 분리됩니다. 에이전트 설정을 로드할 때 `.env` 및 `newrelic.js` 에 의존하는 대신, <DNT>**Environment Variables**</DNT> 아래의 <DNT>Vercel</DNT> 콘솔에서 다음 [환경 변수](https://vercel.com/docs/environment-variables) 를 정의하세요:
+
+```ini
+NEW_RELIC_LICENSE_KEY=<your-license-key>
+NEW_RELIC_APP_NAME=<your-application-name>
+NEW_RELIC_OPENTELEMETRY_ENABLED=true
+NEW_RELIC_INSTRUMENTATION_NEXT_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_HTTP_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_UNDICI_ENABLED=false
+```
+
+위에서 설명한 `instrumentation.js` 파일이 여전히 필요하며, <DNT>Vercel</DNT>에서 설정의 소스만 변경됩니다.
+
+이 설정에 대한 더 완전한 예제는 <DNT>Next.js App Router</DNT> [예제 애플리케이션](https://github.com/newrelic/newrelic-node-examples/tree/9fa74c516926014fa33758cbd6e3737334ed4f98/nextjs/nextjs-app-router) 을 확인하세요.
+
+## 브라우저 에이전트 주입 [#browser-agent]
+
+<DNT>Next.js</DNT> 은(는) 풀스택 프레임워크이므로 대부분의 고객은 클라이언트와 서버 모두에서 옵저버빌리티를 원합니다. 다음 예제는 모든 페이지에 뉴렐릭 브라우저 에이전트를 주입하는 방법을 보여줍니다.
+
+`app/` 내의 루트 레이아웃 파일을 편집하고 다음을 추가하세요:
+
+```js
+import Script from 'next/script';
+
+async function loadNewRelicAgent() {
+  const { default: newrelic } = await import('newrelic')
+  const agent = newrelic?.agent
+  if (!agent || agent.collector?.isConnected?.()) {
+    return newrelic
+  }
+
+  await new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer)
+      agent.removeListener('started', done)
+      agent.removeListener('errored', done)
+      resolve()
+    }
+    const timer = setTimeout(done, 8000)
+    agent.once('started', done)
+    agent.once('errored', done)
+  })
+
+  return newrelic
+}
+
+export default async function RootLayout({
+  children,
+}){
+  // Wait for the agent to connect before requesting the browser timing header.
+  const newrelic = await loadNewRelicAgent()
+  const browserTimingHeader = newrelic.getBrowserTimingHeader({
+    hasToRemoveScriptWrapper: true,
+    allowTransactionlessInjection: true,
+  })
+
+  return (
+    <html lang="en">
+      <body className="min-h-full flex flex-col">{children}</body>
+      <Script
+        // Inline scripts require an id.
+        // See https://nextjs.org/docs/app/building-your-application/optimizing/scripts#inline-scripts
+        id='nr-browser-agent'
+        // "beforeInteractive" loads the script before the page becomes interactive.
+        strategy='beforeInteractive'
+        // The script body is the browser timing header generated above. Because
+        // `hasToRemoveScriptWrapper` is true, the header is raw JavaScript with no
+        // surrounding <script> tag, so we inject it with `dangerouslySetInnerHTML`.
+        dangerouslySetInnerHTML={{ __html: browserTimingHeader }}
+      />
+    </html>
+  );
+}
+```
+
+이 설정에 대한 더 완전한 예제는 <DNT>Next.js App Router</DNT> [예제 애플리케이션](https://github.com/newrelic/newrelic-node-examples/tree/9fa74c516926014fa33758cbd6e3737334ed4f98/nextjs/nextjs-app-router) 을 확인하세요.
