@@ -91,7 +91,13 @@ const BasicDoc = ({ data, location, pageContext }) => {
     });
   }, [tableOfContents]);
 
-  const { title, metaDescription, tags, translationType, hideTOC } = frontmatter;
+  const {
+    title,
+    metaDescription,
+    tags,
+    translationType,
+    hideTOC,
+  } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
