@@ -1,0 +1,588 @@
+---
+title: NRDOTによるLinux RDS MSSQLの監視
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Linux
+  - RDS
+  - AWS
+metaDescription: Set up Microsoft SQL Server monitoring with NRDOT collector on Linux for AWS RDS SQL Server instances
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/)に従ってプレビューの一部として提供されています。
+</Callout>
+
+Linux環境でNRDOTコレクターを使用してMicrosoft SQL Server監視を設定し、AWS RDS for SQL Serverインスタンスをモニターします。
+
+<Steps>
+  <Step>
+    ### 前提条件 [#prerequisites]
+
+    ご使用の環境がNew Relicの[互換性および前提条件](/docs/opentelemetry/database/mssql/compatibility)を満たしていることを確認してください。
+  </Step>
+
+  <Step>
+    ### NRDOT Collectorのセットアップ [#setup-collector]
+
+    RDS SQL Serverインスタンスに接続できるLinux EC2インスタンスまたはローカルのLinuxマシンにNRDOT Collectorをインストールします。
+
+    <Callout variant="important">
+      RDS SQL Serverインスタンスへのネットワーク接続があるEC2インスタンスまたはローカルマシンにNRDOT Collectorをインストールします。セキュリティグループがポート1433（またはカスタムポート）でのインバウンド接続を許可していることを確認してください。
+    </Callout>
+
+    1. **Debian/Ubuntu**
+
+    **AMD64（x86\_64）アーキテクチャーの場合：**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+    **ARM64アーキテクチャーの場合：**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+    2. **RHEL/CentOS**
+
+    **AMD64（x86\_64）アーキテクチャーの場合：**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+    ```
+
+    **ARM64アーキテクチャーの場合：**
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+    ```
+  </Step>
+
+  <Step>
+    ### データベースユーザーを構成する [#configure-user]
+
+    RDS SQL Serverインスタンスに接続し、適切な権限を持つ`newrelic`監視ユーザーを作成します。
+
+    1. Linuxインスタンス上に以下の内容で`nr-grant-permission-rds.sql`という名前のファイルを作成します：
+
+    ```sql
+    USE [master];
+    GO
+    CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
+    GO
+    -- Instance-level permissions
+    GRANT VIEW SERVER STATE TO [newrelic];
+    GRANT VIEW ANY DEFINITION TO [newrelic];
+    GRANT VIEW ANY DATABASE TO [newrelic];
+    GO
+    -- Grant read access privileges to all user databases
+    DECLARE @name SYSNAME;
+    DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name]
+    FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+    AND [state] = 0; -- Only online databases
+    OPEN db_cursor;
+    FETCH NEXT FROM db_cursor INTO @name;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+      BEGIN TRY
+        EXEC('USE [' + @name + '];
+                IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+                    CREATE USER [newrelic] FOR LOGIN [newrelic];');
+      END TRY
+      BEGIN CATCH
+        PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+      END CATCH
+      FETCH NEXT FROM db_cursor INTO @name;
+    END
+    CLOSE db_cursor;
+    DEALLOCATE db_cursor;
+    GO
+    ```
+
+    2. RDSマスターユーザーの認証情報を使用してスクリプトを実行します。`<YOUR-RDS-ENDPOINT>`を実際のRDSエンドポイントに、`<Your_Master_Password>`をマスターパスワードに置き換えます：
+
+    ```bash
+    sqlcmd -S <YOUR-RDS-ENDPOINT> -U <YOUR_MASTER_USER> -P '<Your_Master_Password>' -C -i nr-grant-permission-rds.sql
+    ```
+
+    3. *（オプション）*ユーザーが正常に作成されたことを確認します：
+
+    ```bash
+    sqlcmd -S <YOUR-RDS-ENDPOINT> -U <YOUR_MASTER_USER> -P '<Your_Master_Password>' -C -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = 'newrelic';"
+    ```
+
+    <Callout variant="tip">
+      **RDSの場合：**RDSマスターユーザー名とパスワードを使用して、これらのコマンドを実行します。スクリプトは、AWSによって予約されている`rdsadmin`データベースを自動的に除外します。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorを構成する [#configure-collector]
+
+    監視ニーズに基づいて設定タイプを選択してください：
+
+    <CollapserGroup>
+      <Collapser id="standard" title="Standard configuration">
+        This configuration focuses on essential database monitoring with core metrics.
+
+        1. **設定ファイルを作成します。**ファイル名は`mssql-config.yaml`である必要があります：
+
+           ```bash
+           sudo nano /etc/nrdot-collector/mssql-config.yaml
+           ```
+
+        2. **前のステップで作成したmssql-config.yamlファイルに以下の設定コンテンツを追加します**。
+
+        ```yaml
+        receivers:
+          nrsqlserver:
+            collection_interval: 15s
+            # Connection details - Use your RDS endpoint
+            username: <YOUR_USERNAME>
+            password: <YOUR_NEWRELIC_PASSWORD>
+            server: <YOUR-RDS-ENDPOINT>
+            port: 1433
+
+            # Enable comprehensive database metrics
+            metrics:
+              sqlserver.database.count:
+                enabled: true
+              sqlserver.database.io:
+                enabled: true
+              sqlserver.database.latency:
+                enabled: true
+              sqlserver.database.operations:
+                enabled: true
+              sqlserver.database.tempdb.space:
+                enabled: true
+              sqlserver.database.tempdb.version_store.size:
+                enabled: true
+              sqlserver.deadlock.rate:
+                enabled: true
+              sqlserver.os.wait.duration:
+                enabled: true
+              sqlserver.processes.blocked:
+                enabled: true
+              sqlserver.memory.grants.pending.count:
+                enabled: true
+              sqlserver.database.file.size:
+                enabled: true
+              sqlserver.memory.area:
+                enabled: true
+
+            # Enable top query and query sample log collection
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+
+            # Top query collection configuration
+            top_query_collection:
+              lookback_time: 60s
+              max_query_sample_count: 1000
+              top_query_count: 250
+              collection_interval: 60s
+
+            collect_full_query_text: true
+            allowed_comment_keys:
+              - nr_service_guid
+
+            # Query sample collection configuration
+            query_sample_collection:
+              max_rows_per_query: 100
+
+        processors:
+          memory_limiter:
+            check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+            limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+            spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+          batch:
+
+        exporters:
+          otlphttp:
+            endpoint: <YOUR_OTLP_ENDPOINT>
+            headers:
+              api-key: <YOUR_LICENSE_KEY>
+            tls:
+              insecure: false
+            compression: gzip
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+
+          pipelines:
+            metrics:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+
+            logs:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+        ```
+      </Collapser>
+
+      <Collapser id="full" title="Full-feature configuration">
+        This configuration provides comprehensive database monitoring with all available metrics.
+
+        1. **設定ファイルを作成します。**ファイル名は`mssql-config.yaml`である必要があります：
+
+           ```bash
+           sudo nano /etc/nrdot-collector/mssql-config.yaml
+           ```
+
+        2. **前のステップで作成したmssql-config.yamlファイルに以下の設定コンテンツを追加します**。
+
+        <Callout variant="important">
+          既存のNRDOT Collectorユーザーである場合は、設定を既存の`mssql-config.yaml`ファイルとマージしてください。これには、現在の設定を保持したまま、MSSQLデータベース監視用の新しいレシーバー、プロセッサー、エクスポーターを追加することが含まれます。
+        </Callout>
+
+        ```yaml
+        receivers:
+          nrsqlserver:
+            collection_interval: 15s
+            username: <YOUR_USERNAME>
+            password: <YOUR_PASSWORD>
+            server: <YOUR-RDS-ENDPOINT>
+            port: 1433
+
+            metrics:
+              # Database
+              sqlserver.database.count:
+                enabled: true
+              sqlserver.database.file.size:
+                enabled: true
+              sqlserver.database.io:
+                enabled: true
+              sqlserver.database.latency:
+                enabled: true
+              sqlserver.database.operations:
+                enabled: true
+              sqlserver.database.page_file.size:
+                enabled: true
+              sqlserver.database.transactions.active:
+                enabled: true
+              sqlserver.database.backup_or_restore.rate:
+                enabled: true
+              sqlserver.database.execution.errors:
+                enabled: true
+              sqlserver.database.full_scan.rate:
+                enabled: true
+              sqlserver.database.tempdb.space:
+                enabled: true
+              sqlserver.database.tempdb.version_store.size:
+                enabled: true
+              # Security / Principals
+              sqlserver.database.principals.count:
+                enabled: true
+              sqlserver.database.principals.old:
+                enabled: true
+              sqlserver.database.principals.orphaned_users:
+                enabled: true
+              sqlserver.database.principals.recently_created:
+                enabled: true
+              sqlserver.database.role.members.count:
+                enabled: true
+              sqlserver.database.role.memberships.count:
+                enabled: true
+              sqlserver.database.role.permission.risk_level:
+                enabled: true
+              sqlserver.database.role.roles.count:
+                enabled: true
+              sqlserver.database.security.role_membership.count:
+                enabled: true
+              sqlserver.server.security.principal.count:
+                enabled: true
+              sqlserver.server.security.role_membership.count:
+                enabled: true
+              # Locks
+              sqlserver.lock.by_mode.count:
+                enabled: true
+              sqlserver.lock.by_resource.count:
+                enabled: true
+              sqlserver.lock.timeout.rate:
+                enabled: true
+              sqlserver.lock.wait.count:
+                enabled: true
+              sqlserver.lock.wait.rate:
+                enabled: true
+              sqlserver.deadlock.rate:
+                enabled: true
+              # Transactions
+              sqlserver.transaction.delay:
+                enabled: true
+              sqlserver.transaction.mirror_write.rate:
+                enabled: true
+              sqlserver.transaction.longest_running_time:
+                enabled: true
+              sqlserver.transaction.version_cleanup.rate:
+                enabled: true
+              sqlserver.transaction.version_generation.rate:
+                enabled: true
+              # Memory
+              sqlserver.memory.area:
+                enabled: true
+              sqlserver.memory.cache.object.count:
+                enabled: true
+              sqlserver.memory.grants.pending.count:
+                enabled: true
+              sqlserver.memory.page.count:
+                enabled: true
+              sqlserver.memory.target:
+                enabled: true
+              sqlserver.memory.usage:
+                enabled: true
+              # OS
+              sqlserver.os.disk.size:
+                enabled: true
+              sqlserver.os.memory.usage:
+                enabled: true
+              sqlserver.os.memory.utilization:
+                enabled: true
+              sqlserver.os.scheduler.runnable_tasks.count:
+                enabled: true
+              sqlserver.os.wait.duration:
+                enabled: true
+              sqlserver.os.wait.tasks.count:
+                enabled: true
+              # Pages / Buffer
+              sqlserver.page.buffer_cache.hit_ratio:
+                enabled: true
+              sqlserver.page.buffer_cache.free_list.stalls.rate:
+                enabled: true
+              sqlserver.page.life_expectancy:
+                enabled: true
+              sqlserver.page.lookup.rate:
+                enabled: true
+              # Batch / Compilation
+              sqlserver.batch.request.rate:
+                enabled: true
+              sqlserver.batch.sql_compilation.rate:
+                enabled: true
+              sqlserver.batch.sql_recompilation.rate:
+                enabled: true
+              sqlserver.batch.compilation.utilization:
+                enabled: true
+              sqlserver.batch.page_split.utilization:
+                enabled: true
+              sqlserver.recompilation.ratio:
+                enabled: true
+              sqlserver.parameterization.rate:
+                enabled: true
+              sqlserver.plan.execution.rate:
+                enabled: true
+              sqlserver.attention.rate:
+                enabled: true
+              # Processes / Connections
+              sqlserver.process.count:
+                enabled: true
+              sqlserver.processes.blocked:
+                enabled: true
+              sqlserver.user.connection.count:
+                enabled: true
+              sqlserver.login.rate:
+                enabled: true
+              sqlserver.logout.rate:
+                enabled: true
+              # Thread Pool
+              sqlserver.thread_pool.tasks.count:
+                enabled: true
+              sqlserver.thread_pool.workers.count:
+                enabled: true
+              sqlserver.thread_pool.workers.max:
+                enabled: true
+              sqlserver.thread_pool.workers.utilization:
+                enabled: true
+              # TempDB
+              sqlserver.tempdb.allocation.wait_time.total:
+                enabled: true
+              sqlserver.tempdb.contention.waiters.count:
+                enabled: true
+              sqlserver.tempdb.data_files.count:
+                enabled: true
+              sqlserver.tempdb.file.size:
+                enabled: true
+              sqlserver.tempdb.space.usage:
+                enabled: true
+              # Latch
+              sqlserver.latch.superlatch.count:
+                enabled: true
+              sqlserver.latch.superlatch.transition.rate:
+                enabled: true
+              sqlserver.latch.wait.rate:
+                enabled: true
+              sqlserver.latch.wait_time.avg:
+                enabled: true
+              sqlserver.latch.wait_time.total:
+                enabled: true
+              # Index
+              sqlserver.index.search.rate:
+                enabled: true
+              # Resource Pool
+              sqlserver.resource_pool.disk.operations:
+                enabled: true
+              sqlserver.resource_pool.disk.throttled.read.rate:
+                enabled: true
+              sqlserver.resource_pool.disk.throttled.write.rate:
+                enabled: true
+              # Replica / Always-On
+              sqlserver.replica.data.rate:
+                enabled: true
+              # Server Properties
+              sqlserver.computer.uptime:
+                enabled: true
+              sqlserver.cpu.count:
+                enabled: true
+              # Tables
+              sqlserver.table.count:
+                enabled: true
+              # Errors
+              sqlserver.kill_connection.error.rate:
+                enabled: true
+
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+
+            top_query_collection:
+              lookback_time: 60s
+              max_query_sample_count: 1000
+              top_query_count: 250
+              collection_interval: 60s
+
+            collect_full_query_text: true
+            allowed_comment_keys:
+              - nr_service_guid
+
+            query_sample_collection:
+              max_rows_per_query: 100
+
+        processors:
+          memory_limiter:
+            check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+            limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-500}
+            spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+          batch:
+
+
+        exporters:
+          otlphttp:
+            endpoint: https://otlp.nr-data.net:4318
+            headers:
+              api-key: <YOUR_LICENSE_KEY>
+            tls:
+              insecure: false
+            compression: gzip
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+
+          pipelines:
+            metrics:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+
+            logs:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    ### 設定パラメーター
+
+    以下の表は、nrsqlserverレシーバーの主要な設定パラメーターについて説明しています：
+
+    | パラメータ                      | 説明                                                                                                                                      |
+    | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_USERNAME>`          | 認証用のデータベースユーザー名を入力してください                                                                                                                |
+    | `<YOUR_NEWRELIC_PASSWORD>` | The password you set for the newrelic user                                                                                              |
+    | `<YOUR-RDS-ENDPOINT>`      | Your RDS SQL Server endpoint (e.g., `mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com`)                                           |
+    | `port`                     | SQL Serverのポート番号を入力します。デフォルト値は1433です。                                                                                                   |
+    | `<YOUR_OTLP_ENDPOINT>`     | New Relic OTLP エンドポイントを入力します。詳細については、 [New Relic OTLP エンドポイントのドキュメント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)を参照してください。 |
+    | `<YOUR_LICENSE_KEY>`       | New Relicのライセンスキーを入力してください。                                                                                                             |
+
+    <Callout variant="tip">
+      **注意：**`max_concurrent_queries`オプションは、各スクレイプサイクル中にレシーバーがSQL Serverに対して並列に実行するメトリクスクエリの数を制御します。
+
+      ```yaml
+      receivers:
+        nrsqlserver:
+          max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+      ```
+    </Callout>
+
+    <Callout variant="tip">
+      **注：**利用可能なすべてのメトリクスを有効にする場合は、メモリリミッターによるデータのドロップを防ぐために、`limit_mib`の値を増やしてください（例：1000）。
+    </Callout>
+  </Step>
+
+  <Step>
+    ### コレクターの設定ファイルを更新する [#update-config-rds-linux]
+
+    1. **次のコマンドを実行して、サービスの設定を編集します：**
+
+       ```bash
+       sudo nano /etc/nrdot-collector/nrdot-collector.conf
+       ```
+
+    2. **新しいmssql-config.yamlファイルを指すように設定パスを更新します：**
+
+       ```bash
+       OTELCOL_CONFIG="/etc/nrdot-collector/mssql-config.yaml"
+       ```
+  </Step>
+
+  <Step>
+    ### NRDOT Collectorの設定の検証 [#validate]
+
+    NRDOT Collectorの設定を検証して、正しくフォーマットされ、適切に機能することを確認します。
+
+    ```bash
+    sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mssql-config.yaml
+    ```
+  </Step>
+
+  <Step>
+    ### NRDOTコレクターを再起動します [#restart]
+
+    設定を更新した後、NRDOT Collectorサービスを再起動します：
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      新しい設定を確実に有効にするために、構成の変更後は必ず NRDOT コレクター サービスを再起動してください。
+    </Callout>
+  </Step>
+</Steps>
+
+## 次のステップ
+
+Linux RDS監視を設定した後：
+
+* [APMとデータベースの相関を設定する](/docs/opentelemetry/database/database-service-identification/)
+* [利用可能なメトリクスを詳しく調べる](/docs/opentelemetry/database/mssql/metrics-reference)
+* [問題のトラブルシューティング](/docs/opentelemetry/database/mssql/troubleshooting)

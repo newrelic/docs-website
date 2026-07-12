@@ -91,9 +91,10 @@ translationType: machine
        FETCH NEXT FROM db_cursor INTO @name;
        WHILE @@FETCH_STATUS = 0
        BEGIN
-         EXEC('USE [' + @name + '];
-                 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
-                     CREATE USER [newrelic] FOR LOGIN [newrelic];');
+         BEGIN TRY
+           EXEC('USE [' + @name + '];
+           IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+             CREATE USER [newrelic] FOR LOGIN [newrelic];');
          END TRY
          BEGIN CATCH
            PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
@@ -137,336 +138,8 @@ translationType: machine
     모니터링 요구 사항에 따라 설정 유형을 선택하십시오:
 
     <CollapserGroup>
-      <Collapser id="host-database-monitoring" title="호스트 메트릭+데이터베이스 모니터링이 포함된 NRDOT Collector">
-        이 설정에는 인프라 호스트 메트릭과 데이터베이스 모니터링이 모두 포함됩니다.
-
-        1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다:
-
-           ```bash
-           sudo nano /etc/nrdot-collector/mssql-config.yaml
-           ```
-
-        2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
-
-        <Callout variant="important">
-          기존 NRDOT Collector 사용자인 경우 설정을 기존 config.yaml 파일과 병합해야 합니다. 여기에는 현재 설정을 유지하면서 MSSQL 데이터베이스 모니터링을 위한 새로운 수신기, 프로세서 및 내보내기 도구를 추가하는 것이 포함됩니다.
-        </Callout>
-
-        ```yaml
-        # NRDOT Collector Configuration for New Relic SQL Server Integration
-
-        extensions:
-          health_check:
-
-        receivers:
-          otlp:
-            protocols:
-              grpc:
-              http:
-
-          host_metrics:
-            collection_interval: 60s
-            scrapers:
-              cpu:
-                metrics:
-                  system.cpu.time:
-                    enabled: false
-                  system.cpu.utilization:
-                    enabled: true
-              load:
-              memory:
-                metrics:
-                  system.memory.utilization:
-                    enabled: true
-              paging:
-                metrics:
-                  system.paging.utilization:
-                    enabled: false
-                  system.paging.faults:
-                    enabled: false
-              filesystem:
-                metrics:
-                  system.filesystem.utilization:
-                    enabled: true
-              disk:
-                metrics:
-                  system.disk.merged:
-                    enabled: false
-                  system.disk.pending_operations:
-                    enabled: false
-                  system.disk.weighted_io_time:
-                    enabled: false
-              network:
-                metrics:
-                  system.network.connections:
-                    enabled: false
-
-          file_log:
-            include:
-              - /var/log/alternatives.log
-              - /var/log/cloud-init.log
-              - /var/log/auth.log
-              - /var/log/dpkg.log
-              - /var/log/syslog
-              - /var/log/messages
-              - /var/log/secure
-              - /var/log/yum.log
-
-          nrsqlserver:
-            collection_interval: 15s
-            username: <YOUR_USERNAME>
-            password: <YOUR_PASSWORD>
-            server: <YOUR_SERVER>
-            port: 1433
-
-            # Enable comprehensive database metrics
-            metrics:
-              sqlserver.database.count:
-                enabled: true
-              sqlserver.database.io:
-                enabled: true
-              sqlserver.database.latency:
-                enabled: true
-              sqlserver.database.operations:
-                enabled: true
-              sqlserver.database.tempdb.space:
-                enabled: true
-              sqlserver.database.tempdb.version_store.size:
-                enabled: true
-              sqlserver.deadlock.rate:
-                enabled: true
-              sqlserver.os.wait.duration:
-                enabled: true
-              sqlserver.processes.blocked:
-                enabled: true
-              sqlserver.memory.grants.pending.count:
-                enabled: true
-              sqlserver.database.file.size:
-                enabled: true
-              sqlserver.memory.area:
-                enabled: true
-
-            # Enable top query and query sample log collection
-            events:
-              db.server.query_sample:
-                enabled: true
-              db.server.top_query:
-                enabled: true
-
-            # Top query collection configuration
-            top_query_collection:
-              lookback_time: 60s
-              max_query_sample_count: 1000
-              top_query_count: 250
-              collection_interval: 60s
-
-            collect_full_query_text: true
-            allowed_comment_keys:
-              - nr_service_guid
-
-            # Query sample collection configuration
-            query_sample_collection:
-              max_rows_per_query: 100
-
-        processors:
-          metrics_transform:
-            transforms:
-              - include: system.cpu.utilization
-                action: update
-                operations:
-                  - action: aggregate_labels
-                    label_set: [ state ]
-                    aggregation_type: mean
-              - include: system.paging.operations
-                action: update
-                operations:
-                  - action: aggregate_labels
-                    label_set: [ direction ]
-                    aggregation_type: sum
-
-          filter/exclude_cpu_utilization:
-            metrics:
-              datapoint:
-                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
-                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
-                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
-
-          filter/exclude_memory_utilization:
-            metrics:
-              datapoint:
-                - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
-                - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
-                - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
-                - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
-                - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
-
-          filter/exclude_memory_usage:
-            metrics:
-              datapoint:
-                - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
-                - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
-
-          filter/exclude_filesystem_utilization:
-            metrics:
-              datapoint:
-                - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
-
-          filter/exclude_filesystem_usage:
-            metrics:
-              datapoint:
-                - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
-                - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
-
-          filter/exclude_filesystem_inodes_usage:
-            metrics:
-              datapoint:
-                - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
-                - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
-
-          filter/exclude_system_disk:
-            metrics:
-              datapoint:
-                - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
-                - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
-                - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
-                - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
-                - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
-
-          filter/exclude_system_paging:
-            metrics:
-              datapoint:
-                - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
-                - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
-
-          filter/exclude_network:
-            metrics:
-              datapoint:
-                - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
-
-          attributes/exclude_system_paging:
-            include:
-              match_type: strict
-              metric_names:
-                - system.paging.operations
-            actions:
-              - key: type
-                action: delete
-
-          cumulativetodelta:
-
-          transform/host:
-            metric_statements:
-              - context: metric
-                statements:
-                  - set(metric.description, "")
-                  - set(metric.unit, "")
-
-          transform:
-            trace_statements:
-              - context: span
-                statements:
-                  - truncate_all(span.attributes, 4095)
-                  - truncate_all(resource.attributes, 4095)
-            log_statements:
-              - context: log
-                statements:
-                  - truncate_all(log.attributes, 4095)
-                  - truncate_all(resource.attributes, 4095)
-
-          memory_limiter:
-            check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
-            limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
-            spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
-
-          batch:
-
-          resource_detection:
-            detectors: ["system"]
-            system:
-              hostname_sources: ["os"]
-              resource_attributes:
-                host.id:
-                  enabled: true
-
-          resource_detection/cloud:
-            detectors: ["gcp", "ec2", "azure"]
-            timeout: 2s
-            override: true
-
-          resource_detection/env:
-            detectors: ["env"]
-            timeout: 2s
-            override: true
-
-        exporters:
-          otlphttp:
-            endpoint: <YOUR_OTLP_ENDPOINT>
-            headers:
-              api-key: <YOUR_LICENSE_KEY>
-            tls:
-              insecure: false
-            compression: gzip
-
-        service:
-          telemetry:
-            metrics:
-              level: none
-
-          extensions: [health_check]
-
-          pipelines:
-            metrics/host:
-              receivers: [host_metrics, nrsqlserver]
-              processors:
-                - memory_limiter
-                - metrics_transform
-                - filter/exclude_cpu_utilization
-                - filter/exclude_memory_utilization
-                - filter/exclude_memory_usage
-                - filter/exclude_filesystem_utilization
-                - filter/exclude_filesystem_usage
-                - filter/exclude_filesystem_inodes_usage
-                - filter/exclude_system_disk
-                - filter/exclude_network
-                - attributes/exclude_system_paging
-                - transform/host
-                - resource_detection
-                - resource_detection/cloud
-                - resource_detection/env
-                - cumulativetodelta
-                - batch
-              exporters: [otlphttp]
-
-            logs/host:
-              receivers: [file_log, nrsqlserver]
-              processors:
-                - memory_limiter
-                - transform
-                - resource_detection
-                - resource_detection/cloud
-                - resource_detection/env
-                - batch
-              exporters: [otlphttp]
-
-            traces:
-              receivers: [otlp]
-              processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
-              exporters: [otlphttp]
-
-            metrics:
-              receivers: [otlp]
-              processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
-              exporters: [otlphttp]
-
-            logs:
-              receivers: [otlp]
-              processors: [memory_limiter, transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
-              exporters: [otlphttp]
-        ```
-      </Collapser>
-
-      <Collapser id="database-monitoring-only" title="데이터베이스 모니터링 전용(권장)">
-        이 설정은 호스트 인프라 메트릭 없이 데이터베이스 모니터링에만 중점을 둡니다.
+      <Collapser id="standard" title="표준 설정">
+        이 설정은 핵심 메트릭을 사용한 필수 데이터베이스 모니터링에 중점을 둡니다.
 
         1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다:
 
@@ -477,9 +150,6 @@ translationType: machine
         2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
 
         ```yaml
-        # NRDOT Collector Configuration for SQL Server with SQL Authentication
-        # Database Monitoring Only
-
         receivers:
           nrsqlserver:
             collection_interval: 15s
@@ -572,6 +242,297 @@ translationType: machine
               exporters: [otlphttp]
         ```
       </Collapser>
+
+      <Collapser id="full" title="전체 기능 설정">
+        이 설정은 사용 가능한 모든 메트릭을 사용하여 포괄적인 데이터베이스 모니터링을 제공합니다.
+
+        1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다:
+
+           ```bash
+           sudo nano /etc/nrdot-collector/mssql-config.yaml
+           ```
+
+        2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
+
+        <Callout variant="important">
+          기존 NRDOT Collector 사용자인 경우 설정을 기존 `config.yaml` 파일과 병합해야 합니다. 여기에는 현재 설정을 유지하면서 MSSQL 데이터베이스 모니터링을 위한 새 수신기, 프로세서 및 익스포터를 추가하는 것이 포함됩니다.
+        </Callout>
+
+        ```yaml
+        receivers:
+          nrsqlserver:
+            collection_interval: 15s
+            username: <YOUR_USERNAME>
+            password: <YOUR_PASSWORD>
+            server: <YOUR_SERVER>
+            port: <YOUR_PORT_NUMBER>
+
+            metrics:
+              # Database
+              sqlserver.database.count:
+                enabled: true
+              sqlserver.database.file.size:
+                enabled: true
+              sqlserver.database.io:
+                enabled: true
+              sqlserver.database.latency:
+                enabled: true
+              sqlserver.database.operations:
+                enabled: true
+              sqlserver.database.page_file.size:
+                enabled: true
+              sqlserver.database.transactions.active:
+                enabled: true
+              sqlserver.database.backup_or_restore.rate:
+                enabled: true
+              sqlserver.database.execution.errors:
+                enabled: true
+              sqlserver.database.full_scan.rate:
+                enabled: true
+              sqlserver.database.tempdb.space:
+                enabled: true
+              sqlserver.database.tempdb.version_store.size:
+                enabled: true
+              # Security / Principals
+              sqlserver.database.principals.count:
+                enabled: true
+              sqlserver.database.principals.old:
+                enabled: true
+              sqlserver.database.principals.orphaned_users:
+                enabled: true
+              sqlserver.database.principals.recently_created:
+                enabled: true
+              sqlserver.database.role.members.count:
+                enabled: true
+              sqlserver.database.role.memberships.count:
+                enabled: true
+              sqlserver.database.role.permission.risk_level:
+                enabled: true
+              sqlserver.database.role.roles.count:
+                enabled: true
+              sqlserver.database.security.role_membership.count:
+                enabled: true
+              sqlserver.server.security.principal.count:
+                enabled: true
+              sqlserver.server.security.role_membership.count:
+                enabled: true
+              # Locks
+              sqlserver.lock.by_mode.count:
+                enabled: true
+              sqlserver.lock.by_resource.count:
+                enabled: true
+              sqlserver.lock.timeout.rate:
+                enabled: true
+              sqlserver.lock.wait.count:
+                enabled: true
+              sqlserver.lock.wait.rate:
+                enabled: true
+              sqlserver.deadlock.rate:
+                enabled: true
+              # Transactions
+              sqlserver.transaction.delay:
+                enabled: true
+              sqlserver.transaction.mirror_write.rate:
+                enabled: true
+              sqlserver.transaction.longest_running_time:
+                enabled: true
+              sqlserver.transaction.version_cleanup.rate:
+                enabled: true
+              sqlserver.transaction.version_generation.rate:
+                enabled: true
+              # Memory
+              sqlserver.memory.area:
+                enabled: true
+              sqlserver.memory.cache.object.count:
+                enabled: true
+              sqlserver.memory.grants.pending.count:
+                enabled: true
+              sqlserver.memory.page.count:
+                enabled: true
+              sqlserver.memory.target:
+                enabled: true
+              sqlserver.memory.usage:
+                enabled: true
+              # OS
+              sqlserver.os.disk.size:
+                enabled: true
+              sqlserver.os.memory.usage:
+                enabled: true
+              sqlserver.os.memory.utilization:
+                enabled: true
+              sqlserver.os.scheduler.runnable_tasks.count:
+                enabled: true
+              sqlserver.os.wait.duration:
+                enabled: true
+              sqlserver.os.wait.tasks.count:
+                enabled: true
+              # Pages / Buffer
+              sqlserver.page.buffer_cache.hit_ratio:
+                enabled: true
+              sqlserver.page.buffer_cache.free_list.stalls.rate:
+                enabled: true
+              sqlserver.page.life_expectancy:
+                enabled: true
+              sqlserver.page.lookup.rate:
+                enabled: true
+              # Batch / Compilation
+              sqlserver.batch.request.rate:
+                enabled: true
+              sqlserver.batch.sql_compilation.rate:
+                enabled: true
+              sqlserver.batch.sql_recompilation.rate:
+                enabled: true
+              sqlserver.batch.compilation.utilization:
+                enabled: true
+              sqlserver.batch.page_split.utilization:
+                enabled: true
+              sqlserver.recompilation.ratio:
+                enabled: true
+              sqlserver.parameterization.rate:
+                enabled: true
+              sqlserver.plan.execution.rate:
+                enabled: true
+              sqlserver.attention.rate:
+                enabled: true
+              # Processes / Connections
+              sqlserver.process.count:
+                enabled: true
+              sqlserver.processes.blocked:
+                enabled: true
+              sqlserver.user.connection.count:
+                enabled: true
+              sqlserver.login.rate:
+                enabled: true
+              sqlserver.logout.rate:
+                enabled: true
+              # Thread Pool
+              sqlserver.thread_pool.tasks.count:
+                enabled: true
+              sqlserver.thread_pool.workers.count:
+                enabled: true
+              sqlserver.thread_pool.workers.max:
+                enabled: true
+              sqlserver.thread_pool.workers.utilization:
+                enabled: true
+              # TempDB
+              sqlserver.tempdb.allocation.wait_time.total:
+                enabled: true
+              sqlserver.tempdb.contention.waiters.count:
+                enabled: true
+              sqlserver.tempdb.data_files.count:
+                enabled: true
+              sqlserver.tempdb.file.size:
+                enabled: true
+              sqlserver.tempdb.space.usage:
+                enabled: true
+              # Latch
+              sqlserver.latch.superlatch.count:
+                enabled: true
+              sqlserver.latch.superlatch.transition.rate:
+                enabled: true
+              sqlserver.latch.wait.rate:
+                enabled: true
+              sqlserver.latch.wait_time.avg:
+                enabled: true
+              sqlserver.latch.wait_time.total:
+                enabled: true
+              # Index
+              sqlserver.index.search.rate:
+                enabled: true
+              # Resource Pool
+              sqlserver.resource_pool.disk.operations:
+                enabled: true
+              sqlserver.resource_pool.disk.throttled.read.rate:
+                enabled: true
+              sqlserver.resource_pool.disk.throttled.write.rate:
+                enabled: true
+              # Replica / Always-On
+              sqlserver.replica.data.rate:
+                enabled: true
+              sqlserver.failover_cluster.ag.cluster_type:
+                enabled: true
+              sqlserver.failover_cluster.ag.failure_condition_level:
+                enabled: true
+              sqlserver.failover_cluster.ag.health_check_timeout:
+                enabled: true
+              sqlserver.failover_cluster.ag.required_sync_secondaries:
+                enabled: true
+              sqlserver.failover_cluster.replica.database.queue_size:
+                enabled: true
+              sqlserver.failover_cluster.replica.database.redo.rate:
+                enabled: true
+              sqlserver.failover_cluster.replica.flow_control_time:
+                enabled: true
+              sqlserver.failover_cluster.replica.role:
+                enabled: true
+              sqlserver.failover_cluster.replica.synchronization_health:
+                enabled: true
+              # Server Properties
+              sqlserver.computer.uptime:
+                enabled: true
+              sqlserver.cpu.count:
+                enabled: true
+              # Tables
+              sqlserver.table.count:
+                enabled: true
+              # Errors
+              sqlserver.kill_connection.error.rate:
+                enabled: true
+
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+
+            top_query_collection:
+              lookback_time: 60s
+              max_query_sample_count: 1000
+              top_query_count: 250
+              collection_interval: 60s
+
+            collect_full_query_text: true
+            allowed_comment_keys:
+              - nr_service_guid
+
+            query_sample_collection:
+              max_rows_per_query: 100
+
+        processors:
+          memory_limiter:
+            check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+            limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-500}
+            spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+          batch:
+
+
+        exporters:
+          otlphttp:
+            endpoint: <YOUR_OTLP_ENDPOINT>
+            headers:
+              api-key: <YOUR_LICENSE_KEY>
+            tls:
+              insecure: false
+            compression: gzip
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+
+          pipelines:
+            metrics:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+
+            logs:
+              receivers: [nrsqlserver]
+              processors: [memory_limiter, batch]
+              exporters: [otlphttp]
+        ```
+      </Collapser>
     </CollapserGroup>
 
     <Callout variant="tip">
@@ -588,15 +549,15 @@ translationType: machine
 
     다음 표는 nrsqlserver 수신기의 주요 설정 파라미터를 설명합니다:
 
-    | 매개변수                   | 설명                                                                                                                |
-    | ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
-    | `<YOUR_USERNAME>`      | 인증을 위해 데이터베이스 사용자 이름을 입력하세요.                                                                                      |
-    | `<YOUR_PASSWORD>`      | 인증을 위해 데이터베이스 비밀번호를 입력하세요.                                                                                        |
-    | `<YOUR_SERVER>`        | SQL Server 호스트명 또는 IP 주소를 입력하십시오.                                                                                 |
-    | `port`                 | SQL Server 포트 번호를 입력합니다. 기본값은 1433입니다.                                                                            |
-    | `<YOUR_OTLP_ENDPOINT>` | 뉴렐릭 OTLP 엔드포인트를 입력하세요(예: [https://otlp.nr-data.net](https://otlp.nr-data.net)). 자세한 내용은 뉴렐릭 OTLP 엔드포인트 문서를 참조하세요. |
-    | `<YOUR_LICENSE_KEY>`   | 귀하의 블루 클러스터 키를 입력하세요.                                                                                             |
-    | `collection_interval`  | 데이터베이스 메트릭을 수집하는 간격(초)입니다. 기본: 15s                                                                                |
+    | 매개변수                   | 설명                                                                                                                 |
+    | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+    | `<YOUR_USERNAME>`      | 인증을 위해 데이터베이스 사용자 이름을 입력하세요.                                                                                       |
+    | `<YOUR_PASSWORD>`      | 인증을 위해 데이터베이스 비밀번호를 입력하세요.                                                                                         |
+    | `<YOUR_SERVER>`        | SQL Server 호스트명 또는 IP 주소를 입력하십시오.                                                                                  |
+    | `port`                 | SQL Server 포트 번호를 입력합니다. 기본값은 1433입니다.                                                                             |
+    | `<YOUR_OTLP_ENDPOINT>` | 뉴렐릭 OTLP 엔드포인트를 입력하세요. 자세한 내용은 [뉴렐릭 OTLP 엔드포인트 문서를](/docs/opentelemetry/best-practices/opentelemetry-otlp/) 참조하세요. |
+    | `<YOUR_LICENSE_KEY>`   | 귀하의 블루 클러스터 키를 입력하세요.                                                                                              |
+    | `collection_interval`  | 데이터베이스 메트릭을 수집하는 간격(초)입니다. 기본: 15s                                                                                 |
 
     <Callout variant="tip">
       **참고:** 사용 가능한 모든 메트릭을 활성화하는 경우 메모리 제한기가 데이터를 삭제하지 않도록 `limit_mib` 값(예: 1,000)을 늘리세요.
