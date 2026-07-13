@@ -1,0 +1,174 @@
+---
+title: Instrumentación de Next.js con el agente híbrido
+tags:
+  - Agents
+  - Nodejs agent
+  - Extend your instrumentation
+metaDescription: The New Relic Node.js agent can intercept native Next.js OpenTelemetry spans and produce necessary telemetry within New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La forma recomendada de monitorear una aplicación <DNT>Next.js</DNT> es depender de los spans nativos de <DNT>OpenTelemetry</DNT> emitidos por <DNT>Next.js</DNT> junto con la característica de agente híbrido del agente <DNT>Node.js</DNT>, en lugar de la instrumentación <DNT>Next.js</DNT> integrada del agente. Esta página explica cómo habilitar el agente híbrido, señala aplicaciones de ejemplo y cubre preguntas comunes sobre cómo inyectar el agente del browser y desplegar en proveedores de cloud.
+
+<Callout variant="important">
+  El soporte nativo de <DNT>Next.js OpenTelemetry</DNT> requiere la versión [14.1.0](https://github.com/newrelic/node-newrelic/releases/tag/v14.1.0) del agente <DNT>Node.js</DNT> o posterior. El agente híbrido solo instrumenta el runtime de <DNT>Node.js</DNT>; el edge runtime de <DNT>Next.js</DNT> no es compatible, por lo que el ejemplo de `register()` a continuación sale temprano a menos que `NEXT_RUNTIME` sea `nodejs`.
+</Callout>
+
+El agente <DNT>Node.js</DNT> ha tenido instrumentación <DNT>Next.js</DNT> desde 2022 a través de [@newrelic/next](https://github.com/newrelic/newrelic-node-nextjs/releases/tag/v0.1.0), y esa instrumentación se integró en el agente en [12.0.0](https://github.com/newrelic/node-newrelic/releases/tag/v12.0.0). Sin embargo, era limitada y no funcionaba al desplegar en proveedores cloud como <DNT>[Vercel](https://vercel.com/frameworks/nextjs)</DNT>, <DNT>[AWS Amplify](https://aws.amazon.com/amplify/)</DNT>, <DNT>[Netlify](https://www.netlify.com/with/nextjs/)</DNT> o <DNT>[Azure Static Web Apps](https://azure.microsoft.com/en-us/products/app-service/static)</DNT>. Con la introducción del [agente híbrido](/docs/apm/agents/manage-apm-agents/opentelemetry-api-support), el agente <DNT>Node.js</DNT> puede interceptar spans <DNT>OpenTelemetry</DNT> y sintetizar la telemetría que impulsa la experiencia de New Relic. La instrumentación nativa <DNT>Next.js OpenTelemetry</DNT> se agregó en [14.1.0](https://github.com/newrelic/node-newrelic/releases/tag/v14.1.0).
+
+## Habilite el agente híbrido [#enable]
+
+Para habilitar el agente híbrido y deshabilitar la instrumentación del agente que entra en conflicto con <DNT>Next.js</DNT>, establezca la siguiente configuración en `newrelic.js`:
+
+```js
+'use strict'
+
+exports.config = {
+  app_name: ['Your application name'],
+  license_key: 'your-license-key',
+  opentelemetry: {
+    enabled: true
+  },
+  instrumentation: {
+    http: {
+      enabled: false
+    },
+    next: {
+      enabled: false
+    },
+    undici: {
+      enabled: false
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  Si realiza llamadas nativas de `fetch`, debe deshabilitar la instrumentación de `undici` como se muestra arriba. <DNT>Next.js</DNT> envuelve a `fetch` y crea sus propios spans de cliente, por lo que dejar `undici` habilitado produce spans de cliente duplicados en sus trazas.
+</Callout>
+
+Si prefiere usar variables de entorno:
+
+```ini
+NEW_RELIC_LICENSE_KEY=<your-license-key>
+NEW_RELIC_APP_NAME=<your-application-name>
+NEW_RELIC_OPENTELEMETRY_ENABLED=true
+NEW_RELIC_INSTRUMENTATION_NEXT_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_HTTP_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_UNDICI_ENABLED=false
+```
+
+También debe agregar un archivo `instrumentation.js` (o `instrumentation.ts` para <DNT>TypeScript</DNT>) para cargar el agente antes del resto de su aplicación:
+
+```js
+async function loadNewRelicAgent() {
+  const { default: newrelic } = await import('newrelic')
+  const agent = newrelic?.agent
+  if (!agent || agent.collector?.isConnected?.()) {
+    return
+  }
+
+  await new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer)
+      agent.removeListener('started', done)
+      agent.removeListener('errored', done)
+      resolve()
+    }
+    const timer = setTimeout(done, 8000)
+    agent.once('started', done)
+    agent.once('errored', done)
+  })
+}
+
+export async function register() {
+  // The agent only instruments the Node.js runtime, not the edge runtime.
+  if (process.env.NEXT_RUNTIME !== 'nodejs') {
+    return
+  }
+
+  await loadNewRelicAgent()
+}
+```
+
+Consulte la [aplicación de ejemplo](https://github.com/newrelic/newrelic-node-examples/tree/9fa74c516926014fa33758cbd6e3737334ed4f98/nextjs/nextjs-app-router) de <DNT>Next.js App Router</DNT> para obtener un ejemplo más completo de esta configuración.
+
+## <DNT>Next.js</DNT> instrumentación en <DNT>Vercel</DNT> [#vercel]
+
+Desplegar en <DNT>Vercel</DNT> divide las páginas estáticas y dinámicas en diferentes entornos. En lugar de depender de `.env` y `newrelic.js` para cargar la configuración del agente, defina las siguientes [variables de entorno](https://vercel.com/docs/environment-variables) en la consola de <DNT>Vercel</DNT> en <DNT>**Environment Variables**</DNT>:
+
+```ini
+NEW_RELIC_LICENSE_KEY=<your-license-key>
+NEW_RELIC_APP_NAME=<your-application-name>
+NEW_RELIC_OPENTELEMETRY_ENABLED=true
+NEW_RELIC_INSTRUMENTATION_NEXT_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_HTTP_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_UNDICI_ENABLED=false
+```
+
+Aún necesita el archivo `instrumentation.js` descrito anteriormente; solo cambia la fuente de la configuración en <DNT>Vercel</DNT>.
+
+Consulte la [aplicación de ejemplo](https://github.com/newrelic/newrelic-node-examples/tree/9fa74c516926014fa33758cbd6e3737334ed4f98/nextjs/nextjs-app-router) de <DNT>Next.js App Router</DNT> para obtener un ejemplo más completo de esta configuración.
+
+## Inyectar el agente del browser [#browser-agent]
+
+Dado que <DNT>Next.js</DNT> es un framework full-stack, la mayoría de los clientes desean observabilidad tanto en el cliente como en el servidor. El siguiente ejemplo muestra cómo inyectar el agente del browser de New Relic en cada página.
+
+Edite el archivo de diseño raíz dentro de `app/` y agregue lo siguiente:
+
+```js
+import Script from 'next/script';
+
+async function loadNewRelicAgent() {
+  const { default: newrelic } = await import('newrelic')
+  const agent = newrelic?.agent
+  if (!agent || agent.collector?.isConnected?.()) {
+    return newrelic
+  }
+
+  await new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer)
+      agent.removeListener('started', done)
+      agent.removeListener('errored', done)
+      resolve()
+    }
+    const timer = setTimeout(done, 8000)
+    agent.once('started', done)
+    agent.once('errored', done)
+  })
+
+  return newrelic
+}
+
+export default async function RootLayout({
+  children,
+}){
+  // Wait for the agent to connect before requesting the browser timing header.
+  const newrelic = await loadNewRelicAgent()
+  const browserTimingHeader = newrelic.getBrowserTimingHeader({
+    hasToRemoveScriptWrapper: true,
+    allowTransactionlessInjection: true,
+  })
+
+  return (
+    <html lang="en">
+      <body className="min-h-full flex flex-col">{children}</body>
+      <Script
+        // Inline scripts require an id.
+        // See https://nextjs.org/docs/app/building-your-application/optimizing/scripts#inline-scripts
+        id='nr-browser-agent'
+        // "beforeInteractive" loads the script before the page becomes interactive.
+        strategy='beforeInteractive'
+        // The script body is the browser timing header generated above. Because
+        // `hasToRemoveScriptWrapper` is true, the header is raw JavaScript with no
+        // surrounding <script> tag, so we inject it with `dangerouslySetInnerHTML`.
+        dangerouslySetInnerHTML={{ __html: browserTimingHeader }}
+      />
+    </html>
+  );
+}
+```
+
+Consulte la [aplicación de ejemplo](https://github.com/newrelic/newrelic-node-examples/tree/9fa74c516926014fa33758cbd6e3737334ed4f98/nextjs/nextjs-app-router) de <DNT>Next.js App Router</DNT> para obtener un ejemplo más completo de esta configuración.
