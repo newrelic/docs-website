@@ -1,0 +1,68 @@
+---
+title: Windows MSI 설치가 오류 1603으로 실패합니다
+type: troubleshooting
+tags:
+  - Infrastructure
+  - Infrastructure monitoring troubleshooting
+  - Troubleshoot infrastructure
+metaDescription: Troubleshooting procedures when the New Relic infrastructure agent MSI installation fails with error 1603 on Windows.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  **인프라 에이전트 v1.73.0 이상의 알려진 문제:** Windows 그룹 정책 제한이 있는 시스템에서 MSI 설치가 오류 **1603** 으로 실패할 수 있습니다.
+</Callout>
+
+## 문제 [#problem]
+
+* v1.72.x에서는 설치가 작동했지만 v1.73.0 이상 버전에서는 실패합니다
+* 강화되거나 CIS를 준수하는 Windows 시스템에서 발생합니다
+* 서비스 `newrelic-infra` 이(가) 생성되지 않았습니다
+
+## 원인 [#cause]
+
+인프라 에이전트 v1.73.0 이상은 설치를 위해 지연된 PowerShell 사용자 지정 작업을 사용합니다. Windows 그룹 정책 설정 `HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer\DisableMSI` (`1` 또는 `2`로 설정된 경우)은 보안상의 이유로 이러한 작업을 차단합니다.
+
+## 해결책 [#solution]
+
+설치 중 MSI 제한을 일시적으로 비활성화하십시오:
+
+```powershell
+# Store original value
+$regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer"
+$origValue = (Get-ItemProperty -Path $regPath -Name DisableMSI -ErrorAction SilentlyContinue).DisableMSI
+
+try {
+    # Temporarily allow MSI custom actions
+    if (-not (Test-Path $regPath)) { 
+        New-Item -Path $regPath -Force | Out-Null 
+    }
+    Set-ItemProperty -Path $regPath -Name DisableMSI -Value 0 -Type DWord -Force
+    
+    # Run the installation
+    msiexec.exe /qn /i PATH\TO\newrelic-infra.msi GENERATE_CONFIG=true LICENSE_KEY=YOUR_LICENSE_KEY
+    
+} finally {
+    # Restore original value
+    if ($null -ne $origValue) {
+        Set-ItemProperty -Path $regPath -Name DisableMSI -Value $origValue -Type DWord -Force
+    } else {
+        Remove-ItemProperty -Path $regPath -Name DisableMSI -ErrorAction SilentlyContinue
+    }
+}
+```
+
+이 PowerShell 스크립트를 실행하여 DisableMSI 정책이 문제를 일으키는지 확인하십시오:
+
+```powershell
+$regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer"
+$disableMsi = (Get-ItemProperty -Path $regPath -Name DisableMSI -ErrorAction SilentlyContinue).DisableMSI
+
+if ($null -eq $disableMsi -or $disableMsi -eq 0) {
+    Write-Host "DisableMSI not set or set to 0 - Installation should work"
+} else {
+    Write-Host "WARNING: DisableMSI is set to $disableMsi - Installation will likely fail with error 1603"
+    Write-Host "Use the workaround above to install successfully"
+}
+```
