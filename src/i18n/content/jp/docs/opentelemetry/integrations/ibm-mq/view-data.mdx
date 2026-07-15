@@ -1,0 +1,181 @@
+---
+title: New RelicでIBM MQデータを見つけてクエリする
+metaDescription: 'Find your IBM MQ metrics in New Relic, query queue managers and queues with NRQL, create dashboards and alerts, and troubleshoot data visibility.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+コレクターが稼働してデータが流入すると、New RelicでIBM MQメトリクスを表示し、NRQLでクエリを実行し、ダッシュボードを構築して、アラートを設定できます。各キューマネージャーは、そのキューを子`IBMMQ_QUEUE`エンティティとして持つ`IBMMQ_MANAGER`エンティティ（`target.name:qmgr`としてキー設定）として表示されます。
+
+## New RelicでIBM MQデータの表示 [#find-data]
+
+数分後、IBM MQメトリクスがNew Relicに表示されます。パイプラインは生のPrometheusの形状 — アンダースコアのメトリクス名（`ibmmq_*`）と生の`qmgr`および`queue`ラベル — を保持し、すべてのメトリクスに`target.name`のIDを付与します。New Relicはこれを使用してエンティティを合成します。
+
+<CollapserGroup>
+  <Collapser id="via-entity-explorer" title="エンティティエクスプローラーから">
+    1. <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **All entities**</DNT>に移動します。
+    2. `IBMMQ_MANAGER`と`IBMMQ_QUEUE`でフィルタリングするか、キューマネージャー名を検索します。
+    3. キューマネージャーを開いて、そのゴールデンメトリクス — 接続、put/getメッセージレート — と、キューが関連エンティティとしてリストされている事前構築済みのIBM MQダッシュボードを確認します。
+  </Collapser>
+
+  <Collapser id="via-dashboard" title="IBM MQダッシュボードから">
+    `IBMMQ_MANAGER`エンティティを開くと、New Relicは、キューマネージャーのヘルス、接続、メッセージスループット、エラー、およびファイルシステムの使用状況を要約した事前構築済みのダッシュボードを表示します。`IBMMQ_QUEUE`エンティティを開いて、キューごとの深さ、メッセージの経過時間、およびスループットを確認します。独自に構築することもできます — [カスタムダッシュボードの作成](#dashboards)を参照してください。
+  </Collapser>
+</CollapserGroup>
+
+## NRQLでデータをクエリする [#query-data]
+
+<Callout variant="tip">
+  アンダースコアの名前と生のラベルでメトリクスをクエリします — `ibmmq_qmgr_status`、`ibmmq_queue_depth`、`qmgr`、`queue`。メトリクス名はドット区切りでは**なく**、`qmgr`ラベルの名前は変更され**ない**ため、`ibmmq.*`または`ibmmq.queue_manager.name`に対して記述されたNRQLは一致しません。
+</Callout>
+
+データが流れていることを確認します — すべてのIBM MQメトリクス：
+
+```sql
+FROM Metric SELECT count(*) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+```
+
+報告しているキューマネージャーをカウントします（それぞれが1つの`IBMMQ_MANAGER`エンティティになります）：
+
+```sql
+FROM Metric SELECT uniqueCount(qmgr) WHERE metricName LIKE 'ibmmq_%' FACET target.name SINCE 30 minutes ago
+```
+
+キューマネージャーのステータス（`2`=実行中）、キューマネージャーごとに1行：
+
+```sql
+FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr SINCE 30 minutes ago
+```
+
+チャネルのステータス（`3`=実行中）：
+
+```sql
+FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel SINCE 30 minutes ago
+```
+
+すべてのモニター対象キューの現在の深度：
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) FACET qmgr, queue SINCE 30 minutes ago
+```
+
+フリート全体のデッドレターキューの深度（一般的な集計シグナル）：
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr SINCE 30 minutes ago
+```
+
+キューのスループット — 1分あたりのputおよびget（MQI統計が有効になっている必要があります）：
+
+```sql
+FROM Metric SELECT rate(sum(ibmmq_queue_mqput_count), 1 minute) AS 'Puts/min', rate(sum(ibmmq_queue_mqget_count), 1 minute) AS 'Gets/min' FACET qmgr, queue TIMESERIES SINCE 1 hour ago
+```
+
+エンティティを直接参照するには、New Relic UIの<DNT>**All entities**</DNT>に移動して`IBMMQ_MANAGER`および`IBMMQ_QUEUE`エンティティをフィルタリングするか、上記のいずれかのクエリからキューマネージャーを開きます。
+
+## カスタムダッシュボードを作成する [#dashboards]
+
+独自のIBM MQダッシュボードを構築するには：
+
+1. <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **Dashboards**</DNT>に移動し、 <DNT>**Create a dashboard**</DNT>をクリックします。
+
+2. ウィジェットを追加し、<DNT>**Add a chart**</DNT>を選択して、[上記のNRQLクエリ](#query-data)のいずれかを貼り付けます。
+
+3. 一目でわかるように、フォーカスエリアごとにウィジェットをグループ化します：
+
+   * **キューマネージャーのヘルス** — `ibmmq_qmgr_status`、`ibmmq_qmgr_connection_count`、 `ibmmq_channel_status`
+   * **キュー深度とバックログ** — `ibmmq_queue_depth`、`ibmmq_queue_oldest_message_age`、 `ibmmq_queue_uncommitted_messages`
+   * **スループット** — `ibmmq_queue_mqput_count`、`ibmmq_queue_mqget_count`（レートとしてグラフ化）
+   * **キャパシティ** — `ibmmq_qmgr_log_in_use_bytes`、 `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`
+
+## アラートの設定 [#alerts]
+
+メッセージングに依存するアプリケーションに影響を与える前に問題を検出するために、`ibmmq_*`メトリクスに[NRQLアラート条件](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/)を作成します。推奨される開始点：
+
+<CollapserGroup>
+  <Collapser id="alert-qmgr-down" title="キューマネージャーが実行されていません">
+    キューマネージャーが実行状態（`2`）から外れた場合のアラート。
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr, target.name
+    ```
+
+    **推奨される閾値:** 値が2分以上`2`と等しくない場合はクリティカル。
+  </Collapser>
+
+  <Collapser id="alert-channel-down" title="チャネルが実行されていない">
+    チャネルが実行状態（`3`）を抜けたときにアラートを出します。
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel
+    ```
+
+    **推奨される閾値:** 値が5分以上`3`と等しくない場合はクリティカル（正当に停止および開始するチャネルを考慮します）。
+  </Collapser>
+
+  <Collapser id="alert-queue-depth" title="キューが最大値に近づいています">
+    キューの深度が設定された最大値に近づいた場合のアラート。
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_queue_depth) / latest(ibmmq_queue_attribute_max_depth) * 100 AS 'Depth %' FACET qmgr, queue
+    ```
+
+    **推奨閾値:** 80％で警告、95％でクリティカル。
+  </Collapser>
+
+  <Collapser id="alert-dlq" title="デッドレター・キューのメッセージ">
+    メッセージがデッドレターキューに到達した場合のアラート — 通常は配信不能メッセージのサインです。
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr
+    ```
+
+    **推奨閾値:** 値が`0`より大きい場合はクリティカル。
+  </Collapser>
+</CollapserGroup>
+
+## データの可視性のトラブルシューティング [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="metrics-but-no-entity" title="メトリクスはNRDBに表示されますが、IBMMQ_MANAGERエンティティは表示されません">
+    これはほぼ常に、エンティティに不可欠なメトリクスの形状を変更したことが原因です。エンティティの合成は、生のアンダースコアメトリクス（`ibmmq_*`）、生の`qmgr`ラベル、および`target.name`属性をキーとします。以下を確認してください：
+
+    * メトリクス名はドット区切りでは**ありません**（`ibmmq.queue.depth`ではなく`ibmmq_queue_depth`が表示されるはずです）。
+
+    * `qmgr`ラベルは**存在し、名前が変更されていません**（`ibmmq.queue_manager.name`ではありません）。
+
+    * `target.name` メトリクスに設定されます（キャメルケースの`targetName`は設定され**ません** — `targetName`がまだ存在する場合、`transform/ibmmq-cleanup`が実行されていないか、順序が間違っています）：
+
+      ```sql
+      FROM Metric SELECT uniques(target.name), uniques(qmgr) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+      ```
+
+    コレクター設定におけるプロセッサーの順序は重要です — `resourcedetection → transform/ibmmq-cleanup`。`transform/ibmmq-cleanup`を並べ替えたり削除したりした場合、IBM MQメトリクスは`IBMMQ_MANAGER`エンティティではなくコレクター自身のエンティティにルーティングされます。ドキュメントに記載されているパイプラインの順序を復元してください。
+  </Collapser>
+
+  <Collapser id="counters-flat" title="カウンターメトリクスが平坦な線として表示されます">
+    New Relicはカウンターに対してデルタテンポラリティを想定しています；Prometheusは累積値を出力します。`cumulativetodelta/ibmmq`プロセッサーはそれらをインプレースで変換します。カウンターがフラットに見える場合は、各メトリクスパイプラインにプロセッサーが存在することを確認してください。
+  </Collapser>
+
+  <Collapser id="new-stale-entities" title="再デプロイ後に古いエンティティが古くなった">
+    `target.name`の値（Linuxでは`TARGET_NAME`環境変数、Kubernetesでは`targetName`リラベルを介して設定されます）は、すべての`IBMMQ_MANAGER`および`IBMMQ_QUEUE`のGUIDの最初のセグメントです。デプロイメント後にこれを変更すると、まったく新しいエンティティが作成されて古いエンティティは古くなり、古いGUIDを指すダッシュボードやアラートが機能しなくなります。安定した値を一度選択したら、決して変更しないでください。
+
+    すでに変更している場合は、元の`TARGET_NAME`値を復元し、コレクターを再起動します。正しい名前のエンティティは報告を再開します；間違った名前で作成された重複はデータの受信を停止し、New Relicのエンティティ報告ウィンドウの後にUIからエージアウトします。
+  </Collapser>
+</CollapserGroup>
+
+## 関連ドキュメント [#related-docs]
+
+<DocTiles>
+  <DocTile title="IBM MQのセルフホスト型計装" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    New Relicでセルフホスト型監視のためにIBM MQを設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="IBM MQのKubernetes計装" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    New RelicでIBM MQ for Kubernetes監視を設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    New Relicが収集するIBM MQメトリクスについて説明します。
+  </DocTile>
+</DocTiles>
