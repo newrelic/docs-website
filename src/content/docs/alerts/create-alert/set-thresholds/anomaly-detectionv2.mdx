@@ -1,0 +1,465 @@
+---
+title: Anomaly detection (v2)
+tags:
+  - Anomaly detection
+  - Alerts
+metaDescription: Learn how anomaly detection in New Relic notifies you of unusual app behavior
+freshnessValidatedDate: never
+---
+
+Anomaly detection gives your team flexible, adaptive monitoring for unusual behavior in your systems. Instead of relying on fixed thresholds, it learns your data's normal patterns and adjusts automatically, reducing false alarms and alert fatigue. You can tune sensitivity, add custom context to alert notifications, and let New Relic learn your baseline trends automatically, or set your own.
+
+## Quick start guide [#quick-start]
+
+- [When to use anomaly detection](#why-anomaly-detection)
+- [How anomaly detection works](#how-it-works)
+- [Configure thresholds](#configure-custom-anomalies)
+- [Seasonality settings](#seasonality)
+- [Understanding when alerts fire](#understanding-alerts)
+- [Multi-signal conditions](#faceted-queries)
+- [Troubleshooting and best practices](#troubleshooting)
+
+## When to use anomaly detection vs. static thresholds [#why-anomaly-detection]
+
+Static thresholds are pinned to fixed numbers. Anomaly detection evaluates the expected mathematical behavior of a signal over time. Use this table to pick the right model for your metric:
+
+| Scenario | Recommended type | Why |
+| :--- | :--- | :--- |
+| Natural or seasonal patterns (business hours, weekly cycles, seasonal shopping peaks) | Anomaly | Learns cyclical baselines so scheduled peaks don't trigger alert storms |
+| Dynamic systems where "normal" changes over time | Anomaly | Adapts automatically as your system grows, no manual re-tuning |
+| Brand-new or highly volatile metrics | Static (temporarily) | Anomaly detection needs 1-4 weeks of history to build a stable baseline, and volatile metrics can produce bands too wide to be useful |
+| Hard capacity limits (disk space, memory, connection limits) | Static | Critical physical limits need immediate action regardless of past pattern trends |
+| SLA or compliance targets (for example, response time &lt; 2 seconds) | Static | Best when you must guarantee a fixed performance bound |
+| Binary states (service up/down, payment failures) | Static | These aren't patterns — any failure matters |
+
+<Collapser
+  id="real-world-examples"
+  title="See real-world decision examples"
+>
+
+<CollapserGroup>
+  <Collapser
+    id="ecommerce-cpu-scenario"
+    title="E-commerce CPU monitoring"
+  >
+
+- **Static threshold:** "Alert if CPU > 80%"
+  - Problem: 80% CPU is normal during Black Friday, but alarming on a quiet Tuesday
+  - Result: Either miss Tuesday problems OR get flooded during sales events
+- **Anomaly detection:** Learns normal CPU patterns for different times/seasons
+  - Result: Alerts appropriately for both scenarios based on what's normal for that context
+ </Collapser>
+
+  <Collapser
+    id="api-response-scenario"
+    title="API response time monitoring"
+  >
+
+- **Static threshold:** "Alert if response time > 500ms"
+  - Problem: Morning rush (9AM) might normally hit 400ms, but 300ms at 3AM indicates issues
+  - Result: Misses off-hours problems that are actually serious
+- **Anomaly detection:** Understands daily patterns
+  - Result: Alerts on 300ms at 3AM (unusual) but not 400ms at 9AM (normal)
+ </Collapser>
+
+  <Collapser
+    id="database-connection-scenario"
+    title="Database connection monitoring"
+  >
+
+- **Static threshold:** "Alert if connections > 100"
+  - Good choice: Hard database limit that should never be exceeded
+  - Result: Clear, immediate alert when approaching capacity
+- **Anomaly detection:** Not ideal for hard limits
+  - Problem: Might "learn" that 95 connections is normal and not alert until too late
+ </Collapser>
+</CollapserGroup>
+
+</Collapser>
+
+## How anomaly detection works [#how-it-works]
+
+New Relic evaluates historical trends to build a predicted baseline and an acceptable variation zone (the gray band) around it:
+
+* **Learning phase:** New Relic watches your data for 1-4 weeks and learns patterns such as "Mondays are always busy" or "traffic drops at 6 PM."
+* **Prediction:** The system predicts what your next data point should be, based on historical patterns.
+* **Variation zone (gray band):** A band of acceptable variation surrounds the prediction. Think of it like a road with guardrails — staying within the guardrails is normal.
+* **Alert trigger:** An alert fires only when your actual data goes outside the variation zone **and** stays there for your specified duration.
+
+New Relic also adjusts these predictions automatically:
+
+* **Data consistency:** Metrics that stay in a tight, predictable range get narrower bands. Noisy or unpredictable metrics get wider bands, to avoid false alarms.
+* **Cyclical fluctuations:** The algorithm looks for recurring, shorter-than-one-week patterns (like a Wednesday 1pm deploy or nightly batch jobs) and adjusts predictions to match.
+* **Age of data:** New Relic calculates predictions using 1-4 weeks of history, depending on data availability (queries using the `FACET` clause aren't trained on stored data and start learning from scratch). The less history a signal has, the more its baseline will fluctuate. Accuracy improves as more data accumulates, and New Relic gives more weight to recent data.
+
+<Collapser
+  id="key-concepts"
+  title="Key concepts"
+>
+
+* **Baseline (predicted value):** The line New Relic draws showing expected values, like a weather forecast.
+
+* **Gray prediction band:** The "acceptable variation" zone around the baseline. Tighter bands = more sensitive alerts.
+
+* **Duration:** How long the problem must persist before alerting. This prevents false alarms from brief spikes.
+
+* **Standard deviations:** A way to measure how far your data is from normal. Think of it as setting how picky your alerts are — higher numbers mean only very unusual data triggers alerts.
+
+</Collapser>
+
+## Configure thresholds [#configure-custom-anomalies]
+
+Anomaly sensitivity thresholds control how easily your alerts trigger. Higher sensitivity catches smaller changes but may create more false alarms. Lower sensitivity only alerts on bigger problems but might miss subtle issues.
+
+### Understand the anomaly detection chart
+
+<img
+  width="80%;"
+  title="Anomaly detection chart components"
+  alt="Screenshot showing the anomaly detection chart with baseline, signal line, and threshold bands in the New Relic UI"
+  src="/images/anomalydetectionchart.webp"
+/>
+
+| Chart element | What it shows |
+| :--- | :--- |
+| Green line (Signal) | Your actual data from your NRQL query — what's really happening |
+| Black dotted line (Baseline) | New Relic's prediction based on historical patterns |
+| Light gray band (inner) | Critical threshold — the tighter the band, the more sensitive it is |
+| Dark gray band (outer) | Warning threshold (optional) — the wider the band, the less sensitive it is |
+| Red areas | Alert events — your signal was outside the gray band for the specified duration |
+
+**Chart behavior settings:**
+* **Aggregation window:** Increasing this makes the baseline steadier and reduces signal variation. Decreasing it results in a more spiky signal.
+* **Window duration:** Higher durations create a smoother signal line. Lower durations result in a spikier, more responsive signal.
+
+### Sensitivity control: Tighter vs. looser bands
+
+This directly controls how many alerts you get:
+
+* **Tighter bands (smaller gray area):** Closer to the baseline = more alert events, because your data has less room for normal variation.
+* **Looser bands (larger gray area):** Further from the baseline = fewer alert events, because your data can vary more before triggering alerts.
+
+**Example:** If your CPU normally runs at 50%:
+- Tighter band: Alerts when CPU hits 55% (more sensitive)
+- Looser band: Alerts when CPU hits 70% (less sensitive)
+
+You can create anomaly sensitivity thresholds from an [alert condition](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/). Some tips for setting anomaly thresholds:
+
+* Set the [anomaly direction](#anomaly-direction) to monitor alert events that happen either above or below the anomaly.
+* Set the [seasonality](#seasonality) to specify a known seasonality pattern.
+* Use the slider bar to adjust the <DNT>**Critical**</DNT> sensitivity threshold, represented in the preview chart by the light gray area around the signal. The tighter the band around the signal, the more sensitive it is and the more alert events it will generate.
+* Optionally, add a [<DNT>**Warning**</DNT> threshold](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/set-thresholds-alert-condition/#threshold-levels) (the darker gray area around the signal) to get early notifications before problems become critical. This gives you time to investigate issues before they trigger the main alert.
+
+Follow these steps to create an anomaly detection alert condition:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Alert Conditions**</DNT>.
+
+2. Click <DNT>**+ New alert condition > Use guided mode**</DNT> (or the more advanced Query mode).
+
+3. Go through the guided steps until you get to <DNT>**Set thresholds**</DNT>.
+
+4. Select <DNT>**Anomaly**</DNT>.
+
+   <img
+     width="80%;"
+     title="Set anomaly thresholds"
+     alt="Screenshot showing the anomaly threshold configuration options in the New Relic UI"
+     src="/images/alerts_screenshot-crop_try-anomaly-thresholds.webp"
+   />
+
+5. From the <DNT>**Calculate seasonality**</DNT> dropdown, choose how often your data patterns repeat. For more details, see [Seasonality](#seasonality).
+
+6. From the <DNT>**Threshold direction**</DNT> dropdown, choose when to trigger alerts. For more details, see [Anomaly direction](#anomaly-direction).
+
+7. Open alert events with a <DNT>**severity level**</DNT>. Choose from the dropdown:
+   - <DNT>**Critical**</DNT>: For urgent issues requiring immediate attention (dark gray band)
+   - <DNT>**Warning**</DNT>: For less urgent issues that need monitoring (light gray band, optional)
+
+   An anomaly alert triggers when the **signal (green line) moves away from the baseline (black dotted line)** by a specified number of standard deviations. The gray band area represents your threshold range.
+
+   <Callout variant="important">
+   **Critical concept:** The signal must stay in violation for your specified duration before creating an alert event. Even if the signal briefly goes outside the gray band, New Relic won't create an alert unless it stays outside for the entire duration you set. This prevents false alarms from short spikes.
+   </Callout>
+
+   Configure your threshold settings:
+
+   * Choose timing rules:
+     - <DNT>**For at least**</DNT> - Signal must stay outside the band for the full time period before alerting. Reduces false alarms.
+     - <DNT>**At least once in**</DNT> - Alert when signal goes outside the band within the time window. Faster detection.
+
+   * **Set violation duration:** Choose from the dropdown how long (in minutes) the signal must remain outside the threshold:
+     - **Shorter duration** = More alert events (even brief violations trigger alerts)
+     - **Longer duration** = Fewer alert events (only sustained violations trigger alerts)
+
+   * **Set sensitivity level (standard deviations):** Use the slider to control band tightness:
+     - **Tighter band** (toward "more alert events") = Signal has less room for deviation, more alerts
+     - **Looser band** (toward "fewer alert events") = Signal has more room for deviation, fewer alerts
+
+   You can add one more threshold by clicking <DNT>**+ Add threshold**</DNT> to create both warning and critical levels with different sensitivity settings.
+
+8. Add the details of the alert condition and click <DNT>**Save condition**</DNT>.
+
+## Seasonality settings [#seasonality]
+
+Seasonality helps anomaly detection distinguish between expected changes (like higher traffic during business hours or weekend slowdowns) and real problems (like system outages).
+
+| Your pattern | Choose |
+| :--- | :--- |
+| Not sure, mixed, or a complex environment (microservices, global apps) | New Relic calculation (recommended) |
+| Metric should stay flat — any spike is a problem (errors, security events) | None |
+| Business-hours activity (internal tools, corporate apps) | Daily |
+| Busy weekdays, quiet weekends (B2B apps, office-based services) | Weekly |
+| Regular scheduled jobs (hourly batch processing) | Hourly |
+
+<Collapser
+  id="seasonality-decision-guide"
+  title="See detailed guidance and real customer examples"
+>
+
+Ask yourself: **Does my metric follow a predictable schedule?**
+
+### If no predictable pattern → choose "New Relic calculation" (recommended) or "None"
+<CollapserGroup>
+  <Collapser
+    id="new-relic-calculation"
+    title='Use "New Relic calculation" when:'
+  >
+- You're monitoring complex, mixed environments (microservices, global applications)
+- You're unsure about patterns or have multiple different patterns
+- You want the system to automatically figure it out
+ </Collapser>
+
+  <Collapser
+    id="none-seasonality"
+    title='Use "None" when:'
+  >
+- You're monitoring error rates, security events, or system failures
+- The metric should stay flat and any spike is a problem
+- You don't want patterns to influence alerting (every anomaly matters)
+ </Collapser>
+</CollapserGroup>
+
+### If yes, predictable patterns → choose based on your pattern type:
+
+<CollapserGroup>
+  <Collapser
+    id="daily-patterns"
+    title="Daily patterns → choose 'Daily'"
+  >
+- **When to use:** Business hours applications, internal corporate tools
+- **Real customer example:** A corporate HR system that processes 200 requests/hour during 9-5 business hours but drops to 10 requests/hour overnight and weekends
+- **Pattern:** High activity during work hours (9AM-6PM), low activity nights/weekends
+- **Why it works:** Anomaly detection learns that 15 requests/hour at 2PM is a problem, but 15 requests/hour at 2AM is normal
+</Collapser>
+
+  <Collapser
+    id="weekly-patterns"
+    title="Weekly patterns → choose 'Weekly'"
+  >
+- **When to use:** B2B applications, office-based services
+- **Real customer example:** A school email provider that peaks at 1,000 emails/hour every weekday around noon (lunch announcements) but handles only 50 emails/hour on weekends
+- **Pattern:** Busy weekdays, quiet weekends
+- **Why it works:** System expects weekend quiet periods and won't alert on low weekend activity, but will alert if weekday noon traffic drops unexpectedly
+</Collapser>
+
+  <Collapser
+    id="hourly-patterns"
+    title="Hourly patterns → choose 'Hourly'"
+  >
+- **When to use:** Scheduled jobs, automated processes
+- **Real customer example:** A data processing pipeline that runs every hour at :00 minutes, processing 10,000 records each time, with minimal activity between runs
+- **Pattern:** Activity spikes at regular hourly intervals (sharp peaks followed by valleys)
+- **Why it works:** Alerts if the hourly job fails to process the expected volume, but ignores low activity between scheduled runs
+</Collapser>
+</CollapserGroup>
+
+</Collapser>
+
+<Collapser
+  id="industry-examples"
+  title="Real examples by industry"
+>
+
+**E-commerce/Retail:** Use "New Relic calculation" - Complex patterns with seasonal shopping, daily peaks, and global customers
+
+**Restaurants:** Use "Daily" - Clear business hours patterns with predictable meal rushes
+
+**B2B Software:** Use "Weekly" - Busy during business week, quiet on weekends
+
+**System Monitoring:** Use "None" - Error rates should stay low regardless of time patterns
+
+</Collapser>
+
+<Collapser
+  id="common-mistakes"
+  title="Common mistakes to avoid"
+>
+- **Don't use "Daily" for 24/7 consumer apps** - Global users mean activity at all hours
+- **Don't use "Weekly" for consumer mobile apps** - Users active throughout the week
+- **Don't use any seasonality for error metrics** - Errors are always bad
+- **Don't use "Hourly" unless you have actual hourly jobs** - Will create false expectations
+</Collapser>
+
+## Understand when alerts fire [#understanding-alerts]
+
+Anomaly detection alerts don't fire the moment your data touches the gray threshold band. The timing depends on your duration settings and how long the violation persists.
+
+Here's what many customers experience:
+
+**Customer expectation:** "My CPU spiked to 90% and went outside the gray area, so why didn't I get an alert?"
+
+**Reality:** If your spike lasts only 2 minutes but your duration is set to 5 minutes, no alert will be created — even though the data clearly went outside the gray bands.
+
+<Callout variant="tip">
+**Common misconception:** Duration controls how long a problem must persist before alerting, not how quickly you'll be notified. Setting duration to 5 minutes doesn't mean "notify me within 5 minutes" — it means "only notify me if the anomaly lasts 5 minutes." A lower duration means alerts fire sooner, but you may see more false alarms.
+</Callout>
+
+<Collapser
+  id="alert-timeline"
+  title="The timeline of an anomaly alert"
+>
+
+Here's what actually happens when anomaly detection evaluates your data:
+
+Step 1: Data point arrives and goes outside the gray band → No alert yet
+
+Step 2: Data stays outside the band → Still no alert
+
+Step 3: Data has been outside the band for your specified duration → Alert fires
+
+Step 4: Data returns inside the band → Alert stays open
+
+Step 5: Data stays inside the band for the specified duration → Alert closes
+
+</Collapser>
+
+## Multi-signal conditions [#faceted-queries]
+
+Depending on how you defined your NRQL query when creating the alert condition, it may be monitoring many signals, not just one. When working with NRQL, these queries use the [`FACET` clause](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-facet). Keep these things in mind:
+
+* **Signal limit:** A single anomaly alert condition can monitor up to 20,000 individual signals.
+* **Independent evaluation:** Each signal is tracked and evaluated against its own historical baseline. An anomaly on one signal triggers an incident without another signal's normal behavior skewing or masking it.
+* **Uniform settings:** The threshold settings you specify apply the same to all signals being monitored by this condition, even though baselines are calculated per signal.
+* **Chart preview:** We show a maximum of 500 signals on the preview chart. We don't show the predicted signal and threshold bands when there's more than one signal on the chart — select a single time series from the legend to isolate its baseline and threshold bounds.
+
+<Collapser
+  id="anomaly-direction"
+  title="Anomaly direction: Select upper or lower ranges"
+>
+
+You can choose whether you want the condition to look for behavior that goes above the predicted value ("upper") or that goes below the predicted value ("lower"), or that goes either above or below. You choose these with the prediction direction selector.
+
+Example use cases for this:
+
+* You might use the Upper setting for a data source like error rate, because you generally are only concerned if it goes up, and aren't concerned if it goes down.
+* You might use the Lower setting for a data source like throughput, because sudden upward fluctuations are quite common, but a large sudden downswing would indicate a problem.
+
+Here are examples of how large fluctuations in your data would be treated under the different anomaly direction settings. The red areas represent alert events.
+
+<img
+  title="A screenshot of anomaly details in the New Relic UI"
+  alt="A screenshot demonstrating how to select upper and lower ranges for anomalies"
+  src="/images/alerts_screenshot-full_anomalies-set-upper-and-lower-ranges.webp"
+/>
+
+</Collapser>
+
+## Troubleshoot common problems [#troubleshooting]
+
+### Problem: My alerts are too noisy
+
+You're getting alerts every few hours for normal business fluctuations.
+
+**Cause:** Your duration, sensitivity, or seasonality settings are tuned tighter than your metric's normal variation.
+
+**Solution:** Try these fixes, in order:
+
+1. **Increase duration** — try 10-15 minutes instead of 2-5 minutes.
+2. **Decrease sensitivity** — increase the standard deviation threshold (try 3 instead of 2).
+3. **Check seasonality** — make sure it matches your business pattern.
+4. **Switch to "for at least"** — instead of "at least once in," to require sustained issues.
+
+| | Standard deviation | Duration | Trigger rule |
+| :--- | :--- | :--- | :--- |
+| Before | 2 | 3 minutes | At least once in |
+| After | 3 | 15 minutes | For at least |
+
+This typically results in about 90% fewer false alarms.
+
+### Problem: A critical issue didn't trigger an alert
+
+A real outage or problem didn't create an alert when it should have.
+
+**Cause:** One of the following usually explains it:
+
+* **Duration too long** — the issue resolved before the alert could fire.
+* **Wrong direction** — set to "upper" but the problem was a drop in traffic ("lower").
+* **Insufficient data** — new metrics need 2-4 weeks to learn patterns accurately.
+* **Standard deviation too high** — set too conservatively, missing real issues.
+
+**Solution:** Match the fix to the cause:
+
+* Reduce duration to 1-2 minutes for critical systems.
+* Check that the direction setting matches your use case.
+* Use static thresholds until enough data is collected.
+* Lower the standard deviation threshold (try 2 instead of 3).
+
+### Problem: The predicted baseline looks incorrect or erratic
+
+The baseline doesn't match what you see in reality.
+
+**Cause:** One of the following usually explains it:
+
+* **New metric (less than 4 weeks old):** Predictions are expected to be inaccurate and jumpy at this stage.
+* **Recent system changes:** A major deployment, infrastructure change, or business change can throw off predictions.
+* **Wrong seasonality setting:** For example, using "Daily" for a 24/7 global app, or "Weekly" for a consumer mobile app.
+* **Data inconsistency:** The metric has extremely variable patterns.
+
+**Solution:** Match the fix to the cause:
+
+* Wait for more data, or use static thresholds temporarily.
+* Give it 1-2 weeks — predictions adapt to new patterns.
+* Switch to "New Relic calculation" or choose a more appropriate pattern.
+* Use wider standard deviation thresholds, or consider whether anomaly detection is the right fit for this metric.
+
+### Problem: Faceted queries aren't working as expected
+
+You're monitoring multiple servers or services, but the predictions seem off.
+
+**Cause:** Faceted (`FACET`) queries have a few built-in limitations:
+
+* **No historical data** — faceted queries start learning from scratch (they don't use stored data).
+* **Same settings for all** — all 20,000 signals use identical threshold settings.
+* **Preview limitations** — only 500 signals max shown in the chart.
+* **Individual learning** — each signal learns independently, which takes time.
+
+**Solution:** Allow 4+ weeks for each signal to establish accurate predictions, start with conservative settings (higher standard deviations, longer durations), and consider separate conditions for different types of servers or services.
+
+### Problem: Standard deviations are confusing
+
+You're not sure what a given standard deviation setting actually does to your alert volume.
+
+**Cause:** The standard deviation value isn't intuitive on its own — it maps to a statistical percentage of normal variation.
+
+**Solution:** Use this translation guide:
+
+| Standard deviations | Coverage | Alert frequency |
+| :--- | :--- | :--- |
+| 1 | ~68% of normal variation | Very sensitive, lots of alerts |
+| 2 | ~95% of normal variation | Balanced, most common |
+| 3 | ~99.7% of normal variation | Conservative, fewer alerts |
+
+Practical recommendations:
+* **Start with 2-3** for most use cases.
+* **Use 1-2** for critical systems where you want early detection.
+* **Use 3-4** for noisy metrics where you only want obvious anomalies.
+
+### Quick diagnostic checklist
+
+When anomaly detection isn't working as expected, check these in order:
+
+1. **Age of data** — check whether the metric is older than 4 weeks.
+2. **Seasonality match** — check whether the setting matches your actual business patterns.
+3. **Direction setting** — check whether you're monitoring the right direction (upper/lower/both).
+4. **Duration vs. sensitivity balance** — too sensitive and too short causes noise, too conservative and too long causes missed issues.
+5. **Standard deviation level** — start with 2, and adjust based on results.
