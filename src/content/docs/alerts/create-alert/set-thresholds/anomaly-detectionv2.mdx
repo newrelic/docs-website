@@ -15,9 +15,10 @@ Anomaly detection gives your team flexible, adaptive monitoring for unusual beha
 - [How anomaly detection works](#how-it-works)
 - [Configure thresholds](#configure-custom-anomalies)
 - [Seasonality settings](#seasonality)
-- [Understanding when alerts fire](#understanding-alerts)
+- [Understand when alerts fire](#understanding-alerts)
 - [Multi-signal conditions](#faceted-queries)
-- [Troubleshooting and best practices](#troubleshooting)
+- [Tune thresholds using signal data](#tune-with-nraisignal)
+- [Troubleshoot common problems](#troubleshooting)
 
 ## When to use anomaly detection vs. static thresholds [#why-anomaly-detection]
 
@@ -363,6 +364,104 @@ Here are examples of how large fluctuations in your data would be treated under 
 />
 
 </Collapser>
+
+## Tune thresholds using signal data [#tune-with-nraisignal]
+
+Once a condition has been evaluating data for a few days or more, don't guess at a threshold. Every anomaly condition evaluation publishes an `NrAiSignal` event containing the actual value, the predicted value, and the standard deviation of the prediction error (`numberOfDeviations`). Query these events to see exactly how your threshold performs, and to chart your signal and predictions over longer time windows than the condition editor's preview chart allows.
+
+### Find your typical range of deviations
+
+A histogram of `numberOfDeviations` over a week or more shows the typical range of deviations for your signal, which helps you pick a starting threshold:
+
+```sql
+FROM NrAiSignal SELECT histogram(numberOfDeviations, start: -10, width: 20, buckets: 40) WHERE conditionId = YOUR_CONDITION_ID SINCE 1 week ago
+```
+
+<img
+  title="Histogram of NrAiSignal deviations"
+  alt="A histogram chart showing the distribution of numberOfDeviations values for a condition over the past week, with most values clustered near zero"
+  src="/images/anomaly-nraisignal-zscore-histogram.png"
+/>
+
+### Compare deviations against a candidate threshold over time
+
+Plot the same deviations as a time series next to a candidate threshold line, to see how often, and by how much, your signal would have violated it:
+
+```sql
+FROM NrAiSignal SELECT max(abs(numberOfDeviations)), 5 AS criticalValue WHERE conditionId = YOUR_CONDITION_ID SINCE 1 week ago TIMESERIES 28 minutes
+```
+
+Replace `5` with your candidate threshold. Set the `TIMESERIES` window to a multiple of the condition's aggregation window, and avoid `TIMESERIES MAX` for this comparison.
+
+<img
+  title="Time series of NrAiSignal deviations against a candidate threshold"
+  alt="A time series chart showing the maximum absolute number of deviations over a week, compared against a flat candidate threshold line"
+  src="/images/anomaly-nraisignal-zscore-timeseries.png"
+/>
+
+### Calculate average and percentile deviation
+
+For a more holistic view, calculate the average and percentile standard deviation over a longer window. For example, this latency signal has a spike to about 120 ms:
+
+<img
+  title="Latency signal with a spike"
+  alt="A line chart of a latency signal with a visible spike to around 120 milliseconds"
+  src="/images/anomaly-nraisignal-latency-spike.png"
+/>
+
+At that same point in time, the standard deviation is about 30.43:
+
+<img
+  title="Standard deviation at the same point as the latency spike"
+  alt="A line chart of the standard deviation of the latency signal, showing a value of about 30.43 at the time of the spike"
+  src="/images/anomaly-nraisignal-stddev-at-spike.png"
+/>
+
+Run this query to compare the average and percentile standard deviation against your current threshold:
+
+```sql
+SELECT average(deviations) AS 'avg', percentile(deviations, 75) AS 'p75', percentile(deviations, 95) AS 'p95' FROM (FROM NrAiSignal SELECT max(abs(numberOfDeviations)) AS 'deviations' WHERE conditionId = YOUR_CONDITION_ID TIMESERIES 1 hour LIMIT MAX) SINCE 1 week ago COMPARE WITH 2 weeks ago FACET string(7) AS 'Current Threshold'
+```
+
+<img
+  title="Percentile standard deviation compared against the current threshold"
+  alt="A table comparing average, 75th percentile, and 95th percentile standard deviation against the condition's current threshold"
+  src="/images/anomaly-nraisignal-percentile-stddev.png"
+/>
+
+In this example, a threshold between 10 and 17 would be a better fit than the current threshold of 7.
+
+### Check model behavior
+
+Plot the actual signal, the predicted value, and the calculated threshold together to see whether the model is well-trained and the threshold is well-calibrated:
+
+```sql
+FROM NrAiSignal SELECT latest(signalValue), latest(predictedValue), latest(predictedValue + (standardDeviation * {condition_threshold})) AS 'Upper Threshold' WHERE conditionId = {condition_id} SINCE 1 week ago TIMESERIES 30 minutes
+```
+
+* **signalValue:** The actual value from the condition's signal.
+* **predictedValue:** The model's calculated baseline, which shifts over time as it learns weekly and historical trends.
+* **Upper/lower threshold:** The high or low boundary calculated from the condition's standard deviation threshold.
+
+<img
+  title="Model behavior: signal, predicted value, and upper threshold"
+  alt="A chart comparing the actual signal value, the model's predicted value, and the calculated upper threshold over one week"
+  src="/images/anomaly-nraisignal-model-behavior.png"
+/>
+
+This trend shows a well-tuned condition:
+
+* The signal isn't consistently above the upper threshold, so the standard deviation threshold is likely set correctly.
+* The predicted value tracks the actual signal fairly closely, so the model is well-trained.
+
+Use this to diagnose problems:
+
+* If the signal is consistently above the upper threshold, or below the lower threshold, the standard deviation threshold needs adjusting.
+* If the predicted value trend varies a lot from the actual signal, the model needs more time to learn. Give it more data before you tune further.
+
+<Callout variant="tip">
+For a lower threshold, replace the upper threshold term with `predictedValue - (standardDeviation * {condition_threshold})`. For a two-sided threshold, include both terms in the same query to plot upper and lower threshold lines together.
+</Callout>
 
 ## Troubleshoot common problems [#troubleshooting]
 
