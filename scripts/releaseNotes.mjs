@@ -64,9 +64,7 @@ const INCLUDE_AGENTS = new Set([
   'ios',
   'java',
   'kubernetes',
-  'pipeline_control_gateway', 
-  'agent_control_deployment_chart', 
-  'agent_control_continuous_delivery_chart', 
+  'pipeline_control_gateway',
   'node',
   'nodejs',
   'php',
@@ -108,9 +106,9 @@ const generateReleaseNoteObject = async (filePath) => {
     description: (await excerptify(body)) ?? null,
     slug,
   };
-  
+
   if (attributes.category) {
-      output.category = attributes.category;
+    output.category = attributes.category;
   }
 
   if (attributes.eolDate) {
@@ -215,4 +213,3 @@ if (uploadToS3) {
   console.log(JSON.stringify(releaseNotes));
 }
 
- 
