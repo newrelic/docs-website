@@ -5,7 +5,7 @@ publishDate: '2026-07-31'
 eolEffectiveDate: '2027-07-31'
 ---
 
-Effective July 31, 2027, the New Relic REST API v2 (including the Alerts endpoints) and the Deployments v0 API will reach end of life (EOL). After this date, these API endpoints will no longer be available.
+Effective July 31, 2027, the New Relic REST API v2 (excluding some Alerts endpoints) and the Deployments v0 API will reach end of life (EOL). After this date, these API endpoints will no longer be available.
 
 ## Background
 
@@ -21,14 +21,14 @@ The following API endpoints will be permanently retired on July 31, 2027:
 
 ### Alerts
 
-Following Alerts endpoints are being retired. Each one has a NerdGraph replacement that covers the common use cases:
+The following Alerts endpoints are being retired. Each one has a NerdGraph replacement that covers the common use cases:
 
-   * `alerts_violations`: EOL the REST violations endpoint; customers can use the NerdGraph Incident API (`NrAiIncident`) 
-   * `alerts_incidents`: EOL the REST incidents endpoint; customers migrate to the NerdGraph Issues API (`NrAiIssue`). (**Note**: "incident" was renamed to "issue" in the modern model)
+   * `alerts_violations`: EOL the REST violations endpoint; customers can migrate to the NerdGraph Incident API (`NrAiIncident`) 
+   * `alerts_incidents`: EOL the REST incidents endpoint; customers can migrate to the NerdGraph Issues API (`NrAiIssue`). (**Note**: "incident" was renamed to "issue" in the modern model)
    * `alerts_channels`: EOL the REST channels endpoint; customers can migrate to [Notifications Workflows](https://docs.newrelic.com/docs/alerts/get-notified/alert-event-workflows/) and [Destinations](https://docs.newrelic.com/docs/alerts/get-notified/destinations/) by updating API calls to use the NerdGraph APIs or update your terraform to use the workflows and destinations resources.
    * `alerts_events`: EOL the REST events endpoint; most accounts use it for deployments and migrate to the NerdGraph change tracking API. Accounts using the feature flag for alert-related event data have no direct replacement today — handled case-by-case via Support.
 
-With NerdGraph now supporting many functions, we recommend beginning your migration process immediately. Should you identify a functionality missing from the NerdGraph, please reach out to Support for tracking and potential future inclusion.
+If you run into challenges with your migration please reach out to [Support](https://docs.newrelic.com/docs/new-relic-solutions/solve-common-issues/find-help-get-support/).
 
 **Not impacted**:
 
@@ -41,11 +41,11 @@ With NerdGraph now supporting many functions, we recommend beginning your migrat
        * `/alerts_location_failure_conditions/policies/*`
        * `/alerts_entity_conditions/*`
    * The NerdGraph GraphQL APIs hosted on the same domain (`https://api.newrelic.com/graphql`, `https://api.eu.newrelic.com/graphql`) are not affected
-   * New Relic agent communication and data ingest are not affected
+   * New Relic agent communication and data ingest are not affected for supported agent versions (versions prior to January 2026 will not be able to report deployment markers)
 
 ## How do I know if I'm affected?
 
-You may be affected if your account has made calls to the REST API v2 within the past 3 months. This includes accounts that use the Alerts endpoints (`/v2/alerts*`). To determine what action you need to take:
+These API calls may originate from proprietary tools, reporting systems, or third-party integrations, and include any utilization of the affected Alerts endpoints (`/v2/alerts*`). To determine what action you need to take:
 
 1. **Identify your REST API v2 usage:** Search your codebase, CI/CD pipelines, and automation scripts for calls to `api.newrelic.com/v2/`, `api.eu.newrelic.com/v2/`, and `https://rpm.newrelic.com/deployments`
 
