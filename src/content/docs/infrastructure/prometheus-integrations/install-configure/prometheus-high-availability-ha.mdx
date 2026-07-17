@@ -16,23 +16,27 @@ If you are using our Prometheus remote write integration in a high-availability 
   For information on standard Prometheus remote write integration without using a high-availability configuration, see [Set up your Prometheus remote write integration](/docs/integrations/prometheus-integrations/install-configure/set-your-prometheus-remote-write-integration).
 </Callout>
 
-## External labels [#prometheus-labels]
+## Quick reference [#prometheus-labels]
 
-New Relic requires two external labels to deduplicate data from replicas in a high-availability configuration:
+New Relic deduplicates HA replicas using three values. Set all three on every replica in a high-availability cluster:
 
 <table>
   <thead>
     <tr>
       <th>
-        Label name
+        Setting
       </th>
 
       <th>
-        Description
+        Where you set it
       </th>
 
       <th>
-        Example value
+        Value across replicas in the same HA cluster
+      </th>
+
+      <th>
+        Example
       </th>
     </tr>
   </thead>
@@ -44,7 +48,11 @@ New Relic requires two external labels to deduplicate data from replicas in a hi
       </td>
 
       <td>
-        A label whose value identifies the name of a high-availability cluster or group of Prometheus servers.
+        Prometheus external label
+      </td>
+
+      <td>
+        **Same** for all replicas
       </td>
 
       <td>
@@ -58,50 +66,99 @@ New Relic requires two external labels to deduplicate data from replicas in a hi
       </td>
 
       <td>
-        A label whose value identifies the unique replica sending this data.
+        Prometheus external label
       </td>
 
       <td>
-        `replica-1`
+        **Unique** per replica
+      </td>
+
+      <td>
+        `replica-1`, `replica-2`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `prometheus_server`
+      </td>
+
+      <td>
+        `remote_write` URL query parameter
+      </td>
+
+      <td>
+        **Same** for all replicas
+      </td>
+
+      <td>
+        `prod-monitoring`
       </td>
     </tr>
   </tbody>
 </table>
 
-<Callout variant="caution">
-  An account can have up to 1,500 unique Prometheus HA clusters. If this limit is exceeded, data from additional HA clusters will be dropped. In such cases, New Relic generates `PrometheusHAClusterLimit` [`NrIntegrationError`](/docs/data-apis/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/) events.
-</Callout>
+**How it works:** New Relic groups replicas into one HA cluster by your account, the `prometheus` label, and the `prometheus_server` parameter. Within each group it elects a single leader (identified by `prometheus_replica`) and keeps only that replica's data.
 
-## Prometheus Operator [#kubernetes-operator]
+## Set up deduplication [#set-up]
 
-These external labels are added by default if you use [Prometheus Operator](https://github.com/coreos/prometheus-operator) version 0.19.0 (or higher). This applies whether you use Prometheus Operator directly or via the [helm chart](https://hub.helm.sh/charts/stable/prometheus-operator).
+### Prometheus Operator [#kubernetes-operator]
 
-The operator sets the value of the `prometheus` label (the one identifying a cluster) as `<prometheus deployment namespace>/<prometheus deployment name>`. For example, if your namespace for the Prometheus deployment is `monitoring` and the name of the deployment is `prometheus-cluster1`, the value is `monitoring/prometheus-cluster1`.
+[Prometheus Operator](https://github.com/coreos/prometheus-operator) version 0.19.0 or higher adds the `prometheus` and `prometheus_replica` external labels for you, whether you use the operator directly or via the [helm chart](https://hub.helm.sh/charts/stable/prometheus-operator):
 
-The operator sets the value of the `prometheus_replica` label as the name of the pod for each replica. This follows the format `replica-<replica number>`, where the number is the ordinal of that replica (for example, the first replica is named replica-1).
+* `prometheus` is set to `<prometheus deployment namespace>/<prometheus deployment name>`. For example, a deployment named `prometheus-cluster1` in the `monitoring` namespace produces `monitoring/prometheus-cluster1`.
+* `prometheus_replica` is set to each replica's pod name, in the format `replica-<replica number>` (for example, `replica-1`).
 
-<Callout variant="tip">
-  If you still see duplicate copies of replica data, make sure you do not have [`replicaExternalLabelName` or `prometheusExternalLabelName`](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusspec) in your Prometheus spec or chart configuration because these overrides change the label name.
-</Callout>
+Set `prometheus_server` yourself in the `remoteWrite` configuration on the `Prometheus` resource, using the same value for every replica.
 
-## Standalone Prometheus
+### Standalone Prometheus [#standalone-prometheus]
 
-When deploying a Prometheus server directly, you need to add the external labels to the [configuration file](https://prometheus.io/docs/prometheus/latest/configuration/configuration/). Here are two different example configurations for replicas within the same high-availability cluster:
+Add the external labels to each replica's [configuration file](https://prometheus.io/docs/prometheus/latest/configuration/configuration/), and use an identical `remote_write` URL — including the `prometheus_server` parameter — across all replicas.
 
 <DNT>**Replica 1**</DNT> (`prometheus.yml`)
 
 ```yml
 global:
-	external_labels:
-		prometheus: monitoring-cluster
-		prometheus_replica: replica-1
+  external_labels:
+    prometheus: monitoring-cluster
+    prometheus_replica: replica-1
+
+remote_write:
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+    authorization:
+      credentials: YOUR_LICENSE_KEY
 ```
 
-<DNT>**Replica 2**</DNT> (`prometheus.yml)`
+<DNT>**Replica 2**</DNT> (`prometheus.yml`)
 
 ```yml
 global:
-	external_labels:
-		prometheus: monitoring-cluster
-		prometheus_replica: replica-2
+  external_labels:
+    prometheus: monitoring-cluster
+    prometheus_replica: replica-2
+
+remote_write:
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+    authorization:
+      credentials: YOUR_LICENSE_KEY
 ```
+
+Only `prometheus_replica` differs between the two replicas; `prometheus` and `prometheus_server` are identical.
+
+## Notes, limits, and troubleshooting [#notes]
+
+<Callout variant="important">
+  Keep `prometheus_server` identical across replicas. Because `prometheus_server` is part of how New Relic groups replicas, giving replicas *different* values — for example, setting it per host or per pod — places each replica in its own separate HA group. Each replica is then the sole member of its group and is always elected leader, so none of its data is dropped. The result is duplicate data in New Relic with no error or warning surfaced, because each replica looks like a healthy, standalone leader. To distinguish individual replicas in your data, use the `prometheus_replica` label instead.
+</Callout>
+
+<Callout variant="caution">
+  An account can have up to 1,500 unique Prometheus HA clusters, counted per unique combination of account, `prometheus` label, and `prometheus_server` parameter. If this limit is exceeded, data from additional HA clusters will be dropped. In such cases, New Relic generates `PrometheusHAClusterLimit` [`NrIntegrationError`](/docs/data-apis/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/) events. Keeping `prometheus_server` consistent across replicas also prevents a single HA group from unintentionally consuming multiple slots against this limit.
+</Callout>
+
+<Callout variant="tip">
+  Prometheus Operator does not set `prometheus_server` — that value comes entirely from your `remoteWrite` configuration on the `Prometheus` resource. This is consistent by default when all replicas share a single `remoteWrite` block (the normal case). If you inject per-replica `remoteWrite` overrides, make sure `prometheus_server` is not varied between them.
+</Callout>
+
+<Callout variant="tip">
+  If you still see duplicate copies of replica data, make sure you do not have [`replicaExternalLabelName` or `prometheusExternalLabelName`](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusspec) in your Prometheus spec or chart configuration because these overrides change the label name.
+</Callout>
