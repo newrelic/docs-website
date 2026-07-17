@@ -65,6 +65,7 @@ const INCLUDE_AGENTS = new Set([
   'java',
   'kubernetes',
   'pipeline_control_gateway',
+  'agent_control',
   'node',
   'nodejs',
   'php',
