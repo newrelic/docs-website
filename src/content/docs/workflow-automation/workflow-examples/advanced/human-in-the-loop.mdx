@@ -1,0 +1,94 @@
+---
+title: Human-in-the-loop workflows
+tags:
+  - workflow automation
+  - workflow
+  - human in the loop
+  - signals
+  - wait step
+metaDescription: "Pause a workflow run for human approval using newrelic.notification.createSignalUrl, a notification action, and a wait step with signals."
+freshnessValidatedDate: never
+---
+
+Use the human-in-the-loop pattern to pause a workflow run and hand control to a person. The workflow generates a signal URL, sends it to a notification destination (Microsoft Teams, Slack, or email), and waits. When the person clicks the URL and sends a signal, the workflow resumes and routes to the next step based on the signal received.
+
+This pattern combines three parts that must work together:
+
+  * [`newrelic.notification.createSignalUrl`](/docs/workflow-automation/setup-and-configure/actions-catalog/newrelic/newrelic-notification#newrelic.notification.createSignalUrl) — generates the URL a person clicks to send a signal.
+  * A **notification action** (`newrelic.notification.*` or `slack.chat.postMessage`) — delivers the URL to the person.
+  * A [**wait step**](/docs/workflow-automation/workflow-automation-apis/definition-schema#wait) with at least one signal — pauses the run and defines how each signal routes execution.
+
+<Callout variant="important">
+  `newrelic.notification.createSignalUrl` provides no benefit on its own. It must always be paired with a notification action and a wait step:
+
+    * The `waitStepName` input must match the name of a valid wait step in the same workflow definition.
+    * That wait step must contain at least one signal.
+
+  If either condition is not met, the workflow definition fails validation when you create it.
+</Callout>
+
+## How the pattern works [#how-it-works]
+
+1. **Create the signal URL.** The `newrelic.notification.createSignalUrl` action takes a `waitStepName` and returns a `url` output pointing at the wait step's signals.
+2. **Send the URL to a person.** A notification action sends the `url` output to a destination such as Microsoft Teams, Slack, or email.
+3. **Wait for a signal.** The wait step pauses the run for the duration set by its `seconds` input, up to a [maximum of 86400 seconds / 1 day](/docs/workflow-automation/limitations-and-faq/workflow-limits). If you don't set `seconds`, the 86400-second default applies. During this window, the person clicks the URL, which opens the run in the New Relic UI and shows a pop-up listing the available signals. If they aren't signed in, they sign in first, then land on the run and select a signal to send.
+4. **Route based on the signal.** Each signal in the wait step defines a `next` step. The signal received determines which branch the workflow runs. The signal must be sent before the wait step's duration ends (and within the workflow's overall [7-day maximum](/docs/workflow-automation/limitations-and-faq/workflow-limits)); otherwise the wait step's `next` step runs as the timeout path.
+
+## Example: approval workflow [#example]
+
+This workflow creates an approval URL, sends it to a Microsoft Teams channel, and waits up to 1 hour and 5 minutes for an `approve` or `deny` signal. If neither arrives, it routes to a timeout handler.
+
+```yaml
+name: humanInTheLoopDemo
+steps:
+  - name: createApprovalUrls
+    type: action
+    action: newrelic.notification.createSignalUrl
+    version: 1
+    inputs:
+      waitStepName: waitForApproval
+  - name: newrelicNotificationMsTeam
+    type: action
+    action: newrelic.notification.sendMicrosoftTeams
+    version: 1
+    inputs:
+      destinationId: acc24dc2-d4fc-4eba-a7b4-b3ad0170f8aa
+      channel: "dev-channel"
+      teamName: "dev-team"
+      message: "To approve continue at: ${{ .steps.createApprovalUrls.outputs.url }}"
+  - name: waitForApproval
+    type: wait
+    seconds: 3900 # 1 hour 5 minutes
+    signals:
+      - name: "approve"
+        next: logApproval
+      - name: "deny"
+        next: logDenial
+    next: handleTimeout
+```
+
+In this example:
+
+  * `createApprovalUrls` generates the signal URL for the `waitForApproval` step.
+  * `newrelicNotificationMsTeam` sends the `url` output to a Teams channel using `${{ .steps.createApprovalUrls.outputs.url }}`.
+  * `waitForApproval` pauses the run. An `approve` signal routes to `logApproval`, a `deny` signal routes to `logDenial`, and a timeout routes to `handleTimeout`.
+
+## Monitor and resolve a paused run [#monitor-and-resolve]
+
+While a run is paused at a wait step, it appears in the workflow's **Run history** tab with a run status of **Awaiting human approval**.
+
+You can resolve the run in two ways:
+
+  * **Signal URL**: The person clicks the URL sent by the notification action, which opens a pop-up on the run, and selects a signal (for example, approve or deny). If they close the pop-up accidentally, they can still send a signal from the **Run history** tab using the run's ID.
+  * **Run history UI**: In the workflow's **Run history** tab, open the run's actions menu (**···**) and select **Resolve workflow action** to send a signal directly. The same menu also lets you **View logs**, **Run workflow again**, or **Stop workflow**.
+
+Once a signal is received, the run resumes and routes to the `next` step defined for that signal.
+
+## Related topics [#related-topics]
+
+<DocTiles>
+  <DocTile title="Create a signal URL" path="/docs/workflow-automation/setup-and-configure/actions-catalog/newrelic/newrelic-notification#newrelic.notification.createSignalUrl">Reference for the newrelic.notification.createSignalUrl action</DocTile>
+  <DocTile title="Definition schema" path="/docs/workflow-automation/workflow-automation-apis/definition-schema#wait">Configure wait steps and signals</DocTile>
+  <DocTile title="Workflow limits" path="/docs/workflow-automation/limitations-and-faq/workflow-limits">Wait step and signal limits</DocTile>
+  <DocTile title="Deployment rollback" path="/docs/workflow-automation/workflow-examples/advanced/deployment-rollback">Another advanced workflow pattern</DocTile>
+</DocTiles>
