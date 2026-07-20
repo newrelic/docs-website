@@ -1,0 +1,2216 @@
+---
+title: NRDOT를 사용한 Windows RDS MSSQL 모니터링
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Windows
+  - RDS
+  - AWS
+metaDescription: Set up Microsoft SQL Server monitoring with NRDOT collector on Windows for AWS RDS SQL Server instances
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+AWS RDS for SQL Server 인스턴스를 모니터링하려면 Windows 환경에서 NRDOT 수집기를 사용하여 Microsoft SQL Server 모니터링을 설정합니다.
+
+RDS SQL Server 보안 설정에 따라 세 가지 인증 방법 중 하나를 선택하여 NRDOT Collector를 RDS 인스턴스에 연결할 수 있습니다:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="sql">SQL Server 인증</TabsBarItem> <TabsBarItem id="domain">Windows 도메인 인증</TabsBarItem> <TabsBarItem id="gmsa">gMSA</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="sql">
+      <Steps>
+        <Step>
+          ### 전제 조건 [#prerequisites-sql]
+
+          환경이 [호환성 및 필수 조건](/docs/opentelemetry/database/mssql/compatibility)을 충족하는지 확인하세요.
+        </Step>
+
+        <Step>
+          ### NRDOT Collector설정하세요 [#setup-sql]
+
+          RDS SQL Server 인스턴스에 연결할 수 있는 EC2 Windows 인스턴스 또는 로컬 Windows 머신에 NRDOT Collector를 설치합니다.
+
+          <Callout variant="important">
+            RDS 모니터링의 경우, 최적의 네트워크 연결과 더 낮은 지연시간을 위해 RDS 인스턴스와 동일한 VPC에 있는 EC2 인스턴스에 NRDOT Collector를 설치하세요.
+          </Callout>
+
+          1. PowerShell을 사용하여 NRDOT Collector를 다운로드하고 설치합니다:
+
+             ```powershell
+             [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+             ```
+
+          2. 보안 그룹이 포트 1433(또는 사용자 지정 포트)에서 NRDOT Collector 호스트로부터 RDS 인스턴스로의 인바운드 연결을 허용하는지 확인합니다.
+        </Step>
+
+        <Step>
+          ### 데이터베이스 사용자 구성 [#configure-user-sql]
+
+          관리자 자격 증명과 함께 SQL Server Management Studio(SSMS) 또는 sqlcmd를 사용하여 RDS SQL Server 인스턴스에 연결합니다.
+
+          다음 스크립트를 실행하여 적절한 권한을 가진 `newrelic` 모니터링 사용자를 생성하세요:
+
+          ```sql
+          USE [master];
+          GO
+          CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
+          GO
+
+          GRANT VIEW SERVER STATE TO [newrelic];
+          GRANT VIEW ANY DEFINITION TO [newrelic];
+          GRANT VIEW ANY DATABASE TO [newrelic];
+          GO
+
+          DECLARE @name SYSNAME;
+          DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+          SELECT [name]
+          FROM [master].[sys].[databases]
+          WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+          AND [state] = 0;
+          OPEN db_cursor;
+          FETCH NEXT FROM db_cursor INTO @name;
+          WHILE @@FETCH_STATUS = 0
+          BEGIN
+            BEGIN TRY
+              EXEC('USE [' + @name + '];
+              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+              BEGIN
+                CREATE USER [newrelic] FOR LOGIN [newrelic];
+              END;
+              GRANT VIEW DATABASE STATE TO [newrelic];');
+            END TRY
+            BEGIN CATCH
+              PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+            END CATCH
+            FETCH NEXT FROM db_cursor INTO @name;
+          END
+          CLOSE db_cursor;
+          DEALLOCATE db_cursor;
+          GO
+          ```
+
+          <Callout variant="tip">
+            **RDS의 경우:** RDS 마스터 사용자 이름(또는 `rds_superuser` 역할이 있는 사용자)을 사용하여 이 명령을 실행합니다. 스크립트는 AWS에서 예약한 `rdsadmin` 데이터베이스를 자동으로 제외합니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ## NRDOT Collector구성 [#configure-sql]
+
+          모니터링 요구 사항에 따라 설정 유형을 선택하십시오:
+
+          <CollapserGroup>
+            <Collapser id="standard" title="표준 설정">
+              이 설정은 핵심 메트릭을 사용한 필수 데이터베이스 모니터링에 중점을 둡니다.
+
+              <Callout variant="tip">
+                **RDS 엔드포인트 형식:** RDS 엔드포인트는 `your-db-instance.xxxxxxxxxxxx.region.rds.amazonaws.com` 형식입니다(예: `mydb-instance.c9akciq32.us-east-1.rds.amazonaws.com`). AWS RDS 콘솔의 &quot;Connectivity &amp; security&quot;에서 이를 찾으세요.
+              </Callout>
+
+              1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다. PowerShell에서 관리자로 다음 명령을 실행하십시오:
+
+                 ```powershell
+                 New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+                 ```
+
+              2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
+
+              ```yaml
+              receivers:
+                nrsqlserver:
+                  collection_interval: 15s
+                  username: <YOUR_USERNAME>
+                  password: <YOUR_PASSWORD>
+                  server: <YOUR_SERVER>
+                  port: <YOUR_PORT>
+
+                  # Enable comprehensive database metrics
+                  metrics:
+                    sqlserver.database.count:
+                      enabled: true
+                    sqlserver.database.io:
+                      enabled: true
+                    sqlserver.database.latency:
+                      enabled: true
+                    sqlserver.database.operations:
+                      enabled: true
+                    sqlserver.database.tempdb.space:
+                      enabled: true
+                    sqlserver.database.tempdb.version_store.size:
+                      enabled: true
+                    sqlserver.deadlock.rate:
+                      enabled: true
+                    sqlserver.os.wait.duration:
+                      enabled: true
+                    sqlserver.processes.blocked:
+                      enabled: true
+                    sqlserver.memory.grants.pending.count:
+                      enabled: true
+                    sqlserver.database.file.size:
+                      enabled: true
+                    sqlserver.memory.area:
+                      enabled: true
+
+                  # Enable top query and query sample log collection
+                  events:
+                    db.server.query_sample:
+                      enabled: true
+                    db.server.top_query:
+                      enabled: true
+
+                  # Top query collection configuration
+                  top_query_collection:
+                    lookback_time: 60s
+                    max_query_sample_count: 1000
+                    top_query_count: 250
+                    collection_interval: 60s
+
+                  collect_full_query_text: true
+                  allowed_comment_keys:
+                    - nr_service_guid
+
+                  # Query sample collection configuration
+                  query_sample_collection:
+                    max_rows_per_query: 100
+
+              processors:
+                memory_limiter:
+                  check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+                  limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+                  spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+                batch:
+
+              exporters:
+                otlphttp:
+                  endpoint: <YOUR_OTLP_ENDPOINT>
+                  headers:
+                    api-key: <YOUR_LICENSE_KEY>
+                  tls:
+                    insecure: false
+                  compression: gzip
+
+              service:
+                telemetry:
+                  metrics:
+                    level: none
+
+                pipelines:
+                  metrics:
+                    receivers: [nrsqlserver]
+                    processors: [memory_limiter, batch]
+                    exporters: [otlphttp]
+
+                  logs:
+                    receivers: [nrsqlserver]
+                    processors: [memory_limiter, batch]
+                    exporters: [otlphttp]
+
+              ```
+            </Collapser>
+
+            <Collapser id="all" title="전체 기능 설정">
+              이 설정은 사용 가능한 모든 메트릭을 사용하여 포괄적인 데이터베이스 모니터링을 제공합니다.
+
+              <Callout variant="tip">
+                **RDS 엔드포인트 형식:** RDS 엔드포인트는 `YOUR_DB_INSTANCE.YOUR_AWS_IDENTIFIER.YOUR_REGION.rds.amazonaws.com` (예: `mydb-instance.c9akciq32.us-east-1.rds.amazonaws.com`) 형식을 사용합니다. **AWS RDS 콘솔** 의 **Connectivity &amp; security**에서 이를 찾습니다.
+              </Callout>
+
+              1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다. PowerShell에서 관리자로 다음 명령을 실행하십시오:
+
+                 ```powershell
+                 New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+                 ```
+
+              2. 이전 단계에서 생성한 `mssql-config.yaml` 파일에 아래 설정 내용을 추가하세요.
+
+              ```yaml
+
+              # NRDOT Collector Configuration for New Relic SQL Server Integration
+              extensions:
+                health_check:
+
+              receivers:
+                otlp:
+                  protocols:
+                    grpc:
+                    http:
+
+                host_metrics:
+                  collection_interval: 30s
+                  scrapers:
+                    cpu:
+                      metrics:
+                        system.cpu.time:
+                          enabled: false
+                        system.cpu.utilization:
+                          enabled: true
+                    load:
+                    memory:
+                      metrics:
+                        system.memory.utilization:
+                          enabled: true
+                    paging:
+                      metrics:
+                        system.paging.utilization:
+                          enabled: false
+                        system.paging.faults:
+                          enabled: false
+                    disk:
+                      metrics:
+                        system.disk.merged:
+                          enabled: false
+                        system.disk.pending_operations:
+                          enabled: false
+                        system.disk.weighted_io_time:
+                          enabled: false
+                    network:
+                      metrics:
+                        system.network.connections:
+                          enabled: false
+                    processes:
+                    process:
+                      mute_process_name_error: true
+                      mute_process_exe_error: true
+                      mute_process_user_error: true
+                      mute_process_io_error: true
+                      metrics:
+                        process.cpu.utilization:
+                          enabled: true
+                        process.memory.utilization:
+                          enabled: true
+
+                nrsqlserver:
+                  collection_interval: 30s
+                  username: <YOUR_USERNAME>
+                  password: <YOUR_PASSWORD>
+                  server: <YOUR_SERVER>
+                  port: <YOUR_PORT>
+
+                  # Enable comprehensive database metrics
+                  metrics:
+                    # Database
+                    sqlserver.database.count:
+                      enabled: true
+                    sqlserver.database.file.size:
+                      enabled: true 
+                    sqlserver.database.io:
+                      enabled: true
+                    sqlserver.database.latency:
+                      enabled: true
+                    sqlserver.database.operations:
+                      enabled: true
+                    sqlserver.database.transactions.active:
+                      enabled: true
+                    sqlserver.database.backup_or_restore.rate:
+                      enabled: true
+                    sqlserver.database.execution.errors:
+                      enabled: true
+                    sqlserver.database.full_scan.rate:
+                      enabled: true
+                    sqlserver.database.tempdb.space:
+                      enabled: true
+                    sqlserver.database.tempdb.version_store.size:
+                      enabled: true
+                    # Locks
+                    sqlserver.lock.timeout.rate:
+                      enabled: true
+                    sqlserver.lock.wait.count:
+                      enabled: true
+                    sqlserver.deadlock.rate:
+                      enabled: true
+                    # Transactions
+                    sqlserver.transaction.delay:
+                      enabled: true
+                    sqlserver.transaction.longest_running_time:
+                      enabled: true
+                    sqlserver.transaction.version_cleanup.rate:
+                      enabled: true
+                    sqlserver.transaction.version_generation.rate:
+                      enabled: true
+                    # Memory
+                    sqlserver.memory.area:
+                      enabled: true
+                    sqlserver.memory.cache.object.count:
+                      enabled: true
+                    sqlserver.memory.grants.pending.count:
+                      enabled: true
+                    sqlserver.memory.page.count:
+                      enabled: true
+                    sqlserver.memory.target:
+                      enabled: true
+                    sqlserver.memory.usage:
+                      enabled: true
+                    # OS
+                    sqlserver.os.memory.usage:
+                      enabled: true
+                    sqlserver.os.memory.utilization:
+                      enabled: true
+                    sqlserver.os.scheduler.runnable_tasks.count:
+                      enabled: true
+                    sqlserver.os.wait.duration:
+                      enabled: true
+                    sqlserver.os.wait.tasks.count:
+                      enabled: true
+                    # Pages / Buffer
+                    sqlserver.page.buffer_cache.free_list.stalls.rate:
+                      enabled: true
+                    sqlserver.page.lookup.rate:
+                      enabled: true
+                    # Batch / Compilation
+                    sqlserver.batch.compilation.utilization:
+                      enabled: true
+                    sqlserver.batch.page_split.utilization:
+                      enabled: true
+                    sqlserver.recompilation.ratio:
+                      enabled: true
+                    sqlserver.parameterization.rate:
+                      enabled: true
+                    sqlserver.plan.execution.rate:
+                      enabled: true
+                    sqlserver.attention.rate:
+                      enabled: true
+                    # Processes / Connections
+                    sqlserver.process.count:
+                      enabled: true
+                    sqlserver.processes.blocked:
+                      enabled: true
+                    sqlserver.login.rate:
+                      enabled: true
+                    sqlserver.logout.rate:
+                      enabled: true
+                    # Thread Pool
+                    sqlserver.thread_pool.tasks.count:
+                      enabled: true
+                    sqlserver.thread_pool.workers.count:
+                      enabled: true
+                    sqlserver.thread_pool.workers.max:
+                      enabled: true
+                    sqlserver.thread_pool.workers.utilization:
+                      enabled: true
+                    # TempDB
+                    sqlserver.tempdb.allocation.wait_time.total:
+                      enabled: true
+                    sqlserver.tempdb.contention.waiters.count:
+                      enabled: true
+                    sqlserver.tempdb.data_files.count:
+                      enabled: true
+                    sqlserver.tempdb.file.size:
+                      enabled: true
+                    sqlserver.tempdb.space.usage:
+                      enabled: true
+                    # Latch
+                    sqlserver.latch.superlatch.count:
+                      enabled: true
+                    sqlserver.latch.superlatch.transition.rate:
+                      enabled: true
+                    sqlserver.latch.wait.rate:
+                      enabled: true
+                    sqlserver.latch.wait_time.avg:
+                      enabled: true
+                    sqlserver.latch.wait_time.total:
+                      enabled: true
+                    # Index
+                    sqlserver.index.search.rate:
+                      enabled: true
+                    # Resource Pool
+                    sqlserver.resource_pool.disk.operations:
+                      enabled: true
+                    sqlserver.resource_pool.disk.throttled.read.rate:
+                      enabled: true
+                    sqlserver.resource_pool.disk.throttled.write.rate:
+                      enabled: true
+                    # Replica / Always-On
+                    sqlserver.replica.data.rate:
+                      enabled: true
+                    # Server Properties
+                    sqlserver.computer.uptime:
+                      enabled: true
+                    sqlserver.cpu.count:
+                      enabled: true
+                    # Tables
+                    sqlserver.table.count:
+                      enabled: true
+                    # Errors
+                    sqlserver.kill_connection.error.rate:
+                      enabled: true
+                  # Enable top query and query sample log collection
+                  events:
+                    db.server.query_sample:
+                      enabled: true
+                    db.server.top_query:
+                      enabled: true
+                  # Top query collection configuration
+                  top_query_collection:
+                    lookback_time: 60s
+                    max_query_sample_count: 500
+                    top_query_count: 200
+                    collection_interval: 60s
+                  collect_full_query_text: true
+                  allowed_comment_keys:
+                    - nr_service_guid
+                  # Query sample collection configuration
+                  query_sample_collection:
+                    max_rows_per_query: 100
+              processors:
+                metrics_transform:
+                  transforms:
+                    - include: system.cpu.utilization
+                      action: update
+                      operations:
+                        - action: aggregate_labels
+                          label_set: [state]
+                          aggregation_type: mean
+                    - include: system.paging.operations
+                      action: update
+                      operations:
+                        - action: aggregate_labels
+                          label_set: [direction]
+                          aggregation_type: sum
+                filter/exclude_cpu_utilization:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+                      - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+                      - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+                filter/exclude_memory_utilization:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+                filter/exclude_memory_usage:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+                      - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+                filter/exclude_filesystem_utilization:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+                filter/exclude_filesystem_usage:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+                      - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+                filter/exclude_filesystem_inodes_usage:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+                      - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+                filter/exclude_system_disk:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                filter/exclude_system_paging:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+                      - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+                filter/exclude_network:
+                  metrics:
+                    datapoint:
+                      - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+                attributes/exclude_system_paging:
+                  include:
+                    match_type: strict
+                    metric_names:
+                      - system.paging.operations
+                  actions:
+                    - key: type
+                      action: delete
+                cumulativetodelta:
+                transform/host:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(metric.description, "")
+                        - set(metric.unit, "")
+                batch:
+                resource_detection:
+                  detectors: ["system"]
+                  system:
+                    hostname_sources: ["os"]
+                    resource_attributes:
+                      host.id:
+                        enabled: true
+                resource_detection/cloud:
+                  detectors: ["gcp", "ec2", "azure"]
+                  timeout: 2s
+                  override: true
+                resource_detection/env:
+                  detectors: ["env"]
+                  timeout: 2s
+                  override: true
+              exporters:
+                otlphttp:
+                  endpoint: <YOUR_OTLP_ENDPOINT>
+                  headers:
+                    api-key: <YOUR_LICENSE_KEY>
+                  tls:
+                    insecure: false
+                  compression: gzip
+              service:
+                telemetry:
+                  metrics:
+                    level: none
+                extensions: [health_check]
+                pipelines:
+                  metrics/host:
+                    receivers: [host_metrics, nrsqlserver]
+                    processors:
+                      - metrics_transform
+                      - filter/exclude_cpu_utilization
+                      - filter/exclude_memory_utilization
+                      - filter/exclude_memory_usage
+                      - filter/exclude_filesystem_utilization
+                      - filter/exclude_filesystem_usage
+                      - filter/exclude_filesystem_inodes_usage
+                      - filter/exclude_system_disk
+                      - filter/exclude_network
+                      - attributes/exclude_system_paging
+                      - transform/host
+                      - resource_detection
+                      - resource_detection/cloud
+                      - resource_detection/env
+                      - cumulativetodelta
+                      - batch
+                    exporters: [otlphttp]
+                  logs/host:
+                    receivers: [nrsqlserver]
+                    processors:
+                      - resource_detection
+                      - resource_detection/cloud
+                      - resource_detection/env
+                      - batch
+                    exporters: [otlphttp]
+                  traces:
+                    receivers: [otlp]
+                    processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+                    exporters: [otlphttp]
+                  metrics:
+                    receivers: [otlp]
+                    processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+                    exporters: [otlphttp]
+                  logs:
+                    receivers: [otlp]
+                    processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+                    exporters: [otlphttp]
+
+              ```
+            </Collapser>
+          </CollapserGroup>
+
+          ### 구성 매개변수
+
+          다음 표는 nrsqlserver 수신기의 주요 설정 파라미터를 설명합니다:
+
+          | 매개변수                   | 설명                                                                                                                 |
+          | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+          | `<YOUR_USERNAME>`      | 인증을 위해 데이터베이스 사용자 이름을 입력하세요.                                                                                       |
+          | `<YOUR_PASSWORD>`      | 인증을 위해 데이터베이스 비밀번호를 입력하세요.                                                                                         |
+          | `<YOUR_SERVER>`        | SQL Server 호스트명 또는 IP 주소를 입력하십시오.                                                                                  |
+          | `<YOUR_PORT>`          | SQL Server 포트 번호를 입력합니다. 기본값은 1433입니다.                                                                             |
+          | `<YOUR_OTLP_ENDPOINT>` | 뉴렐릭 OTLP 엔드포인트를 입력하세요. 자세한 내용은 [뉴렐릭 OTLP 엔드포인트 문서를](/docs/opentelemetry/best-practices/opentelemetry-otlp/) 참조하세요. |
+          | `<YOUR_LICENSE_KEY>`   | 귀하의 블루 클러스터 키를 입력하세요.                                                                                              |
+          | `collection_interval`  | 데이터베이스 메트릭을 수집하는 간격(초)입니다. 기본: 15s                                                                                 |
+
+          <Callout variant="tip">
+            **참고:** `max_concurrent_queries` 옵션은 각 스크랩 주기 동안 수신기가 SQL Server에 대해 병렬로 실행하는 메트릭 쿼리 수를 제어합니다.
+
+            ```yaml
+            receivers:
+              nrsqlserver:
+                max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+            ```
+          </Callout>
+
+          <Callout variant="tip">
+            **참고:** 사용 가능한 모든 메트릭을 활성화하는 경우 메모리 제한기가 데이터를 삭제하지 않도록 `limit_mib` 값(예: 1,000)을 늘리세요.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Windows 서비스 레지스트리 업데이트 [#update-registry-sql]
+
+          새 mssql-config.yaml 파일을 사용하도록 Windows 서비스 레지스트리를 업데이트합니다.
+
+          **방법 1: PowerShell**
+
+          관리자 권한으로 PowerShell에서 다음 명령을 실행합니다:
+
+          ```powershell
+          Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+          ```
+
+          **방법 2: 명령 프롬프트(대안)**
+
+          PowerShell을 사용할 수 없는 경우 대신 명령 프롬프트를 사용할 수 있습니다:
+
+          1. 시작 메뉴를 열고 다음을 입력합니다 `cmd`
+          2. 명령 프롬프트를 마우스 오른쪽 버튼으로 클릭하고 **Run as administrator** \[관리자 권한으로 실행]을 선택합니다
+          3. 검은색 CMD 창에 이 명령을 그대로 복사하여 붙여넣고 Enter를 누릅니다:
+
+          ```cmd
+          sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+          ```
+        </Step>
+
+        <Step>
+          ### NRDOT Collector 설정 유효성 검사 [#validate-sql]
+
+          NRDOT Collector 설정의 유효성을 검사하여 형식이 올바르고 제대로 작동하는지 확인합니다.
+
+          ```powershell
+          & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+          ```
+        </Step>
+
+        <Step>
+          ### NRDOT 수집기 재시작 [#restart-sql]
+
+          설정을 업데이트한 후 EC2 또는 로컬 Windows 머신에서 NRDOT Collector 서비스를 다시 시작합니다:
+
+          ```powershell
+          net stop nrdot-collector
+          net start nrdot-collector
+          ```
+
+          <Callout variant="tip">
+            설정을 변경한 후에는 반드시 NRDOT 수집기 서비스를 다시 시작하여 새 설정이 적용되도록 하십시오.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### (선택 사항) APM-데이터베이스 상관 관계 설정 [#correlation-sql]
+
+          애플리케이션 성능과 데이터베이스 작업 간의 상관관계를 파악하려면 데이터베이스 서비스 식별을 설정할 수 있습니다. 이를 통해 특정 데이터베이스워크로드 기능을 생성하는 기능을 정확하게 확인할 수 있습니다. 자세한 내용은 뉴렐릭에서 APM- 데이터베이스 상관 관계를 가져오기 위한 [데이터베이스 서비스 식별 설정을](/docs/opentelemetry/database/database-service-identification/) 참조하세요.
+
+          <Callout variant="important">
+            APM 에서 데이터베이스 성능 데이터를 보려면 두 가지 모두 동일한 뉴렐릭 계정에 있어야 합니다. 만약 데이터가 서로 다른 뉴럴릭 계정에 있다면, 데이터를 보려면 두 계정 모두에 접근 권한이 있어야 합니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### (선택 사항) 비밀 관리 구성 [#secret-management-sql]
+
+          비밀 관리 기능을 사용하면 데이터베이스 자격 증명과 같은 중요한 정보를 안전하게 관리할 수 있습니다. 이렇게 하면 구성 파일에 민감한 데이터를 하드코딩하는 것을 방지하여 모니터링 설정의 보안을 강화할 수 있습니다. 자세한 내용은 [비밀 관리 부분](/docs/opentelemetry/database/database-service-identification/#secret-management) 을 참조하십시오.
+        </Step>
+
+        <Step>
+          ### 데이터 찾기 및 사용 [#find-sql]
+
+          데이터가 수집되면 뉴렐릭의 UI 통해 포괄적인 SQL Server 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+          뉴렐릭에서 SQL Server 데이터베이스를 찾으려면 다음을 수행하세요.
+
+          1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+          2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**MSSQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+          3. 모임 목록에서 SQL Server 데이터베이스를 선택합니다.
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="domain">
+      <Steps>
+        <Step>
+          ### 전제 조건 [#prerequisites-domain]
+
+          환경이 [호환성 및 필수 조건](/docs/opentelemetry/database/mssql/compatibility)을 충족하는지 확인하세요.
+
+          **RDS를 사용한 Windows 도메인 인증에 대한 추가 요구 사항:**
+
+          * Active Directory가 있는 Windows 도메인 환경
+          * 도메인에 가입된 Windows EC2 인스턴스 또는 로컬 머신
+          * Windows 인증을 허용하도록 설정된 RDS SQL Server
+          * 적절한 SQL Server 권한이 있는 도메인 사용자 계정
+          * SQL Server 포트(기본값 1433)에서 연결을 허용하도록 구성된 보안 그룹
+        </Step>
+
+        <Step>
+          ### Microsoft SQL Server 활성화 [#enable-sql-server-domain]
+
+          관리자 자격 증명과 함께 SQL Server Management Studio(SSMS) 또는 sqlcmd를 사용하여 RDS SQL Server 인스턴스에 연결합니다.
+
+          다음 스크립트를 실행하여 Windows 도메인 로그인을 생성하고 필요한 권한을 부여합니다:
+
+          ```sql
+          USE master;
+          CREATE LOGIN [DomainName\DomainUser] FROM WINDOWS;
+          GRANT VIEW ANY DATABASE   TO [DomainName\DomainUser];
+          GRANT VIEW SERVER STATE TO [DomainName\DomainUser];
+          GRANT VIEW ANY DEFINITION TO [DomainName\DomainUser];
+          GO
+          ```
+
+          <Callout variant="important">
+            `DomainName\DomainUser` 실제 도메인 및 사용자 이름(예: `CORP\SQLMonitor`)으로 바꾸세요.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### READ 액세스 권한 부여 [#grant-permissions-domain]
+
+          다음 명령문을 사용하여 모든 데이터베이스에서 도메인 사용자에게 READ 액세스 권한을 부여합니다:
+
+          ```sql
+          -- Grant access to all databases (required for query monitoring and tempdb metrics)
+            DECLARE @name SYSNAME;
+            DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+              SELECT [name] FROM [master].[sys].[databases]
+              WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+                AND [state] = 0;
+            OPEN db_cursor;
+            FETCH NEXT FROM db_cursor INTO @name;
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+              BEGIN TRY
+                EXEC('USE [' + @name + '];
+                IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''DomainName\DomainUser'')
+                BEGIN
+                  CREATE USER [DomainName\DomainUser] FOR LOGIN [DomainName\DomainUser];
+                END;
+                GRANT VIEW DATABASE STATE TO [DomainName\DomainUser];');
+              END TRY
+              BEGIN CATCH
+                PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+              END CATCH
+              FETCH NEXT FROM db_cursor INTO @name;
+            END
+            CLOSE db_cursor;
+            DEALLOCATE db_cursor;
+            GO
+          ```
+
+          <Callout variant="tip">
+            **RDS의 경우:** 스크립트는 AWS에서 예약한 `rdsadmin` 데이터베이스를 자동으로 제외합니다. `DomainName\DomainUser` 을(를) 실제 도메인 자격 증명으로 바꿔야 합니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### NRDOT Collector 설정 [#setup-domain]
+
+          동일한 도메인의 일부이며 RDS SQL Server 인스턴스에 연결할 수 있는 도메인에 가입된 EC2 Windows 인스턴스 또는 로컬 Windows 머신에 NRDOT Collector를 설치합니다.
+
+          <Callout variant="important">
+            RDS 모니터링의 경우, 최적의 네트워크 연결과 더 낮은 지연시간을 위해 RDS 인스턴스와 동일한 VPC에 있는 EC2 인스턴스에 NRDOT Collector를 설치하세요.
+          </Callout>
+
+          1. PowerShell을 사용하여 NRDOT Collector를 다운로드하고 설치합니다:
+
+             ```powershell
+             [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+             ```
+
+          2. **서비스 로그인을 도메인 계정으로 변경(PowerShell 사용):**
+
+             PowerShell을 사용하여 도메인 사용자로 실행되도록 NRDOT Collector 서비스를 설정하세요:
+
+             ```powershell
+             # Configure service to use domain account
+             # The space after obj= and password= is required syntax for sc.exe
+             sc.exe config "nrdot-collector" obj= "DomainName\DomainUser" password= "<password>"
+
+             # Restart the service
+             Restart-Service nrdot-collector
+             ```
+
+             서비스 ID 확인:
+
+             ```powershell
+             Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, State, StartName
+             # Expected: StartName = DomainName\DomainUser
+             ```
+
+             <Callout variant="important">
+               `DomainName\DomainUser` 을(를) 실제 도메인 및 사용자 이름(예: `CORP\SQLMonitor`)으로 바꾸고, `<password>` 을(를) 도메인 사용자의 암호로 바꿉니다.
+             </Callout>
+
+          3. 보안 그룹이 포트 1433(또는 사용자 지정 포트)에서 NRDOT Collector 호스트로부터 RDS 인스턴스로의 인바운드 연결을 허용하는지 확인합니다.
+        </Step>
+
+        <Step>
+          ## NRDOT Collector구성 [#configure-domain]
+
+          모니터링 요구 사항에 따라 설정 유형을 선택하십시오:
+
+          <CollapserGroup>
+            <Collapser id="sc" title="표준 설정">
+              이 설정은 핵심 메트릭을 사용한 필수 데이터베이스 모니터링에 중점을 둡니다.
+
+              <Callout variant="tip">
+                **RDS 엔드포인트 형식:** RDS 엔드포인트는 `your-db-instance.xxxxxxxxxxxx.region.rds.amazonaws.com` 형식입니다. AWS RDS 콘솔의 &quot;Connectivity &amp; security&quot;에서 이를 찾으세요.
+              </Callout>
+
+              <Callout variant="important">
+                Windows 도메인 인증은 통합 보안(Windows 인증)을 사용하며, 이는 gMSA 인증과 동일한 설정 방식을 사용합니다. `datasource` 서버 값을 RDS 엔드포인트로 업데이트하기만 하면 됩니다. NRDOT 서비스는 3단계에서 설정한 도메인 계정을 사용하여 인증합니다.
+              </Callout>
+
+              1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다. PowerShell에서 관리자로 다음 명령을 실행하십시오:
+
+                 ```powershell
+                 New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+                 ```
+
+              2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
+
+              RDS 엔드포인트와 함께 아래 설정을 사용합니다:
+
+              ```yaml
+              # NRDOT Collector Configuration for RDS SQL Server - Windows Domain Auth
+              # NRDOT Collector Configuration for SQL Server with gMSA Authentication
+
+
+              receivers:
+                nrsqlserver:
+                  collection_interval: 15s
+                  datasource: "server=<YOUR_RDS_ENDPOINT>;port=<YOUR_PORT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+
+                  # Enable comprehensive database metrics
+                  metrics:
+                    sqlserver.database.count:
+                      enabled: true
+                    sqlserver.database.io:
+                      enabled: true
+                    sqlserver.database.latency:
+                      enabled: true
+                    sqlserver.database.operations:
+                      enabled: true
+                    sqlserver.database.tempdb.space:
+                      enabled: true
+                    sqlserver.database.tempdb.version_store.size:
+                      enabled: true
+                    sqlserver.deadlock.rate:
+                      enabled: true
+                    sqlserver.os.wait.duration:
+                      enabled: true
+                    sqlserver.processes.blocked:
+                      enabled: true
+                    sqlserver.memory.grants.pending.count:
+                      enabled: true
+                    sqlserver.database.file.size:
+                      enabled: true
+                    sqlserver.memory.area:
+                      enabled: true
+
+                  # Enable top query and query sample log collection
+                  events:
+                    db.server.query_sample:
+                      enabled: true
+                    db.server.top_query:
+                      enabled: true
+
+                  # Top query collection configuration
+                  top_query_collection:
+                    lookback_time: 60s
+                    max_query_sample_count: 1000
+                    top_query_count: 250
+                    collection_interval: 60s
+
+                  collect_full_query_text: true
+                  allowed_comment_keys:
+                    - nr_service_guid
+
+                  # Query sample collection configuration
+                  query_sample_collection:
+                    max_rows_per_query: 100
+
+              processors:
+                memory_limiter:
+                  check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+                  limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+                  spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+                batch:
+
+              exporters:
+                otlphttp:
+                  endpoint: <YOUR_OTLP_ENDPOINT>
+                  headers:
+                    api-key: <YOUR_LICENSE_KEY>
+                  tls:
+                    insecure: false
+                  compression: gzip
+
+              service:
+                telemetry:
+                  metrics:
+                    level: none
+
+                pipelines:
+                  metrics:
+                    receivers: [nrsqlserver]
+                    processors: [memory_limiter, batch]
+                    exporters: [otlphttp]
+
+                  logs:
+                    receivers: [nrsqlserver]
+                    processors: [memory_limiter, batch]
+                    exporters: [otlphttp]
+              ```
+
+              <Callout variant="tip">
+                **참고:** `max_concurrent_queries` 옵션은 각 스크랩 주기 동안 수신기가 SQL Server에 대해 병렬로 실행하는 메트릭 쿼리 수를 제어합니다.
+
+                ```yaml
+                receivers:
+                  nrsqlserver:
+                    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+                ```
+              </Callout>
+
+              <Callout variant="tip">
+                **참고:** 사용 가능한 모든 메트릭을 활성화하는 경우 메모리 제한기가 데이터를 삭제하지 않도록 `limit_mib` 값(예: 1,000)을 늘리세요.
+              </Callout>
+            </Collapser>
+
+            <Collapser id="ffc" title="전체 기능 설정">
+              이 설정은 사용 가능한 모든 메트릭을 사용하여 포괄적인 데이터베이스 모니터링을 제공합니다.
+
+              <Callout variant="tip">
+                **RDS 엔드포인트 형식:** RDS 엔드포인트는 `YOUR_DB_INSTANCE.YOUR_AWS_IDENTIFIER.YOUR_REGION.rds.amazonaws.com` (예: `mydb-instance.c9akciq32.us-east-1.rds.amazonaws.com`) 형식을 사용합니다. **AWS RDS 콘솔** 의 **Connectivity &amp; security**에서 이를 찾습니다.
+              </Callout>
+
+              1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다. PowerShell에서 관리자로 다음 명령을 실행하십시오:
+
+                 ```powershell
+                 New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+                 ```
+
+              2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
+
+              ```yaml
+              # NRDOT Collector Configuration for New Relic SQL Server Integration
+              extensions:
+                health_check:
+
+              receivers:
+                otlp:
+                  protocols:
+                    grpc:
+                    http:
+
+                host_metrics:
+                  collection_interval: 30s
+                  scrapers:
+                    cpu:
+                      metrics:
+                        system.cpu.time:
+                          enabled: false
+                        system.cpu.utilization:
+                          enabled: true
+                    load:
+                    memory:
+                      metrics:
+                        system.memory.utilization:
+                          enabled: true
+                    paging:
+                      metrics:
+                        system.paging.utilization:
+                          enabled: false
+                        system.paging.faults:
+                          enabled: false
+                    disk:
+                      metrics:
+                        system.disk.merged:
+                          enabled: false
+                        system.disk.pending_operations:
+                          enabled: false
+                        system.disk.weighted_io_time:
+                          enabled: false
+                    network:
+                      metrics:
+                        system.network.connections:
+                          enabled: false
+                    processes:
+                    process:
+                      mute_process_name_error: true
+                      mute_process_exe_error: true
+                      mute_process_user_error: true
+                      mute_process_io_error: true
+                      metrics:
+                        process.cpu.utilization:
+                          enabled: true
+                        process.memory.utilization:
+                          enabled: true
+
+                nrsqlserver:
+                  collection_interval: 30s
+                  datasource: "server=<YOUR_RDS_ENDPOINT>;port=<YOUR_PORT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+
+                  # Enable comprehensive database metrics
+                  metrics:
+                    # Database
+                    sqlserver.database.count:
+                      enabled: true
+                    sqlserver.database.file.size:
+                      enabled: true 
+                    sqlserver.database.io:
+                      enabled: true
+                    sqlserver.database.latency:
+                      enabled: true
+                    sqlserver.database.operations:
+                      enabled: true
+                    sqlserver.database.transactions.active:
+                      enabled: true
+                    sqlserver.database.backup_or_restore.rate:
+                      enabled: true
+                    sqlserver.database.execution.errors:
+                      enabled: true
+                    sqlserver.database.full_scan.rate:
+                      enabled: true
+                    sqlserver.database.tempdb.space:
+                      enabled: true
+                    sqlserver.database.tempdb.version_store.size:
+                      enabled: true
+                    # Locks
+                    sqlserver.lock.timeout.rate:
+                      enabled: true
+                    sqlserver.lock.wait.count:
+                      enabled: true
+                    sqlserver.deadlock.rate:
+                      enabled: true
+                    # Transactions
+                    sqlserver.transaction.delay:
+                      enabled: true
+                    sqlserver.transaction.longest_running_time:
+                      enabled: true
+                    sqlserver.transaction.version_cleanup.rate:
+                      enabled: true
+                    sqlserver.transaction.version_generation.rate:
+                      enabled: true
+                    # Memory
+                    sqlserver.memory.area:
+                      enabled: true
+                    sqlserver.memory.cache.object.count:
+                      enabled: true
+                    sqlserver.memory.grants.pending.count:
+                      enabled: true
+                    sqlserver.memory.page.count:
+                      enabled: true
+                    sqlserver.memory.target:
+                      enabled: true
+                    sqlserver.memory.usage:
+                      enabled: true
+                    # OS
+                    sqlserver.os.memory.usage:
+                      enabled: true
+                    sqlserver.os.memory.utilization:
+                      enabled: true
+                    sqlserver.os.scheduler.runnable_tasks.count:
+                      enabled: true
+                    sqlserver.os.wait.duration:
+                      enabled: true
+                    sqlserver.os.wait.tasks.count:
+                      enabled: true
+                    # Pages / Buffer
+                    sqlserver.page.buffer_cache.free_list.stalls.rate:
+                      enabled: true
+                    sqlserver.page.lookup.rate:
+                      enabled: true
+                    # Batch / Compilation
+                    sqlserver.batch.compilation.utilization:
+                      enabled: true
+                    sqlserver.batch.page_split.utilization:
+                      enabled: true
+                    sqlserver.recompilation.ratio:
+                      enabled: true
+                    sqlserver.parameterization.rate:
+                      enabled: true
+                    sqlserver.plan.execution.rate:
+                      enabled: true
+                    sqlserver.attention.rate:
+                      enabled: true
+                    # Processes / Connections
+                    sqlserver.process.count:
+                      enabled: true
+                    sqlserver.processes.blocked:
+                      enabled: true
+                    sqlserver.login.rate:
+                      enabled: true
+                    sqlserver.logout.rate:
+                      enabled: true
+                    # Thread Pool
+                    sqlserver.thread_pool.tasks.count:
+                      enabled: true
+                    sqlserver.thread_pool.workers.count:
+                      enabled: true
+                    sqlserver.thread_pool.workers.max:
+                      enabled: true
+                    sqlserver.thread_pool.workers.utilization:
+                      enabled: true
+                    # TempDB
+                    sqlserver.tempdb.allocation.wait_time.total:
+                      enabled: true
+                    sqlserver.tempdb.contention.waiters.count:
+                      enabled: true
+                    sqlserver.tempdb.data_files.count:
+                      enabled: true
+                    sqlserver.tempdb.file.size:
+                      enabled: true
+                    sqlserver.tempdb.space.usage:
+                      enabled: true
+                    # Latch
+                    sqlserver.latch.superlatch.count:
+                      enabled: true
+                    sqlserver.latch.superlatch.transition.rate:
+                      enabled: true
+                    sqlserver.latch.wait.rate:
+                      enabled: true
+                    sqlserver.latch.wait_time.avg:
+                      enabled: true
+                    sqlserver.latch.wait_time.total:
+                      enabled: true
+                    # Index
+                    sqlserver.index.search.rate:
+                      enabled: true
+                    # Resource Pool
+                    sqlserver.resource_pool.disk.operations:
+                      enabled: true
+                    sqlserver.resource_pool.disk.throttled.read.rate:
+                      enabled: true
+                    sqlserver.resource_pool.disk.throttled.write.rate:
+                      enabled: true
+                    # Replica / Always-On
+                    sqlserver.replica.data.rate:
+                      enabled: true
+                    # Server Properties
+                    sqlserver.computer.uptime:
+                      enabled: true
+                    sqlserver.cpu.count:
+                      enabled: true
+                    # Tables
+                    sqlserver.table.count:
+                      enabled: true
+                    # Errors
+                    sqlserver.kill_connection.error.rate:
+                      enabled: true
+                  # Enable top query and query sample log collection
+                  events:
+                    db.server.query_sample:
+                      enabled: true
+                    db.server.top_query:
+                      enabled: true
+                  # Top query collection configuration
+                  top_query_collection:
+                    lookback_time: 60s
+                    max_query_sample_count: 500
+                    top_query_count: 200
+                    collection_interval: 60s
+                  collect_full_query_text: true
+                  allowed_comment_keys:
+                    - nr_service_guid
+                  # Query sample collection configuration
+                  query_sample_collection:
+                    max_rows_per_query: 100
+              processors:
+                metrics_transform:
+                  transforms:
+                    - include: system.cpu.utilization
+                      action: update
+                      operations:
+                        - action: aggregate_labels
+                          label_set: [state]
+                          aggregation_type: mean
+                    - include: system.paging.operations
+                      action: update
+                      operations:
+                        - action: aggregate_labels
+                          label_set: [direction]
+                          aggregation_type: sum
+                filter/exclude_cpu_utilization:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+                      - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+                      - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+                filter/exclude_memory_utilization:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+                filter/exclude_memory_usage:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+                      - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+                filter/exclude_filesystem_utilization:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+                filter/exclude_filesystem_usage:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+                      - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+                filter/exclude_filesystem_inodes_usage:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+                      - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+                filter/exclude_system_disk:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                filter/exclude_system_paging:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+                      - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+                filter/exclude_network:
+                  metrics:
+                    datapoint:
+                      - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+                attributes/exclude_system_paging:
+                  include:
+                    match_type: strict
+                    metric_names:
+                      - system.paging.operations
+                  actions:
+                    - key: type
+                      action: delete
+                cumulativetodelta:
+                transform/host:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(metric.description, "")
+                        - set(metric.unit, "")
+                batch:
+                resource_detection:
+                  detectors: ["system"]
+                  system:
+                    hostname_sources: ["os"]
+                    resource_attributes:
+                      host.id:
+                        enabled: true
+                resource_detection/cloud:
+                  detectors: ["gcp", "ec2", "azure"]
+                  timeout: 2s
+                  override: true
+                resource_detection/env:
+                  detectors: ["env"]
+                  timeout: 2s
+                  override: true
+              exporters:
+                otlphttp:
+                  endpoint: <YOUR_OTLP_ENDPOINT>
+                  headers:
+                    api-key: <YOUR_LICENSE_KEY>
+                  tls:
+                    insecure: false
+                  compression: gzip
+              service:
+                telemetry:
+                  metrics:
+                    level: none
+                extensions: [health_check]
+                pipelines:
+                  metrics/host:
+                    receivers: [host_metrics, nrsqlserver]
+                    processors:
+                      - metrics_transform
+                      - filter/exclude_cpu_utilization
+                      - filter/exclude_memory_utilization
+                      - filter/exclude_memory_usage
+                      - filter/exclude_filesystem_utilization
+                      - filter/exclude_filesystem_usage
+                      - filter/exclude_filesystem_inodes_usage
+                      - filter/exclude_system_disk
+                      - filter/exclude_network
+                      - attributes/exclude_system_paging
+                      - transform/host
+                      - resource_detection
+                      - resource_detection/cloud
+                      - resource_detection/env
+                      - cumulativetodelta
+                      - batch
+                    exporters: [otlphttp]
+                  logs/host:
+                    receivers: [nrsqlserver]
+                    processors:
+                      - resource_detection
+                      - resource_detection/cloud
+                      - resource_detection/env
+                      - batch
+                    exporters: [otlphttp]
+                  traces:
+                    receivers: [otlp]
+                    processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+                    exporters: [otlphttp]
+                  metrics:
+                    receivers: [otlp]
+                    processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+                    exporters: [otlphttp]
+                  logs:
+                    receivers: [otlp]
+                    processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+                    exporters: [otlphttp]
+                    
+              ```
+            </Collapser>
+          </CollapserGroup>
+
+          ### 구성 매개변수
+
+          다음 표는 nrsqlserver 수신기의 주요 설정 파라미터를 설명합니다:
+
+          | 매개변수                   | 설명                                                                                                                                                                          |
+          | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `<YOUR_RDS_ENDPOINT>`  | RDS SQL Server 엔드포인트를 입력하세요                                                                                                                                                 |
+          | `<YOUR_PORT>`          | SQL Server 포트 번호를 입력합니다. 기본값은 1433입니다.                                                                                                                                      |
+          | `<YOUR_OTLP_ENDPOINT>` | 뉴렐릭 OTLP 엔드포인트를 입력하세요(예: [https://otlp.nr-data.net](https://otlp.nr-data.net)). 자세한 내용은 [뉴렐릭 OTLP 엔드포인트 문서를](/docs/opentelemetry/best-practices/opentelemetry-otlp/) 참조하세요. |
+          | `<YOUR_LICENSE_KEY>`   | 귀하의 블루 클러스터 키를 입력하세요.                                                                                                                                                       |
+          | `collection_interval`  | 데이터베이스 메트릭을 수집하는 간격(초)입니다. 기본: 15s                                                                                                                                          |
+        </Step>
+
+        <Step>
+          ### Windows 서비스 레지스트리 업데이트 [#update-registry-domain]
+
+          새 mssql-config.yaml 파일을 사용하도록 Windows 서비스 레지스트리를 업데이트합니다.
+
+          **방법 1: PowerShell**
+
+          관리자 권한으로 PowerShell에서 다음 명령을 실행합니다:
+
+          ```powershell
+          Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+          ```
+
+          **방법 2: 명령 프롬프트(대안)**
+
+          PowerShell을 사용할 수 없는 경우 대신 명령 프롬프트를 사용할 수 있습니다:
+
+          1. 시작 메뉴를 열고 다음을 입력합니다 `cmd`
+          2. 명령 프롬프트를 마우스 오른쪽 버튼으로 클릭하고 **Run as administrator** \[관리자 권한으로 실행]을 선택합니다
+          3. 검은색 CMD 창에 이 명령을 그대로 복사하여 붙여넣고 Enter를 누릅니다:
+
+          ```cmd
+          sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+          ```
+        </Step>
+
+        <Step>
+          ### NRDOT Collector 설정 유효성 검사 [#validate-domain]
+
+          NRDOT Collector 설정의 유효성을 검사하여 형식이 올바르고 제대로 작동하는지 확인합니다.
+
+          ```powershell
+          & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+          ```
+        </Step>
+
+        <Step>
+          ### NRDOT 수집기 재시작 [#restart-domain]
+
+          설정을 업데이트한 후, 도메인에 가입된 EC2 Windows 인스턴스에서 NRDOT Collector 서비스를 다시 시작하세요:
+
+          ```powershell
+          net stop nrdot-collector
+          net start nrdot-collector
+          ```
+
+          <Callout variant="tip">
+            Windows 서비스(services.msc)를 확인하여 서비스가 도메인 계정으로 실행 중인지 확인합니다. &quot;로그온&quot; 열에 도메인 계정(예: `CORP\SQLMonitor`)이 표시되어야 합니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### (선택 사항) APM-데이터베이스 상관 관계 설정 [#correlation-domain]
+
+          애플리케이션 성능과 데이터베이스 작업 간의 상관관계를 파악하려면 데이터베이스 서비스 식별을 설정할 수 있습니다. 이를 통해 특정 데이터베이스워크로드 기능을 생성하는 기능을 정확하게 확인할 수 있습니다. 자세한 내용은 뉴렐릭에서 APM- 데이터베이스 상관 관계를 가져오기 위한 [데이터베이스 서비스 식별 설정을](/docs/opentelemetry/database/database-service-identification/) 참조하세요.
+
+          <Callout variant="important">
+            APM 에서 데이터베이스 성능 데이터를 보려면 두 가지 모두 동일한 뉴렐릭 계정에 있어야 합니다. 만약 데이터가 서로 다른 뉴럴릭 계정에 있다면, 데이터를 보려면 두 계정 모두에 접근 권한이 있어야 합니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### (선택 사항) 비밀 관리 구성 [#secret-management-domain]
+
+          비밀 관리 기능을 사용하면 데이터베이스 자격 증명과 같은 중요한 정보를 안전하게 관리할 수 있습니다. 이렇게 하면 구성 파일에 민감한 데이터를 하드코딩하는 것을 방지하여 모니터링 설정의 보안을 강화할 수 있습니다. 자세한 내용은 [비밀 관리 부분](/docs/opentelemetry/database/database-service-identification/#secret-management) 을 참조하십시오.
+        </Step>
+
+        <Step>
+          ### 데이터 찾기 및 사용 [#find-domain]
+
+          데이터가 수집되면 뉴렐릭의 UI 통해 포괄적인 SQL Server 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+          뉴렐릭에서 SQL Server 데이터베이스를 찾으려면 다음을 수행하세요.
+
+          1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+          2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**MSSQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+          3. 모임 목록에서 SQL Server 데이터베이스를 선택합니다.
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="gmsa">
+      <Steps>
+        <Step>
+          ### 전제 조건 [#prerequisites-gmsa]
+
+          환경이 [호환성 및 필수 조건](/docs/opentelemetry/database/mssql/compatibility)을 충족하는지 확인하세요.
+
+          **RDS를 사용한 gMSA(그룹 관리 서비스 계정)에 대한 추가 요구 사항:**
+
+          * gMSA를 지원하는 Active Directory 환경
+          * SQL Server 액세스를 위해 생성되고 구성된 gMSA 계정
+          * gMSA 계정을 사용하도록 권한이 부여된 도메인에 가입된 Windows EC2 인스턴스
+          * SQL Server 포트(기본값 1433)에서 연결을 허용하도록 구성된 보안 그룹
+        </Step>
+
+        <Step>
+          ### Microsoft SQL Server 활성화 [#enable-sql-server-gmsa]
+
+          RDS SQL Server 인스턴스에 연결하고 다음 SQL 명령을 실행하여 gMSA 계정에 대한 로그인을 생성하고 필요한 권한을 부여하세요:
+
+          ```sql
+            USE master;
+            CREATE LOGIN [DomainName\gMSA] FROM WINDOWS;
+            GRANT VIEW ANY DATABASE TO [DomainName\gMSA];
+            GRANT VIEW SERVER STATE TO [DomainName\gMSA];
+            GRANT VIEW ANY DEFINITION TO [DomainName\gMSA];
+          ```
+
+          <Callout variant="important">
+            `DomainName\gMSA` 을(를) 실제 도메인 이름 및 gMSA 계정 이름으로 바꾸세요(예: `CORP\SQL-gMSA$`). gMSA 계정은 일반적으로 `$` 기호로 끝납니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### READ 액세스 권한 부여 [#grant-read-access-rds-gmsa]
+
+          다음 명령문을 사용하여 모든 데이터베이스에서 gMSA 계정에 READ 액세스 권한을 부여합니다:
+
+          ```sql
+          -- Grant access to all databases (required for query monitoring and tempdb metrics)
+            DECLARE @name SYSNAME;
+            DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+              SELECT [name] FROM [master].[sys].[databases]
+              WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+              AND [state] = 0;
+            OPEN db_cursor;
+            FETCH NEXT FROM db_cursor INTO @name;
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+              BEGIN TRY
+                EXEC('USE [' + @name + '];
+                IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<DOMAIN>\<gMSA_NAME>$'')
+                BEGIN
+                  CREATE USER [<DOMAIN>\<gMSA_NAME>$] FOR LOGIN [<DOMAIN>\<gMSA_NAME>$];
+                END;
+                GRANT VIEW DATABASE STATE TO [<DOMAIN>\<gMSA_NAME>$];');
+              END TRY
+              BEGIN CATCH
+                PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+              END CATCH
+              FETCH NEXT FROM db_cursor INTO @name;
+            END
+            CLOSE db_cursor;
+            DEALLOCATE db_cursor;
+            GO
+          ```
+
+          <Callout variant="important">
+            `DomainName\gMSA` 을(를) 실제 도메인 이름 및 gMSA 계정 이름(예: `CORP\SQL-gMSA$`)으로 바꿉니다. 이 스크립트는 시스템 데이터베이스 및 RDS 전용 데이터베이스를 제외한 모든 사용자 데이터베이스에 gMSA 계정용 데이터베이스 사용자를 생성합니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### NRDOT Collector 설정 [#setup-gmsa]
+
+          도메인에 가입되어 있고 gMSA 계정을 사용하도록 권한이 부여된 EC2 Windows 인스턴스에 NRDOT Collector를 설치합니다.
+
+          <Callout variant="important">
+            gMSA를 사용하는 RDS의 경우, NRDOT Collector는 gMSA 계정을 사용할 권한이 있는 도메인에 가입된 Windows EC2 인스턴스에 **반드시** 설치되어야 합니다. 보안 그룹이 포트 1433에서 RDS에 대한 연결을 허용하는지 확인하세요.
+          </Callout>
+
+          1. PowerShell을 사용하여 NRDOT Collector를 다운로드하고 설치합니다:
+
+          ```powershell
+            [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+          ```
+        </Step>
+
+        <Step>
+          ### gMSA로 실행되도록 NRDOT Collector 서비스 구성 [#configure-service-gmsa]
+
+          NRDOT Collector를 설치한 후 PowerShell을 사용하여 gMSA 계정으로 실행되도록 서비스를 설정합니다:
+
+          ```powershell
+          # Stop the NRDOT Collector service
+          Stop-Service nrdot-collector
+
+          # Configure service to use gMSA account
+          # Use cmd /c to avoid PowerShell treating $ as a variable
+          cmd /c 'sc config nrdot-collector obj= "DomainName\gMSA" password= ""'
+
+          # Verify the configuration
+          Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, StartName
+
+          # Start the NRDOT Collector service 
+          Start-Service nrdot-collector
+          ```
+
+          <Callout variant="important">
+            `DomainName\gMSA` 을(를) 실제 도메인 및 gMSA 계정 이름(예: `CORP\SQL-gMSA$`)으로 바꿉니다. 빈 암호에 유의하세요 ― gMSA 계정은 암호가 필요하지 않습니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ## NRDOT Collector구성 [#configure-gmsa]
+
+          모니터링 요구 사항에 따라 설정 유형을 선택하십시오:
+
+          <CollapserGroup>
+            <Collapser id="gmsa-standard" title="표준 설정">
+              이 설정은 핵심 메트릭을 사용한 필수 데이터베이스 모니터링에 중점을 둡니다.
+
+              <Callout variant="tip">
+                **RDS 엔드포인트 형식:** RDS 엔드포인트는 `your-db-instance.xxxxxxxxxxxx.region.rds.amazonaws.com` 형식입니다. AWS RDS 콘솔의 &quot;Connectivity &amp; security&quot;에서 이를 찾으세요.
+              </Callout>
+
+              <Callout variant="important">
+                설정은 Windows 통합 보안(gMSA)을 사용합니다. `datasource` 서버 값을 RDS 엔드포인트로 업데이트하기만 하면 됩니다.
+              </Callout>
+
+              1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다. PowerShell에서 관리자로 다음 명령을 실행하십시오:
+
+                 ```powershell
+                 New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+                 ```
+
+              2. 이전 단계에서 생성한 **mssql-config.yaml 파일에 아래 설정 내용을 추가합니다**.
+
+              RDS 엔드포인트와 함께 아래 설정을 사용합니다:
+
+              ```yaml
+
+              receivers:
+                nrsqlserver:
+                  collection_interval: 15s
+                  datasource: "server=<YOUR_RDS_ENDPOINT>;port=<YOUR_PORT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+
+                  # Enable comprehensive database metrics
+                  metrics:
+                    sqlserver.database.count:
+                      enabled: true
+                    sqlserver.database.io:
+                      enabled: true
+                    sqlserver.database.latency:
+                      enabled: true
+                    sqlserver.database.operations:
+                      enabled: true
+                    sqlserver.database.tempdb.space:
+                      enabled: true
+                    sqlserver.database.tempdb.version_store.size:
+                      enabled: true
+                    sqlserver.deadlock.rate:
+                      enabled: true
+                    sqlserver.os.wait.duration:
+                      enabled: true
+                    sqlserver.processes.blocked:
+                      enabled: true
+                    sqlserver.memory.grants.pending.count:
+                      enabled: true
+                    sqlserver.database.file.size:
+                      enabled: true
+                    sqlserver.memory.area:
+                      enabled: true
+
+                  # Enable top query and query sample log collection
+                  events:
+                    db.server.query_sample:
+                      enabled: true
+                    db.server.top_query:
+                      enabled: true
+
+                  # Top query collection configuration
+                  top_query_collection:
+                    lookback_time: 60s
+                    max_query_sample_count: 1000
+                    top_query_count: 250
+                    collection_interval: 60s
+
+                  collect_full_query_text: true
+                  allowed_comment_keys:
+                    - nr_service_guid
+
+                  # Query sample collection configuration
+                  query_sample_collection:
+                    max_rows_per_query: 100
+
+              processors:
+                memory_limiter:
+                  check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+                  limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+                  spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+                batch:
+
+              exporters:
+                otlphttp:
+                  endpoint: <YOUR_OTLP_ENDPOINT>
+                  headers:
+                    api-key: <YOUR_LICENSE_KEY>
+                  tls:
+                    insecure: false
+                  compression: gzip
+
+              service:
+                telemetry:
+                  metrics:
+                    level: none
+
+                pipelines:
+                  metrics:
+                    receivers: [nrsqlserver]
+                    processors: [memory_limiter, batch]
+                    exporters: [otlphttp]
+
+                  logs:
+                    receivers: [nrsqlserver]
+                    processors: [memory_limiter, batch]
+                    exporters: [otlphttp]
+
+              ```
+
+              RDS 엔드포인트 예시: `server=mydb-instance.c9akciq32.us-east-1.rds.amazonaws.com`
+            </Collapser>
+
+            <Collapser id="ffc-gmsa" title="전체 기능 설정">
+              이 설정은 사용 가능한 모든 메트릭을 사용하여 포괄적인 데이터베이스 모니터링을 제공합니다.
+
+              <Callout variant="tip">
+                **RDS 엔드포인트 형식:** RDS 엔드포인트는 `YOUR_DB_INSTANCE.YOUR_AWS_IDENTIFIER.YOUR_REGION.rds.amazonaws.com` (예: `mydb-instance.c9akciq32.us-east-1.rds.amazonaws.com`) 형식을 사용합니다. **AWS RDS 콘솔** 의 **Connectivity &amp; security**에서 이를 찾습니다.
+              </Callout>
+
+              1. **설정 파일을 만듭니다.** 파일 이름은 `mssql-config.yaml`이어야 합니다. PowerShell에서 관리자로 다음 명령을 실행하십시오:
+
+                 ```powershell
+                 New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+                 ```
+
+              2. 이전 단계에서 생성한 `mssql-config.yaml` 파일에 아래 설정 내용을 추가하세요.
+
+              ```yaml
+              # NRDOT Collector Configuration for New Relic SQL Server Integration
+              extensions:
+                health_check:
+
+              receivers:
+                otlp:
+                  protocols:
+                    grpc:
+                    http:
+
+                host_metrics:
+                  collection_interval: 30s
+                  scrapers:
+                    cpu:
+                      metrics:
+                        system.cpu.time:
+                          enabled: false
+                        system.cpu.utilization:
+                          enabled: true
+                    load:
+                    memory:
+                      metrics:
+                        system.memory.utilization:
+                          enabled: true
+                    paging:
+                      metrics:
+                        system.paging.utilization:
+                          enabled: false
+                        system.paging.faults:
+                          enabled: false
+                    disk:
+                      metrics:
+                        system.disk.merged:
+                          enabled: false
+                        system.disk.pending_operations:
+                          enabled: false
+                        system.disk.weighted_io_time:
+                          enabled: false
+                    network:
+                      metrics:
+                        system.network.connections:
+                          enabled: false
+                    processes:
+                    process:
+                      mute_process_name_error: true
+                      mute_process_exe_error: true
+                      mute_process_user_error: true
+                      mute_process_io_error: true
+                      metrics:
+                        process.cpu.utilization:
+                          enabled: true
+                        process.memory.utilization:
+                          enabled: true
+
+                nrsqlserver:
+                  collection_interval: 30s
+                  datasource: "server=<YOUR_RDS_ENDPOINT>;port=<YOUR_PORT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+
+                  # Enable comprehensive database metrics
+                  metrics:
+                    # Database
+                    sqlserver.database.count:
+                      enabled: true
+                    sqlserver.database.file.size:
+                      enabled: true 
+                    sqlserver.database.io:
+                      enabled: true
+                    sqlserver.database.latency:
+                      enabled: true
+                    sqlserver.database.operations:
+                      enabled: true
+                    sqlserver.database.transactions.active:
+                      enabled: true
+                    sqlserver.database.backup_or_restore.rate:
+                      enabled: true
+                    sqlserver.database.execution.errors:
+                      enabled: true
+                    sqlserver.database.full_scan.rate:
+                      enabled: true
+                    sqlserver.database.tempdb.space:
+                      enabled: true
+                    sqlserver.database.tempdb.version_store.size:
+                      enabled: true
+                    # Locks
+                    sqlserver.lock.timeout.rate:
+                      enabled: true
+                    sqlserver.lock.wait.count:
+                      enabled: true
+                    sqlserver.deadlock.rate:
+                      enabled: true
+                    # Transactions
+                    sqlserver.transaction.delay:
+                      enabled: true
+                    sqlserver.transaction.longest_running_time:
+                      enabled: true
+                    sqlserver.transaction.version_cleanup.rate:
+                      enabled: true
+                    sqlserver.transaction.version_generation.rate:
+                      enabled: true
+                    # Memory
+                    sqlserver.memory.area:
+                      enabled: true
+                    sqlserver.memory.cache.object.count:
+                      enabled: true
+                    sqlserver.memory.grants.pending.count:
+                      enabled: true
+                    sqlserver.memory.page.count:
+                      enabled: true
+                    sqlserver.memory.target:
+                      enabled: true
+                    sqlserver.memory.usage:
+                      enabled: true
+                    # OS
+                    sqlserver.os.memory.usage:
+                      enabled: true
+                    sqlserver.os.memory.utilization:
+                      enabled: true
+                    sqlserver.os.scheduler.runnable_tasks.count:
+                      enabled: true
+                    sqlserver.os.wait.duration:
+                      enabled: true
+                    sqlserver.os.wait.tasks.count:
+                      enabled: true
+                    # Pages / Buffer
+                    sqlserver.page.buffer_cache.free_list.stalls.rate:
+                      enabled: true
+                    sqlserver.page.lookup.rate:
+                      enabled: true
+                    # Batch / Compilation
+                    sqlserver.batch.compilation.utilization:
+                      enabled: true
+                    sqlserver.batch.page_split.utilization:
+                      enabled: true
+                    sqlserver.recompilation.ratio:
+                      enabled: true
+                    sqlserver.parameterization.rate:
+                      enabled: true
+                    sqlserver.plan.execution.rate:
+                      enabled: true
+                    sqlserver.attention.rate:
+                      enabled: true
+                    # Processes / Connections
+                    sqlserver.process.count:
+                      enabled: true
+                    sqlserver.processes.blocked:
+                      enabled: true
+                    sqlserver.login.rate:
+                      enabled: true
+                    sqlserver.logout.rate:
+                      enabled: true
+                    # Thread Pool
+                    sqlserver.thread_pool.tasks.count:
+                      enabled: true
+                    sqlserver.thread_pool.workers.count:
+                      enabled: true
+                    sqlserver.thread_pool.workers.max:
+                      enabled: true
+                    sqlserver.thread_pool.workers.utilization:
+                      enabled: true
+                    # TempDB
+                    sqlserver.tempdb.allocation.wait_time.total:
+                      enabled: true
+                    sqlserver.tempdb.contention.waiters.count:
+                      enabled: true
+                    sqlserver.tempdb.data_files.count:
+                      enabled: true
+                    sqlserver.tempdb.file.size:
+                      enabled: true
+                    sqlserver.tempdb.space.usage:
+                      enabled: true
+                    # Latch
+                    sqlserver.latch.superlatch.count:
+                      enabled: true
+                    sqlserver.latch.superlatch.transition.rate:
+                      enabled: true
+                    sqlserver.latch.wait.rate:
+                      enabled: true
+                    sqlserver.latch.wait_time.avg:
+                      enabled: true
+                    sqlserver.latch.wait_time.total:
+                      enabled: true
+                    # Index
+                    sqlserver.index.search.rate:
+                      enabled: true
+                    # Resource Pool
+                    sqlserver.resource_pool.disk.operations:
+                      enabled: true
+                    sqlserver.resource_pool.disk.throttled.read.rate:
+                      enabled: true
+                    sqlserver.resource_pool.disk.throttled.write.rate:
+                      enabled: true
+                    # Replica / Always-On
+                    sqlserver.replica.data.rate:
+                      enabled: true
+                    # Server Properties
+                    sqlserver.computer.uptime:
+                      enabled: true
+                    sqlserver.cpu.count:
+                      enabled: true
+                    # Tables
+                    sqlserver.table.count:
+                      enabled: true
+                    # Errors
+                    sqlserver.kill_connection.error.rate:
+                      enabled: true
+                  # Enable top query and query sample log collection
+                  events:
+                    db.server.query_sample:
+                      enabled: true
+                    db.server.top_query:
+                      enabled: true
+                  # Top query collection configuration
+                  top_query_collection:
+                    lookback_time: 60s
+                    max_query_sample_count: 500
+                    top_query_count: 200
+                    collection_interval: 60s
+                  collect_full_query_text: true
+                  allowed_comment_keys:
+                    - nr_service_guid
+                  # Query sample collection configuration
+                  query_sample_collection:
+                    max_rows_per_query: 100
+              processors:
+                metrics_transform:
+                  transforms:
+                    - include: system.cpu.utilization
+                      action: update
+                      operations:
+                        - action: aggregate_labels
+                          label_set: [state]
+                          aggregation_type: mean
+                    - include: system.paging.operations
+                      action: update
+                      operations:
+                        - action: aggregate_labels
+                          label_set: [direction]
+                          aggregation_type: sum
+                filter/exclude_cpu_utilization:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+                      - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+                      - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+                filter/exclude_memory_utilization:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+                      - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+                filter/exclude_memory_usage:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+                      - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+                filter/exclude_filesystem_utilization:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+                filter/exclude_filesystem_usage:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+                      - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+                filter/exclude_filesystem_inodes_usage:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+                      - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+                filter/exclude_system_disk:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                      - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                filter/exclude_system_paging:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+                      - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+                filter/exclude_network:
+                  metrics:
+                    datapoint:
+                      - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+                attributes/exclude_system_paging:
+                  include:
+                    match_type: strict
+                    metric_names:
+                      - system.paging.operations
+                  actions:
+                    - key: type
+                      action: delete
+                cumulativetodelta:
+                transform/host:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(metric.description, "")
+                        - set(metric.unit, "")
+                batch:
+                resource_detection:
+                  detectors: ["system"]
+                  system:
+                    hostname_sources: ["os"]
+                    resource_attributes:
+                      host.id:
+                        enabled: true
+                resource_detection/cloud:
+                  detectors: ["gcp", "ec2", "azure"]
+                  timeout: 2s
+                  override: true
+                resource_detection/env:
+                  detectors: ["env"]
+                  timeout: 2s
+                  override: true
+              exporters:
+                otlphttp:
+                  endpoint: <YOUR_OTLP_ENDPOINT>
+                  headers:
+                    api-key: <YOUR_LICENSE_KEY>
+                  tls:
+                    insecure: false
+                  compression: gzip
+              service:
+                telemetry:
+                  metrics:
+                    level: none
+                extensions: [health_check]
+                pipelines:
+                  metrics/host:
+                    receivers: [host_metrics, nrsqlserver]
+                    processors:
+                      - metrics_transform
+                      - filter/exclude_cpu_utilization
+                      - filter/exclude_memory_utilization
+                      - filter/exclude_memory_usage
+                      - filter/exclude_filesystem_utilization
+                      - filter/exclude_filesystem_usage
+                      - filter/exclude_filesystem_inodes_usage
+                      - filter/exclude_system_disk
+                      - filter/exclude_network
+                      - attributes/exclude_system_paging
+                      - transform/host
+                      - resource_detection
+                      - resource_detection/cloud
+                      - resource_detection/env
+                      - cumulativetodelta
+                      - batch
+                    exporters: [otlphttp]
+                  logs/host:
+                    receivers: [nrsqlserver]
+                    processors:
+                      - resource_detection
+                      - resource_detection/cloud
+                      - resource_detection/env
+                      - batch
+                    exporters: [otlphttp]
+                  traces:
+                    receivers: [otlp]
+                    processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+                    exporters: [otlphttp]
+                  metrics:
+                    receivers: [otlp]
+                    processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+                    exporters: [otlphttp]
+                  logs:
+                    receivers: [otlp]
+                    processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+                    exporters: [otlphttp]
+                    
+              ```
+            </Collapser>
+          </CollapserGroup>
+
+          ### 구성 매개변수
+
+          다음 표는 nrsqlserver 수신기의 주요 설정 파라미터를 설명합니다:
+
+          | 매개변수                   | 설명                                                                                                                 |
+          | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+          | `<YOUR_RDS_ENDPOINT>`  | RDS SQL Server 엔드포인트를 입력하세요                                                                                        |
+          | `<YOUR_PORT>`          | SQL Server 포트 번호를 입력합니다. 기본값은 1433입니다.                                                                             |
+          | `<YOUR_OTLP_ENDPOINT>` | 뉴렐릭 OTLP 엔드포인트를 입력하세요. 자세한 내용은 [뉴렐릭 OTLP 엔드포인트 문서를](/docs/opentelemetry/best-practices/opentelemetry-otlp/) 참조하세요. |
+          | `<YOUR_LICENSE_KEY>`   | 귀하의 블루 클러스터 키를 입력하세요.                                                                                              |
+          | `collection_interval`  | 데이터베이스 메트릭을 수집하는 간격(초)입니다. 기본: 15s                                                                                 |
+
+          <Callout variant="tip">
+            `max_concurrent_queries` 옵션은 각 스크랩 주기 동안 수신기가 SQL Server에 대해 병렬로 실행하는 메트릭 쿼리 수를 제어합니다.
+
+            ```yaml
+            receivers:
+              nrsqlserver:
+                max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+            ```
+          </Callout>
+
+          <Callout variant="tip">
+            **참고:** 사용 가능한 모든 메트릭을 활성화하는 경우 메모리 제한기가 데이터를 삭제하지 않도록 `limit_mib` 값(예: 1,000)을 늘리세요.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Windows 서비스 레지스트리 업데이트 [#update-registry-gmsa]
+
+          새 mssql-config.yaml 파일을 사용하도록 Windows 서비스 레지스트리를 업데이트합니다.
+
+          **방법 1: PowerShell**
+
+          관리자 권한으로 PowerShell에서 다음 명령을 실행합니다:
+
+          ```powershell
+          Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+          ```
+
+          **방법 2: 명령 프롬프트(대안)**
+
+          PowerShell을 사용할 수 없는 경우 대신 명령 프롬프트를 사용할 수 있습니다:
+
+          1. 시작 메뉴를 열고 다음을 입력합니다 `cmd`
+          2. 명령 프롬프트를 마우스 오른쪽 버튼으로 클릭하고 **Run as administrator** \[관리자 권한으로 실행]을 선택합니다
+          3. 검은색 CMD 창에 이 명령을 그대로 복사하여 붙여넣고 Enter를 누릅니다:
+
+          ```cmd
+          sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+          ```
+        </Step>
+
+        <Step>
+          ### NRDOT Collector 설정 유효성 검사 [#validate-gmsa]
+
+          NRDOT Collector 설정의 유효성을 검사하여 형식이 올바르고 제대로 작동하는지 확인합니다.
+
+          ```bash
+          & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+          ```
+        </Step>
+
+        <Step>
+          ### NRDOT 수집기 재시작 [#restart-gmsa]
+
+          설정을 업데이트한 후, 도메인에 가입된 EC2 Windows 인스턴스에서 NRDOT Collector 서비스를 다시 시작하세요:
+
+          ```bash
+            net stop nrdot-collector
+            net start nrdot-collector
+          ```
+
+          <Callout variant="tip">
+            Windows 서비스(services.msc)를 확인하여 서비스가 gMSA 계정으로 실행 중인지 확인합니다. &quot;로그온&quot; 열에 gMSA 계정(예: `CORP\SQL-gMSA$`)이 표시되어야 합니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### (선택 사항) APM-데이터베이스 상관 관계 설정 [#correlation-gmsa]
+
+          애플리케이션 성능과 데이터베이스 작업 간의 상관관계를 파악하려면 데이터베이스 서비스 식별을 설정할 수 있습니다. 이를 통해 특정 데이터베이스워크로드 기능을 생성하는 기능을 정확하게 확인할 수 있습니다. 자세한 내용은 뉴렐릭에서 APM- 데이터베이스 상관 관계를 가져오기 위한 [데이터베이스 서비스 식별 설정을](/docs/opentelemetry/database/database-service-identification/) 참조하세요.
+
+          <Callout variant="important">
+            APM 에서 데이터베이스 성능 데이터를 보려면 두 가지 모두 동일한 뉴렐릭 계정에 있어야 합니다. 만약 데이터가 서로 다른 뉴럴릭 계정에 있다면, 데이터를 보려면 두 계정 모두에 접근 권한이 있어야 합니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### (선택 사항) 비밀 관리 구성 [#secret-management-gmsa]
+
+          비밀 관리 기능을 사용하면 데이터베이스 자격 증명과 같은 중요한 정보를 안전하게 관리할 수 있습니다. 이렇게 하면 구성 파일에 민감한 데이터를 하드코딩하는 것을 방지하여 모니터링 설정의 보안을 강화할 수 있습니다. 자세한 내용은 [비밀 관리 부분](/docs/opentelemetry/database/database-service-identification/#secret-management) 을 참조하십시오.
+        </Step>
+
+        <Step>
+          ### 데이터 찾기 및 사용 [#find-gmsa]
+
+          데이터가 수집되면 뉴렐릭의 UI 통해 포괄적인 SQL Server 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+          뉴렐릭에서 SQL Server 데이터베이스를 찾으려면 다음을 수행하세요.
+
+          1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+          2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**MSSQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+          3. 모임 목록에서 SQL Server 데이터베이스를 선택합니다.
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 다음 단계
+
+Windows RDS 모니터링을 설정한 후:
+
+* [APM-데이터베이스 상관관계 설정](/docs/opentelemetry/database/database-service-identification/)
+* [사용 가능한 메트릭 탐색](/docs/opentelemetry/database/mssql/metrics-reference)
+* [문제 해결](/docs/opentelemetry/database/mssql/troubleshooting)
