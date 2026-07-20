@@ -1,0 +1,1562 @@
+---
+title: Monitorer HAProxy sur Kubernetes avec OpenTelemetry
+metaDescription: Learn how to monitor HAProxy instances running on Kubernetes using the NRDOT OpenTelemetry Collector with automatic pod discovery.
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - HAProxy
+  - Kubernetes
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cette intégration Kubernetes découvre automatiquement les pods HAProxy dans votre cluster et collecte des métriques sans configuration manuelle pour chaque instance. Elle utilise le [haproxyreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/haproxyreceiver) et le [receivercreator](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) OpenTelemetry pour monitorer dynamiquement les sessions HAProxy, les requests, les erreurs et l&apos;état de santé du serveur backend dans votre environnement conteneurisé.
+
+<Callout variant="tip">
+  Vous exécutez HAProxy sur des hôtes Linux ? Consultez le [guide d&apos;installation auto-hébergée](/docs/opentelemetry/integrations/haproxy/self-hosted) pour les déploiements sur machine virtuelle ou bare metal.
+</Callout>
+
+## Avant de commencer [#prerequisites]
+
+Assurez-vous d&apos;avoir :
+
+* [Clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)New Relic valide
+* Les pods HAProxy avec le [point de terminaison de statistiques activé](https://www.haproxy.com/documentation/haproxy-configuration-manual/latest/#4-stats%20enable) (généralement sur le port 8404)
+* Un label sur chaque pod HAProxy pour la découverte (par exemple, `app: haproxy`)
+* Si vous utilisez la méthode d&apos;installation Helm, terminez l&apos;installation de base de [Helm Kubernetes OpenTelemetry](/docs/kubernetes-pixie/k8s-otel/install/#helm-install)
+
+## Configurer le monitoring HAProxy [#setup]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-k8s">Collecteur NRDOT</TabsBarItem> <TabsBarItem id="otelcontrib-k8s">OpenTelemetry Collector Contrib</TabsBarItem> <TabsBarItem id="prometheus-k8s">Récepteur Prometheus</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-k8s">
+      <CollapserGroup>
+        <Collapser id="nrdot-k8s-helm-install" title="Installation Helm">
+          1. Ajoutez les sections suivantes sous [`deployment.extraConfig`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/values.yaml) dans votre `values.yaml`:
+
+          <Callout variant="important">
+            Dans `deployment.extraConfig`, `pipelines:` doit être défini au niveau racine — et non imbriqué sous `service:`. Le modèle de chart Helm mappe `extraConfig.pipelines` dans `service.pipelines`, et `extraConfig.service.extensions` dans `service.extensions`.
+          </Callout>
+
+          Extensions :
+
+          ```yaml
+          extensions:
+            k8s_observer:
+              auth_type: serviceAccount
+              observe_pods: true
+              observe_nodes: false
+          ```
+
+          Variables d&apos;environnement (ajoutez sous `deployment.envs`) :
+
+          ```yaml
+          deployment:
+            envs:
+              - name: OTEL_RESOURCE_ATTRIBUTES
+                value: "host.id=$(KUBE_NODE_NAME)"
+          ```
+
+          <Callout variant="important">
+            L&apos;attribut de ressource `host.id` est requis pour la synthèse d&apos;entités. Les images de conteneur n&apos;ont pas `/etc/machine-id`, vous devez donc l&apos;injecter via `OTEL_RESOURCE_ATTRIBUTES`. Le chart Helm définit déjà `KUBE_NODE_NAME` à partir de l&apos;API Downward de Kubernetes.
+          </Callout>
+
+          Récepteurs :
+
+          ```yaml
+          receivers:
+            receiver_creator/haproxy:
+              watch_observers: [k8s_observer]
+              receivers:
+                haproxy:
+                  rule: type == "pod" && labels["app"] == "haproxy"
+                  config:
+                    endpoint: 'http://`endpoint`:8404/stats'
+                    collection_interval: 30s
+          ```
+
+          Processeurs :
+
+          ```yaml
+          processors:
+            resource/cluster:
+              attributes:
+                - key: k8s.cluster.name
+                  value: "<YOUR_CLUSTER_NAME>"
+                  action: insert
+
+            transform/haproxy:
+              metric_statements:
+                - context: resource
+                  statements:
+                    - set(attributes["haproxy.display.name"], Concat([
+                        "server",
+                        "k8s",
+                        attributes["k8s.cluster.name"],
+                        attributes["k8s.namespace.name"],
+                        "pod",
+                        attributes["k8s.pod.name"],
+                        "haproxy",
+                        "8404"
+                      ], ":"))
+
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+          ```
+
+          Extensions de service :
+
+          ```yaml
+          service:
+            extensions: [k8s_observer]
+          ```
+
+          Pipelines :
+
+          ```yaml
+          pipelines:
+            metrics/haproxy:
+              receivers: [receiver_creator/haproxy]
+              processors: [batch, resource/cluster, transform/haproxy, transform/metadata_nullify, memory_limiter]
+              exporters: [otlphttp/newrelic]
+          ```
+
+          ### Paramètres de configuration
+
+          Le tableau suivant décrit les principaux paramètres de configuration :
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  paramètres
+                </th>
+
+                <th>
+                  Description
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `labels["app"] == "haproxy"`
+                </td>
+
+                <td>
+                  Sélecteur de label de pod utilisé pour découvrir les pods HAProxy. Mettez à jour la règle pour correspondre aux labels de votre pod.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_PORT_NUMBER>`
+                </td>
+
+                <td>
+                  Le port où HAProxy expose son point de terminaison de statistiques.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_CLUSTER_NAME>`
+                </td>
+
+                <td>
+                  Remplacez par le nom de votre cluster Kubernetes pour l&apos;identification dans New Relic.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `collection_interval`
+                </td>
+
+                <td>
+                  À quelle fréquence collecter les métriques. La valeur par défaut est 
+
+                  `30s`
+
+                  .
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          2. Appliquez les valeurs mises à jour à votre sortie Helm en cours d&apos;exécution :
+
+          ```bash
+          helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector \
+            --namespace newrelic \
+            --reuse-values \
+            -f values.yaml
+          ```
+        </Collapser>
+
+        <Collapser id="nrdot-k8s-manifest-install" title="Installation via manifeste">
+          Après avoir terminé l&apos;installation de base du [manifeste Kubernetes OpenTelemetry](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install), configurez le monitoring de HAProxy :
+
+          1. Mettre à jour l&apos;image du collecteur pour utiliser le collecteur NRDOT.
+
+             Dans le fichier [`deployment.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment.yaml) de votre répertoire local `rendered`, mettez à jour l&apos;image vers :
+
+             ```yaml
+             image: newrelic/nrdot-collector:latest
+             ```
+
+          2. Montez le `/etc/machine-id` de l&apos;hôte dans le conteneur du collecteur en ajoutant ces éléments à la spécification de déploiement :
+
+             ```yaml
+             volumeMounts:
+               - name: machine-id
+                 mountPath: /etc/machine-id
+                 readOnly: true
+             volumes:
+               - name: machine-id
+                 hostPath:
+                   path: /etc/machine-id
+                   type: File
+             ```
+
+             <Callout variant="important">
+               L&apos;attribut de ressource `host.id` est requis pour la synthèse d&apos;entités. Le processeur `resourcedetection` lit `/etc/machine-id` pour le renseigner. Sans ce montage de volume, `host.id` ne sera pas défini et les entités ne seront pas créées.
+             </Callout>
+
+          3. Remplacez le contenu dans [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml) sous `deployment-config.yaml: |` par :
+
+             ```yaml
+             extensions:
+               health_check:
+                 endpoint: 0.0.0.0:13133
+               k8s_observer:
+                 auth_type: serviceAccount
+                 observe_pods: true
+                 observe_nodes: false
+
+             receivers:
+               receiver_creator/haproxy:
+                 watch_observers: [k8s_observer]
+                 receivers:
+                   haproxy:
+                     rule: type == "pod" && labels["app"] == "haproxy"
+                     config:
+                       endpoint: 'http://`endpoint`:8404/stats'
+                       collection_interval: 30s
+
+             processors:
+               resourcedetection:
+                 detectors: [env, system]
+                 system:
+                   resource_attributes:
+                     host.name:
+                       enabled: true
+                     host.id:
+                       enabled: true
+                     os.type:
+                       enabled: true
+
+               batch:
+                 send_batch_max_size: 1000
+                 timeout: 30s
+                 send_batch_size: 800
+
+               memory_limiter:
+                 check_interval: 1s
+                 limit_percentage: 80
+                 spike_limit_percentage: 25
+
+               resource/cluster:
+                 attributes:
+                   - key: k8s.cluster.name
+                     value: "<YOUR_CLUSTER_NAME>"
+                     action: insert
+
+               transform/haproxy:
+                 metric_statements:
+                   - context: resource
+                     statements:
+                       - set(attributes["haproxy.display.name"], Concat([
+                           "server",
+                           "k8s",
+                           attributes["k8s.cluster.name"],
+                           attributes["k8s.namespace.name"],
+                           "pod",
+                           attributes["k8s.pod.name"],
+                           "haproxy",
+                           "8404"
+                         ], ":"))
+
+               transform/metadata_nullify:
+                 metric_statements:
+                   - context: metric
+                     statements:
+                       - set(description, "")
+                       - set(unit, "")
+
+             exporters:
+               otlp_http/newrelic:
+                 endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+                 headers:
+                   api-key: ${env:NR_LICENSE_KEY}
+
+             service:
+               extensions: [health_check, k8s_observer]
+               pipelines:
+                 metrics/haproxy:
+                   receivers: [receiver_creator/haproxy]
+                   processors: [resourcedetection, batch, resource/cluster, transform/haproxy, transform/metadata_nullify, memory_limiter]
+                   exporters: [otlp_http/newrelic]
+             ```
+
+          4. Supprimez le DaemonSet et le déploiement kube-state-metrics (non nécessaires pour le monitoring de HAProxy uniquement) :
+
+             ```bash
+             kubectl delete daemonset nr-k8s-otel-collector-daemonset -n newrelic
+             kubectl delete deployment nr-k8s-otel-collector-kube-state-metrics -n newrelic
+             ```
+
+          5. Redémarrez le déploiement du collecteur pour appliquer vos modifications :
+
+             ```bash
+             kubectl rollout restart deployment nr-k8s-otel-collector-deployment -n newrelic
+             ```
+
+          ### Paramètres de configuration
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  paramètres
+                </th>
+
+                <th>
+                  Description
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `labels["app"] == "haproxy"`
+                </td>
+
+                <td>
+                  Sélecteur de label de pod utilisé pour découvrir les pods HAProxy. Mettez à jour la règle pour correspondre aux labels de votre pod.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_PORT_NUMBER>`
+                </td>
+
+                <td>
+                  Le port où HAProxy expose son point de terminaison de statistiques.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_CLUSTER_NAME>`
+                </td>
+
+                <td>
+                  Remplacez par le nom de votre cluster Kubernetes pour l&apos;identification dans New Relic.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_NEWRELIC_OTLP_ENDPOINT>`
+                </td>
+
+                <td>
+                  Votre point de terminaison OTLP de New Relic. Utilisez 
+
+                  `https://otlp.nr-data.net`
+
+                   pour les États-Unis, 
+
+                  `https://otlp.eu01.nr-data.net`
+
+                   pour l&apos;UE.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcontrib-k8s">
+      Déployez l&apos;OpenTelemetry Collector Contrib sur votre cluster Kubernetes. Le collecteur découvre et extrait automatiquement les métriques de vos pods HAProxy. Choisissez entre Helm (en utilisant le [chart Helm OTel en amont](https://github.com/open-telemetry/opentelemetry-helm-charts)) ou les manifestes Kubernetes bruts.
+
+      <CollapserGroup>
+        <Collapser id="otelcontrib-helm-install" title="Installation Helm">
+          1. Créez un fichier `values.yaml` avec la configuration de monitoring HAProxy suivante :
+
+             ```yaml
+             mode: deployment
+
+             image:
+               repository: otel/opentelemetry-collector-contrib
+
+             clusterRole:
+               create: true
+               rules:
+                 - apiGroups: [""]
+                   resources: ["pods", "nodes"]
+                   verbs: ["get", "list", "watch"]
+                 - apiGroups: ["apps"]
+                   resources: ["replicasets"]
+                   verbs: ["get", "list", "watch"]
+
+             extraVolumes:
+               - name: machine-id
+                 hostPath:
+                   path: /etc/machine-id
+                   type: File
+
+             extraVolumeMounts:
+               - name: machine-id
+                 mountPath: /etc/machine-id
+                 readOnly: true
+
+             config:
+               extensions:
+                 health_check:
+                   endpoint: ${env:MY_POD_IP}:13133
+                 k8s_observer:
+                   auth_type: serviceAccount
+                   observe_pods: true
+                   observe_nodes: false
+
+               receivers:
+                 receiver_creator/haproxy:
+                   watch_observers: [k8s_observer]
+                   receivers:
+                     haproxy:
+                       rule: type == "pod" && labels["app"] == "haproxy"
+                       config:
+                         endpoint: 'http://`endpoint`:8404/stats'
+                         collection_interval: 30s
+
+               processors:
+                 resourcedetection:
+                   detectors: [env, system]
+                   system:
+                     resource_attributes:
+                       host.name:
+                         enabled: true
+                       host.id:
+                         enabled: true
+                       os.type:
+                         enabled: true
+
+                 batch:
+                   send_batch_size: 1024
+                   timeout: 30s
+
+                 memory_limiter:
+                   check_interval: 1s
+                   limit_percentage: 80
+                   spike_limit_percentage: 25
+
+                 resource/cluster:
+                   attributes:
+                     - key: k8s.cluster.name
+                       value: "<YOUR_CLUSTER_NAME>"
+                       action: insert
+
+                 transform/haproxy:
+                   metric_statements:
+                     - context: resource
+                       statements:
+                         - set(attributes["haproxy.display.name"], Concat(["server", "k8s", attributes["k8s.cluster.name"], attributes["k8s.namespace.name"], "pod", attributes["k8s.pod.name"], "haproxy", "8404"], ":"))
+
+                 transform/metadata_nullify:
+                   metric_statements:
+                     - context: metric
+                       statements:
+                         - set(description, "")
+                         - set(unit, "")
+
+               exporters:
+                 otlp_http/newrelic:
+                   endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+                   headers:
+                     api-key: "<YOUR_NEW_RELIC_LICENSE_KEY>"
+
+               service:
+                 extensions: [health_check, k8s_observer]
+                 pipelines:
+                   metrics/haproxy:
+                     receivers: [receiver_creator/haproxy]
+                     processors: [resourcedetection, batch, resource/cluster, transform/haproxy, transform/metadata_nullify, memory_limiter]
+                     exporters: [otlp_http/newrelic]
+             ```
+
+             ### Paramètres de configuration
+
+             <table>
+               <thead>
+                 <tr>
+                   <th>
+                     paramètres
+                   </th>
+
+                   <th>
+                     Description
+                   </th>
+                 </tr>
+               </thead>
+
+               <tbody>
+                 <tr>
+                   <td>
+                     `labels["app"] == "haproxy"`
+                   </td>
+
+                   <td>
+                     Sélecteur de label de pod utilisé pour découvrir les pods HAProxy. Mettez à jour la règle pour correspondre aux labels de votre pod.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_PORT_NUMBER>`
+                   </td>
+
+                   <td>
+                     Le port où HAProxy expose son point de terminaison de statistiques.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_CLUSTER_NAME>`
+                   </td>
+
+                   <td>
+                     Remplacez par le nom de votre cluster Kubernetes pour l&apos;identification dans New Relic.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_NEWRELIC_OTLP_ENDPOINT>`
+                   </td>
+
+                   <td>
+                     Votre point de terminaison OTLP de New Relic. Utilisez 
+
+                     `https://otlp.nr-data.net`
+
+                      pour les États-Unis, 
+
+                     `https://otlp.eu01.nr-data.net`
+
+                      pour l&apos;UE.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_NEW_RELIC_LICENSE_KEY>`
+                   </td>
+
+                   <td>
+                     Votre clé de licence d&apos;ingestion New Relic.
+                   </td>
+                 </tr>
+               </tbody>
+             </table>
+
+          2. Installez à l&apos;aide du chart Helm OpenTelemetry en amont :
+
+             ```bash
+             helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+             helm repo update
+             helm upgrade --install haproxy-otel-collector open-telemetry/opentelemetry-collector \
+               -f values.yaml \
+               -n newrelic --create-namespace
+             ```
+        </Collapser>
+
+        <Collapser id="otelcontrib-manifest-install" title="Installation via manifeste">
+          Utilisez cette option si vous ne pouvez pas utiliser Helm ou si vous préférez gérer les ressources Kubernetes directement avec `kubectl`.
+
+          1. Créez un secret avec votre clé de licence New Relic :
+
+             ```bash
+             kubectl create namespace newrelic
+             kubectl create secret generic otel-collector-haproxy-secret \
+               --namespace newrelic \
+               --from-literal=licenseKey='<YOUR_NEW_RELIC_LICENSE_KEY>'
+             ```
+
+          2. Enregistrez le manifeste suivant dans un fichier (par exemple, `otel-collector-haproxy.yaml`) :
+
+             ```yaml
+             ---
+             apiVersion: v1
+             kind: ServiceAccount
+             metadata:
+               name: otel-collector-haproxy
+               namespace: newrelic
+               labels:
+                 app: otel-collector-haproxy
+             ---
+             apiVersion: rbac.authorization.k8s.io/v1
+             kind: ClusterRole
+             metadata:
+               name: otel-collector-haproxy
+               labels:
+                 app: otel-collector-haproxy
+             rules:
+               - apiGroups: [""]
+                 resources: ["pods", "nodes"]
+                 verbs: ["get", "list", "watch"]
+               - apiGroups: ["apps"]
+                 resources: ["replicasets"]
+                 verbs: ["get", "list", "watch"]
+             ---
+             apiVersion: rbac.authorization.k8s.io/v1
+             kind: ClusterRoleBinding
+             metadata:
+               name: otel-collector-haproxy
+               labels:
+                 app: otel-collector-haproxy
+             roleRef:
+               apiGroup: rbac.authorization.k8s.io
+               kind: ClusterRole
+               name: otel-collector-haproxy
+             subjects:
+               - kind: ServiceAccount
+                 name: otel-collector-haproxy
+                 namespace: newrelic
+             ---
+             apiVersion: v1
+             kind: ConfigMap
+             metadata:
+               name: otel-collector-haproxy-config
+               namespace: newrelic
+               labels:
+                 app: otel-collector-haproxy
+             data:
+               collector-config.yaml: |
+                 extensions:
+                   health_check:
+                     endpoint: 0.0.0.0:13133
+                   k8s_observer:
+                     auth_type: serviceAccount
+                     observe_pods: true
+                     observe_nodes: false
+
+                 receivers:
+                   receiver_creator/haproxy:
+                     watch_observers: [k8s_observer]
+                     receivers:
+                       haproxy:
+                         rule: type == "pod" && labels["app"] == "haproxy"
+                         config:
+                           endpoint: 'http://`endpoint`:8404/stats'
+                           collection_interval: 30s
+
+                 processors:
+                   resourcedetection:
+                     detectors: [env, system]
+                     system:
+                       resource_attributes:
+                         host.name:
+                           enabled: true
+                         host.id:
+                           enabled: true
+                         os.type:
+                           enabled: true
+
+                   batch:
+                     send_batch_size: 1024
+                     timeout: 30s
+
+                   memory_limiter:
+                     check_interval: 1s
+                     limit_percentage: 80
+                     spike_limit_percentage: 25
+
+                   resource/cluster:
+                     attributes:
+                       - key: k8s.cluster.name
+                         value: "<YOUR_CLUSTER_NAME>"
+                         action: insert
+
+                   transform/haproxy:
+                     metric_statements:
+                       - context: resource
+                         statements:
+                           - set(attributes["haproxy.display.name"], Concat(["server", "k8s", attributes["k8s.cluster.name"], attributes["k8s.namespace.name"], "pod", attributes["k8s.pod.name"], "haproxy", "8404"], ":"))
+
+                   transform/metadata_nullify:
+                     metric_statements:
+                       - context: metric
+                         statements:
+                           - set(description, "")
+                           - set(unit, "")
+
+                 exporters:
+                   otlp_http/newrelic:
+                     endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+                     headers:
+                       api-key: ${env:NR_LICENSE_KEY}
+
+                 service:
+                   extensions: [health_check, k8s_observer]
+                   pipelines:
+                     metrics/haproxy:
+                       receivers: [receiver_creator/haproxy]
+                       processors: [resourcedetection, batch, resource/cluster, transform/haproxy, transform/metadata_nullify, memory_limiter]
+                       exporters: [otlp_http/newrelic]
+             ---
+             apiVersion: apps/v1
+             kind: Deployment
+             metadata:
+               name: otel-collector-haproxy
+               namespace: newrelic
+               labels:
+                 app: otel-collector-haproxy
+             spec:
+               replicas: 1
+               selector:
+                 matchLabels:
+                   app: otel-collector-haproxy
+               template:
+                 metadata:
+                   labels:
+                     app: otel-collector-haproxy
+                 spec:
+                   serviceAccountName: otel-collector-haproxy
+                   containers:
+                   - name: otel-collector
+                     image: otel/opentelemetry-collector-contrib:latest
+                     command:
+                     - "/otelcol-contrib"
+                     - "--config=/conf/collector-config.yaml"
+                     env:
+                     - name: NR_LICENSE_KEY
+                       valueFrom:
+                         secretKeyRef:
+                           name: otel-collector-haproxy-secret
+                           key: licenseKey
+                     - name: GOGC
+                       value: "80"
+                     ports:
+                     - name: health
+                       containerPort: 13133
+                       protocol: TCP
+                     resources:
+                       limits:
+                         cpu: 500m
+                         memory: 512Mi
+                       requests:
+                         cpu: 100m
+                         memory: 256Mi
+                     volumeMounts:
+                     - name: config
+                       mountPath: /conf
+                     - name: machine-id
+                       mountPath: /etc/machine-id
+                       readOnly: true
+                   volumes:
+                   - name: config
+                     configMap:
+                       name: otel-collector-haproxy-config
+                       items:
+                       - key: collector-config.yaml
+                         path: collector-config.yaml
+                   - name: machine-id
+                     hostPath:
+                       path: /etc/machine-id
+                       type: File
+             ```
+
+             <Callout variant="important">
+               Le montage de volume `/etc/machine-id` est requis pour la synthèse d&apos;entités. Le processeur `resourcedetection` lit ce fichier pour renseigner l&apos;attribut de ressource `host.id`. Sans cela, les entités ne seront pas créées dans New Relic.
+             </Callout>
+
+          3. Appliquez le manifeste :
+
+             ```bash
+             kubectl apply -f otel-collector-haproxy.yaml
+             ```
+
+          4. Vérifiez que le collecteur est en cours d&apos;exécution et découvre les pods HAProxy :
+
+             ```bash
+             kubectl get pods -n newrelic -l app=otel-collector-haproxy
+             kubectl logs -n newrelic -l app=otel-collector-haproxy
+             ```
+
+             Vous devriez voir des lignes de log indiquant `starting receiver` avec les adresses IP de vos pods HAProxy.
+
+          ### Paramètres de configuration
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  paramètres
+                </th>
+
+                <th>
+                  Description
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `labels["app"] == "haproxy"`
+                </td>
+
+                <td>
+                  Sélecteur de label de pod utilisé pour découvrir les pods HAProxy. Mettez à jour la règle pour correspondre aux labels de votre pod.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_PORT_NUMBER>`
+                </td>
+
+                <td>
+                  Le port où HAProxy expose son point de terminaison de statistiques.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_CLUSTER_NAME>`
+                </td>
+
+                <td>
+                  Remplacez par le nom de votre cluster Kubernetes pour l&apos;identification dans New Relic.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_NEWRELIC_OTLP_ENDPOINT>`
+                </td>
+
+                <td>
+                  Votre point de terminaison OTLP de New Relic. Utilisez 
+
+                  `https://otlp.nr-data.net`
+
+                   pour les États-Unis, 
+
+                  `https://otlp.eu01.nr-data.net`
+
+                   pour l&apos;UE.
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `<YOUR_NEW_RELIC_LICENSE_KEY>`
+                </td>
+
+                <td>
+                  Votre clé de licence d&apos;ingestion New Relic.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="prometheus-k8s">
+      Utilisez cette approche si vos pods HAProxy exposent déjà un point de terminaison Prometheus `/metrics` (HAProxy 2.0+) et que vous préférez extraire les métriques Prometheus plutôt que de vous connecter au point de terminaison des statistiques CSV.
+
+      <Callout variant="tip">
+        Si vous n&apos;avez pas déjà activé le point de terminaison Prometheus, utilisez plutôt les onglets **NRDOT Collector** ou **OpenTelemetry Collector Contrib**. Ils se connectent directement au point de terminaison des statistiques HAProxy sans nécessiter la prise en charge de Prometheus.
+      </Callout>
+
+      <Callout variant="important">
+        Cette approche nécessite HAProxy 2.0+ avec le point de terminaison Prometheus intégré activé. Votre configuration HAProxy doit inclure :
+
+        ```
+        frontend stats
+          bind *:8404
+          http-request use-service prometheus-exporter if { path /metrics }
+        ```
+
+        Et vos pods HAProxy doivent exposer un port nommé pour le point de terminaison des métriques :
+
+        ```yaml
+        ports:
+          - name: metrics
+            containerPort: 8404
+        ```
+      </Callout>
+
+      <CollapserGroup>
+        <Collapser id="prometheus-k8s-nrdot-helm" title="Collecteur NRDOT — Installation Helm">
+          Terminez l&apos;installation de base de [Helm Kubernetes OpenTelemetry](/docs/kubernetes-pixie/k8s-otel/install/#helm-install) pour `nr-k8s-otel-collector` avant de continuer.
+
+          1. Ajoutez les sections suivantes sous [`deployment.configMap.extraConfig`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/values.yaml) dans votre `values.yaml`:
+
+             <Callout variant="important">
+               Dans `deployment.configMap.extraConfig`, `pipelines:` doit être défini au niveau racine — et non imbriqué sous `service:`. Le modèle de chart Helm mappe `extraConfig.pipelines` dans `service.pipelines`, et `extraConfig.service.extensions` dans `service.extensions`.
+             </Callout>
+
+             Extensions :
+
+             ```yaml
+             extensions:
+               k8s_observer:
+                 auth_type: serviceAccount
+                 observe_pods: true
+                 observe_nodes: false
+             ```
+
+             Variables d&apos;environnement (ajoutez sous `deployment.envs`) :
+
+             ```yaml
+             deployment:
+               envs:
+                 - name: OTEL_RESOURCE_ATTRIBUTES
+                   value: "host.id=$(KUBE_NODE_NAME)"
+             ```
+
+             <Callout variant="important">
+               L&apos;attribut de ressource `host.id` est requis pour la synthèse d&apos;entité. Le processeur `resourcedetection` lit `OTEL_RESOURCE_ATTRIBUTES` pour le renseigner. Le chart Helm définit déjà `KUBE_NODE_NAME` à partir de l&apos;API Downward de Kubernetes.
+             </Callout>
+
+             Récepteurs :
+
+             ```yaml
+             receivers:
+               receiver_creator/haproxy_prom:
+                 watch_observers: [k8s_observer]
+                 receivers:
+                   prometheus:
+                     rule: type == "port" && pod.labels["app"] == "haproxy" && port == 8404
+                     config:
+                       config:
+                         scrape_configs:
+                           - job_name: haproxy_prom
+                             metrics_path: /metrics
+                             scrape_interval: 30s
+                             static_configs:
+                               - targets:
+                                   - '`endpoint`'
+                     resource_attributes:
+                       haproxy.addr: 'http://`endpoint`/metrics'
+             ```
+
+             Processeurs :
+
+             ```yaml
+             processors:
+               resourcedetection:
+                 detectors: [env]
+
+               filter/haproxy:
+                 metrics:
+                   include:
+                     match_type: regexp
+                     metric_names:
+                       - "haproxy_frontend_bytes_in_total"
+                       - "haproxy_frontend_bytes_out_total"
+                       - "haproxy_frontend_requests_denied_total"
+                       - "haproxy_frontend_request_errors_total"
+                       - "haproxy_frontend_http_requests_total"
+                       - "haproxy_frontend_current_sessions"
+                       - "haproxy_frontend_max_session_rate"
+                       - "haproxy_frontend_http_requests_rate_max"
+                       - "haproxy_frontend_connections_rate_max"
+                       - "haproxy_backend_bytes_in_total"
+                       - "haproxy_backend_bytes_out_total"
+                       - "haproxy_backend_connection_errors_total"
+                       - "haproxy_backend_http_requests_total"
+                       - "haproxy_backend_current_sessions"
+                       - "haproxy_backend_max_session_rate"
+                       - "haproxy_backend_current_queue"
+                       - "haproxy_server_bytes_in_total"
+                       - "haproxy_server_bytes_out_total"
+                       - "haproxy_server_connection_errors_total"
+                       - "haproxy_server_current_sessions"
+                       - "haproxy_server_max_session_rate"
+                       - "haproxy_server_current_queue"
+
+               transform/add_labels:
+                 metric_statements:
+                   - context: datapoint
+                     statements:
+                       - set(attributes["haproxy.service_name"], "FRONTEND") where IsMatch(metric.name, "^haproxy_frontend_.*")
+                       - set(attributes["haproxy.service_name"], "BACKEND") where IsMatch(metric.name, "^haproxy_backend_.*")
+                       - set(attributes["haproxy.service_name"], attributes["server"]) where IsMatch(metric.name, "^haproxy_server_.*")
+                       - set(attributes["haproxy.proxy_name"], attributes["proxy"]) where attributes["proxy"] != nil
+                       - delete_key(attributes, "proxy") where attributes["proxy"] != nil
+                       - delete_key(attributes, "server") where attributes["server"] != nil
+
+               metricstransform/rename:
+                 transforms:
+                   - include: haproxy_frontend_bytes_in_total
+                     action: update
+                     new_name: haproxy.bytes.input
+                   - include: haproxy_backend_bytes_in_total
+                     action: update
+                     new_name: haproxy.bytes.input
+                   - include: haproxy_server_bytes_in_total
+                     action: update
+                     new_name: haproxy.bytes.input
+                   - include: haproxy_frontend_bytes_out_total
+                     action: update
+                     new_name: haproxy.bytes.output
+                   - include: haproxy_backend_bytes_out_total
+                     action: update
+                     new_name: haproxy.bytes.output
+                   - include: haproxy_server_bytes_out_total
+                     action: update
+                     new_name: haproxy.bytes.output
+                   - include: haproxy_backend_connection_errors_total
+                     action: update
+                     new_name: haproxy.connections.errors
+                   - include: haproxy_server_connection_errors_total
+                     action: update
+                     new_name: haproxy.connections.errors
+                   - include: haproxy_frontend_requests_denied_total
+                     action: update
+                     new_name: haproxy.requests.denied
+                   - include: haproxy_frontend_request_errors_total
+                     action: update
+                     new_name: haproxy.requests.errors
+                   - include: haproxy_frontend_http_requests_total
+                     action: update
+                     new_name: haproxy.requests.total
+                   - include: haproxy_backend_http_requests_total
+                     action: update
+                     new_name: haproxy.requests.total
+                   - include: haproxy_backend_current_queue
+                     action: update
+                     new_name: haproxy.requests.queued
+                   - include: haproxy_server_current_queue
+                     action: update
+                     new_name: haproxy.requests.queued
+                   - include: haproxy_frontend_current_sessions
+                     action: update
+                     new_name: haproxy.sessions.count
+                   - include: haproxy_backend_current_sessions
+                     action: update
+                     new_name: haproxy.sessions.count
+                   - include: haproxy_server_current_sessions
+                     action: update
+                     new_name: haproxy.sessions.count
+                   - include: haproxy_frontend_http_requests_rate_max
+                     action: update
+                     new_name: haproxy.requests.rate
+                   - include: haproxy_frontend_connections_rate_max
+                     action: update
+                     new_name: haproxy.connections.rate
+                   - include: haproxy_frontend_max_session_rate
+                     action: update
+                     new_name: haproxy.sessions.rate
+                   - include: haproxy_backend_max_session_rate
+                     action: update
+                     new_name: haproxy.sessions.rate
+                   - include: haproxy_server_max_session_rate
+                     action: update
+                     new_name: haproxy.sessions.rate
+
+               resource/cluster:
+                 attributes:
+                   - key: k8s.cluster.name
+                     value: "<YOUR_CLUSTER_NAME>"
+                     action: insert
+
+               transform/haproxy:
+                 metric_statements:
+                   - context: resource
+                     statements:
+                       - set(attributes["haproxy.display.name"], Concat(["server", "k8s", attributes["k8s.cluster.name"], attributes["k8s.namespace.name"], "pod", attributes["k8s.pod.name"], "haproxy", "8404"], ":"))
+
+               transform/metadata_nullify:
+                 metric_statements:
+                   - context: metric
+                     statements:
+                       - set(description, "")
+                       - set(unit, "")
+             ```
+
+             Extensions de service :
+
+             ```yaml
+             service:
+               extensions: [k8s_observer]
+             ```
+
+             Pipelines :
+
+             ```yaml
+             pipelines:
+               metrics/haproxy_prom:
+                 receivers: [receiver_creator/haproxy_prom]
+                 processors: [resourcedetection, filter/haproxy, transform/add_labels, metricstransform/rename, resource/cluster, batch, transform/haproxy, transform/metadata_nullify, memory_limiter]
+                 exporters: [otlp_http/newrelic]
+             ```
+
+             ### Paramètres de configuration
+
+             <table>
+               <thead>
+                 <tr>
+                   <th>
+                     paramètres
+                   </th>
+
+                   <th>
+                     Description
+                   </th>
+                 </tr>
+               </thead>
+
+               <tbody>
+                 <tr>
+                   <td>
+                     `labels["app"] == "haproxy"`
+                   </td>
+
+                   <td>
+                     Sélecteur de label de pod utilisé pour découvrir les pods HAProxy. Mettez à jour la règle pour correspondre aux labels de votre pod.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_PORT_NUMBER>`
+                   </td>
+
+                   <td>
+                     Le port où HAProxy expose son point de terminaison Prometheus.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_CLUSTER_NAME>`
+                   </td>
+
+                   <td>
+                     Remplacez par le nom de votre cluster Kubernetes pour l&apos;identification dans New Relic.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `scrape_interval`
+                   </td>
+
+                   <td>
+                     Fréquence de scraping des métriques Prometheus. Par défaut : 
+
+                     `30s`
+
+                     .
+                   </td>
+                 </tr>
+               </tbody>
+             </table>
+
+          2. Appliquez les valeurs mises à jour à votre sortie Helm en cours d&apos;exécution :
+
+             ```bash
+             helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector \
+               --namespace newrelic \
+               --reuse-values \
+               -f values.yaml
+             ```
+        </Collapser>
+
+        <Collapser id="prometheus-k8s-otelcontrib-helm" title="Collecteur Otel Contrib — Installation Helm">
+          1. Créez un fichier `values.yaml` avec la configuration du récepteur Prometheus :
+
+             ```yaml
+             mode: deployment
+
+             image:
+               repository: otel/opentelemetry-collector-contrib
+
+             clusterRole:
+               create: true
+               rules:
+                 - apiGroups: [""]
+                   resources: ["pods", "nodes"]
+                   verbs: ["get", "list", "watch"]
+                 - apiGroups: ["apps"]
+                   resources: ["replicasets"]
+                   verbs: ["get", "list", "watch"]
+
+             extraVolumes:
+               - name: machine-id
+                 hostPath:
+                   path: /etc/machine-id
+                   type: File
+
+             extraVolumeMounts:
+               - name: machine-id
+                 mountPath: /etc/machine-id
+                 readOnly: true
+
+             config:
+               extensions:
+                 health_check:
+                   endpoint: ${env:MY_POD_IP}:13133
+                 k8s_observer:
+                   auth_type: serviceAccount
+                   observe_pods: true
+                   observe_nodes: false
+
+               receivers:
+                 receiver_creator/haproxy_prom:
+                   watch_observers: [k8s_observer]
+                   receivers:
+                     prometheus:
+                       rule: type == "port" && pod.labels["app"] == "haproxy" && port == 8404
+                       config:
+                         config:
+                           scrape_configs:
+                             - job_name: haproxy_prom
+                               metrics_path: /metrics
+                               scrape_interval: 30s
+                               static_configs:
+                                 - targets:
+                                     - '`endpoint`'
+                       resource_attributes:
+                         haproxy.addr: 'http://`endpoint`/metrics'
+
+               processors:
+                 resourcedetection:
+                   detectors: [env, system]
+                   system:
+                     resource_attributes:
+                       host.name:
+                         enabled: true
+                       host.id:
+                         enabled: true
+                       os.type:
+                         enabled: true
+
+                 filter/haproxy:
+                   metrics:
+                     include:
+                       match_type: regexp
+                       metric_names:
+                         - "haproxy_frontend_bytes_in_total"
+                         - "haproxy_frontend_bytes_out_total"
+                         - "haproxy_frontend_requests_denied_total"
+                         - "haproxy_frontend_request_errors_total"
+                         - "haproxy_frontend_http_requests_total"
+                         - "haproxy_frontend_current_sessions"
+                         - "haproxy_frontend_max_session_rate"
+                         - "haproxy_backend_bytes_in_total"
+                         - "haproxy_backend_bytes_out_total"
+                         - "haproxy_backend_connection_errors_total"
+                         - "haproxy_backend_http_requests_total"
+                         - "haproxy_backend_current_sessions"
+                         - "haproxy_backend_max_session_rate"
+                         - "haproxy_backend_current_queue"
+                         - "haproxy_server_bytes_in_total"
+                         - "haproxy_server_bytes_out_total"
+                         - "haproxy_server_connection_errors_total"
+                         - "haproxy_server_current_sessions"
+                         - "haproxy_server_max_session_rate"
+                         - "haproxy_server_current_queue"
+
+                 transform/add_labels:
+                   metric_statements:
+                     - context: datapoint
+                       statements:
+                         - set(attributes["haproxy.service_name"], "FRONTEND") where IsMatch(metric.name, "^haproxy_frontend_.*")
+                         - set(attributes["haproxy.service_name"], "BACKEND") where IsMatch(metric.name, "^haproxy_backend_.*")
+                         - set(attributes["haproxy.service_name"], attributes["server"]) where IsMatch(metric.name, "^haproxy_server_.*")
+                         - set(attributes["haproxy.proxy_name"], attributes["proxy"]) where attributes["proxy"] != nil
+                         - delete_key(attributes, "proxy") where attributes["proxy"] != nil
+                         - delete_key(attributes, "server") where attributes["server"] != nil
+
+                 metricstransform/rename:
+                   transforms:
+                     - include: haproxy_frontend_bytes_in_total
+                       action: update
+                       new_name: haproxy.bytes.input
+                     - include: haproxy_backend_bytes_in_total
+                       action: update
+                       new_name: haproxy.bytes.input
+                     - include: haproxy_server_bytes_in_total
+                       action: update
+                       new_name: haproxy.bytes.input
+                     - include: haproxy_frontend_bytes_out_total
+                       action: update
+                       new_name: haproxy.bytes.output
+                     - include: haproxy_backend_bytes_out_total
+                       action: update
+                       new_name: haproxy.bytes.output
+                     - include: haproxy_server_bytes_out_total
+                       action: update
+                       new_name: haproxy.bytes.output
+                     - include: haproxy_backend_connection_errors_total
+                       action: update
+                       new_name: haproxy.connections.errors
+                     - include: haproxy_server_connection_errors_total
+                       action: update
+                       new_name: haproxy.connections.errors
+                     - include: haproxy_frontend_requests_denied_total
+                       action: update
+                       new_name: haproxy.requests.denied
+                     - include: haproxy_frontend_request_errors_total
+                       action: update
+                       new_name: haproxy.requests.errors
+                     - include: haproxy_frontend_http_requests_total
+                       action: update
+                       new_name: haproxy.requests.total
+                     - include: haproxy_backend_http_requests_total
+                       action: update
+                       new_name: haproxy.requests.total
+                     - include: haproxy_backend_current_queue
+                       action: update
+                       new_name: haproxy.requests.queued
+                     - include: haproxy_server_current_queue
+                       action: update
+                       new_name: haproxy.requests.queued
+                     - include: haproxy_frontend_current_sessions
+                       action: update
+                       new_name: haproxy.sessions.count
+                     - include: haproxy_backend_current_sessions
+                       action: update
+                       new_name: haproxy.sessions.count
+                     - include: haproxy_server_current_sessions
+                       action: update
+                       new_name: haproxy.sessions.count
+                     - include: haproxy_frontend_max_session_rate
+                       action: update
+                       new_name: haproxy.sessions.rate
+                     - include: haproxy_backend_max_session_rate
+                       action: update
+                       new_name: haproxy.sessions.rate
+                     - include: haproxy_server_max_session_rate
+                       action: update
+                       new_name: haproxy.sessions.rate
+
+                 resource/cluster:
+                   attributes:
+                     - key: k8s.cluster.name
+                       value: "<YOUR_CLUSTER_NAME>"
+                       action: insert
+
+                 batch:
+                   send_batch_size: 1024
+                   timeout: 30s
+
+                 memory_limiter:
+                   check_interval: 1s
+                   limit_percentage: 80
+                   spike_limit_percentage: 25
+
+                 transform/haproxy:
+                   metric_statements:
+                     - context: resource
+                       statements:
+                         - set(attributes["haproxy.display.name"], Concat(["server", "k8s", attributes["k8s.cluster.name"], attributes["k8s.namespace.name"], "pod", attributes["k8s.pod.name"], "haproxy", "8404"], ":"))
+
+                 transform/metadata_nullify:
+                   metric_statements:
+                     - context: metric
+                       statements:
+                         - set(description, "")
+                         - set(unit, "")
+
+               exporters:
+                 otlp_http/newrelic:
+                   endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+                   headers:
+                     api-key: "<YOUR_NEW_RELIC_LICENSE_KEY>"
+
+               service:
+                 extensions: [health_check, k8s_observer]
+                 pipelines:
+                   metrics/haproxy_prom:
+                     receivers: [receiver_creator/haproxy_prom]
+                     processors: [resourcedetection, filter/haproxy, transform/add_labels, metricstransform/rename, resource/cluster, batch, transform/haproxy, transform/metadata_nullify, memory_limiter]
+                     exporters: [otlp_http/newrelic]
+             ```
+
+             <Callout variant="important">
+               Le montage de volume `/etc/machine-id` est requis pour la synthèse d&apos;entités. Le processeur `resourcedetection` lit ce fichier pour renseigner l&apos;attribut de ressource `host.id`. Sans cela, les entités ne seront pas créées dans New Relic.
+             </Callout>
+
+             ### Paramètres de configuration
+
+             <table>
+               <thead>
+                 <tr>
+                   <th>
+                     paramètres
+                   </th>
+
+                   <th>
+                     Description
+                   </th>
+                 </tr>
+               </thead>
+
+               <tbody>
+                 <tr>
+                   <td>
+                     `labels["app"] == "haproxy"`
+                   </td>
+
+                   <td>
+                     Sélecteur de label de pod utilisé pour découvrir les pods HAProxy. Mettez à jour la règle pour correspondre aux labels de votre pod.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_PORT_NUMBER>`
+                   </td>
+
+                   <td>
+                     Le port où HAProxy expose son point de terminaison Prometheus.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_CLUSTER_NAME>`
+                   </td>
+
+                   <td>
+                     Remplacez par le nom de votre cluster Kubernetes pour l&apos;identification dans New Relic.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_NEWRELIC_OTLP_ENDPOINT>`
+                   </td>
+
+                   <td>
+                     Votre point de terminaison OTLP de New Relic. Utilisez 
+
+                     `https://otlp.nr-data.net`
+
+                      pour les États-Unis, 
+
+                     `https://otlp.eu01.nr-data.net`
+
+                      pour l&apos;UE.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `<YOUR_NEW_RELIC_LICENSE_KEY>`
+                   </td>
+
+                   <td>
+                     Votre clé de licence d&apos;ingestion New Relic.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     `scrape_interval`
+                   </td>
+
+                   <td>
+                     Fréquence de scraping des métriques Prometheus. Par défaut : 
+
+                     `30s`
+
+                     .
+                   </td>
+                 </tr>
+               </tbody>
+             </table>
+
+          2. Installez à l&apos;aide du chart Helm OpenTelemetry en amont :
+
+             ```bash
+             helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+             helm repo update
+             helm upgrade --install haproxy-prom-collector open-telemetry/opentelemetry-collector \
+               -f values.yaml \
+               -n newrelic --create-namespace
+             ```
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Affichez vos données dans New Relic [#find-data]
+
+Après quelques minutes, les métriques HAProxy apparaissent dans New Relic. Pour trouver vos données :
+
+1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; All entities**</DNT>.
+2. Recherchez vos entités HAProxy par nom ou filtrez par type d&apos;entité `HAPROXYINSTANCE`.
+3. Sélectionnez une entité pour afficher la page de résumé avec les métriques dorées (sessions par seconde, requests par seconde, erreurs de connexion).
+
+## Dépannage [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="no-data" title="Aucune donnée n'apparaît dans New Relic">
+    * Vérifiez que les pods HAProxy ont la bonne étiquette (par exemple, `app: haproxy`) : `kubectl get pods -l app=haproxy`
+    * Vérifiez que le point de terminaison des statistiques répond : `kubectl exec -it <haproxy-pod> -- curl -s http://localhost:8404/stats`
+    * Consultez les logs du collecteur pour les erreurs de découverte : `kubectl logs -n newrelic -l app.kubernetes.io/name=nr-k8s-otel-collector -f` (NRDOT) ou `kubectl logs -n newrelic -l app=otel-collector-haproxy -f` (manifeste OTel Contrib)
+    * Assurez-vous que le ServiceAccount du collecteur dispose des permissions `get`, `list` et `watch` sur les pods.
+  </Collapser>
+
+  <Collapser id="single-entity" title="Plusieurs pods HAProxy s'affichent comme une seule entité">
+    Chaque pod HAProxy doit créer une entité distincte dans New Relic. Si vous ne voyez qu&apos;une seule entité :
+
+    * Vérifiez que le collecteur a `host.id` défini. Dans les environnements conteneurisés, ajoutez ceci au déploiement du collecteur :
+      ```yaml
+      env:
+        - name: K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "host.id=$(K8S_NODE_NAME)"
+      ```
+    * Confirmez les différentes valeurs de `haproxy.addr` par pod en effectuant une requête : `FROM Metric SELECT uniques(haproxy.addr) WHERE metricName LIKE 'haproxy.%' SINCE 10 minutes ago`
+  </Collapser>
+
+  <Collapser id="stats-unreachable" title="Collector ne peut pas atteindre le point de terminaison de statistiques HAProxy">
+    * Le `receiver_creator` utilise l&apos;adresse IP du pod (et non `localhost`) pour atteindre HAProxy. Assurez-vous que le frontend de statistiques est lié à `*:8404` (toutes les interfaces), et non à `127.0.0.1:8404`.
+    * Vérifiez les stratégies réseau qui pourraient bloquer le trafic entre le pod du collecteur et les pod HAProxy.
+  </Collapser>
+</CollapserGroup>
+
+## Prochaines étapes [#next-steps]
+
+* Consultez la [référence des métriques](/docs/opentelemetry/integrations/haproxy/metrics-reference) pour obtenir une liste complète des métriques collectées.
+* Découvrez comment [trouver et interroger vos données HAProxy](/docs/opentelemetry/integrations/haproxy/find-and-query-data).
+* Configurez des [alertes](/docs/alerts/create-alert/create-alert-condition/alert-conditions) basées sur les métriques dorées HAProxy.
