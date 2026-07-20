@@ -1,12 +1,18 @@
 ---
 title: 'Autopilot K8s Agent is now in Limited Preview'
-summary: 'Autopilot K8s Agent autonomously investigates Kubernetes issues — from CrashLoopBackOff to OOMKilled — and hands you ready-to-run remediation. No deep Kubernetes experience needed.'
+summary: 'Autopilot K8s Agent autonomously investigates Kubernetes issues, from CrashLoopBackOff to OOMKilled, and hands you ready-to-run remediation. No deep Kubernetes experience needed.'
 releaseDate: '2026-07-21'
 ---
 
 Diagnosing Kubernetes failures has always required deep expertise and manual work across kubectl, dashboards, and logs. Autopilot K8s Agent changes that.
 
-Now in Limited Preview, Autopilot K8s Agent is an AI-powered diagnostic co-pilot embedded inside New Relic Autopilot. It autonomously correlates events, metrics, logs, and traces to pinpoint root cause and deliver actionable remediation steps — in a fraction of the time it would take manually.
+Now in Limited Preview, Autopilot K8s Agent is an AI-powered diagnostic co-pilot embedded inside New Relic Autopilot. It autonomously correlates events, metrics, logs, and traces to pinpoint root cause and deliver actionable remediation steps, in a fraction of the time it would take manually.
+
+<img
+  title="Autopilot K8s Agent analyzing a deployment and providing root cause analysis with remediation steps"
+  alt="Autopilot K8s Agent analyzing a deployment and providing root cause analysis with remediation steps"
+  src={k8sAutopilotDemo}
+/>
 
 ## What it does
 
