@@ -1,7 +1,7 @@
 ---
 title: 'Contextual Dashboards now in Catalogs'
 summary: 'Access your custom dashboards directly from your Catalogs experience!'
-releaseDate: '2026-06-29'
+releaseDate: '2026-07-21'
 learnMoreLink: 'https://docs.newrelic.com/docs/service-architecture-intelligence/catalogs/catalogs/'
 ---
 
