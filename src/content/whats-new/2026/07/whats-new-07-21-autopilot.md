@@ -19,7 +19,7 @@ Point Autopilot at an alert and it can help:
 
 ## Built for the way SREs actually work
 
-Autopilot gets sharper the more it knows about your environment. Connect [New Relic AI Knowledge](https://docs.newrelic.com/docs/agentic-ai/agentic-integration/introduction-agentic-ai/) so that the agent can reference your runbooks, retrospectives, and Confluence docs in investigations, so that agent recommendations can better reflect how your team actually operates or potentially surface the fix that worked in a similar scenario last time. Turn on [Memories](https://docs.newrelic.com/docs/agentic-ai/autopilot/memories/) so that Autopilot stores and can reference your saved preferences, past resolutions, and environment quirks across sessions, so you can build on your history and expertise.
+Autopilot gets sharper the more it knows about your environment. Connect [New Relic AI Knowledge](https://docs.newrelic.com/docs/agentic-ai/knowledge-integration/overview/) so that the agent can reference your runbooks, retrospectives, and Confluence docs in investigations, so that agent recommendations can better reflect how your team actually operates or potentially surface the fix that worked in a similar scenario last time. Turn on [Memories](https://docs.newrelic.com/docs/agentic-ai/autopilot/memories/) so that Autopilot stores and can reference your saved preferences, past resolutions, and environment quirks across sessions, so you can build on your history and expertise.
 
 ## Investigate without leaving the conversation
 
