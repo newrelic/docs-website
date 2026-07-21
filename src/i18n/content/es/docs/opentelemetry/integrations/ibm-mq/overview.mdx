@@ -1,0 +1,147 @@
+---
+title: Introducción al monitoreo de OpenTelemetry de IBM MQ
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+metaDescription: 'Monitor IBM MQ queue managers with the OpenTelemetry Collector: ship queue manager, queue, and channel metrics to New Relic from a Linux host or Kubernetes.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Las arquitecturas empresariales modernas dependen en gran medida de las aplicaciones orientadas a mensajes para manejar tareas críticas como el procesamiento de pagos, el enrutamiento de pedidos y los servicios de sincronización. Sin embargo, a medida que estas redes troncales de mensajes escalan, rastrear la degradación del rendimiento se vuelve complejo. Imagine que una aplicación se ralentiza de repente —sin una visibilidad profunda, determinar si el retraso es causado por un consumidor de la aplicación o por una acumulación en la cola de IBM MQ puede ser increíblemente difícil.
+
+New Relic le ayuda a cerrar estas brechas de observabilidad al proporcionar una ruta de monitoreo de OpenTelemetry pura para sus gestores de colas de IBM MQ. Al aprovechar el exportador de Prometheus oficial del equipo de IBM MQ [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples), el Collector de OpenTelemetry recopila y da forma a la telemetría sin procesar directamente en la base de datos de New Relic. Cada gestor de colas aparece automáticamente como una entidad `IBMMQ_MANAGER` distinta con sus colas mapeadas como entidades `IBMMQ_QUEUE` secundarias — lo que le brinda acceso instantáneo a dashboards preconfigurados, alertas y las señales doradas de su sistema sin requerir agentes propietarios.
+
+<img title="IBM MQ OpenTelemetry dashboard" alt="New Relic dashboard showing IBM MQ queue manager health, connections, message rates, and queue depth" src="/images/ibm-mq-otel.webp" />
+
+<figcaption>
+  Visualice el estado del gestor de colas, las conexiones, el rendimiento de los mensajes y la profundidad de la cola en los dashboards de IBM MQ de New Relic.
+</figcaption>
+
+## Característica clave [#key-features]
+
+La integración de New Relic IBM MQ OpenTelemetry le brinda una visibilidad profunda e independiente del proveedor de su infraestructura de mensajería sin la sobrecarga de agentes propietarios. Al implementar esta integración, desbloquea cuatro capacidades principales de monitoreo diseñadas para mantener sus sistemas asincrónicos funcionando sin problemas:
+
+* **Prevención de acumulación y alertas automatizadas:** elimine los puntos ciegos en las rutas de entrega de mensajes. Puede configurar alertas activas sobre el aumento de la profundidad de las colas, los picos de mensajes no confirmados y los canales estancados para detectar cuellos de botella antes de que causen retrasos en las aplicaciones posteriores que dependen de su red troncal de mensajería.
+
+* **Optimización granular del rendimiento:** aísle exactamente dónde se ralentiza el procesamiento de mensajes. Al rastrear las tasas de MQPUT y MQGET en tiempo real junto con los recuentos de conexiones y los tiempos de espera de la cola, puede determinar rápidamente si la fricción de procesamiento se encuentra dentro del propio broker de IBM MQ o en los consumidores de la aplicación lentos.
+
+* **Capacidad proactiva y dimensionamiento de recursos:** elimine las conjeturas del escalado de la infraestructura. La integración muestra métricas críticas del broker a nivel de host —incluidos los umbrales de tamaño del archivo de log activo, el uso del sistema de archivos y las tendencias de identificadores abiertos—, lo que le permite escalar sus administradores de colas de manera proactiva antes de que el agotamiento de los recursos provoque una falla del broker.
+
+* **Entrega confiable y seguimiento de la cola de mensajes no entregados (DLQ):** protege la integridad de tus datos transaccionales. Monitorea al instante los cambios de estado del canal, rastrea las acumulaciones en la cola de mensajes no entregados y detecta de manera temprana las llamadas MQI fallidas para identificar configuraciones de enrutamiento incorrectas y caídas antes de que los datos se pierdan permanentemente.
+
+## Cómo funciona [#how-it-works]
+
+Comprender cómo se recopilan, procesan y modelan los telemetry data te ayuda a optimizar tu canal de monitoreo. Las siguientes secciones desglosan exactamente cómo la integración maneja tus datos desde el broker hasta la UI.
+
+### Flujo de telemetry data [#telemetry]
+
+Los datos de telemetría fluyen secuencialmente a través de cuatro capas distintas antes de visualizarse dentro de New Relic:
+
+1. **La capa del broker:** cada administrador de colas de IBM MQ rastrea de forma nativa las estadísticas de rendimiento operativo utilizando el formato de comando programable (PCF).
+2. **La capa del exportador:** el exportador `mq-metric-samples` requerido extrae estas estadísticas de PCF y las expone en un extremo de Prometheus HTTP `/metrics` estándar. Cada guía de configuración asume que este componente ya se está ejecutando en tu clúster.
+3. **La capa del Collector:** configura el Collector de OpenTelemetry para extraer el extremo del exportador. El recolector filtra el ruido de fondo, formatea las etiquetas de identidad y reenvía los datos OTLP limpios a New Relic.
+4. **La capa de síntesis:** New Relic recibe la carga de OTLP y asigna automáticamente los datos a entidades del espacio de trabajo de IBM MQ legibles y navegables.
+
+### La cadena de procesamiento del pipeline [#processing]
+
+Para mantener sus datos limpios y optimizar las tasas de ingesta, cada métrica recopilada por el recolector pasa por una secuencia de procesamiento automatizada y sensible al orden dentro de su archivo `config.yaml`:
+
+1. Ingesta de Prometheus: extrae el extremo `/metrics` de Prometheus sin procesar del exportador en ejecución.
+2. Filtro de sobrecarga: descarta las métricas propias del exportador y los ciclos de seguimiento en segundo plano para minimizar el ruido de volumen.
+3. Filtro de cola: filtra las colas del sistema interno que no requieren un seguimiento activo del rendimiento.
+4. Detección de recursos: sella la carga con etiquetas de identidad de la infraestructura del host y metadatos del entorno.
+5. Transformación de etiquetas: normaliza las etiquetas sin procesar de Prometheus al formato estándar de OTel con puntos. Por ejemplo, reasignar `targetName` a `target.name`.
+6. Limitador de memoria: impone búferes estrictos de cápsulas de memoria en el proceso del recolector para proteger la estabilidad del host.
+7. Cumulative-to-Delta: convierte los contadores de métrica de Prometheus absolutos y continuos en valores delta claros.
+8. Agrupación por lotes: agrupa eventos de telemetría individuales en cargas de OTLP por lotes para maximizar la eficiencia de la red.
+9. Exportación HTTP de OTLP: envía el bloque de datos finalizado y comprimido directamente al sistema de ingesta de datos de New Relic.
+
+### Opciones de despliegue de Collector [#collector-options]
+
+New Relic es totalmente compatible con dos distribuciones de OpenTelemetry Collector para su integración de IBM MQ. Ambas opciones ofrecen capacidades funcionales idénticas y comparten los mismos archivos de configuración principales:
+
+* **NRDOT Collector (recomendado):** la distribución seleccionada de New Relic de OpenTelemetry Collector, respaldada directamente por la asistencia de soporte técnico de New Relic. Revisa la base de código de código abierto en el [repositorio de GitHub de NRDOT Collector](https://github.com/newrelic/nrdot-collector-releases/tree/main/distributions/nrdot-collector).
+* **OpenTelemetry Collector:** la distribución de la comunidad CNCF upstream. Revise los detalles del proyecto en el [repositorio de GitHub de OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib).
+
+### El modelo de entidad de IBM MQ [#entity-model]
+
+New Relic evalúa marcadores específicos dentro de su flujo de telemetría para sintetizar automáticamente los datos sin procesar en entidades:
+
+* Nombres de métrica con guion bajo sin procesar como `ibmmq_qmgr_status` y `ibmmq_queue_depth`
+* Etiquetas de datos estructurales `qmgr` y `queue`
+* El atributo de identidad `target.name` según la configuración de tu recolector
+
+Al usar estas reglas, la plataforma organiza sus datos en una estructura clara de padre-hijo:
+
+| Tipo de entidad | Clave de identidad compuesta | Representación central                                                   |
+| :-------------- | :--------------------------- | :----------------------------------------------------------------------- |
+| `IBMMQ_MANAGER` | `target.name:qmgr`           | Representa un único gestor de colas. Por ejemplo, `prod-mq-01:QM1`       |
+| `IBMMQ_QUEUE`   | `target.name:qmgr:queue`     | Representa una única cola de mensajes anidada dentro de un administrador |
+
+<Callout variant="caution">
+  No cambie los nombres de las métricas ni las etiquetas `qmgr` y `queue`. New Relic se basa en el formato de guion bajo sin procesar de Prometheus (`ibmmq_*`) para sintetizar automáticamente su espacio de trabajo. Cambiar estos nombres o convertirlos a notación de puntos romperá la integración, lo que dará como resultado dashboards vacíos. Las únicas excepciones son las etiquetas de extracción `targetName` y `clusterName`, que deben asignarse a `target.name` y `cluster.name` para cumplir con las claves de búsqueda de la plataforma.
+</Callout>
+
+## Empezar [#get-started]
+
+La configuración de su canalización de monitoreo de IBM MQ implica tres fases de implementación principales.
+
+<Steps>
+  <Step>
+    ### Requisitos previos [#prereq]
+
+    Asegúrese de que su entorno cumpla con todos los requisitos para la integración definida para su entorno:
+
+    * Para [autoalojado](/docs/opentelemetry/integrations/ibm-mq/host/#prereq)
+    * Para [Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes/#prereq)
+  </Step>
+
+  <Step>
+    ### Configuración del recolector [#collector-setup]
+
+    Elija su ruta de instalación según su infraestructura:
+
+    * Para [Autoalojado](/docs/opentelemetry/integrations/ibm-mq/host)
+    * Para [Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes)
+  </Step>
+
+  <Step>
+    ### Ver tus datos [#view-data]
+
+    Una vez que haya completado la configuración del recolector, puede ver sus métricas de IBM MQ en New Relic, consultarlas con NRQL, crear dashboards y configurar alertas. Para obtener más información, consulte la documentación sobre [ver y consultar sus datos](/docs/opentelemetry/integrations/ibm-mq/view-data).
+
+    <Callout variant="important">
+      La integración de IBM MQ de New Relic rastrea una amplia variedad de métricas del broker. Para obtener más información sobre los tipos de datos y atributos compatibles, consulte la guía de [referencia de métricas de IBM MQ](/docs/opentelemetry/integrations/ibm-mq/metrics).
+    </Callout>
+  </Step>
+</Steps>
+
+{/* ## Available metrics [#metrics]
+
+The collector gathers queue manager, queue, and channel metrics from the mq-metric-samples exporter, including:
+
+- **Queue manager health** — running status, connection counts, and command-server and channel-initiator status
+- **Queue state and throughput** — depth, maximum depth, oldest-message age, MQPUT/MQGET rates, and queue times
+- **Channel and messaging** — channel status, messages and bytes transferred, and publish/subscribe activity
+
+Throughput and timing metrics (MQPUT/MQGET counts, queue times) appear only once MQI statistics are enabled on the queue manager — each setup guide shows how.
+
+**For the complete metric list, types, and attributes:** see the [IBM MQ OpenTelemetry metrics reference](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-metrics-reference). */}
+
+## Documentación relacionada [#related-docs]
+
+<DocTiles>
+  <DocTile title="Instrumentación autohospedada para IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    Aprenda a configurar su IBM MQ para el monitoreo autohospedado en New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentación de Kubernetes para IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    Aprenda a configurar el monitoreo de su IBM MQ para Kubernetes en New Relic.
+  </DocTile>
+
+  <DocTile title="Ve y consulta tus datos" path="/docs/opentelemetry/integrations/ibm-mq/view-data">
+    Aprenda a ver y consultar sus datos de IBM MQ en New Relic.
+  </DocTile>
+</DocTiles>
