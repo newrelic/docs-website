@@ -1,0 +1,710 @@
+---
+title: 'Using the Blob Storage API for notebooks'
+tags:
+  - Query your data
+  - Explore and query data
+  - Notebooks
+  - API
+metaDescription: 'Use the New Relic Blob Storage API and NerdGraph to create, read, update, delete, and version notebooks programmatically.'
+freshnessValidatedDate: never
+---
+
+The <DNT>New Relic</DNT> Notebooks API lets you create, read, update, and delete notebooks programmatically, including their full block content (NRQL queries, text). Notebooks are stored as versioned blobs, which means every save produces a new immutable revision you can retrieve later.
+
+Use this API to:
+
+* Automate notebook creation from incident templates, runbooks, or CI/CD pipelines
+* Sync notebook content from version control or external authoring tools
+* Build integrations that programmatically populate notebooks during investigations
+
+<Callout variant="important">
+  **Notebooks use multiple APIs**
+
+  The Notebooks API surface is split between two systems:
+
+  * **Blob Storage API** handles notebook content (blocks, version history)
+  * **NerdGraph** handles entity-level operations (list, rename, tags, organization metadata)
+
+  This separation is by design. The Blob Storage API is optimized for file content transfer and versioning; NerdGraph is optimized for structured entity queries and mutations.
+</Callout>
+
+## Prerequisites [#prerequisites]
+
+* A [New Relic account](https://newrelic.com/signup) with a User API key
+* Your New Relic Organization ID
+* Appropriate [permissions](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions/) to manage notebooks
+
+## Authentication [#authentication]
+
+All Notebook API requests require authentication using a <DNT>New Relic</DNT> User API key.
+
+**Generate an API key:**
+
+1. Navigate to [one.newrelic.com](https://one.newrelic.com)
+2. Click on your name in the bottom-left corner
+3. Select **API Keys**
+4. Create a **User** key (not Browser or License key)
+
+**Include in request headers:**
+
+```shell
+Api-Key: NRAK-YOUR-USER-API-KEY
+```
+
+<Callout variant="tip">
+  The Blob Storage API also supports login context, so when calling the API from a UI authenticated as a New Relic user, the `Api-Key` header is not required.
+</Callout>
+
+## Base endpoint [#base-endpoint]
+
+```plaintext
+https://blob-api.service.newrelic.com/v1/e
+```
+
+For EU region accounts, use:
+
+```plaintext
+https://blob-api.service.eu.newrelic.com/v1/e
+```
+
+## Notebook content operations [#content-operations]
+
+<CollapserGroup>
+
+<Collapser
+  id="create-notebook"
+  title="Create notebook">
+
+Creates a new notebook entity with initial blob content.
+
+### Endpoint [#create-endpoint]
+
+```plaintext
+POST /v1/e/organizations/{orgId}/Notebooks
+```
+
+### Request parameters [#create-params]
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Location</th>
+      <th>Data type</th>
+      <th>Is it required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`orgId`</td>
+      <td>Path</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Your New Relic organization ID.</td>
+    </tr>
+    <tr>
+      <td>`Api-Key`</td>
+      <td>Header</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Your User API key.</td>
+    </tr>
+    <tr>
+      <td>`Content-Type`</td>
+      <td>Header</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Must be `application/json`.</td>
+    </tr>
+    <tr>
+      <td>`NewRelic-Entity`</td>
+      <td>Header</td>
+      <td>JSON string</td>
+      <td>Yes</td>
+      <td>JSON object with notebook entity metadata (see below).</td>
+    </tr>
+    <tr>
+      <td>Request body</td>
+      <td>Body</td>
+      <td>JSON</td>
+      <td>Yes</td>
+      <td>Notebook content in JSON format (version + blocks).</td>
+    </tr>
+  </tbody>
+</table>
+
+### `NewRelic-Entity` header format [#create-entity-header]
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Data type</th>
+      <th>Is it required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`name`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The notebook name. Must be unique within the organization scope.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Notebook body format [#create-body-format]
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Data type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`version`</td>
+      <td>String</td>
+      <td>Schema version of the notebook payload. Use `"1"`.</td>
+    </tr>
+    <tr>
+      <td>`blocks`</td>
+      <td>Array</td>
+      <td>Ordered list of notebook blocks (NRQL, text, etc.). Empty array creates a blank notebook.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Declarative UI content examples [#create-declarative-ui]
+
+The following examples show how to structure notebook widget content using the declarative UI format.
+
+**Markdown widget**
+
+Use `viz.markdown` to render static text, labels, or threshold legends alongside your charts:
+
+```json
+{
+  "type": "widget",
+  "content": {
+    "type": "visualization",
+    "id": "viz.markdown",
+    "props": {
+      "text": "# My dashboard\n\n### Cost thresholds (monthly)\n- $0 – $200 → Good\n- $200 – $500 → Warning\n- $500+ → Critical"
+    }
+  }
+}
+```
+
+**Billboard widget with NRQL query**
+
+Use `viz.billboard` to display a single metric value with optional color-coded thresholds:
+
+```json
+{
+  "type": "widget",
+  "props": {
+    "title": "Total usage this month"
+  },
+  "content": {
+    "type": "visualization",
+    "id": "viz.billboard",
+    "props": {
+      "nrqlQueries": [
+        {
+          "query": "FROM Transaction SELECT count(*) SINCE 1 month ago",
+          "accountIds": [1234567]
+        }
+      ],
+      "thresholdsWithSeriesOverrides": {
+        "thresholds": [
+          { "to": 200,              "severity": "success"  },
+          { "from": 200, "to": 500, "severity": "warning"  },
+          { "from": 500,            "severity": "critical" }
+        ]
+      },
+      "facet": { "showOtherSeries": false },
+      "platformOptions": { "ignoreTimeRange": false },
+      "chartStyles": { "lineInterpolation": "linear" }
+    }
+  }
+}
+```
+
+### Sample request [#create-sample-request]
+
+```bash
+curl -X POST \
+  https://blob-api.service.newrelic.com/v1/e/organizations/YOUR_ORG_ID/Notebooks \
+  -H 'Api-Key: NRAK-YOUR-API-KEY' \
+  -H 'Content-Type: application/json' \
+  -H 'NewRelic-Entity: {"name": "My awesome notebook"}' \
+  -d '{
+    "version": "1",
+    "blocks": []
+  }'
+```
+
+### Sample response [#create-sample-response]
+
+```json
+{
+  "entityGuid": "<YOUR_ENTITY_GUID>",
+  "blobId": "<YOUR_BLOB_ID>",
+  "blobVersionEntity": {
+    "entityGuid": "<YOUR_ENTITY_GUID>",
+    "version": 1
+  }
+}
+```
+
+<Callout variant="important">
+  Save the `entityGuid` from the response. You'll need it for reading, updating, and deleting the notebook.
+</Callout>
+
+</Collapser>
+
+<Collapser
+  id="read-notebook"
+  title="Read notebook content">
+
+Retrieves the latest content of a notebook.
+
+### Endpoint [#read-endpoint]
+
+```plaintext
+GET /v1/e/organizations/{orgId}/Notebooks/{entityGuid}
+```
+
+### Request parameters [#read-params]
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Location</th>
+      <th>Data type</th>
+      <th>Is it required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`orgId`</td>
+      <td>Path</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Your New Relic organization ID.</td>
+    </tr>
+    <tr>
+      <td>`entityGuid`</td>
+      <td>Path</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The notebook entity GUID.</td>
+    </tr>
+    <tr>
+      <td>`Api-Key`</td>
+      <td>Header</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Your User API key.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Sample request [#read-sample-request]
+
+```bash
+curl -X GET \
+  https://blob-api.service.newrelic.com/v1/e/organizations/YOUR_ORG_ID/Notebooks/YOUR_ENTITY_GUID \
+  -H 'Api-Key: NRAK-YOUR-API-KEY'
+```
+
+### Sample response [#read-sample-response]
+
+```json
+{
+  "type": "declarative",
+  "version": 1,
+  "content": [
+    {
+      "type": "container",
+      "props": {
+        "layout": "stack"
+      },
+      "content": [
+        {
+          "type": "widget",
+          "props": {},
+          "content": {
+            "type": "visualization",
+            "id": "viz.billboard",
+            "props": {
+              "nrqlQueries": [
+                {
+                  "query": "FROM PageView SELECT count(*) SINCE 3 days ago",
+                  "accountIds": [1]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+</Collapser>
+
+<Collapser
+  id="update-notebook"
+  title="Update notebook content">
+
+Creates a new version of an existing notebook by overwriting the content. The previous version is retained for up to 1 day (see [Retrieve previous versions](#retrieve-versions)).
+
+### Endpoint [#update-endpoint]
+
+```plaintext
+POST /v1/e/organizations/{orgId}/Notebooks/{entityGuid}
+```
+
+### Request parameters [#update-params]
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Location</th>
+      <th>Data type</th>
+      <th>Is it required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`orgId`</td>
+      <td>Path</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Your New Relic organization ID.</td>
+    </tr>
+    <tr>
+      <td>`entityGuid`</td>
+      <td>Path</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The notebook entity GUID.</td>
+    </tr>
+    <tr>
+      <td>`Api-Key`</td>
+      <td>Header</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Your User API key.</td>
+    </tr>
+    <tr>
+      <td>`Content-Type`</td>
+      <td>Header</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Must be `application/json`.</td>
+    </tr>
+    <tr>
+      <td>Request body</td>
+      <td>Body</td>
+      <td>JSON</td>
+      <td>Yes</td>
+      <td>Updated notebook content.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Sample request [#update-sample-request]
+
+```bash
+curl -X POST \
+  https://blob-api.service.newrelic.com/v1/e/organizations/YOUR_ORG_ID/Notebooks/YOUR_ENTITY_GUID \
+  -H 'Api-Key: NRAK-YOUR-API-KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "declarative",
+    "version": 1,
+    "content": [
+      {
+        "type": "container",
+        "props": {
+          "layout": "stack"
+        },
+        "content": [
+          {
+            "type": "widget",
+            "props": {
+              "title": ""
+            },
+            "content": {
+              "type": "visualization",
+              "id": "viz.billboard",
+              "props": {
+                "nrqlQueries": [
+                  {
+                    "query": "FROM PageView SELECT count(*) SINCE 2 days ago",
+                    "accountIds": [1]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }'
+```
+
+### Sample response [#update-sample-response]
+
+```json
+{
+  "entityGuid": "<YOUR_ENTITY_GUID>",
+  "blobId": "<YOUR_BLOB_ID>",
+  "blobVersionEntity": {
+    "entityGuid": "<YOUR_ENTITY_GUID>",
+    "version": 2
+  }
+}
+```
+
+</Collapser>
+
+<Collapser
+  id="delete-notebook"
+  title="Delete notebook">
+
+Deletes a notebook and its content.
+
+### Endpoint [#delete-endpoint]
+
+```plaintext
+DELETE /v1/e/organizations/{orgId}/Notebooks/{entityGuid}
+```
+
+### Request parameters [#delete-params]
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Location</th>
+      <th>Data type</th>
+      <th>Is it required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`orgId`</td>
+      <td>Path</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Your New Relic organization ID.</td>
+    </tr>
+    <tr>
+      <td>`entityGuid`</td>
+      <td>Path</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The notebook entity GUID to delete.</td>
+    </tr>
+    <tr>
+      <td>`Api-Key`</td>
+      <td>Header</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Your User API key.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Sample request [#delete-sample-request]
+
+```bash
+curl -X DELETE \
+  https://blob-api.service.newrelic.com/v1/e/organizations/YOUR_ORG_ID/Notebooks/YOUR_ENTITY_GUID \
+  -H 'Api-Key: NRAK-YOUR-API-KEY'
+```
+
+### Sample response [#delete-sample-response]
+
+Returns HTTP 204 No Content on successful deletion.
+
+</Collapser>
+
+<Collapser
+  id="retrieve-versions"
+  title="Retrieve previous versions">
+
+Notebook versions are retained for **1 day**. To recover a previous revision, first list recent versions via NRQL, then fetch the specific blob.
+
+### Step 1 — List the last 5 versions [#retrieve-list-versions]
+
+Run this NRQL query in the query builder to gather the blob IDs and timestamps for the last 5 changes:
+
+```sql
+FROM Entity
+SELECT uniques(tuple(updatedAt, content.id))
+WHERE id = '<entity guid>'
+SINCE 1 day ago
+LIMIT 5
+```
+
+### Step 2 — Retrieve a specific version [#retrieve-specific-version]
+
+Use the `content.id` from the NRQL result to fetch that version's content:
+
+```bash
+curl -X GET \
+  https://blob-api.service.newrelic.com/v1/blobs/<content.id> \
+  -H 'Api-Key: NRAK-YOUR-API-KEY'
+```
+
+</Collapser>
+
+</CollapserGroup>
+
+## Entity operations (NerdGraph) [#entity-operations]
+
+Entity-level operations such as listing, renaming, and tagging use <DNT>NerdGraph</DNT> rather than the Blob Storage API.
+
+### List all notebooks [#list-notebooks]
+
+```graphql
+query listAllNotebooks {
+  actor {
+    entityManagement {
+      entitySearch(query: "type='NOTEBOOK'") {
+        entities {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  Entity creation is fully transactional, so a notebook is immediately available via the API. However, if you list notebooks through the legacy `actor.entitySearch` query, there may be a short propagation delay between creation and the notebook appearing in list results.
+</Callout>
+
+### Rename a notebook [#rename-notebook]
+
+```graphql
+mutation changeNotebookName {
+  entityManagementUpdateNotebook(
+    id: "<entity guid>"
+    notebookEntity: { name: "<new name>" }
+  ) {
+    entity {
+      name
+    }
+  }
+}
+```
+
+### Update notebook tags [#update-tags]
+
+<Callout variant="important">
+  Tag updates are a **replace** operation. You must include the complete set of tags, even ones that aren't changing — any tag omitted from the mutation will be removed.
+</Callout>
+
+```graphql
+mutation updateNotebookTags {
+  entityManagementUpdateNotebook(
+    id: "<entity guid>"
+    notebookEntity: {
+      tags: [
+        { key: "<key>", values: "<value>" }
+        { key: "<key>", values: "<value>" }
+      ]
+    }
+  ) {
+    entity {
+      name
+      tags {
+        key
+        values
+      }
+    }
+  }
+}
+```
+
+### Retrieve your organization ID [#get-org-id]
+
+You'll need your organization ID for all Blob Storage API calls:
+
+```graphql
+query getOrgId {
+  actor {
+    organization {
+      id
+    }
+  }
+}
+```
+
+## Best practices [#best-practices]
+
+* **Store entity GUIDs:** Save the `entityGuid` returned from create operations. You'll need it for reading, updating, and deleting notebooks.
+* **Validate JSON before upload:** Ensure your notebook payload is valid JSON and conforms to the `version` schema before sending.
+* **Use descriptive names:** Notebook names must be unique within an organization, so choose names that clearly indicate purpose (for example, `prod-checkout-investigation` rather than `notebook-1`).
+* **Include all tags on update:** Tag updates replace the full tag set. Always read existing tags before mutating.
+* **Recover quickly:** Version history is retained for only 1 day. If you need long-term history, archive notebook content to your own storage on every update.
+* **Secure your API key:** Never expose your User API key in client-side code or public repositories.
+* **Check HTTP status codes:** The API returns 2xx for successful operations, 404 for not found, and other status codes for errors.
+
+## Common error responses [#error-responses]
+
+<table>
+  <thead>
+    <tr>
+      <th>Status code</th>
+      <th>Description</th>
+      <th>Solution</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`400 Bad Request`</td>
+      <td>Invalid request parameters, malformed JSON in body or `NewRelic-Entity` header, or notebook name already exists in this organization</td>
+      <td>Verify request format, header values, and that the notebook name is unique within your organization</td>
+    </tr>
+    <tr>
+      <td>`401 Unauthorized`</td>
+      <td>Missing or invalid API key</td>
+      <td>Check that your User API key is valid and included in the `Api-Key` header</td>
+    </tr>
+    <tr>
+      <td>`404 Not Found`</td>
+      <td>Notebook or version not found</td>
+      <td>Verify the entity GUID is correct</td>
+    </tr>
+    <tr>
+      <td>`415 Unsupported Media Type`</td>
+      <td>Incorrect `Content-Type` header</td>
+      <td>Use `Content-Type: application/json`</td>
+    </tr>
+  </tbody>
+</table>
+
+## Additional resources [#additional-resources]
+
+* [Notebooks overview](/docs/query-your-data/explore-query-data/notebooks/introduction-notebooks) — How to use Notebooks in the New Relic UI
+* [Introduction to NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) — GraphQL API reference
+* [Blob Storage API for agent configurations](/docs/apis/intro-apis/blob-storage-api) — Sister API used by Fleet Control
+* [New Relic API keys](/docs/apis/intro-apis/new-relic-api-keys) — Key types and management
