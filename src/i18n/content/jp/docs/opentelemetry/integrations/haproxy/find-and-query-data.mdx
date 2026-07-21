@@ -1,0 +1,122 @@
+---
+title: New RelicでHAProxyデータを見つけてクエリする
+tags:
+  - Integrations
+  - OpenTelemetry
+  - HAProxy
+metaDescription: 'Learn how to find your HAProxy entities, query metrics with NRQL, and troubleshoot data visibility issues in New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+OpenTelemetryでHAProxyの監視を設定すると、数分以内にNew Relicにデータが表示されます。このページでは、HAProxyエンティティを見つけ、メトリクスを探索し、NRQLクエリを作成する方法を説明します。
+
+## HAProxyデータを検索する [#find-data]
+
+<CollapserGroup>
+  <Collapser id="method1-entities" title="エンティティエクスプローラーを使用する">
+    1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; All entities**</DNT>に移動します。
+    2. HAProxyエンティティを名前で検索するか、エンティティタイプ`HAPROXYINSTANCE`でフィルタリングします。
+    3. エンティティを選択して、ゴールデンメトリクス（1秒あたりのセッション数、1秒あたりのrequests、接続エラー）を含むサマリーページを表示します。
+  </Collapser>
+
+  <Collapser id="method2-dashboard" title="インテグレーションとエージェントを使用する">
+    1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Integrations &amp; Agents**</DNT>に移動します。
+    2. <DNT>**Dashboards**</DNT>をクリックします。
+    3. <DNT>**HAProxy (OpenTelemetry Collector)**</DNT>を検索して選択します。
+    4. <DNT>**View dashboard**</DNT>をクリックして、HAProxyメトリクスの事前構築済みの視覚化を表示します。
+  </Collapser>
+
+  <Collapser id="method3-query" title="クエリビルダーの使用">
+    1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Query your data**</DNT>に移動します。
+    2. クエリを実行してHAProxyデータを検索します：
+       ```sql
+       FROM Metric SELECT uniques(metricName)
+       WHERE metricName LIKE 'haproxy.%'
+       SINCE 1 hour ago
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## NRQLでデータをクエリする [#query-data]
+
+これらのNRQLクエリの例を使用して、HAProxyデータを分析します：
+
+```sql
+-- Sessions per second across frontends
+FROM Metric SELECT average(haproxy.sessions.rate)
+WHERE haproxy.service_name = 'FRONTEND'
+FACET haproxy.proxy_name
+TIMESERIES
+
+-- Error rates by backend
+FROM Metric SELECT rate(sum(haproxy.responses.errors), 1 minute) AS 'Errors/min'
+WHERE haproxy.service_name = 'BACKEND'
+FACET haproxy.proxy_name
+TIMESERIES
+
+-- Bytes throughput (in + out)
+FROM Metric SELECT rate(sum(haproxy.bytes.input), 1 minute) AS 'Bytes In/min',
+  rate(sum(haproxy.bytes.output), 1 minute) AS 'Bytes Out/min'
+FACET haproxy.proxy_name
+TIMESERIES
+
+-- Backend server health
+FROM Metric SELECT latest(haproxy.active) AS 'Active Servers',
+  latest(haproxy.backup) AS 'Backup Servers'
+WHERE haproxy.service_name = 'BACKEND'
+FACET haproxy.proxy_name
+
+-- Request queue depth (indicates backend saturation)
+FROM Metric SELECT max(haproxy.requests.queued)
+WHERE haproxy.service_name = 'BACKEND'
+FACET haproxy.proxy_name
+TIMESERIES
+```
+
+## データの可視性のトラブルシューティング [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-no-data" title="New Relicにデータが表示されない">
+    * 初期データの取り込みには数分お待ちください。
+    * 時間範囲を確認します — 最近のデータ（過去30分間）を表示していることを確認してください。
+    * 任意のHAProxyメトリクスをクエリします：
+      ```sql
+      FROM Metric SELECT count(*) WHERE metricName LIKE 'haproxy.%' SINCE 30 minutes ago
+      ```
+    * コレクターが実行中であることを確認します。
+      ```bash
+      # Self-hosted
+      sudo systemctl status otelcol-contrib
+      # or
+      sudo systemctl status nrdot-collector
+
+      # Kubernetes
+      kubectl get pods -n newrelic
+      kubectl logs -n newrelic -l app.kubernetes.io/name=nr-k8s-otel-collector
+      ```
+    * HAProxy statsエンドポイントがコレクターからアクセス可能であることを確認します。
+  </Collapser>
+
+  <Collapser id="troubleshoot-intermittent-data" title="データが断続的に表示される">
+    * コレクターのログでエラーを確認します：
+      ```bash
+      # Self-hosted
+      sudo journalctl -u otelcol-contrib -n 50 --no-pager
+
+      # Kubernetes
+      kubectl logs -n newrelic deploy/nr-k8s-otel-collector-deployment --tail=50
+      ```
+    * HAProxy statsエンドポイントに常にアクセスできることを確認します。
+    * コレクターとNew RelicのOTLPエンドポイント間のネットワーク接続の問題を確認します。
+    * HAProxyがstatsエンドポイントのrequestsをレート制限していないことを確認します。
+  </Collapser>
+</CollapserGroup>
+
+## 次のステップ [#next-steps]
+
+* [HAProxy OTelメトリクスリファレンス](/docs/opentelemetry/integrations/haproxy/metrics-reference/) — 説明付きの完全なメトリクスリファレンス
+* [NRQL入門](/docs/nrql/get-started/introduction-nrql-new-relics-query-language/) — 高度な分析のためのNew Relicのクエリ言語を学ぶ
+* [NRQLアラート条件の作成](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) — HAProxyメトリクスに基づいてアラートを設定する
+* [セルフホスト型HAProxyをモニターする](/docs/opentelemetry/integrations/haproxy/self-hosted/) — Linux VMまたはベアメタルのセットアップ
+* [Kubernetes上のHAProxyをモニターする](/docs/opentelemetry/integrations/haproxy/kubernetes/) — コンテナ化された環境の自動ポッド検出
