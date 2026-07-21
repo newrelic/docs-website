@@ -1,0 +1,122 @@
+---
+title: 뉴렐릭에서 HAProxy 데이터 찾기 및 쿼리
+tags:
+  - Integrations
+  - OpenTelemetry
+  - HAProxy
+metaDescription: 'Learn how to find your HAProxy entities, query metrics with NRQL, and troubleshoot data visibility issues in New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+OpenTelemetry로 HAProxy 모니터링을 설정한 후 몇 분 내에 뉴렐릭에 데이터가 표시됩니다. 이 페이지에서는 HAProxy 엔티티를 찾고, 메트릭을 탐색하고, NRQL 쿼리를 작성하는 방법을 보여줍니다.
+
+## HAProxy 데이터 찾기 [#find-data]
+
+<CollapserGroup>
+  <Collapser id="method1-entities" title="엔티티 탐색기 사용">
+    1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; All entities**</DNT> 으)로 이동합니다.
+    2. 이름으로 HAProxy 엔티티를 검색하거나 엔티티 유형 `HAPROXYINSTANCE`(으)로 필터링합니다.
+    3. 엔티티를 선택하여 골든 메트릭(초당 세션 수, 초당 requests 수, 연결 오류)이 포함된 요약 페이지를 확인하세요.
+  </Collapser>
+
+  <Collapser id="method2-dashboard" title="Integrations & Agents [통합 및 에이전트] 사용">
+    1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Integrations &amp; Agents**</DNT> 으)로 이동합니다.
+    2. <DNT>**Dashboards**</DNT> 을(를) 클릭합니다.
+    3. <DNT>**HAProxy (OpenTelemetry Collector)**</DNT> 를 검색하고 선택합니다.
+    4. HAProxy 메트릭에 대해 사전 구축된 시각화를 보려면 <DNT>**View dashboard**</DNT> 을(를) 클릭하세요.
+  </Collapser>
+
+  <Collapser id="method3-query" title="쿼리 빌더 사용">
+    1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Query your data**</DNT> 으)로 이동합니다.
+    2. 쿼리를 실행하여 HAProxy 데이터를 찾습니다:
+       ```sql
+       FROM Metric SELECT uniques(metricName)
+       WHERE metricName LIKE 'haproxy.%'
+       SINCE 1 hour ago
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## NRQL로 데이터 쿼리 [#query-data]
+
+다음 예제 NRQL 쿼리를 사용하여 HAProxy 데이터를 분석하세요:
+
+```sql
+-- Sessions per second across frontends
+FROM Metric SELECT average(haproxy.sessions.rate)
+WHERE haproxy.service_name = 'FRONTEND'
+FACET haproxy.proxy_name
+TIMESERIES
+
+-- Error rates by backend
+FROM Metric SELECT rate(sum(haproxy.responses.errors), 1 minute) AS 'Errors/min'
+WHERE haproxy.service_name = 'BACKEND'
+FACET haproxy.proxy_name
+TIMESERIES
+
+-- Bytes throughput (in + out)
+FROM Metric SELECT rate(sum(haproxy.bytes.input), 1 minute) AS 'Bytes In/min',
+  rate(sum(haproxy.bytes.output), 1 minute) AS 'Bytes Out/min'
+FACET haproxy.proxy_name
+TIMESERIES
+
+-- Backend server health
+FROM Metric SELECT latest(haproxy.active) AS 'Active Servers',
+  latest(haproxy.backup) AS 'Backup Servers'
+WHERE haproxy.service_name = 'BACKEND'
+FACET haproxy.proxy_name
+
+-- Request queue depth (indicates backend saturation)
+FROM Metric SELECT max(haproxy.requests.queued)
+WHERE haproxy.service_name = 'BACKEND'
+FACET haproxy.proxy_name
+TIMESERIES
+```
+
+## 데이터 가시성 문제 해결 [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-no-data" title="뉴렐릭에는 데이터가 나타나지 않습니다.">
+    * 초기 데이터 수집에 몇 분 정도 걸릴 수 있습니다.
+    * 시간 범위를 확인합니다 ― 최근 데이터(최근 30분)를 보고 있는지 확인합니다.
+    * 모든 HAProxy 메트릭 쿼리:
+      ```sql
+      FROM Metric SELECT count(*) WHERE metricName LIKE 'haproxy.%' SINCE 30 minutes ago
+      ```
+    * 수집기가 실행 중인지 확인하십시오.
+      ```bash
+      # Self-hosted
+      sudo systemctl status otelcol-contrib
+      # or
+      sudo systemctl status nrdot-collector
+
+      # Kubernetes
+      kubectl get pods -n newrelic
+      kubectl logs -n newrelic -l app.kubernetes.io/name=nr-k8s-otel-collector
+      ```
+    * 수집기에서 HAProxy 통계 엔드포인트에 액세스할 수 있는지 확인합니다.
+  </Collapser>
+
+  <Collapser id="troubleshoot-intermittent-data" title="데이터가 간헐적으로 나타남">
+    * 수집기 로그에서 오류 확인:
+      ```bash
+      # Self-hosted
+      sudo journalctl -u otelcol-contrib -n 50 --no-pager
+
+      # Kubernetes
+      kubectl logs -n newrelic deploy/nr-k8s-otel-collector-deployment --tail=50
+      ```
+    * HAProxy 통계 엔드포인트에 일관되게 액세스할 수 있는지 확인합니다.
+    * 수집기와 뉴렐릭의 OTLP 엔드포인트 간의 네트워크 연결 문제를 확인합니다.
+    * HAProxy가 통계 엔드포인트 requests를 속도 제한하지 않는지 확인하세요.
+  </Collapser>
+</CollapserGroup>
+
+## 다음 단계 [#next-steps]
+
+* [HAProxy OTel 메트릭 참조](/docs/opentelemetry/integrations/haproxy/metrics-reference/) — 설명이 포함된 전체 메트릭 참조
+* [NRQL 소개](/docs/nrql/get-started/introduction-nrql-new-relics-query-language/) ― 고급 분석을 위한 뉴렐릭의 쿼리 언어를 알아보세요.
+* [NRQL 공지 조건 생성](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) — HAProxy 메트릭을 기반으로 알림을 설정합니다.
+* [자체 호스팅 HAProxy 모니터](/docs/opentelemetry/integrations/haproxy/self-hosted/) ― Linux VM 또는 베어메탈용 설정
+* [Kubernetes에서 HAProxy 모니터](/docs/opentelemetry/integrations/haproxy/kubernetes/) — 컨테이너화된 환경을 위한 자동 파드 검색
