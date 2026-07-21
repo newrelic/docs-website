@@ -1,0 +1,677 @@
+---
+title: Azure VNetフローログ監視の設定
+tags:
+  - Integrations
+  - Network monitoring
+  - Installation
+  - Setup
+  - Azure
+  - VNet
+  - Flow Logs
+metaDescription: Set up Azure VNet Flow Logs monitoring to forward flow log data to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Azure Virtual Network（VNet）フローログを使用すると、仮想ネットワークを流れるIPトラフィックに関する情報をログに記録できます。New Relic VNetフローログフォワーダーを使用すると、これらのログをNew Relicに自動的に転送して、パフォーマンス分析やネットワーク接続のトラブルシューティングを行うことができます。
+
+## 使い方 [#how-it-works]
+
+VNetフローログフォワーダーは、イベント駆動型のAzure Function Appです：
+
+<img title="Azure VNet Flow Logs Architecture" alt="Azure VNet Flow Logs Architecture" src="/images/azure-arch.webp" />
+
+1. **Event Grid → Event Hub**: フローログストレージアカウントのEvent Gridサブスクリプションは、PT1H.json BLOB上の`BlobCreated`イベントをリッスンし、Event Hubに直接配信します。サブスクリプションは、ファイルごとの時系列順序を保証するために、パーティションキーとしてBLOBパス（イベントサブジェクト）を使用します。個別のリレー関数はありません。
+
+2. **VNetFlowLogsConsumer**: 以下の方法で各BLOBイベントを処理するEvent Hubトリガー関数です：
+
+   * Azure Table Storageからカーソルを読み取り、すでに処理されたものを決定します。
+   * PT1H.json BLOBから新しく追加されたブロックのみをダウンロードします（差分読み取り）。
+   * VNetフローログレコード（フロータプル）を構造化されたログエントリに解析します。
+   * ログAPIを介して解析されたレコードをNew Relicに送信します。
+   * 配信成功時に、更新されたカーソルをコミットします。
+
+3. **VNetFlowLogsCleanup**: Azure Table Storageから古いカーソルエントリを定期的に削除するタイマー・トリガー関数（デフォルトでは毎日03:00 UTC）。
+
+このアーキテクチャーは、効率的でインクリメンタルな処理を保証します — 新しいデータのみが読み取られて転送され、すでに確認されたレコードの重複処理を回避します。
+
+## 前提条件 [#prerequisites]
+
+### NewRelicの前提条件 [#prerequisites-NR]
+
+New Relicでは次のものが必要です：
+
+* NewRelicアカウント。持っていませんか？[無料でお申し込み頂けます！](https://newrelic.com/signup)クレジットカードは必要ありません。
+* New Relic <InlinePopover type="licenseKey" />。
+
+### Azureの前提条件 [#prerequisites-azure]
+
+Azureでは次のものが必要です：
+
+* ターゲット仮想ネットワークでVNetフローログが有効になっているAzureサブスクリプション。[VNetフローログの有効化に関するMicrosoftのドキュメント](https://learn.microsoft.com/en-us/azure/network-watcher/vnet-flow-logs-manage?tabs=portal)を参照してください。
+* VNetフローログが書き込まれるストレージアカウント（PT1H.json BLOB）。
+* イベント配信用のEvent HubネームスペースとEvent Hub（ARM/Bicepテンプレートによって自動的に作成できます）。
+* Function Appランタイムおよびカーソルテーブルストレージ用のAzureストレージアカウント（ARM/Bicepテンプレートによって自動的に作成できます）。
+
+## VNetフローログフォワーダーをデプロイする [#deploy]
+
+ARM/Bicepテンプレートを使用して（推奨）、または手動でVNetフローログフォワーダーをデプロイできます。
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="arm-deploy">
+      ARM/Bicepテンプレート（推奨）
+    </TabsBarItem>
+
+    <TabsBarItem id="manual-deploy">
+      手動デプロイメント
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="arm-deploy">
+      [New Relic VNet Flow ログ ARMテンプレート](https://github.com/newrelic/azure-vnet-flow-logs/blob/main/arm/azuredeploy-vnetflowlogsforwarder.json)および[Bicepテンプレート](https://github.com/newrelic/azure-vnet-flow-logs/blob/main/bicep/azuredeploy-vnetflowlogsforwarder.bicep)は、必要なすべてのリソースの自動デプロイメントを提供します。
+
+      テンプレートは自動的に次のことを行います：
+
+      * Event Hubネームスペース、Event Hub、および消費者グループを作成する
+      * VNetフローログ関数を使用して関数アプリ（Flex従量課金プラン、Node.js 22）をデプロイする
+      * Function Appランタイムおよびカーソルトラッキング用のストレージアカウントを作成する
+      * PT1H.jsonのBLOB作成イベントを直接Event HubにルーティングするEvent Gridシステムトピックとサブスクリプションを作成する
+      * 必要なロール割り当てを持つマネージドIDを割り当てる
+      * 必要なすべてのアプリケーション設定を構成する
+      * オプションで、VNetインテグレーションとプライベートエンドポイントを使用したプライベートネットワークを有効にします
+
+      以下の手順に従ってください。
+
+      1. <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Integrations &amp; Agents**</DNT>に移動します。
+
+      2. <DNT>**Collections**</DNT>で、<DNT>**Logging**</DNT>を選択し、<DNT>**Microsoft Azure VNet Flow Logs**</DNT>タイルをクリックします。
+
+      3. <DNT>**Select an account**</DNT>ドロップダウンから、ログの送信先アカウントを選択し、<DNT>**Continue**</DNT>をクリックします。
+
+      4. <DNT>**Enter your license key**</DNT>ステップで、<DNT>**Create a new key**</DNT>をクリックし、<DNT>**Copy key**</DNT>をクリックして安全な場所に保存してから、<DNT>**Continue**</DNT>をクリックします。
+
+      5. <DNT>**Deploy to Azure**</DNT>をクリックします。ARMテンプレートが読み込まれた状態で、Azureで新しいタブが開きます。
+
+      6. デプロイメントの<DNT>**Resource group**</DNT>と<DNT>**Region**</DNT>を選択します。作成されたコンポーネントを誤って削除しないように、新しいリソースグループをお勧めします。
+
+      7. <DNT>**New Relic license key**</DNT>フィールドに、先ほどコピーしたライセンスキーを貼り付けます。
+
+      8. [New Relicエンドポイント](/docs/logs/log-api/introduction-log-api/#endpoint)が、アカウントに対応するもの（US、EU、またはJP）に設定されていることを確認します。
+
+      9. （オプション）VNet Flowログが保存されている<DNT>**Source Storage Account Name**</DNT>を入力します。このデプロイメントと同じリソースグループ内にある必要があります。新しいソースストレージアカウントを自動的に作成するには、空白のままにします。
+
+      10. （オプション）<DNT>**Disable Public Access To Storage Account**</DNT>を選択して、VNetインテグレーションとプライベートエンドポイントを備えたプライベートネットワークモードを有効にします。
+
+      11. （オプション）詳細設定を構成します：
+
+          * <DNT>**New Relic Tags**</DNT>：セミコロン区切りのタグ（形式：`key1:value1;key2:value2`）
+          * <DNT>**Max Retries**</DNT>：最大配信再試行回数（デフォルト：3）
+          * <DNT>**Retry Interval**</DNT>：再試行間のミリ秒数（デフォルト：2000）
+          * <DNT>**Function Log Level**</DNT>：Function Appログの詳細度 — `Trace`、`Debug`、`Information`、`Warning`、または`Error`（デフォルト：`Information`）
+          * <DNT>**Max Event Batch Size**</DNT>：バッチごとに処理されるEvent Hubイベントの最大数（デフォルト：10）
+          * <DNT>**Min Event Batch Size**</DNT>: バッチあたりのEvent Hubイベントの最小数（デフォルト: 5）
+          * <DNT>**Max Wait Time**</DNT>：処理前にトリガーがバッチを満たすのを待機する最大時間。`hh:mm:ss`として指定します（デフォルト：`00:00:30`）
+          * <DNT>**Event Hub Scaling Mode**</DNT>：`Basic`（1スループット単位、4パーティション、自動拡張なし — 低～中トラフィック）または`Enterprise`（最大40スループット単位までの自動拡張、32パーティション — 高スループットボリューム）（デフォルト：`Basic`）
+
+      12. <DNT>**Review + create**</DNT>をクリックし、設定を確認して、<DNT>**Create**</DNT>をクリックします。
+
+      13. New Relicに戻り、<DNT>**Create log partition**</DNT>ステップで<DNT>**Create partition**</DNT>をクリックします。これにより`Log_VNET_Flows_Azure`データパーティション（ルール：`instrumentation.name = 'vnet-app'`、STANDARD保持）が作成されるため、VNetフローログは他のログとは別に保存され、クエリされます。アカウントに`Log_VNET_Flows_Azure`パーティションがすでに存在する場合は、<DNT>**Continue**</DNT>をクリックしてこのステップをスキップします。
+
+      14. <DNT>**Test your logs**</DNT>ステップで、`SELECT * FROM Log_VNET_Flows_Azure`を実行してデータが到着していることを確認し、<DNT>**See your data**</DNT>をクリックします。
+
+      ### デプロイメントアーキテクチャー [#deployment-architectures]
+
+      ARM/Bicepテンプレートは、2つのデプロイメントモードをサポートしています：
+
+      **標準デプロイメント**（デフォルト）:
+
+      * Event Gridを使用して、ソースストレージアカウントでのBLOB作成をモニターします
+      * サブジェクトをパーティションキーとして使用し、順序付けられた処理のためにイベントを直接Event Hubにルーティングします
+      * Function AppでVNetフローログを処理し、New Relicに転送します
+      * Function App、そのストレージアカウント、およびEvent Hubでのパブリックネットワークアクセスを有効にします
+
+      **プライベートネットワーキングのデプロイメント**（オプション、`disablePublicAccessToStorageAccount=true`）:
+
+      * 標準デプロイメントのすべての機能が含まれています
+      * Function App、そのストレージアカウント、およびイベントハブをプライベート仮想ネットワーク内に分離し、それらへのパブリックネットワークアクセスを無効にします
+      * ストレージサービス（BLOB、ファイル、キュー、およびテーブル）のプライベートエンドポイントとのVNetインテグレーションを追加します
+      * 名前解決用のプライベートDNSゾーンを作成します
+      * パブリックネットワークアクセスを有効にしておく必要があるソースストレージアカウント（VNet Flowログを含む）は変更しません
+    </TabsPageItem>
+
+    <TabsPageItem id="manual-deploy">
+      手動でのデプロイメントを希望する場合、またはカスタム設定が必要な場合：
+
+      1. [azure-vnet-flow-logs](https://github.com/newrelic/azure-vnet-flow-logs) Function AppをAzureサブスクリプションにデプロイします。
+      2. `VNetFlowForwarder`関数（`VNetFlowLogsConsumer`および`VNetFlowLogsCleanup`）がデプロイメントに含まれていることを確認します。
+      3. 以下にリストされている必要な環境変数（アプリケーション設定）を構成します。
+      4. フローログストレージアカウントにEvent Gridサブスクリプションを設定し、イベントサブジェクトをパーティションキーとして使用して、`BlobCreated`イベントを直接Event Hubにルーティングします。
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 構成 [#configuration]
+
+Azure Function Appで次のアプリケーション設定を構成します：
+
+### 必須設定 [#required-settings]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        環境変数
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `NR_LICENSE_KEY`
+      </td>
+
+      <td>
+        New Relicライセンスキー。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `SOURCE_STORAGE_CONNECTION`
+      </td>
+
+      <td>
+        VNet Flowログが保存されているAzure Storageアカウントの接続文字列。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `CURSOR_STORAGE_CONNECTION`
+      </td>
+
+      <td>
+        カーソル状態を永続化するために使用されるAzure Storageアカウントの接続文字列（ソースと同じにすることができます）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `EVENTHUB_CONSUMER_CONNECTION`
+      </td>
+
+      <td>
+        BLOB作成イベントを消費者関数に配信するEvent Hubの接続文字列。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `EVENTHUB_NAME`
+      </td>
+
+      <td>
+        Event Hubインスタンスの名前。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### オプション設定 [#optional-settings]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        環境変数
+      </th>
+
+      <th>
+        説明
+      </th>
+
+      <th>
+        デフォルト
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `NR_ENDPOINT`
+      </td>
+
+      <td>
+        New Relic Logs APIエンドポイント。EUアカウントには
+
+        `https://log-api.eu.newrelic.com/log/v1`
+
+        を使用します。
+      </td>
+
+      <td>
+        `https://log-api.newrelic.com/log/v1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NR_TAGS`
+      </td>
+
+      <td>
+        転送されるすべてのログに追加するセミコロン区切りのタグ。形式： 
+
+        `key1:value1;key2:value2`
+      </td>
+
+      <td>
+        なし
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NR_MAX_RETRIES`
+      </td>
+
+      <td>
+        New Relicへの配信再試行の最大数。
+      </td>
+
+      <td>
+        `3`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NR_RETRY_INTERVAL`
+      </td>
+
+      <td>
+        再試行間の間隔（ミリ秒単位）。
+      </td>
+
+      <td>
+        `2000`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `EVENTHUB_CONSUMER_GROUP`
+      </td>
+
+      <td>
+        イベントHub消費者グループ。
+      </td>
+
+      <td>
+        `$Default`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `CURSOR_RETENTION_HOURS`
+      </td>
+
+      <td>
+        クリーンアップジョブによって削除される前にblob-cursorレコードを保持する時間数。
+      </td>
+
+      <td>
+        `48`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `CURSOR_CLEANUP_SCHEDULE`
+      </td>
+
+      <td>
+        カーソルクリーンアップタイマートリガーのNCRONTABスケジュール。
+      </td>
+
+      <td>
+        `0 0 3 * * *`
+
+         （毎日03:00 UTC）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `MAX_CONSECUTIVE_FAILURES`
+      </td>
+
+      <td>
+        フォワーダーがポイズンイベントとしてスキップするまでの、BLOBあたりの連続失敗回数。
+      </td>
+
+      <td>
+        `5`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## フローログデータの表示 [#find-data]
+
+構成が完了すると、VNetフローログデータがNew Relicに表示されます。NRQLを使用してクエリできます：
+
+```sql
+SELECT * FROM Log_VNET_Flows_Azure
+```
+
+<img title="Azure cloud flow logs view" alt="Azure cloud flow logs" src="/images/log-query.webp" />
+
+このデータは<DNT>**Conversations**</DNT>ビューでも視覚化できます。このビューでは、上位のフローが送信元、方向、プロトコル、および宛先ごとにグループ化されます：
+
+<img title="Azure VNet Flow Logs Conversations view" alt="Conversations view showing top flows grouped by source endpoint, direction, protocol, and destination address" src="/images/azure-sanky.webp" />
+
+各フローログレコードには、次の属性が含まれます：
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        属性
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `srcAddr`
+      </td>
+
+      <td>
+        送信元IPアドレス
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `destAddr`
+      </td>
+
+      <td>
+        送信先IPアドレス
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `srcPort`
+      </td>
+
+      <td>
+        送信元ポート
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `destPort`
+      </td>
+
+      <td>
+        宛先ポート
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `protocol`
+      </td>
+
+      <td>
+        プロトコル（TCP、UDP、およびICMP）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `direction`
+      </td>
+
+      <td>
+        Trafficの方向（インバウンド、アウトバウンド）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `flowState`
+      </td>
+
+      <td>
+        フロー状態：
+
+        `Begin`
+
+        、
+
+        `Continuing`
+
+        、
+
+        `End`
+
+        または
+
+        `Deny`
+
+        。拒否されたフローはここでは
+
+        `Deny`
+
+        として表現されます — 個別のアクション属性はありません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `encryption`
+      </td>
+
+      <td>
+        暗号化ステータス：
+
+        `Encrypted`
+
+        、
+
+        `Not Encrypted`
+
+        、または
+
+        `NX_*`
+
+        理由コード（たとえば、
+
+        `NX_HW_NOT_SUPPORTED`
+
+        ）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesSrcToDest`
+      </td>
+
+      <td>
+        送信元から宛先までのバイト数
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesDestToSrc`
+      </td>
+
+      <td>
+        宛先から送信元へのバイト数
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `packetsSrcToDest`
+      </td>
+
+      <td>
+        送信元から宛先へのパケット
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `packetsDestToSrc`
+      </td>
+
+      <td>
+        宛先から送信元へのパケット
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `aclID`
+      </td>
+
+      <td>
+        フローに関連付けられたアクセス制御リストID
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `rule`
+      </td>
+
+      <td>
+        フローに一致したNSG/ACLルール名
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `targetResourceID`
+      </td>
+
+      <td>
+        モニターされるターゲットリソースの完全なAzureリソースID
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `virtualNetworkName`
+      </td>
+
+      <td>
+        仮想ネットワーク名（ターゲットがVNetまたはサブネットの場合）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `subnetName`
+      </td>
+
+      <td>
+        サブネット名（該当する場合）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `macAddress`
+      </td>
+
+      <td>
+        フローログレコードに関連付けられたMACアドレス
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `category`
+      </td>
+
+      <td>
+        ログカテゴリ（たとえば、
+
+        `FlowLogFlowEvent`
+
+        ）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `operationName`
+      </td>
+
+      <td>
+        フローログレコードからの操作名
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `flowLogVersion`
+      </td>
+
+      <td>
+        VNetフローログのスキーマバージョン
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `flowLogGUID`
+      </td>
+
+      <td>
+        フローログリソースの固有識別子
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `flowLogResourceID`
+      </td>
+
+      <td>
+        フローログのAzureリソースID
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  転送された各ログには、共通属性`instrumentation.provider`（`azure`）、`instrumentation.name`（`vnet-app`）、および`instrumentation.version`（フォワーダーのバージョン）に加えて、`NR_TAGS`で設定したカスタムのキーの値のペアも含まれます。生のフロータプルCSVは、ログの`message`フィールドに保持されます。
+</Callout>
+
+## トラブルシューティング [#troubleshooting]
+
+欠落しているフローログデータ、重複したレコード、またはスキップされた（ポイズン）イベントのヘルプについては、[Azure VNet Flow ログ監視のトラブルシューティング](/docs/network-performance-monitoring/troubleshooting/azure-vnet-flow-logs)を参照してください。

@@ -1,0 +1,357 @@
+---
+title: Solucionar problemas de Redis (OpenTelemetry)
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Redis
+  - Troubleshooting
+metaDescription: Troubleshoot common issues with the Redis OpenTelemetry integration for both host-based and Kubernetes deployments.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esta guía cubre los problemas comunes que puede encontrar al instalar y configurar la integración de Redis OpenTelemetry.
+
+## Problemas de inicio del Collector [#collector-startup]
+
+<CollapserGroup>
+  <Collapser id="redis-receiver-not-recognized" title="Receptor de Redis no reconocido (NRDOT)">
+    **Mensaje de error:**
+
+    ```
+    'receivers' unknown type: "redis" for id: "redis" (valid values: [elasticsearch hostmetrics ...])
+    ```
+
+    **Causa:** su versión de NRDOT no incluye el receptor de Redis. El receptor de Redis requiere NRDOT v1.18.0+.
+
+    **Solución:** cualquiera de las siguientes:
+
+    * Actualizar NRDOT a la última versión
+    * Cambie a `otelcol-contrib`, que incluye todos los receptores de la comunidad
+  </Collapser>
+
+  <Collapser id="invalid-yaml" title="Collector no se inicia con un error de configuración">
+    **Mensaje de error:**
+
+    ```
+    cannot unmarshal the configuration: error reading receivers configuration
+    ```
+
+    **Causas comunes:**
+
+    * Sangría de YAML no válida (mezcla de tabulaciones y espacios)
+    * Problemas de heredoc al crear ConfigMaps desde scripts de shell
+    * Faltan comillas alrededor de los valores del extremo que contienen dos puntos
+
+    **Corrección:**
+
+    ```bash
+    # Validate YAML syntax
+    python3 -c "import yaml; yaml.safe_load(open('/etc/nrdot-collector/redis-collector-config.yaml'))"
+    ```
+  </Collapser>
+
+  <Collapser id="service-stopped" title="El servicio de colector se detuvo o falló">
+    **Cómo verificar:**
+
+    ```bash
+    systemctl status nrdot-collector
+    # or
+    systemctl status otelcol-contrib
+    ```
+
+    **Causas comunes:**
+
+    * YAML no válido en el archivo de configuración del recolector
+    * Conflicto de puerto con otro proceso (verifique el puerto 13133 para la comprobación de estado)
+    * Memoria insuficiente (aumente `limit_mib` en memory\_limiter)
+
+    **Corrección:**
+
+    ```bash
+    # Check for port conflicts
+    ss -tlnp | grep 13133
+    ```
+  </Collapser>
+
+  <Collapser id="cannot-connect-redis" title="No se puede conectar al extremo de Redis">
+    **Mensaje de error:**
+
+    ```
+    failed to fetch Redis INFO: dial tcp 127.0.0.1:6379: connect: connection refused
+    ```
+
+    **Causa:** Redis no se está ejecutando, se configuró un extremo incorrecto o el firewall bloquea la conexión.
+
+    **Corrección:**
+
+    ```bash
+    # Verify Redis is running
+    redis-cli ping
+
+    # Test connectivity
+    nc -zv localhost 6379
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Problemas de exportación de datos [#data-export]
+
+<CollapserGroup>
+  <Collapser id="export-403" title="403 Forbidden al exportar a New Relic">
+    **Mensaje de error:**
+
+    ```
+    Exporting failed. 403 Forbidden
+    ```
+
+    **Causa:** clave de licencia no válida o extremo OTLP incorrecto para su región.
+
+    **Corrección:**
+
+    * Verifique que su clave de licencia sea correcta y esté activa
+    * Asegúrese de que el extremo OTLP coincida con la región de su cuenta
+  </Collapser>
+
+  <Collapser id="no-data-at-all" title="No se muestran datos en NRDB">
+    **Pasos de verificación:**
+
+    1. Verifique que el recolector se esté ejecutando:
+
+       ```bash
+       systemctl is-active nrdot-collector
+       ```
+
+    2. Verifique el extremo de salud:
+
+       ```bash
+       curl http://localhost:13133
+       ```
+
+    3. Pruebe con NRQL:
+
+       ```sql
+       FROM Metric SELECT count(*) WHERE metricName LIKE 'redis.%' SINCE 10 minutes ago
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## Problemas de recopilación de logs [#log-collection]
+
+<CollapserGroup>
+  <Collapser id="permission-denied-logs" title="Permiso denegado al recopilar logs">
+    **Mensaje de error:**
+
+    ```
+    Failed to open file: /var/log/redis/redis-server.log: permission denied
+    ```
+
+    **Causa:** el proceso del recolector no tiene acceso de lectura al archivo de log de Redis.
+
+    **Solución (basada en host):**
+
+    ```bash
+    # Option 1: Make the log file readable
+    sudo chmod 644 /var/log/redis/redis-server.log
+
+    # Option 2: Add collector user to redis group
+    sudo usermod -a -G redis nrdot-collector
+    ```
+
+    **Solución (Kubernetes):** asegúrese de que el DaemonSet tenga el volumen `/var/log/pods` montado con `readOnly: true`.
+  </Collapser>
+</CollapserGroup>
+
+## Problemas específicos de Kubernetes [#kubernetes]
+
+<CollapserGroup>
+  <Collapser id="no-pods-discovered" title="No se descubrieron pods de Redis por receiver_creator">
+    **Causa:** las etiquetas del pod no coinciden con la regla de descubrimiento de receiver\_creator.
+
+    **Corrección:**
+
+    ```bash
+    # Check pod labels
+    kubectl get pods -n <namespace> --show-labels | grep redis
+    ```
+
+    Asegúrese de que el `rule` en su ConfigMap coincida con las etiquetas de sus pods de Redis. Por ejemplo, si sus pods tienen `app.kubernetes.io/name: redis`, actualice la regla en consecuencia.
+  </Collapser>
+
+  <Collapser id="crashloopbackoff" title="Pods del Collector en CrashLoopBackOff">
+    **Cómo verificar:**
+
+    ```bash
+    kubectl get pods -n newrelic
+    kubectl logs -n newrelic <pod-name> --previous
+    ```
+
+    **Causas comunes:**
+
+    * YAML de ConfigMap no válido (verifique la sangría en el campo `data.config.yaml`)
+    * Falta el secreto de Kubernetes para las credenciales
+    * Faltan permisos de RBAC (para DaemonSet con `k8s_observer`)
+
+    **Corrección:**
+
+    ```bash
+    # Validate ConfigMap content
+    kubectl get configmap otel-collector-redis-config -n newrelic -o jsonpath='{.data.config\.yaml}' | python3 -c "import yaml,sys; yaml.safe_load(sys.stdin); print('Valid YAML')"
+
+    # Check secret exists
+    kubectl get secret newrelic-credentials -n newrelic
+
+    # Check RBAC
+    kubectl auth can-i list pods --as=system:serviceaccount:newrelic:otel-collector-redis
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-cannot-reach-redis" title="Collector no puede acceder al servicio de Redis">
+    **Error:** tiempo de espera de conexión agotado para el extremo de Redis.
+
+    **Corrección:**
+
+    ```bash
+    # Verify Redis pods are running
+    kubectl get pods -n <namespace> -l app=redis
+
+    # Test connectivity from collector pod
+    kubectl exec -n newrelic <collector-pod> -- nc -zv <redis-pod-ip> 6379
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-helm-fails" title="Falla la instalación de Helm">
+    **Causas comunes:**
+
+    * El namespace no existe
+    * values.yaml no válido
+    * Repositorio de Helm no agregado
+
+    **Corrección:**
+
+    ```bash
+    # Create namespace first
+    kubectl create namespace newrelic
+
+    # Validate (dry run)
+    helm template redis-otel open-telemetry/opentelemetry-collector -f values.yaml --dry-run
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Problemas de monitoreo de clusters [#cluster-issues]
+
+<CollapserGroup>
+  <Collapser id="no-cluster-entity" title="La entidad de Cluster no aparece en New Relic">
+    **Síntomas:** aparecen entidades de instancia, pero no se crea ninguna entidad de Redis Cluster.
+
+    **Causas comunes:**
+
+    * `redis.cluster.name` no establecido en el pipeline del clúster
+    * `redis.instance.id` o `server.address` presente en las métricas del clúster (evita que coincida la regla de entidad del clúster)
+    * Métricas del clúster deshabilitadas (todas las métricas del clúster están deshabilitadas por defecto en el receptor de Redis)
+
+    **Solución:** verifique que su pipeline de clúster tenga:
+
+    * `redis.cluster.name` configurado mediante el procesador `resource/cluster`
+    * `server.address: {enabled: false}` y `server.port: {enabled: false}` en el receptor del clúster
+    * No hay `redis.instance.id` en el pipeline del clúster
+
+    **Verificar con NRQL:**
+
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE redis.cluster.name IS NOT NULL
+    AND redis.instance.id IS NULL
+    AND server.address IS NULL
+    SINCE 5 minutes ago
+    ```
+
+    Si esto devuelve 0, las métricas del clúster no fluyen correctamente.
+  </Collapser>
+
+  <Collapser id="cluster-metrics-missing" title="Las métricas de Cluster no muestran datos">
+    **Síntomas:** la entidad Cluster existe, pero el dashboard muestra widgets vacíos.
+
+    **Causas comunes:**
+
+    * Redis no se está ejecutando en modo Cluster (las instancias independientes no producen métricas de clúster)
+    * Métricas del Cluster no habilitadas en la configuración del receptor de Redis
+
+    **Solución:** verifique que Redis esté en modo Cluster:
+
+    ```bash
+    redis-cli INFO cluster | grep cluster_enabled
+    ```
+
+    Debería devolver `cluster_enabled:1`. Si devuelve `0`, su Redis no está en modo Cluster.
+
+    Verificar que las métricas del clúster estén habilitadas en la configuración de su receiver:
+
+    ```yaml
+    redis/cluster:
+      metrics:
+        redis.cluster.state: {enabled: true}
+        redis.cluster.known_nodes: {enabled: true}
+        # ... all 9 cluster metrics must be explicitly enabled
+    ```
+  </Collapser>
+
+  <Collapser id="duplicate-cluster-entity" title="Múltiples entidades de clúster para el mismo clúster">
+    **Síntomas:** aparece más de una entidad de Redis Cluster para el mismo clúster.
+
+    **Causa:** diferentes recolectores están utilizando diferentes valores de `redis.cluster.name` para el mismo clúster.
+
+    **Solución:** asegúrate de que todos los recolectores que monitorean el mismo clúster usen exactamente el mismo valor de `redis.cluster.name` en su procesador `resource/cluster`. El identificador de la entidad del clúster es este nombre — los nombres diferentes crean entidades diferentes.
+  </Collapser>
+
+  <Collapser id="cluster-instance-relationship" title="Entidad de Cluster no vinculada a las entidades de instancia">
+    **Síntomas:** existen las entidades de clúster e instancia, pero no aparece ninguna relación CONTAINS en los mapas de servicio.
+
+    **Causa:** las métricas de instancia no llevan el atributo `redis.cluster.name`, por lo que la regla de relación no puede vincularlas.
+
+    **Solución:** Agregue `redis.cluster.name` al procesador de recursos del pipeline de su instancia:
+
+    ```yaml
+    resource/redis_identity:
+      attributes:
+        - key: redis.instance.id
+          value: "my-instance:6379"
+          action: upsert
+        - key: redis.cluster.name
+          value: "my-redis-cluster"  # Must match the cluster pipeline value
+          action: upsert
+    ```
+  </Collapser>
+
+  <Collapser id="cluster-state-fail" title="El estado de Cluster muestra FAIL pero Redis se está ejecutando">
+    **Síntomas:** `redis.cluster.state` informa 0 (FAIL) aunque Redis parece estar operativo.
+
+    **Causas comunes:**
+
+    * No todas las 16 384 ranuras de hash están asignadas (configuración de clúster incompleta)
+    * Un nodo maestro está inactivo sin ninguna réplica disponible para la conmutación por error automática
+    * Partición de red entre nodos
+
+    **Corrección:**
+
+    ```bash
+    # Check cluster state directly
+    redis-cli CLUSTER INFO | grep cluster_state
+
+    # Check slot coverage
+    redis-cli CLUSTER INFO | grep cluster_slots
+
+    # Check for failed nodes
+    redis-cli CLUSTER NODES | grep fail
+    ```
+
+    Si `cluster_slots_assigned` es menor que 16384, algunos slots no están asignados. Soluciónelo agregando los rangos de slots faltantes a los nodos disponibles.
+  </Collapser>
+</CollapserGroup>
+
+## Próximos pasos [#next-steps]
+
+* **[Guías de instalación](/docs/opentelemetry/integrations/redis/host)**: revise los pasos de configuración
+* **[Referencia de métricas](/docs/opentelemetry/integrations/redis/metrics)**: verifique las métricas esperadas
+* **[Encuentre sus datos](/docs/opentelemetry/integrations/redis/view-data)**: realice consultas y alertas sobre las métricas de Redis
