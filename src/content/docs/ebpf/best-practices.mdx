@@ -179,6 +179,87 @@ By following the practices above, you can use the single eBPF agent to handle bo
 
 * **Add network metrics for complete visibility:** Once eBPF APM is deployed, consider adding eBPF network metrics to gain visibility beyond application boundaries for comprehensive troubleshooting capabilities.
 
+## Data sampling and fine-tuning [#data-sampling]
+
+APM language agents cap **transaction events** with a fixed reservoir, by default **10,000 events per minute** (configured with `transaction_events.max_samples_stored`). The eBPF agent does not use a single fixed per-minute limit. Instead, it samples each telemetry type differently, so understanding how each type behaves helps you control data volume and cost without losing the signals you care about.
+
+<table>
+  <thead>
+    <tr>
+      <th>Data type</th>
+      <th>Sampled?</th>
+      <th>Controls</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Metrics (throughput, latency, error rate)</td>
+      <td>No, always complete</td>
+      <td><code>protocols.&lt;protocol&gt;.enabled</code></td>
+      <td>Enabled per protocol</td>
+    </tr>
+    <tr>
+      <td>Spans</td>
+      <td>Yes, by threshold</td>
+      <td><code>samplingLatency</code>, <code>samplingErrorRate</code></td>
+      <td><code>p50</code> latency</td>
+    </tr>
+    <tr>
+      <td>Unlinked spans (no parent)</td>
+      <td>Yes, capped</td>
+      <td><code>max_unlinked_spans</code>, <code>unlinked_spans_error_quota_percentage</code></td>
+      <td><code>100</code> per protocol, <code>30</code>% reserved for errors</td>
+    </tr>
+    <tr>
+      <td>Logs</td>
+      <td>Yes, reservoir</td>
+      <td><code>maxSamplesPerMinute</code></td>
+      <td><code>10000</code> per minute</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Metrics are never sampled, throughput, latency, and error-rate dashboards stay accurate even when spans are aggressively sampled. Span sampling only affects the individual traces you can inspect, not the aggregate metrics.
+</Callout>
+
+### How span sampling works [#span-sampling]
+
+The eBPF agent does not limit spans to a fixed number per minute. For each protocol, it exports only the spans that cross a threshold you set:
+
+* **Latency threshold** (`samplingLatency`): exports spans slower than the chosen percentile for a given route. The default is `p50` (the median). Raise it toward `p90` or `p99` to keep only the slowest tail and reduce data volume; lower it toward `p1` or `p0` to keep nearly all spans and increase visibility. Any percentile from `p0` to `p99` is accepted.
+* **Error-rate threshold** (`samplingErrorRate`, HTTP): a value from `1` to `100`. When a route's error rate exceeds this threshold, spans for that route are exported so failures are never sampled away. Leave it empty to disable error-based export.
+
+### Controlling unlinked spans [#unlinked-spans]
+
+Spans that the agent captures but cannot associate with a parent are called *unlinked* spans. They are capped per protocol by `max_unlinked_spans` (default `100`; set to `0` to disable the cap). The `unlinked_spans_error_quota_percentage` setting (default `30`) reserves part of that budget for error spans, so failures stay visible even when normal spans arrive first.
+
+### Tuning examples [#tuning-examples]
+
+Sampling is configured in the Helm `values.yaml` file (Kubernetes) or in `/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml` (Linux host). The keys are identical for both.
+
+```yaml
+protocols:
+  global:
+    max_unlinked_spans: 100          # 0 disables the cap
+    unlinked_spans_error_quota_percentage: 30
+  http:
+    enabled: true
+    spans:
+      enabled: true
+      samplingLatency: "p90"         # keep only slower requests, less data
+      samplingErrorRate: "5"         # always keep routes with >5% errors
+logDataFilters:
+  applicationLogReporting:
+    maxSamplesPerMinute: 10000         # APM-equivalent reservoir for logs
+```
+
+### Recommendations [#sampling-recommendations]
+
+* **To maximize trace visibility:** lower `samplingLatency` toward `p0` and set a low `samplingErrorRate`, but expect higher ingest.
+* **To reduce data:** raise `samplingLatency` (for example, `p90` or `p99`), disable unwanted protocols all together (or just `spans.enabled: false` to keep the protocol metrics only), and lower `maxSamplesPerMinute` for logs.
+* **Keep metrics in mind:** metrics are unaffected by span sampling. Disable an entire protocol only when you don't need its data at all.
 
 ## Related articles [#related-articles]
 
