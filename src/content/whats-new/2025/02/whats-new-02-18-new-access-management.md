@@ -32,6 +32,9 @@ Admins should audit and make any necessary changes to your groups and access gra
 2. Create custom roles, which can only be done via our API. Learn more in this [doc](https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-manage-groups/#create-role).
 
 
+If you already use custom organization-scoped roles, note that these roles don't receive new capabilities automatically. As New Relic releases new organization-scoped features, an administrator must add each new capability to the custom roles that should have it, or users assigned only to a custom role that lacks the capability won't see the new feature. To have new features arrive automatically instead, assign users the standard **Organization Product Admin** or **Organization read only** role. See [role scopes](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#role-scopes) for details.
+
+
 No action is required if default access is acceptable for your organization.
 
 
