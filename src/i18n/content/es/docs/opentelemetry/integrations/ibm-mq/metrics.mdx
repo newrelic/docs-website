@@ -1,0 +1,205 @@
+---
+title: Referencia de métricas y atributos de IBM MQ OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Metrics
+metaDescription: 'Reference of IBM MQ metrics collected via OpenTelemetry — queue manager, queue, and channel metrics — with resource attributes for host and Kubernetes deployments.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esta referencia cubre las métricas y atributos de IBM MQ recopilados a través de OpenTelemetry: las métricas que el exportador [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) publica y el recolector reenvía a New Relic. Se aplica tanto a los despliegues de [host de Linux](/docs/opentelemetry/integrations/ibm-mq/host) como de [Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes); la forma de la métrica es idéntica.
+
+## Recopilación de métricas [#collection]
+
+Todas las métricas mantienen la forma original de Prometheus que emite el exportador: **nombres con guion bajo** (`ibmmq_*`) y las etiquetas originales **`qmgr`**, **`queue`** y **`channel`**, además del atributo de identidad `target.name` y la etiqueta opcional `cluster.name` que adjunta el recolector. La síntesis de la entidad de IBM MQ de New Relic depende de esta forma, por lo que el recolector reenvía los nombres y las etiquetas sin cambios.
+
+<Callout variant="important">
+  **Habilite las estadísticas de MQI en cada gestor de colas, o las métricas de rendimiento y tiempo permanecerán vacías.** El estado del gestor de colas, la profundidad de la cola y el estado del canal se informan sin configuración adicional, pero las métricas de actividad de MQI (las tablas de [rendimiento de la cola](#metrics-queue-throughput) y de [actividad de MQI del gestor de colas](#metrics-qmgr-mqi) — `ibmmq_queue_mqput_count`, `ibmmq_queue_average_queue_time_seconds`, etc.) requieren que la recopilación de estadísticas esté **activada**, lo cual está **desactivado de forma predeterminada**. Habilítelo una vez por gestor de colas con MQSC — por ejemplo `ALTER QMGR STATMQI(ON) STATQ(ON)`, luego `ALTER QLOCAL(...) STATQ(ON)` para cualquier cola en la que desee estadísticas por cola (o confíe en el valor predeterminado `STATQ` del gestor de colas). Sin esto, el exportador está en buen estado y la entidad aparece, pero esos paneles se muestran en blanco. Consulte la [documentación de mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) para conocer las estadísticas exactas de las que depende cada métrica.
+</Callout>
+
+<Callout variant="tip">
+  Las métricas de estado informan valores **enum** numéricos, no `1`/`0` — consulte la [referencia de códigos de estado](#status-codes) a continuación antes de generar alertas sobre ellas. Los contadores son convertidos a temporalidad delta por el recolector, por lo tanto, use `sum()` / `rate()` en una ventana en lugar de `latest()` al graficarlos.
+</Callout>
+
+Las siguientes tablas agrupan las métricas de OpenTelemetry por área. Para listar cada métrica que realmente se reporta en su cuenta, ejecute:
+
+```sql
+FROM Metric SELECT uniques(metricName, 2000) WHERE metricName LIKE 'ibmmq_%' SINCE 1 day ago
+```
+
+## Métrica [#metrics]
+
+### Salud y estado del gestor de colas [#metrics-qmgr-status]
+
+| Métrica                                             | Descripción                                                                                                                              |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `ibmmq_qmgr_status`                                 | Estado de ejecución del gestor de colas (`2` = en ejecución).                                                                            |
+| `ibmmq_qmgr_command_server_status`                  | Estado de ejecución del servidor de comandos (`2` = en ejecución).                                                                       |
+| `ibmmq_qmgr_channel_initiator_status`               | Estado de ejecución del iniciador de canal (el proceso del gestor de colas que inicia y administra los canales MQ) (`2` = en ejecución). |
+| `ibmmq_qmgr_connection_count`                       | Número actual de conexiones al gestor de colas.                                                                                          |
+| `ibmmq_qmgr_uptime`                                 | Tiempo de actividad del gestor de colas, en segundos.                                                                                    |
+| `ibmmq_qmgr_active_listeners`                       | Número de listeners activos.                                                                                                             |
+| `ibmmq_qmgr_active_services`                        | Número de servicios activos.                                                                                                             |
+| `ibmmq_qmgr_concurrent_connections_high_water_mark` | Pico de conexiones concurrentes.                                                                                                         |
+
+### Recursos del gestor de colas (CPU, memoria, log, sistema de archivos) [#metrics-qmgr-resources]
+
+| Métrica                                                      | Descripción                                                                                                                                                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ibmmq_qmgr_cpu_load_one_minute_average_percentage`          | Promedio de carga de CPU de 1 minuto para el gestor de colas (también `_five_` y `_fifteen_minute_`).                                                                                                  |
+| `ibmmq_qmgr_user_cpu_time_percentage`                        | Tiempo de CPU en el espacio de usuario consumido por el gestor de colas.                                                                                                                               |
+| `ibmmq_qmgr_system_cpu_time_percentage`                      | Tiempo de CPU del sistema (kernel) consumido por el gestor de colas.                                                                                                                                   |
+| `ibmmq_qmgr_ram_total_bytes`                                 | RAM total en el host.                                                                                                                                                                                  |
+| `ibmmq_qmgr_ram_free_percentage`                             | Porcentaje de RAM libre del host.                                                                                                                                                                      |
+| `ibmmq_qmgr_ram_total_estimate_for_queue_manager_bytes`      | RAM estimada en uso por este gestor de colas.                                                                                                                                                          |
+| `ibmmq_qmgr_log_in_use_bytes`                                | Espacio del registro de recuperación actualmente en uso.                                                                                                                                               |
+| `ibmmq_qmgr_log_max_bytes`                                   | Tamaño máximo del registro de recuperación.                                                                                                                                                            |
+| `ibmmq_qmgr_log_current_primary_space_in_use_percentage`     | Utilización del espacio de registro principal.                                                                                                                                                         |
+| `ibmmq_qmgr_log_file_system_free_space_bytes`                | Espacio libre en el sistema de archivos de log.                                                                                                                                                        |
+| `ibmmq_qmgr_log_write_latency_seconds`                       | Latencia de escritura del log de recuperación.                                                                                                                                                         |
+| `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`          | Espacio en uso del sistema de archivos del gestor de colas.                                                                                                                                            |
+| `ibmmq_qmgr_queue_manager_file_system_free_space_percentage` | Espacio libre en el sistema de archivos del gestor de colas.                                                                                                                                           |
+| `ibmmq_qmgr_mq_fdc_file_count`                               | Número de archivos de volcado de diagnóstico de IBM MQ (FFST/FDC — escritos cuando el gestor de colas registra un error interno). Un recuento en aumento indica problemas que vale la pena investigar. |
+
+### Profundidad, antigüedad y manejadores de la cola [#metrics-queue-state]
+
+| Métrica                            | Descripción                                                |
+| ---------------------------------- | ---------------------------------------------------------- |
+| `ibmmq_queue_depth`                | Número actual de mensajes en la cola.                      |
+| `ibmmq_queue_attribute_max_depth`  | Profundidad máxima de cola configurada.                    |
+| `ibmmq_queue_oldest_message_age`   | Edad del mensaje más antiguo en la cola, en segundos.      |
+| `ibmmq_queue_uncommitted_messages` | Número de mensajes no confirmados.                         |
+| `ibmmq_queue_time_since_put`       | Segundos desde el último `MQPUT` a la cola.                |
+| `ibmmq_queue_time_since_get`       | Segundos desde el último `MQGET` de la cola.               |
+| `ibmmq_queue_input_handles`        | Manejadores de entrada abiertos (consumidores) en la cola. |
+| `ibmmq_queue_output_handles`       | Manejadores de salida abiertos (productores) en la cola.   |
+| `ibmmq_queue_browse_handles`       | Manejadores de exploración abiertos en la cola.            |
+| `ibmmq_queue_publish_handles`      | Identificadores de publicación abiertos en la cola.        |
+| `ibmmq_queue_qfile_current_size`   | Tamaño actual del archivo de cola en el disco.             |
+| `ibmmq_queue_qfile_max_size`       | Tamaño máximo del archivo de cola en el disco.             |
+
+### Rendimiento y tiempos de la cola (MQI) [#metrics-queue-throughput]
+
+Estos contadores rastrean las llamadas API de mensajes principales de IBM MQ por cola: **`MQPUT`** / **`MQPUT1`** (poner un mensaje en una cola) y **`MQGET`** (obtener un mensaje de una cola). Requieren que las estadísticas de MQI estén habilitadas en el gestor de colas (consulte [Recopilación de métricas](#collection)).
+
+| Métrica                                                                                         | Descripción                                                       |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `ibmmq_queue_mqput_count`                                                                       | `MQPUT`/`MQPUT1` operaciones en la cola.                          |
+| `ibmmq_queue_mqget_count`                                                                       | `MQGET` operaciones en la cola.                                   |
+| `ibmmq_queue_mqput_bytes` / `ibmmq_queue_mqget_bytes`                                           | Bytes colocados en/obtenidos de la cola.                          |
+| `ibmmq_queue_mqput_non_persistent_message_count` / `ibmmq_queue_mqput_persistent_message_count` | Mensajes no persistentes/persistentes colocados.                  |
+| `ibmmq_queue_average_queue_time_seconds`                                                        | Tiempo promedio que los mensajes pasaron en la cola.              |
+| `ibmmq_queue_qtime_short` / `ibmmq_queue_qtime_long`                                            | Muestras de tiempo de cola de intervalo corto/largo.              |
+| `ibmmq_queue_avoided_puts_percentage`                                                           | Porcentaje de puts que fueron directamente a un getter en espera. |
+| `ibmmq_queue_expired_messages`                                                                  | Mensajes que caducaron en la cola.                                |
+| `ibmmq_queue_rolled_back_mqget_count` / `ibmmq_queue_rolled_back_mqput_count`                   | Gets/puts revertidos.                                             |
+
+### Métricas de canal [#metrics-channel]
+
+| Métrica                                                                  | Descripción                                                                                                                                                                   |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ibmmq_channel_status`                                                   | Estado de ejecución del canal (`3` = en ejecución).                                                                                                                           |
+| `ibmmq_channel_status_squash`                                            | Estado del canal simplificado con menos valores de enumeración (informativo; para alertas, use `ibmmq_channel_status` y la [referencia de códigos de estado](#status-codes)). |
+| `ibmmq_channel_messages`                                                 | Mensajes enviados a través del canal.                                                                                                                                         |
+| `ibmmq_channel_bytes_sent` / `ibmmq_channel_bytes_rcvd`                  | Bytes enviados/recibidos.                                                                                                                                                     |
+| `ibmmq_channel_buffers_sent` / `ibmmq_channel_buffers_rcvd`              | Búferes de transmisión enviados/recibidos.                                                                                                                                    |
+| `ibmmq_channel_cur_inst`                                                 | Número actual de instancias de canal en ejecución.                                                                                                                            |
+| `ibmmq_channel_attribute_max_inst` / `ibmmq_channel_attribute_max_instc` | Instancias máximas totales/por cliente.                                                                                                                                       |
+| `ibmmq_channel_time_since_msg`                                           | Segundos desde el último mensaje en el canal.                                                                                                                                 |
+| `ibmmq_channel_type` / `ibmmq_channel_instance_type`                     | Tipo de canal/tipo de instancia.                                                                                                                                              |
+| `ibmmq_channel_substate`                                                 | Subestado del canal.                                                                                                                                                          |
+
+### Actividad y errores de MQI del gestor de colas [#metrics-qmgr-mqi]
+
+Estos contadores a nivel del gestor de colas resumen la actividad y las fallas de la API en todos los objetos — útiles para detectar errores de la aplicación y la rotación de transacciones. Requieren que las estadísticas de MQI estén habilitadas (consulte [Recopilación de métricas](#collection)).
+
+| Métrica                                                            | Descripción                                                                         |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `ibmmq_qmgr_interval_mqput_mqput1_total_count`                     | Total de `MQPUT` + `MQPUT1` llamadas en el intervalo.                               |
+| `ibmmq_qmgr_interval_destructive_get_total_count`                  | Total de llamadas destructivas `MQGET` en el intervalo.                             |
+| `ibmmq_qmgr_published_to_subscribers_message_count`                | Mensajes publicados para los suscriptores (rendimiento de publicación/suscripción). |
+| `ibmmq_qmgr_mqopen_count` / `ibmmq_qmgr_mqclose_count`             | Llamadas `MQOPEN` / `MQCLOSE` totales.                                              |
+| `ibmmq_qmgr_mqconn_mqconnx_count` / `ibmmq_qmgr_mqdisc_count`      | Llamadas de conexión/desconexión.                                                   |
+| `ibmmq_qmgr_commit_count` / `ibmmq_qmgr_rollback_count`            | Confirmaciones/reversiones de transacciones.                                        |
+| `ibmmq_qmgr_failed_mqput_count` / `ibmmq_qmgr_failed_mqput1_count` | Llamadas `MQPUT` / `MQPUT1` fallidas.                                               |
+| `ibmmq_qmgr_failed_mqget_count` / `ibmmq_qmgr_failed_mqopen_count` | Llamadas fallidas de obtención/apertura.                                            |
+| `ibmmq_qmgr_failed_mqconn_mqconnx_count`                           | Llamadas de conexión fallidas.                                                      |
+| `ibmmq_qmgr_expired_message_count`                                 | Mensajes expirados en todo el gestor de colas.                                      |
+| `ibmmq_qmgr_purged_queue_count`                                    | Colas purgadas.                                                                     |
+
+### Referencia de códigos de estado de MQ [#status-codes]
+
+Las métricas de estado de IBM MQ informan valores enum numéricos, **no** `1`/`0` — y el valor saludable (&quot;running&quot;) difiere según la métrica (`2` para el estado a nivel del gestor de colas, `3` para el estado del canal). Genere una alerta sobre la *desigualdad* con el valor en ejecución (por ejemplo, `ibmmq_qmgr_status != 2`):
+
+| Métrica                               | Valor saludable | Significado                                |
+| ------------------------------------- | --------------- | ------------------------------------------ |
+| `ibmmq_qmgr_status`                   | `2`             | El gestor de colas está en ejecución       |
+| `ibmmq_qmgr_command_server_status`    | `2`             | El servidor de comandos se está ejecutando |
+| `ibmmq_qmgr_channel_initiator_status` | `2`             | El iniciador de canal se está ejecutando   |
+| `ibmmq_channel_status`                | `3`             | El canal está en ejecución                 |
+
+Cualquier otro valor (o un punto de datos faltante) significa que el componente no está en su estado de ejecución.
+
+## Atributos de recursos [#resource-attributes]
+
+El recolector agrega atributos de identidad y contexto a cada métrica de IBM MQ. Algunos son comunes a todos los despliegues; otros dependen de si el recolector se ejecuta en un host de Linux o en Kubernetes.
+
+### atributo común [#common-attributes]
+
+| Atributo                   | Descripción                                                                                                                                                                                      | Ejemplo                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| `target.name`              | Atributo de identidad estable — el primer segmento de cada GUID de entidad de IBM MQ. Inyectado como la etiqueta de extracción `targetName`, luego renombrado a `target.name` por el recolector. | `prod-mq-01`, `prod-mq-cluster` |
+| `qmgr`                     | Nombre del gestor de colas (etiqueta del exportador sin procesar; la síntesis de la entidad lo usa como clave).                                                                                  | `QM1`                           |
+| `queue`                    | Nombre de la cola (en métricas a nivel de cola).                                                                                                                                                 | `APP.ORDERS.IN`                 |
+| `channel`                  | Nombre del canal (en métricas a nivel de canal).                                                                                                                                                 | `APP.SVRCONN`                   |
+| `cluster.name`             | Etiqueta de agrupación opcional para gestores de colas en el mismo clúster de MQ. No forma parte del GUID de la entidad; es seguro dejarlo sin configurar o cambiarlo más adelante.              | `prod-mq`                       |
+| `instrumentation.provider` | Siempre es `opentelemetry` para esta integración; utilícelo para limitar las consultas a la ruta de OpenTelemetry.                                                                               | `opentelemetry`                 |
+
+### Atributos de implementación en el host [#on-host-attributes]
+
+| Atributo  | Descripción                                                                                                                                                                     | Ejemplo               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `host.id` | Identificador del host que ejecuta el recolector, del procesador `resourcedetection` (detectores `system` / `ec2`). Vincula el gestor de colas a su entidad de host subyacente. | `i-1234567890abcdef0` |
+
+### Atributos de implementación de Kubernetes [#kubernetes-attributes]
+
+| Atributo        | Descripción                                                                                      | Ejemplo        |
+| --------------- | ------------------------------------------------------------------------------------------------ | -------------- |
+| `k8s_namespace` | Namespace del pod exportador descubierto, sellado por las reglas de reetiquetado del recolector. | `ibmmq`        |
+| `k8s_pod`       | Nombre del pod exportador descubierto.                                                           | `qm1-0`        |
+| `host.id`       | Identificador del nodo que ejecuta el pod, de `resourcedetection`.                               | `ip-10-0-1-23` |
+
+## Detalles de la recopilación de métricas [#collection-details]
+
+### Frecuencia de recopilación
+
+* **Intervalo predeterminado**: 60 segundos (`scrape_interval` del recolector). Debe ser mayor o igual que el propio `pollInterval` del exportador mq-metric-samples.
+* **Configurable**: ajuste `IBMMQ_SCRAPE_INTERVAL` (Linux) o `scrape_interval` en el `values.yaml` de Helm (Kubernetes).
+
+### Fuente de datos
+
+Todas las métricas provienen del exportador [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples), que sondea cada administrador de colas a través de PCF y vuelve a publicar las estadísticas como métricas de Prometheus en un extremo HTTP `/metrics`. El receptor `prometheus` del recolector extrae ese extremo.
+
+### Tipos métricos
+
+* **Medidores** —valores en un momento dado como `ibmmq_qmgr_status`, `ibmmq_queue_depth` y `ibmmq_channel_status`. Grafique con `latest()`.
+* **Contadores** —totales acumulados como `ibmmq_queue_mqput_count`. El procesador `cumulativetodelta` del recolector los convierte a temporalidad delta, así que grafique con `sum()` o `rate()` en lugar de `latest()`.
+
+## Documentación relacionada [#related-docs]
+
+<DocTiles>
+  <DocTile title="Instrumentación autohospedada para IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    Aprenda a configurar su IBM MQ para el monitoreo autohospedado en New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentación de Kubernetes para IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    Aprenda a configurar el monitoreo de su IBM MQ para Kubernetes en New Relic.
+  </DocTile>
+
+  <DocTile title="Ve y consulta tus datos" path="/docs/opentelemetry/integrations/ibm-mq/view-data">
+    Aprenda a ver y consultar sus datos de IBM MQ en New Relic.
+  </DocTile>
+</DocTiles>
