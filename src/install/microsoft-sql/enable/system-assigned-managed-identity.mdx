@@ -1,0 +1,141 @@
+---
+componentType: default
+headingText: Enable your Microsoft SQL Server 
+---
+
+To enable the Microsoft SQL Server integration using system-assigned managed identity, choose the option that matches your Azure SQL environment.
+
+Prerequisites:
+
+- Ensure that your Azure SQL environment is configured to allow authentication using the VM's system-assigned managed identity. This VM name will be used in the SQL scripts below to grant permissions to the managed identity. For more information to enable this, refer to the Microsoft documentation on [system-assigned managed identities](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) for Azure resources.
+
+
+<CollapserGroup>
+  <Collapser
+    id="azure-managed-instance"
+    title="Azure managed instance"
+  >
+    For Azure SQL Managed Instance environments:
+
+    1. Create a login for the VM's managed identity and grant permissions:
+
+        ```sql
+        USE master;
+        GO
+        -- Create the Login for the VM Identity
+        CREATE LOGIN [<YOUR-VM-NAME>] FROM EXTERNAL PROVIDER;
+        -- Vital grants for Server health and DMV access
+        GRANT CONNECT SQL TO [<YOUR-VM-NAME>];
+        GRANT VIEW SERVER STATE TO [<YOUR-VM-NAME>];
+        GRANT VIEW ANY DEFINITION TO [<YOUR-VM-NAME>];
+        GO
+        ```
+
+        <Callout variant="important">
+          This will only grant access to a database that's online. For a database brought online later, you will need to re-run the grant permissions section of the script.
+        </Callout>
+
+    2. Use the following statements to create a database user for the login in each database:
+
+        ```sql
+        DECLARE @aadUser NVARCHAR(128) = '<YOUR-VM-NAME>'; 
+        DECLARE @name SYSNAME; 
+        DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR 
+        SELECT NAME FROM master.sys.databases 
+        WHERE NAME NOT IN ('master', 'msdb', 'tempdb', 'model', 'rdsadmin', 'distribution');
+
+        OPEN db_cursor; 
+        FETCH NEXT FROM db_cursor INTO @name;
+
+        WHILE @@FETCH_STATUS = 0 
+        BEGIN
+            EXECUTE('USE [' + @name + '];
+                CREATE USER [' + @aadUser + '] FROM EXTERNAL PROVIDER;');
+            FETCH NEXT FROM db_cursor INTO @name;
+        END 
+        CLOSE db_cursor; 
+        DEALLOCATE db_cursor;
+        ```
+
+        <Callout variant="tip">
+          This script creates users in all online databases. If new databases are added later, you will need to re-run this script.
+        </Callout>
+
+    3. Configure your integration with the following `nri-mssql-config.yml` sample:
+
+        ```yaml
+        integrations:
+          - name: nri-mssql
+            env:
+              HOSTNAME: <YOUR-MANAGED-INSTANCE-NAME>.database.windows.net
+              PORT: 1433
+              USE_MANAGED_IDENTITY: true 
+              # Enable Query Performance Monitoring
+              ENABLE_QUERY_MONITORING: true
+              # QUERY_MONITORING_DISABLE_HISTORICAL_INFORMATION: true
+              # QUERY_MONITORING_RESPONSE_TIME_THRESHOLD: 1
+              # QUERY_MONITORING_COUNT_THRESHOLD: 20
+              QUERY_MONITORING_FETCH_INTERVAL: 15
+            interval: 15s
+            labels:
+              env: production
+              role: mssql
+            inventory_source: config/mssql
+        ```
+
+    4. Restart the New Relic infrastructure agent:
+
+        ```shell
+        net stop newrelic-infra 
+        net start newrelic-infra
+        ```
+  </Collapser>
+
+  <Collapser
+    id="azure-sql-database"
+    title="Azure SQL database"
+  >
+    For Azure SQL Database environments:
+
+    1. Create a database user for the VM's managed identity:
+
+        ```sql
+        CREATE USER [<YOUR-VM-NAME>] FROM EXTERNAL PROVIDER;
+        GRANT VIEW DATABASE STATE TO [<YOUR-VM-NAME>];
+        GRANT VIEW DEFINITION TO [<YOUR-VM-NAME>];
+        ```
+
+        <Callout variant="important">
+          Run these commands in each user database you want to monitor. These do not need to be run in master, tempdb, or msdb.
+        </Callout>
+
+    2. Configure your integration with the following `nri-mssql-config.yml` sample:
+
+        ```yaml
+        integrations:
+          - name: nri-mssql
+            env:
+              HOSTNAME: <YOUR-SERVER-NAME>.database.windows.net
+              USE_MANAGED_IDENTITY: true
+              PORT: 1433
+              EXTRA_CONNECTION_URL_ARGS: "database=<YOUR-DATABASE-NAME>"
+            interval: 15s
+            labels:
+              env: production
+              role: mssql
+            inventory_source: config/mssql
+        ```
+
+        <Callout variant="tip">
+          If you have multiple databases to monitor, add a separate instance block for each database in the same config file, with a different database value in `EXTRA_CONNECTION_URL_ARGS`.
+        </Callout>
+
+    3. Restart the New Relic infrastructure agent:
+
+        ```shell
+        net stop newrelic-infra 
+        net start newrelic-infra
+        ```
+  </Collapser>
+
+</CollapserGroup>
