@@ -1,0 +1,181 @@
+---
+title: 뉴렐릭에서 IBM MQ 데이터 찾기 및 쿼리
+metaDescription: 'Find your IBM MQ metrics in New Relic, query queue managers and queues with NRQL, create dashboards and alerts, and troubleshoot data visibility.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+수집기가 실행되고 데이터가 흐르면 뉴렐릭에서 IBM MQ 메트릭을 확인하고, NRQL로 쿼리하고, 대시보드를 구축하고, 알림을 설정할 수 있습니다. 각 큐 관리자는 `IBMMQ_MANAGER` 엔티티(`target.name:qmgr`(으)로 키 지정됨)로 표시되며 해당 큐는 하위 `IBMMQ_QUEUE` 엔티티로 표시됩니다.
+
+## 뉴렐릭에서 IBM MQ 데이터 보기 [#find-data]
+
+몇 분 후 뉴렐릭에 IBM MQ 메트릭이 나타납니다. 파이프라인은 원시 Prometheus 형태 ― 밑줄 메트릭 이름(`ibmmq_*`) 및 원시 `qmgr` 및 `queue` 레이블 ― 를 유지하고 모든 메트릭에 `target.name` ID를 부여하며, 뉴렐릭은 이를 사용하여 엔티티를 합성합니다.
+
+<CollapserGroup>
+  <Collapser id="via-entity-explorer" title="엔티티 탐색기를 통해">
+    1. <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **All entities**</DNT> 으)로 이동합니다.
+    2. `IBMMQ_MANAGER` 및 `IBMMQ_QUEUE`을(를) 필터링하거나 큐 관리자 이름을 검색합니다.
+    3. 큐 관리자를 열어 골든 메트릭 ― 연결, 풋/겟 메시지 속도 ― 과 큐가 관련 엔티티로 나열된 사전 구축된 IBM MQ 대시보드를 확인합니다.
+  </Collapser>
+
+  <Collapser id="via-dashboard" title="IBM MQ 대시보드를 통해">
+    `IBMMQ_MANAGER` 엔티티를 열면 뉴렐릭은 큐 관리자 상태, 연결, 메시지 처리량, 오류 및 파일 시스템 사용량을 요약하는 사전 구축된 대시보드를 표시합니다. 큐별 깊이, 메시지 수명 및 처리량을 확인하려면 `IBMMQ_QUEUE` 엔티티를 엽니다. 직접 구축할 수도 있습니다 ― [커스텀 대시보드 생성](#dashboards)을 참조하세요.
+  </Collapser>
+</CollapserGroup>
+
+## NRQL로 데이터 쿼리 [#query-data]
+
+<Callout variant="tip">
+  밑줄 이름과 원시 레이블로 메트릭 쿼리 — `ibmmq_qmgr_status`, `ibmmq_queue_depth`, `qmgr`, `queue`. 메트릭 이름은 점으로 구분되지 **않으며** `qmgr` 레이블은 이름이 변경되지 **않으므로**, `ibmmq.*` 또는 `ibmmq.queue_manager.name` 에 대해 작성된 NRQL은 일치하지 않습니다.
+</Callout>
+
+데이터가 흐르고 있는지 확인합니다 ― 모든 IBM MQ 메트릭:
+
+```sql
+FROM Metric SELECT count(*) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+```
+
+보고하는 큐 관리자를 계산합니다(각각 하나의 `IBMMQ_MANAGER` 엔티티가 됨):
+
+```sql
+FROM Metric SELECT uniqueCount(qmgr) WHERE metricName LIKE 'ibmmq_%' FACET target.name SINCE 30 minutes ago
+```
+
+큐 관리자 상태(`2` =실행 중), 큐 관리자당 하나의 행:
+
+```sql
+FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr SINCE 30 minutes ago
+```
+
+채널 상태(`3` = 실행 중):
+
+```sql
+FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel SINCE 30 minutes ago
+```
+
+모니터되는 모든 대기열의 현재 깊이:
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) FACET qmgr, queue SINCE 30 minutes ago
+```
+
+전체 플릿의 데드 레터 대기열 깊이(일반적인 공지 신호):
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr SINCE 30 minutes ago
+```
+
+대기열 처리량 — 분당 put 및 get(MQI 통계 활성화 필요):
+
+```sql
+FROM Metric SELECT rate(sum(ibmmq_queue_mqput_count), 1 minute) AS 'Puts/min', rate(sum(ibmmq_queue_mqget_count), 1 minute) AS 'Gets/min' FACET qmgr, queue TIMESERIES SINCE 1 hour ago
+```
+
+엔티티를 직접 찾아보려면 뉴렐릭 UI의 <DNT>**All entities**</DNT> (으)로 이동하여 `IBMMQ_MANAGER` 및 `IBMMQ_QUEUE` 엔티티를 필터링하거나 위의 쿼리 중 하나에서 큐 관리자를 엽니다.
+
+## 맞춤형 대시보드 만들기 [#dashboards]
+
+자체 IBM MQ 대시보드를 구축하려면:
+
+1. <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **Dashboards**</DNT> 으로 이동하여 <DNT>**Create a dashboard**</DNT> 클릭합니다.
+
+2. 위젯을 추가하고 <DNT>**Add a chart**</DNT>을(를) 선택한 다음 [위의 NRQL 쿼리](#query-data) 중 하나를 붙여넣습니다.
+
+3. 한눈에 파악할 수 있도록 포커스 영역별로 위젯을 그룹화합니다:
+
+   * **큐 관리자 건전성** — `ibmmq_qmgr_status`, `ibmmq_qmgr_connection_count`, `ibmmq_channel_status`
+   * **큐 깊이 및 백로그** ― `ibmmq_queue_depth`, `ibmmq_queue_oldest_message_age`, `ibmmq_queue_uncommitted_messages`
+   * **처리량** — `ibmmq_queue_mqput_count`, `ibmmq_queue_mqget_count` (비율로 차트에 표시됨)
+   * **용량** — `ibmmq_qmgr_log_in_use_bytes`, `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`
+
+## 알림 설정 [#alerts]
+
+메시징에 의존하는 애플리케이션에 영향을 미치기 전에 문제를 포착하려면 `ibmmq_*` 메트릭에 [NRQL 공지 조건](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) 을 생성하세요. 권장 시작점:
+
+<CollapserGroup>
+  <Collapser id="alert-qmgr-down" title="큐 관리자가 실행 중이 아님">
+    큐 관리자가 실행 상태를 벗어날 때 알림을 보냅니다(`2`).
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr, target.name
+    ```
+
+    **권장 임계값:** 값이 최소 2분 동안 `2` 과(와) 같지 않을 때 심각.
+  </Collapser>
+
+  <Collapser id="alert-channel-down" title="채널이 실행 중이 아님">
+    채널이 실행 상태를 벗어날 때 알림을 보냅니다(`3`).
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel
+    ```
+
+    **권장 임계값:** 값이 최소 5분 동안 `3` 과(와) 같지 않은 경우 위험(정상적으로 중지 및 시작되는 채널 허용).
+  </Collapser>
+
+  <Collapser id="alert-queue-depth" title="큐가 최대치를 향해 채워짐">
+    큐의 깊이가 설정된 최대치에 가까워질 때의 알림입니다.
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_queue_depth) / latest(ibmmq_queue_attribute_max_depth) * 100 AS 'Depth %' FACET qmgr, queue
+    ```
+
+    **권장 임계값:** 80%에서 경고, 95%에서 위험.
+  </Collapser>
+
+  <Collapser id="alert-dlq" title="데드 레터 큐의 메시지">
+    메시지가 데드 레터 큐에 도달할 때 알림 ― 일반적으로 전송할 수 없는 메시지라는 신호입니다.
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr
+    ```
+
+    **권장 임계값:** 값이 `0`보다 클 때 critical입니다.
+  </Collapser>
+</CollapserGroup>
+
+## 데이터 가시성 문제 해결 [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="metrics-but-no-entity" title="메트릭이 NRDB에 표시되지만 IBMMQ_MANAGER 엔티티가 나타나지 않습니다">
+    이는 거의 항상 엔티티 중요 메트릭 형태를 변경함으로써 발생합니다. 엔티티 합성은 원시 언더스코어 메트릭(`ibmmq_*`), 원시 `qmgr` 레이블 및 `target.name` 속성을 키로 사용합니다. 다음을 확인하십시오:
+
+    * 메트릭 이름은 점으로 구분되지 **않습니다** (`ibmmq.queue.depth`이(가) 아니라 `ibmmq_queue_depth`이(가) 표시되어야 합니다).
+
+    * `qmgr` 레이블이 **존재하며 이름이 변경되지 않았습니다** (`ibmmq.queue_manager.name` 아님).
+
+    * `target.name` 메트릭에 설정됩니다(그리고 camelCase `targetName` 은(는) 설정되지 **않습니다** ― `targetName` 이(가) 여전히 존재한다면 `transform/ibmmq-cleanup` 이(가) 실행 중이 아니거나 순서가 잘못된 것입니다):
+
+      ```sql
+      FROM Metric SELECT uniques(target.name), uniques(qmgr) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+      ```
+
+    수집기 설정의 프로세서 순서는 매우 중요합니다 ― `resourcedetection → transform/ibmmq-cleanup`. `transform/ibmmq-cleanup`의 순서를 변경하거나 제거한 경우, IBM MQ 메트릭은 `IBMMQ_MANAGER` 엔티티 대신 수집기 자체 엔티티로 라우팅됩니다. 문서화된 파이프라인 순서를 복원합니다.
+  </Collapser>
+
+  <Collapser id="counters-flat" title="카운터 메트릭은 평평한 선으로 나타납니다">
+    뉴렐릭은 카운터에 대해 델타 시간성을 예상하지만, Prometheus는 누적을 내보냅니다. `cumulativetodelta/ibmmq` 프로세서가 이를 제자리에서 변환합니다. 카운터가 평탄해 보이면 각 메트릭 파이프라인에 프로세서가 있는지 확인하십시오.
+  </Collapser>
+
+  <Collapser id="new-stale-entities" title="재배포 후 이전 엔티티가 오래된 상태가 됨">
+    `target.name` 값(Linux의 `TARGET_NAME` 환경 변수 또는 Kubernetes의 `targetName` 재지정을 통해 설정됨)은 모든 `IBMMQ_MANAGER` 및 `IBMMQ_QUEUE` GUID의 첫 번째 세그먼트입니다. 배포 후 이를 변경하면 완전히 새로운 엔티티가 생성되고 이전 엔티티는 오래되어 이전 GUID를 가리키는 대시보드 및 알림이 손상됩니다. 안정적인 값을 한 번 선택하고 절대 변경하지 마세요.
+
+    이미 변경한 경우 원래 `TARGET_NAME` 값을 복원하고 수집기를 다시 시작하십시오. 올바른 이름의 엔티티는 보고를 재개하고, 잘못된 이름으로 생성된 중복 항목은 데이터 수신을 중지하며 뉴렐릭의 엔티티 보고 기간이 지나면 UI에서 사라집니다.
+  </Collapser>
+</CollapserGroup>
+
+## 관련 문서 [#related-docs]
+
+<DocTiles>
+  <DocTile title="IBM MQ용 자체 호스팅 계측" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    뉴렐릭에서 자체 호스팅 모니터링을 위해 IBM MQ를 설정하는 방법을 알아보세요.
+  </DocTile>
+
+  <DocTile title="IBM MQ용 Kubernetes 계측" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    뉴렐릭에서 Kubernetes 모니터링을 위한 IBM MQ를 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="지표 참조" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    뉴렐릭이 수집한 IBM MQ 메트릭에 대해 알아보세요.
+  </DocTile>
+</DocTiles>

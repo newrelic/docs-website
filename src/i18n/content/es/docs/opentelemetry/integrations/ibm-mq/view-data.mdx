@@ -1,0 +1,181 @@
+---
+title: Encuentre y consulte sus datos de IBM MQ en New Relic
+metaDescription: 'Find your IBM MQ metrics in New Relic, query queue managers and queues with NRQL, create dashboards and alerts, and troubleshoot data visibility.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Una vez que el recolector se esté ejecutando y los datos fluyan, puede ver sus métricas de IBM MQ en New Relic, consultarlas con NRQL, crear dashboards y configurar alertas. Cada gestor de colas aparece como una entidad `IBMMQ_MANAGER` (con clave `target.name:qmgr`) con sus colas como entidades `IBMMQ_QUEUE` secundarias.
+
+## Vea sus datos de IBM MQ en New Relic [#find-data]
+
+Después de unos minutos, las métricas de IBM MQ aparecen en New Relic. El pipeline conserva la forma sin procesar de Prometheus — nombres de métricas con guion bajo (`ibmmq_*`) y las etiquetas `qmgr` y `queue` sin procesar — y estampa una identidad `target.name` en cada métrica, que New Relic utiliza para sintetizar las entidades.
+
+<CollapserGroup>
+  <Collapser id="via-entity-explorer" title="A través del explorador de entidades">
+    1. Vaya a <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **All entities**</DNT>.
+    2. Filtre por `IBMMQ_MANAGER` y `IBMMQ_QUEUE`, o busque un nombre de gestor de colas.
+    3. Abra un administrador de colas para ver sus métricas doradas —conexiones, tasas de mensajes put/get— y su dashboard preconfigurado de IBM MQ, con sus colas enumeradas como entidades relacionadas.
+  </Collapser>
+
+  <Collapser id="via-dashboard" title="A través del dashboard de IBM MQ">
+    Cuando abre una entidad `IBMMQ_MANAGER`, New Relic muestra un dashboard prediseñado que resume el estado del administrador de colas, las conexiones, el rendimiento de los mensajes, los errores y el uso del sistema de archivos. Abra una entidad `IBMMQ_QUEUE` para obtener la profundidad por cola, la antigüedad de los mensajes y el rendimiento. También puede crear el suyo propio — consulte [Crear dashboard personalizado](#dashboards).
+  </Collapser>
+</CollapserGroup>
+
+## Consulta tus datos con NRQL [#query-data]
+
+<Callout variant="tip">
+  Consulta métricas por sus nombres con guion bajo y etiquetas sin procesar — `ibmmq_qmgr_status`, `ibmmq_queue_depth`, `qmgr`, `queue`. Los nombres de las métricas **no** tienen puntos y la etiqueta `qmgr` **no** se renombra, por lo que el NRQL escrito para `ibmmq.*` o `ibmmq.queue_manager.name` no coincidirá.
+</Callout>
+
+Confirme que los datos fluyen —cada métrica de IBM MQ:
+
+```sql
+FROM Metric SELECT count(*) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+```
+
+Cuente los gestores de colas que reportan (cada uno se convierte en una entidad `IBMMQ_MANAGER`):
+
+```sql
+FROM Metric SELECT uniqueCount(qmgr) WHERE metricName LIKE 'ibmmq_%' FACET target.name SINCE 30 minutes ago
+```
+
+Estado del gestor de colas (`2` = en ejecución), una fila por gestor de colas:
+
+```sql
+FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr SINCE 30 minutes ago
+```
+
+Estado del canal (`3` = en ejecución):
+
+```sql
+FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel SINCE 30 minutes ago
+```
+
+Profundidad actual de cada cola monitoreada:
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) FACET qmgr, queue SINCE 30 minutes ago
+```
+
+Profundidad de la cola de mensajes no entregados en toda la flota (una señal de alerta común):
+
+```sql
+FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr SINCE 30 minutes ago
+```
+
+Rendimiento de la cola — puts y gets por minuto (requiere que las estadísticas de MQI estén habilitadas):
+
+```sql
+FROM Metric SELECT rate(sum(ibmmq_queue_mqput_count), 1 minute) AS 'Puts/min', rate(sum(ibmmq_queue_mqget_count), 1 minute) AS 'Gets/min' FACET qmgr, queue TIMESERIES SINCE 1 hour ago
+```
+
+Para explorar las entidades directamente, vaya a <DNT>**All entities**</DNT> en la UI de New Relic y filtre por sus entidades `IBMMQ_MANAGER` y `IBMMQ_QUEUE`, o abra un administrador de colas desde cualquiera de las consultas anteriores.
+
+## Crea dashboards personalizados [#dashboards]
+
+Para crear tu propio dashboard de IBM MQ:
+
+1. Vaya a <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **Dashboards**</DNT> y haga clic en <DNT>**Create a dashboard**</DNT>.
+
+2. Agregue un widget, elija <DNT>**Add a chart**</DNT> y pegue cualquiera de las [consultas NRQL anteriores](#query-data).
+
+3. Agrupe los widget por área de enfoque para obtener una vista rápida:
+
+   * **Salud del gestor de colas** — `ibmmq_qmgr_status`, `ibmmq_qmgr_connection_count`, `ibmmq_channel_status`
+   * **Profundidad de la cola y backlog** — `ibmmq_queue_depth`, `ibmmq_queue_oldest_message_age`, `ibmmq_queue_uncommitted_messages`
+   * **Rendimiento** — `ibmmq_queue_mqput_count`, `ibmmq_queue_mqget_count` (graficado como una tasa)
+   * **Capacidad** — `ibmmq_qmgr_log_in_use_bytes`, `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`
+
+## Configurar alerta [#alerts]
+
+Crea [condiciones de alerta NRQL](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) en las métricas de `ibmmq_*` para detectar problemas antes de que afecten a las aplicaciones que dependen de tu mensajería. Puntos de partida recomendados:
+
+<CollapserGroup>
+  <Collapser id="alert-qmgr-down" title="Gestor de colas no en ejecución">
+    Alertas cuando un gestor de colas sale de su estado de ejecución (`2`).
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr, target.name
+    ```
+
+    **Umbral recomendado:** crítico cuando el valor no es igual a `2` durante al menos 2 minutos.
+  </Collapser>
+
+  <Collapser id="alert-channel-down" title="Canal no en ejecución">
+    Alertas cuando un canal sale de su estado de ejecución (`3`).
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel
+    ```
+
+    **Umbral recomendado:** crítico cuando el valor no es igual a `3` durante al menos 5 minutos (tenga en cuenta los canales que se detienen y se inician legítimamente).
+  </Collapser>
+
+  <Collapser id="alert-queue-depth" title="Llenado de la cola hacia su máximo">
+    Alertas cuando la profundidad de una cola se acerca a su máximo configurado.
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_queue_depth) / latest(ibmmq_queue_attribute_max_depth) * 100 AS 'Depth %' FACET qmgr, queue
+    ```
+
+    **Umbral recomendado:** advertencia al 80 %, crítico al 95 %.
+  </Collapser>
+
+  <Collapser id="alert-dlq" title="Mensajes en la cola de mensajes muertos">
+    Alertas cuando los mensajes llegan a la cola de mensajes muertos — por lo general, una señal de mensajes que no se pueden entregar.
+
+    ```sql
+    FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr
+    ```
+
+    **Umbral recomendado:** crítico cuando el valor es mayor que `0`.
+  </Collapser>
+</CollapserGroup>
+
+## Solucionar problemas de visibilidad de datos [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="metrics-but-no-entity" title="Las métricas aparecen en NRDB, pero no aparece ninguna entidad IBMMQ_MANAGER">
+    Esto casi siempre es causado por alterar la forma de la métrica crítica para la entidad. La síntesis de la entidad utiliza como clave las métricas con guion bajo sin procesar (`ibmmq_*`), la etiqueta `qmgr` sin procesar y un atributo `target.name`. Verifique que:
+
+    * Los nombres de las métricas **no** están separados por puntos (debería ver `ibmmq_queue_depth`, no `ibmmq.queue.depth`).
+
+    * La etiqueta `qmgr` está **presente y no renombrada** (no `ibmmq.queue_manager.name`).
+
+    * `target.name` se establece en las métricas (y el camelCase `targetName` **no** — si `targetName` aún está presente, `transform/ibmmq-cleanup` no se está ejecutando o está mal ordenado):
+
+      ```sql
+      FROM Metric SELECT uniques(target.name), uniques(qmgr) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+      ```
+
+    El orden del procesador en la configuración del recolector es fundamental — `resourcedetection → transform/ibmmq-cleanup`. Si reordenó o eliminó `transform/ibmmq-cleanup`, las métricas de IBM MQ se enrutan a la propia entidad del recolector en lugar de a una entidad `IBMMQ_MANAGER`. Restaure el orden documentado del pipeline.
+  </Collapser>
+
+  <Collapser id="counters-flat" title="Las métricas de contador aparecen como líneas planas">
+    New Relic espera una temporalidad delta para los contadores; Prometheus emite una acumulativa. El procesador `cumulativetodelta/ibmmq` los convierte in situ. Si los contadores parecen planos, confirme que el procesador esté presente en cada pipeline de métricas.
+  </Collapser>
+
+  <Collapser id="new-stale-entities" title="Las entidades antiguas se volvieron obsoletas después de un redespliegue">
+    El valor `target.name` (establecido a través de la variable de entorno `TARGET_NAME` en Linux, o el reetiquetado `targetName` en Kubernetes) es el primer segmento de cada GUID de `IBMMQ_MANAGER` y `IBMMQ_QUEUE`. Cambiarlo después del despliegue crea entidades completamente nuevas y las antiguas se vuelven obsoletas, rompiendo los dashboards y las alertas que apuntan a los GUID antiguos. Elija un valor estable una vez y nunca lo cambie.
+
+    Si ya lo cambió, restaure el valor original de `TARGET_NAME` y reinicie el recolector. Las entidades nombradas correctamente reanudan el reporte; los duplicados creados con el nombre incorrecto dejan de recibir datos y desaparecen de la UI después de la ventana de reporte de la entidad de New Relic.
+  </Collapser>
+</CollapserGroup>
+
+## Documentación relacionada [#related-docs]
+
+<DocTiles>
+  <DocTile title="Instrumentación autohospedada para IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    Aprenda a configurar su IBM MQ para el monitoreo autohospedado en New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentación de Kubernetes para IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    Aprenda a configurar el monitoreo de su IBM MQ para Kubernetes en New Relic.
+  </DocTile>
+
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    Conozca las métricas de IBM MQ recopiladas por New Relic.
+  </DocTile>
+</DocTiles>
