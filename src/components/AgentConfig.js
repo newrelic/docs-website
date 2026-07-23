@@ -64,7 +64,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
       </div>
       <InteractiveOutput
         inputs={state}
-        config={config.replace(/^  ([a-z][a-z0-9_]*):(\s*)$/gm, '$1:$2')}
+        config={config.replace(/^\s{2}([a-z][a-z0-9_]*):(\s*)$/gm, '$1:$2')}
         fileName={fileName}
         containerId="agent-config-codeblock"
         css={css`
