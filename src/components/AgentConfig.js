@@ -64,7 +64,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
       </div>
       <InteractiveOutput
         inputs={state}
-        config={config}
+        config={config.replace(/^  (processors|exporters|service):/gm, '$1:')}
         fileName={fileName}
         containerId="agent-config-codeblock"
         css={css`
