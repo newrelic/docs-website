@@ -7,6 +7,7 @@ tags:
   - Windows
 metaDescription: Set up Microsoft SQL Server monitoring with NRDOT collector on Windows self-hosted environments
 freshnessValidatedDate: never
+hideTOC: true
 ---
 
 import AgentConfig from '../../../../../components/AgentConfig';
@@ -18,6 +19,15 @@ import AgentConfig from '../../../../../components/AgentConfig';
 </Callout>
 
 Set up Microsoft SQL Server monitoring using the NRDOT collector on Windows self-hosted environments including physical servers, virtual machines, and standalone Windows installations.
+
+
+To install this through the New Relic UI instead, go to <DNT> **[one.newrelic.com](https://one.newrelic.com) > Integrations & Agents > MSSQL (OpenTelemetry)** </DNT>. Follow the on-screen instructions to set up the integration. This page covers the CLI install path only.
+
+
+<Callout variant="tip">
+  If you're using SQL Server in a Windows RDS environment, refer to [Windows instrumentation for RDS](/docs/opentelemetry/database/mssql/windows-rds).
+
+</Callout>
 
 Based on your SQL Server security configuration, you can choose from three authentication methods to connect the NRDOT Collector to your SQL Server instance:
 
@@ -36,39 +46,59 @@ Based on your SQL Server security configuration, you can choose from three authe
 
 <Step>
 
-### Prerequisites [#prerequisites]
+## Prerequisites [#prerequisites]
 
-Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
+Before monitoring your Microsoft SQL Server with NRDOT, make sure your environment meets these requirements:
 
-</Step>
+* New Relic account with a valid [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* New Relic [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp) for your region
+* SQL Server requirements, you'll need:
+  - SQL Server 2017 or later
+  - Administrative access to SQL Server (`sysadmin` role or equivalent)
+  - Network connectivity between collector and SQL Server (port 1433 or custom port)
+  - SQL Server Management Studio (SSMS) or `sqlcmd` utility
+  - Windows domain or SQL Server authentication
 
-<Step>
-
-### Setup the NRDOT Collector [#setup]
-
-Install the NRDOT Collector on your Windows system.
-
-1. Download and install the NRDOT Collector using PowerShell:
-
-   ```powershell
-   [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
-   ```
+* Network connectivity to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+* Windows system with network connectivity to SQL Server on port 1433 or custom port
 
 
 </Step>
 
 <Step>
 
-### Configure database user [#configure-user-windows-sql]
+## Enroll to preview [#enroll]
 
-Run the following script as a `root user/sysadmin` to create the `newrelic` monitoring user and grant global read permissions.
+This integration is available as part of the New Relic public preview program. Contact your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
 
-To create a `newrelic` monitoring user, run the following script using SQL Server Management Studio (SSMS):
+</Step>
+
+
+<Step>
+
+## Install the NRDOT collector [#setup-sql]
+
+Download and install the NRDOT Collector using PowerShell:
+
+  ```bash
+  [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+  ```
+
+</Step>
+
+<Step>
+
+## Create the monitoring user [#user-sql]
+
+Run this script as root `user/sysadmin` user to create the `newrelic` monitoring user and grant the necessary permissions for collecting SQL Server metrics.
+
+
+In your SQL Server Management Studio (SSMS), run the following script to create the `newrelic` monitoring user:
 
 ```sql
 USE [master];
 GO
-CREATE LOGIN [newrelic] WITH PASSWORD = '<PASSWORD>';
+CREATE LOGIN [newrelic] WITH PASSWORD = '<YOUR_PASSWORD>';
 GO
 
 GRANT VIEW SERVER STATE TO [newrelic];
@@ -104,39 +134,108 @@ DEALLOCATE db_cursor;
 GO
 ```
 
+    <Callout variant="tip">
+      To securely manage sensitive information, such as database credentials store them in [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management) tools. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files. For more information, refer to [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management).
+    </Callout>
+
 </Step>
 
 <Step>
 
-### Configure NRDOT Collector [#configure-sql]
+## Configure NRDOT collector [#configure-sql]
 
-Select your configuration type based on your monitoring needs:
 
-<CollapserGroup>
-  <Collapser
-    id="standard"
-    title="Standard configuration"
-  >
+1. Create a configuration file named as `mssql-config.yaml` in PowerShell as an Administrator:
 
-This configuration focuses on essential database monitoring with core metrics.
+  ```powershell
+  New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+  ```
 
-1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+2. Add your environment-specific values to the following configuration and copy it to the `mssql-config.yaml` file created in the previous step:
 
-   ```powershell
-   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
-   ```
+  <Callout variant="tip">
+    This configuration focuses on essential database monitoring for your SQL Server environment. To enable comprehensive monitoring with all available metrics, refer to the [configuration reference](/docs/opentelemetry/database/mssql/config-reference/#hosted-sql-server-full).
+  </Callout>
 
-2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
-
-```yaml
-receivers:
+<AgentConfig
+  inputOptions={[
+    {
+      name: 'username',
+      label: 'SQL Server Username',
+      codeLine: 8,
+      defaultValue: 'newrelic',
+      toolTip: 'Enter your SQL Server username',
+    },
+    {
+      name: 'password',
+      label: 'SQL Server Password',
+      codeLine: 9,
+      defaultValue: 'your_password',
+      toolTip: 'Enter your SQL Server password',
+    },
+    {
+      name: 'server',
+      label: 'Server Hostname/IP',
+      codeLine: 10,
+      defaultValue: 'sqlserver.example.com',
+      toolTip: 'Enter your SQL Server hostname or IP address',
+    },
+    {
+      name: 'port',
+      label: 'Server Port',
+      codeLine: 11,
+      defaultValue: '1433',
+      toolTip: 'Enter your SQL Server port number. The default value is 1433.',
+    },
+    {
+      name: 'endpoint',
+      label: 'New Relic OTLP Endpoint',
+      codeLine: 50,
+      defaultValue: 'https://otlp.nr-data.net',
+      toolTip: 'Enter your New Relic OTLP endpoint. For more information, see https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
+    },
+    {
+      name: 'licenseKey',
+      label: 'New Relic License Key',
+      codeLine: 52,
+      defaultValue: 'YOUR_LICENSE_KEY',
+      toolTip: 'Enter your New Relic ingest license key',
+    },
+  ]}
+  config={`receivers:
   nrsqlserver:
     collection_interval: 15s
-    username: <YOUR_USERNAME>
-    password: <YOUR_PASSWORD>
-    server: <YOUR_SERVER>
-    port: <YOUR_PORT>
+    username: <input1>
+    password: <input2>
+    server: <input3>
+    port: <input4>
 
+      # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
       # Enable comprehensive database metrics
     metrics:
       sqlserver.database.count:
@@ -169,7 +268,17 @@ receivers:
         enabled: true
       db.server.top_query:
         enabled: true
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
 
+    top_query_collection:
+      lookback_time: 60s
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
     top_query_collection:
       lookback_time: 60s
       max_query_sample_count: 1000
@@ -179,15 +288,20 @@ receivers:
     collect_full_query_text: true
     allowed_comment_keys:
       - nr_service_guid
+    collect_full_query_text: true
+    allowed_comment_keys:
+      - nr_service_guid
 
+    query_sample_collection:
+      max_rows_per_query: 100
     query_sample_collection:
       max_rows_per_query: 100
 
 processors:
   memory_limiter:
-    check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
-    limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
-    spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+    check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
 
   batch:
 
@@ -214,491 +328,17 @@ service:
     logs:
       receivers: [nrsqlserver]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp]
-```
-
-<Callout variant="tip">
-
-Use the form above to enter your specific values, and the configuration will update in real-time. Copy this configuration to `C:\Program Files\NRDOT Collector Host\mssql-config.yaml` for database-only monitoring
-
-</Callout>
-
-  </Collapser>
-
-  <Collapser
-    id="full"
-    title="Full-feature configuration"
-  >
-
-This configuration enables comprehensive database monitoring with all available metrics.
-
-1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
-
-   ```powershell
-   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
-   ```
-
-2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
+      exporters: [otlphttp]`}
+    fileName="mssql-config.yaml"
+    tipMdx={{ body: null }}
+    onChange={() => {}}
+  />
 
 
-<Callout variant="important">
-
-  If you're an existing NRDOT Collector user, ensure to merge this configuration with your existing `mssql-config.yaml` file. This includes adding the new receivers, processors, and exporters for MSSQL Database monitoring while retaining your current configurations.
-
-</Callout> 
-
-```yaml
-# NRDOT Collector Configuration for New Relic SQL Server Integration
-extensions:
-  health_check:
-
-receivers:
-  otlp:
-    protocols:
-      grpc:
-      http:
-
-  host_metrics:
-    collection_interval: 30s
-    scrapers:
-      cpu:
-        metrics:
-          system.cpu.time:
-            enabled: false
-          system.cpu.utilization:
-            enabled: true
-      load:
-      memory:
-        metrics:
-          system.memory.utilization:
-            enabled: true
-      paging:
-        metrics:
-          system.paging.utilization:
-            enabled: false
-          system.paging.faults:
-            enabled: false
-      disk:
-        metrics:
-          system.disk.merged:
-            enabled: false
-          system.disk.pending_operations:
-            enabled: false
-          system.disk.weighted_io_time:
-            enabled: false
-      network:
-        metrics:
-          system.network.connections:
-            enabled: false
-      processes:
-      process:
-        mute_process_name_error: true
-        mute_process_exe_error: true
-        mute_process_user_error: true
-        mute_process_io_error: true
-        metrics:
-          process.cpu.utilization:
-            enabled: true
-          process.memory.utilization:
-            enabled: true
-
-  nrsqlserver:
-    collection_interval: 30s
-    username: <YOUR_USERNAME>
-    password: <YOUR_PASSWORD>
-    server: <YOUR_SERVER>
-    port: <YOUR_PORT>
-
-    # Enable comprehensive database metrics
-    metrics:
-      # Database
-      sqlserver.database.count:
-        enabled: true
-      sqlserver.database.file.size:
-        enabled: true 
-      sqlserver.database.io:
-        enabled: true
-      sqlserver.database.latency:
-        enabled: true
-      sqlserver.database.operations:
-        enabled: true
-      sqlserver.database.transactions.active:
-        enabled: true
-      sqlserver.database.backup_or_restore.rate:
-        enabled: true
-      sqlserver.database.execution.errors:
-        enabled: true
-      sqlserver.database.full_scan.rate:
-        enabled: true
-      sqlserver.database.tempdb.space:
-        enabled: true
-      sqlserver.database.tempdb.version_store.size:
-        enabled: true
-      # Locks
-      sqlserver.lock.timeout.rate:
-        enabled: true
-      sqlserver.lock.wait.count:
-        enabled: true
-      sqlserver.deadlock.rate:
-        enabled: true
-      # Transactions
-      sqlserver.transaction.delay:
-        enabled: true
-      sqlserver.transaction.longest_running_time:
-        enabled: true
-      sqlserver.transaction.version_cleanup.rate:
-        enabled: true
-      sqlserver.transaction.version_generation.rate:
-        enabled: true
-      # Memory
-      sqlserver.memory.area:
-        enabled: true
-      sqlserver.memory.cache.object.count:
-        enabled: true
-      sqlserver.memory.grants.pending.count:
-        enabled: true
-      sqlserver.memory.page.count:
-        enabled: true
-      sqlserver.memory.target:
-        enabled: true
-      sqlserver.memory.usage:
-        enabled: true
-      # OS
-      sqlserver.os.memory.usage:
-        enabled: true
-      sqlserver.os.memory.utilization:
-        enabled: true
-      sqlserver.os.scheduler.runnable_tasks.count:
-        enabled: true
-      sqlserver.os.wait.duration:
-        enabled: true
-      sqlserver.os.wait.tasks.count:
-        enabled: true
-      # Pages / Buffer
-      sqlserver.page.buffer_cache.free_list.stalls.rate:
-        enabled: true
-      sqlserver.page.lookup.rate:
-        enabled: true
-      # Batch / Compilation
-      sqlserver.batch.compilation.utilization:
-        enabled: true
-      sqlserver.batch.page_split.utilization:
-        enabled: true
-      sqlserver.recompilation.ratio:
-        enabled: true
-      sqlserver.parameterization.rate:
-        enabled: true
-      sqlserver.plan.execution.rate:
-        enabled: true
-      sqlserver.attention.rate:
-        enabled: true
-      # Processes / Connections
-      sqlserver.process.count:
-        enabled: true
-      sqlserver.processes.blocked:
-        enabled: true
-      sqlserver.login.rate:
-        enabled: true
-      sqlserver.logout.rate:
-        enabled: true
-      # Thread Pool
-      sqlserver.thread_pool.tasks.count:
-        enabled: true
-      sqlserver.thread_pool.workers.count:
-        enabled: true
-      sqlserver.thread_pool.workers.max:
-        enabled: true
-      sqlserver.thread_pool.workers.utilization:
-        enabled: true
-      # TempDB
-      sqlserver.tempdb.allocation.wait_time.total:
-        enabled: true
-      sqlserver.tempdb.contention.waiters.count:
-        enabled: true
-      sqlserver.tempdb.data_files.count:
-        enabled: true
-      sqlserver.tempdb.file.size:
-        enabled: true
-      sqlserver.tempdb.space.usage:
-        enabled: true
-      # Latch
-      sqlserver.latch.superlatch.count:
-        enabled: true
-      sqlserver.latch.superlatch.transition.rate:
-        enabled: true
-      sqlserver.latch.wait.rate:
-        enabled: true
-      sqlserver.latch.wait_time.avg:
-        enabled: true
-      sqlserver.latch.wait_time.total:
-        enabled: true
-      # Index
-      sqlserver.index.search.rate:
-        enabled: true
-      # Resource Pool
-      sqlserver.resource_pool.disk.operations:
-        enabled: true
-      sqlserver.resource_pool.disk.throttled.read.rate:
-        enabled: true
-      sqlserver.resource_pool.disk.throttled.write.rate:
-        enabled: true
-      # Replica / Always-On
-      sqlserver.replica.data.rate:
-        enabled: true
-      sqlserver.failover_cluster.ag.cluster_type:
-        enabled: true
-      sqlserver.failover_cluster.ag.failure_condition_level:
-        enabled: true
-      sqlserver.failover_cluster.ag.health_check_timeout:
-        enabled: true
-      sqlserver.failover_cluster.ag.required_sync_secondaries:
-        enabled: true
-      sqlserver.failover_cluster.replica.database.queue_size:
-        enabled: true
-      sqlserver.failover_cluster.replica.database.redo.rate:
-        enabled: true
-      sqlserver.failover_cluster.replica.flow_control_time:
-        enabled: true
-      sqlserver.failover_cluster.replica.role:
-        enabled: true
-      sqlserver.failover_cluster.replica.synchronization_health:
-        enabled: true
-      # Server Properties
-      sqlserver.computer.uptime:
-        enabled: true
-      sqlserver.cpu.count:
-        enabled: true
-      # Tables
-      sqlserver.table.count:
-        enabled: true
-      # Errors
-      sqlserver.kill_connection.error.rate:
-        enabled: true
-
-    # Enable top query and query sample log collection
-    events:
-      db.server.query_sample:
-        enabled: true
-      db.server.top_query:
-        enabled: true
-
-    # Top query collection configuration
-    top_query_collection:
-      lookback_time: 45s
-      max_query_sample_count: 100
-      top_query_count: 30
-      collection_interval: 30s
-
-    collect_full_query_text: true
-    allowed_comment_keys:
-      - nr_service_guid
-
-    # Query sample collection configuration
-    query_sample_collection:
-      max_rows_per_query: 50
-
-processors:
-  metrics_transform:
-    transforms:
-      - include: system.cpu.utilization
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [state]
-            aggregation_type: mean
-      - include: system.paging.operations
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [direction]
-            aggregation_type: sum
-
-  filter/exclude_cpu_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
-
-  filter/exclude_memory_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
-
-  filter/exclude_memory_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
-
-  filter/exclude_filesystem_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
-
-  filter/exclude_filesystem_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_filesystem_inodes_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_system_disk:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
-
-  filter/exclude_network:
-    metrics:
-      datapoint:
-        - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
-
-  attributes/exclude_system_paging:
-    include:
-      match_type: strict
-      metric_names:
-        - system.paging.operations
-    actions:
-      - key: type
-        action: delete
-
-  cumulativetodelta:
-
-  transform/host:
-    metric_statements:
-      - context: metric
-        statements:
-          - set(metric.description, "")
-          - set(metric.unit, "")
-
-  batch:
-
-  batch/logs:
-    send_batch_size: 15          # flush target: ~15 records per request
-    send_batch_max_size: 15      # HARD cap: never emit more than 15 records/request
-    timeout: 5s
-
-  resource_detection:
-    detectors: ["system"]
-    system:
-      hostname_sources: ["os"]
-      resource_attributes:
-        host.id:
-          enabled: true
-
-  resource_detection/cloud:
-    detectors: ["gcp", "ec2", "azure"]
-    timeout: 2s
-    override: true
-
-  resource_detection/env:
-    detectors: ["env"]
-    timeout: 2s
-    override: true
-
-exporters:
-  otlphttp:
-    endpoint: <YOUR_OTLP_ENDPOINT>
-    headers:
-      api-key: <YOUR_LICENSE_KEY>
-    tls:
-      insecure: false
-    compression: gzip
-
-service:
-  telemetry:
-    metrics:
-      level: none
-
-  extensions: [health_check]
-
-  pipelines:
-    metrics/host:
-      receivers: [host_metrics, nrsqlserver]
-      processors:
-        - metrics_transform
-        - filter/exclude_cpu_utilization
-        - filter/exclude_memory_utilization
-        - filter/exclude_memory_usage
-        - filter/exclude_filesystem_utilization
-        - filter/exclude_filesystem_usage
-        - filter/exclude_filesystem_inodes_usage
-        - filter/exclude_system_disk
-        - filter/exclude_network
-        - attributes/exclude_system_paging
-        - transform/host
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - cumulativetodelta
-        - batch
-      exporters: [otlphttp]
-
-    logs/host:
-      receivers: [nrsqlserver]
-      processors:
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - batch/logs
-      exporters: [otlphttp]
-
-    traces:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp]
-
-    metrics:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp]
-
-    logs:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp]
-
-```
-
-
-  </Collapser>
-</CollapserGroup>
-
-
-#### Configuration parameters
-
-The following table describes the key configuration parameters for the `nrsqlserver` receiver:
-
-| Parameter | Description |
-|-----------|-------------|
-| `<YOUR_USERNAME>` | Enter your database username for authentication |
-| `<YOUR_PASSWORD>` | Enter your database password for authentication |
-| `<YOUR_SERVER>` | Enter your SQL Server hostname or IP address |
-| `<YOUR_PORT>` | Enter your SQL Server port number. The default value is 1433. |
-| `<YOUR_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, refer to [New Relic OTLP endpoints documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
-| `<YOUR_LICENSE_KEY>` | Enter your New Relic license key. |
-| `collection_interval` | Interval in seconds to collect database metrics. Default: 15s |
 
 
 <Callout variant="tip">
-**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
-</Callout>
-
-<Callout variant="tip">
-**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
+The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
 
 ```yaml
 receivers:
@@ -707,51 +347,41 @@ receivers:
 ```
 </Callout>
 
-  </Step>
+</Step>
 
   <Step>
 
-### Update Windows Service Registry [#update-registry-sql]
+## Update Windows Service Registry [#update-sql]
 
-Update the Windows Service Registry to use the new mssql-config.yaml file.
+1. Update the Windows Service Registry to use the new `mssql-config.yaml` file using one of the following methods:
 
-**Method 1: PowerShell**
+    * **For PowerShell:** Run the following command as Administrator:
 
-Run the following command in PowerShell as Administrator:
+      ```bash
+      Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+      ```
 
-```powershell
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
-```
+    *  **For Command prompt:** If PowerShell isn't available, use Command Prompt instead and run the following command as Administrator:
 
-**Method 2: Command Prompt (Alternative)**
+      ```bash
+      sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+      ```
 
-If PowerShell is not available, you can use Command Prompt instead:
+2. Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
 
-1. Open your Start Menu, type `cmd`
-2. Right-click Command Prompt and choose **Run as administrator**
-3. Copy and paste this exact command into the black CMD window and hit Enter:
+    ```bash
+    & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+    ```
 
-```cmd
-sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
-```
-
-  </Step>
-
-  <Step>
-
-### Validate NRDOT Collector Configuration [#validate-config-sql]
-
-Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
-
-```powershell
-& "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
-```
+    <Callout variant="tip">
+      To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [database service identification setup guide](/docs/opentelemetry/database/database-service-identification) to get APM-database correlation in New Relic.
+      </Callout>
 
   </Step>
 
   <Step>
 
-### Restart NRDOT collector [#restart-sql]
+## Restart NRDOT collector [#restart-sql]
 
 After updating your configuration, restart the NRDOT Collector service:
 
@@ -768,29 +398,10 @@ Always restart the NRDOT collector service after making configuration changes to
 
 </Step>
 
-<Step>
-
-### (Optional) Set up APM-database correlation [#correlation]
-
-To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/database-service-identification/) to get APM-database correlation in New Relic.
-
-<Callout variant="important">
-  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
-</Callout>
-
-</Step>
 
 <Step>
 
-### (Optional) Configure secret management [#rds-secret-management]
-
-The secret management feature allows you to securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files. For more information, refer to [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management).
-
-</Step>
-
-<Step>
-
-### Find and use your data [#find]
+## Find and use your data [#find]
 
 Once your data is being collected, you can access comprehensive SQL Server database monitoring through New Relic's UI.
 
@@ -812,27 +423,41 @@ To find your SQL Server database entity in New Relic:
 
 <Step>
 
-### Prerequisites [#prerequisites-domain]
+## Prerequisites [#prerequisites-domain]
 
-Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
+Before monitoring your Microsoft SQL Server with NRDOT using Windows Authentication, make sure your environment meets these requirements:
 
-**Additional requirements for Windows Authentication:**
-- Windows domain environment with Active Directory
-- SQL Server configured to accept Windows Authentication  
-- Domain user account with appropriate SQL Server permissions
-- NRDOT Collector service running under domain account context
+* New Relic account with a valid [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* New Relic [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp) for your region
+* SQL Server requirements, you'll need:
+  - SQL Server 2017 or later
+  - Administrative access to SQL Server (`sysadmin` role or equivalent)
+  - Network connectivity between collector and SQL Server (port 1433 or custom port)
+  - SQL Server Management Studio (SSMS) or `sqlcmd` utility
+* Network connectivity to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+* Windows system with network connectivity to SQL Server on port 1433 or custom port
+* Windows domain environment with Active Directory
+* SQL Server configured to accept Windows Authentication  
+* Domain user account with appropriate SQL Server permissions
+* NRDOT Collector service running under domain account context
 
 </Step>
 
 <Step>
 
-### Setup the NRDOT Collector [#setup-domain]
+## Enroll to preview [#enroll-domain]
 
-Install the NRDOT Collector on your Windows system.
+This integration is available as part of the New Relic public preview program. Contact your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
 
-1. Download and install the NRDOT Collector using PowerShell:
+</Step>
 
-   ```powershell
+<Step>
+
+## Install the NRDOT collector [#setup-domain]
+
+Download and install the NRDOT Collector using PowerShell:
+
+   ```bash
    [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
    ```
 
@@ -840,18 +465,18 @@ Install the NRDOT Collector on your Windows system.
 
 <Step>
 
-### Verify Windows Authentication Setup [#verify-windows-auth]
+## Create the monitoring user [#user-domain]
 
 Ensure your SQL Server is configured for Windows Authentication and verify connectivity.
 
-1. **Verify the Windows username:**
+1. Retrieve your Windows username:
    ```sql
    SELECT SYSTEM_USER;
    ```
 
-2. **Run the below command to verify necessary permissions are granted** (update `<account_name>` with the username from step 1):
+2. Run the following command to verify the necessary permissions are granted to your Windows user. Replace all occurrences of `<ACCOUNT_USERNAME>` with the username retrieved from step 1:
    ```sql
-   DECLARE @TargetUser SYSNAME = '<account_name>'; -- <-- Set your Windows user here
+   DECLARE @TargetUser SYSNAME = '<ACCOUNT_USERNAME>'; -- <-- Set your Windows user here
 
    -- 1. Create the checklist of required permissions from your script
    DECLARE @Checklist TABLE (Scope NVARCHAR(50), [Database] SYSNAME, [Permission] NVARCHAR(128));
@@ -894,15 +519,15 @@ Ensure your SQL Server is configured for Windows Authentication and verify conne
    ORDER BY chk.Scope, chk.[Database], chk.[Permission];
    ```
 
-3. **If you don't have the necessary permissions**, run the following grants (replace `<account_name>` with your Windows account):
+3. (Optional) If you don't have the necessary permissions, from your SSMS or `sqlcmd` utility, run the following command to grant the required permissions to your Windows account. Replace all occurrences of `<ACCOUNT_USERNAME>` with your Windows username retrieved from step 1:
    ```sql
    USE [master];
    GO
 
    -- 1. Grant Instance-level permissions to your Windows Account
-   GRANT VIEW SERVER STATE TO [<account_name>];
-   GRANT VIEW ANY DEFINITION TO [<account_name>];
-   GRANT VIEW ANY DATABASE TO [<account_name>];
+   GRANT VIEW SERVER STATE TO [<ACCOUNT_USERNAME>];
+   GRANT VIEW ANY DEFINITION TO [<ACCOUNT_USERNAME>];
+   GRANT VIEW ANY DATABASE TO [<ACCOUNT_USERNAME>];
    GO
 
    -- 2. Loop through all user databases and grant read/visibility permissions
@@ -926,13 +551,13 @@ Ensure your SQL Server is configured for Windows Authentication and verify conne
            -- Create the database user mapping if it doesn't exist, then grant roles
            SET @sql = '
                USE [' + @name + '];
-               IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<account_name>'')
+               IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<ACCOUNT_USERNAME>'')
                BEGIN
-                   CREATE USER [<account_name>] FOR LOGIN [<account_name>];
+                   CREATE USER [<ACCOUNT_USERNAME>] FOR LOGIN [<ACCOUNT_USERNAME>];
                END;
-               GRANT VIEW DATABASE STATE TO [<account_name>];
-               GRANT VIEW DEFINITION TO [<account_name>];
-               ALTER ROLE db_datareader ADD MEMBER [<account_name>];';
+               GRANT VIEW DATABASE STATE TO [<ACCOUNT_USERNAME>];
+               GRANT VIEW DEFINITION TO [<ACCOUNT_USERNAME>];
+               ALTER ROLE db_datareader ADD MEMBER [<ACCOUNT_USERNAME>];';
 
            EXEC sp_executesql @sql;
            PRINT 'Success: ' + @name;
@@ -949,44 +574,65 @@ Ensure your SQL Server is configured for Windows Authentication and verify conne
    GO
    ```
 
-<Callout variant="important">
-**Important Notes:**
+    <Callout variant="tip">
+      To securely manage sensitive information, such as database credentials store them in [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management) tools. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files. For more information, refer to [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management).
+    </Callout>
 
-- Replace all instances of `<account_name>` with your actual Windows account name (e.g., `ComputerName\Username`)
-- Run these scripts using SQL Server Management Studio (SSMS) or sqlcmd utility
-- The verification script will show you exactly which permissions are missing
-</Callout>
+
 
 </Step>
 
 <Step>
 
-### Configure NRDOT Collector [#configure-domain]
+## Configure NRDOT collector [#configure-domain]
 
-Choose your monitoring configuration based on your needs:
+1. Create a configuration file named as `mssql-config.yaml` in PowerShell as an Administrator:
 
-<CollapserGroup>
+  ```bash
+  New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+  ```
 
-  <Collapser
-    id="standards"
-    title="Standard configuration"
-  >
+2. Add the following configuration to the `mssql-config.yaml` file created in the previous step:
 
-1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
+  <Callout variant="tip">
+    This configuration focuses on essential database monitoring for your Windows SQL Server environment. To enable comprehensive monitoring with all available metrics, refer to the [configuration reference](/docs/opentelemetry/database/mssql/config-reference/#hosted-windows-auth-full).
+  </Callout>
 
-   ```powershell
-   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
-   ```
-
-2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
-
-```yaml
-# NRDOT Collector Configuration for SQL Server with gMSA Authentication
-
-receivers:
+<AgentConfig
+  inputOptions={[
+    {
+      name: 'hostname',
+      label: 'SQL Server Hostname/IP',
+      codeLine: 8,
+      defaultValue: 'sqlserver.example.com',
+      toolTip: 'Enter your SQL Server hostname or IP address',
+    },
+    {
+      name: 'port',
+      label: 'SQL Server Port',
+      codeLine: 9,
+      defaultValue: '1433',
+      toolTip: 'Enter your SQL Server port number. The default value is 1433.',
+    },
+    {
+      name: 'endpoint',
+      label: 'New Relic OTLP Endpoint',
+      codeLine: 45,
+      defaultValue: 'https://otlp.nr-data.net',
+      toolTip: 'Enter your New Relic OTLP endpoint. For more information, see https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
+    },
+    {
+      name: 'licenseKey',
+      label: 'New Relic License Key',
+      codeLine: 47,
+      defaultValue: 'YOUR_LICENSE_KEY',
+      toolTip: 'Enter your New Relic ingest license key',
+    },
+  ]}
+  config={`receivers:
   nrsqlserver:
     collection_interval: 15s
-    datasource: "server=<YOUR_HOSTNAME>;port=<YOUR_PORT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+    datasource: "server=<input1>;port=<input2>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
 
     # Enable comprehensive database metrics
     metrics:
@@ -1039,17 +685,17 @@ receivers:
 
 processors:
   memory_limiter:
-    check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
-    limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
-    spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+    check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
 
   batch:
 
 exporters:
   otlphttp:
-    endpoint: <YOUR_OTLP_ENDPOINT>
+    endpoint: <input3>
     headers:
-      api-key: <YOUR_LICENSE_KEY>
+      api-key: <input4>
     tls:
       insecure: false
     compression: gzip
@@ -1068,528 +714,69 @@ service:
     logs:
       receivers: [nrsqlserver]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp]
-```
-
-  </Collapser>
-
-  <Collapser
-    id="ffc"
-    title="Full-feature configuration"
-  >
-
-This configuration enables comprehensive database monitoring with all available metrics for complete SQL Server performance visibility using Windows authentication.
-
-1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
-
-   ```powershell
-   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
-   ```
-
-2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
-
-```yaml
-# NRDOT Collector Configuration for New Relic SQL Server Integration
-extensions:
-  health_check:
-
-receivers:
-  otlp:
-    protocols:
-      grpc:
-      http:
-
-  host_metrics:
-    collection_interval: 30s
-    scrapers:
-      cpu:
-        metrics:
-          system.cpu.time:
-            enabled: false
-          system.cpu.utilization:
-            enabled: true
-      load:
-      memory:
-        metrics:
-          system.memory.utilization:
-            enabled: true
-      paging:
-        metrics:
-          system.paging.utilization:
-            enabled: false
-          system.paging.faults:
-            enabled: false
-      disk:
-        metrics:
-          system.disk.merged:
-            enabled: false
-          system.disk.pending_operations:
-            enabled: false
-          system.disk.weighted_io_time:
-            enabled: false
-      network:
-        metrics:
-          system.network.connections:
-            enabled: false
-      processes:
-      process:
-        mute_process_name_error: true
-        mute_process_exe_error: true
-        mute_process_user_error: true
-        mute_process_io_error: true
-        metrics:
-          process.cpu.utilization:
-            enabled: true
-          process.memory.utilization:
-            enabled: true
-
-  nrsqlserver:
-    collection_interval: 30s
-    datasource: "server=<YOUR_HOSTNAME>;port=<YOUR_PORT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
-
-    # Enable comprehensive database metrics
-    metrics:
-      # Database
-      sqlserver.database.count:
-        enabled: true
-      sqlserver.database.file.size:
-        enabled: true 
-      sqlserver.database.io:
-        enabled: true
-      sqlserver.database.latency:
-        enabled: true
-      sqlserver.database.operations:
-        enabled: true
-      sqlserver.database.transactions.active:
-        enabled: true
-      sqlserver.database.backup_or_restore.rate:
-        enabled: true
-      sqlserver.database.execution.errors:
-        enabled: true
-      sqlserver.database.full_scan.rate:
-        enabled: true
-      sqlserver.database.tempdb.space:
-        enabled: true
-      sqlserver.database.tempdb.version_store.size:
-        enabled: true
-      # Locks
-      sqlserver.lock.timeout.rate:
-        enabled: true
-      sqlserver.lock.wait.count:
-        enabled: true
-      sqlserver.deadlock.rate:
-        enabled: true
-      # Transactions
-      sqlserver.transaction.delay:
-        enabled: true
-      sqlserver.transaction.longest_running_time:
-        enabled: true
-      sqlserver.transaction.version_cleanup.rate:
-        enabled: true
-      sqlserver.transaction.version_generation.rate:
-        enabled: true
-      # Memory
-      sqlserver.memory.area:
-        enabled: true
-      sqlserver.memory.cache.object.count:
-        enabled: true
-      sqlserver.memory.grants.pending.count:
-        enabled: true
-      sqlserver.memory.page.count:
-        enabled: true
-      sqlserver.memory.target:
-        enabled: true
-      sqlserver.memory.usage:
-        enabled: true
-      # OS
-      sqlserver.os.memory.usage:
-        enabled: true
-      sqlserver.os.memory.utilization:
-        enabled: true
-      sqlserver.os.scheduler.runnable_tasks.count:
-        enabled: true
-      sqlserver.os.wait.duration:
-        enabled: true
-      sqlserver.os.wait.tasks.count:
-        enabled: true
-      # Pages / Buffer
-      sqlserver.page.buffer_cache.free_list.stalls.rate:
-        enabled: true
-      sqlserver.page.lookup.rate:
-        enabled: true
-      # Batch / Compilation
-      sqlserver.batch.compilation.utilization:
-        enabled: true
-      sqlserver.batch.page_split.utilization:
-        enabled: true
-      sqlserver.recompilation.ratio:
-        enabled: true
-      sqlserver.parameterization.rate:
-        enabled: true
-      sqlserver.plan.execution.rate:
-        enabled: true
-      sqlserver.attention.rate:
-        enabled: true
-      # Processes / Connections
-      sqlserver.process.count:
-        enabled: true
-      sqlserver.processes.blocked:
-        enabled: true
-      sqlserver.login.rate:
-        enabled: true
-      sqlserver.logout.rate:
-        enabled: true
-      # Thread Pool
-      sqlserver.thread_pool.tasks.count:
-        enabled: true
-      sqlserver.thread_pool.workers.count:
-        enabled: true
-      sqlserver.thread_pool.workers.max:
-        enabled: true
-      sqlserver.thread_pool.workers.utilization:
-        enabled: true
-      # TempDB
-      sqlserver.tempdb.allocation.wait_time.total:
-        enabled: true
-      sqlserver.tempdb.contention.waiters.count:
-        enabled: true
-      sqlserver.tempdb.data_files.count:
-        enabled: true
-      sqlserver.tempdb.file.size:
-        enabled: true
-      sqlserver.tempdb.space.usage:
-        enabled: true
-      # Latch
-      sqlserver.latch.superlatch.count:
-        enabled: true
-      sqlserver.latch.superlatch.transition.rate:
-        enabled: true
-      sqlserver.latch.wait.rate:
-        enabled: true
-      sqlserver.latch.wait_time.avg:
-        enabled: true
-      sqlserver.latch.wait_time.total:
-        enabled: true
-      # Index
-      sqlserver.index.search.rate:
-        enabled: true
-      # Resource Pool
-      sqlserver.resource_pool.disk.operations:
-        enabled: true
-      sqlserver.resource_pool.disk.throttled.read.rate:
-        enabled: true
-      sqlserver.resource_pool.disk.throttled.write.rate:
-        enabled: true
-      # Replica / Always-On
-      sqlserver.replica.data.rate:
-        enabled: true
-      sqlserver.failover_cluster.ag.cluster_type:
-        enabled: true
-      sqlserver.failover_cluster.ag.failure_condition_level:
-        enabled: true
-      sqlserver.failover_cluster.ag.health_check_timeout:
-        enabled: true
-      sqlserver.failover_cluster.ag.required_sync_secondaries:
-        enabled: true
-      sqlserver.failover_cluster.replica.database.queue_size:
-        enabled: true
-      sqlserver.failover_cluster.replica.database.redo.rate:
-        enabled: true
-      sqlserver.failover_cluster.replica.flow_control_time:
-        enabled: true
-      sqlserver.failover_cluster.replica.role:
-        enabled: true
-      sqlserver.failover_cluster.replica.synchronization_health:
-        enabled: true
-      # Server Properties
-      sqlserver.computer.uptime:
-        enabled: true
-      sqlserver.cpu.count:
-        enabled: true
-      # Tables
-      sqlserver.table.count:
-        enabled: true
-      # Errors
-      sqlserver.kill_connection.error.rate:
-        enabled: true
-
-    # Enable top query and query sample log collection
-    events:
-      db.server.query_sample:
-        enabled: true
-      db.server.top_query:
-        enabled: true
-
-    # Top query collection configuration
-    top_query_collection:
-      lookback_time: 45s
-      max_query_sample_count: 100
-      top_query_count: 30
-      collection_interval: 30s
-
-    collect_full_query_text: true
-    allowed_comment_keys:
-      - nr_service_guid
-
-    # Query sample collection configuration
-    query_sample_collection:
-      max_rows_per_query: 50
-
-processors:
-  metrics_transform:
-    transforms:
-      - include: system.cpu.utilization
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [state]
-            aggregation_type: mean
-      - include: system.paging.operations
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [direction]
-            aggregation_type: sum
-
-  filter/exclude_cpu_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
-
-  filter/exclude_memory_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
-
-  filter/exclude_memory_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
-
-  filter/exclude_filesystem_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
-
-  filter/exclude_filesystem_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_filesystem_inodes_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_system_disk:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
-
-  filter/exclude_network:
-    metrics:
-      datapoint:
-        - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
-
-  attributes/exclude_system_paging:
-    include:
-      match_type: strict
-      metric_names:
-        - system.paging.operations
-    actions:
-      - key: type
-        action: delete
-
-  cumulativetodelta:
-
-  transform/host:
-    metric_statements:
-      - context: metric
-        statements:
-          - set(metric.description, "")
-          - set(metric.unit, "")
-
-  batch:
-
-  batch/logs:
-    send_batch_size: 15          # flush target: ~15 records per request
-    send_batch_max_size: 15      # HARD cap: never emit more than 15 records/request
-    timeout: 5s
-
-  resource_detection:
-    detectors: ["system"]
-    system:
-      hostname_sources: ["os"]
-      resource_attributes:
-        host.id:
-          enabled: true
-
-  resource_detection/cloud:
-    detectors: ["gcp", "ec2", "azure"]
-    timeout: 2s
-    override: true
-
-  resource_detection/env:
-    detectors: ["env"]
-    timeout: 2s
-    override: true
-
-exporters:
-  otlphttp:
-    endpoint: <YOUR_OTLP_ENDPOINT>
-    headers:
-      api-key: <YOUR_LICENSE_KEY>
-    tls:
-      insecure: false
-    compression: gzip
-
-service:
-  telemetry:
-    metrics:
-      level: none
-
-  extensions: [health_check]
-
-  pipelines:
-    metrics/host:
-      receivers: [host_metrics, nrsqlserver]
-      processors:
-        - metrics_transform
-        - filter/exclude_cpu_utilization
-        - filter/exclude_memory_utilization
-        - filter/exclude_memory_usage
-        - filter/exclude_filesystem_utilization
-        - filter/exclude_filesystem_usage
-        - filter/exclude_filesystem_inodes_usage
-        - filter/exclude_system_disk
-        - filter/exclude_network
-        - attributes/exclude_system_paging
-        - transform/host
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - cumulativetodelta
-        - batch
-      exporters: [otlphttp]
-
-    logs/host:
-      receivers: [nrsqlserver]
-      processors:
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - batch/logs
-      exporters: [otlphttp]
-
-    traces:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp]
-
-    metrics:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp]
-
-    logs:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp]
-```
-
-  </Collapser>
-</CollapserGroup>
-
-
-#### Configuration parameters
-
-The following table describes the key configuration parameters for the `nrsqlserver` receiver:
-
-| Parameter | Description |
-|-----------|-------------|
-| `<YOUR_HOSTNAME>` | Enter your SQL Server hostname or IP address |
-| `<YOUR_PORT>` | Enter your SQL Server port number. The default value is 1433. |
-| `<YOUR_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, refer to [New Relic OTLP endpoints documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
-| `<YOUR_LICENSE_KEY>` | Enter your New Relic license key. |
-| `collection_interval` | Interval in seconds to collect database metrics. Default: 15s |
-
+      exporters: [otlphttp]`}
+  fileName="mssql-config.yaml"
+  tipMdx={{ body: null }}
+  onChange={() => {}}
+/>
 
 <Callout variant="tip">
-**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
+  This configuration focuses on essential database monitoring for your Windows authentication environment. To enable comprehensive monitoring with all available metrics, refer to the [configuration reference](/docs/opentelemetry/database/mssql/config-reference/#hosted-gmsa).
 </Callout>
 
 <Callout variant="tip">
-**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
+* If you enable all available metrics, increase the `limit_mib` value to prevent the memory limiter from dropping data. For example, set `limit_mib` to 1000 or higher depending on your environment and the number of databases being monitored.
 
-```yaml
-receivers:
-  nrsqlserver:
-    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
-```
+* The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
+
+  ```yaml
+  receivers:
+    nrsqlserver:
+      max_concurrent_queries: 4  # default is 4 if omitted or set to 0
+  ```
+  
 </Callout>
 
-</Step>
-
-<Step>
-
-### Update Windows Service Registry [#update-registry-domain]
-
-Update the Windows Service Registry to use the new mssql-config.yaml file.
-
-**Method 1: PowerShell**
-
-Run the following command in PowerShell as Administrator:
-
-```powershell
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
-```
-
-**Method 2: Command Prompt (Alternative)**
-
-If PowerShell is not available, you can use Command Prompt instead:
-
-1. Open your Start Menu, type `cmd`
-2. Right-click Command Prompt and choose **Run as administrator**
-3. Copy and paste this exact command into the black CMD window and hit Enter:
-
-```cmd
-sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
-```
 
 </Step>
 
 <Step>
 
-### Validate NRDOT Collector Configuration [#validate-config-domain]
+## Update Windows Service Registry [#update-registry-domain]
 
-Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
+1. Update the Windows Service Registry to use the new `mssql-config.yaml` file using one of the following methods:
 
-```powershell
-& "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
-```
+    * **For PowerShell:** Run the following command as Administrator:
+
+      ```bash
+      Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+      ```
+
+    *  **For Command Prompt:** If PowerShell isn't available, use Command Prompt instead and run the following command as Administrator:
+
+      ```bash
+      sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+      ```
+
+2. Validate the NRDOT collector configuration to ensure it's correctly formatted and will work properly:
+
+    ```bash
+    & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+    ```
+
+    <Callout variant="tip">
+      To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [database service identification setup guide](/docs/opentelemetry/database/database-service-identification) to get APM-database correlation in New Relic.
+      </Callout>
 
 </Step>
 
 <Step>
 
-### Restart NRDOT collector [#restart-domain]
+## Restart NRDOT collector [#restart-domain]
 
 After updating your configuration, restart the NRDOT Collector service:
 
-```shell
+```bash
 net stop nrdot-collector
 net start nrdot-collector
 ```
@@ -1600,31 +787,12 @@ net start nrdot-collector
 
 </Step>
 
-<Step>
-
-### (Optional) Set up APM-database correlation [#correlation-domain]
-
-To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/database-service-identification/) to get APM-database correlation in New Relic.
-
-<Callout variant="important">
-  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
-</Callout>
-
-</Step>
 
 <Step>
 
-### (Optional) Configure secret management [#secret-management-domain]
+## Find and use your data [#find-domain]
 
-The secret management feature allows you to securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files. For more information, refer to [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management).
-
-</Step>
-
-<Step>
-
-### Find and use your data [#find-domain]
-
-Once your data is being collected, you can access comprehensive SQL Server database monitoring through New Relic's UI.
+Once your data is being collected, you can access comprehensive SQL Server database monitoring through New Relic UI.
 
 To find your SQL Server database entity in New Relic:
 
@@ -1645,26 +813,40 @@ To find your SQL Server database entity in New Relic:
 
 <Step>
 
-### Prerequisites [#prerequisites-gmsa]
+## Prerequisites [#prerequisites-gmsa]
 
-Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mssql/compatibility).
+Before monitoring your Microsoft SQL Server with NRDOT using gMSA Authentication, make sure your environment meets these requirements:
 
-**Additional requirements for gMSA (Group Managed Service Account):**
-- Active Directory environment with gMSA support
-- gMSA account created and configured for SQL Server access
-- Windows host must be domain-joined and authorized to use the gMSA account
+* New Relic account with a valid [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* New Relic [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp) for your region
+* SQL Server requirements, you'll need:
+  - SQL Server 2017 or later
+  - Administrative access to SQL Server (`sysadmin` role or equivalent)
+  - Network connectivity between collector and SQL Server to port 1433 or custom port
+  - SQL Server Management Studio (SSMS) or `sqlcmd` utility
+* Network connectivity to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+* Active Directory environment with gMSA support
+* gMSA account created and configured for SQL Server access
+* Windows host must be domain-joined and authorized to use the gMSA account
+
 
 </Step>
 
 <Step>
 
-### Setup the NRDOT Collector [#setup-gmsa]
+## Enroll to preview [#enroll-gmsa]
 
-Install the NRDOT Collector on your Windows system.
+This integration is available as part of the New Relic public preview program. Contact your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
 
-1. Download and install the NRDOT Collector using PowerShell:
+</Step>
 
-   ```powershell
+<Step>
+
+## Install the NRDOT collector [#setup-gmsa]
+
+Download and install the NRDOT Collector using PowerShell:
+
+   ```bash
    [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
    ```
 
@@ -1672,22 +854,22 @@ Install the NRDOT Collector on your Windows system.
 
 <Step>
 
-### Enable your Microsoft SQL Server [#configure-user-gmsa]
+## Create the monitoring user [#user-gmsa]
 
-Open SSMS, log in via Windows Authentication, open a New Query, and execute the following database administration script:
+In your SQL Server Management Studio (SSMS), run the following script to create a login for your gMSA account and grant the necessary permissions. Replace all occurrences of `<YOUR_DOMAIN>\<YOUR_gMSA_NAME>` with your actual domain and gMSA account name.
 
 ```sql
 USE master;
 GO
 
 -- Provision an engine login identity for the gMSA
-CREATE LOGIN [<DOMAIN>\<gMSA_NAME>$] FROM WINDOWS;
+CREATE LOGIN [<YOUR_DOMAIN>\<YOUR_gMSA_NAME>$] FROM WINDOWS;
 GO
 
 -- Grant monitoring permissions
-GRANT VIEW SERVER STATE TO [<DOMAIN>\<gMSA_NAME>$];
-GRANT VIEW ANY DEFINITION TO [<DOMAIN>\<gMSA_NAME>$];
-GRANT VIEW ANY DATABASE TO [<DOMAIN>\<gMSA_NAME>$];
+GRANT VIEW SERVER STATE TO [<YOUR_DOMAIN>\<YOUR_gMSA_NAME>$];
+GRANT VIEW ANY DEFINITION TO [<YOUR_DOMAIN>\<YOUR_gMSA_NAME>$];
+GRANT VIEW ANY DATABASE TO [<YOUR_DOMAIN>\<YOUR_gMSA_NAME>$];
 GO
 
 -- Grant access to all databases (required for query monitoring and tempdb metrics)
@@ -1702,11 +884,11 @@ WHILE @@FETCH_STATUS = 0
 BEGIN
   BEGIN TRY
     EXEC('USE [' + @name + '];
-    IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<DOMAIN>\<gMSA_NAME>$'')
+    IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<YOUR_DOMAIN>\<YOUR_gMSA_NAME>$'')
     BEGIN
-      CREATE USER [<DOMAIN>\<gMSA_NAME>$] FOR LOGIN [<DOMAIN>\<gMSA_NAME>$];
+      CREATE USER [<YOUR_DOMAIN>\<YOUR_gMSA_NAME>$] FOR LOGIN [<YOUR_DOMAIN>\<YOUR_gMSA_NAME>$];
     END;
-    GRANT VIEW DATABASE STATE TO [<DOMAIN>\<gMSA_NAME>$];');
+    GRANT VIEW DATABASE STATE TO [<YOUR_DOMAIN>\<YOUR_gMSA_NAME>$];');
   END TRY
   BEGIN CATCH
     PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
@@ -1718,25 +900,25 @@ DEALLOCATE db_cursor;
 GO
 ```
 
-<Callout variant="important">
-  Replace `[<DOMAIN>\<gMSA_NAME>$]` with your actual gMSA account name. The `$` at the end is required for gMSA accounts.
+<Callout variant="tip">
+  To securely manage sensitive information, such as database credentials, store them in [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management) tools. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files.
 </Callout>
 
 </Step>
 
 <Step>
 
-### Configure NRDOT Collector Service to Run as gMSA [#configure-service-gmsa]
+## Configure NRDOT collector service to run as gMSA [#service-gmsa]
 
-After installing the NRDOT Collector, configure the service to run as your gMSA account using PowerShell:
+After installing the NRDOT collector, configure the service to run as your gMSA account using PowerShell. Replace `YOUR_DOMAIN\YOUR_gMSA_ACCOUNT$` with your domain and gMSA account name. You must include the `$` at the end, as it is required for gMSA accounts.
 
-```powershell
+```bash
 # Stop the NRDOT Collector service
 Stop-Service nrdot-collector
 
 # Configure service to use gMSA account
 # Use cmd /c to avoid PowerShell treating $ as a variable
-cmd /c 'sc config nrdot-collector obj= "DOMAIN\gMSA-Account$" password= ""'
+cmd /c 'sc config nrdot-collector obj= "YOUR_DOMAIN\YOUR_gMSA_ACCOUNT$" password= ""'
 
 # Verify the configuration
 Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, StartName
@@ -1745,42 +927,56 @@ Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, Star
 Start-Service nrdot-collector
 ```
 
-<Callout variant="important">
-  Replace `DOMAIN\gMSA-Account$` with your actual gMSA account name. Note the `$` at the end is required for gMSA accounts. No password is needed as gMSA handles authentication automatically.
-</Callout>
 
 </Step>
 
 <Step>
 
-### Configure NRDOT Collector [#configure-gmsa]
+## Configure NRDOT collector [#configure-gmsa]
 
-Choose your monitoring configuration based on your needs:
+1. Create a configuration file named as `mssql-config.yaml` in PowerShell as an Administrator:
 
-<CollapserGroup>
+  ```bash
+  New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+  ```
 
-  <Collapser
-    id="gmsa-standard"
-    title="Standard configuration"
-  >
+2. Add the following configuration to the `mssql-config.yaml` file created in the previous step:
 
-This configuration focuses on essential database monitoring with core metrics.
-
-1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
-
-   ```powershell
-   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
-   ```
-
-2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
-
-```yaml
-# NRDOT Collector Configuration for SQL Server with gMSA Authentication
-
-receivers:
+<AgentConfig
+  inputOptions={[
+    {
+      name: 'hostname',
+      label: 'SQL Server Hostname/IP',
+      codeLine: 8,
+      defaultValue: 'sqlserver.example.com',
+      toolTip: 'Enter your SQL Server hostname or IP address',
+    },
+    {
+      name: 'port',
+      label: 'SQL Server Port',
+      codeLine: 9,
+      defaultValue: '1433',
+      toolTip: 'Enter your SQL Server port number. The default value is 1433.',
+    },
+    {
+      name: 'endpoint',
+      label: 'New Relic OTLP Endpoint',
+      codeLine: 58,
+      defaultValue: 'https://otlp.nr-data.net',
+      toolTip: 'Enter your New Relic OTLP endpoint. For more information, see https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
+    },
+    {
+      name: 'licenseKey',
+      label: 'New Relic License Key',
+      codeLine: 60,
+      defaultValue: 'YOUR_LICENSE_KEY',
+      toolTip: 'Enter your New Relic ingest license key',
+    },
+  ]}
+  config={`receivers:
   nrsqlserver:
     collection_interval: 15s
-    datasource: "server=<YOUR_HOSTNAME>;port=<YOUR_PORT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+    datasource: "server=<input1>;port=<input2>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
 
     # Enable comprehensive database metrics
     metrics:
@@ -1833,17 +1029,17 @@ receivers:
 
 processors:
   memory_limiter:
-    check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
-    limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
-    spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+    check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
 
   batch:
 
 exporters:
   otlphttp:
-    endpoint: <YOUR_OTLP_ENDPOINT>
+    endpoint: <input3>
     headers:
-      api-key: <YOUR_LICENSE_KEY>
+      api-key: <input4>
     tls:
       insecure: false
     compression: gzip
@@ -1862,527 +1058,49 @@ service:
     logs:
       receivers: [nrsqlserver]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp]
-```
+      exporters: [otlphttp]`}
+  fileName="mssql-config.yaml"
+  tipMdx={{ body: null }}
+  onChange={() => {}}
+/>
 
-  </Collapser>
-
-  <Collapser
-    id="gmsa-ffc"
-    title="Full feature configuration"
-  >
-
-This configuration enables comprehensive database monitoring with all available metrics for complete SQL Server performance visibility using gMSA authentication.
-
-1. **Create the configuration file.** The filename must be `mssql-config.yaml`. Run the following command in PowerShell as Administrator:
-
-   ```powershell
-   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
-   ```
-
-2. **Add the configuration content below** to the `mssql-config.yaml` file you created in the previous step.
-
-```yaml
-
-# NRDOT Collector Configuration for New Relic SQL Server Integration
-extensions:
-  health_check:
-
-receivers:
-  otlp:
-    protocols:
-      grpc:
-      http:
-
-  host_metrics:
-    collection_interval: 30s
-    scrapers:
-      cpu:
-        metrics:
-          system.cpu.time:
-            enabled: false
-          system.cpu.utilization:
-            enabled: true
-      load:
-      memory:
-        metrics:
-          system.memory.utilization:
-            enabled: true
-      paging:
-        metrics:
-          system.paging.utilization:
-            enabled: false
-          system.paging.faults:
-            enabled: false
-      disk:
-        metrics:
-          system.disk.merged:
-            enabled: false
-          system.disk.pending_operations:
-            enabled: false
-          system.disk.weighted_io_time:
-            enabled: false
-      network:
-        metrics:
-          system.network.connections:
-            enabled: false
-      processes:
-      process:
-        mute_process_name_error: true
-        mute_process_exe_error: true
-        mute_process_user_error: true
-        mute_process_io_error: true
-        metrics:
-          process.cpu.utilization:
-            enabled: true
-          process.memory.utilization:
-            enabled: true
-
-  nrsqlserver:
-    collection_interval: 30s
-    datasource: "server=<YOUR_HOSTNAME>;port=<YOUR_PORT>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
-
-    # Enable comprehensive database metrics
-    metrics:
-      # Database
-      sqlserver.database.count:
-        enabled: true
-      sqlserver.database.file.size:
-        enabled: true 
-      sqlserver.database.io:
-        enabled: true
-      sqlserver.database.latency:
-        enabled: true
-      sqlserver.database.operations:
-        enabled: true
-      sqlserver.database.transactions.active:
-        enabled: true
-      sqlserver.database.backup_or_restore.rate:
-        enabled: true
-      sqlserver.database.execution.errors:
-        enabled: true
-      sqlserver.database.full_scan.rate:
-        enabled: true
-      sqlserver.database.tempdb.space:
-        enabled: true
-      sqlserver.database.tempdb.version_store.size:
-        enabled: true
-      # Locks
-      sqlserver.lock.timeout.rate:
-        enabled: true
-      sqlserver.lock.wait.count:
-        enabled: true
-      sqlserver.deadlock.rate:
-        enabled: true
-      # Transactions
-      sqlserver.transaction.delay:
-        enabled: true
-      sqlserver.transaction.longest_running_time:
-        enabled: true
-      sqlserver.transaction.version_cleanup.rate:
-        enabled: true
-      sqlserver.transaction.version_generation.rate:
-        enabled: true
-      # Memory
-      sqlserver.memory.area:
-        enabled: true
-      sqlserver.memory.cache.object.count:
-        enabled: true
-      sqlserver.memory.grants.pending.count:
-        enabled: true
-      sqlserver.memory.page.count:
-        enabled: true
-      sqlserver.memory.target:
-        enabled: true
-      sqlserver.memory.usage:
-        enabled: true
-      # OS
-      sqlserver.os.memory.usage:
-        enabled: true
-      sqlserver.os.memory.utilization:
-        enabled: true
-      sqlserver.os.scheduler.runnable_tasks.count:
-        enabled: true
-      sqlserver.os.wait.duration:
-        enabled: true
-      sqlserver.os.wait.tasks.count:
-        enabled: true
-      # Pages / Buffer
-      sqlserver.page.buffer_cache.free_list.stalls.rate:
-        enabled: true
-      sqlserver.page.lookup.rate:
-        enabled: true
-      # Batch / Compilation
-      sqlserver.batch.compilation.utilization:
-        enabled: true
-      sqlserver.batch.page_split.utilization:
-        enabled: true
-      sqlserver.recompilation.ratio:
-        enabled: true
-      sqlserver.parameterization.rate:
-        enabled: true
-      sqlserver.plan.execution.rate:
-        enabled: true
-      sqlserver.attention.rate:
-        enabled: true
-      # Processes / Connections
-      sqlserver.process.count:
-        enabled: true
-      sqlserver.processes.blocked:
-        enabled: true
-      sqlserver.login.rate:
-        enabled: true
-      sqlserver.logout.rate:
-        enabled: true
-      # Thread Pool
-      sqlserver.thread_pool.tasks.count:
-        enabled: true
-      sqlserver.thread_pool.workers.count:
-        enabled: true
-      sqlserver.thread_pool.workers.max:
-        enabled: true
-      sqlserver.thread_pool.workers.utilization:
-        enabled: true
-      # TempDB
-      sqlserver.tempdb.allocation.wait_time.total:
-        enabled: true
-      sqlserver.tempdb.contention.waiters.count:
-        enabled: true
-      sqlserver.tempdb.data_files.count:
-        enabled: true
-      sqlserver.tempdb.file.size:
-        enabled: true
-      sqlserver.tempdb.space.usage:
-        enabled: true
-      # Latch
-      sqlserver.latch.superlatch.count:
-        enabled: true
-      sqlserver.latch.superlatch.transition.rate:
-        enabled: true
-      sqlserver.latch.wait.rate:
-        enabled: true
-      sqlserver.latch.wait_time.avg:
-        enabled: true
-      sqlserver.latch.wait_time.total:
-        enabled: true
-      # Index
-      sqlserver.index.search.rate:
-        enabled: true
-      # Resource Pool
-      sqlserver.resource_pool.disk.operations:
-        enabled: true
-      sqlserver.resource_pool.disk.throttled.read.rate:
-        enabled: true
-      sqlserver.resource_pool.disk.throttled.write.rate:
-        enabled: true
-      # Replica / Always-On
-      sqlserver.replica.data.rate:
-        enabled: true
-      sqlserver.failover_cluster.ag.cluster_type:
-        enabled: true
-      sqlserver.failover_cluster.ag.failure_condition_level:
-        enabled: true
-      sqlserver.failover_cluster.ag.health_check_timeout:
-        enabled: true
-      sqlserver.failover_cluster.ag.required_sync_secondaries:
-        enabled: true
-      sqlserver.failover_cluster.replica.database.queue_size:
-        enabled: true
-      sqlserver.failover_cluster.replica.database.redo.rate:
-        enabled: true
-      sqlserver.failover_cluster.replica.flow_control_time:
-        enabled: true
-      sqlserver.failover_cluster.replica.role:
-        enabled: true
-      sqlserver.failover_cluster.replica.synchronization_health:
-        enabled: true
-      # Server Properties
-      sqlserver.computer.uptime:
-        enabled: true
-      sqlserver.cpu.count:
-        enabled: true
-      # Tables
-      sqlserver.table.count:
-        enabled: true
-      # Errors
-      sqlserver.kill_connection.error.rate:
-        enabled: true
-
-    # Enable top query and query sample log collection
-    events:
-      db.server.query_sample:
-        enabled: true
-      db.server.top_query:
-        enabled: true
-
-    # Top query collection configuration
-    top_query_collection:
-      lookback_time: 45s
-      max_query_sample_count: 100
-      top_query_count: 30
-      collection_interval: 30s
-
-    collect_full_query_text: true
-    allowed_comment_keys:
-      - nr_service_guid
-
-    # Query sample collection configuration
-    query_sample_collection:
-      max_rows_per_query: 50
-
-processors:
-  metrics_transform:
-    transforms:
-      - include: system.cpu.utilization
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [state]
-            aggregation_type: mean
-      - include: system.paging.operations
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [direction]
-            aggregation_type: sum
-
-  filter/exclude_cpu_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
-
-  filter/exclude_memory_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
-
-  filter/exclude_memory_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
-
-  filter/exclude_filesystem_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
-
-  filter/exclude_filesystem_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_filesystem_inodes_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_system_disk:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
-
-  filter/exclude_network:
-    metrics:
-      datapoint:
-        - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
-
-  attributes/exclude_system_paging:
-    include:
-      match_type: strict
-      metric_names:
-        - system.paging.operations
-    actions:
-      - key: type
-        action: delete
-
-  cumulativetodelta:
-
-  transform/host:
-    metric_statements:
-      - context: metric
-        statements:
-          - set(metric.description, "")
-          - set(metric.unit, "")
-
-  batch:
-
-  batch/logs:
-    send_batch_size: 15          # flush target: ~15 records per request
-    send_batch_max_size: 15      # HARD cap: never emit more than 15 records/request
-    timeout: 5s
-
-  resource_detection:
-    detectors: ["system"]
-    system:
-      hostname_sources: ["os"]
-      resource_attributes:
-        host.id:
-          enabled: true
-
-  resource_detection/cloud:
-    detectors: ["gcp", "ec2", "azure"]
-    timeout: 2s
-    override: true
-
-  resource_detection/env:
-    detectors: ["env"]
-    timeout: 2s
-    override: true
-
-exporters:
-  otlphttp:
-    endpoint: <YOUR_OTLP_ENDPOINT>
-    headers:
-      api-key: <YOUR_LICENSE_KEY>
-    tls:
-      insecure: false
-    compression: gzip
-
-service:
-  telemetry:
-    metrics:
-      level: none
-
-  extensions: [health_check]
-
-  pipelines:
-    metrics/host:
-      receivers: [host_metrics, nrsqlserver]
-      processors:
-        - metrics_transform
-        - filter/exclude_cpu_utilization
-        - filter/exclude_memory_utilization
-        - filter/exclude_memory_usage
-        - filter/exclude_filesystem_utilization
-        - filter/exclude_filesystem_usage
-        - filter/exclude_filesystem_inodes_usage
-        - filter/exclude_system_disk
-        - filter/exclude_network
-        - attributes/exclude_system_paging
-        - transform/host
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - cumulativetodelta
-        - batch
-      exporters: [otlphttp]
-
-    logs/host:
-      receivers: [nrsqlserver]
-      processors:
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - batch/logs
-      exporters: [otlphttp]
-
-    traces:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp]
-
-    metrics:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp]
-
-    logs:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlphttp]
-
-```
-
-  </Collapser>
-</CollapserGroup>
-
-
-
-#### Configuration parameters
-
-The following table describes the key configuration parameters for the `nrsqlserver` receiver:
-
-| Parameter | Description |
-|-----------|-------------|
-| `<YOUR_HOSTNAME>` | Enter your SQL Server hostname or IP address |
-| `<YOUR_PORT>` | Enter your SQL Server port number. The default value is 1433. |
-| `<YOUR_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, refer to [New Relic OTLP endpoints documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
-| `<YOUR_LICENSE_KEY>` | Enter your New Relic license key. |
-| `collection_interval` | Interval in seconds to collect database metrics. Default: 15s |
 
 <Callout variant="tip">
-**Note:** If you enable all available metrics, increase the `limit_mib` value (e.g., 1000) to prevent the memory limiter from dropping data.
-</Callout>
-
-<Callout variant="tip">
-**Note:** The `max_concurrent_queries` option controls how many metric queries the receiver executes in parallel against SQL Server during each scrape cycle.
-
-```yaml
-receivers:
-  nrsqlserver:
-    max_concurrent_queries: 4  # default is 4 if omitted or set to 0
-```
+  To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/database-service-identification/) to get APM-database correlation in New Relic.
 </Callout>
 
 </Step>
 
 <Step>
 
-### Update Windows Service Registry [#update-registry-gmsa]
+## Update Windows Service Registry [#update-registry-gmsa]
 
-Update the Windows Service Registry to use the new mssql-config.yaml file.
+1. Update the Windows Service Registry to use the new `mssql-config.yaml` file using one of the following methods:
 
-**Method 1: PowerShell**
+    * **For PowerShell:** Run the following command as Administrator:
 
-Run the following command in PowerShell as Administrator:
+      ```bash
+      Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+      ```
 
-```powershell
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
-```
+    *  **For Command Prompt:** If PowerShell isn't available, use Command Prompt instead and run the following command as Administrator:
 
-**Method 2: Command Prompt (Alternative)**
+      ```bash
+      sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+      ```
 
-If PowerShell is not available, you can use Command Prompt instead:
+2. Validate the NRDOT collector configuration to ensure it's correctly formatted and will work properly:
 
-1. Open your Start Menu, type `cmd`
-2. Right-click Command Prompt and choose **Run as administrator**
-3. Copy and paste this exact command into the black CMD window and hit Enter:
-
-```cmd
-sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
-```
-
-</Step>
-
-<Step>
-
-### Validate NRDOT Collector Configuration [#validate-config-gmsa]
-
-Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly.
-
-```powershell
-& "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
-```
+    ```powershell
+    & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+    ```
 
 </Step>
 
 
 <Step>
 
-### Restart NRDOT collector [#restart-gmsa]
+## Restart NRDOT collector [#restart-gmsa]
 
 After updating your configuration, restart the NRDOT Collector service:
 
@@ -2397,29 +1115,10 @@ net start nrdot-collector
 
 </Step>
 
-<Step>
-
-### (Optional) Set up APM-database correlation [#correlation-gmsa]
-
-To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/database-service-identification/) to get APM-database correlation in New Relic.
-
-<Callout variant="important">
-  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
-</Callout>
-
-</Step>
 
 <Step>
 
-### (Optional) Configure secret management [#secret-management-gmsa]
-
-The secret management feature allows you to securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files. For more information, refer to [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management).
-
-</Step>
-
-<Step>
-
-### Find and use your data [#find-gmsa]
+## Find and use your data [#find-gmsa]
 
 Once your data is being collected, you can access comprehensive SQL Server database monitoring through New Relic's UI.
 
@@ -2441,10 +1140,11 @@ To find your SQL Server database entity in New Relic:
 </Tabs>
 
 
-## Next steps
 
-After setting up Windows self-hosted monitoring:
+## Related documentation [#related-docs]
 
-- [Set up APM-database correlation](/docs/opentelemetry/database/database-service-identification/)
-- [Explore available metrics](/docs/opentelemetry/database/mssql/metrics-reference)
-- [Troubleshoot issues](/docs/opentelemetry/database/mssql/troubleshooting)
+<DocTiles>
+  <DocTile title="Set up APM-database correlation" path="/docs/opentelemetry/database/database-service-identification">Learn how to correlate your application performance with database operations in New Relic.</DocTile>
+  <DocTile title="Troubleshooting" path="/docs/opentelemetry/database/mssql/windows-hosted">Learn how to troubleshoot your MSSQL Windows monitoring setup in New Relic.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/database/mssql/metrics-reference">Learn about the available metrics collected by the New Relic collector.</DocTile>
+</DocTiles>
