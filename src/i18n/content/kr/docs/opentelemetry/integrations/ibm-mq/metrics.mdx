@@ -1,0 +1,205 @@
+---
+title: IBM MQ OpenTelemetry 메트릭 및 속성 참조
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Metrics
+metaDescription: 'Reference of IBM MQ metrics collected via OpenTelemetry — queue manager, queue, and channel metrics — with resource attributes for host and Kubernetes deployments.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+이 참조는 OpenTelemetry를 통해 수집된 IBM MQ 메트릭 및 속성을 다룹니다: [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) 익스포터가 게시하고 수집기가 뉴렐릭으로 전달하는 메트릭입니다. 이는 [Linux 호스트](/docs/opentelemetry/integrations/ibm-mq/host) 및 [Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes) 배포 모두에 적용되며, 메트릭 형태는 동일합니다.
+
+## 메트릭 수집 [#collection]
+
+모든 메트릭은 익스포터가 내보내는 원시 Prometheus 형태를 유지합니다: **밑줄 이름** (`ibmmq_*`)과 원시 **`qmgr`**, **`queue`** 및 **`channel`** 레이블, 그리고 수집기가 첨부하는 `target.name` ID 속성 및 선택적 `cluster.name` 태그. 뉴렐릭의 IBM MQ 엔티티 합성은 이 형태에 의존하므로, 수집기는 이름과 레이블을 변경하지 않고 전달합니다.
+
+<Callout variant="important">
+  **각 큐 관리자에서 MQI 통계를 활성화하지 않으면 처리량 및 타이밍 메트릭이 비어 있게 됩니다.** 큐 관리자 상태, 큐 깊이 및 채널 상태는 기본적으로 보고되지만, MQI 활동 메트릭([큐 처리량](#metrics-queue-throughput) 및 [큐 관리자 MQI 활동](#metrics-qmgr-mqi) 테이블 ― `ibmmq_queue_mqput_count`, `ibmmq_queue_average_queue_time_seconds` 등)은 통계 수집이 **켜져** 있어야 하며, 이는 **기본적으로 꺼져 있습니다**. MQSC를 사용하여 큐 관리자당 한 번씩 활성화합니다 ― 예를 들어 `ALTER QMGR STATMQI(ON) STATQ(ON)`, 그런 다음 큐별 통계를 원하는 큐에 대해 `ALTER QLOCAL(...) STATQ(ON)` 을(를) 활성화합니다(또는 큐 관리자 `STATQ` 기본값에 의존). 이것이 없으면 익스포터는 정상이고 엔티티가 나타나지만 해당 패널은 비어 있게 렌더링됩니다. 각 메트릭이 의존하는 정확한 통계는 [mq-metric-samples 문서](https://github.com/ibm-messaging/mq-metric-samples) 를 참조하십시오.
+</Callout>
+
+<Callout variant="tip">
+  상태 메트릭은 `1`/`0` 이(가) 아닌 숫자 **enum** 값을 보고합니다 ― 알림을 설정하기 전에 아래의 [상태 코드 참조](#status-codes) 를 확인하세요. 카운터는 수집기에서 델타 시간성으로 변환되므로, 차트를 작성할 때 `latest()` 대신 기간에 걸쳐 `sum()` / `rate()` 을(를) 사용하세요.
+</Callout>
+
+아래 표는 OpenTelemetry 메트릭을 영역별로 그룹화합니다. 계정에서 실제로 보고되는 모든 메트릭을 나열하려면 다음을 실행하세요:
+
+```sql
+FROM Metric SELECT uniques(metricName, 2000) WHERE metricName LIKE 'ibmmq_%' SINCE 1 day ago
+```
+
+## 메트릭 [#metrics]
+
+### 큐 관리자 상태 및 현황 [#metrics-qmgr-status]
+
+| 미터법                                                 | 설명                                                       |
+| --------------------------------------------------- | -------------------------------------------------------- |
+| `ibmmq_qmgr_status`                                 | 큐 관리자 실행 상태(`2` =running).                               |
+| `ibmmq_qmgr_command_server_status`                  | 명령 서버 실행 상태(`2` =실행 중).                                  |
+| `ibmmq_qmgr_channel_initiator_status`               | 채널 이니시에이터(MQ 채널을 시작하고 관리하는 큐 관리자 프로세스) 실행 상태(`2` =실행 중). |
+| `ibmmq_qmgr_connection_count`                       | 큐 관리자의 현재 연결 수.                                          |
+| `ibmmq_qmgr_uptime`                                 | 초 단위의 큐 관리자 업타임입니다.                                      |
+| `ibmmq_qmgr_active_listeners`                       | 활성 수신기 수입니다.                                             |
+| `ibmmq_qmgr_active_services`                        | 활성화된 서비스의 수입니다.                                          |
+| `ibmmq_qmgr_concurrent_connections_high_water_mark` | 최대 동시 연결 수.                                              |
+
+### 큐 관리자 리소스(CPU, 메모리, 로그, 파일 시스템) [#metrics-qmgr-resources]
+
+| 미터법                                                          | 설명                                                                                       |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `ibmmq_qmgr_cpu_load_one_minute_average_percentage`          | 큐 관리자의 1분 CPU 로드 평균입니다(또한 `_five_` 및 `_fifteen_minute_`).                                |
+| `ibmmq_qmgr_user_cpu_time_percentage`                        | 큐 관리자가 소비한 사용자 공간 CPU 시간입니다.                                                             |
+| `ibmmq_qmgr_system_cpu_time_percentage`                      | 큐 관리자가 소비한 시스템(커널) CPU 시간입니다.                                                            |
+| `ibmmq_qmgr_ram_total_bytes`                                 | 호스트의 총 RAM입니다.                                                                           |
+| `ibmmq_qmgr_ram_free_percentage`                             | 사용 가능한 호스트 RAM 백분율.                                                                      |
+| `ibmmq_qmgr_ram_total_estimate_for_queue_manager_bytes`      | 이 큐 관리자가 사용 중인 예상 RAM입니다.                                                                |
+| `ibmmq_qmgr_log_in_use_bytes`                                | 현재 사용 중인 복구 로그 공간입니다.                                                                    |
+| `ibmmq_qmgr_log_max_bytes`                                   | 최대 복구 로그 크기입니다.                                                                          |
+| `ibmmq_qmgr_log_current_primary_space_in_use_percentage`     | 기본 로그 공간 사용률.                                                                            |
+| `ibmmq_qmgr_log_file_system_free_space_bytes`                | 로그 파일 시스템의 여유 공간.                                                                        |
+| `ibmmq_qmgr_log_write_latency_seconds`                       | 복구 로그 쓰기 지연시간.                                                                           |
+| `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`          | 사용 중인 큐 관리자 파일 시스템 공간.                                                                   |
+| `ibmmq_qmgr_queue_manager_file_system_free_space_percentage` | 큐 관리자 파일 시스템의 여유 공간.                                                                     |
+| `ibmmq_qmgr_mq_fdc_file_count`                               | IBM MQ 진단 덤프 파일 수(FFST/FDC ― 큐 관리자가 내부 오류를 로그에 기록할 때 작성됨). 카운트 증가는 조사할 가치가 있는 문제를 나타냅니다. |
+
+### 대기열 깊이, 경과 시간 및 핸들 [#metrics-queue-state]
+
+| 미터법                                | 설명                                 |
+| ---------------------------------- | ---------------------------------- |
+| `ibmmq_queue_depth`                | 큐의 현재 메시지 수.                       |
+| `ibmmq_queue_attribute_max_depth`  | 구성된 최대 대기열 깊이.                     |
+| `ibmmq_queue_oldest_message_age`   | 큐에 있는 가장 오래된 메시지의 경과 시간(초).        |
+| `ibmmq_queue_uncommitted_messages` | 커밋되지 않은 메시지 수.                     |
+| `ibmmq_queue_time_since_put`       | 큐에 대한 마지막 `MQPUT` 이후 경과된 시간(초)입니다. |
+| `ibmmq_queue_time_since_get`       | 대기열에서 마지막 `MQGET` 이후 경과 시간(초)입니다.  |
+| `ibmmq_queue_input_handles`        | 큐의 열린 입력 핸들(소비자).                  |
+| `ibmmq_queue_output_handles`       | 대기열에 열려 있는 출력 핸들(생산자)입니다.          |
+| `ibmmq_queue_browse_handles`       | 큐에서 찾아보기 핸들을 엽니다.                  |
+| `ibmmq_queue_publish_handles`      | 큐의 열린 게시 핸들.                       |
+| `ibmmq_queue_qfile_current_size`   | 디스크의 현재 큐 파일 크기.                   |
+| `ibmmq_queue_qfile_max_size`       | 디스크의 최대 큐 파일 크기입니다.                |
+
+### 대기열 처리량 및 타이밍(MQI) [#metrics-queue-throughput]
+
+이 카운터는 큐당 IBM MQ의 핵심 메시지 API 호출을 추적합니다: **`MQPUT`** / **`MQPUT1`** (큐에 메시지 넣기) 및 **`MQGET`** (큐에서 메시지 가져오기). 큐 관리자에서 MQI 통계를 활성화해야 합니다([메트릭 수집](#collection) 참조).
+
+| 미터법                                                                                             | 설명                                |
+| ----------------------------------------------------------------------------------------------- | --------------------------------- |
+| `ibmmq_queue_mqput_count`                                                                       | `MQPUT`큐에 대한 /`MQPUT1` 작업.        |
+| `ibmmq_queue_mqget_count`                                                                       | `MQGET` 대기열에 대한 작업.               |
+| `ibmmq_queue_mqput_bytes` / `ibmmq_queue_mqget_bytes`                                           | 대기열에 넣은/대기열에서 가져온 바이트입니다.         |
+| `ibmmq_queue_mqput_non_persistent_message_count` / `ibmmq_queue_mqput_persistent_message_count` | 비영구/영구 메시지 넣기.                    |
+| `ibmmq_queue_average_queue_time_seconds`                                                        | 메시지가 대기열에서 보낸 평균 시간입니다.           |
+| `ibmmq_queue_qtime_short` / `ibmmq_queue_qtime_long`                                            | 짧은/긴 간격 큐 시간 샘플입니다.               |
+| `ibmmq_queue_avoided_puts_percentage`                                                           | 대기 중인 getter로 바로 전달된 put의 백분율입니다. |
+| `ibmmq_queue_expired_messages`                                                                  | 대기열에서 만료된 메시지입니다.                 |
+| `ibmmq_queue_rolled_back_mqget_count` / `ibmmq_queue_rolled_back_mqput_count`                   | 롤백된 get/put.                      |
+
+### 채널 메트릭 [#metrics-channel]
+
+| 미터법                                                                      | 설명                                                                                               |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `ibmmq_channel_status`                                                   | 채널 실행 상태(`3` =실행 중).                                                                             |
+| `ibmmq_channel_status_squash`                                            | 더 적은 열거형 값을 가진 단순화된 채널 상태(정보 제공용, 알림의 경우 `ibmmq_channel_status` 및 [상태 코드 참조](#status-codes) 사용). |
+| `ibmmq_channel_messages`                                                 | 채널을 통해 전송된 메시지.                                                                                  |
+| `ibmmq_channel_bytes_sent` / `ibmmq_channel_bytes_rcvd`                  | 전송/수신된 바이트.                                                                                      |
+| `ibmmq_channel_buffers_sent` / `ibmmq_channel_buffers_rcvd`              | 송신/수신된 전송 버퍼.                                                                                    |
+| `ibmmq_channel_cur_inst`                                                 | 현재 실행 중인 채널 인스턴스 수입니다.                                                                           |
+| `ibmmq_channel_attribute_max_inst` / `ibmmq_channel_attribute_max_instc` | 전체/클라이언트당 최대 인스턴스입니다.                                                                            |
+| `ibmmq_channel_time_since_msg`                                           | 채널의 마지막 메시지 이후 경과 시간(초)입니다.                                                                      |
+| `ibmmq_channel_type` / `ibmmq_channel_instance_type`                     | 채널 유형/인스턴스 유형.                                                                                   |
+| `ibmmq_channel_substate`                                                 | 채널 하위 상태.                                                                                        |
+
+### 큐 관리자 MQI 활동 및 오류 [#metrics-qmgr-mqi]
+
+이러한 큐 관리자 전체 카운터는 모든 객체에 걸친 API 활동 및 실패를 요약합니다 ― 애플리케이션 오류 및 트랜잭션 이탈을 발견하는 데 유용합니다. MQI 통계를 활성화해야 합니다([메트릭 수집](#collection) 참조).
+
+| 미터법                                                                | 설명                               |
+| ------------------------------------------------------------------ | -------------------------------- |
+| `ibmmq_qmgr_interval_mqput_mqput1_total_count`                     | 간격 내 총 `MQPUT` + `MQPUT1` 호출입니다. |
+| `ibmmq_qmgr_interval_destructive_get_total_count`                  | 간격 내 총 파괴적 `MQGET` 호출.           |
+| `ibmmq_qmgr_published_to_subscribers_message_count`                | 구독자에게 발행된 메시지(발행/구독 처리량).        |
+| `ibmmq_qmgr_mqopen_count` / `ibmmq_qmgr_mqclose_count`             | 총 `MQOPEN` / `MQCLOSE` 호출입니다.    |
+| `ibmmq_qmgr_mqconn_mqconnx_count` / `ibmmq_qmgr_mqdisc_count`      | 연결/연결 해제 호출.                     |
+| `ibmmq_qmgr_commit_count` / `ibmmq_qmgr_rollback_count`            | 트랜잭션 커밋/롤백.                      |
+| `ibmmq_qmgr_failed_mqput_count` / `ibmmq_qmgr_failed_mqput1_count` | 실패한 `MQPUT` / `MQPUT1` 호출.       |
+| `ibmmq_qmgr_failed_mqget_count` / `ibmmq_qmgr_failed_mqopen_count` | 실패한 get/open 호출.                 |
+| `ibmmq_qmgr_failed_mqconn_mqconnx_count`                           | 실패한 연결 호출입니다.                    |
+| `ibmmq_qmgr_expired_message_count`                                 | 큐 관리자 전체에서 만료된 메시지입니다.           |
+| `ibmmq_qmgr_purged_queue_count`                                    | 비워진 대기열입니다.                      |
+
+### MQ 상태 코드 참조 [#status-codes]
+
+IBM MQ 상태 메트릭은 `1`/`0` 이(가) **아닌** 숫자 열거형 값을 보고하며 ― 정상(&quot;실행 중&quot;) 값은 메트릭에 따라 다릅니다(큐 관리자 수준 상태의 경우 `2`, 채널 상태의 경우 `3`). 실행 중인 값과 *같지 않음* 에 대한 공지(예: `ibmmq_qmgr_status != 2`):
+
+| 미터법                                   | 정상 값 | 의미               |
+| ------------------------------------- | ---- | ---------------- |
+| `ibmmq_qmgr_status`                   | `2`  | 대기열 관리자가 실행 중입니다 |
+| `ibmmq_qmgr_command_server_status`    | `2`  | 명령 서버가 실행 중입니다   |
+| `ibmmq_qmgr_channel_initiator_status` | `2`  | 채널 시작기가 실행 중입니다  |
+| `ibmmq_channel_status`                | `3`  | 채널이 실행 중입니다      |
+
+다른 값(또는 누락된 데이터 포인트)은 구성 요소가 실행 상태가 아님을 의미합니다.
+
+## 리소스 속성 [#resource-attributes]
+
+수집기는 모든 IBM MQ 메트릭에 ID 및 컨텍스트 속성을 추가합니다. 일부는 모든 배포에 공통적으로 적용되며, 다른 일부는 수집기가 Linux 호스트에서 실행되는지 아니면 Kubernetes에서 실행되는지에 따라 다릅니다.
+
+### 공통 속성 [#common-attributes]
+
+| 기인하다                       | 설명                                                                                                              | 예시                              |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `target.name`              | 안정적인 ID 속성 ― 모든 IBM MQ 엔티티 GUID의 첫 번째 세그먼트입니다. `targetName` 스크랩 레이블로 주입된 다음 수집기에서 `target.name` (으)로 이름이 변경됩니다. | `prod-mq-01`, `prod-mq-cluster` |
+| `qmgr`                     | 큐 관리자 이름(원시 익스포터 레이블, 엔티티 합성이 이를 키로 사용함).                                                                       | `QM1`                           |
+| `queue`                    | 큐 이름(큐 범위 메트릭).                                                                                                 | `APP.ORDERS.IN`                 |
+| `channel`                  | 채널 이름(채널 범위 메트릭의 경우).                                                                                           | `APP.SVRCONN`                   |
+| `cluster.name`             | 동일한 MQ 클러스터 내 큐 관리자를 위한 선택적 그룹화 태그입니다. 엔티티 GUID의 일부가 아니며, 설정하지 않은 상태로 두거나 나중에 변경해도 안전합니다.                       | `prod-mq`                       |
+| `instrumentation.provider` | 이 통합의 경우 항상 `opentelemetry` 이며, OpenTelemetry 경로로 쿼리 범위를 지정하는 데 사용합니다.                                          | `opentelemetry`                 |
+
+### 호스트 구현, 배포 속성 [#on-host-attributes]
+
+| 기인하다      | 설명                                                                                                      | 예시                    |
+| --------- | ------------------------------------------------------------------------------------------------------- | --------------------- |
+| `host.id` | 수집기를 실행하는 호스트의 식별자이며, `resourcedetection` 프로세서(`system` / `ec2` 탐지기)에서 가져옵니다. 큐 관리자를 기본 호스트 엔티티에 연결합니다. | `i-1234567890abcdef0` |
+
+### Kubernetes 구현, 배포 속성 [#kubernetes-attributes]
+
+| 기인하다            | 설명                                                  | 예시             |
+| --------------- | --------------------------------------------------- | -------------- |
+| `k8s_namespace` | 수집기의 레이블 재지정 규칙에 의해 스탬프 처리된 검색된 익스포터 파드의 네임스페이스입니다. | `ibmmq`        |
+| `k8s_pod`       | 검색된 익스포터 파드의 이름입니다.                                 | `qm1-0`        |
+| `host.id`       | `resourcedetection`에서 파드를 실행하는 노드의 식별자입니다.          | `ip-10-0-1-23` |
+
+## 컬렉션 상세 정보 [#collection-details]
+
+### 수집 빈도
+
+* **기본 간격**: 60초(수집기의 `scrape_interval`). mq-metric-samples 익스포터 자체의 `pollInterval`보다 크거나 같아야 합니다.
+* **구성 가능**: `IBMMQ_SCRAPE_INTERVAL` (Linux) 또는 Helm `values.yaml` (Kubernetes)에서 `scrape_interval` 을(를) 조정합니다.
+
+### 데이터 소스
+
+모든 메트릭은 PCF를 통해 각 큐 관리자를 폴링하고 HTTP `/metrics` 엔드포인트에서 Prometheus 메트릭으로 통계를 다시 게시하는 [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) 익스포터에서 시작됩니다. 수집기의 `prometheus` 수신기가 해당 엔드포인트를 스크랩합니다.
+
+### 측정항목 유형
+
+* **게이지** — `ibmmq_qmgr_status`, `ibmmq_queue_depth` 및 `ibmmq_channel_status`와 같은 특정 시점의 값입니다. `latest()`이(가) 포함된 차트입니다.
+* **카운터** ― `ibmmq_queue_mqput_count` 등과 같은 누적 합계입니다. 수집기의 `cumulativetodelta` 프로세서가 이를 델타 시간성으로 변환하므로 `latest()` 대신 `sum()` 또는 `rate()` 을(를) 사용하여 차트를 작성하세요.
+
+## 관련 문서 [#related-docs]
+
+<DocTiles>
+  <DocTile title="IBM MQ용 자체 호스팅 계측" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    뉴렐릭에서 자체 호스팅 모니터링을 위해 IBM MQ를 설정하는 방법을 알아보세요.
+  </DocTile>
+
+  <DocTile title="IBM MQ용 Kubernetes 계측" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    뉴렐릭에서 Kubernetes 모니터링을 위한 IBM MQ를 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="데이터 보기 및 쿼리" path="/docs/opentelemetry/integrations/ibm-mq/view-data">
+    뉴렐릭에서 IBM MQ 데이터를 보고 쿼리하는 방법을 알아보세요.
+  </DocTile>
+</DocTiles>
