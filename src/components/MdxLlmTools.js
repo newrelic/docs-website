@@ -24,7 +24,6 @@ const MdxLlmTools = ({ pathname }) => {
   return (
     <div
       css={css`
-        grid-area: page-title;
         display: flex;
         align-items: center;
         gap: 0.75rem;

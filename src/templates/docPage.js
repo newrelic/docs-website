@@ -143,8 +143,14 @@ const BasicDoc = ({ data, location, pageContext }) => {
             )}
           />
         )}
-        <PageTitle>{title}</PageTitle>
-        <MdxLlmTools pathname={location.pathname} />
+        <div
+          css={css`
+            grid-area: page-title;
+          `}
+        >
+          <PageTitle>{title}</PageTitle>
+          <MdxLlmTools pathname={location.pathname} />
+        </div>
 
         <LoggedInProvider>
           <Layout.Content>
