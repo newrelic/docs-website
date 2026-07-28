@@ -1,0 +1,964 @@
+---
+title: Migrate from REST API v2 to NerdGraph
+tags:
+  - APIs
+  - REST API v2
+  - NerdGraph
+  - Migration
+metaDescription: 'A guide to migrating from the New Relic REST API v2 to NerdGraph, with endpoint-by-endpoint examples for applications, metrics, deployments, and more.'
+freshnessValidatedDate: never
+---
+
+This guide helps you migrate from the New Relic REST API v2 to the [NerdGraph GraphQL API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/). NerdGraph is New Relic's recommended API, offering a single unified endpoint, precise data fetching, and strong typing.
+
+<Callout variant="important">
+  The New Relic REST API v2 (including Alerts endpoints) and the Deployments v0 API will [reach end of life on July 31, 2027](/eol/2026/07/eol-31-07-26-rest-api-v2). After this date, these endpoints will no longer be available. Migrate your integrations to NerdGraph before that date.
+</Callout>
+
+<Callout variant="tip">
+  The queries in this guide are a starting point — not drop-in replacements for REST v2 endpoints. With any base query, you can omit fields you don't need or add fields that may not have been available in the original REST call. In some cases, such as collections of "outline" objects vs. detail fields, exact field matching is not possible directly.
+</Callout>
+
+## Before you begin
+
+#### Get a User API key
+
+You can reuse the User API key you already use for making REST calls, but note that the REST v2 API made assumptions based on the account used to create the User API key. NerdGraph does not make similar assumptions.
+
+#### NerdGraph endpoints
+
+* `https://api.newrelic.com/graphql`
+* `https://api.eu.newrelic.com/graphql`
+
+#### Explore interactively
+
+Use the [NerdGraph API Explorer](https://api.newrelic.com/graphiql) to build and test queries with inline documentation and autocompletion.
+
+#### Entity GUIDs
+
+NerdGraph typically uses entity GUIDs (globally unique identifiers) instead of numeric application IDs. You can look up an entity GUID from a REST API application ID using an entity search query (see [Applications](#applications)). Change tracking can still be done with only an `appId`.
+
+## Authentication
+
+**REST API v2:**
+
+```bash
+curl -X GET 'https://api.newrelic.com/v2/applications.json' \
+  -H "Api-Key: $USER_API_KEY"
+```
+
+**NerdGraph:**
+
+```bash
+curl -X POST 'https://api.newrelic.com/graphql' \
+  -H 'Content-Type: application/json' \
+  -H "Api-Key: $USER_API_KEY" \
+  -d '{"query": "{ actor { user { email } } }"}'
+```
+
+For more information, see [Introduction to NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/).
+
+## Key differences
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>REST API v2</th>
+      <th>NerdGraph (GraphQL)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Protocol</td>
+      <td>Multiple REST endpoints</td>
+      <td>Single GraphQL endpoint</td>
+    </tr>
+    <tr>
+      <td>Authentication</td>
+      <td>User API key (`Api-Key` or `X-Api-Key` header)</td>
+      <td>User API key (`Api-Key` header), System Identities</td>
+    </tr>
+    <tr>
+      <td>Data fetching</td>
+      <td>Fixed response shapes</td>
+      <td>Response shape determined by the given query</td>
+    </tr>
+    <tr>
+      <td>Identifiers</td>
+      <td>Numeric IDs (e.g., application ID)</td>
+      <td>Integers for accounts, Entity GUIDs for applications, etc.</td>
+    </tr>
+    <tr>
+      <td>Lists vs. detail</td>
+      <td>Full objects returned in list endpoints</td>
+      <td>Many collection fields only include an "Outline" object. You may need to query a single item to get more details.</td>
+    </tr>
+    <tr>
+      <td>Pagination</td>
+      <td>Page-based (`?page=N`)</td>
+      <td>Cursor-based pagination</td>
+    </tr>
+    <tr>
+      <td>Metric data</td>
+      <td>Dedicated metric endpoints</td>
+      <td>NRQL queries via `actor.nrql` or `actor.account.nrql`</td>
+    </tr>
+    <tr>
+      <td>Rate limits</td>
+      <td>Per-key limits</td>
+      <td>Concurrency and throughput limits</td>
+    </tr>
+  </tbody>
+</table>
+
+## Applications [#applications]
+
+### List applications
+
+**REST API v2:** `GET /v2/applications.json`
+
+**NerdGraph:** Use `entitySearch` to find APM applications. Add `accountId = YOUR_ACCOUNT_ID` to scope results to a specific account. You are not required to provide an `accountId`, and you can search for a specific application by adding `AND domainId = <ID of app>`.
+
+```graphql
+{
+  actor {
+    entitySearch(query: "domain = 'APM' AND type = 'APPLICATION' AND accountId = YOUR_ACCOUNT_ID") {
+      results {
+        entities {
+          guid
+          name
+          reporting
+          alertSeverity
+          ... on ApmApplicationEntityOutline {
+            applicationId
+            language
+            apmSummary {
+              responseTimeAverage
+              throughput
+              errorRate
+              apdexScore
+            }
+          }
+        }
+        nextCursor
+      }
+    }
+  }
+}
+```
+
+To filter by name (equivalent to `filter[name]`):
+
+```graphql
+{
+  actor {
+    entitySearch(query: "domain = 'APM' AND type = 'APPLICATION' AND accountId = YOUR_ACCOUNT_ID AND name LIKE 'MyApp'") {
+      results {
+        entities {
+          guid
+          name
+        }
+      }
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  The REST API `GET /v2/applications.json` may return applications that no longer report data or have been deleted. NerdGraph `entitySearch` only returns entities that are indexed in the entity platform. If you see fewer results from NerdGraph, non-reporting or long-inactive applications are the likely cause.
+</Callout>
+
+### Show application
+
+**REST API v2:** `GET /v2/applications/{id}.json`
+
+**NerdGraph:** Fetch by entity GUID:
+
+```graphql
+{
+  actor {
+    entity(guid: "YOUR_ENTITY_GUID") {
+      name
+      alertSeverity
+      reporting
+      ... on ApmApplicationEntity {
+        applicationId
+        language
+        apmSummary {
+          responseTimeAverage
+          throughput
+          errorRate
+          apdexScore
+          hostCount
+          instanceCount
+        }
+        settings {
+          apdexTarget
+          serverSideConfig
+        }
+      }
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  To find the entity GUID from a REST API application ID:
+
+  ```graphql
+  {
+    actor {
+      entitySearch(query: "domainId = 'APP_ID' AND domain = 'APM'") {
+        results {
+          entities {
+            guid
+            name
+          }
+        }
+      }
+    }
+  }
+  ```
+</Callout>
+
+### Update application settings
+
+**REST API v2:** `PUT /v2/applications/{id}.json`
+
+**NerdGraph:**
+
+```graphql
+mutation {
+  agentApplicationSettingsUpdate(
+    guid: "YOUR_ENTITY_GUID"
+    settings: {
+      alias: "My App Display Name"
+      apmConfig: {
+        apdexTarget: 0.5
+        useServerSideConfig: true
+      }
+    }
+  ) {
+    alias
+    guid
+    apmSettings {
+      apdexTarget
+      useServerSideConfig
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  There are many more settings available. See the inline docs in the NerdGraph API Explorer for a full list.
+</Callout>
+
+### Delete application
+
+**REST API v2:** `DELETE /v2/applications/{id}.json`
+
+**NerdGraph:**
+
+```graphql
+mutation {
+  agentApplicationDelete(guid: "YOUR_ENTITY_GUID") {
+    success
+  }
+}
+```
+
+For more information, see [NerdGraph entities tutorial](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial/) and [APM settings tutorial](/docs/apis/nerdgraph/examples/apm-config-nerdgraph/).
+
+## Application metric data
+
+### List metric names
+
+**REST API v2:** `GET /v2/applications/{app_id}/metrics.json`
+
+**NerdGraph:** Use a NRQL query to list available metric names:
+
+```graphql
+{
+  actor {
+    nrql(
+      accounts: [YOUR_ACCOUNT_ID]
+      query: "SELECT uniques(metricTimesliceName) FROM Metric WHERE appId = YOUR_APP_ID AND newrelic.timeslice.value IS NOT NULL SINCE 30 MINUTES AGO LIMIT MAX"
+    ) {
+      results
+    }
+  }
+}
+```
+
+Or filter by application name:
+
+```graphql
+{
+  actor {
+    nrql(
+      accounts: [YOUR_ACCOUNT_ID]
+      query: "SELECT uniques(metricTimesliceName) FROM Metric WHERE appName = 'YourAppName' AND newrelic.timeslice.value IS NOT NULL SINCE 30 MINUTES AGO LIMIT MAX"
+    ) {
+      results
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  The REST API returns all historically known metric names regardless of time window, along with the available value types for each metric (for example, `average_response_time`, `call_count`, `calls_per_minute`). The NRQL query only returns metrics that have reported data within the `SINCE` window — extend it (for example, `SINCE 1 WEEK AGO`) to discover more metric names. NerdGraph does not have an equivalent for listing per-metric value types. Instead, use the summary mapping table below (or follow the link to more mappings) to translate REST API value names to NRQL functions — all timeslice metrics support the same set of aggregation functions.
+</Callout>
+
+### Get metric data
+
+**REST API v2:** `GET /v2/applications/{app_id}/metrics/data.json?names[]=HttpDispatcher&values[]=average_call_time&values[]=call_count`
+
+**NerdGraph:** Use NRQL queries with the appropriate aggregation functions. Add `TIMESERIES` to get per-interval data points (equivalent to the REST API's timeslice array):
+
+```graphql
+{
+  actor {
+    nrql(
+      accounts: [YOUR_ACCOUNT_ID]
+      query: "SELECT count(newrelic.timeslice.value) AS call_count, average(newrelic.timeslice.value) * 1000 AS average_call_time FROM Metric WHERE appId = YOUR_APP_ID AND metricTimesliceName = 'HttpDispatcher' SINCE 30 MINUTES AGO TIMESERIES"
+    ) {
+      results
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  Without `TIMESERIES`, NRQL returns a single aggregated value for the entire time range. The REST API returns per-minute timeslices by default. Add `TIMESERIES 1 minute` to match the REST API's default granularity.
+</Callout>
+
+### REST API metric value to NRQL function mapping
+
+<table>
+  <thead>
+    <tr>
+      <th>REST API value</th>
+      <th>NRQL function</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`average_response_time`</td>
+      <td>`average(newrelic.timeslice.value) * 1000`</td>
+    </tr>
+    <tr>
+      <td>`calls_per_minute`</td>
+      <td>`rate(count(newrelic.timeslice.value), 1 minute)`</td>
+    </tr>
+    <tr>
+      <td>`call_count`</td>
+      <td>`count(newrelic.timeslice.value)`</td>
+    </tr>
+    <tr>
+      <td>`min_response_time`</td>
+      <td>`min(newrelic.timeslice.value) * 1000`</td>
+    </tr>
+    <tr>
+      <td>`max_response_time`</td>
+      <td>`max(newrelic.timeslice.value) * 1000`</td>
+    </tr>
+    <tr>
+      <td>`average_exclusive_time`</td>
+      <td>`average(newrelic.timeslice.value['totalExclusive'] / newrelic.timeslice.value['count']) * 1000`</td>
+    </tr>
+    <tr>
+      <td>`average_value`</td>
+      <td>`average(newrelic.timeslice.value)`</td>
+    </tr>
+    <tr>
+      <td>`total_call_time_per_minute`</td>
+      <td>`rate(sum(newrelic.timeslice.value), 1 minute)`</td>
+    </tr>
+    <tr>
+      <td>`requests_per_minute`</td>
+      <td>`rate(count(newrelic.timeslice.value), 1 minute)`</td>
+    </tr>
+    <tr>
+      <td>`standard_deviation`</td>
+      <td>`stddev(newrelic.timeslice.value) * 1000`</td>
+    </tr>
+    <tr>
+      <td>`error_count`</td>
+      <td>`count(newrelic.timeslice.value)`</td>
+    </tr>
+    <tr>
+      <td>`errors_per_minute`</td>
+      <td>`rate(count(newrelic.timeslice.value), 1 minute)`</td>
+    </tr>
+    <tr>
+      <td>`throughput`</td>
+      <td>`rate(count(newrelic.timeslice.value), 1 second)`</td>
+    </tr>
+    <tr>
+      <td>`as_percentage`</td>
+      <td>`average(newrelic.timeslice.value) * 100`</td>
+    </tr>
+  </tbody>
+</table>
+
+For more information, see [Introduction to the Metric API](/docs/data-apis/ingest-apis/metric-api/introduction-metric-api/), [Metric query guide](/docs/data-apis/understand-data/metric-data/query-metric-data-type/), and [Migrate metric timeslice queries to NRQL](/docs/apis/rest-api-v2/migrate-to-nrql/).
+
+## Application hosts and instances
+
+### List application hosts
+
+**REST API v2:** `GET /v2/applications/{app_id}/hosts.json`
+
+**NerdGraph:** Use NRQL to query host-level data:
+
+```graphql
+{
+  actor {
+    nrql(
+      accounts: [YOUR_ACCOUNT_ID]
+      query: "SELECT uniqueCount(host) FROM Transaction WHERE appName = 'YourAppName' SINCE 1 hour ago FACET host"
+    ) {
+      results
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  The `FROM Transaction` approach only returns hosts that have processed transactions within the `SINCE` window.
+</Callout>
+
+### Application host/instance metric data
+
+**REST API v2:** `GET /v2/applications/{app_id}/hosts/{host_id}/metrics/data.json`
+
+**NerdGraph:** Filter NRQL queries by host or agent instance:
+
+```graphql
+{
+  actor {
+    nrql(
+      accounts: [YOUR_ACCOUNT_ID]
+      query: "SELECT average(newrelic.timeslice.value) * 1000 AS avg_response_time FROM Metric WHERE appName = 'YourAppName' AND host = 'your-host.example.com' AND metricTimesliceName = 'HttpDispatcher' SINCE 30 MINUTES AGO"
+    ) {
+      results
+    }
+  }
+}
+```
+
+## Deployments
+
+### List deployments
+
+**REST API v2:** `GET /v2/applications/{app_id}/deployments.json`
+
+**NerdGraph:** Query deployments via NRQL:
+
+```graphql
+{
+  actor {
+    nrql(
+      accounts: [YOUR_ACCOUNT_ID]
+      query: "SELECT eventType(), deploymentId or changeTrackingId AS 'id', * FROM ChangeTrackingEvent, Deployment WHERE (eventType() = 'Deployment' OR (eventType() = 'ChangeTrackingEvent' AND category = 'Deployment')) AND entity.guid = 'YOUR_ENTITY_GUID' SINCE 1 WEEK AGO LIMIT 100"
+    ) {
+      results
+    }
+  }
+}
+```
+
+### Create deployment
+
+**REST API v2:** `POST /v2/applications/{app_id}/deployments.json`
+
+**NerdGraph:** Use the `changeTrackingCreateEvent` mutation.
+
+```graphql
+mutation {
+  changeTrackingCreateEvent(
+    changeTrackingEvent: {
+      entitySearch: { query: "name = 'YOUR_ENTITY_NAME' and accountId = YOUR_ACCOUNT_ID" }
+      categoryAndTypeData: {
+        kind: { category: "DEPLOYMENT", type: "BASIC" }
+        categoryFields: {
+          deployment: {
+            version: "1.2.3"
+            changelog: "Fixed authentication bug"
+            commit: "abc123def456"
+          }
+        }
+      }
+      description: "Production deployment of auth fix"
+      shortDescription: "user deployer@example.com deployed version 1.2.3 to environment: commerce_prod"
+      user: "deployer@example.com"
+      customAttributes: {
+        cloud_vendor: "vendor_name"
+        region: "us-east-1"
+        environment: "commerce_prod"
+      }
+    }
+  ) {
+    changeTrackingEvent {
+      changeTrackingId
+      timestamp
+      user
+      description
+      entity {
+        guid
+        domain
+        name
+      }
+      customAttributes
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  Like some other NerdGraph operations, `changeTrackingCreateEvent` accepts an `entitySearch` making it the easiest migration path from the REST API. You can search by `name` as well as by `entityGuid` if you have it. See [Track changes using NerdGraph](/docs/change-tracking/change-tracking-graphql/) for all available fields.
+</Callout>
+
+### Delete deployment
+
+**REST API v2:** `DELETE /v2/applications/{app_id}/deployments/{id}.json`
+
+**NerdGraph:** There is no direct delete mutation for deployments in NerdGraph. Deployment records are immutable change tracking events.
+
+For more information, see [Track changes using NerdGraph](/docs/change-tracking/change-tracking-graphql/).
+
+## Key transactions
+
+### List key transactions
+
+**REST API v2:** `GET /v2/key_transactions.json`
+
+**NerdGraph:** Use entity search with the `KEY_TRANSACTION` type. Add `accountId` to scope to a specific account:
+
+```graphql
+{
+  actor {
+    entitySearch(query: "type = 'KEY_TRANSACTION' AND accountId = YOUR_ACCOUNT_ID") {
+      results {
+        entities {
+          guid
+          name
+          reporting
+          alertSeverity
+        }
+        nextCursor
+      }
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  The `KeyTransactionEntityOutline` type does not include summary metrics like response time or throughput directly. To get performance data for a key transaction, use the full entity query below or run a NRQL query against the key transaction's metric name.
+</Callout>
+
+### Show key transaction
+
+**REST API v2:** `GET /v2/key_transactions/{id}.json`
+
+**NerdGraph:**
+
+```graphql
+{
+  actor {
+    entity(guid: "KEY_TRANSACTION_ENTITY_GUID") {
+      name
+      ... on KeyTransactionEntity {
+        apdexTarget
+        metricName
+        application {
+          guid
+          entity {
+            name
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+To get equivalent performance metrics (for example, throughput), use a NRQL query with the key transaction's metric name:
+
+```graphql
+{
+  actor {
+    nrql(
+      accounts: [YOUR_ACCOUNT_ID]
+      query: "SELECT average(newrelic.timeslice.value) * 1000 AS responseTimeAverage, rate(count(newrelic.timeslice.value), 1 minute) AS throughput FROM Metric WHERE entity.guid = 'ENTITY_GUID' SINCE 30 minutes AGO TIMESERIES"
+    ) {
+      results
+    }
+  }
+}
+```
+
+## Mobile applications
+
+### List mobile applications
+
+**REST API v2:** `GET /v2/mobile_applications.json`
+
+**NerdGraph:**
+
+```graphql
+{
+  actor {
+    entitySearch(query: "domain = 'MOBILE' AND type = 'APPLICATION' AND accountId = YOUR_ACCOUNT_ID") {
+      results {
+        entities {
+          guid
+          name
+          reporting
+          ... on MobileApplicationEntityOutline {
+            applicationId
+            mobileSummary {
+              appLaunchCount
+              crashCount
+              crashRate
+              httpErrorRate
+              httpRequestCount
+              httpRequestRate
+              httpResponseTimeAverage
+              mobileSessionCount
+              networkFailureRate
+              usersAffectedCount
+            }
+          }
+        }
+        nextCursor
+      }
+    }
+  }
+}
+```
+
+### Show mobile application
+
+**REST API v2:** `GET /v2/mobile_applications/{id}.json`
+
+**NerdGraph:**
+
+```graphql
+{
+  actor {
+    entity(guid: "MOBILE_APP_ENTITY_GUID") {
+      name
+      ... on MobileApplicationEntity {
+        applicationId
+        mobileSummary {
+          appLaunchCount
+          crashCount
+          crashRate
+          httpErrorRate
+          httpRequestCount
+          httpResponseTimeAverage
+          mobileSessionCount
+          networkFailureRate
+          usersAffectedCount
+        }
+      }
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  To find the entity GUID from a REST API mobile application ID:
+
+  ```graphql
+  {
+    actor {
+      entitySearch(query: "domainId = 'MOBILE_APP_ID' AND domain = 'MOBILE'") {
+        results {
+          entities {
+            guid
+            name
+          }
+        }
+      }
+    }
+  }
+  ```
+</Callout>
+
+### Mobile application metric data
+
+**REST API v2:** `GET /v2/mobile_applications/{id}/metrics/data.json`
+
+**NerdGraph:** Use NRQL to query mobile metric data:
+
+```graphql
+{
+  actor {
+    nrql(
+      accounts: [YOUR_ACCOUNT_ID]
+      query: "SELECT average(duration) FROM Mobile WHERE appName = 'YourMobileApp' SINCE 1 HOUR AGO TIMESERIES"
+    ) {
+      results
+    }
+  }
+}
+```
+
+### Create mobile application
+
+**REST API v2:** `POST /v2/mobile_applications.json`
+
+**NerdGraph:** Use the `agentApplicationCreateMobile` mutation:
+
+```graphql
+mutation {
+  agentApplicationCreateMobile(
+    accountId: YOUR_ACCOUNT_ID
+    name: "My New Mobile App"
+  ) {
+    accountId
+    applicationToken
+    guid
+    name
+  }
+}
+```
+
+<Callout variant="tip">
+  The response includes an `applicationToken` which is needed to configure the mobile agent in your application. The `guid` is the entity GUID for subsequent NerdGraph queries.
+</Callout>
+
+For more information, see [Mobile configuration tutorial](/docs/apis/nerdgraph/examples/mobile-monitoring-config-nerdgraph/).
+
+## Browser applications
+
+### List browser applications
+
+**NerdGraph:**
+
+```graphql
+{
+  actor {
+    entitySearch(query: "domain = 'BROWSER' AND type = 'APPLICATION' AND accountId = YOUR_ACCOUNT_ID") {
+      results {
+        entities {
+          guid
+          name
+          reporting
+          ... on BrowserApplicationEntityOutline {
+            applicationId
+            browserSummary {
+              ajaxRequestThroughput
+              ajaxResponseTimeAverage
+              jsErrorRate
+              pageLoadThroughput
+              pageLoadTimeAverage
+              spaResponseTimeAverage
+            }
+          }
+        }
+        nextCursor
+      }
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  To find a browser application entity GUID from a numeric application ID:
+
+  ```graphql
+  {
+    actor {
+      entitySearch(query: "domainId = 'BROWSER_APP_ID' AND domain = 'BROWSER'") {
+        results {
+          entities {
+            guid
+            name
+          }
+        }
+      }
+    }
+  }
+  ```
+</Callout>
+
+### Create standalone browser application
+
+**REST API v2:** `POST /v2/browser_applications.json` (copy/paste install method)
+
+**NerdGraph:** Use the `agentApplicationCreateBrowser` mutation:
+
+```graphql
+mutation {
+  agentApplicationCreateBrowser(
+    accountId: YOUR_ACCOUNT_ID
+    name: "My New Browser App"
+    settings: {
+      cookiesEnabled: true
+      distributedTracingEnabled: true
+      loaderType: SPA
+    }
+  ) {
+    guid
+    name
+    settings {
+      cookiesEnabled
+      distributedTracingEnabled
+      loaderType
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  The `settings` parameter is optional. If omitted, defaults will be used. The `loaderType` options are `SPA` (default), `PRO`, and `LITE`.
+</Callout>
+
+### Enable browser monitoring on an APM application
+
+**REST API v2:** Enabling browser monitoring on an existing APM app was done through application settings.
+
+**NerdGraph:** Use the `agentApplicationEnableApmBrowser` mutation with the APM application's entity GUID:
+
+```graphql
+mutation {
+  agentApplicationEnableApmBrowser(
+    guid: "YOUR_APM_ENTITY_GUID"
+    settings: {
+      cookiesEnabled: true
+      distributedTracingEnabled: true
+      loaderType: SPA
+    }
+  ) {
+    name
+    settings {
+      cookiesEnabled
+      distributedTracingEnabled
+      loaderType
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  This enables auto-injection of the browser agent into pages served by the APM application. The `settings` parameter is optional. The `guid` must be the APM application entity GUID, not a browser entity GUID. This is often not required for new APM applications if you are using your local configuration to control real user monitoring.
+</Callout>
+
+For more information, see [Browser configuration tutorial](/docs/apis/nerdgraph/examples/browser-monitoring-config-nerdgraph/).
+
+## Alerts
+
+### List channels
+
+**REST API v2:** `GET /v2/alerts_channels.json`
+
+**NerdGraph:** There is no direct query for channels in NerdGraph. You should migrate to using Notification Workflows.
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      aiWorkflows {
+        workflows {
+          entities {
+            guid
+            name
+            workflowEnabled
+            destinationConfigurations {
+              channelId
+              name
+              type
+            }
+            destinationsEnabled
+            lastRun
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### List events
+
+**REST API v2:** `GET /v2/alerts_events.json`
+
+**NerdGraph:**
+
+### List incidents
+
+**REST API v2:** `GET /v2/alerts_incidents.json`
+
+**NerdGraph:**
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      aiIssues {
+        issues {
+          issues {
+            account {
+              id
+            }
+            activatedAt
+            closedAt
+            conditionFamilyId
+            conditionName
+            description
+            deepLinkUrl
+            entityGuids
+            entityNames
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### List violations
+
+**REST API v2:** `GET /v2/alerts_violations.json`
+
+**NerdGraph:** Use the `aiIssues` incidents query:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      aiIssues {
+        incidents(
+          filter: {}
+          timeWindow: { startTime: 1779905700000, endTime: 1779905800000 }
+        ) {
+          incidents {
+            account {
+              id
+              name
+            }
+            closedAt
+            createdAt
+            description
+            entityGuids
+            entityNames
+            entityTypes
+            incidentId
+            issueId
+            priority
+            state
+            timestamp
+            title
+            updatedAt
+          }
+        }
+      }
+    }
+  }
+}
+```
+
