@@ -11,26 +11,30 @@ translationType: machine
 高可用性（HA）設定でPrometheusリモート書込みインテグレーションを使用している場合、Prometheusサーバーが同じメトリクスの複数のコピーをNew Relicに送信していないことを確認する必要があります。本ドキュメントでは、New Relicが重複したメトリックスを保存しないようリモート書込みインテグレーションを設定する方法について説明しています。
 
 <Callout variant="tip">
-  高可用性設定を使用しない標準のPrometheusリモート書込みインテグレーションに関する情報については、[Prometheusリモート書込みインテグレーションの設定](/docs/integrations/prometheus-integrations/install-configure/set-your-prometheus-remote-write-integration)をご覧ください。
+  このページは、独自の<DNT>Prometheus</DNT>サーバーを高可用性設定で実行し、[リモートライト](/docs/integrations/prometheus-integrations/install-configure/set-your-prometheus-remote-write-integration)を使用してメトリクスを転送する場合にのみ適用されます。まだ<DNT>Prometheus</DNT>を実行していない場合、[Kubernetes向けPrometheusエージェント](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent/)は、HA重複排除を必要としない、完全にNew Relicが管理する代替手段です；オプションを比較するには、[New RelicへのPrometheusメトリクスデータの送信](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/)をご覧ください。
 </Callout>
 
-## 外部ラベル [#prometheus-labels]
+## クイックリファレンス [#prometheus-labels]
 
-New Relicでは、高可用性構成でレプリカからのデータ複製を解除するには、次の2つの外部ラベルが必要です：
+New Relicは、3つの値を使用してHAレプリカの重複を排除します。高可用性クラスタ内のすべてのレプリカに3つすべてを設定してください：
 
 <table>
   <thead>
     <tr>
       <th>
-        ラベル名
+        価値観
       </th>
 
       <th>
-        説明
+        設定場所
       </th>
 
       <th>
-        値の例
+        同じHAクラスタ内のレプリカ間の値
+      </th>
+
+      <th>
+        例
       </th>
     </tr>
   </thead>
@@ -42,7 +46,11 @@ New Relicでは、高可用性構成でレプリカからのデータ複製を�
       </td>
 
       <td>
-        値が高可用性クラスターの名前またはPrometheusサーバーのグループを特定するラベル。
+        <DNT>Prometheus</DNT> 外部ラベル
+      </td>
+
+      <td>
+        すべてのレプリカで**同じ**
       </td>
 
       <td>
@@ -56,50 +64,113 @@ New Relicでは、高可用性構成でレプリカからのデータ複製を�
       </td>
 
       <td>
-        値がこのデータを送信する一意のレプリカを特定するラベル。
+        <DNT>Prometheus</DNT> 外部ラベル
       </td>
 
       <td>
-        `replica-1`
+        レプリカごとに**一意**
+      </td>
+
+      <td>
+        `replica-1`, `replica-2`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `prometheus_server`
+      </td>
+
+      <td>
+        `remote_write` URLクエリパラメーター
+      </td>
+
+      <td>
+        すべてのレプリカで**同じ**
+      </td>
+
+      <td>
+        `prod-monitoring`
       </td>
     </tr>
   </tbody>
 </table>
 
-<Callout variant="caution">
-  1つのアカウントで最大1,500個の一意のPrometheus HAクラスタを持つことができます。この制限を超えると、追加のHAクラスタからのデータは破棄されます。そのような場合、New Relicは`PrometheusHAClusterLimit`の[`NrIntegrationError`](/docs/data-apis/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/)イベントを生成します。
-</Callout>
+**仕組み:** New Relicは、アカウント、`prometheus`ラベル、および`prometheus_server`パラメーターに基づいて、レプリカをHAクラスタに編成します。各クラスタで、New Relicは1つのレプリカをリーダーとして指定し、そのリーダーからのデータのみを保存します。リーダーは`prometheus_replica`ラベルによって識別されます。
 
-## Prometheus Operator [#kubernetes-operator]
+## 重複排除を設定する [#set-up]
 
-この外部ラベルは、[Prometheus Operator](https://github.com/coreos/prometheus-operator)バージョン0.19.0（またはそれ以上）を使用している場合、デフォルトで追加されます。Prometheus Operatorを直接使用しているか、[helm chart](https://hub.helm.sh/charts/stable/prometheus-operator)を介しているかは関係ありません。
+### Prometheus Operator [#kubernetes-operator]
 
-演算子は、`prometheus`ラベル（クラスタを識別するラベル）の値を`<prometheus deployment namespace>/<prometheus deployment name>`に設定します。たとえば、Prometheusデプロイメントの名前空間が`monitoring`で、デプロイメントの名前が`prometheus-cluster1`の場合、値は`monitoring/prometheus-cluster1`となります。
+[オペレーターを直接使用する場合でも、 helm chart](https://hub.helm.sh/charts/stable/prometheus-operator)[<DNT>Prometheus Operator</DNT>](https://github.com/coreos/prometheus-operator) 経由で使用する場合でも、バージョン0.19.0以上の`prometheus` `prometheus_replica`は、 および の外部ラベルを追加します：
 
-演算子は、`prometheus_replica`ラベルの値を、各レプリカのポッドの名前として設定します。この場合、形式`replica-<replica number>`に従います。ここで、数字はそのレプリカの序数となります（たとえば、最初のレプリカの名前はplica-1となります）。
+* `prometheus` `<prometheus deployment namespace>/<prometheus deployment name>`に設定されます。たとえば、`monitoring`ネームスペースにある`prometheus-cluster1`という名前のデプロイメントは、`monitoring/prometheus-cluster1`を生成します。
+* `prometheus_replica` 各レプリカのポッド名に、`replica-<replica number>`の形式で設定されます（たとえば、`replica-1`）。
 
-<Callout variant="tip">
-  それでもレプリカデータのコピーが重複して表示される場合、[`replicaExternalLabelName`または`prometheusExternalLabelName`](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusspec)はラベル名の変更を上書きするため、これらがPrometheusの仕様またはチャート設定にないことを確認します。
-</Callout>
+すべてのレプリカに同じ値を使用して、`Prometheus`リソースの`remoteWrite`設定で`prometheus_server`を自分で設定します。たとえば、このリソースは単一の`remoteWrite`ブロックを持つ2つのレプリカのHAペアを実行するため、`prometheus_server`は両方のレプリカ間で一貫性を保ちます：
 
-## スタンドアロンのPrometheus
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: monitoring-cluster
+  namespace: monitoring
+spec:
+  replicas: 2
+  remoteWrite:
+    - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+      authorization:
+        credentials:
+          name: nr-license-key
+          key: licenseKey
+```
 
-Prometheusサーバーを直接デプロイしている場合、外部ラベルを[設定ファイル](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)に追加する必要があります。同じ高可用性クラスター内のレプリカの2つの異なる設定の例は次のとおりです。
+その後、オペレーターは自動的に`prometheus`を`monitoring/monitoring-cluster`に、`prometheus_replica`を各レプリカのポッド名に設定します — 指定する必要があるのは`prometheus_server`のみです。`kube-prometheus-stack` helmチャートを使用する場合は、`prometheus.prometheusSpec`の下に同じ`remoteWrite`ブロックを設定してください。
+
+### スタンドアロンのPrometheus [#standalone-prometheus]
+
+各レプリカの[設定ファイル](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)に外部ラベルを追加し、すべてのレプリカで同一の`remote_write`URL — `prometheus_server`パラメーターを含む — を使用します。
 
 <DNT>**Replica 1**</DNT> ( `prometheus.yml` )
 
 ```yml
 global:
-	external_labels:
-		prometheus: monitoring-cluster
-		prometheus_replica: replica-1
+  external_labels:
+    prometheus: monitoring-cluster
+    prometheus_replica: replica-1
+
+remote_write:
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+    authorization:
+      credentials: YOUR_LICENSE_KEY
 ```
 
-<DNT>**Replica 2**</DNT> （`prometheus.yml)`
+<DNT>**Replica 2**</DNT> ( `prometheus.yml` )
 
 ```yml
 global:
-	external_labels:
-		prometheus: monitoring-cluster
-		prometheus_replica: replica-2
+  external_labels:
+    prometheus: monitoring-cluster
+    prometheus_replica: replica-2
+
+remote_write:
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+    authorization:
+      credentials: YOUR_LICENSE_KEY
 ```
+
+2つのレプリカ間で異なるのは`prometheus_replica`のみです；`prometheus`と`prometheus_server`は同一です。
+
+## 制限 [#limitations]
+
+レプリカ間で`prometheus_server`を同一に保ちます。New Relicは`prometheus_server`を使用してレプリカをグループ化するため、レプリカに*異なる*値を与えると — たとえばホストごとやポッドごとなど — それぞれが独自のHAグループに配置されます。各レプリカはそのグループの唯一のメンバーとなり、常にリーダーとして選出され、すべてのデータを保持します。各レプリカは正常なスタンドアロンのリーダーとして表示されるため、結果としてエラーや警告なしにNew Relicに重複データが生成されます。個々のレプリカを区別するには、代わりに`prometheus_replica`ラベルを使用します。
+
+1つのアカウントにつき最大1,500の固有の<DNT>Prometheus HA</DNT>クラスタを持つことができ、アカウント、`prometheus`ラベル、および`prometheus_server`パラメーターの固有の組み合わせごとにカウントされます。この制限を超えると、追加のHAクラスタからのデータが破棄され、New Relicは`PrometheusHAClusterLimit`[`NrIntegrationError`](/docs/data-apis/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/)イベントを生成します。レプリカ間で`prometheus_server`を一貫させることで、単一のHAグループがこの制限に対して複数のスロットを消費することも防ぎます。
+
+## トラブルシューティング [#troubleshooting]
+
+<DNT>Prometheus Operator</DNT> `prometheus_server`を設定しません — その値は完全に`Prometheus`リソースの`remoteWrite`設定から取得されます。すべてのレプリカが単一の`remoteWrite`ブロックを共有する場合（通常の場合）、これはデフォルトで一貫しています。レプリカごとの`remoteWrite`のオーバーライドを挿入する場合は、すべてのレプリカで`prometheus_server`が同じであることを確認してください。
+
+それでもレプリカデータのコピーが重複して表示される場合、[`replicaExternalLabelName`または`prometheusExternalLabelName`](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusspec)はラベル名の変更を上書きするため、これらが<DNT>Prometheus</DNT>の仕様またはチャート設定にないことを確認します。
+
+最も一貫した重複排除を行うには、<DNT>Prometheus</DNT> `scrape_interval`を60秒以下に維持してください。New Relicは、最後に受信したデータから各HAクラスタ内のアクティブなレプリカを識別し、<DNT>Prometheus</DNT>リモート書き込みはスクレイプごとに約1回新しいサンプルを転送します。クラスタがそれより低い頻度でデータを送信する場合、New Relicは同じリーダーを一貫して認識できない可能性があり、エラーが表示されることなく、複数のレプリカからの重複したデータやインターリーブされたデータを保持する可能性があります。
