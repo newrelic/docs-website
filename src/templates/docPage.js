@@ -7,6 +7,7 @@ import { CSSTransition } from 'react-transition-group';
 import { useMedia } from 'react-use';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
+import MdxLlmTools from '../components/MdxLlmTools';
 import {
   ContributingGuidelines,
   ComplexFeedback,
@@ -190,6 +191,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             `}
           >
             <TableOfContents headings={headings} />
+            <MdxLlmTools pathname={location.pathname} />
             <ComplexFeedback pageTitle={title} />
             <ContributingGuidelines
               pageTitle={title}
