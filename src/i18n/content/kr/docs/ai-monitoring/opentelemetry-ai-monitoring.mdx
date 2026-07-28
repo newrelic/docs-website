@@ -1,0 +1,259 @@
+---
+title: OpenTelemetry를 사용하여 생성형 AI 트레이스를 뉴렐릭으로 보내기
+metaDescription: 'Learn how to send OpenTelemetry GenAI traces to New Relic so the AI monitoring view shows every LLM call, tool call, and agent step your service makes.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+애플리케이션이 OpenTelemetry(OTel) 생성형 AI 트레이스를 뉴렐릭으로 전송한 후, AI 모니터링 뷰에 다음이 표시됩니다:
+
+* 서비스에서 수행하는 모든 LLM 호출 ― 프롬프트, 완료, 모델, 지연시간, 토큰 수 및 종료 이유.
+* 전체 요청 트레이스의 일부인 도구 호출 및 에이전트 단계를 통해 모델이 결정을 내린 이유를 확인할 수 있습니다.
+* 오류, 속도 제한 실패 및 느린 호출이 나머지 APM 데이터와 함께 표시됩니다.
+
+뉴렐릭 에이전트가 필요하지 않습니다. 앱에서 이미 OpenTelemetry 트레이스를 내보내고 있다면 거의 완료된 것입니다.
+
+## 시작하기 전에
+
+필요한 항목:
+
+* AI 모니터링이 활성화된 뉴렐릭 계정. 켜져 있는지 확실하지 않은 경우 뉴렐릭 계정 팀에 문의하세요.
+* 뉴렐릭 수집 라이선스 키. <DNT>**Account settings &gt; API keys &gt; Ingest - License**</DNT>으로 이동합니다.
+* LLM을 호출하는 애플리케이션. OpenAI, Anthropic, LangChain 및 AWS Bedrock에 대한 파이썬 예제는 아래에 나와 있습니다. OpenTelemetry 생성형 AI 계측이 있는 다른 언어도 동일한 방식으로 작동합니다.
+* 포트 443을 통해 앱에서 `otlp.nr-data.net` (미국) 또는 `otlp.eu01.nr-data.net` (EU)로의 네트워크 이그레스.
+
+<Callout variant="important">
+  OTel 생성형 AI 계측은 사용자가 보내고 받는 정확한 프롬프트와 완료를 캡처할 수 있습니다. 여기에는 PII, 자격 증명 또는 규제 대상 데이터가 포함될 수 있습니다. 콘텐츠 캡처는 기본적으로 꺼져 있습니다. 이 기능을 켜기 전에 조직의 데이터 처리 정책을 검토하고 [전송되는 프롬프트 및 완료 제어하기](#controlling-content)를 참조하세요.
+</Callout>
+
+<Steps>
+  <Step>
+    ### OpenTelemetry 익스포터를 뉴렐릭으로 지정 [#step-1]
+
+    애플리케이션을 실행하는 프로세스에 다음 환경 변수를 설정합니다:
+
+    ```sh
+    # US datacenter. For EU use https://otlp.eu01.nr-data.net:443
+    export OTEL_EXPORTER_OTLP_ENDPOINT="https://otlp.nr-data.net:443"
+    export OTEL_EXPORTER_OTLP_HEADERS="api-key=$NEW_RELIC_LICENSE_KEY"
+
+    # Name that will identify this service in New Relic
+    export OTEL_SERVICE_NAME="my-genai-service"
+
+    # Allow long prompts and completions through without truncation
+    export OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+    export OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+    ```
+
+    뉴렐릭 OTLP 엔드포인트, 지원되는 포트 및 수집 한도의 현재 목록은 [뉴렐릭 OpenTelemetry 문서](/docs/opentelemetry/best-practices/opentelemetry-best-practices-overview)를 참조하세요.
+  </Step>
+
+  <Step>
+    ### 올바른 계측 패키지를 추가합니다 [#step-2]
+
+    애플리케이션에서 사용하는 것과 일치하는 섹션을 선택하세요. 둘 이상을 결합할 수 있습니다 ― 예를 들어 Bedrock을 호출하는 LangChain 애플리케이션은 둘 다 설치합니다.
+
+    <Callout variant="tip">
+      정확한 패키지 이름과 버전은 OpenTelemetry 생성형 AI 생태계에서 빠르게 발전합니다. 팀이 현재 지원하는 패키지에 대해서는 항상 OpenTelemetry 파이썬 기여 레지스트리와 뉴렐릭 AI 모니터링 문서를 확인하세요.
+    </Callout>
+
+    <CollapserGroup>
+      <Collapser id="openai" title="오픈AI">
+        OpenTelemetry 프로젝트에서 공식 OpenAI 생성형 AI 계측을 설치한 다음, `opentelemetry-instrument` (으)로 앱을 실행하거나 계측기를 명시적으로 호출하세요:
+
+        ```python
+        from opentelemetry.instrumentation.openai_v2 import OpenAIInstrumentor
+        OpenAIInstrumentor().instrument()
+
+        from openai import OpenAI
+        OpenAI().chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+        ```
+      </Collapser>
+
+      <Collapser id="anthropic" title="앤스로픽">
+        OpenTelemetry Anthropic 계측을 설치합니다(OpenTelemetry contrib 레지스트리 및 OpenLLMetry와 같은 커뮤니티 배포판에서 사용 가능). 그런 다음 활성화합니다:
+
+        ```python
+        from opentelemetry.instrumentation.anthropic import AnthropicInstrumentor
+        AnthropicInstrumentor().instrument()
+
+        import anthropic
+        anthropic.Anthropic().messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+        ```
+      </Collapser>
+
+      <Collapser id="langchain" title="LangChain">
+        LangChain 계측은 체인, 모든 도구 호출 및 기본 모델 클라이언트를 하나의 패키지로 다룹니다. 원하는 커뮤니티 LangChain 계측을 설치하고 시작 시 활성화하세요:
+
+        ```python
+        from opentelemetry.instrumentation.langchain import LangchainInstrumentor
+        LangchainInstrumentor().instrument()
+        ```
+
+        기존 `ChatOpenAI`, `ChatAnthropic` 또는 유사한 체인이 자동으로 트레이스됩니다. 도구 및 에이전트 단계는 상위 체인 호출 아래에 하위 스팬으로 나타납니다.
+      </Collapser>
+
+      <Collapser id="aws-bedrock" title="AWS 기반암">
+        Bedrock 트래픽은 AWS SDK를 통과합니다. AWS SDK(botocore) OpenTelemetry 계측을 설치하고 활성화합니다:
+
+        ```python
+        from opentelemetry.instrumentation.botocore import BotocoreInstrumentor
+        BotocoreInstrumentor().instrument()
+
+        import boto3, json
+        boto3.client("bedrock-runtime", region_name="us-east-1").invoke_model(
+            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 256,
+                "messages": [{"role": "user", "content": "Hello"}],
+            }),
+        )
+        ```
+
+        설치된 버전이 Bedrock 호출에 대해 생성형 AI 속성(`gen_ai.system`, `gen_ai.request.model` 및 토큰 사용량)을 내보내는지 확인하세요 ― 지원은 버전 전반에 걸쳐 점진적으로 이루어졌습니다.
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ### 데이터가 도착하고 있는지 확인하세요 [#step-3]
+
+    1. 새로운 환경 변수와 계측이 적용되도록 애플리케이션을 다시 시작하세요.
+
+    2. 소량의 실제 트래픽을 트리거합니다 ― 몇 번의 채팅 완료면 충분합니다.
+
+    3. 뉴렐릭에서 <DNT>**Query Your Data**</DNT> 을(를) 열고 다음을 실행합니다:
+
+       ```sql
+       SELECT count(*) FROM Span
+       WHERE gen_ai.system IS NOT NULL OR gen_ai.provider.name IS NOT NULL
+       SINCE 30 minutes ago
+       FACET service.name, gen_ai.operation.name
+       ```
+
+    4. 1-2분 내에 서비스 이름 및 작업(`chat`, `completion`, `embeddings`)별로 패싯된 행이 표시되어야 합니다.
+
+    5. <DNT>**APM &amp; Services &gt; AI monitoring**</DNT> (으)로 이동하여 서비스를 선택하면 생성형 AI 뷰가 채워지는 것을 볼 수 있습니다.
+  </Step>
+</Steps>
+
+## 전송되는 프롬프트 및 완료 제어 [#controlling-content]
+
+기본적으로 대부분의 OpenTelemetry 생성형 AI 계측은 프롬프트 또는 완료 텍스트를 캡처하지 않습니다. 스팬에는 모델, 토큰 수, 지연시간 및 상태가 포함되지만 메시지 본문은 포함되지 않습니다.
+
+AI 모니터링에서 메시지 콘텐츠를 볼 수 있게 하려면 명시적으로 옵트인하세요. 플래그 이름은 설치한 계측 패키지에 따라 다릅니다 ― 해당 패키지의 설명서를 확인하세요. 일반적인 예는 다음과 같습니다:
+
+* `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` OpenTelemetry에서 유지 관리하는 계측의 경우.
+* `TRACELOOP_TRACE_CONTENT=true` 커뮤니티(OpenLLMetry-family) 계측용.
+
+프로덕션 환경에서 콘텐츠 캡처를 활성화하기 전에 다음을 수행하세요:
+
+* 프롬프트에 포함된 데이터를 검토합니다. 사용자가 PII, 자격 증명 또는 규제 대상 데이터를 제출하는 경우 해당 콘텐츠는 뉴렐릭에 저장됩니다.
+* 특정 필드가 환경을 떠나기 전에 제거하거나 해시하려면 삭제 필터 또는 속성 수준 난독화를 고려하세요. [뉴렐릭의 데이터 처리 문서](/docs/ai-monitoring/drop-sensitive-data)를 참조하세요.
+* 조직의 보존 및 규정 준수 요구 사항(예: GDPR, HIPAA 또는 PCI)을 확인하세요.
+
+메시지 본문이 아닌 지연시간, 토큰 및 오류 가시성만 필요한 경우 콘텐츠 캡처를 비활성화된 상태로 둡니다.
+
+## 문제점 해결
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        표시되는 내용
+      </th>
+
+      <th>
+        시도할 작업
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        3단계의 쿼리가 0개의 행을 반환합니다.
+      </td>
+
+      <td>
+        OTLP 엔드포인트가 계정의 리전과 일치하는지, `api-key` 헤더에 유효한 수집 라이선스 키(사용자 키가 아님)가 포함되어 있는지 확인합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        트레이스가 뉴렐릭에 도착하지만 서비스가 AI 모니터링에 나타나지 않습니다.
+      </td>
+
+      <td>
+        뉴렐릭은 스팬에 생성형 AI 속성이 포함된 서비스에 대해 AI 모니터링 뷰를 자동으로 활성화합니다. 서비스가 표시되지 않으면 스팬에 `gen_ai.system` 또는 `gen_ai.provider.name`이(가) 포함되어 있는지 확인하고, 포함되어 있지 않다면 계측 패키지를 업그레이드합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        스팬이 도착하지만 서비스의 AI 모니터링 보기가 비어 있습니다
+      </td>
+
+      <td>
+        스팬이 예상되는 생성형 AI 속성으로 태그 지정되지 않았을 수 있습니다. 계측 패키지를 업그레이드하거나 샘플 스팬과 함께 뉴렐릭 지원팀에 문의하세요.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        긴 프롬프트가 잘립니다.
+      </td>
+
+      <td>
+        애플리케이션 측에서 `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT` 및 `OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT` 을(를) 높입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        토큰 수가 누락되었습니다
+      </td>
+
+      <td>
+        LLM 제공자가 이를 반환했지만, 계측 버전이 아직 이를 기록하지 않습니다. 계측 패키지를 업그레이드하세요.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AI 모니터링에 트레이스는 표시되지만 프롬프트/완료는 비어 있습니다
+      </td>
+
+      <td>
+        콘텐츠 캡처가 비활성화되었습니다. [전송되는 프롬프트 및 완료 제어하기](#controlling-content)를 참조하세요.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AI 모니터링을 사용할 수 있을 것으로 예상했지만 뷰가 나타나지 않습니다.
+      </td>
+
+      <td>
+        뉴렐릭 계정 팀에 문의하여 계정에서 AI 모니터링이 활성화되어 있는지 확인하세요.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 도움을 받으세요
+
+위의 단계를 수행한 후에도 문제가 해결되지 않는 경우:
+
+* 뉴렐릭 지원 케이스를 접수하고 샘플 스팬 페이로드와 서비스 이름을 포함하세요.
+* 계정 수준 설정 질문은 뉴렐릭 계정 팀에 문의하세요.
+* 일반적인 OpenTelemetry 생성형 AI 질문은 권위 있는 참고 자료인 [OpenTelemetry 생성형 AI 시맨틱 규칙](https://opentelemetry.io/docs/specs/semconv/gen-ai/)을 참조하세요.

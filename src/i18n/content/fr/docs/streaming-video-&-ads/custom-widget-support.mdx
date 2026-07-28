@@ -1,0 +1,239 @@
+---
+title: Créer des widgets personnalisés pour les dashboards de streaming
+tags:
+  - Streaming Video & Ads
+  - Dashboards
+  - Custom widgets
+metaDescription: Use the NRQL editor to create custom chart widgets inside the Media Streaming Quality Metrics dashboard in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Les widgets personnalisés vous permettent d’étendre le dashboard Media Streaming avec des visualisations graphiques sur mesure créées à partir de vos propres requêtes NRQL. Les widgets personnalisés apparaissent dans la liste déroulante <DNT>**Quality Metrics**</DNT> aux côtés des métriques prédéfinies, dans une catégorie <DNT>**Custom Metrics**</DNT> distincte. Ils persistent entre les sessions et s’adaptent au dashboard existant.
+
+<Callout variant="important">
+  Chaque compte prend en charge une limite souple de **50 widgets personnalisés**. Cette limite est basée sur la capacité de NerdStorage. Si vous l’atteignez, supprimez un widget personnalisé existant avant d’en ajouter un nouveau.
+</Callout>
+
+## Avant de commencer [#prereqs]
+
+Les widgets personnalisés sont créés à partir du nerdpack Media Streaming. Vous avez besoin d’accéder à un compte New Relic avec l’agent Streaming vidéo et publicitaire installé. Consultez [Installer l’agent Streaming vidéo et publicitaire](/docs/streaming-video-&-ads/installation/install-the-streaming-video-&-ads-agent) si vous ne l’avez pas encore configuré.
+
+## Créer un widget personnalisé [#create]
+
+1. Ouvrez le dashboard Media Streaming et accédez à la section <DNT>**Quality Metrics**</DNT>.
+2. Cliquez sur <DNT>**+ Add Custom Widget**</DNT>.
+3. Saisissez un titre pour le widget.
+4. Écrivez votre requête NRQL dans l’éditeur NRQL. Consultez [Écriture de requêtes](#writing-queries) pour obtenir des conseils sur la syntaxe, les espaces réservés de filtre et des exemples.
+5. Cliquez sur <DNT>**Run Query**</DNT> pour prévisualiser les résultats avant d’enregistrer.
+6. Cliquez sur <DNT>**Save**</DNT>. Le widget est ajouté à la section <DNT>**Custom Metrics**</DNT> de la liste déroulante <DNT>**Quality Metrics**</DNT> et affiché dans le dashboard.
+
+## Rédaction de requêtes [#writing-queries]
+
+L’éditeur NRQL accepte toute requête NRQL `SELECT` ou `FROM` valide. Écrivez votre requête complète directement dans l’éditeur — la coloration syntaxique, la saisie semi-automatique et la validation en temps réel sont fournies par l’éditeur.
+
+### Exigences de la requête [#query-requirements]
+
+* Les requêtes doivent commencer par `SELECT` ou `FROM` et contenir les deux clauses.
+* N’incluez pas de clause `SINCE` ou `UNTIL` codée en dur. Le sélecteur d’intervalle de temps du dashboard injecte automatiquement la plage de temps au moment de l’exécution.
+* Pour répondre aux sélections de la barre de filtres au niveau du dashboard, incluez un [espace réservé de filtre](#placeholders) dans votre requête.
+
+### Espaces réservés de filtrage [#placeholders]
+
+Les espaces réservés de filtre sont des jetons de commentaire NRQL qui sont remplacés à l’exécution par les conditions de filtre appliquées dans la barre de filtre du dashboard. Ajoutez-les manuellement à votre requête.
+
+| Espace réservé                  | Quand l&apos;utiliser                                                                                                                                 |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/* {whereClause} */`           | Votre requête n’a **aucune clause `WHERE` existante**. L’espace réservé est remplacé par une condition `WHERE ...` complète.                          |
+| `/* {andWhereClause} */`        | Votre requête **a déjà une clause `WHERE` **. L&apos;espace réservé est ajouté comme condition `AND ...` supplémentaire.                              |
+| `/* {aggregatorWhereClause} */` | Dans une fonction `filter()` qui contient déjà une clause `WHERE`. Ajoute une condition `AND ...` supplémentaire dans la portée de l&apos;agrégateur. |
+
+**Exemple — aucune clause WHERE existante :**
+
+```sql
+SELECT uniqueCount(viewId) AS 'Total Views'
+FROM VideoAction /* {whereClause} */
+TIMESERIES
+```
+
+Lorsqu’un filtre pour `asn = '14618'` est actif :
+
+```sql
+SELECT uniqueCount(viewId) AS 'Total Views'
+FROM VideoAction WHERE asn = '14618'
+TIMESERIES SINCE 30 minutes ago UNTIL now
+```
+
+**Exemple — clause WHERE existante :**
+
+```sql
+SELECT count(*) AS 'Error Count'
+FROM VideoErrorAction, VideoAction
+WHERE actionName = 'CONTENT_ERROR' /* {andWhereClause} */
+TIMESERIES
+```
+
+**Exemple — filtre à l’intérieur d’une fonction d’agrégateur :**
+
+```sql
+FROM VideoAction
+SELECT (
+  filter(sum(timeSinceBufferBegin),
+    WHERE actionName = 'CONTENT_BUFFER_END'
+    AND bufferType = 'connection' /* {aggregatorWhereClause} */
+  ) /
+  filter(sum(elapsedTime) OR 1,
+    WHERE actionName = 'CONTENT_HEARTBEAT' /* {aggregatorWhereClause} */
+  )
+) AS 'Connection-induced rebuffering ratio'
+TIMESERIES
+```
+
+<Callout variant="tip">
+  Lorsqu’un filtre est actif dans la barre de filtres du dashboard, les trois types d’espaces réservés se résolvent aux mêmes conditions de filtre sous-jacentes — la différence est uniquement syntaxique, pour produire un NRQL valide en fonction de la structure de votre requête.
+</Callout>
+
+### Mots-clés et caractères bloqués [#blocked]
+
+Pour empêcher toute modification accidentelle ou malveillante des données, les éléments suivants sont bloqués dans l&apos;éditeur NRQL :
+
+**Mots-clés bloqués :**
+
+* `DROP`
+* `DELETE`
+* `INSERT`
+* `UPDATE`
+* `CREATE`
+* `ALTER`
+
+**Caractères bloqués :**
+
+* Points-virgules (`;`) — bloqués pour empêcher les requêtes en chaîne ou les attaques par injection.
+
+Les requêtes contenant l’un de ces éléments échoueront à la validation et ne pourront pas être enregistrées ou prévisualisées.
+
+### Exemples de requêtes [#examples]
+
+**Série chronologique de base — nombre total de lancements de vidéos :**
+
+```sql
+SELECT count(*) AS 'Video Starts'
+FROM VideoAction
+WHERE actionName = 'CONTENT_START' /* {andWhereClause} */
+TIMESERIES
+```
+
+**Nombre de spectateurs uniques avec intégration de filtre :**
+
+```sql
+SELECT uniqueCount(viewId) AS 'Unique Viewers'
+FROM VideoAction /* {whereClause} */
+TIMESERIES
+```
+
+**Taux d’erreur sur l’ensemble des types d’événements :**
+
+```sql
+SELECT count(*) AS 'Error Count'
+FROM VideoErrorAction, VideoAction
+WHERE actionName = 'CONTENT_ERROR' /* {andWhereClause} */
+TIMESERIES
+```
+
+**Ratio de rebuffering induit par la connexion (avancé) :**
+
+```sql
+FROM VideoAction
+SELECT (
+  filter(sum(timeSinceBufferBegin),
+    WHERE actionName = 'CONTENT_BUFFER_END'
+    AND bufferType = 'connection' /* {aggregatorWhereClause} */
+  ) /
+  filter(sum(elapsedTime) OR 1,
+    WHERE actionName = 'CONTENT_HEARTBEAT' /* {aggregatorWhereClause} */
+  )
+) AS 'Connection-induced rebuffering ratio'
+TIMESERIES
+```
+
+Pour plus d’inspiration de requêtes, consultez le [Dictionnaire de données des métriques de débit binaire](/docs/streaming-video-&-ads/bitrate-metrics) pour des exemples NRQL prédéfinis utilisant `VideoAction` et `VideoErrorAction`.
+
+## Prévisualiser un widget [#preview]
+
+Cliquez sur <DNT>**Run Query**</DNT> avant d’enregistrer pour exécuter la requête sur des données en direct et voir un graphique rendu. Cela n’enregistre pas le widget.
+
+Utilisez l&apos;aperçu pour :
+
+* Confirmez que le graphique affiche les données que vous attendez.
+* Vérifiez que les espaces réservés de filtre se résolvent correctement lorsqu’un filtre est actif dans la barre de filtres.
+* Détectez les erreurs de syntaxe ou de logique avant que le widget ne soit validé dans le dashboard.
+
+## Modifier un widget personnalisé [#edit]
+
+1. Dans la section <DNT>**Quality Metrics**</DNT>, localisez le widget personnalisé que vous souhaitez modifier.
+2. Cliquez sur l&apos;icône en forme de crayon <Icon name="fe-edit-2" /> sur la carte du widget.
+3. L’éditeur s’ouvre en mode édition avec tous les champs préremplis — le titre et la requête NRQL existante.
+4. Apportez vos modifications, cliquez sur <DNT>**Run Query**</DNT> pour vérifier, puis cliquez sur <DNT>**Save**</DNT>.
+
+Lors de l’enregistrement :
+
+* L’horodatage `updatedAt` est mis à jour ; le `createdAt` d’origine et le widget `id` sont conservés.
+* le widget se réaffiche immédiatement avec la requête mise à jour.
+* Si vous avez modifié le titre, il se met à jour dans la liste déroulante des Métriques de qualité.
+
+## Supprimer un widget personnalisé [#delete]
+
+1. Dans la section <DNT>**Quality Metrics**</DNT>, cliquez sur l’icône <Icon name="fe-more-horizontal" /> sur la carte du widget.
+2. Sélectionnez <DNT>**Delete**</DNT>.
+3. Confirmez dans le prompt : *« Êtes-vous sûr de vouloir supprimer “\[Widget Title]” ? Cette action ne peut pas être annulée. »*
+
+Une fois supprimé :
+
+* Le widget est supprimé de NerdStorage et disparaît définitivement.
+* La carte du widget est immédiatement supprimée du dashboard.
+* Le titre est supprimé de la liste déroulante des Métriques de qualité.
+* Si le widget était sélectionné, il est automatiquement désélectionné.
+
+<Callout variant="caution">
+  La suppression est définitive. Copiez votre requête NRQL avant de supprimer un widget si vous risquez d’en avoir besoin plus tard.
+</Callout>
+
+## Limite de widgets [#limit]
+
+La limite souple de 50 widgets par compte est basée sur la capacité des documents NerdStorage. À 50 widgets, l&apos;utilisation du stockage est d&apos;environ 21 Ko — environ 33 % de la limite de 64 Ko par document, offrant une marge de sécurité.
+
+Si vous atteignez la limite, la création de widgets est bloquée jusqu’à ce qu’un widget personnalisé existant soit supprimé. Les widgets existants continuent de fonctionner normalement.
+
+## Dépannage [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="widget-not-responding-to-filters" title="Le widget ne se met pas à jour lorsque j’applique un filtre de dashboard">
+    Il manque un espace réservé de filtre à votre requête. Sans `/* {whereClause} */`, `/* {andWhereClause} */` ou `/* {aggregatorWhereClause} */`, le widget exécute toujours la requête telle qu’elle est écrite et ignore les sélections de la barre de filtres du dashboard. Consultez [Espaces réservés de filtre](#placeholders) pour choisir celui qui convient à la structure de votre requête.
+  </Collapser>
+
+  <Collapser id="wrong-placeholder" title="Les filtres s’appliquent mais la requête renvoie une erreur ou aucune donnée">
+    Vous avez peut-être utilisé le mauvais type d&apos;espace réservé. Vérifier :
+
+    * Si votre requête n&apos;a pas de clause `WHERE`, utilisez `/* {whereClause} */`.
+    * Si votre requête possède déjà une clause `WHERE`, utilisez `/* {andWhereClause} */`.
+    * Si l’espace réservé se trouve dans une fonction `filter()` qui a déjà son propre `WHERE`, utilisez `/* {aggregatorWhereClause} */`.
+
+    Le mauvais espace réservé produit un NRQL non valide à l&apos;exécution, ce qui entraîne l&apos;échec de la requête.
+  </Collapser>
+
+  <Collapser id="query-blocked" title="Ma requête échoue à la validation ou ne s’enregistre pas">
+    Vérifiez si votre requête contient un [mot-clé ou caractère bloqué](#blocked), tel que `DROP`, `DELETE` ou un point-virgule. Vérifier également :
+
+    * La requête commence par `SELECT` ou `FROM`.
+    * Les clauses `SELECT` et `FROM` sont toutes deux présentes.
+    * Il n&apos;y a aucune erreur de syntaxe signalée par la validation en ligne de l&apos;éditeur.
+  </Collapser>
+
+  <Collapser id="limit-reached" title="Je ne peux pas ajouter de nouveau widget — limite atteinte">
+    Vous avez atteint la limite souple de 50 widgets. Supprimez au moins un widget personnalisé existant de la section <DNT>**Custom Metrics**</DNT>, puis essayez d&apos;en ajouter un nouveau. Voir [Limite des widgets](#limit).
+  </Collapser>
+
+  <Collapser id="widget-not-saving" title="Le widget s'enregistre mais disparaît après une actualisation de la page">
+    Cela peut indiquer un échec d’écriture NerdStorage. Vérifiez si une notification toast est apparue au moment de l’enregistrement — elle indiquera si l’enregistrement a échoué en raison d’une erreur réseau ou d’autorisations de compte insuffisantes. Réessayez d’enregistrer, ou contactez votre équipe de compte New Relic si le problème persiste.
+  </Collapser>
+</CollapserGroup>

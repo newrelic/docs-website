@@ -1,0 +1,1332 @@
+---
+title: Kubernetes에서 레디스 모니터(OpenTelemetry)
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Redis
+  - Kubernetes
+metaDescription: Deploy the OpenTelemetry Collector on Kubernetes to monitor Redis instances and send telemetry to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+OpenTelemetry Collector를 DaemonSet으로 배포하여 Kubernetes의 레디스 인스턴스를 모니터합니다. 수집기는 `k8s_observer` 및 `receiver_creator` 을(를) 사용하여 레이블을 기반으로 레디스 파드를 자동 검색합니다 ― 기존 레디스 배포를 변경할 필요가 없습니다.
+
+<Callout variant="important">
+  복합 패턴(`server.address:server.port`)은 Kubernetes에서 지원되지 않습니다. 파드 IP는 일시적이며 재시작할 때마다 변경되므로 중복 엔티티가 생성될 수 있습니다. 안정적인 식별자(예: `cluster-name.namespace:port`)와 함께 `redis.instance.id` 패턴을 사용하세요.
+</Callout>
+
+## 시작하기 전에 [#prereq]
+
+수집기를 설정하기 전에 다음이 필요합니다:
+
+* 너의 뉴렐릭<InlinePopover type="licenseKey" />
+* `kubectl` 관리자 권한으로 쿠버네티스 클러스터에 액세스
+* 쿠버네티스 클러스터에서 실행 중인 레디스 ― 버전 6.0 이상 권장(4.0 이상은 축소된 메트릭 세트로 작동함)
+* NRDOT 및 OpenTelemetry Collector Contrib 경로의 경우 레디스 파드에 검색 가능한 레이블(예: `app: redis`)이 있어야 합니다.
+* 뉴렐릭의 [OTLP 엔드포인트](/docs/opentelemetry/best-practices/opentelemetry-otlp)에 대한 아웃바운드 HTTPS(포트 443)
+
+[설치 옵션](#installation-options)에서 수집기 배포판을 선택합니다: NRDOT 수집기, OpenTelemetry Collector Contrib 또는 Prometheus 수신자. NRDOT 및 Contrib 경로는 `k8s_observer`을(를) 사용하여 레디스 파드를 자동 검색하며, Prometheus 수신자 경로는 레디스와 함께 배포하는 [redis\_exporter](https://github.com/oliver006/redis_exporter) 를 스크랩합니다.
+
+## 설치 옵션 [#installation-options]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot">NRDOT 수집기</TabsBarItem> <TabsBarItem id="otel-contrib">OpenTelemetry Collector Contrib</TabsBarItem> <TabsBarItem id="prometheus">Prometheus 수신자</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot">
+      <Steps>
+        <Step>
+          ### 네임스페이스 및 자격 증명 생성 [#ns-nrdot]
+
+          `newrelic` 네임스페이스를 생성하고 라이선스 키와 OTLP 엔드포인트를 Kubernetes Secret에 저장합니다. 수집기가 런타임에 이를 읽으므로 자격 증명이 구성에 포함되지 않습니다:
+
+          ```bash
+          kubectl create namespace newrelic
+
+          # Set OTEL_EXPORTER_OTLP_ENDPOINT for your region.
+          # See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
+          kubectl create secret generic newrelic-credentials \
+            --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
+            --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT \
+            -n newrelic
+          ```
+        </Step>
+
+        <Step>
+          ### RBAC 설정 [#rbac-nrdot]
+
+          `k8s_observer` 에는 파드를 감시할 수 있는 권한이 필요합니다. `rbac.yaml` 생성:
+
+          ```yaml
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: otel-collector-redis
+            namespace: newrelic
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: otel-collector-redis
+          rules:
+            - apiGroups: [""]
+              resources: ["pods", "namespaces", "nodes"]
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["apps"]
+              resources: ["replicasets"]
+              verbs: ["get", "list", "watch"]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: otel-collector-redis
+          subjects:
+            - kind: ServiceAccount
+              name: otel-collector-redis
+              namespace: newrelic
+          roleRef:
+            kind: ClusterRole
+            name: otel-collector-redis
+            apiGroup: rbac.authorization.k8s.io
+          ```
+
+          ```bash
+          kubectl apply -f rbac.yaml
+          ```
+        </Step>
+
+        <Step>
+          ### 수집기 구성 [#config-nrdot]
+
+          이 ConfigMap은 수집기에게 레디스 파드를 검색하고, 메트릭을 수집하여 뉴렐릭으로 보내는 방법을 알려줍니다. 세 가지 주요 작업을 처리합니다:
+
+          * `k8s_observer` 및 다음을 사용하여 레디스 파드를 자동으로 **검색** `receiver_creator`
+          * 데이터 **형성** ― 카디널리티를 줄이고, 카운터를 델타로 변환하며, 엔티티 ID를 설정합니다.
+          * 처리된 메트릭을 OTLP를 통해 뉴렐릭으로 **내보내기**
+
+          `otel-collector-config.yaml` 생성:
+
+          ```yaml
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: otel-collector-redis-config
+            namespace: newrelic
+          data:
+            config.yaml: |
+              extensions:
+                health_check:
+                  endpoint: "0.0.0.0:13133"
+                k8s_observer:
+                  auth_type: serviceAccount
+                  observe_pods: true
+                  observe_nodes: false
+
+              receivers:
+                receiver_creator/redis:
+                  watch_observers: [k8s_observer]
+                  receivers:
+                    redis:
+                      rule: type == "pod" && labels["app"] == "redis"  # Update with your Redis pod labels
+                      config:
+                        endpoint: "`endpoint`:6379"
+                        collection_interval: 10s
+                        metrics:
+                          redis.maxmemory:
+                            enabled: true
+                          redis.role:
+                            enabled: false
+                          redis.cmd.calls:
+                            enabled: true
+                          redis.cmd.usec:
+                            enabled: true
+                          redis.clients.max_input_buffer:
+                            enabled: false
+                          redis.clients.max_output_buffer:
+                            enabled: false
+                          redis.replication.backlog_first_byte_offset:
+                            enabled: false
+                        resource_attributes:
+                          server.address:
+                            enabled: false
+                          server.port:
+                            enabled: false
+
+              processors:
+                memory_limiter:
+                  check_interval: 5s
+                  limit_mib: 256
+                  spike_limit_mib: 64
+
+                resource/k8s_cluster:
+                  attributes:
+                    - key: k8s.cluster.name
+                      value: "my-cluster"  # Update with your cluster name
+                      action: upsert
+                    - key: redis.instance.id
+                      value: "my-cluster.default:6379"  # Update with cluster.namespace:port
+                      action: upsert
+
+                attributes/entity_tags:
+                  actions:
+                    - key: instrumentation.provider
+                      value: opentelemetry
+                      action: upsert
+
+                cumulativetodelta:
+                  include:
+                    match_type: regexp
+                    metrics:
+                      - redis\.commands\.processed
+                      - redis\.connections\.received
+                      - redis\.connections\.rejected
+                      - redis\.keys\.evicted
+                      - redis\.keys\.expired
+                      - redis\.keyspace\.hits
+                      - redis\.keyspace\.misses
+                      - redis\.net\.input
+                      - redis\.net\.output
+                      - redis\.cpu\.time
+                      - redis\.cmd\.calls
+                      - redis\.cmd\.usec
+                      - redis\.uptime
+
+                filter/cardinality:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "redis.cpu.time" and attributes["state"] != "sys" and attributes["state"] != "user"'
+                      - 'metric.name == "redis.cmd.calls" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+                      - 'metric.name == "redis.cmd.usec" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+
+                transform/metadata_nullify:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(description, "")
+                        - set(unit, "")
+
+                batch:
+                  send_batch_size: 2048
+                  send_batch_max_size: 4096
+                  timeout: 10s
+
+              exporters:
+                otlp_http:
+                  endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+                  headers:
+                    api-key: ${env:NEW_RELIC_LICENSE_KEY}
+                  compression: gzip
+
+              service:
+                extensions: [health_check, k8s_observer]
+                pipelines:
+                  metrics/redis:
+                    receivers: [receiver_creator/redis]
+                    processors: [memory_limiter, resource/k8s_cluster, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                    exporters: [otlp_http]
+          ```
+
+          ```bash
+          kubectl apply -f otel-collector-config.yaml
+          ```
+
+          #### 이 설정의 역할 [#config-explanation-nrdot]
+
+          파이프라인의 각 구성 요소에는 특정 작업이 있습니다:
+
+          | 요소                           | 설명                                                                                                                              |
+          | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+          | `health_check`               | 수집기가 실행 중인지 확인할 수 있도록 `0.0.0.0:13133` 에 상태 엔드포인트를 노출합니다.                                                                        |
+          | `k8s_observer`               | 수집기가 레디스 인스턴스를 동적으로 검색할 수 있도록 파드에 대한 Kubernetes API를 감시합니다.                                                                     |
+          | `receiver_creator/redis`     | 규칙(`labels["app"] == "redis"`)과 일치하는 각 파드에 대해 `redis` 수신기를 시작하고 10초마다 레디스 `INFO` 명령에서 메트릭을 읽습니다.                                |
+          | `memory_limiter`             | 파드를 보호하기 위해 수집기 메모리 사용량을 제한합니다(256 MiB 소프트 제한, 64 MiB 스파이크).                                                                    |
+          | `resource/k8s_cluster`       | 레디스 엔티티의 안정적인 ID인 `k8s.cluster.name` 및 `redis.instance.id`을(를) 설정합니다(복합 `server.address:server.port` 패턴은 Kubernetes에서 사용되지 않음). |
+          | `attributes/entity_tags`     | 쿼리 범위를 OpenTelemetry 경로로 지정할 수 있도록 모든 메트릭에 `instrumentation.provider: opentelemetry` 을(를) 찍습니다.                                 |
+          | `cumulativetodelta`          | 뉴렐릭이 비율을 올바르게 차트로 표시할 수 있도록 레디스의 누적 카운터 ― 명령, 키스페이스 적중, 축출 등 ― 를 델타 값으로 변환합니다.                                                  |
+          | `filter/cardinality`         | 수집 비용을 제어하기 위해 높은 카디널리티 데이터 포인트(`user` 및 `sys` 이외의 CPU 상태, 일반적이지 않은 명령에 대한 명령별 메트릭)를 삭제합니다.                                     |
+          | `transform/metadata_nullify` | 페이로드 크기를 줄이기 위해 메트릭 설명 및 단위를 지웁니다.                                                                                              |
+          | `batch`                      | 네트워크 오버헤드를 줄이기 위해 내보내기 전에 데이터 포인트를 그룹화(배치당 2,048개, 최대 4,096개)하고 최소 10초마다 플러시합니다.                                                |
+          | `otlp_http`                  | 라이선스 키로 인증되고 gzip 압축을 사용하여 OTLP를 통해 처리된 메트릭을 뉴렐릭으로 내보냅니다.                                                                       |
+        </Step>
+
+        <Step>
+          ### 선택 사항: 레디스 로그 수집 [#logs-nrdot]
+
+          메트릭 외에도 수집기는 레디스의 로그를 뉴렐릭으로 전달할 수 있으므로 로그 이벤트 ― 재시작, 지속성 이벤트 또는 오류 ― 를 동일한 엔티티의 메트릭 급증과 연관시킬 수 있습니다. 이를 수집하려면 ConfigMap에 `filelog` 수신자를 추가하고 DaemonSet에 `/var/log/pods` 을(를) 마운트합니다.
+
+          ConfigMap의 `receivers` 섹션에 추가:
+
+          ```yaml
+              file_log/redis:
+                include:
+                  - /var/log/pods/<namespace>_*redis*/*/*.log  # Update <namespace> with your Redis namespace (e.g., default, production)
+                start_at: end
+                include_file_path: true
+                operators:
+                  - type: regex_parser
+                    regex: '^\S+ stdout F \d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+                    on_error: send
+                resource:
+                  db.system: redis
+          ```
+
+          `resource/redis_logs` 프로세서를 추가합니다:
+
+          ```yaml
+              resource/redis_logs:
+                attributes:
+                  - key: redis.instance.id
+                    value: "my-cluster.default:6379"  # Update with cluster.namespace:port
+                    action: upsert
+                  - key: instrumentation.provider
+                    value: "opentelemetry"
+                    action: upsert
+          ```
+
+          서비스 섹션에 로그 파이프라인을 추가합니다:
+
+          ```yaml
+              service:
+                pipelines:
+                  metrics/redis:
+                    # ... existing metrics pipeline ...
+                  logs/redis:
+                    receivers: [file_log/redis]
+                    processors: [memory_limiter, resource/redis_logs, batch]
+                    exporters: [otlp_http]
+          ```
+
+          아래의 DaemonSet에서 `varlogpods` 볼륨 마운트의 주석을 해제합니다.
+        </Step>
+
+        <Step>
+          ### 선택 사항: 레디스 Cluster 모니터링 활성화 [#cluster-nrdot]
+
+          레디스 Cluster 모니터링은 현재 Prometheus 수신기 방식(`redis_exporter` 사용)이 필요합니다. NRDOT Collector의 기본 레디스 수신기는 클러스터 메트릭에 필요한 `CLUSTER INFO` 명령을 아직 지원하지 않습니다. 클러스터 모니터링 설정을 위해 [Prometheus 수신자](/docs/opentelemetry/integrations/redis/kubernetes/#prometheus) 탭을 사용합니다.
+        </Step>
+
+        <Step>
+          ### DaemonSet 배포 [#deploy-nrdot]
+
+          `otel-collector-daemonset.yaml` 생성:
+
+          ```yaml
+          apiVersion: apps/v1
+          kind: DaemonSet
+          metadata:
+            name: otel-collector-redis
+            namespace: newrelic
+          spec:
+            selector:
+              matchLabels:
+                app: otel-collector-redis
+            template:
+              metadata:
+                labels:
+                  app: otel-collector-redis
+              spec:
+                serviceAccountName: otel-collector-redis
+                containers:
+                  - name: otel-collector
+                    image: newrelic/nrdot-collector:latest
+                    args: ["--config=/etc/otel/config.yaml"]
+                    env:
+                      - name: NEW_RELIC_LICENSE_KEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-credentials
+                            key: NEW_RELIC_LICENSE_KEY
+                      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-credentials
+                            key: OTEL_EXPORTER_OTLP_ENDPOINT
+                      - name: K8S_NODE_NAME
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: spec.nodeName
+                    resources:
+                      limits:
+                        cpu: 500m
+                        memory: 512Mi
+                      requests:
+                        cpu: 100m
+                        memory: 128Mi
+                    volumeMounts:
+                      - name: config
+                        mountPath: /etc/otel
+                      - name: machine-id
+                        mountPath: /etc/machine-id
+                        readOnly: true
+                      # Uncomment if collecting logs:
+                      # - name: varlogpods
+                      #   mountPath: /var/log/pods
+                      #   readOnly: true
+                    livenessProbe:
+                      httpGet:
+                        path: /
+                        port: 13133
+                      initialDelaySeconds: 15
+                    readinessProbe:
+                      httpGet:
+                        path: /
+                        port: 13133
+                      initialDelaySeconds: 5
+                volumes:
+                  - name: config
+                    configMap:
+                      name: otel-collector-redis-config
+                  - name: machine-id
+                    hostPath:
+                      path: /etc/machine-id
+                  # Uncomment if collecting logs:
+                  # - name: varlogpods
+                  #   hostPath:
+                  #     path: /var/log/pods
+          ```
+
+          ```bash
+          kubectl apply -f otel-collector-daemonset.yaml
+          ```
+        </Step>
+
+        <Step>
+          ### 확인 [#verify-nrdot]
+
+          수집기 파드가 실행 중인지 확인합니다:
+
+          ```bash
+          kubectl get pods -n newrelic -l app=otel-collector-redis
+          ```
+
+          파드는 모든 컨테이너가 준비된 상태로 `Running` 을(를) 표시해야 합니다. `CrashLoopBackOff` 또는 `Error`인 경우 `kubectl logs -n newrelic -l app=otel-collector-redis` 을(를) 사용하여 로그를 확인하세요 ― 가장 일반적인 원인은 ConfigMap YAML 오류, 누락된 RBAC ClusterRole 또는 검색 규칙이 레디스 파드 레이블과 일치하지 않는 것입니다.
+
+          그런 다음 메트릭이 뉴렐릭에 도달하는지 확인합니다. 파드가 시작된 후 약 1분 정도 기다린 다음 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)에서 다음 쿼리를 실행합니다:
+
+          ```sql
+          SELECT count(*) FROM Metric
+          WHERE metricName LIKE 'redis.%'
+          AND instrumentation.provider = 'opentelemetry'
+          AND k8s.cluster.name IS NOT NULL
+          SINCE 5 minutes ago
+          ```
+
+          0이 아닌 개수는 레디스 메트릭이 전송되고 있음을 확인합니다. `0`을(를) 반환하는 경우, [레디스 문제 해결(OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting)을 참조하세요.
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="otel-contrib">
+      <Steps>
+        <Step>
+          ### 네임스페이스 및 자격 증명 생성 [#ns-otel]
+
+          `newrelic` 네임스페이스를 생성하고 라이선스 키와 OTLP 엔드포인트를 Kubernetes Secret에 저장합니다. 수집기가 런타임에 이를 읽으므로 자격 증명이 구성에 포함되지 않습니다:
+
+          ```bash
+          kubectl create namespace newrelic
+
+          # Set OTEL_EXPORTER_OTLP_ENDPOINT for your region.
+          # See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
+          kubectl create secret generic newrelic-credentials \
+            --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
+            --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT \
+            -n newrelic
+          ```
+        </Step>
+
+        <Step>
+          ### RBAC 설정 [#rbac-otel]
+
+          `k8s_observer` 에는 파드를 감시할 수 있는 권한이 필요합니다. `rbac.yaml` 생성:
+
+          ```yaml
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: otel-collector-redis
+            namespace: newrelic
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: otel-collector-redis
+          rules:
+            - apiGroups: [""]
+              resources: ["pods", "namespaces", "nodes"]
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["apps"]
+              resources: ["replicasets"]
+              verbs: ["get", "list", "watch"]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: otel-collector-redis
+          subjects:
+            - kind: ServiceAccount
+              name: otel-collector-redis
+              namespace: newrelic
+          roleRef:
+            kind: ClusterRole
+            name: otel-collector-redis
+            apiGroup: rbac.authorization.k8s.io
+          ```
+
+          ```bash
+          kubectl apply -f rbac.yaml
+          ```
+        </Step>
+
+        <Step>
+          ### 수집기 구성 [#config-otel]
+
+          이 ConfigMap은 수집기에게 레디스 파드를 검색하고, 메트릭을 수집하여 뉴렐릭으로 보내는 방법을 알려줍니다. 세 가지 주요 작업을 처리합니다:
+
+          * `k8s_observer` 및 다음을 사용하여 레디스 파드를 자동으로 **검색** `receiver_creator`
+          * 데이터 **형성** ― 카디널리티를 줄이고, 카운터를 델타로 변환하며, 엔티티 ID를 설정합니다.
+          * 처리된 메트릭을 OTLP를 통해 뉴렐릭으로 **내보내기**
+
+          `otel-collector-config.yaml` 생성:
+
+          ```yaml
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: otel-collector-redis-config
+            namespace: newrelic
+          data:
+            config.yaml: |
+              extensions:
+                health_check:
+                  endpoint: "0.0.0.0:13133"
+                k8s_observer:
+                  auth_type: serviceAccount
+                  observe_pods: true
+                  observe_nodes: false
+
+              receivers:
+                receiver_creator/redis:
+                  watch_observers: [k8s_observer]
+                  receivers:
+                    redis:
+                      rule: type == "pod" && labels["app"] == "redis"  # Update with your Redis pod labels
+                      config:
+                        endpoint: "`endpoint`:6379"
+                        collection_interval: 10s
+                        metrics:
+                          redis.maxmemory:
+                            enabled: true
+                          redis.role:
+                            enabled: false
+                          redis.cmd.calls:
+                            enabled: true
+                          redis.cmd.usec:
+                            enabled: true
+                          redis.clients.max_input_buffer:
+                            enabled: false
+                          redis.clients.max_output_buffer:
+                            enabled: false
+                          redis.replication.backlog_first_byte_offset:
+                            enabled: false
+                        resource_attributes:
+                          server.address:
+                            enabled: false
+                          server.port:
+                            enabled: false
+
+              processors:
+                memory_limiter:
+                  check_interval: 5s
+                  limit_mib: 256
+                  spike_limit_mib: 64
+
+                resource/k8s_cluster:
+                  attributes:
+                    - key: k8s.cluster.name
+                      value: "my-cluster"  # Update with your cluster name
+                      action: upsert
+                    - key: redis.instance.id
+                      value: "my-cluster.default:6379"  # Update with cluster.namespace:port
+                      action: upsert
+
+                attributes/entity_tags:
+                  actions:
+                    - key: instrumentation.provider
+                      value: opentelemetry
+                      action: upsert
+
+                cumulativetodelta:
+                  include:
+                    match_type: regexp
+                    metrics:
+                      - redis\.commands\.processed
+                      - redis\.connections\.received
+                      - redis\.connections\.rejected
+                      - redis\.keys\.evicted
+                      - redis\.keys\.expired
+                      - redis\.keyspace\.hits
+                      - redis\.keyspace\.misses
+                      - redis\.net\.input
+                      - redis\.net\.output
+                      - redis\.cpu\.time
+                      - redis\.cmd\.calls
+                      - redis\.cmd\.usec
+                      - redis\.uptime
+
+                filter/cardinality:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "redis.cpu.time" and attributes["state"] != "sys" and attributes["state"] != "user"'
+                      - 'metric.name == "redis.cmd.calls" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+                      - 'metric.name == "redis.cmd.usec" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+
+                transform/metadata_nullify:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(description, "")
+                        - set(unit, "")
+
+                batch:
+                  send_batch_size: 2048
+                  send_batch_max_size: 4096
+                  timeout: 10s
+
+              exporters:
+                otlp_http:
+                  endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+                  headers:
+                    api-key: ${env:NEW_RELIC_LICENSE_KEY}
+                  compression: gzip
+
+              service:
+                extensions: [health_check, k8s_observer]
+                pipelines:
+                  metrics/redis:
+                    receivers: [receiver_creator/redis]
+                    processors: [memory_limiter, resource/k8s_cluster, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                    exporters: [otlp_http]
+          ```
+
+          ```bash
+          kubectl apply -f otel-collector-config.yaml
+          ```
+
+          #### 이 설정의 역할 [#config-explanation-otel]
+
+          파이프라인의 각 구성 요소에는 특정 작업이 있습니다:
+
+          | 요소                           | 설명                                                                                                                              |
+          | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+          | `health_check`               | 수집기가 실행 중인지 확인할 수 있도록 `0.0.0.0:13133` 에 상태 엔드포인트를 노출합니다.                                                                        |
+          | `k8s_observer`               | 수집기가 레디스 인스턴스를 동적으로 검색할 수 있도록 파드에 대한 Kubernetes API를 감시합니다.                                                                     |
+          | `receiver_creator/redis`     | 규칙(`labels["app"] == "redis"`)과 일치하는 각 파드에 대해 `redis` 수신기를 시작하고 10초마다 레디스 `INFO` 명령에서 메트릭을 읽습니다.                                |
+          | `memory_limiter`             | 파드를 보호하기 위해 수집기 메모리 사용량을 제한합니다(256 MiB 소프트 제한, 64 MiB 스파이크).                                                                    |
+          | `resource/k8s_cluster`       | 레디스 엔티티의 안정적인 ID인 `k8s.cluster.name` 및 `redis.instance.id`을(를) 설정합니다(복합 `server.address:server.port` 패턴은 Kubernetes에서 사용되지 않음). |
+          | `attributes/entity_tags`     | 쿼리 범위를 OpenTelemetry 경로로 지정할 수 있도록 모든 메트릭에 `instrumentation.provider: opentelemetry` 을(를) 찍습니다.                                 |
+          | `cumulativetodelta`          | 뉴렐릭이 비율을 올바르게 차트로 표시할 수 있도록 레디스의 누적 카운터 ― 명령, 키스페이스 적중, 축출 등 ― 를 델타 값으로 변환합니다.                                                  |
+          | `filter/cardinality`         | 수집 비용을 제어하기 위해 높은 카디널리티 데이터 포인트(`user` 및 `sys` 이외의 CPU 상태, 일반적이지 않은 명령에 대한 명령별 메트릭)를 삭제합니다.                                     |
+          | `transform/metadata_nullify` | 페이로드 크기를 줄이기 위해 메트릭 설명 및 단위를 지웁니다.                                                                                              |
+          | `batch`                      | 네트워크 오버헤드를 줄이기 위해 내보내기 전에 데이터 포인트를 그룹화(배치당 2,048개, 최대 4,096개)하고 최소 10초마다 플러시합니다.                                                |
+          | `otlp_http`                  | 라이선스 키로 인증되고 gzip 압축을 사용하여 OTLP를 통해 처리된 메트릭을 뉴렐릭으로 내보냅니다.                                                                       |
+        </Step>
+
+        <Step>
+          ### 선택 사항: 레디스 로그 수집 [#logs-otel]
+
+          메트릭 외에도 수집기는 레디스의 로그를 뉴렐릭으로 전달할 수 있으므로 로그 이벤트 ― 재시작, 지속성 이벤트 또는 오류 ― 를 동일한 엔티티의 메트릭 급증과 연관시킬 수 있습니다. 이를 수집하려면 ConfigMap에 `filelog` 수신자를 추가하고 DaemonSet에 `/var/log/pods` 을(를) 마운트합니다.
+
+          ConfigMap의 `receivers` 섹션에 추가:
+
+          ```yaml
+              file_log/redis:
+                include:
+                  - /var/log/pods/<namespace>_*redis*/*/*.log  # Update <namespace> with your Redis namespace (e.g., default, production)
+                start_at: end
+                include_file_path: true
+                operators:
+                  - type: regex_parser
+                    regex: '^\S+ stdout F \d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+                    on_error: send
+                resource:
+                  db.system: redis
+          ```
+
+          `resource/redis_logs` 프로세서를 추가합니다:
+
+          ```yaml
+              resource/redis_logs:
+                attributes:
+                  - key: redis.instance.id
+                    value: "my-cluster.default:6379"  # Update with cluster.namespace:port
+                    action: upsert
+                  - key: instrumentation.provider
+                    value: "opentelemetry"
+                    action: upsert
+          ```
+
+          서비스 섹션에 로그 파이프라인을 추가합니다:
+
+          ```yaml
+              service:
+                pipelines:
+                  metrics/redis:
+                    # ... existing metrics pipeline ...
+                  logs/redis:
+                    receivers: [file_log/redis]
+                    processors: [memory_limiter, resource/redis_logs, batch]
+                    exporters: [otlp_http]
+          ```
+        </Step>
+
+        <Step>
+          ### 선택 사항: 레디스 Cluster 모니터링 활성화 [#cluster-otel]
+
+          레디스 Cluster 모니터링은 현재 Prometheus 수신자 접근 방식(`redis_exporter` 사용)이 필요합니다. OTel Collector Contrib의 기본 레디스 수신자는 클러스터 메트릭에 필요한 `CLUSTER INFO` 명령을 아직 지원하지 않습니다. 클러스터 모니터링 설정을 위해 [Prometheus 수신자](/docs/opentelemetry/integrations/redis/kubernetes/#prometheus) 탭을 사용합니다.
+        </Step>
+
+        <Step>
+          ### DaemonSet 배포 [#deploy-otel]
+
+          `otel-collector-daemonset.yaml` 생성:
+
+          ```yaml
+          apiVersion: apps/v1
+          kind: DaemonSet
+          metadata:
+            name: otel-collector-redis
+            namespace: newrelic
+          spec:
+            selector:
+              matchLabels:
+                app: otel-collector-redis
+            template:
+              metadata:
+                labels:
+                  app: otel-collector-redis
+              spec:
+                serviceAccountName: otel-collector-redis
+                containers:
+                  - name: otel-collector
+                    image: otel/opentelemetry-collector-contrib:latest
+                    args: ["--config=/etc/otel/config.yaml"]
+                    env:
+                      - name: NEW_RELIC_LICENSE_KEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-credentials
+                            key: NEW_RELIC_LICENSE_KEY
+                      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-credentials
+                            key: OTEL_EXPORTER_OTLP_ENDPOINT
+                      - name: K8S_NODE_NAME
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: spec.nodeName
+                    resources:
+                      limits:
+                        cpu: 500m
+                        memory: 512Mi
+                      requests:
+                        cpu: 100m
+                        memory: 128Mi
+                    volumeMounts:
+                      - name: config
+                        mountPath: /etc/otel
+                      - name: machine-id
+                        mountPath: /etc/machine-id
+                        readOnly: true
+                      # Uncomment if collecting logs:
+                      # - name: varlogpods
+                      #   mountPath: /var/log/pods
+                      #   readOnly: true
+                    livenessProbe:
+                      httpGet:
+                        path: /
+                        port: 13133
+                      initialDelaySeconds: 15
+                    readinessProbe:
+                      httpGet:
+                        path: /
+                        port: 13133
+                      initialDelaySeconds: 5
+                volumes:
+                  - name: config
+                    configMap:
+                      name: otel-collector-redis-config
+                  - name: machine-id
+                    hostPath:
+                      path: /etc/machine-id
+                  # Uncomment if collecting logs:
+                  # - name: varlogpods
+                  #   hostPath:
+                  #     path: /var/log/pods
+          ```
+
+          ```bash
+          kubectl apply -f otel-collector-daemonset.yaml
+          ```
+        </Step>
+
+        <Step>
+          ### 확인 [#verify-otel]
+
+          수집기 파드가 실행 중인지 확인합니다:
+
+          ```bash
+          kubectl get pods -n newrelic -l app=otel-collector-redis
+          ```
+
+          파드는 모든 컨테이너가 준비된 상태로 `Running` 을(를) 표시해야 합니다. `CrashLoopBackOff` 또는 `Error`인 경우 `kubectl logs -n newrelic -l app=otel-collector-redis` 을(를) 사용하여 로그를 확인하세요 ― 가장 일반적인 원인은 ConfigMap YAML 오류, 누락된 RBAC ClusterRole 또는 검색 규칙이 레디스 파드 레이블과 일치하지 않는 것입니다.
+
+          그런 다음 메트릭이 뉴렐릭에 도달하는지 확인합니다. 파드가 시작된 후 약 1분 정도 기다린 다음 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)에서 다음 쿼리를 실행합니다:
+
+          ```sql
+          SELECT count(*) FROM Metric
+          WHERE metricName LIKE 'redis.%'
+          AND instrumentation.provider = 'opentelemetry'
+          AND k8s.cluster.name IS NOT NULL
+          SINCE 5 minutes ago
+          ```
+
+          0이 아닌 개수는 레디스 메트릭이 전송되고 있음을 확인합니다. `0`을(를) 반환하는 경우, [레디스 문제 해결(OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting)을 참조하세요.
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="prometheus">
+      <Steps>
+        <Step>
+          ### 네임스페이스 및 자격 증명 생성 [#ns-prometheus]
+
+          `newrelic` 네임스페이스를 생성하고 라이선스 키와 OTLP 엔드포인트를 Kubernetes Secret에 저장합니다. 수집기가 런타임에 이를 읽으므로 자격 증명이 구성에 포함되지 않습니다:
+
+          ```bash
+          kubectl create namespace newrelic
+
+          # Set OTEL_EXPORTER_OTLP_ENDPOINT for your region.
+          # See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
+          kubectl create secret generic newrelic-credentials \
+            --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
+            --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT \
+            -n newrelic
+          ```
+        </Step>
+
+        <Step>
+          ### redis\_exporter 배포 [#exporter-prometheus]
+
+          레디스 파드의 사이드카 또는 별도의 배포로 `redis_exporter` 을(를) 배포합니다. 이 예제에서는 수집기가 스크랩할 서비스와 함께 독립 실행형 배포로 배포합니다.
+
+          `redis-exporter.yaml` 생성:
+
+          ```yaml
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: redis-exporter
+            namespace: default  # Update with your Redis namespace
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: redis-exporter
+            template:
+              metadata:
+                labels:
+                  app: redis-exporter
+              spec:
+                containers:
+                  - name: redis-exporter
+                    image: oliver006/redis_exporter:latest
+                    env:
+                      - name: REDIS_ADDR
+                        value: "redis://redis:6379"  # Update with your Redis service name:port
+                      # Uncomment if using Redis authentication:
+                      # - name: REDIS_PASSWORD
+                      #   valueFrom:
+                      #     secretKeyRef:
+                      #       name: redis-credentials
+                      #       key: password
+                    ports:
+                      - containerPort: 9121
+                        name: metrics
+                    livenessProbe:
+                      httpGet:
+                        path: /health
+                        port: 9121
+                      initialDelaySeconds: 5
+                    readinessProbe:
+                      httpGet:
+                        path: /health
+                        port: 9121
+                      initialDelaySeconds: 5
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: redis-exporter
+            namespace: default  # Update with your Redis namespace
+          spec:
+            selector:
+              app: redis-exporter
+            ports:
+              - port: 9121
+                targetPort: 9121
+                name: metrics
+          ```
+
+          ```bash
+          kubectl apply -f redis-exporter.yaml
+          ```
+
+          익스포터가 실행 중인지 확인합니다:
+
+          ```bash
+          kubectl port-forward svc/redis-exporter 9121:9121 &
+          curl -s http://localhost:9121/metrics | grep redis_up
+          ```
+        </Step>
+
+        <Step>
+          ### 수집기 구성 [#config-prometheus]
+
+          이 ConfigMap은 `redis_exporter` 에서 메트릭을 스크랩하여 뉴렐릭으로 보냅니다. 다음과 같은 주요 작업을 처리합니다:
+
+          * `prometheus` 수신기를 통해 `redis_exporter` 서비스를 **스크랩** 합니다
+          * Prometheus 메트릭을 뉴렐릭의 레디스 메트릭 이름으로 **이름 바꾸기**
+          * 데이터 **형성** ― 카디널리티를 줄이고, 카운터를 델타로 변환하며, 엔티티 ID를 설정합니다.
+          * 처리된 메트릭을 OTLP를 통해 뉴렐릭으로 **내보내기**
+
+          `otel-collector-config.yaml` 생성:
+
+          ```yaml
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: otel-collector-redis-config
+            namespace: newrelic
+          data:
+            config.yaml: |
+              extensions:
+                health_check:
+                  endpoint: "0.0.0.0:13133"
+
+              receivers:
+                prometheus:
+                  config:
+                    scrape_configs:
+                      - job_name: 'redis'
+                        scrape_interval: 10s
+                        static_configs:
+                          - targets: ['redis-exporter.default.svc.cluster.local:9121']  # Update with your exporter service FQDN
+                        metric_relabel_configs:
+                          - source_labels: [__name__]
+                            regex: '(go_|process_|promhttp_|redis_exporter_).*'
+                            action: drop
+
+              processors:
+                memory_limiter:
+                  check_interval: 5s
+                  limit_mib: 256
+                  spike_limit_mib: 64
+
+                resource/redis_identity:
+                  attributes:
+                    - key: k8s.cluster.name
+                      value: "my-cluster"  # Update with your cluster name
+                      action: upsert
+                    - key: redis.instance.id
+                      value: "my-cluster.default:6379"  # Update with cluster.namespace:port
+                      action: upsert
+
+                attributes/entity_tags:
+                  actions:
+                    - key: instrumentation.provider
+                      value: opentelemetry
+                      action: upsert
+
+                metricstransform:
+                  transforms:
+                    - include: redis_uptime_in_seconds
+                      action: update
+                      new_name: redis.uptime
+                    - include: redis_connected_clients
+                      action: update
+                      new_name: redis.clients.connected
+                    - include: redis_blocked_clients
+                      action: update
+                      new_name: redis.clients.blocked
+                    - include: redis_memory_used_bytes
+                      action: update
+                      new_name: redis.memory.used
+                    - include: redis_memory_max_bytes
+                      action: update
+                      new_name: redis.maxmemory
+                    - include: redis_mem_fragmentation_ratio
+                      action: update
+                      new_name: redis.memory.fragmentation_ratio
+                    - include: redis_memory_used_rss_bytes
+                      action: update
+                      new_name: redis.memory.rss
+                    - include: redis_memory_used_peak_bytes
+                      action: update
+                      new_name: redis.memory.peak
+                    - include: redis_memory_used_lua_bytes
+                      action: update
+                      new_name: redis.memory.lua
+                    - include: redis_connections_received_total
+                      action: update
+                      new_name: redis.connections.received
+                    - include: redis_rejected_connections_total
+                      action: update
+                      new_name: redis.connections.rejected
+                    - include: redis_commands_processed_total
+                      action: update
+                      new_name: redis.commands.processed
+                    - include: redis_keyspace_hits_total
+                      action: update
+                      new_name: redis.keyspace.hits
+                    - include: redis_keyspace_misses_total
+                      action: update
+                      new_name: redis.keyspace.misses
+                    - include: redis_evicted_keys_total
+                      action: update
+                      new_name: redis.keys.evicted
+                    - include: redis_expired_keys_total
+                      action: update
+                      new_name: redis.keys.expired
+                    - include: redis_net_input_bytes_total
+                      action: update
+                      new_name: redis.net.input
+                    - include: redis_net_output_bytes_total
+                      action: update
+                      new_name: redis.net.output
+                    - include: redis_connected_slaves
+                      action: update
+                      new_name: redis.slaves.connected
+                    - include: redis_db_keys
+                      action: update
+                      new_name: redis.db.keys
+                    - include: redis_db_keys_expiring
+                      action: update
+                      new_name: redis.db.expires
+                    - include: redis_rdb_changes_since_last_save
+                      action: update
+                      new_name: redis.rdb.changes_since_last_save
+                    - include: redis_db_avg_ttl_seconds
+                      action: update
+                      new_name: redis.db.avg_ttl
+                    - include: redis_latest_fork_seconds
+                      action: update
+                      new_name: redis.latest_fork
+                    - include: redis_master_repl_offset
+                      action: update
+                      new_name: redis.replication.offset
+                    - include: redis_repl_backlog_first_byte_offset
+                      action: update
+                      new_name: redis.replication.backlog_first_byte_offset
+                    - include: redis_commands_total
+                      action: update
+                      new_name: redis.cmd.calls
+                    - include: redis_commands_duration_seconds_total
+                      action: update
+                      new_name: redis.cmd.usec
+                    - include: redis_cpu_sys_seconds_total
+                      action: update
+                      new_name: redis.cpu.time
+                      operations:
+                        - action: add_label
+                          new_label: state
+                          new_value: sys
+                    - include: redis_cpu_user_seconds_total
+                      action: update
+                      new_name: redis.cpu.time
+                      operations:
+                        - action: add_label
+                          new_label: state
+                          new_value: user
+
+                cumulativetodelta:
+                  include:
+                    match_type: regexp
+                    metrics:
+                      - redis\.commands\.processed
+                      - redis\.connections\.received
+                      - redis\.connections\.rejected
+                      - redis\.keys\.evicted
+                      - redis\.keys\.expired
+                      - redis\.keyspace\.hits
+                      - redis\.keyspace\.misses
+                      - redis\.net\.input
+                      - redis\.net\.output
+                      - redis\.cpu\.time
+                      - redis\.cmd\.calls
+                      - redis\.cmd\.usec
+                      - redis\.uptime
+
+                filter/cardinality:
+                  metrics:
+                    datapoint:
+                      - 'metric.name == "redis.cpu.time" and attributes["state"] != "sys" and attributes["state"] != "user"'
+                      - 'metric.name == "redis.cmd.calls" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+                      - 'metric.name == "redis.cmd.usec" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+
+                transform/metadata_nullify:
+                  metric_statements:
+                    - context: metric
+                      statements:
+                        - set(description, "")
+                        - set(unit, "")
+
+                batch:
+                  send_batch_size: 2048
+                  send_batch_max_size: 4096
+                  timeout: 10s
+
+              exporters:
+                otlp_http:
+                  endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+                  headers:
+                    api-key: ${env:NEW_RELIC_LICENSE_KEY}
+                  compression: gzip
+
+              service:
+                extensions: [health_check]
+                pipelines:
+                  metrics/redis:
+                    receivers: [prometheus]
+                    processors: [memory_limiter, resource/redis_identity, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                    exporters: [otlp_http]
+          ```
+
+          ```bash
+          kubectl apply -f otel-collector-config.yaml
+          ```
+
+          #### 이 설정의 역할 [#config-explanation-prometheus]
+
+          파이프라인의 각 구성 요소에는 특정 작업이 있습니다:
+
+          | 요소                           | 설명                                                                                                                                                                 |
+          | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+          | `health_check`               | 수집기가 실행 중인지 확인할 수 있도록 `0.0.0.0:13133` 에 상태 엔드포인트를 노출합니다.                                                                                                           |
+          | `prometheus` 수신기             | 10초마다 `redis_exporter` 서비스(기본값 `redis-exporter.default.svc.cluster.local:9121`)를 스크랩하고 익스포터 자체의 `go_*`, `process_*`, `promhttp_*` 및 `redis_exporter_*` 메트릭을 삭제합니다. |
+          | `memory_limiter`             | 파드를 보호하기 위해 수집기 메모리 사용량을 제한합니다(256 MiB 소프트 제한, 64 MiB 스파이크).                                                                                                       |
+          | `resource/redis_identity`    | 레디스 엔티티의 안정적인 ID인 `k8s.cluster.name` 및 `redis.instance.id`을(를) 설정합니다. Prometheus 수신기가 `server.address` 또는 `server.port`을(를) 제공하지 않기 때문에 여기에 필요합니다.                 |
+          | `attributes/entity_tags`     | 쿼리 범위를 OpenTelemetry 경로로 지정할 수 있도록 모든 메트릭에 `instrumentation.provider: opentelemetry` 을(를) 찍습니다.                                                                    |
+          | `metricstransform`           | 익스포터의 Prometheus 메트릭(예: `redis_uptime_in_seconds`)의 이름을 뉴렐릭의 레디스 이름(`redis.uptime`)으로 바꾸고 CPU 메트릭에 `state` 레이블을 추가합니다.                                             |
+          | `cumulativetodelta`          | 뉴렐릭이 비율을 올바르게 차트로 표시할 수 있도록 누적 카운터 ― 명령, 키스페이스 적중, 축출 등 ― 를 델타 값으로 변환합니다.                                                                                          |
+          | `filter/cardinality`         | 수집 비용을 제어하기 위해 높은 카디널리티 데이터 포인트(`user` 및 `sys` 이외의 CPU 상태, 일반적이지 않은 명령에 대한 명령별 메트릭)를 삭제합니다.                                                                        |
+          | `transform/metadata_nullify` | 페이로드 크기를 줄이기 위해 메트릭 설명 및 단위를 지웁니다.                                                                                                                                 |
+          | `batch`                      | 네트워크 오버헤드를 줄이기 위해 내보내기 전에 데이터 포인트를 그룹화(배치당 2,048개, 최대 4,096개)하고 최소 10초마다 플러시합니다.                                                                                   |
+          | `otlp_http`                  | 라이선스 키로 인증되고 gzip 압축을 사용하여 OTLP를 통해 처리된 메트릭을 뉴렐릭으로 내보냅니다.                                                                                                          |
+        </Step>
+
+        <Step>
+          ### 선택 사항: 레디스 Cluster 모니터링 활성화 [#cluster-prometheus]
+
+          레디스가 Cluster 모드로 실행 중인 경우 모든 노드에서 클러스터 상태 메트릭을 자동으로 수집하려면 `--is-cluster` 플래그와 함께 `redis_exporter` 을(를) 시작합니다:
+
+          ```bash
+          redis_exporter --redis.addr=redis://localhost:7000 --is-cluster
+          ```
+
+          위의 Prometheus 수신기 설정은 이미 클러스터 메트릭의 이름을 변경합니다(예: `redis_cluster_state` → `redis.cluster.state`). 뉴렐릭에 별도의 클러스터 엔티티를 생성하려면 `redis.instance.id`이(가) 포함되지 **않은 별도의 파이프라인** 에 `redis.cluster.name` 리소스 속성을 추가합니다:
+
+          ```yaml
+            resource/cluster:
+              attributes:
+                - key: redis.cluster.name
+                  value: "my-redis-cluster"  # Update with your cluster name
+                  action: upsert
+          ```
+
+          서비스 섹션에 클러스터 파이프라인을 추가합니다:
+
+          ```yaml
+              metrics/cluster:
+                receivers: [prometheus]
+                processors: [memory_limiter, resource/cluster, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+          ```
+
+          <Callout variant="important">
+            클러스터 엔티티는 `redis.cluster.name` 이(가) 존재하고 `redis.instance.id` 이(가) 없어야 합니다. 동일한 메트릭에 두 가지가 모두 설정된 경우 인스턴스 엔티티만 생성됩니다. 인스턴스 및 클러스터 메트릭에 별도의 파이프라인을 사용하세요.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### 선택 사항: 레디스 로그 수집 [#logs-prometheus]
+
+          메트릭 외에도 수집기는 레디스의 로그를 뉴렐릭으로 전달할 수 있으므로 로그 이벤트 ― 재시작, 지속성 이벤트 또는 오류 ― 를 동일한 엔티티의 메트릭 급증과 연관시킬 수 있습니다. 이를 수집하려면 ConfigMap에 `file_log` 수신기를 추가하고 배포에 `/var/log/pods` 을(를) 마운트합니다.
+
+          ConfigMap의 `receivers` 섹션에 추가:
+
+          ```yaml
+              file_log/redis:
+                include:
+                  - /var/log/pods/<namespace>_*redis*/*/*.log  # Update <namespace> with your Redis namespace (e.g., default, production)
+                start_at: end
+                include_file_path: true
+                operators:
+                  - type: regex_parser
+                    regex: '^\S+ stdout F \d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+                    on_error: send
+                resource:
+                  db.system: redis
+          ```
+
+          `resource/redis_logs` 프로세서를 추가합니다:
+
+          ```yaml
+              resource/redis_logs:
+                attributes:
+                  - key: redis.instance.id
+                    value: "my-cluster.default:6379"  # Must match the value in resource/redis_identity
+                    action: upsert
+                  - key: instrumentation.provider
+                    value: "opentelemetry"
+                    action: upsert
+          ```
+
+          서비스 섹션에 로그 파이프라인을 추가합니다:
+
+          ```yaml
+              service:
+                pipelines:
+                  metrics/redis:
+                    # ... existing metrics pipeline ...
+                  logs/redis:
+                    receivers: [file_log/redis]
+                    processors: [memory_limiter, resource/redis_logs, batch]
+                    exporters: [otlp_http]
+          ```
+
+          `/var/log/pods` 볼륨 마운트를 배포에 추가합니다(아래 배포 단계 참조).
+        </Step>
+
+        <Step>
+          ### 수집기 배포 [#deploy-prometheus]
+
+          `otel-collector-deployment.yaml` 생성:
+
+          ```yaml
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: otel-collector-redis
+            namespace: newrelic
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: otel-collector-redis
+            template:
+              metadata:
+                labels:
+                  app: otel-collector-redis
+              spec:
+                containers:
+                  - name: otel-collector
+                    image: otel/opentelemetry-collector-contrib:latest
+                    args: ["--config=/etc/otel/config.yaml"]
+                    env:
+                      - name: NEW_RELIC_LICENSE_KEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-credentials
+                            key: NEW_RELIC_LICENSE_KEY
+                      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-credentials
+                            key: OTEL_EXPORTER_OTLP_ENDPOINT
+                    resources:
+                      limits:
+                        cpu: 500m
+                        memory: 512Mi
+                      requests:
+                        cpu: 100m
+                        memory: 128Mi
+                    volumeMounts:
+                      - name: config
+                        mountPath: /etc/otel
+                      # Uncomment if collecting logs:
+                      # - name: varlogpods
+                      #   mountPath: /var/log/pods
+                      #   readOnly: true
+                    livenessProbe:
+                      httpGet:
+                        path: /
+                        port: 13133
+                      initialDelaySeconds: 15
+                    readinessProbe:
+                      httpGet:
+                        path: /
+                        port: 13133
+                      initialDelaySeconds: 5
+                volumes:
+                  - name: config
+                    configMap:
+                      name: otel-collector-redis-config
+                  # Uncomment if collecting logs:
+                  # - name: varlogpods
+                  #   hostPath:
+                  #     path: /var/log/pods
+          ```
+
+          ```bash
+          kubectl apply -f otel-collector-deployment.yaml
+          ```
+
+          <Callout variant="tip">
+            대신 NRDOT 수집기를 사용하려면 이미지를 `newrelic/nrdot-collector:latest`(으)로 교체합니다.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### 확인 [#verify-prometheus]
+
+          수집기 파드가 실행 중인지 확인합니다:
+
+          ```bash
+          kubectl get pods -n newrelic -l app=otel-collector-redis
+          ```
+
+          파드는 모든 컨테이너가 준비된 상태로 `Running` 을(를) 표시해야 합니다. `CrashLoopBackOff` 또는 `Error`인 경우 `kubectl logs -n newrelic -l app=otel-collector-redis` 을(를) 사용하여 로그를 확인하세요 ― 가장 일반적인 원인은 ConfigMap YAML 오류 또는 연결할 수 없는 `redis_exporter` 서비스입니다.
+
+          그런 다음 메트릭이 뉴렐릭에 도달하는지 확인합니다. 파드가 시작된 후 약 1분 정도 기다린 다음 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)에서 다음 쿼리를 실행합니다:
+
+          ```sql
+          SELECT count(*) FROM Metric
+          WHERE metricName LIKE 'redis.%'
+          AND instrumentation.provider = 'opentelemetry'
+          AND k8s.cluster.name IS NOT NULL
+          SINCE 5 minutes ago
+          ```
+
+          0이 아닌 개수는 레디스 메트릭이 전송되고 있음을 확인합니다. `0`을(를) 반환하는 경우, [레디스 문제 해결(OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting)을 참조하세요.
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+<Callout variant="tip">
+  **APM과 레디스 상관관계 분석**: 서비스 맵에서 APM 애플리케이션과 레디스 인스턴스를 연결하려면 APM 메트릭에 `db.system="redis"` 및 `redis.instance.id` 을(를) 리소스 속성으로 포함합니다. `redis.instance.id` 값은 수집기에서 구성한 값과 일치해야 합니다. 이를 통해 뉴렐릭 내에서 교차 서비스 가시성을 확보하고 더 빠른 문제 진단 및 해결이 가능해집니다.
+</Callout>
+
+## 다음 단계 [#next-steps]
+
+* **[호스트 설치](/docs/opentelemetry/integrations/redis/host)**: VM/베어메탈에서 레디스 모니터
+* **[도커 설치](/docs/opentelemetry/integrations/redis/docker)**: 도커 컴포즈로 배포
+* **[데이터 보기](/docs/opentelemetry/integrations/redis/view-data)**: 대시보드 및 알림 탐색
+* **[메트릭 참조](/docs/opentelemetry/integrations/redis/metrics)**: 사용 가능한 모든 메트릭
+* **[문제 진단, 해결](/docs/opentelemetry/integrations/redis/troubleshooting)**: 일반적인 K8s 문제

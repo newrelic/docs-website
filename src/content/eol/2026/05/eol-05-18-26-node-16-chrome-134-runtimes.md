@@ -51,6 +51,9 @@ Pursuant to this migration, Node.js 16 and Chrome 134 legacy runtimes will be pe
   </tbody>
 </table>
 
+Note: If any scheduled date falls on a weekend, New Relic will implement the changes on the next business day.
+
+
 ## What's changing
 
 1. Auto upgrade to LATEST runtime environments  

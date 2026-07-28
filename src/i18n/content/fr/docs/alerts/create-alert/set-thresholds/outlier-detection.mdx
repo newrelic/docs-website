@@ -86,6 +86,65 @@ Suivez ces étapes pour créer une condition d&apos;alerte avec détection des v
 * Évitez la sur-segmentation, qui peut réduire l&apos;efficacité.
 * Prenez en compte la saisonnalité et les cycles d&apos;activité lors du regroupement.
 
+### Gestion des données retardées et des horodatages plus anciens [#handling-delayed-data-and-older-timestamps]
+
+La détection des valeurs hors norme fonctionne en comparant les métriques de plusieurs entités au même moment. Pour effectuer une comparaison équitable, toutes les entités doivent transmettre des données sur la même fenêtre temporelle.
+
+#### Le problème des horodatages retardés
+
+Imaginez que vous effectuez le monitoring de l&apos;utilisation du CPU sur trois serveurs à 14 h 00 :
+
+* **Serveur A** rapporte 45 % de CPU avec horodatage `2:00 PM`
+* **Serveur B** signale 50 % de CPU avec horodatage `2:00 PM`
+* **Serveur C** signale 95 % de CPU avec horodatage `1:30 PM`
+
+Les données du serveur C ont un horodatage plus ancien (13:30 au lieu de 14:00). Le système ne peut pas comparer les données de 13 h 30 à celles de 14 h 00 — c&apos;est comme comparer des pommes et des poires. Par conséquent, le serveur C est entièrement exclu de l&apos;analyse des valeurs hors norme. Même si le serveur C rencontre clairement un problème, vous ne recevrez pas d&apos;alerte car il n&apos;a jamais été évalué.
+
+Cela se produit lorsqu&apos;une entité rapporte systématiquement des données avec des horodatages plus anciens que la fenêtre temporelle actuelle en cours d&apos;analyse.
+
+#### Causes courantes
+
+* **Interrogation du fournisseur de cloud :** AWS CloudWatch et des services similaires collectent des métriques à intervalles réguliers, puis New Relic les interroge plus tard. Par exemple, une métrique représentant 14:00 pourrait ne pas arriver à New Relic avant 14:05, créant un retard de 5 minutes.
+
+* **Transactions de longue durée :** les tâches d&apos;arrière-plan reçoivent un horodatage lorsqu&apos;elles démarrent, et non lorsqu&apos;elles se terminent. Un job qui commence à 13 h 30 et s&apos;exécute pendant 30 minutes aura un horodatage de 13 h 30 lorsque ses données arriveront à 14 h 00.
+
+* **Données en mémoire tampon :** des problèmes de réseau ou les paramètres de l&apos;agent peuvent entraîner la mise en file d&apos;attente locale des données. Lorsque la connectivité est rétablie, toutes les données en mémoire tampon arrivent avec leur horodatage d&apos;origine.
+
+#### Identifier les entités exclues
+
+Pour voir quelles entités sont exclues et pourquoi, exécutez une requête sur l&apos;événement `NrAiSignal` :
+
+```sql
+FROM NrAiSignal
+SELECT *
+WHERE conditionId = 1234
+  AND outlierProcessingSkippedReason IS NOT NULL
+```
+
+Remplacez `1234` par votre ID de condition d’alerte. Champs clés à examiner :
+
+* **`outlierProcessingSkippedReason`**: pourquoi le signal a été exclu (affiche généralement `LATE` pour les données en retard)
+* **`outlierProcessingSkippedTimeDelta`**: la différence de temps en secondes entre l’horodatage des données et la fenêtre d’évaluation actuelle
+
+#### Résolution du problème
+
+Si vous voyez un avertissement dans l&apos;éditeur de conditions indiquant que des signaux sont exclus :
+
+**Option 1 : diviser la condition (recommandé)**
+
+Créez des conditions d’alerte distinctes pour les entités ayant des comportements de reporting différents :
+
+* Une condition pour les serveurs d’applications en temps réel
+* Une autre condition pour les ressources interrogées dans le cloud (comme les métriques AWS CloudWatch)
+
+Cela garantit que la fenêtre d&apos;agrégation de chaque condition correspond à la façon dont ses entités rapportent réellement les données.
+
+**Option 2 : augmenter la fenêtre d&apos;agrégation**
+
+Élargissez votre fenêtre d&apos;agrégation pour tenir compte des retards. Par exemple, si vos données sont systématiquement en retard de 3 à 5 minutes, utilisez une fenêtre d&apos;agrégation de 5 minutes au lieu de 1 minute.
+
+**Compromis :** des fenêtres plus grandes lissent les pics à court terme et augmentent le délai avant le déclenchement d&apos;une alerte. Un serveur qui connaît un pic à 14:00 pourrait ne pas déclencher d&apos;alerte avant 14:05 ou plus tard.
+
 ## Cas d&apos;utilisation et exemples [#use-cases]
 
 * **Brokers Kafka déséquilibrés :** identifiez rapidement les brokers présentant des temps d&apos;attente d&apos;E/S CPU anormaux, permettant aux administrateurs de rééquilibrer les charges de travail de manière proactive avant que les performances ne soient impactées.
