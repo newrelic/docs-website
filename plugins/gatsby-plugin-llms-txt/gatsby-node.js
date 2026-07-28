@@ -5,116 +5,202 @@ const remove = require('unist-util-remove');
 const toString = require('mdast-util-to-string');
 const unified = require('unified');
 const stringify = require('remark-stringify');
+const { findAttribute } = require('../../codemods/utils/mdxast');
+
+// remark-stringify@8.1.1 (the version installed here) only knows how to
+// render a fixed set of standard mdast node types (see
+// node_modules/remark-stringify/lib/compiler.js) - anything else throws
+// "Missing compiler for node of type X". These are the non-standard types
+// that can appear in a real MDX AST and have no component-name concept, so
+// they can't go through dispatchFlow/dispatchText.
+const NON_STANDARD_NODE_TYPES = new Set([
+  'mdxBlockExpression',
+  'mdxSpanExpression',
+  'mdxTextExpression',
+  'mdxFlowExpression',
+  'mdxValueExpression',
+  'mdxJsxAttributeValueExpression',
+  'export',
+  'import',
+  'mdxjsEsm',
+  'inlineMath',
+  'math',
+]);
+
+// Converts a text node to plain text, or drops it if empty, so the
+// stringifier never sees a node type it doesn't recognize.
+const toTextOrDrop = (node) => {
+  const text = toString(node).trim();
+  return text ? { type: 'text', value: text } : [];
+};
+
+// An attribute's value is usually a plain string, but when it's set via a
+// JSX expression (e.g. title={<><InlineCode>delay</InlineCode> (in minutes)</>})
+// findAttribute() returns the raw expression node instead - an object, not a
+// string - which crashes downstream string methods (.startsWith, .charAt via
+// the stringifier's escaper, etc.) if used as-is. Fall back to the
+// expression's own raw source text when available.
+const attributeText = (value) => {
+  if (typeof value === 'string') return value;
+  if (value && typeof value.value === 'string') return value.value;
+  return null;
+};
 
 /**
- * Custom component handlers that convert MDX components to clean markdown
+ * Dispatches a flow-level (block) custom MDX component to its markdown
+ * equivalent. `node.children` is always already fully resolved by the time
+ * this runs (see transformNode). Returns a single node, an array (to
+ * unwrap/splice in place), or an empty array to drop the node.
  */
-const cleanMarkdownHandlers = {
-  // Convert Callout to blockquote with variant indicator
-  mdxJsxFlowElement: (node) => {
-    if (node.name === 'Callout') {
-      const variant = node.attributes.find(attr => attr.name === 'variant')?.value || 'tip';
-      const variantEmoji = {
-        tip: '💡',
-        important: '⚠️',
-        caution: '⚠️',
-        warning: '⚠️'
-      }[variant] || '💡';
+const dispatchFlow = (node) => {
+  if (node.name === 'Callout') {
+    const variant = attributeText(findAttribute('variant', node)) || 'tip';
+    const variantEmoji = {
+      tip: '💡',
+      important: '⚠️',
+      caution: '⚠️',
+      warning: '⚠️',
+    }[variant] || '💡';
 
-      return {
-        type: 'blockquote',
-        children: [
-          {
-            type: 'paragraph',
-            children: [
-              { type: 'strong', children: [{ type: 'text', value: `${variantEmoji} ${variant.toUpperCase()}` }] },
-              { type: 'text', value: '\n\n' },
-              ...node.children
-            ]
-          }
-        ]
-      };
-    }
-
-    // Convert ButtonLink to regular link
-    if (node.name === 'ButtonLink') {
-      const href = node.attributes.find(attr => attr.name === 'to')?.value || '#';
-      const text = toString(node);
-      return {
-        type: 'link',
-        url: href.startsWith('/') ? `https://docs.newrelic.com${href}` : href,
-        children: [{ type: 'text', value: text }]
-      };
-    }
-
-    // Strip DNT (Do Not Translate) - just keep the content
-    if (node.name === 'DNT') {
-      return node.children;
-    }
-
-    // Convert CollapserGroup to nested list
-    if (node.name === 'CollapserGroup') {
-      return {
-        type: 'html',
-        value: '<!-- Expandable section -->'
-      };
-    }
-
-    // Convert TechTile to list item with link
-    if (node.name === 'TechTile') {
-      const name = node.attributes.find(attr => attr.name === 'name')?.value || '';
-      const to = node.attributes.find(attr => attr.name === 'to')?.value || '';
-      return {
-        type: 'listItem',
-        children: [
-          {
-            type: 'paragraph',
-            children: [
-              {
-                type: 'link',
-                url: to.startsWith('/') ? `https://docs.newrelic.com${to}` : to,
-                children: [{ type: 'text', value: name }]
-              }
-            ]
-          }
-        ]
-      };
-    }
-
-    // Default: strip the component but keep children
-    return node.children;
-  },
-
-  // Handle inline MDX components
-  mdxJsxTextElement: (node) => {
-    // Convert InlineCode to regular code
-    if (node.name === 'InlineCode') {
-      return {
-        type: 'inlineCode',
-        value: toString(node)
-      };
-    }
-
-    // Convert InlinePopover and other inline elements to text
-    if (node.name === 'InlinePopover') {
-      const text = node.attributes.find(attr => attr.name === 'text')?.value || toString(node);
-      return {
-        type: 'text',
-        value: text
-      };
-    }
-
-    // Strip DNT (Do Not Translate)
-    if (node.name === 'DNT') {
-      return node.children;
-    }
-
-    // Default: convert to text
     return {
-      type: 'text',
-      value: toString(node)
+      type: 'blockquote',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            { type: 'strong', children: [{ type: 'text', value: `${variantEmoji} ${variant.toUpperCase()}` }] },
+            { type: 'text', value: '\n\n' },
+            ...(node.children || []),
+          ],
+        },
+      ],
     };
   }
+
+  if (node.name === 'ButtonLink') {
+    const href = attributeText(findAttribute('to', node)) || '#';
+    const text = toString(node);
+    return {
+      type: 'link',
+      url: href.startsWith('/') ? `https://docs.newrelic.com${href}` : href,
+      children: [{ type: 'text', value: text }],
+    };
+  }
+
+  // Strip DNT (Do Not Translate) - just keep the content
+  if (node.name === 'DNT') {
+    return node.children;
+  }
+
+  // Render title + body as a bold line followed by the body content, so
+  // nothing is lost. The title may arrive as a plain string attribute, or
+  // (if it was originally a JSX expression) already extracted into a
+  // synthetic `CollapserTitle` first child by
+  // plugins/utils/jsxImagesToChildren.js, which runs earlier in the MDX
+  // compile pipeline and removes the attribute in that case - check both.
+  if (node.name === 'Collapser') {
+    const attrTitle = attributeText(findAttribute('title', node));
+    let bodyChildren = node.children || [];
+    let titleChildren;
+
+    if (attrTitle) {
+      titleChildren = [{ type: 'text', value: attrTitle }];
+    } else if (bodyChildren[0] && bodyChildren[0].name === 'CollapserTitle') {
+      titleChildren = bodyChildren[0].children;
+      bodyChildren = bodyChildren.slice(1);
+    } else {
+      titleChildren = [{ type: 'text', value: 'Details' }];
+    }
+
+    return [
+      { type: 'paragraph', children: [{ type: 'strong', children: titleChildren }] },
+      ...bodyChildren,
+    ];
+  }
+
+  // Unwrap CollapserGroup - each Collapser child has already been resolved
+  // into a title+body sequence by the handler above, so nothing is lost.
+  if (node.name === 'CollapserGroup') {
+    return node.children;
+  }
+
+  if (node.name === 'TechTile') {
+    const name = attributeText(findAttribute('name', node)) || '';
+    const to = attributeText(findAttribute('to', node)) || '';
+    return {
+      type: 'listItem',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'link',
+              url: to.startsWith('/') ? `https://docs.newrelic.com${to}` : to,
+              children: [{ type: 'text', value: name }],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  // Default: unrecognized component name - strip the wrapper but keep children
+  return node.children;
+};
+
+/**
+ * Dispatches a span-level (inline) custom MDX component to its markdown
+ * equivalent.
+ */
+const dispatchText = (node) => {
+  if (node.name === 'InlineCode') {
+    return { type: 'inlineCode', value: toString(node) };
+  }
+
+  if (node.name === 'InlinePopover') {
+    const text = attributeText(findAttribute('text', node)) || toString(node);
+    return { type: 'text', value: text };
+  }
+
+  if (node.name === 'DNT') {
+    return node.children;
+  }
+
+  // Default: convert to text
+  return { type: 'text', value: toString(node) };
+};
+
+/**
+ * Recursively rebuilds a node's children before dispatching the node
+ * itself (post-order), guaranteeing nested custom components (e.g. a
+ * Collapser inside a CollapserGroup) are always fully resolved before
+ * stringification - by construction, not by luck.
+ *
+ * This replaces a single-pass mutate-while-traversing `unist-util-visit`
+ * call that silently skipped siblings whenever a replacement's length
+ * wasn't exactly 1 (most commonly 0, e.g. a childless self-closing
+ * component) - the root cause of ~30% of pages failing to convert.
+ */
+const transformNode = (node) => {
+  if (Array.isArray(node.children)) {
+    node.children = node.children.flatMap((child) => {
+      const result = transformNode(child);
+      if (result === undefined || result === null) return [];
+      return Array.isArray(result) ? result : [result];
+    });
+  }
+
+  if (node.type === 'mdxBlockElement' || node.type === 'mdxJsxFlowElement') {
+    return dispatchFlow(node);
+  }
+  if (node.type === 'mdxSpanElement' || node.type === 'mdxJsxTextElement') {
+    return dispatchText(node);
+  }
+  if (NON_STANDARD_NODE_TYPES.has(node.type)) {
+    return toTextOrDrop(node);
+  }
+
+  return node;
 };
 
 /**
@@ -129,127 +215,31 @@ const mdxToCleanMarkdown = (mdxAST) => {
   remove(ast, { type: 'export' });
   remove(ast, { type: 'mdxjsEsm' });
 
-  // Transform custom components to markdown equivalents
-  visit(ast, (node, index, parent) => {
-    // Handle MDX v1 block elements (legacy syntax)
-    if (node.type === 'mdxBlockElement') {
-      // Extract component name and attributes
-      const componentName = node.name;
-      const attributes = {};
-      if (node.attributes) {
-        node.attributes.forEach(attr => {
-          attributes[attr.name] = attr.value;
-        });
-      }
+  transformNode(ast);
 
-      // Create a compatible node structure for the handler
-      const compatNode = {
-        name: componentName,
-        attributes: node.attributes || [],
-        children: node.children || []
-      };
-
-      const replacement = cleanMarkdownHandlers.mdxJsxFlowElement(compatNode);
-      if (replacement && parent && index !== null) {
-        if (Array.isArray(replacement)) {
-          parent.children.splice(index, 1, ...replacement);
-        } else {
-          parent.children[index] = replacement;
-        }
-      }
+  // Convert relative links/images to absolute. This only mutates fields in
+  // place (never array length), so it's safe under plain unist-util-visit,
+  // unlike the component-replacement pass above.
+  visit(ast, (node) => {
+    if (node.type === 'link' && node.url && node.url.startsWith('/docs/')) {
+      node.url = `https://docs.newrelic.com${node.url}`;
     }
-
-    // Handle MDX v1 span elements (legacy inline syntax)
-    if (node.type === 'mdxSpanElement') {
-      const componentName = node.name;
-      const attributes = {};
-      if (node.attributes) {
-        node.attributes.forEach(attr => {
-          attributes[attr.name] = attr.value;
-        });
-      }
-
-      const compatNode = {
-        name: componentName,
-        attributes: node.attributes || [],
-        children: node.children || []
-      };
-
-      const replacement = cleanMarkdownHandlers.mdxJsxTextElement(compatNode);
-      if (replacement && parent && index !== null) {
-        if (Array.isArray(replacement)) {
-          parent.children.splice(index, 1, ...replacement);
-        } else {
-          parent.children[index] = replacement;
-        }
-      }
-    }
-
-    // Handle JSX flow elements (block-level)
-    if (node.type === 'mdxJsxFlowElement' && cleanMarkdownHandlers.mdxJsxFlowElement) {
-      const replacement = cleanMarkdownHandlers.mdxJsxFlowElement(node);
-      if (replacement && parent && index !== null) {
-        // Handle array replacements (e.g., DNT that returns children)
-        if (Array.isArray(replacement)) {
-          parent.children.splice(index, 1, ...replacement);
-        } else {
-          parent.children[index] = replacement;
-        }
-      }
-    }
-
-    // Handle JSX text elements (inline)
-    if (node.type === 'mdxJsxTextElement' && cleanMarkdownHandlers.mdxJsxTextElement) {
-      const replacement = cleanMarkdownHandlers.mdxJsxTextElement(node);
-      if (replacement && parent && index !== null) {
-        // Handle array replacements (e.g., DNT that returns children)
-        if (Array.isArray(replacement)) {
-          parent.children.splice(index, 1, ...replacement);
-        } else {
-          parent.children[index] = replacement;
-        }
-      }
-    }
-
-    // Convert relative links to absolute
-    if (node.type === 'link' && node.url) {
-      if (node.url.startsWith('/docs/')) {
-        node.url = `https://docs.newrelic.com${node.url}`;
-      }
-    }
-
-    // Ensure image URLs are absolute
-    if (node.type === 'image' && node.url) {
-      if (node.url.startsWith('/')) {
-        node.url = `https://docs.newrelic.com${node.url}`;
-      }
+    if (node.type === 'image' && node.url && node.url.startsWith('/')) {
+      node.url = `https://docs.newrelic.com${node.url}`;
     }
   });
 
-  // Convert AST to markdown string
-  const processor = unified()
-    .use(stringify, {
-      bullet: '-',
-      fence: '`',
-      fences: true,
-      incrementListMarker: true,
-      handlers: {
-        // Add fallback handlers for any remaining MDX node types
-        mdxBlockElement: (node) => {
-          // If we missed this in the visit loop, just return children as text
-          return toString(node);
-        },
-        mdxSpanElement: (node) => {
-          return toString(node);
-        },
-        mdxJsxFlowElement: (node) => {
-          return toString(node);
-        },
-        mdxJsxTextElement: (node) => {
-          return toString(node);
-        }
-      }
-    });
+  // Convert AST to markdown string. No custom `handlers` option here - for
+  // remark-stringify@8.1.1 that option is inert (it merges into
+  // Compiler.prototype.options, never .visitors, so it never actually
+  // catches anything); transformNode above is the real, and only,
+  // safety net.
+  const processor = unified().use(stringify, {
+    bullet: '-',
+    fence: '`',
+    fences: true,
+    incrementListMarker: true,
+  });
 
   return processor.stringify(ast);
 };
@@ -463,3 +453,5 @@ ${cleanMarkdown}`;
     );
   }
 };
+
+exports.mdxToCleanMarkdown = mdxToCleanMarkdown;
