@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { useClipboard } from '@newrelic/gatsby-theme-newrelic';
+import { Icon, useClipboard } from '@newrelic/gatsby-theme-newrelic';
 
 const MdxLlmTools = ({ pathname }) => {
   const [copied, copy] = useClipboard();
@@ -36,6 +36,8 @@ const MdxLlmTools = ({ pathname }) => {
 
         button,
         a {
+          display: inline-flex;
+          align-items: center;
           background: none;
           border: none;
           cursor: pointer;
@@ -49,16 +51,26 @@ const MdxLlmTools = ({ pathname }) => {
           }
         }
 
+        svg {
+          margin-right: 0.375rem;
+          width: 0.875rem;
+          height: 0.875rem;
+        }
+
         .divider {
           color: var(--border-color);
         }
       `}
     >
       <button type="button" onClick={handleCopyClick}>
+        <Icon name="fe-copy" />
         {copied ? 'Copied!' : 'Copy for LLM'}
       </button>
       <span className="divider">|</span>
-      <a href={markdownPath}>View as Markdown</a>
+      <a href={markdownPath}>
+        <Icon name="fe-external-link" />
+        View as Markdown
+      </a>
     </div>
   );
 };
