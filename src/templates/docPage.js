@@ -144,6 +144,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           />
         )}
         <PageTitle>{title}</PageTitle>
+        <MdxLlmTools pathname={location.pathname} />
 
         <LoggedInProvider>
           <Layout.Content>
@@ -191,7 +192,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
             `}
           >
             <TableOfContents headings={headings} />
-            <MdxLlmTools pathname={location.pathname} />
             <ComplexFeedback pageTitle={title} />
             <ContributingGuidelines
               pageTitle={title}

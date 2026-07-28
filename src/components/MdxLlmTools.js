@@ -24,25 +24,40 @@ const MdxLlmTools = ({ pathname }) => {
   return (
     <div
       css={css`
+        grid-area: page-title;
         display: flex;
-        gap: 1rem;
-        margin-top: 1rem;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
         font-size: 0.875rem;
+        white-space: nowrap;
 
         button,
         a {
           background: none;
           border: none;
           cursor: pointer;
-          color: var(--primary-system-text);
+          color: var(--secondary-text-color);
           padding: 0;
           font-size: inherit;
+          white-space: nowrap;
+
+          &:hover {
+            color: var(--primary-text-color);
+          }
+        }
+
+        .divider {
+          color: var(--border-color);
         }
       `}
     >
       <button type="button" onClick={handleCopyClick}>
         {copied ? 'Copied!' : 'Copy for LLM'}
       </button>
+      <span className="divider">|</span>
       <a href={markdownPath}>View as Markdown</a>
     </div>
   );
