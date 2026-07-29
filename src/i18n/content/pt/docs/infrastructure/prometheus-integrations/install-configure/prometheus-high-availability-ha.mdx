@@ -11,26 +11,30 @@ translationType: machine
 Se você estiver usando nossa integração de gravação remota do Prometheus em uma configuração de alta disponibilidade (HA), será necessário garantir que seus servidores Prometheus não estejam enviando várias cópias da mesma métrica para New Relic. Este documento descreve como você pode configurar sua integração de gravação remota para que New Relic não mantenha métricas duplicadas.
 
 <Callout variant="tip">
-  Para obter informações sobre a integração de gravação remota padrão do Prometheus sem usar uma configuração de alta disponibilidade, consulte [Configurar sua integração de gravação remota do Prometheus](/docs/integrations/prometheus-integrations/install-configure/set-your-prometheus-remote-write-integration).
+  Esta página se aplica apenas se os próprios servidores <DNT>Prometheus</DNT> forem executados em uma configuração de alta disponibilidade e as métricas forem encaminhadas com o [remote write](/docs/integrations/prometheus-integrations/install-configure/set-your-prometheus-remote-write-integration). Caso ainda não execute o <DNT>Prometheus</DNT>, o [agente Prometheus para Kubernetes](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent/) é uma alternativa totalmente gerenciada pela New Relic que não requer desduplicação de HA; consulte [Enviar Dados de Métrica do Prometheus para a New Relic](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) para comparar as opções.
 </Callout>
 
-## Rótulos externos [#prometheus-labels]
+## Referência rápida [#prometheus-labels]
 
-O New Relic requer dois rótulos externos para desduplicar dados de réplicas em uma configuração de alta disponibilidade:
+O New Relic desduplica as réplicas de HA usando três valores. É necessário definir todos os três em cada réplica em um cluster de alta disponibilidade:
 
 <table>
   <thead>
     <tr>
       <th>
-        Nome do rótulo
+        Valores
       </th>
 
       <th>
-        Descrição
+        Onde definir
       </th>
 
       <th>
-        Valor de exemplo
+        Valor entre réplicas no mesmo cluster de HA
+      </th>
+
+      <th>
+        Exemplo
       </th>
     </tr>
   </thead>
@@ -42,7 +46,11 @@ O New Relic requer dois rótulos externos para desduplicar dados de réplicas em
       </td>
 
       <td>
-        Um rótulo cujo valor identifica o nome de um cluster ou grupo de servidores Prometheus de alta disponibilidade.
+        <DNT>Prometheus</DNT> rótulo externo
+      </td>
+
+      <td>
+        **Igual** para todas as réplicas
       </td>
 
       <td>
@@ -56,50 +64,113 @@ O New Relic requer dois rótulos externos para desduplicar dados de réplicas em
       </td>
 
       <td>
-        Um rótulo cujo valor identifica a réplica exclusiva que envia esses dados.
+        <DNT>Prometheus</DNT> rótulo externo
       </td>
 
       <td>
-        `replica-1`
+        **Único** por réplica
+      </td>
+
+      <td>
+        `replica-1`, `replica-2`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `prometheus_server`
+      </td>
+
+      <td>
+        `remote_write` Parâmetro de consulta de URL
+      </td>
+
+      <td>
+        **Igual** para todas as réplicas
+      </td>
+
+      <td>
+        `prod-monitoring`
       </td>
     </tr>
   </tbody>
 </table>
 
-<Callout variant="caution">
-  Uma conta pode ter até 1.500 cluster HA do Prometheus exclusivos. Se esse limite for excedido, os dados de cluster HA adicionais serão descartados. Nesses casos, a New Relic gera `PrometheusHAClusterLimit` evento [`NrIntegrationError`](/docs/data-apis/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/).
-</Callout>
+**Como funciona:** a New Relic organiza as réplicas em clusters de HA com base na conta, no rótulo `prometheus` e no parâmetro `prometheus_server`. Em cada cluster, a New Relic designa uma réplica como líder e armazena apenas os dados desse líder. O líder é identificado pelo rótulo `prometheus_replica`.
 
-## Operador Prometeu [#kubernetes-operator]
+## Configurar a Desduplicação [#set-up]
 
-Esses rótulos externos serão adicionados por padrão se você usar [o Operador Prometheus](https://github.com/coreos/prometheus-operator) versão 0.19.0 (ou superior). Isso se aplica quer você use o Operador Prometheus diretamente ou por meio do [gráfico do leme](https://hub.helm.sh/charts/stable/prometheus-operator).
+### Operador Prometeu [#kubernetes-operator]
 
-O operador define o valor do rótulo `prometheus` (aquele que identifica um cluster) como `<prometheus deployment namespace>/<prometheus deployment name>`. Por exemplo, se o seu namespace para a implantação do Prometheus for `monitoring` e o nome da implantação for `prometheus-cluster1`, o valor será `monitoring/prometheus-cluster1`.
+O [<DNT>Prometheus Operator</DNT>](https://github.com/coreos/prometheus-operator) versão 0.19.0 ou superior adiciona os rótulos externos `prometheus` e `prometheus_replica` automaticamente, quer se utilize o operador diretamente ou por meio do [helm chart](https://hub.helm.sh/charts/stable/prometheus-operator):
 
-O operador define o valor do rótulo `prometheus_replica` como o nome do pod para cada réplica. Isto segue o formato `replica-<replica number>`, onde o número é o ordinal dessa réplica (por exemplo, a primeira réplica é denominada réplica-1).
+* `prometheus` é definido como `<prometheus deployment namespace>/<prometheus deployment name>`. Por exemplo, uma implantação chamada `prometheus-cluster1` no namespace `monitoring` produz `monitoring/prometheus-cluster1`.
+* `prometheus_replica` é definido para o nome do pod de cada réplica, no formato `replica-<replica number>` (por exemplo, `replica-1`).
 
-<Callout variant="tip">
-  Se você ainda vir cópias duplicadas de dados de réplica, certifique-se de não ter [`replicaExternalLabelName` ou `prometheusExternalLabelName`](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusspec) em sua especificação ou configuração de gráfico do Prometheus, pois essas substituições alteram o nome do rótulo.
-</Callout>
+É necessário definir `prometheus_server` manualmente na configuração `remoteWrite` no recurso `Prometheus`, usando o mesmo valor para cada réplica. Por exemplo, este recurso executa um par de HA de duas réplicas com um único bloco `remoteWrite`, de modo que `prometheus_server` permaneça consistente em ambas as réplicas:
 
-## Prometeu autônomo
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: monitoring-cluster
+  namespace: monitoring
+spec:
+  replicas: 2
+  remoteWrite:
+    - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+      authorization:
+        credentials:
+          name: nr-license-key
+          key: licenseKey
+```
 
-Ao implantar um servidor Prometheus diretamente, você precisa adicionar os rótulos externos ao [arquivo de configuração](https://prometheus.io/docs/prometheus/latest/configuration/configuration/). Aqui estão dois exemplos diferentes de configuração para réplicas no mesmo cluster de alta disponibilidade:
+O operador então define `prometheus` como `monitoring/monitoring-cluster` e `prometheus_replica` como o nome do pod de cada réplica automaticamente — é necessário fornecer apenas `prometheus_server`. Caso utilize o helm chart `kube-prometheus-stack`, defina o mesmo bloco `remoteWrite` em `prometheus.prometheusSpec`.
+
+### Prometeu autônomo [#standalone-prometheus]
+
+Adicione os rótulos externos ao [arquivo de configuração](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) de cada réplica e use uma URL `remote_write` idêntica — incluindo o parâmetro `prometheus_server` — em todas as réplicas.
 
 <DNT>**Replica 1**</DNT> (`prometheus.yml`)
 
 ```yml
 global:
-	external_labels:
-		prometheus: monitoring-cluster
-		prometheus_replica: replica-1
+  external_labels:
+    prometheus: monitoring-cluster
+    prometheus_replica: replica-1
+
+remote_write:
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+    authorization:
+      credentials: YOUR_LICENSE_KEY
 ```
 
-<DNT>**Replica 2**</DNT> (`prometheus.yml)`
+<DNT>**Replica 2**</DNT> (`prometheus.yml`)
 
 ```yml
 global:
-	external_labels:
-		prometheus: monitoring-cluster
-		prometheus_replica: replica-2
+  external_labels:
+    prometheus: monitoring-cluster
+    prometheus_replica: replica-2
+
+remote_write:
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+    authorization:
+      credentials: YOUR_LICENSE_KEY
 ```
+
+Apenas `prometheus_replica` difere entre as duas réplicas; `prometheus` e `prometheus_server` são idênticos.
+
+## Limitações [#limitations]
+
+É necessário manter `prometheus_server` idêntico entre as réplicas. Como o New Relic usa `prometheus_server` para agrupar réplicas, atribuir valores *diferentes* às réplicas — por exemplo, por host ou por pod — coloca cada uma em seu próprio grupo de HA. Cada réplica se torna o único membro de seu grupo, é sempre eleita líder e retém todos os seus dados. O resultado são dados duplicados no New Relic sem nenhum erro ou aviso, já que cada réplica aparece como um líder íntegro e independente. Para distinguir réplicas individuais, deve-se usar o rótulo `prometheus_replica` em vez disso.
+
+Uma conta pode ter até 1.500 clusters <DNT>Prometheus HA</DNT> únicos, contados por combinação única de conta, rótulo `prometheus` e parâmetro `prometheus_server`. Exceder esse limite faz com que os dados de clusters de HA adicionais sejam descartados, e a New Relic gera `PrometheusHAClusterLimit` eventos [`NrIntegrationError`](/docs/data-apis/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/). Manter `prometheus_server` consistente entre as réplicas também evita que um único grupo de HA consuma vários slots nesse limite.
+
+## Resolução de problemas [#troubleshooting]
+
+<DNT>Prometheus Operator</DNT> não define `prometheus_server` — esse valor vem inteiramente da configuração de `remoteWrite` no recurso `Prometheus`. Quando todas as réplicas compartilham um único bloco `remoteWrite` (o caso normal), isso é consistente por padrão. Caso sejam injetadas sobrescritas de `remoteWrite` por réplica, é necessário garantir que `prometheus_server` seja igual em todas elas.
+
+Se ainda forem observadas cópias duplicadas de dados de réplica, é necessário garantir que não haja [`replicaExternalLabelName` ou `prometheusExternalLabelName`](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusspec) na especificação <DNT>Prometheus</DNT> ou na configuração do chart, pois essas substituições alteram o nome do rótulo.
+
+Para uma desduplicação mais consistente, o <DNT>Prometheus</DNT> `scrape_interval` deve ser mantido em 60 segundos ou menos. O New Relic identifica a réplica ativa em cada cluster de HA a partir dos dados recebidos mais recentemente, e a gravação remota de <DNT>Prometheus</DNT> encaminha novas amostras cerca de uma vez por coleta. Se um cluster enviar dados com menos frequência do que isso, o New Relic pode não reconhecer consistentemente o mesmo líder e pode reter dados duplicados ou intercalados de mais de uma réplica, sem que nenhum erro seja apresentado.
