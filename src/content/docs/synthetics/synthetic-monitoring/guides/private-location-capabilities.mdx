@@ -1,0 +1,234 @@
+---
+title: Private location capabilities
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: 'A consolidated overview of what New Relic synthetic monitoring private locations can do: security, compliance, networking, scaling, and automation.'
+freshnessValidatedDate: never
+---
+
+<Callout variant="important" title="Draft for review — not yet published">
+  This page is a **working draft** circulated for review and contribution. Complete these steps before it ships:
+
+  * Remove this callout and the [Contribution and open questions](#contributing) section at the bottom.
+  * Resolve the items in [Open questions](#open-questions).
+  * Run it through the docs house-style review.
+
+  To contribute, comment on the PR or reach out in the review thread. See [Contribution and open questions](#contributing).
+</Callout>
+
+New Relic private locations let you run synthetic monitors from inside your own infrastructure. Their capabilities are spread across many install and configuration pages, so this page pulls them together in one place, grouped by the problem each one solves.
+
+## What a private location is [#what-it-is]
+
+A private location is a collection of **synthetics job managers (SJMs)** — containers you run in your own environment. Because the SJM only makes **outbound** calls to New Relic's collector (the "Horde" endpoint), you can monitor internal, firewalled, or otherwise private targets **without opening any inbound access** to your network. Test scripts, secrets, and traffic stay inside your infrastructure.
+
+This contrasts with New Relic's managed **public locations**, which run from New Relic-operated infrastructure around the world.
+
+<Callout variant="tip" title="Terminology">
+  The current runner is the **synthetics job manager (SJM)**. It replaced the older **containerized private minion (CPM)**, which is end-of-life. The word "minion" now survives only in NRQL event and attribute names such as `SyntheticsPrivateMinion`.
+</Callout>
+
+## Capabilities at a glance [#capability-matrix]
+
+The following table summarizes what private locations support. Each capability is detailed in the sections below.
+
+| Capability | What it gives you | Supported |
+| --- | --- | --- |
+| Deploy anywhere (Docker/Podman/Kubernetes/OpenShift) | Run monitors inside your own infrastructure, behind the firewall | Yes |
+| Custom CA certificates | Trust internal or private-PKI HTTPS endpoints | Yes |
+| mTLS client certificates | Present client certs to internal mTLS endpoints (`cert-map.json`) | Yes |
+| Non-root execution | Run the SJM as a non-root user in hardened containers | Yes |
+| Verified script execution (VSE) | Passphrase-gate who can run scripts on your location | Yes |
+| Secure credentials | Encrypted secret vault, redacted from results and logs | Yes |
+| FedRAMP Moderate | Use synthetic monitoring in FedRAMP-authorized accounts | Yes (in scope) |
+| Dual stack (IPv4 + IPv6) | Monitor both IPv4 and IPv6 endpoints | Yes |
+| Outbound proxy | Reach New Relic through an HTTP/HTTPS proxy | Yes |
+| Custom Node modules | Use your own npm packages in scripts | Yes |
+| User-defined variables | Inject non-secret configuration into scripts | Yes |
+| Horizontal and vertical scaling | Add SJMs (same key) or add CPU/RAM for throughput | Yes |
+| Programmatic management | Manage locations with NerdGraph and Terraform | Yes |
+| Shared locations | Share one location across all accounts in an org | Yes |
+| Health and observability | Status events plus a prebuilt job manager dashboard | Yes |
+| Kerberos authentication | Kerberos SSO for internal sites and APIs | Coming soon |
+| Custom hostnames (`RUNTIME_EXTRA_HOSTS`) | Map internal hostnames to IPs for runtime DNS resolution | Yes |
+
+## Foundation: Deploy monitoring in your own infrastructure [#foundation]
+
+Private locations run entirely on infrastructure you control:
+
+* A private location can hold **any number of SJMs**. You assign monitors to the location in the UI, and the SJM pulls jobs and reports results back to New Relic.
+* The SJM **runs on Docker, Podman, Kubernetes, and OpenShift** from a single image (`newrelic/synthetics-job-manager`).
+* **Per-check sandboxing:** For each scripted or browser check, the SJM spins up a fresh runtime container or pod, then tears it down, isolating runs from one another.
+* **Runtimes the SJM manages:**
+  * `synthetics-ping-runtime` — ping monitors (lightweight)
+  * `synthetics-node-api-runtime` — scripted API, broken links, certificate check
+  * `synthetics-node-browser-runtime` — simple and scripted browser monitors (Chrome and Firefox)
+* **Outbound only:** The SJM must reach the Horde endpoint (US `https://synthetics-horde.nr-data.net/`, EU `https://synthetics-horde.eu01.nr-data.net/`, JP `https://synthetics-horde.jp.nr-data.net/`). Test connectivity with:
+
+  ```bash
+  curl -X GET https://synthetics-horde.nr-data.net/synthetics/api/v1/ping
+  ```
+
+For setup, see [Private locations overview](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/) and [Install the job manager](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/).
+
+## Security and hardening [#security]
+
+### Custom CA certificates [#custom-certs]
+
+Mount your own CA certificates so monitors can trust internal HTTPS endpoints secured by a **private PKI** — no custom runtime image required. The SJM auto-detects the certs and propagates them (read-only) to every runtime it spawns.
+
+* **Format:** PEM, with a `.pem` extension, readable by UID `2000`. Only certificates with the `CA:TRUE` basic constraint are loaded, so leaf certificates are ignored.
+* **Docker:** Mount to `/var/lib/newrelic/synthetics/certs` read-only.
+* **Kubernetes:** Create a secret and reference it with `global.customCertificates.volume.secret.secretName`.
+
+### mTLS client certificates [#mtls]
+
+For internal endpoints that enforce **mutual TLS**, provide client certificates mapped to target hostnames — monitors present the correct certificate automatically, with no script changes.
+
+* Provide a `cert-map.json` mapping hostnames to PEM cert/key files (matching priority: exact → wildcard `*.domain.com` → `default` → no certificate).
+* **Docker:** mount your client-cert directory to `/var/lib/newrelic/synthetics/client-cert` read-only.
+* **Kubernetes:** create a Secret containing `cert-map.json` and the cert/key files, then reference it with `global.clientCertificates.volume.secret.secretName`.
+* If the mTLS hostnames aren't resolvable via DNS inside the runtime, map them with the `RUNTIME_EXTRA_HOSTS` environment variable (comma-separated `host:ip` pairs).
+
+<Callout variant="tip" title="Certificate support limitations">
+  Custom CA and mTLS certificates apply to **scripted API and scripted browser monitors only** (ping monitors are unaffected). Certificates load at container startup, so **restart the job manager (or the runtime pods on Kubernetes) after adding, removing, or rotating** them. For mTLS, each client certificate needs a **unique Subject CN** — Chrome uses it to auto-select the correct certificate per hostname.
+</Callout>
+
+### Non-root execution [#non-root]
+
+The SJM runs as root by default (safe because execution is sandboxed), but it also supports running as a **non-root user**.
+
+* **Docker:** The user must be in the `docker` group (or use the Docker TCP socket via `DOCKER_HOST`) and have read/write access to mounted volumes, then run with `-u UID:GID`.
+* Runtime containers always run as UID `2000`.
+* **Kubernetes** exposes a `podSecurityContext` Helm value for `runAsUser`, `runAsNonRoot`, and `fsGroup`. Podman supports a fully rootless model.
+
+### Verified script execution (VSE) [#vse]
+
+Require a **passphrase** before anyone can assign scripts to your location or add SJMs to it. This prevents others from running arbitrary code on your infrastructure.
+
+* Set the passphrase with `VSE_PASSPHRASE` (Docker/Podman) or `synthetics.vsePassphrase` / `synthetics.vsePassphraseSecretName` (Kubernetes), then enable VSE in the location's **Edit** menu and enter the passphrase for each monitor.
+
+<Callout variant="caution">
+  New Relic **never stores** the VSE passphrase, and no one — including New Relic Support — can recover it. If it's lost, you must reset it on the SJM and re-enter it on every monitor assigned to the location.
+</Callout>
+
+See [Verified script execution for private locations](/docs/synthetics/synthetic-monitoring/private-locations/verified-script-execution-private-locations/).
+
+### Secure credentials [#secure-credentials]
+
+Store secrets (passwords, tokens, keys) in an encrypted vault and reference them in scripts with `$secure.MY_KEY`.
+
+* Uses **AES-GCM 256-bit encryption at rest**, with AWS Key Management Service (KMS) managing the keys. You can never read values back — you can only reference them.
+* New Relic **scrubs** the values from all results and alerts — including percent-encoded forms — replacing them with `_SECURECREDENTIAL_`.
+* Available for scripted browser, API, and step monitors. Limit of 1,000 credentials per account. Admins control create, view, delete, and use permissions.
+
+<Callout variant="important">
+  If a monitor running in a private location is compromised, rotate its secure credentials **and** rotate the private location key.
+</Callout>
+
+See [Store secure credentials](/docs/synthetics/synthetic-monitoring/using-monitors/store-secure-credentials-scripted-browsers-api-tests/).
+
+## Compliance: FedRAMP [#fedramp]
+
+* New Relic is **FedRAMP Authorized (Moderate)**, and **synthetic monitoring is in scope** — it isn't on the list of services not in scope.
+* There's **no separate `gov-` synthetics Horde endpoint**. Per New Relic's endpoint rule, a service whose endpoint isn't separately listed and isn't out of scope meets FedRAMP requirements on its standard endpoint. Private-location SJMs in FedRAMP accounts use the standard Horde endpoint.
+* Customer obligations include a New Relic-approved account, Enterprise edition with Data Plus (or an approved alternative), agents and services configured to FedRAMP-designated endpoints, and use of FedRAMP-authorized features only. FedRAMP is inherited by child accounts.
+
+See [FedRAMP](/docs/security/security-privacy/compliance/certificates-standards-regulations/fedramp/) and [FedRAMP-compliant endpoints](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints/).
+
+## Networking [#networking]
+
+### Dual stack (IPv4 + IPv6) [#dual-stack]
+
+Run the SJM in a dual-stack network so monitors can test **both IPv4 and IPv6** targets. There's no in-product toggle. The SJM inherits dual-stack capability from the host or cluster network, gated on minimum image versions:
+
+* Job manager `519` or later, ping runtime `1.65.0` or later, and Node API/browser runtimes `rc1.15` or later.
+* **Docker:** The host and Docker daemon must have IPv6 enabled. **Kubernetes:** The cluster must be v1.20+ with dual stack enabled. A Podman guide is also available.
+
+See the dual-stack install guides for [Docker](/docs/synthetics/synthetic-monitoring/private-locations/install-synthetics-dual-stack-docker/), [Kubernetes](/docs/synthetics/synthetic-monitoring/private-locations/install-synthetics-dual-stack-kubernetes/), and [Podman](/docs/synthetics/synthetic-monitoring/private-locations/install-synthetics-dual-stack-podman/).
+
+### Outbound proxy [#proxy]
+
+Route the SJM's outbound connection to New Relic (the Horde control channel) through a proxy.
+
+* **Docker/Podman:** `HORDE_API_PROXY_HOST`, `HORDE_API_PROXY_PORT`, `HORDE_API_PROXY_USERNAME`, `HORDE_API_PROXY_PW`, and `HORDE_API_PROXY_ACCEPT_SELF_SIGNED_CERT`.
+* **Kubernetes:** `synthetics.apiProxyHost`, `synthetics.apiProxyPort`, `synthetics.hordeApiProxyUsername`, `synthetics.hordeApiProxyPw`, and `synthetics.hordeApiProxySelfSignedCert`.
+
+<Callout variant="tip">
+  These variables govern SJM-to-New-Relic traffic. There's no documented general-purpose proxy variable for arbitrary monitor-target traffic.
+</Callout>
+
+## Extensibility [#extensibility]
+
+### Custom Node modules [#custom-modules]
+
+Bundle your own npm packages (hosted or local) for use with `require()` in scripted API and browser monitors.
+
+* Provide a directory with a root `package.json`, and the SJM runs `npm install` on startup.
+* Mount to `/var/lib/newrelic/synthetics/modules` (Docker/Podman, read/write). On Kubernetes, use a PersistentVolume (`ReadWriteMany` if shared across pods) via `global.customNodeModules.customNodeModulesPath`.
+
+### User-defined variables [#user-defined-variables]
+
+Inject non-secret configuration into scripts, accessed with `$env.USER_DEFINED_VARIABLES.MY_VARIABLE`.
+
+* Set `USER_DEFINED_VARIABLES` (a JSON string) or mount a `user_defined_variables.json` file.
+
+<Callout variant="caution">
+  User-defined variables are **not** sanitized from logs. Use [secure credentials](#secure-credentials) for anything sensitive.
+</Callout>
+
+## Scaling and operations [#scaling]
+
+Private locations scale to match your monitoring load:
+
+* **Job types:** *Heavyweight* jobs (simple and scripted browser, scripted API) use roughly one CPU core per concurrent job. *Lightweight* jobs (ping) run on a worker-thread pool rather than a full core each.
+* **Throughput per SJM:** Approximately 15 heavyweight jobs per minute and 75 ping checks per minute, by design.
+* **Scale out (horizontal):** Deploy more SJMs with the **same private location key**. Jobs load-balance across them, throughput is additive, and you gain failover.
+* **Scale up (vertical):** Add CPU and memory to the host, or size each runtime independently in the Helm chart (`parallelism`/`completions` for API and browser runtimes, `replicaCount` for ping).
+* **Health and observability:** Each SJM shows a status indicator. The NRQL events `SyntheticsPrivateLocationStatus` and `SyntheticsPrivateMinion` expose queue and resource metrics, and New Relic provides a prebuilt "Synthetics job manager" dashboard.
+* **Queue management:** Clear a backed-up queue in the UI, or purge it with the NerdGraph mutation `syntheticsPurgePrivateLocationQueue`.
+* **Key rotation:** Keys can't be rotated in place. Create a new location, migrate monitors to it, redeploy your SJMs with the new key, then delete the old location. Rotate any secure credentials the monitors used.
+
+See [Synthetics job manager configuration](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/) and [Monitor private locations](/docs/synthetics/synthetic-monitoring/private-locations/monitor-private-locations/).
+
+## Automation and infrastructure as code [#automation]
+
+You can create and manage private locations programmatically:
+
+* **NerdGraph API:** `syntheticsCreatePrivateLocation`, `syntheticsUpdatePrivateLocation`, `syntheticsPurgePrivateLocationQueue`, and `syntheticsDeletePrivateLocation`, plus the secure-credential mutations. Creating a location returns a `guid`.
+* **Terraform:** The `newrelic_synthetics_private_location` resource (required `name` and `description`; optional `shared` and `verified_script_execution`). It exports the `key` you feed to your SJMs, so you can provision the location and wire up the runtime in one pipeline.
+* **Shared locations:** Setting `shared` to `true` makes a location usable by all accounts in the org. A parent-account location is usable by its child accounts, and a child-account location is private to that account.
+
+See [Manage private locations with NerdGraph](/docs/apis/nerdgraph/examples/synthetics-api/private-locations/) and the [Terraform provider docs](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/synthetics_private_location).
+
+## Coming soon [#coming-soon]
+
+<Callout variant="important" title="Kerberos authentication">
+  Synthetic monitoring supports Basic, Digest, NTLM, and NTLMv2 authentication today. **Native Kerberos (SSO) authentication is coming soon**, letting you monitor internal sites and APIs that require it. See [Handle sites that require authentication](/docs/synthetics/synthetic-monitoring/using-monitors/handle-sites-authentication/) for current options.
+</Callout>
+
+---
+
+## Contribution and open questions [#contributing]
+
+<Callout variant="important" title="Remove this section before publishing">
+  This section is for reviewers and contributors and should be deleted before the page ships.
+</Callout>
+
+### How to contribute [#how-to-contribute]
+
+There are a few ways to help:
+
+* Add comments inline on the PR, or suggest edits directly.
+* If you own one of these capabilities, please confirm the details in your section and add anything missing (limits, gotchas, version requirements).
+* Flag any capability that belongs here but isn't listed.
+
+### Open questions [#open-questions]
+
+A few things still need confirmation before publishing:
+
+* **RBAC capability names:** The exact role and capability names for managing private locations and secure credentials weren't found on a single canonical roles page. Someone with Access Management context should confirm the precise capability strings before we state them as fact.
+* **Scope check:** Should this page also cover monitor-downtime handling and the SJM maintenance and upgrade workflow, or link out to them?
+* **Placement:** The proposed path is `src/content/docs/synthetics/synthetic-monitoring/private-locations/private-location-capabilities.mdx`. Confirm this is the right home and add it to the sidenav.
