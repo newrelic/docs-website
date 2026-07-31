@@ -38,6 +38,7 @@ The following table summarizes what private locations support. Each capability i
 | --- | --- | --- |
 | Deploy anywhere (Docker/Podman/Kubernetes/OpenShift) | Run monitors inside your own infrastructure, behind the firewall | Yes |
 | Custom CA certificates | Trust internal or private-PKI HTTPS endpoints | Yes |
+| mTLS client certificates | Present client certs to internal mTLS endpoints (`cert-map.json`) | Yes |
 | Non-root execution | Run the SJM as a non-root user in hardened containers | Yes |
 | Verified script execution (VSE) | Passphrase-gate who can run scripts on your location | Yes |
 | Secure credentials | Encrypted secret vault, redacted from results and logs | Yes |
@@ -51,7 +52,7 @@ The following table summarizes what private locations support. Each capability i
 | Shared locations | Share one location across all accounts in an org | Yes |
 | Health and observability | Status events plus a prebuilt job manager dashboard | Yes |
 | Kerberos authentication | — | No (see [Not supported](#not-supported)) |
-| Custom hostnames / `/etc/hosts` | — | No product feature (infrastructure-level only) |
+| Custom hostnames (`RUNTIME_EXTRA_HOSTS`) | Map internal hostnames to IPs for runtime DNS resolution | Yes |
 
 ## Foundation: Deploy monitoring in your own infrastructure [#foundation]
 
@@ -63,7 +64,7 @@ Private locations run entirely on infrastructure you control:
 * **Runtimes the SJM manages:**
   * `synthetics-ping-runtime` — ping monitors (lightweight)
   * `synthetics-node-api-runtime` — scripted API, broken links, certificate check
-  * `synthetics-node-browser-runtime` — simple and scripted browser monitors (Chrome)
+  * `synthetics-node-browser-runtime` — simple and scripted browser monitors (Chrome and Firefox)
 * **Outbound only:** The SJM must reach the Horde endpoint (US `https://synthetics-horde.nr-data.net/`, EU `https://synthetics-horde.eu01.nr-data.net/`, JP `https://synthetics-horde.jp.nr-data.net/`). Test connectivity with:
 
   ```bash
@@ -81,6 +82,19 @@ Mount your own CA certificates so monitors can trust internal HTTPS endpoints se
 * **Format:** PEM, with a `.pem` extension, readable by UID `2000`. Only certificates with the `CA:TRUE` basic constraint are loaded, so leaf certificates are ignored.
 * **Docker:** Mount to `/var/lib/newrelic/synthetics/certs` read-only.
 * **Kubernetes:** Create a secret and reference it with `global.customCertificates.volume.secret.secretName`.
+
+### mTLS client certificates [#mtls]
+
+For internal endpoints that enforce **mutual TLS**, provide client certificates mapped to target hostnames — monitors present the correct certificate automatically, with no script changes.
+
+* Provide a `cert-map.json` mapping hostnames to PEM cert/key files (matching priority: exact → wildcard `*.domain.com` → `default` → no certificate).
+* **Docker:** mount your client-cert directory to `/var/lib/newrelic/synthetics/client-cert` read-only.
+* **Kubernetes:** create a Secret containing `cert-map.json` and the cert/key files, then reference it with `global.clientCertificates.volume.secret.secretName`.
+* If the mTLS hostnames aren't resolvable via DNS inside the runtime, map them with the `RUNTIME_EXTRA_HOSTS` environment variable (comma-separated `host:ip` pairs).
+
+<Callout variant="tip" title="Certificate support limitations">
+  Custom CA and mTLS certificates apply to **scripted API and scripted browser monitors only** (ping monitors are unaffected). Certificates load at container startup, so **restart the job manager (or the runtime pods on Kubernetes) after adding, removing, or rotating** them. For mTLS, each client certificate needs a **unique Subject CN** — Chrome uses it to auto-select the correct certificate per hostname.
+</Callout>
 
 ### Non-root execution [#non-root]
 
@@ -195,7 +209,6 @@ See [Manage private locations with NerdGraph](/docs/apis/nerdgraph/examples/synt
   These come up often, and the answer is no:
 
   * **Kerberos authentication is not supported.** Synthetic monitoring supports only Basic, Digest, NTLM, and NTLMv2 authentication (varying by monitor type). There's no SJM environment variable, mount, or flag for Kerberos. See [Handle sites that require authentication](/docs/synthetics/synthetic-monitoring/using-monitors/handle-sites-authentication/).
-  * **Custom hostnames / `/etc/hosts` overrides are not a product feature.** The legacy CPM had a user-defined-hostnames option that didn't carry into the SJM. Handle custom name resolution at the infrastructure layer (host DNS or the container host's `/etc/hosts`).
 </Callout>
 
 ---
@@ -219,6 +232,5 @@ There are a few ways to help:
 A few things still need confirmation before publishing:
 
 * **RBAC capability names:** The exact role and capability names for managing private locations and secure credentials weren't found on a single canonical roles page. Someone with Access Management context should confirm the precise capability strings before we state them as fact.
-* **Runtime versions:** The runtime-transition guide and the install page differ slightly on the target Chrome minor version (146 vs 147). Reconcile against the current runtime-transition guide before quoting a number.
 * **Scope check:** Should this page also cover monitor-downtime handling and the SJM maintenance and upgrade workflow, or link out to them?
 * **Placement:** The proposed path is `src/content/docs/synthetics/synthetic-monitoring/private-locations/private-location-capabilities.mdx`. Confirm this is the right home and add it to the sidenav.
