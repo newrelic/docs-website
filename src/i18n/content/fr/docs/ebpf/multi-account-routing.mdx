@@ -1,0 +1,104 @@
+---
+title: Configurez le routage multicompte pour l’agent eBPF de New Relic
+metaDescription: Route New Relic eBPF agent telemetry to different New Relic accounts per Kubernetes namespace using per-namespace license keys.
+tags:
+  - New Relic integrations with eBPF
+  - New Relic eBPF agent
+  - eBPF integration
+  - eBPF multi-account routing
+  - Kubernetes namespace routing
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  Le routage multicompte nécessite la version `1.5.0` ou supérieure du chart `nr-ebpf-agent` <DNT>Helm</DNT>. Cette fonctionnalité est uniquement disponible pour les déploiements Kubernetes de l&apos;agent eBPF.
+</Callout>
+
+Si votre cluster Kubernetes héberge plusieurs équipes ou locataires, vous pouvez configurer l’agent eBPF de New Relic pour router la télémétrie vers un compte New Relic différent en fonction de l’espace de nommage Kubernetes dans lequel un workload s’exécute. Cela permet aux données de chaque équipe d’atterrir dans son propre compte tandis qu’un seul daemonset d’agent eBPF couvre l’ensemble du cluster.
+
+## Fonctionnement du routage multicompte [#how-it-works]
+
+Le daemonset de l’agent eBPF lit un mappage entre espace de nommage et clé de licence à partir d’un secret Kubernetes, injecté en tant que variable d’environnement `NAMESPACE_LICENSE_KEY_MAP`. Vous fournissez ce mappage de l’une des deux manières suivantes, et elles sont mutuellement exclusives :
+
+* `namespaceLicenseKeys` — Définissez la carte directement dans votre `values.yaml`. Le chart le stocke dans un secret qu&apos;il crée pour vous.
+* `customSecretNamespaceLicenseKeys` — Pointez vers un secret Kubernetes que vous créez et gérez vous-même, afin que les clés de licence n’apparaissent jamais dans `values.yaml` ou dans le contrôle de code source.
+
+<Callout variant="tip">
+  Si vous définissez à la fois <DNT>`namespaceLicenseKeys`</DNT> et <DNT>`customSecretNamespaceLicenseKeys`</DNT>, <DNT>`namespaceLicenseKeys`</DNT> a la priorité et le secret personnalisé est ignoré. N’en définissez qu’un seul.
+</Callout>
+
+Pour un pod donné, l’agent recherche l’espace de nommage du pod dans le mappage :
+
+* Si l’espace de nommage est une clé dans la carte, la télémétrie de cet espace de nommage est acheminée vers le compte correspondant.
+* Si l&apos;espace de nommage n&apos;est pas dans le mappage, la télémétrie se rabat sur le <DNT>`licenseKey`</DNT> ou <DNT>`customSecretName`</DNT> global du cluster.
+
+## Configurer le routage multicompte [#configure]
+
+Choisissez l&apos;une des options suivantes selon que vous souhaitez que la clé de licence soit en ligne dans <DNT>`values.yaml`</DNT> ou dans un secret que vous gérez séparément.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="inline">Mappage en ligne</TabsBarItem> <TabsBarItem id="custom-secret">Secret personnalisé</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="inline">
+      Ajoutez une carte <DNT>`namespaceLicenseKeys`</DNT> à votre <DNT>`values.yaml`</DNT>, avec une entrée par espace de nommage que vous souhaitez acheminer vers son propre compte :
+
+      ```yaml
+      namespaceLicenseKeys:
+        team-a: "NRAK-aaa..."
+        team-b: "NRAK-bbb..."
+      ```
+
+      Puis appliquez la modification :
+
+      ```bash
+      helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
+      ```
+
+      <Callout variant="caution">
+        Cela stocke les clés de licence directement dans <DNT>`values.yaml`</DNT>. Si vous validez ce fichier dans le contrôle source, utilisez plutôt l’option de secret personnalisé.
+      </Callout>
+    </TabsPageItem>
+
+    <TabsPageItem id="custom-secret">
+      Créez un secret Kubernetes avec une clé de données nommée exactement <DNT>`NAMESPACE_LICENSE_KEY_MAP`</DNT>, dont la valeur est une carte espace de nommage vers clé de licence encodée en JSON. Le secret doit résider dans le même espace de nommage que la sortie <DNT>eBPF agent</DNT>.
+
+      ```yaml
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: my-nr-namespace-keys
+        namespace: newrelic
+      type: Opaque
+      stringData:
+        NAMESPACE_LICENSE_KEY_MAP: '{"team-a":"NRAK-aaa...","team-b":"NRAK-bbb..."}'
+      ```
+
+      Ensuite, référencez le secret dans <DNT>`values.yaml`</DNT>, et laissez <DNT>`namespaceLicenseKeys`</DNT> vide :
+
+      ```yaml
+      namespaceLicenseKeys: {}
+      customSecretNamespaceLicenseKeys: "my-nr-namespace-keys"
+      ```
+
+      Appliquer la modification :
+
+      ```bash
+      helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
+      ```
+
+      <Callout variant="important">
+        La clé de données du secret doit être exactement `NAMESPACE_LICENSE_KEY_MAP` — le chart ne la renomme pas. La valeur doit être du JSON valide avec des clés et des valeurs entre guillemets doubles ; une map mal formée désactive entièrement le routage (l’agent la traite comme vide).
+      </Callout>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## À savoir [#things-to-know]
+
+* Créez le secret personnalisé dans le même espace de nommage que la sortie <DNT>eBPF agent</DNT> (par exemple, <DNT>`newrelic`</DNT>), et non dans les espaces de nommage du workload que vous routez (comme <DNT>`team-a`</DNT>).
+* Ne définissez pas à la fois `namespaceLicenseKeys` et `customSecretNamespaceLicenseKeys`. Si les deux ne sont pas vides, la carte en ligne l’emporte silencieusement.
+* Les espaces de nommage qui ne sont pas listés dans la carte continuent d’utiliser le <DNT>`licenseKey`</DNT> ou <DNT>`customSecretName`</DNT> global du cluster. Consultez les [paramètres de configuration K8s](/docs/ebpf/k8s-installation/#config-params) pour plus de détails sur ces paramètres.
