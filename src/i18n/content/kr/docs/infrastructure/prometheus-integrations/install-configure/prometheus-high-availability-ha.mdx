@@ -11,26 +11,30 @@ translationType: machine
 고가용성(HA) 구성에서 Prometheus 원격 쓰기 통합을 사용하는 경우 Prometheus 서버가 동일한 메트릭의 여러 복사본을 New Relic으로 보내지 않는지 확인해야 합니다. 이 문서는 New Relic이 중복된 메트릭을 유지하지 않도록 원격 쓰기 통합을 구성하는 방법을 설명합니다.
 
 <Callout variant="tip">
-  고가용성 구성을 사용하지 않는 표준 Prometheus 원격 쓰기 통합에 대한 정보는 Prometheus 원격 쓰기 통합 [설정](/docs/integrations/prometheus-integrations/install-configure/set-your-prometheus-remote-write-integration) 을 참조하십시오.
+  이 페이지는 고가용성 설정으로 자체 <DNT>Prometheus</DNT> 서버를 실행하고 [원격 쓰기](/docs/integrations/prometheus-integrations/install-configure/set-your-prometheus-remote-write-integration)를 사용하여 메트릭을 전달하는 경우에만 적용됩니다. 아직 <DNT>Prometheus</DNT>을(를) 실행하지 않는 경우, [Kubernetes용 Prometheus 에이전트](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent/) 는 HA 중복 제거가 필요하지 않은 완전히 뉴렐릭에서 관리하는 대안이며, 옵션을 비교하려면 [뉴렐릭으로 Prometheus 메트릭 데이터 전송](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) 을 참조하십시오.
 </Callout>
 
-## 외부 레이블 [#prometheus-labels]
+## 빠른 참조 [#prometheus-labels]
 
-New Relic은 고가용성 구성의 복제본에서 데이터 중복을 제거하기 위해 두 개의 외부 레이블이 필요합니다.
+뉴렐릭은 세 가지 값을 사용하여 HA 복제본을 중복 제거합니다. 고가용성 클러스터의 모든 복제본에 세 가지를 모두 설정하십시오:
 
 <table>
   <thead>
     <tr>
       <th>
-        레이블 이름
+        가치
       </th>
 
       <th>
-        설명
+        설정 위치
       </th>
 
       <th>
-        예시 값
+        동일한 HA 클러스터 내 복제본 간의 값
+      </th>
+
+      <th>
+        예시
       </th>
     </tr>
   </thead>
@@ -42,7 +46,11 @@ New Relic은 고가용성 구성의 복제본에서 데이터 중복을 제거�
       </td>
 
       <td>
-        값이 고가용성 클러스터 또는 Prometheus 서버 그룹의 이름을 식별하는 레이블입니다.
+        <DNT>Prometheus</DNT> 외부 레이블
+      </td>
+
+      <td>
+        모든 복제본에 대해 **동일함**
       </td>
 
       <td>
@@ -56,50 +64,113 @@ New Relic은 고가용성 구성의 복제본에서 데이터 중복을 제거�
       </td>
 
       <td>
-        값이 이 데이터를 보내는 고유한 복제본을 식별하는 레이블입니다.
+        <DNT>Prometheus</DNT> 외부 레이블
       </td>
 
       <td>
-        `replica-1`
+        복제본당 **고유함**
+      </td>
+
+      <td>
+        `replica-1`, `replica-2`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `prometheus_server`
+      </td>
+
+      <td>
+        `remote_write` URL 쿼리 파라미터
+      </td>
+
+      <td>
+        모든 복제본에 대해 **동일함**
+      </td>
+
+      <td>
+        `prod-monitoring`
       </td>
     </tr>
   </tbody>
 </table>
 
-<Callout variant="caution">
-  계정은 최대 1,500개의 고유한 Prometheus HA 클러스터를 가질 수 있습니다. 이 한도를 초과하면 추가 HA 클러스터의 데이터가 삭제됩니다. 이러한 경우 뉴렐릭은 `PrometheusHAClusterLimit` [`NrIntegrationError`](/docs/data-apis/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/) 이벤트를 생성합니다.
-</Callout>
+**작동 방식:** 뉴렐릭은 계정, `prometheus` 레이블 및 `prometheus_server` 파라미터를 기반으로 복제본을 HA 클러스터로 구성합니다. 각 클러스터에서 뉴렐릭은 하나의 복제본을 리더로 지정하고 해당 리더의 데이터만 저장합니다. 리더는 `prometheus_replica` 레이블로 식별됩니다.
 
-## 프로메테우스 오퍼레이터 [#kubernetes-operator]
+## 중복 제거 설정 [#set-up]
 
-이러한 외부 레이블은 [Prometheus Operator](https://github.com/coreos/prometheus-operator) 버전 0.19.0(또는 그 이상)을 사용하는 경우 기본적으로 추가됩니다. 이것은 Prometheus Operator를 직접 사용하든 [helm 차트](https://hub.helm.sh/charts/stable/prometheus-operator) 를 통해 사용하든 적용됩니다.
+### 프로메테우스 오퍼레이터 [#kubernetes-operator]
 
-연산자는 `prometheus` 레이블(클러스터를 식별하는 레이블)의 값을 `<prometheus deployment namespace>/<prometheus deployment name>` 로 설정합니다. 예를 들어, Prometheus 배포의 네임스페이스가 `monitoring` 이고 배포 이름이 `prometheus-cluster1` 이면 값은 `monitoring/prometheus-cluster1` 입니다.
+[<DNT>Prometheus Operator</DNT>](https://github.com/coreos/prometheus-operator) 버전 0.19.0 이상은 연산자를 직접 사용하든 [helm 차트](https://hub.helm.sh/charts/stable/prometheus-operator)를 통해 사용하든 관계없이 `prometheus` 및 `prometheus_replica` 외부 레이블을 추가합니다:
 
-연산자는 `prometheus_replica` 레이블 값을 각 복제본의 포드 이름으로 설정합니다. 이것은 `replica-<replica number>` 형식을 따릅니다. 여기서 숫자는 해당 복제본의 서수입니다(예: 첫 번째 복제본의 이름은 replica-1임).
+* `prometheus` `<prometheus deployment namespace>/<prometheus deployment name>`(으)로 설정됩니다. 예를 들어, `monitoring` 네임스페이스의 `prometheus-cluster1` 이라는 배포는 `monitoring/prometheus-cluster1`을(를) 생성합니다.
+* `prometheus_replica` `replica-<replica number>` (예: `replica-1`) 형식으로 각 복제본의 파드 이름으로 설정됩니다.
 
-<Callout variant="tip">
-  복제 데이터의 중복 사본이 계속 표시되는 경우 이러한 재정의가 레이블 이름을 변경하므로 Prometheus 사양 또는 차트 구성에 [`replicaExternalLabelName` 또는 `prometheusExternalLabelName`](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusspec) 이 없는지 확인하십시오.
-</Callout>
+모든 복제본에 동일한 값을 사용하여 `Prometheus` 리소스의 `remoteWrite` 설정에서 `prometheus_server` 을(를) 직접 설정하십시오. 예를 들어, 이 리소스는 단일 `remoteWrite` 블록이 있는 2-복제본 HA 쌍을 실행하므로 `prometheus_server` 은(는) 두 복제본 모두에서 일관되게 유지됩니다:
 
-## 독립 실행형 프로메테우스
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: monitoring-cluster
+  namespace: monitoring
+spec:
+  replicas: 2
+  remoteWrite:
+    - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+      authorization:
+        credentials:
+          name: nr-license-key
+          key: licenseKey
+```
 
-Prometheus 서버를 직접 배포할 때 [구성 파일](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) 에 외부 레이블을 추가해야 합니다. 다음은 동일한 고가용성 클러스터 내의 복제본에 대한 두 가지 다른 구성 예시입니다.
+그런 다음 오퍼레이터는 `prometheus` 을(를) `monitoring/monitoring-cluster` (으)로, `prometheus_replica` 을(를) 각 복제본의 파드 이름으로 자동 설정합니다 ― 사용자는 `prometheus_server`만 제공하면 됩니다. `kube-prometheus-stack` helm 차트를 사용하는 경우 `prometheus.prometheusSpec` 아래에 동일한 `remoteWrite` 블록을 설정하십시오.
+
+### 독립 실행형 프로메테우스 [#standalone-prometheus]
+
+각 복제본의 [설정 파일](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)에 외부 레이블을 추가하고, 모든 복제본에서 ― `prometheus_server` 파라미터를 포함하여 ― 동일한 `remote_write` URL을 사용하십시오.
 
 <DNT>**Replica 1**</DNT> (`prometheus.yml`)
 
 ```yml
 global:
-	external_labels:
-		prometheus: monitoring-cluster
-		prometheus_replica: replica-1
+  external_labels:
+    prometheus: monitoring-cluster
+    prometheus_replica: replica-1
+
+remote_write:
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+    authorization:
+      credentials: YOUR_LICENSE_KEY
 ```
 
-<DNT>**Replica 2**</DNT> (`prometheus.yml)`
+<DNT>**Replica 2**</DNT> (`prometheus.yml`)
 
 ```yml
 global:
-	external_labels:
-		prometheus: monitoring-cluster
-		prometheus_replica: replica-2
+  external_labels:
+    prometheus: monitoring-cluster
+    prometheus_replica: replica-2
+
+remote_write:
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=prod-monitoring
+    authorization:
+      credentials: YOUR_LICENSE_KEY
 ```
+
+두 복제본 간에는 `prometheus_replica` 만 다르며, `prometheus` 및 `prometheus_server` 는 동일합니다.
+
+## 제한 사항 [#limitations]
+
+복제본 간에 `prometheus_server` 을(를) 동일하게 유지하십시오. 뉴렐릭은 `prometheus_server` 을(를) 사용하여 복제본을 그룹화하므로, 복제본에 *다른* 값을 지정하면 ― 예를 들어 호스트 또는 파드당 ― 각각 고유한 HA 그룹에 배치됩니다. 각 복제본은 해당 그룹의 유일한 멤버가 되고, 항상 리더로 선출되며, 모든 데이터를 유지합니다. 각 복제본이 정상적인 독립 실행형 리더로 나타나기 때문에, 결과적으로 오류나 경고 없이 뉴렐릭에 중복 데이터가 발생합니다. 개별 복제본을 구별하려면 대신 `prometheus_replica` 레이블을 사용하십시오.
+
+계정은 최대 1,500개의 고유한 <DNT>Prometheus HA</DNT> 클러스터를 가질 수 있으며, 계정, `prometheus` 레이블 및 `prometheus_server` 파라미터의 고유한 조합당 계산됩니다. 이 한도를 초과하면 추가 HA 클러스터의 데이터가 삭제되며, 뉴렐릭은 `PrometheusHAClusterLimit` [`NrIntegrationError`](/docs/data-apis/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/) 이벤트를 생성합니다. 복제본 전체에서 `prometheus_server` 을(를) 일관되게 유지하면 단일 HA 그룹이 이 한도에 대해 여러 슬롯을 소비하는 것도 방지할 수 있습니다.
+
+## 문제점 해결 [#troubleshooting]
+
+<DNT>Prometheus Operator</DNT> `prometheus_server` 을(를) 설정하지 않습니다 ― 해당 값은 전적으로 `Prometheus` 리소스의 `remoteWrite` 설정에서 가져옵니다. 모든 복제본이 단일 `remoteWrite` 블록을 공유하는 경우(일반적인 경우), 이는 기본적으로 일관성을 유지합니다. 복제본별 `remoteWrite` 재정의를 주입하는 경우, 모든 복제본에서 `prometheus_server` 이(가) 동일한지 확인하십시오.
+
+복제본 데이터의 중복 사본이 계속 표시되는 경우, 이러한 재정의가 레이블 이름을 변경하므로 <DNT>Prometheus</DNT> 사양 또는 차트 설정에 [`replicaExternalLabelName` 또는 `prometheusExternalLabelName`](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusspec) 이(가) 없는지 확인하십시오.
+
+가장 일관된 중복 제거를 위해 <DNT>Prometheus</DNT> `scrape_interval` 을(를) 60초 이하로 유지하십시오. 뉴렐릭은 가장 최근에 수신된 데이터에서 각 HA 클러스터의 활성 복제본을 식별하며, <DNT>Prometheus</DNT> 원격 쓰기는 스크랩당 약 한 번씩 새 샘플을 전달합니다. 클러스터가 이보다 덜 빈번하게 데이터를 전송하는 경우, 뉴렐릭은 동일한 리더를 일관되게 인식하지 못할 수 있으며 오류 표시 없이 둘 이상의 복제본에서 중복되거나 인터리브된 데이터를 유지할 수 있습니다.
