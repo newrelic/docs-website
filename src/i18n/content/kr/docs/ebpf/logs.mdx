@@ -1,0 +1,115 @@
+---
+title: eBPF 로그
+metaDescription: 'Learn how to collect application logs with New Relic''s eBPF agent, without deploying a separate log forwarder.'
+tags:
+  - Integrations
+  - eBPF integration
+  - eBPF logs
+  - Logs
+  - extended Berkeley Packet Filter (eBPF)
+  - Linux host
+  - Kubernetes cluster
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [출시 전 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy) 에 따라 미리보기 프로그램의 일부로 제공됩니다.
+</Callout>
+
+뉴렐릭 eBPF 에이전트는 이제 기존 로그 전달자처럼 로그 파일을 &quot;테일링&quot;하는 대신 커널 수준의 가시성을 사용하여, APM 및 네트워크 텔레메트리를 이미 수집하고 있는 동일한 호스트 또는 컨테이너에서 직접 애플리케이션 로그를 수집할 수 있습니다. 이를 통해 다음과 같은 이점을 얻을 수 있습니다:
+
+* **자동 메타데이터 강화**: 기본적으로 캡처된 로그를 뉴렐릭 메타데이터로 강화하여, 고객 설정 없이도 동일한 에이전트의 APM 및 네트워크 텔레메트리와 함께 문제 진단, 해결 컨텍스트를 제공합니다.
+* **관리할 에이전트 감소**: eBPF 에이전트 옆에 전용 로그 전달자(예: Fluent Bit)를 실행할 때 발생하는 리소스 경합, 상관관계 격차 및 유지 관리 오버헤드를 제거합니다.
+* **더 작은 공격 표면**: 별도의 포워더가 의존하는 플러그인 기반 로깅 미들웨어를 제거하여, CVE 노출과 타사 로그 포워딩 플러그인에 대한 종속성을 모두 줄입니다.
+
+## eBPF 로그 설정 [#setup]
+
+<Callout variant="important" title="중요">
+  eBPF 로그는 셀프 서비스 기능입니다. eBPF 로그를 통해 수집된 모든 로그는 해당 주문에 따라 청구 가능합니다.
+
+  민감한 정보에 대한 데이터 난독화 및 삭제는 OpenTelemetry 변환 언어(OTTL)를 사용하는 [파이프라인 컨트롤 게이트웨이(PCG)](/docs/new-relic-control/pipeline-control/gateway/transform-processor) 를 통해서만 사용할 수 있습니다. 직접적인 eBPF-뉴렐릭 데이터 흐름에는 내장된 난독화가 포함되어 있지 않습니다. 주문에 PCG를 추가하려면 계정 담당자에게 문의하십시오.
+
+  뉴렐릭의 로그 수집 파이프라인은 PCG와 독립적으로 모든 계정의 `message` 필드에 있는 신용카드 및 주민등록번호를 자동으로 난독화합니다. 기타 민감한 데이터의 경우, 수집 전에 수정하도록 PCG 라우팅을 설정하십시오. 예를 들어, 이 설정은 eBPF 로그 메시지에서 `password` 필드를 수정합니다:
+
+  ```yaml
+  transform/Logs:
+    log_statements:
+    - statements:
+      - replace_pattern(log.body, "password:[^,]+", "password:***")
+      conditions:
+      - IsMatch(log.body, "password:")
+  ```
+
+  이 예제는 표시된 `password` 패턴만 수정합니다. 추가적이거나 사용자 정의 가능한 난독화 및 삭제 규칙의 경우, PCG에서 직접 지원하는 [OTTL Transform processor](/docs/new-relic-control/pipeline-control/gateway/transform-processor) 를 설정하십시오. 더 많은 예제는 [PII 수정](/docs/new-relic-control/pipeline-control/gateway/transform-processor#example-5-redact-pii) 을 참조하십시오.
+</Callout>
+
+다음 단계를 완료하여 eBPF 로그를 켜십시오:
+
+1. eBPF 에이전트를 뉴렐릭이 로그 보고에 권장하는 버전 1.5.0 이상으로 업데이트하십시오.
+
+   * Kubernetes의 경우, [eBPF 에이전트 업그레이드](/docs/ebpf/k8s-installation/#upgrade)를 참조하십시오.
+   * Linux 호스트의 경우, [eBPF 에이전트 업그레이드](/docs/ebpf/linux-installation/#upgrade)를 참조하십시오.
+
+2. 다음 파라미터를 설정합니다:
+
+   * `reportLogs`: 로그 수집을 켜려면 `"auto"` 또는 `"true"` 로 설정합니다(각 값의 기능은 아래의 [자동 감지 및 백오프](#automatic-backoff) 를 참조하십시오).
+   * `logDataFilters.applicationLogReporting.enabled`: 이것이 `true` (기본값)인지 확인하거나, 설정을 사용자 지정한 경우 명시적으로 설정합니다.
+
+   로그 관련 파라미터의 전체 목록은 [Linux 설치](/docs/ebpf/linux-installation/#config-params) 또는 [Kubernetes 설치](/docs/ebpf/k8s-installation/#config-params) 가이드의 설정 파라미터 섹션을 참조하십시오.
+
+3. eBPF 에이전트를 재시작합니다.
+
+## 자동 감지 및 백오프 [#automatic-backoff]
+
+중복 텔레메트리 전송을 방지하기 위해, eBPF 에이전트는 다른 에이전트가 이미 엔티티에 대한 로그를 보고하고 있는지 자동으로 감지하고 그에 따라 백오프할 수 있습니다. 이는 APM 데이터 및 네트워크 메트릭에 이미 사용하고 있는 것과 동일한 패턴입니다.
+
+`reportLogs` 파라미터는 다음을 허용합니다:
+
+* `"auto"`: eBPF 에이전트의 동작은 연결된 에이전트 유형에 따라 다릅니다:
+
+  * **뉴렐릭 APM 에이전트**: eBPF 에이전트는 APM 에이전트가 로그를 적극적으로 수집하거나 전달하지 않는 경우에만 로그를 수집하고 보고합니다. APM 에이전트에서 활성 로그 수집을 감지하면, 중복을 피하기 위해 자체 수집을 억제합니다.
+  * **OpenTelemetry 에이전트**: eBPF 에이전트는 OpenTelemetry 에이전트가 연결될 때마다 로그 수집을 완전히 억제합니다.
+
+* `"true"`: eBPF 에이전트는 다른 에이전트의 존재 여부와 관계없이 항상 로그를 수집하고 보고합니다.
+
+* `"false"` (기본값): eBPF 에이전트는 로그를 수집하거나 보고하지 않습니다.
+
+이는 eBPF APM 및 네트워크 메트릭에 대해 `reportApmData` 및 `reportNetworkMetrics` 이(가) 동작하는 방식을 반영합니다. 네트워크 메트릭에 적용된 동일한 패턴에 대해서는 [네트워크 메트릭 전용 모드 활성화](/docs/ebpf/network-metrics/#network-only-mode)를 참조하십시오.
+
+## eBPF 로그 데이터 보기 [#view-data]
+
+뉴렐릭 UI에서 eBPF 로그를 볼 수 있습니다:
+
+1. **[one.newrelic.com](https://one.newrelic.com) &gt; APM &amp; Services** 로 이동하세요.
+2. 로그를 보려는 엔티티를 선택하십시오.
+3. **Logs** \[로그] 탭을 클릭합니다.
+
+<Callout variant="tip">
+  eBPF 에이전트는 사용자 환경에 따라 엔티티 이름을 자동으로 생성합니다.
+
+  * **호스트 또는 도커의 경우**: 이름은 프로세스 이름, 디렉터리 경로 또는 컨테이너 ID, 수신 대기 포트를 결합합니다. 예: `ruby:/home/ubuntu/app:[5678]` 또는 `java:f4aead533895:[8080]`.
+  * **Kubernetes의 경우**: 이름은 서비스 이름에서 파생됩니다(예: `mysql-database-service`).
+</Callout>
+
+eBPF 로그는 현재 인프라 로그가 아닌 **애플리케이션 로그만** 캡처합니다.
+
+<DocTiles>
+  <DocTile title="eBPF APM" path="/docs/ebpf/ebpf-apm/">
+    코드가 없고 언어에 구애받지 않는 애플리케이션 모니터링을 위해 뉴렐릭의 eBPF APM을 사용하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="eBPF 네트워크 메트릭" path="/docs/ebpf/network-metrics/">
+    eBPF 에이전트의 네트워크 모니터링 기능을 살펴보십시오.
+  </DocTile>
+
+  <DocTile title="eBPF 에이전트 속성 참조" path="/docs/ebpf/attributes-reference/">
+    eBPF 에이전트가 데이터에 추가하는 속성의 전체 목록을 확인하십시오.
+  </DocTile>
+
+  <DocTile title="eBPF 모범 사례" path="/docs/ebpf/best-practices/">
+    뉴렐릭 eBPF 에이전트 사용 우수 우수 사례에 대해 알아보세요.
+  </DocTile>
+</DocTiles>
