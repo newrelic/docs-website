@@ -1,0 +1,205 @@
+---
+title: IBM MQ OpenTelemetryのメトリクスと属性のリファレンス
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Metrics
+metaDescription: 'Reference of IBM MQ metrics collected via OpenTelemetry — queue manager, queue, and channel metrics — with resource attributes for host and Kubernetes deployments.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このリファレンスでは、OpenTelemetryを介して収集されるIBM MQのメトリクスと属性について説明します：[mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples)エクスポーターが公開し、コレクターがNew Relicに転送するメトリクスです。これは[Linuxホスト](/docs/opentelemetry/integrations/ibm-mq/host)と[Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes)の両方のデプロイメントに適用されます；メトリクスの形状は同一です。
+
+## メトリクスの収集 [#collection]
+
+すべてのメトリクスは、エクスポーターが出力する生のPrometheusの形状を維持します：**アンダースコア名**（`ibmmq_*`）と生の**`qmgr`**、**`queue`**、および**`channel`**ラベル、さらにコレクターが付与する`target.name`のID属性とオプションの`cluster.name`タグです。New RelicのIBM MQエンティティの合成はこの形状に依存しているため、コレクターは名前とラベルを変更せずに転送します。
+
+<Callout variant="important">
+  **各キューマネージャーでMQI統計を有効にしてください。そうしないと、スループットとタイミングのメトリクスは空のままになります。**キューマネージャーのヘルス、キューの深さ、およびチャネルのステータスは標準でレポートされますが、MQIアクティビティのメトリクス（[キュースループット](#metrics-queue-throughput)および[キューマネージャーMQIアクティビティ](#metrics-qmgr-mqi)のテーブル — `ibmmq_queue_mqput_count`、`ibmmq_queue_average_queue_time_seconds`など）は、統計の収集を**オン**にする必要があり、これは**デフォルトでオフ**になっています。MQSCを使用してキューマネージャーごとに1回有効にします — たとえば`ALTER QMGR STATMQI(ON) STATQ(ON)`、次にキューごとの統計が必要なキューに対して`ALTER QLOCAL(...) STATQ(ON)`を実行します（またはキューマネージャーの`STATQ`のデフォルトに依存します）。これがないと、エクスポーターは正常でエンティティは表示されますが、これらのパネルは空白でレンダリングされます。各メトリクスが依存する正確な統計については、[mq-metric-samplesのドキュメント](https://github.com/ibm-messaging/mq-metric-samples)を参照してください。
+</Callout>
+
+<Callout variant="tip">
+  ステータスメトリクスは`1`/`0`ではなく、数値の**enum**値を報告します — アラートを設定する前に、以下の[ステータスコード参照](#status-codes)を確認してください。カウンターはコレクターによってデルタテンポラリティに変換されるため、チャート化する際は`latest()`ではなく、ウィンドウ上で`sum()`/`rate()`を使用してください。
+</Callout>
+
+以下の表は、OpenTelemetryのメトリクスを領域別にグループ化したものです。アカウントで実際に報告されているすべてのメトリクスをリストするには、次を実行します：
+
+```sql
+FROM Metric SELECT uniques(metricName, 2000) WHERE metricName LIKE 'ibmmq_%' SINCE 1 day ago
+```
+
+## 指標 [#metrics]
+
+### キューマネージャーのヘルスとステータス [#metrics-qmgr-status]
+
+| メトリック                                               | 説明                                                           |
+| --------------------------------------------------- | ------------------------------------------------------------ |
+| `ibmmq_qmgr_status`                                 | キューマネージャーの実行状態（`2` = 実行中）。                                   |
+| `ibmmq_qmgr_command_server_status`                  | コマンドサーバーの実行状態（`2`=実行中）。                                      |
+| `ibmmq_qmgr_channel_initiator_status`               | チャネル・イニシエーター（MQチャネルを開始および管理するキュー・マネージャー・プロセス）の実行状態（`2`=実行中）。 |
+| `ibmmq_qmgr_connection_count`                       | キューマネージャーへの現在の接続数。                                           |
+| `ibmmq_qmgr_uptime`                                 | キューマネージャーの稼働時間（秒単位）。                                         |
+| `ibmmq_qmgr_active_listeners`                       | アクティブなリスナーの数。                                                |
+| `ibmmq_qmgr_active_services`                        | アクティブなサービスの数。                                                |
+| `ibmmq_qmgr_concurrent_connections_high_water_mark` | ピーク時の同時接続数。                                                  |
+
+### キューマネージャーのリソース（CPU、メモリ、ログ、ファイルシステム） [#metrics-qmgr-resources]
+
+| メトリック                                                        | 説明                                                                                           |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `ibmmq_qmgr_cpu_load_one_minute_average_percentage`          | キューマネージャーの1分間のCPUロードアベレージ（`_five_`および`_fifteen_minute_`も同様）。                                 |
+| `ibmmq_qmgr_user_cpu_time_percentage`                        | キューマネージャーによって消費されたユーザー空間のCPU時間。                                                              |
+| `ibmmq_qmgr_system_cpu_time_percentage`                      | キューマネージャーによって消費されたシステム（カーネル）CPU時間。                                                           |
+| `ibmmq_qmgr_ram_total_bytes`                                 | ホスト上の合計RAM。                                                                                  |
+| `ibmmq_qmgr_ram_free_percentage`                             | ホストRAMの空き割合。                                                                                 |
+| `ibmmq_qmgr_ram_total_estimate_for_queue_manager_bytes`      | このキューマネージャーによって使用されている推定RAM。                                                                 |
+| `ibmmq_qmgr_log_in_use_bytes`                                | 現在使用中のリカバリーログ領域。                                                                             |
+| `ibmmq_qmgr_log_max_bytes`                                   | 最大復旧ログサイズ。                                                                                   |
+| `ibmmq_qmgr_log_current_primary_space_in_use_percentage`     | プライマリログ領域の使用率。                                                                               |
+| `ibmmq_qmgr_log_file_system_free_space_bytes`                | ログファイルシステムの空き領域。                                                                             |
+| `ibmmq_qmgr_log_write_latency_seconds`                       | リカバリーログの書き込みレイテンシ。                                                                           |
+| `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`          | 使用中のキューマネージャーのファイルシステム領域。                                                                    |
+| `ibmmq_qmgr_queue_manager_file_system_free_space_percentage` | キュー・マネージャーのファイル・システムの空き容量。                                                                   |
+| `ibmmq_qmgr_mq_fdc_file_count`                               | IBM MQ診断ダンプファイルの数（FFST/FDC — キューマネージャーが内部エラーをログに記録したときに書き込まれます）。カウントの増加は、調査する価値のある問題を示しています。 |
+
+### キューの深さ、経過時間、およびハンドル [#metrics-queue-state]
+
+| メトリック                              | 説明                         |
+| ---------------------------------- | -------------------------- |
+| `ibmmq_queue_depth`                | キュー上の現在のメッセージ数。            |
+| `ibmmq_queue_attribute_max_depth`  | 設定された最大キュー深度。              |
+| `ibmmq_queue_oldest_message_age`   | キュー上の最も古いメッセージの経過時間（秒単位）。  |
+| `ibmmq_queue_uncommitted_messages` | コミットされていないメッセージの数。         |
+| `ibmmq_queue_time_since_put`       | キューへの最後の`MQPUT`からの秒数。      |
+| `ibmmq_queue_time_since_get`       | キューからの最後の`MQGET`以降の秒数。     |
+| `ibmmq_queue_input_handles`        | キュー上のオープン入力ハンドル（消費者）。      |
+| `ibmmq_queue_output_handles`       | キュー上の開いている出力ハンドル（プロデューサー）。 |
+| `ibmmq_queue_browse_handles`       | キュー上のオープンブラウズハンドル。         |
+| `ibmmq_queue_publish_handles`      | キュー上のオープンパブリッシュハンドル。       |
+| `ibmmq_queue_qfile_current_size`   | ディスク上の現在のキューファイルサイズ。       |
+| `ibmmq_queue_qfile_max_size`       | ディスク上の最大キューファイルサイズ。        |
+
+### キューのスループットとタイミング（MQI） [#metrics-queue-throughput]
+
+これらのカウンターは、キューごとのIBM MQのコアメッセージAPIコールを追跡します：**`MQPUT`**/**`MQPUT1`**（キューにメッセージを書き込む）および**`MQGET`**（キューからメッセージを読み取る）。これらは、キューマネージャーでMQI統計が有効になっている必要があります（[メトリクスの収集](#collection)を参照）。
+
+| メトリック                                                                                           | 説明                              |
+| ----------------------------------------------------------------------------------------------- | ------------------------------- |
+| `ibmmq_queue_mqput_count`                                                                       | `MQPUT`キューに対する/`MQPUT1`オペレーション。 |
+| `ibmmq_queue_mqget_count`                                                                       | `MQGET` キューに対する操作。              |
+| `ibmmq_queue_mqput_bytes` / `ibmmq_queue_mqget_bytes`                                           | キューに追加/キューから取得したバイト数。           |
+| `ibmmq_queue_mqput_non_persistent_message_count` / `ibmmq_queue_mqput_persistent_message_count` | 非永続/永続メッセージの書き込み。               |
+| `ibmmq_queue_average_queue_time_seconds`                                                        | メッセージがキューに滞在した平均時間。             |
+| `ibmmq_queue_qtime_short` / `ibmmq_queue_qtime_long`                                            | 短間隔/長間隔のキュー時間サンプル。              |
+| `ibmmq_queue_avoided_puts_percentage`                                                           | 待機中のゲッターに直接送られたputの割合。          |
+| `ibmmq_queue_expired_messages`                                                                  | キューで期限切れになったメッセージ。              |
+| `ibmmq_queue_rolled_back_mqget_count` / `ibmmq_queue_rolled_back_mqput_count`                   | ロールバックされたget/put。               |
+
+### チャネルメトリクス [#metrics-channel]
+
+| メトリック                                                                    | 説明                                                                                                      |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `ibmmq_channel_status`                                                   | チャネルの実行状態（`3`=実行中）。                                                                                     |
+| `ibmmq_channel_status_squash`                                            | より少ない列挙値で簡素化されたチャネルステータス（情報提供目的；アラートには`ibmmq_channel_status`と[ステータスコードリファレンス](#status-codes)を使用してください）。 |
+| `ibmmq_channel_messages`                                                 | チャネルを介して送信されたメッセージ。                                                                                     |
+| `ibmmq_channel_bytes_sent` / `ibmmq_channel_bytes_rcvd`                  | 送信／受信バイト数。                                                                                              |
+| `ibmmq_channel_buffers_sent` / `ibmmq_channel_buffers_rcvd`              | 送信/受信された送信バッファー。                                                                                        |
+| `ibmmq_channel_cur_inst`                                                 | 実行中のチャネルインスタンスの現在の数。                                                                                    |
+| `ibmmq_channel_attribute_max_inst` / `ibmmq_channel_attribute_max_instc` | 合計/クライアントあたりの最大インスタンス数。                                                                                 |
+| `ibmmq_channel_time_since_msg`                                           | チャネル上の最後のメッセージからの秒数。                                                                                    |
+| `ibmmq_channel_type` / `ibmmq_channel_instance_type`                     | チャネルタイプ/インスタンスタイプ。                                                                                      |
+| `ibmmq_channel_substate`                                                 | チャネルのサブステート。                                                                                            |
+
+### キューマネージャーのMQIアクティビティとエラー [#metrics-qmgr-mqi]
+
+これらのキューマネージャー全体のカウンターは、すべてのオブジェクトにわたるAPIアクティビティとエラーを要約します — アプリケーションエラーやトランザクションのチャーンを特定するのに役立ちます。これらはMQI統計を有効にする必要があります（[メトリクスの収集](#collection)を参照してください）。
+
+| メトリック                                                              | 説明                                          |
+| ------------------------------------------------------------------ | ------------------------------------------- |
+| `ibmmq_qmgr_interval_mqput_mqput1_total_count`                     | 間隔内の合計`MQPUT`+`MQPUT1`回の呼び出し。               |
+| `ibmmq_qmgr_interval_destructive_get_total_count`                  | 間隔内の破壊的な`MQGET`呼び出しの合計。                     |
+| `ibmmq_qmgr_published_to_subscribers_message_count`                | サブスクライバーに公開されたメッセージ（パブリッシュ/サブスクライブのスループット）。 |
+| `ibmmq_qmgr_mqopen_count` / `ibmmq_qmgr_mqclose_count`             | `MQOPEN`/`MQCLOSE`呼び出しの総数。                  |
+| `ibmmq_qmgr_mqconn_mqconnx_count` / `ibmmq_qmgr_mqdisc_count`      | 接続/切断コール。                                   |
+| `ibmmq_qmgr_commit_count` / `ibmmq_qmgr_rollback_count`            | トランザクションのコミット/ロールバック。                       |
+| `ibmmq_qmgr_failed_mqput_count` / `ibmmq_qmgr_failed_mqput1_count` | 失敗した`MQPUT`/`MQPUT1`コール。                    |
+| `ibmmq_qmgr_failed_mqget_count` / `ibmmq_qmgr_failed_mqopen_count` | 失敗したget/open呼び出し。                           |
+| `ibmmq_qmgr_failed_mqconn_mqconnx_count`                           | 失敗したconnect呼び出し。                            |
+| `ibmmq_qmgr_expired_message_count`                                 | キューマネージャー全体で期限切れになったメッセージ。                  |
+| `ibmmq_qmgr_purged_queue_count`                                    | パージされたキュー。                                  |
+
+### MQステータスコード参照 [#status-codes]
+
+IBM MQのステータスメトリクスは、`1`/`0`**ではなく**数値の列挙型の値を報告します — また、正常な（&quot;running&quot;）値はメトリクスによって異なります（キューマネージャーレベルのステータスでは`2`、チャネルステータスでは`3`）。実行中の値との*不一致*に関する集計（例：`ibmmq_qmgr_status != 2`）：
+
+| メトリック                                 | 正常値 | 意味              |
+| ------------------------------------- | --- | --------------- |
+| `ibmmq_qmgr_status`                   | `2` | キューマネージャーは実行中です |
+| `ibmmq_qmgr_command_server_status`    | `2` | コマンドサーバーは実行中です  |
+| `ibmmq_qmgr_channel_initiator_status` | `2` | チャネルイニシエーターが実行中 |
+| `ibmmq_channel_status`                | `3` | チャネルが実行中        |
+
+その他の値（または欠落しているデータポイント）は、コンポーネントが実行状態ではないことを意味します。
+
+## リソース属性 [#resource-attributes]
+
+コレクターは、すべてのIBM MQメトリクスにIDとコンテキストの属性を付与します。一部はすべてのデプロイメントに共通ですが、その他はコレクターがLinuxホストで実行されるかKubernetesで実行されるかによって異なります。
+
+### 共通の属性 [#common-attributes]
+
+| 属性                         | 説明                                                                                                        | 例                               |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `target.name`              | 安定したID属性 — すべてのIBM MQエンティティGUIDの最初のセグメント。`targetName`スクレイプラベルとして注入され、その後コレクターによって`target.name`に名前が変更されます。 | `prod-mq-01`, `prod-mq-cluster` |
+| `qmgr`                     | キューマネージャー名（生のエクスポーターラベル；エンティティ合成のキーとなります）。                                                                | `QM1`                           |
+| `queue`                    | キュー名（キュースコープのメトリクス上）。                                                                                     | `APP.ORDERS.IN`                 |
+| `channel`                  | チャネル名（チャネルスコープのメトリクス上）。                                                                                   | `APP.SVRCONN`                   |
+| `cluster.name`             | 同じMQクラスタ内のキューマネージャー用のオプションのグループ化タグ。エンティティGUIDの一部ではありません；未設定のままにしても、後で変更しても安全です。                           | `prod-mq`                       |
+| `instrumentation.provider` | このインテグレーションでは常に`opentelemetry`です；これを使用して、クエリをOpenTelemetryパスにスコープします。                                     | `opentelemetry`                 |
+
+### オンホスト デプロイメント プロパティ [#on-host-attributes]
+
+| 属性        | 説明                                                                                                     | 例                     |
+| --------- | ------------------------------------------------------------------------------------------------------ | --------------------- |
+| `host.id` | `resourcedetection`プロセッサ（`system`／`ec2`ディテクター）からの、コレクターを実行しているホストの識別子。キューマネージャーを基盤となるホストエンティティにリンクします。 | `i-1234567890abcdef0` |
+
+### Kubernetes デプロイメント属性 [#kubernetes-attributes]
+
+| 属性              | 説明                                                | 例              |
+| --------------- | ------------------------------------------------- | -------------- |
+| `k8s_namespace` | コレクターのリラベルルールによってスタンプされた、検出されたエクスポーターポッドのネームスペース。 | `ibmmq`        |
+| `k8s_pod`       | 検出されたエクスポーターポッドの名前。                               | `qm1-0`        |
+| `host.id`       | `resourcedetection`からの、ポッドを実行しているノードの識別子。         | `ip-10-0-1-23` |
+
+## メトリクスコレクションの詳細 [#collection-details]
+
+### 収集頻度
+
+* **デフォルト間隔**: 60秒（コレクターの`scrape_interval`）。これは、mq-metric-samplesエクスポーター自体の`pollInterval`以上である必要があります。
+* **設定可能**: Helm `values.yaml`（Kubernetes）で`IBMMQ_SCRAPE_INTERVAL`（Linux）または`scrape_interval`を調整します。
+
+### 情報源
+
+すべてのメトリクスは[mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples)エクスポーターから生成されます。このエクスポーターは、PCFを介して各キュー・マネージャーをポーリングし、統計情報をHTTP`/metrics`エンドポイントでPrometheusメトリクスとして再公開します。コレクターの`prometheus`レシーバーがそのエンドポイントをスクレイプします。
+
+### メトリックのタイプ
+
+* **ゲージ** — `ibmmq_qmgr_status`、`ibmmq_queue_depth`、`ibmmq_channel_status`などの特定の時点の値。`latest()`を使用したチャート。
+* **カウンター** — `ibmmq_queue_mqput_count`などの累積合計。コレクターの`cumulativetodelta`プロセッサはそれらをデルタテンポラリティに変換するため、`latest()`ではなく`sum()`または`rate()`を使用してチャートを作成します。
+
+## 関連ドキュメント [#related-docs]
+
+<DocTiles>
+  <DocTile title="IBM MQのセルフホスト型計装" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    New Relicでセルフホスト型監視のためにIBM MQを設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="IBM MQのKubernetes計装" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    New RelicでIBM MQ for Kubernetes監視を設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="データの表示およびクエリ" path="/docs/opentelemetry/integrations/ibm-mq/view-data">
+    New RelicでIBM MQデータを表示およびクエリする方法をご覧ください。
+  </DocTile>
+</DocTiles>

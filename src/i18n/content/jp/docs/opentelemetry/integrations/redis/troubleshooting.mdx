@@ -1,0 +1,357 @@
+---
+title: Redisのトラブルシューティング（OpenTelemetry）
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Redis
+  - Troubleshooting
+metaDescription: Troubleshoot common issues with the Redis OpenTelemetry integration for both host-based and Kubernetes deployments.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このガイドでは、Redis OpenTelemetryインテグレーションのインストールおよび設定時に発生する可能性のある一般的な問題について説明します。
+
+## Collectorの起動の問題 [#collector-startup]
+
+<CollapserGroup>
+  <Collapser id="redis-receiver-not-recognized" title="Redisレシーバーが認識されない（NRDOT）">
+    **エラーメッセージ：**
+
+    ```
+    'receivers' unknown type: "redis" for id: "redis" (valid values: [elasticsearch hostmetrics ...])
+    ```
+
+    **原因:** ご使用のNRDOTバージョンにはRedisレシーバーが含まれていません。RedisレシーバーにはNRDOT v1.18.0+が必要です。
+
+    **修正:** 次のいずれか：
+
+    * NRDOTを最新バージョンにアップグレードします
+    * すべてのコミュニティレシーバーが含まれる`otelcol-contrib`に切り替えます
+  </Collapser>
+
+  <Collapser id="invalid-yaml" title="設定エラーによりCollectorが起動しない">
+    **エラーメッセージ：**
+
+    ```
+    cannot unmarshal the configuration: error reading receivers configuration
+    ```
+
+    **一般的な原因:**
+
+    * 無効なYAMLのインデント（タブとスペースの混在）
+    * シェルスクリプトからConfigMapを作成する際のヒアドキュメントの問題
+    * コロンを含むエンドポイント値を囲む引用符が欠落している
+
+    **修正：**
+
+    ```bash
+    # Validate YAML syntax
+    python3 -c "import yaml; yaml.safe_load(open('/etc/nrdot-collector/redis-collector-config.yaml'))"
+    ```
+  </Collapser>
+
+  <Collapser id="service-stopped" title="Collectorサービスが停止または失敗しました">
+    **確認方法：**
+
+    ```bash
+    systemctl status nrdot-collector
+    # or
+    systemctl status otelcol-contrib
+    ```
+
+    **一般的な原因:**
+
+    * コレクター設定ファイルの無効なYAML
+    * 別のプロセスとのポート競合（ヘルスチェック用にポート13133を確認してください）
+    * メモリ不足（memory\_limiterの`limit_mib`を増やしてください）
+
+    **修正：**
+
+    ```bash
+    # Check for port conflicts
+    ss -tlnp | grep 13133
+    ```
+  </Collapser>
+
+  <Collapser id="cannot-connect-redis" title="Redisエンドポイントに接続できない">
+    **エラーメッセージ：**
+
+    ```
+    failed to fetch Redis INFO: dial tcp 127.0.0.1:6379: connect: connection refused
+    ```
+
+    **原因:** Redisが実行されていない、誤ったエンドポイントが設定されている、またはファイアウォールが接続をブロックしています。
+
+    **修正：**
+
+    ```bash
+    # Verify Redis is running
+    redis-cli ping
+
+    # Test connectivity
+    nc -zv localhost 6379
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## データエクスポートの問題 [#data-export]
+
+<CollapserGroup>
+  <Collapser id="export-403" title="New Relicへのエクスポート時に403 Forbiddenが発生する">
+    **エラーメッセージ：**
+
+    ```
+    Exporting failed. 403 Forbidden
+    ```
+
+    **原因:** 無効なライセンスキー、またはリージョンのOTLPエンドポイントが正しくありません。
+
+    **修正：**
+
+    * ライセンスキーが正しく、アクティブであることを確認してください
+    * OTLPエンドポイントがアカウントのリージョンと一致していることを確認する
+  </Collapser>
+
+  <Collapser id="no-data-at-all" title="NRDBにデータが表示されない">
+    **検証手順:**
+
+    1. コレクターが実行中であることを確認します：
+
+       ```bash
+       systemctl is-active nrdot-collector
+       ```
+
+    2. ヘルスエンドポイントを確認します：
+
+       ```bash
+       curl http://localhost:13133
+       ```
+
+    3. NRQLでのテスト：
+
+       ```sql
+       FROM Metric SELECT count(*) WHERE metricName LIKE 'redis.%' SINCE 10 minutes ago
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## ログ収集の問題 [#log-collection]
+
+<CollapserGroup>
+  <Collapser id="permission-denied-logs" title="ログ収集時にアクセスが拒否されました">
+    **エラーメッセージ：**
+
+    ```
+    Failed to open file: /var/log/redis/redis-server.log: permission denied
+    ```
+
+    **原因:** コレクタープロセスにRedisログファイルへの読み取りアクセス権がありません。
+
+    **修正（ホストベース）：**
+
+    ```bash
+    # Option 1: Make the log file readable
+    sudo chmod 644 /var/log/redis/redis-server.log
+
+    # Option 2: Add collector user to redis group
+    sudo usermod -a -G redis nrdot-collector
+    ```
+
+    **修正（Kubernetes）：**DaemonSetに`/var/log/pods`ボリュームが`readOnly: true`でマウントされていることを確認します。
+  </Collapser>
+</CollapserGroup>
+
+## Kubernetes固有の問題 [#kubernetes]
+
+<CollapserGroup>
+  <Collapser id="no-pods-discovered" title="receiver_creatorによって検出されたRedisポッドはありません">
+    **原因:** ポッドのラベルがreceiver\_creatorディスカバリルールと一致しません。
+
+    **修正：**
+
+    ```bash
+    # Check pod labels
+    kubectl get pods -n <namespace> --show-labels | grep redis
+    ```
+
+    ConfigMapの`rule`がRedisポッドのラベルと一致することを確認してください。たとえば、ポッドに`app.kubernetes.io/name: redis`がある場合は、それに応じてルールを更新してください。
+  </Collapser>
+
+  <Collapser id="crashloopbackoff" title="CollectorポッドのCrashLoopBackOff">
+    **確認方法：**
+
+    ```bash
+    kubectl get pods -n newrelic
+    kubectl logs -n newrelic <pod-name> --previous
+    ```
+
+    **一般的な原因:**
+
+    * 無効なConfigMap YAML（`data.config.yaml`フィールドのインデントを確認してください）
+    * 認証情報用のKubernetesシークレットの欠落
+    * RBAC権限が欠落している（`k8s_observer`を使用するDaemonSetの場合）
+
+    **修正：**
+
+    ```bash
+    # Validate ConfigMap content
+    kubectl get configmap otel-collector-redis-config -n newrelic -o jsonpath='{.data.config\.yaml}' | python3 -c "import yaml,sys; yaml.safe_load(sys.stdin); print('Valid YAML')"
+
+    # Check secret exists
+    kubectl get secret newrelic-credentials -n newrelic
+
+    # Check RBAC
+    kubectl auth can-i list pods --as=system:serviceaccount:newrelic:otel-collector-redis
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-cannot-reach-redis" title="CollectorがRedisサービスに到達できない">
+    **エラー:** Redisエンドポイントへの接続がタイムアウトしました。
+
+    **修正：**
+
+    ```bash
+    # Verify Redis pods are running
+    kubectl get pods -n <namespace> -l app=redis
+
+    # Test connectivity from collector pod
+    kubectl exec -n newrelic <collector-pod> -- nc -zv <redis-pod-ip> 6379
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-helm-fails" title="Helmインストレーションの失敗">
+    **一般的な原因:**
+
+    * ネームスペースが存在しません
+    * 無効なvalues.yaml
+    * Helmリポジトリが追加されていない
+
+    **修正：**
+
+    ```bash
+    # Create namespace first
+    kubectl create namespace newrelic
+
+    # Validate (dry run)
+    helm template redis-otel open-telemetry/opentelemetry-collector -f values.yaml --dry-run
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Cluster監視の問題 [#cluster-issues]
+
+<CollapserGroup>
+  <Collapser id="no-cluster-entity" title="New RelicにClusterエンティティが表示されない">
+    **症状:** インスタンスエンティティは表示されますが、Redis Clusterエンティティは作成されません。
+
+    **一般的な原因:**
+
+    * `redis.cluster.name` クラスタパイプラインに設定されていない
+    * `redis.instance.id` またはクラスタメトリクスに`server.address`が存在する（クラスタエンティティルールの照合を妨げます）
+    * クラスタのメトリクスが無効になっています（Redisレシーバーでは、デフォルトですべてのクラスタのメトリクスが無効になっています）
+
+    **修正:** クラスタパイプラインに以下が含まれていることを確認します：
+
+    * `redis.cluster.name` `resource/cluster`プロセッサー経由で設定
+    * `server.address: {enabled: false}` およびクラスタレシーバー上の`server.port: {enabled: false}`
+    * クラスタパイプライン上に`redis.instance.id`がありません
+
+    **NRQLで確認します：**
+
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE redis.cluster.name IS NOT NULL
+    AND redis.instance.id IS NULL
+    AND server.address IS NULL
+    SINCE 5 minutes ago
+    ```
+
+    これが0を返す場合、クラスタメトリクスは正しく流れていません。
+  </Collapser>
+
+  <Collapser id="cluster-metrics-missing" title="Clusterメトリクスにデータが表示されない">
+    **症状:** Clusterエンティティは存在しますが、ダッシュボードには空のウィジェットが表示されます。
+
+    **一般的な原因:**
+
+    * RedisはClusterモードで実行されていません（スタンドアロンインスタンスはクラスタメトリクスを生成しません）
+    * Redisレシーバーの設定でClusterメトリクスが有効になっていません
+
+    **修正:** RedisがClusterモードであることを確認してください：
+
+    ```bash
+    redis-cli INFO cluster | grep cluster_enabled
+    ```
+
+    `cluster_enabled:1`を返す必要があります。`0`を返す場合、RedisはClusterモードではありません。
+
+    レシーバー設定でクラスタメトリクスが有効になっていることを確認します：
+
+    ```yaml
+    redis/cluster:
+      metrics:
+        redis.cluster.state: {enabled: true}
+        redis.cluster.known_nodes: {enabled: true}
+        # ... all 9 cluster metrics must be explicitly enabled
+    ```
+  </Collapser>
+
+  <Collapser id="duplicate-cluster-entity" title="同じクラスタの複数のクラスタエンティティ">
+    **症状:** 同じクラスタに対して複数のRedis Clusterエンティティが表示されます。
+
+    **原因:** 異なるコレクターが同じクラスタに対して異なる`redis.cluster.name`の値を使用しています。
+
+    **修正:** 同じクラスタを監視するすべてのコレクターが、`resource/cluster`プロセッサでまったく同じ`redis.cluster.name`値を使用していることを確認します。クラスタのエンティティ識別子はこの名前です — 名前が異なると異なるエンティティが作成されます。
+  </Collapser>
+
+  <Collapser id="cluster-instance-relationship" title="インスタンスエンティティにリンクされていないClusterエンティティ">
+    **症状:** クラスタとインスタンスの両方のエンティティが存在しますが、サービスマップにCONTAINS関係が表示されません。
+
+    **原因:** インスタンスメトリクスには`redis.cluster.name`属性がないため、リレーションシップルールでリンクできません。
+
+    **修正:** インスタンスパイプラインのリソースプロセッサに`redis.cluster.name`を追加します：
+
+    ```yaml
+    resource/redis_identity:
+      attributes:
+        - key: redis.instance.id
+          value: "my-instance:6379"
+          action: upsert
+        - key: redis.cluster.name
+          value: "my-redis-cluster"  # Must match the cluster pipeline value
+          action: upsert
+    ```
+  </Collapser>
+
+  <Collapser id="cluster-state-fail" title="Clusterの状態はFAILを示していますが、Redisは実行中です">
+    **症状:** Redisが稼働しているように見えても、`redis.cluster.state`が0（FAIL）を報告します。
+
+    **一般的な原因:**
+
+    * 16384個のハッシュスロットすべてが割り当てられているわけではありません（不完全なクラスタ設定）
+    * マスターノードがダウンしており、自動フェイルオーバーに利用できるレプリカがありません
+    * ノード間のネットワークパーティション
+
+    **修正：**
+
+    ```bash
+    # Check cluster state directly
+    redis-cli CLUSTER INFO | grep cluster_state
+
+    # Check slot coverage
+    redis-cli CLUSTER INFO | grep cluster_slots
+
+    # Check for failed nodes
+    redis-cli CLUSTER NODES | grep fail
+    ```
+
+    `cluster_slots_assigned`が16384未満の場合、一部のスロットが未割り当てになります。不足しているスロット範囲を利用可能なノードに追加して修正します。
+  </Collapser>
+</CollapserGroup>
+
+## 次のステップ [#next-steps]
+
+* **[インストレーションガイド](/docs/opentelemetry/integrations/redis/host)**: 設定手順を再確認する
+* **[メトリクスリファレンス](/docs/opentelemetry/integrations/redis/metrics)**: 期待されるメトリクスを確認します
+* **[データの検索](/docs/opentelemetry/integrations/redis/view-data)**: Redisメトリクスのクエリと集計

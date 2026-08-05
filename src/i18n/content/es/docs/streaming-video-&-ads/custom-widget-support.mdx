@@ -1,0 +1,239 @@
+---
+title: Crear widgets personalizados para dashboards de streaming
+tags:
+  - Streaming Video & Ads
+  - Dashboards
+  - Custom widgets
+metaDescription: Use the NRQL editor to create custom chart widgets inside the Media Streaming Quality Metrics dashboard in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Los widgets personalizados le permiten ampliar el dashboard de Media Streaming con visualizaciones de gráficos a medida creadas a partir de sus propias consultas NRQL. Los widgets personalizados aparecen en el desplegable <DNT>**Quality Metrics**</DNT> junto a las métricas predefinidas, en una categoría <DNT>**Custom Metrics**</DNT> separada. Persisten en todas las sesiones y se escalan dentro del dashboard existente.
+
+<Callout variant="important">
+  Cada cuenta admite un límite flexible de **50 widgets personalizados**. Este límite se basa en la capacidad de NerdStorage. Si lo alcanza, elimine un widget personalizado existente antes de agregar uno nuevo.
+</Callout>
+
+## Antes de que empieces [#prereqs]
+
+Los widget personalizados se crean desde dentro del nerdpack de Media Streaming. Necesita acceso a una cuenta de New Relic con el agente de Streaming Video &amp; Ads instalado. Consulte [Instalar el agente de Streaming Video &amp; Ads](/docs/streaming-video-&-ads/installation/install-the-streaming-video-&-ads-agent) si aún no lo ha configurado.
+
+## Crear un widget personalizado [#create]
+
+1. Abra el dashboard de Media Streaming y navegue hasta la sección <DNT>**Quality Metrics**</DNT>.
+2. Haga clic en <DNT>**+ Add Custom Widget**</DNT>.
+3. Ingrese un título para el widget.
+4. Escribe tu consulta NRQL en el editor de NRQL. Consulta [Escribir consultas](#writing-queries) para obtener orientación sobre la sintaxis, los marcadores de posición de filtro y ejemplos.
+5. Haga clic en <DNT>**Run Query**</DNT> para obtener una vista previa de los resultados antes de guardar.
+6. Haga clic en <DNT>**Save**</DNT>. El widget se agrega a la sección <DNT>**Custom Metrics**</DNT> del desplegable <DNT>**Quality Metrics**</DNT> y se renderiza en el dashboard.
+
+## Escribir consultas [#writing-queries]
+
+El editor de NRQL acepta cualquier consulta NRQL `SELECT` o `FROM` válida. Escribe tu consulta completa directamente en el editor — el editor proporciona resaltado de sintaxis, autocompletado y validación en tiempo real.
+
+### Requisitos de la consulta [#query-requirements]
+
+* La consulta debe comenzar con `SELECT` o `FROM` y contener ambas cláusulas.
+* No incluya una cláusula `SINCE` o `UNTIL` codificada de forma rígida. El selector de tiempo del dashboard inyecta el rango de tiempo automáticamente en el momento de la ejecución.
+* Para responder a las selecciones de la barra de filtros a nivel del dashboard, incluya un [marcador de posición de filtro](#placeholders) en su consulta.
+
+### Marcador de posición de filtro [#placeholders]
+
+Los marcadores de posición de filtro son tokens de comentarios de NRQL que se reemplazan en tiempo de ejecución con las condiciones de filtro aplicadas en la barra de filtros del dashboard. Agréguelos manualmente a su consulta.
+
+| Marcador de posición            | Cuándo usar                                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/* {whereClause} */`           | Su consulta **no tiene una cláusula `WHERE` existente**. El marcador de posición se reemplaza con una condición `WHERE ...` completa.             |
+| `/* {andWhereClause} */`        | Tu consulta **ya tiene una cláusula `WHERE` **. El marcador de posición se agrega como una condición `AND ...` adicional.                         |
+| `/* {aggregatorWhereClause} */` | Dentro de una función `filter()` que ya contiene una cláusula `WHERE`. Agrega una condición `AND ...` adicional dentro del alcance del agregador. |
+
+**Ejemplo — sin cláusula WHERE existente:**
+
+```sql
+SELECT uniqueCount(viewId) AS 'Total Views'
+FROM VideoAction /* {whereClause} */
+TIMESERIES
+```
+
+Cuando un filtro para `asn = '14618'` está activo:
+
+```sql
+SELECT uniqueCount(viewId) AS 'Total Views'
+FROM VideoAction WHERE asn = '14618'
+TIMESERIES SINCE 30 minutes ago UNTIL now
+```
+
+**Ejemplo — cláusula WHERE existente:**
+
+```sql
+SELECT count(*) AS 'Error Count'
+FROM VideoErrorAction, VideoAction
+WHERE actionName = 'CONTENT_ERROR' /* {andWhereClause} */
+TIMESERIES
+```
+
+**Ejemplo — filtro dentro de una función de agregador:**
+
+```sql
+FROM VideoAction
+SELECT (
+  filter(sum(timeSinceBufferBegin),
+    WHERE actionName = 'CONTENT_BUFFER_END'
+    AND bufferType = 'connection' /* {aggregatorWhereClause} */
+  ) /
+  filter(sum(elapsedTime) OR 1,
+    WHERE actionName = 'CONTENT_HEARTBEAT' /* {aggregatorWhereClause} */
+  )
+) AS 'Connection-induced rebuffering ratio'
+TIMESERIES
+```
+
+<Callout variant="tip">
+  Cuando un filtro está activo en la barra de filtros del dashboard, los tres tipos de marcadores de posición se resuelven en las mismas condiciones de filtro subyacentes — la diferencia es solo sintáctica, para producir un NRQL válido según la estructura de su consulta.
+</Callout>
+
+### Palabras clave y caracteres bloqueados [#blocked]
+
+Para evitar la modificación accidental o maliciosa de datos, lo siguiente está bloqueado en el editor de NRQL:
+
+**Palabras clave bloqueadas:**
+
+* `DROP`
+* `DELETE`
+* `INSERT`
+* `UPDATE`
+* `CREATE`
+* `ALTER`
+
+**Caracteres bloqueados:**
+
+* Punto y coma (`;`) — bloqueado para evitar la cadena de consulta o el ataque de inyección.
+
+Las consultas que contengan cualquiera de estos fallarán la validación y no se podrán guardar ni previsualizar.
+
+### Ejemplos de consulta [#examples]
+
+**Serie temporal básica — inicios totales de video:**
+
+```sql
+SELECT count(*) AS 'Video Starts'
+FROM VideoAction
+WHERE actionName = 'CONTENT_START' /* {andWhereClause} */
+TIMESERIES
+```
+
+**Recuento de espectadores únicos con integración de filtros:**
+
+```sql
+SELECT uniqueCount(viewId) AS 'Unique Viewers'
+FROM VideoAction /* {whereClause} */
+TIMESERIES
+```
+
+**Tasa de errores en todos los tipos de evento:**
+
+```sql
+SELECT count(*) AS 'Error Count'
+FROM VideoErrorAction, VideoAction
+WHERE actionName = 'CONTENT_ERROR' /* {andWhereClause} */
+TIMESERIES
+```
+
+**Tasa de recarga de búfer inducida por la conexión (avanzado):**
+
+```sql
+FROM VideoAction
+SELECT (
+  filter(sum(timeSinceBufferBegin),
+    WHERE actionName = 'CONTENT_BUFFER_END'
+    AND bufferType = 'connection' /* {aggregatorWhereClause} */
+  ) /
+  filter(sum(elapsedTime) OR 1,
+    WHERE actionName = 'CONTENT_HEARTBEAT' /* {aggregatorWhereClause} */
+  )
+) AS 'Connection-induced rebuffering ratio'
+TIMESERIES
+```
+
+Para obtener más inspiración para consultas, consulte el [Diccionario de datos de métricas de tasa de bits](/docs/streaming-video-&-ads/bitrate-metrics) para ver ejemplos de NRQL prediseñados que usan `VideoAction` y `VideoErrorAction`.
+
+## Vista previa de un widget [#preview]
+
+Haga clic en <DNT>**Run Query**</DNT> antes de guardar para ejecutar la consulta con datos en vivo y ver un gráfico renderizado. Esto no guarda el widget.
+
+Use la previsualización para:
+
+* Confirme que el gráfico renderiza los datos que espera.
+* Verifique que los marcadores de posición de filtro se resuelvan correctamente cuando un filtro está activo en la barra de filtros.
+* Detecte errores de sintaxis o lógica antes de que el widget se confirme en el dashboard.
+
+## Editar un widget personalizado [#edit]
+
+1. En la sección <DNT>**Quality Metrics**</DNT>, ubique el widget personalizado que desea cambiar.
+2. Haga clic en el icono de lápiz <Icon name="fe-edit-2" /> en la tarjeta del widget.
+3. El editor se abre en modo de edición con todos los campos rellenados previamente — título y consulta NRQL existente.
+4. Realiza tus cambios, haz clic en <DNT>**Run Query**</DNT> para verificar y luego haz clic en <DNT>**Save**</DNT>.
+
+Al guardar:
+
+* El timestamp `updatedAt` se actualiza; el `createdAt` original y el widget `id` se conservan.
+* El widget se vuelve a renderizar inmediatamente con la consulta actualizada.
+* Si cambió el título, se actualiza en el desplegable de métricas de calidad.
+
+## Eliminar un widget personalizado [#delete]
+
+1. En la sección <DNT>**Quality Metrics**</DNT>, haga clic en el icono <Icon name="fe-more-horizontal" /> en la tarjeta del widget.
+2. Seleccione <DNT>**Delete**</DNT>.
+3. Confirma en el símbolo: *&quot;¿Estás seguro de que deseas eliminar &apos;\[Título del widget]&apos;? Esta acción no se puede deshacer.&quot;*
+
+Cuando se elimina:
+
+* El widget se elimina de NerdStorage y desaparece permanentemente.
+* La tarjeta del widget se elimina inmediatamente del dashboard.
+* El título se elimina del desplegable de métricas de calidad.
+* Si el widget estaba seleccionado, se deselecciona automáticamente.
+
+<Callout variant="caution">
+  La eliminación es permanente. Copie su consulta NRQL antes de eliminar un widget si es posible que la necesite más adelante.
+</Callout>
+
+## Límite de widget [#limit]
+
+El límite flexible de 50 widgets por cuenta se basa en la capacidad de documentos de NerdStorage. Con 50 widgets, el uso de almacenamiento es de aproximadamente 21 KB — alrededor del 33 % del límite de 64 KB por documento, lo que proporciona un margen seguro.
+
+Si alcanza el límite, la creación de widgets se bloquea hasta que se elimine un widget personalizado existente. Los widgets existentes siguen funcionando normalmente.
+
+## Resolución de problemas [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="widget-not-responding-to-filters" title="El widget no se actualiza cuando aplico un filtro de dashboard">
+    A tu consulta le falta un marcador de posición de filtro. Sin `/* {whereClause} */`, `/* {andWhereClause} */` o `/* {aggregatorWhereClause} */`, el widget siempre ejecuta la consulta tal como está escrita e ignora las selecciones de la barra de filtros del dashboard. Consulta [Marcadores de posición de filtro](#placeholders) para elegir el adecuado para la estructura de tu consulta.
+  </Collapser>
+
+  <Collapser id="wrong-placeholder" title="Los filtros se aplican, pero la consulta devuelve un error o no hay datos">
+    Es posible que haya utilizado el tipo de marcador de posición incorrecto. Compruebe:
+
+    * Si su consulta no tiene una cláusula `WHERE`, use `/* {whereClause} */`.
+    * Si su consulta ya tiene una cláusula `WHERE`, use `/* {andWhereClause} */`.
+    * Si el marcador de posición está dentro de una función `filter()` que ya tiene su propio `WHERE`, use `/* {aggregatorWhereClause} */`.
+
+    El marcador de posición incorrecto produce un NRQL no válido en tiempo de ejecución, lo que hace que la consulta falle.
+  </Collapser>
+
+  <Collapser id="query-blocked" title="Mi consulta no pasa la validación o no se guarda">
+    Compruebe si su consulta contiene una [palabra clave o carácter bloqueado](#blocked), como `DROP`, `DELETE` o un punto y coma. También verifique:
+
+    * La consulta comienza con `SELECT` o `FROM`.
+    * Ambas cláusulas `SELECT` y `FROM` están presentes.
+    * No hay errores de sintaxis marcados por la validación en línea del editor.
+  </Collapser>
+
+  <Collapser id="limit-reached" title="No puedo agregar un nuevo widget — límite alcanzado">
+    Ha alcanzado el límite flexible de 50 widgets. Elimine al menos un widget personalizado existente de la sección <DNT>**Custom Metrics**</DNT>, luego intente agregar uno nuevo. Consulte [Límite de widget](#limit).
+  </Collapser>
+
+  <Collapser id="widget-not-saving" title="El widget se guarda pero desaparece después de actualizar la página">
+    Esto puede indicar un error de escritura de NerdStorage. Busca una notificación emergente que haya aparecido al momento de guardar — indicará si el guardado falló debido a un error de red o a permisos de cuenta insuficientes. Vuelve a intentar guardar, o contacta a tu equipo de cuenta de New Relic si el problema persiste.
+  </Collapser>
+</CollapserGroup>

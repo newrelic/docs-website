@@ -1,0 +1,174 @@
+---
+title: Instrumentation Next.js avec l’agent hybride
+tags:
+  - Agents
+  - Nodejs agent
+  - Extend your instrumentation
+metaDescription: The New Relic Node.js agent can intercept native Next.js OpenTelemetry spans and produce necessary telemetry within New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La méthode recommandée pour monitorer une application <DNT>Next.js</DNT> est de s&apos;appuyer sur les spans <DNT>OpenTelemetry</DNT> natifs émis par <DNT>Next.js</DNT> ainsi que sur la fonctionnalité d&apos;agent hybride de l&apos;agent <DNT>Node.js</DNT>, plutôt que sur l&apos;instrumentation <DNT>Next.js</DNT> intégrée de l&apos;agent. Cette page explique comment activer l&apos;agent hybride, indique des exemples d&apos;applications et aborde les questions courantes sur l&apos;injection de l&apos;agent de browser et sur la façon de déployer vers des fournisseurs cloud.
+
+<Callout variant="important">
+  La prise en charge native de <DNT>Next.js OpenTelemetry</DNT> nécessite la version [14.1.0](https://github.com/newrelic/node-newrelic/releases/tag/v14.1.0) de l’agent <DNT>Node.js</DNT> ou plus tard. L’agent hybride instrumente uniquement le runtime <DNT>Node.js</DNT> ; le runtime edge <DNT>Next.js</DNT> n’est pas pris en charge, c’est pourquoi l’exemple `register()` ci-dessous se termine prématurément à moins que `NEXT_RUNTIME` ne soit `nodejs`.
+</Callout>
+
+L’agent <DNT>Node.js</DNT> dispose de l’instrumentation <DNT>Next.js</DNT> depuis 2022 via [@newrelic/next](https://github.com/newrelic/newrelic-node-nextjs/releases/tag/v0.1.0), et cette instrumentation a été intégrée à l’agent dans la version [12.0.0](https://github.com/newrelic/node-newrelic/releases/tag/v12.0.0). Cependant, elle était limitée et ne fonctionnait pas au moment de déployer sur des fournisseurs de cloud comme <DNT>[Vercel](https://vercel.com/frameworks/nextjs)</DNT>, <DNT>[AWS Amplify](https://aws.amazon.com/amplify/)</DNT>, <DNT>[Netlify](https://www.netlify.com/with/nextjs/)</DNT> ou <DNT>[Azure Static Web Apps](https://azure.microsoft.com/en-us/products/app-service/static)</DNT>. Avec l’introduction de l’ [agent hybride](/docs/apm/agents/manage-apm-agents/opentelemetry-api-support), l’agent <DNT>Node.js</DNT> peut intercepter les spans <DNT>OpenTelemetry</DNT> et synthétiser la télémétrie qui alimente l’expérience New Relic. L’instrumentation native de <DNT>Next.js OpenTelemetry</DNT> a été ajoutée dans la version [14.1.0](https://github.com/newrelic/node-newrelic/releases/tag/v14.1.0).
+
+## Activer l’agent hybride [#enable]
+
+Pour activer l&apos;agent hybride et désactiver les instrumentations d&apos;agent qui sont en conflit avec <DNT>Next.js</DNT>, définissez la configuration suivante dans `newrelic.js`:
+
+```js
+'use strict'
+
+exports.config = {
+  app_name: ['Your application name'],
+  license_key: 'your-license-key',
+  opentelemetry: {
+    enabled: true
+  },
+  instrumentation: {
+    http: {
+      enabled: false
+    },
+    next: {
+      enabled: false
+    },
+    undici: {
+      enabled: false
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  Si vous effectuez des appels `fetch` natifs, vous devez désactiver l&apos;instrumentation `undici` comme indiqué ci-dessus. <DNT>Next.js</DNT> enveloppe `fetch` et crée ses propres spans clients, donc laisser `undici` activé produit des spans clients en double dans vos traces.
+</Callout>
+
+Si vous préférez utiliser des variables d’environnement :
+
+```ini
+NEW_RELIC_LICENSE_KEY=<your-license-key>
+NEW_RELIC_APP_NAME=<your-application-name>
+NEW_RELIC_OPENTELEMETRY_ENABLED=true
+NEW_RELIC_INSTRUMENTATION_NEXT_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_HTTP_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_UNDICI_ENABLED=false
+```
+
+Vous devez également ajouter un fichier `instrumentation.js` (ou `instrumentation.ts` pour <DNT>TypeScript</DNT>) pour charger l&apos;agent avant le reste de votre application :
+
+```js
+async function loadNewRelicAgent() {
+  const { default: newrelic } = await import('newrelic')
+  const agent = newrelic?.agent
+  if (!agent || agent.collector?.isConnected?.()) {
+    return
+  }
+
+  await new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer)
+      agent.removeListener('started', done)
+      agent.removeListener('errored', done)
+      resolve()
+    }
+    const timer = setTimeout(done, 8000)
+    agent.once('started', done)
+    agent.once('errored', done)
+  })
+}
+
+export async function register() {
+  // The agent only instruments the Node.js runtime, not the edge runtime.
+  if (process.env.NEXT_RUNTIME !== 'nodejs') {
+    return
+  }
+
+  await loadNewRelicAgent()
+}
+```
+
+Consultez l&apos;[application d&apos;exemple](https://github.com/newrelic/newrelic-node-examples/tree/9fa74c516926014fa33758cbd6e3737334ed4f98/nextjs/nextjs-app-router) <DNT>Next.js App Router</DNT> pour un exemple plus complet de cette configuration.
+
+## <DNT>Next.js</DNT> instrumentation dans <DNT>Vercel</DNT> [#vercel]
+
+Déployer vers <DNT>Vercel</DNT> sépare les pages statiques et dynamiques dans des environnements différents. Au lieu de vous appuyer sur `.env` et `newrelic.js` pour charger la configuration de l&apos;agent, définissez les [variables d&apos;environnement](https://vercel.com/docs/environment-variables) suivantes dans la console <DNT>Vercel</DNT> sous <DNT>**Environment Variables**</DNT>:
+
+```ini
+NEW_RELIC_LICENSE_KEY=<your-license-key>
+NEW_RELIC_APP_NAME=<your-application-name>
+NEW_RELIC_OPENTELEMETRY_ENABLED=true
+NEW_RELIC_INSTRUMENTATION_NEXT_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_HTTP_ENABLED=false
+NEW_RELIC_INSTRUMENTATION_UNDICI_ENABLED=false
+```
+
+Vous avez toujours besoin du fichier `instrumentation.js` décrit ci-dessus ; seule la source de la configuration change sur <DNT>Vercel</DNT>.
+
+Consultez l&apos;[application d&apos;exemple](https://github.com/newrelic/newrelic-node-examples/tree/9fa74c516926014fa33758cbd6e3737334ed4f98/nextjs/nextjs-app-router) <DNT>Next.js App Router</DNT> pour un exemple plus complet de cette configuration.
+
+## Injecter l’agent de browser [#browser-agent]
+
+Puisque <DNT>Next.js</DNT> est un framework full-stack, la plupart des clients souhaitent une observabilité à la fois sur le client et sur le serveur. L&apos;exemple suivant montre comment injecter l&apos;agent New Relic Browser dans chaque page.
+
+Modifiez le fichier de mise en page racine dans `app/` et ajoutez ce qui suit :
+
+```js
+import Script from 'next/script';
+
+async function loadNewRelicAgent() {
+  const { default: newrelic } = await import('newrelic')
+  const agent = newrelic?.agent
+  if (!agent || agent.collector?.isConnected?.()) {
+    return newrelic
+  }
+
+  await new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer)
+      agent.removeListener('started', done)
+      agent.removeListener('errored', done)
+      resolve()
+    }
+    const timer = setTimeout(done, 8000)
+    agent.once('started', done)
+    agent.once('errored', done)
+  })
+
+  return newrelic
+}
+
+export default async function RootLayout({
+  children,
+}){
+  // Wait for the agent to connect before requesting the browser timing header.
+  const newrelic = await loadNewRelicAgent()
+  const browserTimingHeader = newrelic.getBrowserTimingHeader({
+    hasToRemoveScriptWrapper: true,
+    allowTransactionlessInjection: true,
+  })
+
+  return (
+    <html lang="en">
+      <body className="min-h-full flex flex-col">{children}</body>
+      <Script
+        // Inline scripts require an id.
+        // See https://nextjs.org/docs/app/building-your-application/optimizing/scripts#inline-scripts
+        id='nr-browser-agent'
+        // "beforeInteractive" loads the script before the page becomes interactive.
+        strategy='beforeInteractive'
+        // The script body is the browser timing header generated above. Because
+        // `hasToRemoveScriptWrapper` is true, the header is raw JavaScript with no
+        // surrounding <script> tag, so we inject it with `dangerouslySetInnerHTML`.
+        dangerouslySetInnerHTML={{ __html: browserTimingHeader }}
+      />
+    </html>
+  );
+}
+```
+
+Consultez l&apos;[application d&apos;exemple](https://github.com/newrelic/newrelic-node-examples/tree/9fa74c516926014fa33758cbd6e3737334ed4f98/nextjs/nextjs-app-router) <DNT>Next.js App Router</DNT> pour un exemple plus complet de cette configuration.

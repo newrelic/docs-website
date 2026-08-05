@@ -1,0 +1,314 @@
+---
+title: Règles d’obfuscation Android
+metaDescription: Configure regex-based obfuscation rules to mask sensitive data before the Android streaming media agent transmits it to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Les règles d’obfuscation vous permettent de masquer les données sensibles avant que l’agent ne les transmette à New Relic. Chaque règle est un motif regex associé à une chaîne de remplacement. L’agent applique les règles dans l’ordre à chaque valeur d’attribut de chaîne dans chaque événement sortant — y compris <DNT>QoE events</DNT> et les événements récupérés après un plantage.
+
+## Comment ça marche [#how-it-works]
+
+1. Vous définissez une liste d’objets `ObfuscationRule`, chacun avec un modèle d’expression régulière et une chaîne de remplacement.
+2. Passez la liste à `.withObfuscationRules()` dans le générateur de configuration.
+3. Juste avant chaque transmission HTTP, `ObfuscationEngine` itère chaque attribut de chaîne de chaque événement du lot et applique les règles dans l’ordre.
+4. Seules les valeurs de chaîne sont traitées — les entiers, les longs, les booléens et les valeurs nulles sont transmis sans modification.
+5. Les objets d’événement d’origine ne sont jamais mutés, de sorte que les lots ayant échoué peuvent être réessayés proprement sans double obfuscation.
+
+## Configuration [#configuration]
+
+```java
+import com.newrelic.videoagent.core.ObfuscationRule;
+import java.util.Arrays;
+import java.util.List;
+
+// Define rules — each rule is a regex pattern and a replacement string.
+// Rules are applied in order on every string attribute of every outgoing event.
+List<ObfuscationRule> obfuscationRules = Arrays.asList(
+    // Mask account IDs:  "account-83729"  →  "ACCOUNT_ID"
+    new ObfuscationRule("account-\\d+", "ACCOUNT_ID"),
+
+    // Mask auth tokens:  "token=abc123xyz"  →  "token=REDACTED"
+    new ObfuscationRule("token=[^&\"]+", "token=REDACTED"),
+
+    // Mask user path segments:  "/users/john_doe"  →  "/users/USER_ID"
+    new ObfuscationRule("/users/[^\"/]+", "/users/USER_ID")
+);
+
+NRVideoConfiguration config = new NRVideoConfiguration.Builder("application-token")
+        .autoDetectPlatform(getApplicationContext())
+        .withHarvestCycle(5 * 60)
+        .withObfuscationRules(obfuscationRules)
+        .build();
+
+NRVideo.newBuilder(getApplicationContext()).withConfiguration(config).build();
+```
+
+## `ObfuscationRule` [#constructor]
+
+```java
+new ObfuscationRule(String pattern, String replacement)
+```
+
+<table>
+  <thead>
+    <tr>
+      <th width="20%">
+        paramètres
+      </th>
+
+      <th width="10%">
+        Type
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `pattern`
+      </td>
+
+      <td>
+        `String`
+      </td>
+
+      <td>
+        Une chaîne de motif regex Java. Compilé de manière anticipée — un motif non valide lève `IllegalArgumentException` au moment de la construction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `replacement`
+      </td>
+
+      <td>
+        `String`
+      </td>
+
+      <td>
+        La chaîne à substituer pour chaque correspondance. Utilisez `""` pour supprimer les correspondances. `$` et `\` sont traités comme des caractères simples, et non comme des références arrière.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## `obfuscationRules` [#parameter]
+
+Une liste d’objets `ObfuscationRule` appliquée à chaque attribut de chaîne de chaque événement sortant immédiatement avant la transmission HTTP. Les règles s’exécutent dans l’ordre dans lequel elles sont déclarées — la sortie d’une règle alimente la suivante. **Par défaut : liste vide** (aucune obfuscation).
+
+## Modèles courants [#common-patterns]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Ce qu’il faut masquer
+      </th>
+
+      <th>
+        Modèle
+      </th>
+
+      <th>
+        Remplacement
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        ID de compte numériques
+      </td>
+
+      <td>
+        `account-\\d+`
+      </td>
+
+      <td>
+        `ACCOUNT_ID`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Jetons d’authentification/au porteur
+      </td>
+
+      <td>
+        `token=[^&\"]+`
+      </td>
+
+      <td>
+        `token=REDACTED`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Segments de chemin utilisateur
+      </td>
+
+      <td>
+        `/users/[^\"/]+`
+      </td>
+
+      <td>
+        `/users/USER_ID`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Adresses e-mail
+      </td>
+
+      <td>
+        `[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}`
+      </td>
+
+      <td>
+        `EMAIL_REDACTED`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        UUID
+      </td>
+
+      <td>
+        `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
+      </td>
+
+      <td>
+        `UUID_REDACTED`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ordre des règles [#rule-ordering]
+
+Les règles sont appliquées de gauche à droite. La sortie de la règle N devient l’entrée de la règle N + 1. L’ordre est important lorsque le remplacement d’une règle peut correspondre au modèle d’une règle ultérieure.
+
+```java
+// Rule 1 turns "/john" into "/USER", then Rule 2 sees "/USER_profile" and masks it.
+new ObfuscationRule("john", "USER"),
+new ObfuscationRule("USER_profile", "PROFILE")
+// Result: "/john_profile" → "/USER_profile" → "/PROFILE"
+```
+
+## Cas limites [#edge-cases]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Situation
+      </th>
+
+      <th>
+        Comportement
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Aucune règle configurée
+      </td>
+
+      <td>
+        No-op — aucune surcharge, la liste d’origine est renvoyée telle quelle.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Le motif ne correspond à rien
+      </td>
+
+      <td>
+        La valeur est transmise sans modification.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Remplacement vide `""`
+      </td>
+
+      <td>
+        Le contenu correspondant est supprimé.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$` ou `\` en remplacement
+      </td>
+
+      <td>
+        Traités comme des caractères simples (et non comme des références arrière d’expression régulière).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Valeur de type entier/long/booléen
+      </td>
+
+      <td>
+        Ignoré — seules les valeurs `String` sont traitées.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `null` valeur
+      </td>
+
+      <td>
+        Ignoré — pas de NullPointerException.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Motif regex invalide
+      </td>
+
+      <td>
+        `IllegalArgumentException` lancée lors de la construction de `new ObfuscationRule(...)` — échoue rapidement au démarrage, et non silencieusement au moment de la collecte.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `null` remplacement
+      </td>
+
+      <td>
+        `IllegalArgumentException` lancée lors de la construction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Échec de l’envoi HTTP → nouvelle tentative de lettre morte
+      </td>
+
+      <td>
+        Les événements originaux (non obfusqués) sont réessayés ; l’obfuscation est réappliquée correctement lors de la passe de réessai.
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,205 @@
+---
+title: Referência de métricas e atributos do IBM MQ OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Metrics
+metaDescription: 'Reference of IBM MQ metrics collected via OpenTelemetry — queue manager, queue, and channel metrics — with resource attributes for host and Kubernetes deployments.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esta referência abrange as métricas e atributos do IBM MQ coletados via OpenTelemetry: as métricas que o exportador [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) publica e o coletor encaminha para o New Relic. Aplica-se a ambas as implantações de [host Linux](/docs/opentelemetry/integrations/ibm-mq/host) e [Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes); a forma da métrica é idêntica.
+
+## Coleta de métricas [#collection]
+
+Todas as métricas mantêm o formato bruto do Prometheus que o exportador emite: **nomes com sublinhado** (`ibmmq_*`) e os rótulos brutos **`qmgr`**, **`queue`** e **`channel`**, além do atributo de identidade `target.name` e da tag opcional `cluster.name` que o coletor anexa. A síntese de entidade do IBM MQ do New Relic depende desse formato, portanto o coletor encaminha os nomes e rótulos inalterados.
+
+<Callout variant="important">
+  **Ative as estatísticas de MQI em cada gerenciador de filas, ou as métricas de taxas de transferência e tempo ficarão vazias.** A integridade do gerenciador de filas, a profundidade da fila e o status do canal são relatados prontos para uso, mas as métricas de atividade de MQI (as tabelas de [taxas de transferência da fila](#metrics-queue-throughput) e [atividade de MQI do gerenciador de filas](#metrics-qmgr-mqi) — `ibmmq_queue_mqput_count`, `ibmmq_queue_average_queue_time_seconds` e assim por diante) exigem que a coleta de estatísticas esteja **ativada**, o que está **desativado por padrão**. Ative-o uma vez por gerenciador de filas com MQSC — por exemplo, `ALTER QMGR STATMQI(ON) STATQ(ON)`, depois `ALTER QLOCAL(...) STATQ(ON)` para qualquer fila na qual você deseja estatísticas por fila (ou confie no padrão `STATQ` do gerenciador de filas). Sem isso, o exportador fica íntegro e a entidade aparece, mas esses painéis são renderizados em branco. Consulte a [documentação do mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) para obter as estatísticas exatas das quais cada métrica depende.
+</Callout>
+
+<Callout variant="tip">
+  As métricas de status relatam valores numéricos de **enum**, não `1`/`0` — consulte a [referência de códigos de status](#status-codes) abaixo antes de alertar sobre elas. Os contadores são convertidos para temporalidade delta pelo coletor, portanto, use `sum()` / `rate()` em uma janela em vez de `latest()` ao criar gráficos deles.
+</Callout>
+
+As tabelas abaixo agrupam as métricas do OpenTelemetry por área. Para listar todas as métricas que estão realmente reportando na sua conta, execute:
+
+```sql
+FROM Metric SELECT uniques(metricName, 2000) WHERE metricName LIKE 'ibmmq_%' SINCE 1 day ago
+```
+
+## Métrica [#metrics]
+
+### Integridade e status do gerenciador de filas [#metrics-qmgr-status]
+
+| Métrica                                             | Descrição                                                                                                                             |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `ibmmq_qmgr_status`                                 | Estado de execução do gerenciador de filas (`2` = em execução).                                                                       |
+| `ibmmq_qmgr_command_server_status`                  | Estado de execução do servidor de comandos (`2` = em execução).                                                                       |
+| `ibmmq_qmgr_channel_initiator_status`               | Estado de execução do iniciador de canal (o processo do gerenciador de filas que inicia e gerencia os canais MQ) (`2` = em execução). |
+| `ibmmq_qmgr_connection_count`                       | Número atual de conexões com o gerenciador de filas.                                                                                  |
+| `ibmmq_qmgr_uptime`                                 | Tempo de operação do gerenciador de filas, em segundos.                                                                               |
+| `ibmmq_qmgr_active_listeners`                       | Número de listeners ativos.                                                                                                           |
+| `ibmmq_qmgr_active_services`                        | Número de serviços ativos.                                                                                                            |
+| `ibmmq_qmgr_concurrent_connections_high_water_mark` | Pico de conexões simultâneas.                                                                                                         |
+
+### Recursos do gerenciador de filas (CPU, memória, log, sistema de arquivos) [#metrics-qmgr-resources]
+
+| Métrica                                                      | Descrição                                                                                                                                                                                                 |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ibmmq_qmgr_cpu_load_one_minute_average_percentage`          | Média de carga da CPU de 1 minuto para o gerenciador de filas (também `_five_` e `_fifteen_minute_`).                                                                                                     |
+| `ibmmq_qmgr_user_cpu_time_percentage`                        | Tempo de CPU no espaço do usuário consumido pelo gerenciador de filas.                                                                                                                                    |
+| `ibmmq_qmgr_system_cpu_time_percentage`                      | Tempo de CPU do sistema (kernel) consumido pelo gerenciador de filas.                                                                                                                                     |
+| `ibmmq_qmgr_ram_total_bytes`                                 | RAM total no host.                                                                                                                                                                                        |
+| `ibmmq_qmgr_ram_free_percentage`                             | Porcentagem de RAM livre do host.                                                                                                                                                                         |
+| `ibmmq_qmgr_ram_total_estimate_for_queue_manager_bytes`      | RAM estimada em uso por este gerenciador de filas.                                                                                                                                                        |
+| `ibmmq_qmgr_log_in_use_bytes`                                | Espaço de log de recuperação atualmente em uso.                                                                                                                                                           |
+| `ibmmq_qmgr_log_max_bytes`                                   | Tamanho máximo do log de recuperação.                                                                                                                                                                     |
+| `ibmmq_qmgr_log_current_primary_space_in_use_percentage`     | Utilização do espaço de log primário.                                                                                                                                                                     |
+| `ibmmq_qmgr_log_file_system_free_space_bytes`                | Espaço livre no sistema de arquivos de log.                                                                                                                                                               |
+| `ibmmq_qmgr_log_write_latency_seconds`                       | Latência de escrita do log de recuperação.                                                                                                                                                                |
+| `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`          | Espaço do sistema de arquivos do gerenciador de filas em uso.                                                                                                                                             |
+| `ibmmq_qmgr_queue_manager_file_system_free_space_percentage` | Espaço livre no sistema de arquivos do gerenciador de filas.                                                                                                                                              |
+| `ibmmq_qmgr_mq_fdc_file_count`                               | Número de arquivos de dump de diagnóstico do IBM MQ (FFST/FDC — gravados quando o gerenciador de filas registra um erro interno). Uma contagem crescente sinaliza problemas que merecem ser investigados. |
+
+### Profundidade, idade e handles da fila [#metrics-queue-state]
+
+| Métrica                            | Descrição                                                  |
+| ---------------------------------- | ---------------------------------------------------------- |
+| `ibmmq_queue_depth`                | Número atual de mensagens na fila.                         |
+| `ibmmq_queue_attribute_max_depth`  | Profundidade máxima da fila configurada.                   |
+| `ibmmq_queue_oldest_message_age`   | Idade da mensagem mais antiga na fila, em segundos.        |
+| `ibmmq_queue_uncommitted_messages` | Número de mensagens não confirmadas.                       |
+| `ibmmq_queue_time_since_put`       | Segundos desde o último `MQPUT` para a fila.               |
+| `ibmmq_queue_time_since_get`       | Segundos desde o último `MQGET` da fila.                   |
+| `ibmmq_queue_input_handles`        | Identificadores de entrada abertos (consumidores) na fila. |
+| `ibmmq_queue_output_handles`       | Identificadores de saída abertos (produtores) na fila.     |
+| `ibmmq_queue_browse_handles`       | Identificadores de navegação abertos na fila.              |
+| `ibmmq_queue_publish_handles`      | Identificadores de publicação abertos na fila.             |
+| `ibmmq_queue_qfile_current_size`   | Tamanho atual do arquivo da fila no disco.                 |
+| `ibmmq_queue_qfile_max_size`       | Tamanho máximo do arquivo de fila no disco.                |
+
+### Taxas de transferência e tempo da fila (MQI) [#metrics-queue-throughput]
+
+Esses contadores rastreiam as principais chamadas de API de mensagens do IBM MQ por fila: **`MQPUT`** / **`MQPUT1`** (colocar uma mensagem em uma fila) e **`MQGET`** (obter uma mensagem de uma fila). Eles exigem que as estatísticas de MQI sejam ativadas no gerenciador de filas (consulte [Coleta de métricas](#collection)).
+
+| Métrica                                                                                         | Descrição                                                      |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `ibmmq_queue_mqput_count`                                                                       | `MQPUT`Operações /`MQPUT1` na fila.                            |
+| `ibmmq_queue_mqget_count`                                                                       | `MQGET` operações na fila.                                     |
+| `ibmmq_queue_mqput_bytes` / `ibmmq_queue_mqget_bytes`                                           | Bytes colocados na/obtidos da fila.                            |
+| `ibmmq_queue_mqput_non_persistent_message_count` / `ibmmq_queue_mqput_persistent_message_count` | Mensagens não persistentes/persistentes colocadas.             |
+| `ibmmq_queue_average_queue_time_seconds`                                                        | Tempo médio que as mensagens passaram na fila.                 |
+| `ibmmq_queue_qtime_short` / `ibmmq_queue_qtime_long`                                            | Amostras de tempo de fila de intervalo curto/longo.            |
+| `ibmmq_queue_avoided_puts_percentage`                                                           | Porcentagem de puts que foram direto para um getter em espera. |
+| `ibmmq_queue_expired_messages`                                                                  | Mensagens que expiraram na fila.                               |
+| `ibmmq_queue_rolled_back_mqget_count` / `ibmmq_queue_rolled_back_mqput_count`                   | Gets/puts revertidos.                                          |
+
+### Métricas de canal [#metrics-channel]
+
+| Métrica                                                                  | Descrição                                                                                                                                                                 |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ibmmq_channel_status`                                                   | Estado de execução do canal (`3` = em execução).                                                                                                                          |
+| `ibmmq_channel_status_squash`                                            | Status do canal simplificado com menos valores de enumeração (informativo; para alertas, use `ibmmq_channel_status` e a [referência de código de status](#status-codes)). |
+| `ibmmq_channel_messages`                                                 | Mensagens enviadas pelo canal.                                                                                                                                            |
+| `ibmmq_channel_bytes_sent` / `ibmmq_channel_bytes_rcvd`                  | Bytes enviados/recebidos.                                                                                                                                                 |
+| `ibmmq_channel_buffers_sent` / `ibmmq_channel_buffers_rcvd`              | Buffers de transmissão enviados/recebidos.                                                                                                                                |
+| `ibmmq_channel_cur_inst`                                                 | Número atual de instâncias de canal em execução.                                                                                                                          |
+| `ibmmq_channel_attribute_max_inst` / `ibmmq_channel_attribute_max_instc` | Máximo de instâncias no total / por cliente.                                                                                                                              |
+| `ibmmq_channel_time_since_msg`                                           | Segundos desde a última mensagem no canal.                                                                                                                                |
+| `ibmmq_channel_type` / `ibmmq_channel_instance_type`                     | Tipo de canal/tipo de instância.                                                                                                                                          |
+| `ibmmq_channel_substate`                                                 | Subestado do canal.                                                                                                                                                       |
+
+### Atividade e erros de MQI do gerenciador de filas [#metrics-qmgr-mqi]
+
+Esses contadores em todo o gerenciador de filas resumem a atividade e as falhas da API em todos os objetos — úteis para detectar erros de aplicativo e rotatividade de transação. Eles exigem que as estatísticas de MQI sejam ativadas (consulte [Coleta de métricas](#collection)).
+
+| Métrica                                                            | Descrição                                                                               |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `ibmmq_qmgr_interval_mqput_mqput1_total_count`                     | Total de `MQPUT` + `MQPUT1` chamadas no intervalo.                                      |
+| `ibmmq_qmgr_interval_destructive_get_total_count`                  | Total de chamadas `MQGET` destrutivas no intervalo.                                     |
+| `ibmmq_qmgr_published_to_subscribers_message_count`                | Mensagens publicadas para assinantes (taxas de transferência de publicação/assinatura). |
+| `ibmmq_qmgr_mqopen_count` / `ibmmq_qmgr_mqclose_count`             | Total de chamadas `MQOPEN` / `MQCLOSE`.                                                 |
+| `ibmmq_qmgr_mqconn_mqconnx_count` / `ibmmq_qmgr_mqdisc_count`      | Chamadas de conexão/desconexão.                                                         |
+| `ibmmq_qmgr_commit_count` / `ibmmq_qmgr_rollback_count`            | Commits/rollbacks de transação.                                                         |
+| `ibmmq_qmgr_failed_mqput_count` / `ibmmq_qmgr_failed_mqput1_count` | Chamadas `MQPUT` / `MQPUT1` com falha.                                                  |
+| `ibmmq_qmgr_failed_mqget_count` / `ibmmq_qmgr_failed_mqopen_count` | Chamadas get/open com falha.                                                            |
+| `ibmmq_qmgr_failed_mqconn_mqconnx_count`                           | Chamadas de conexão com falha.                                                          |
+| `ibmmq_qmgr_expired_message_count`                                 | Mensagens expiradas em todo o gerenciador de filas.                                     |
+| `ibmmq_qmgr_purged_queue_count`                                    | Filas expurgadas.                                                                       |
+
+### Referência de código de status do MQ [#status-codes]
+
+As métricas de status do IBM MQ relatam valores numéricos de enum, **não** `1`/`0` — e o valor saudável (&quot;running&quot;) difere por métrica (`2` para o status no nível do gerenciador de filas, `3` para o status do canal). Alerta sobre a *desigualdade* em relação ao valor em execução (por exemplo, `ibmmq_qmgr_status != 2`):
+
+| Métrica                               | Valor saudável | Significado                             |
+| ------------------------------------- | -------------- | --------------------------------------- |
+| `ibmmq_qmgr_status`                   | `2`            | O gerenciador de filas está em execução |
+| `ibmmq_qmgr_command_server_status`    | `2`            | Servidor de comandos em execução        |
+| `ibmmq_qmgr_channel_initiator_status` | `2`            | O iniciador de canal está em execução   |
+| `ibmmq_channel_status`                | `3`            | O canal está em execução                |
+
+Qualquer outro valor (ou um ponto de dados ausente) significa que o componente não está em seu estado de execução.
+
+## Atributos de recurso [#resource-attributes]
+
+O coletor anexa atributos de identidade e contexto a cada métrica do IBM MQ. Alguns são comuns a todas as implantações; outros dependem se o coletor é executado em um host Linux ou no Kubernetes.
+
+### Atributo comum [#common-attributes]
+
+| Atributo                   | Descrição                                                                                                                                                                                 | Exemplo                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `target.name`              | Atributo de identidade estável — o primeiro segmento de cada GUID de entidade do IBM MQ. Injetado como o rótulo de coleta `targetName`, depois renomeado para `target.name` pelo coletor. | `prod-mq-01`, `prod-mq-cluster` |
+| `qmgr`                     | Nome do gerenciador de filas (rótulo bruto do exportador; chaves de síntese de entidade nele).                                                                                            | `QM1`                           |
+| `queue`                    | Nome da fila (em métricas com escopo de fila).                                                                                                                                            | `APP.ORDERS.IN`                 |
+| `channel`                  | Nome do canal (em métricas com escopo de canal).                                                                                                                                          | `APP.SVRCONN`                   |
+| `cluster.name`             | Tag de agrupamento opcional para gerenciadores de filas no mesmo cluster MQ. Não faz parte do GUID da entidade; é seguro deixar sem definição ou alterar mais tarde.                      | `prod-mq`                       |
+| `instrumentation.provider` | Sempre `opentelemetry` para esta integração; use-o para definir o escopo das consultas para o caminho do OpenTelemetry.                                                                   | `opentelemetry`                 |
+
+### Atributos de implantação no host [#on-host-attributes]
+
+| Atributo  | Descrição                                                                                                                                                                        | Exemplo               |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `host.id` | Identificador do host que executa o coletor, do processador `resourcedetection` (detectores `system` / `ec2`). Vincula o gerenciador de filas à sua entidade de host subjacente. | `i-1234567890abcdef0` |
+
+### Atributos de implantação do Kubernetes [#kubernetes-attributes]
+
+| Atributo        | Descrição                                                                              | Exemplo        |
+| --------------- | -------------------------------------------------------------------------------------- | -------------- |
+| `k8s_namespace` | Namespace do pod do exportador descoberto, marcado pelas regras de relabel do coletor. | `ibmmq`        |
+| `k8s_pod`       | Nome do pod do exportador descoberto.                                                  | `qm1-0`        |
+| `host.id`       | Identificador do nó executando o pod, de `resourcedetection`.                          | `ip-10-0-1-23` |
+
+## Detalhes da coleta de métricas [#collection-details]
+
+### Frequência de coleta
+
+* **Intervalo padrão**: 60 segundos (`scrape_interval` do coletor). Ele deve ser maior ou igual ao próprio `pollInterval` do exportador mq-metric-samples.
+* **Configurável**: ajuste `IBMMQ_SCRAPE_INTERVAL` (Linux) ou `scrape_interval` no Helm `values.yaml` (Kubernetes).
+
+### Fonte de dados
+
+Todas as métricas se originam do exportador [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples), que consulta cada gerenciador de filas via PCF e republica as estatísticas como métricas do Prometheus em um endpoint HTTP `/metrics`. O receptor `prometheus` do coletor extrai esse endpoint.
+
+### Tipos métricos
+
+* **Medidores** — valores pontuais, como `ibmmq_qmgr_status`, `ibmmq_queue_depth` e `ibmmq_channel_status`. Gráfico com `latest()`.
+* **Contadores** — totais cumulativos como `ibmmq_queue_mqput_count`. O processador `cumulativetodelta` do coletor os converte para temporalidade delta, então crie gráficos com `sum()` ou `rate()` em vez de `latest()`.
+
+## Documentação relacionada [#related-docs]
+
+<DocTiles>
+  <DocTile title="Instrumentação auto-hospedada para o IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    Aprenda a configurar seu IBM MQ para monitoramento auto-hospedado na New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentação do Kubernetes para IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    Aprenda a configurar o monitoramento do seu IBM MQ para Kubernetes no New Relic.
+  </DocTile>
+
+  <DocTile title="Visualize e consulte seus dados" path="/docs/opentelemetry/integrations/ibm-mq/view-data">
+    Saiba como visualizar e consultar seus dados do IBM MQ no New Relic.
+  </DocTile>
+</DocTiles>

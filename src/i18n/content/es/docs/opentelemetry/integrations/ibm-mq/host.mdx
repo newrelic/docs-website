@@ -1,0 +1,771 @@
+---
+title: Monitorear IBM MQ autohospedado con OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Linux
+metaDescription: 'Install the OpenTelemetry Collector on a Linux host to ship IBM MQ queue manager, queue, and channel metrics to New Relic using static Prometheus receivers.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cuando sus gestores de colas de IBM MQ se ejecutan en una infraestructura tradicional como máquinas virtuales (VM), servidores bare metal o instancias EC2, necesita una forma confiable de monitorear su rendimiento sin la complejidad de la orquestación de contenedores. Esta guía le muestra cómo configurar un monitoreo integral de IBM MQ utilizando el [recolector de New Relic&apos;s Distribution of OpenTelemetry (NRDOT)](/docs/opentelemetry/nrdot/nrdot-collector) o [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib).
+
+Configurarás el recolector para recopilar automáticamente las profundidades de las colas, las métricas de rendimiento y el estado de los canales de tus administradores de colas, y luego enviarás esos datos a New Relic, donde aparecerán como entidades organizadas con dashboards listos para usar y alertas. Este enfoque funciona mejor cuando tienes un conjunto estable de administradores de colas que no cambian con frecuencia.
+
+<Callout variant="tip">
+  Si, en cambio, sus gestores de colas se ejecutan en Kubernetes, consulte [Monitorear IBM MQ en Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes).
+</Callout>
+
+## Antes de que empieces [#prereq]
+
+Necesitará estos componentes antes de configurar el recolector:
+
+* Cuenta de New Relic con una [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)válida
+* [Extremo OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp) de New Relic para su región
+* Gestores de colas de IBM MQ que se ejecutan con canales de conexión de servidor que tienen permisos de consulta de PCF
+* Exportador [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) de IBM MQ instalado y exponiendo métricas en cada gestor de colas. Un exportador por gestor de colas
+* Host de Linux para instalar el recolector NRDOT u OpenTelemetry Collector Contrib
+
+<Callout variant="tip">
+  Recomendamos habilitar las estadísticas de MQI en sus gestores de colas mediante `ALTER QMGR STATMQI(ON) STATQ(ON)` para obtener mejores métricas de rendimiento.
+</Callout>
+
+## Configurar el monitoreo de IBM MQ [#setup]
+
+Seleccione la distribución de su recolector y siga el proceso de configuración completo:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot">recolector NRDOT</TabsBarItem> <TabsBarItem id="otelcol">OpenTelemetry Collector Contrib</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot">
+      <Steps>
+        <Step>
+          ### Instalar recolector NRDOT [#install-nrdot]
+
+          Descargue e instale el paquete NRDOT para su distribución de Linux. Reemplace `<NRDOT_VERSION>` con la última etiqueta de versión de la página [nrdot-collector-releases](https://github.com/newrelic/nrdot-collector-releases/releases) (por ejemplo, `v0.12.0`).
+
+          * Para Debian/Ubuntu:
+
+            ```bash
+            curl -LO https://github.com/newrelic/nrdot-collector-releases/releases/download/<NRDOT_VERSION>/nrdot-collector_<NRDOT_VERSION>_linux_amd64.deb
+            sudo dpkg -i nrdot-collector_<NRDOT_VERSION>_linux_amd64.deb
+            ```
+
+          * Para RHEL/Rocky/Amazon Linux:
+
+            ```bash
+            curl -LO https://github.com/newrelic/nrdot-collector-releases/releases/download/<NRDOT_VERSION>/nrdot-collector_<NRDOT_VERSION>_linux_amd64.rpm
+            sudo dnf install ./nrdot-collector_<NRDOT_VERSION>_linux_amd64.rpm
+            ```
+        </Step>
+
+        <Step>
+          ### Configurar el Colector NRDOT [#config-nrdot]
+
+          Configure el Collector NRDOT para recopilar métricas de IBM MQ y enviarlas a New Relic. Esta configuración se encarga de tres tareas principales:
+
+          * Conectarse a sus administradores de colas
+          * Limpiar los datos
+          * Enviar los datos a New Relic
+
+          1. Para crear el directorio y el archivo de configuración del recolector con los permisos requeridos, ejecute:
+
+          ```bash
+          # Config directory — group-readable by nrdot only (it will hold secrets)
+          sudo install -d -o root -g nrdot -m 0750 /etc/nrdot-collector
+
+          # Create the config file with correct permissions
+          sudo install -o root -g nrdot -m 0640 /dev/null /etc/nrdot-collector/ibmmq-config.yaml
+          sudo -u nrdot ${EDITOR:-vi} /etc/nrdot-collector/ibmmq-config.yaml
+          ```
+
+          2. Pegue la siguiente configuración en el archivo de configuración creado, reemplazando los marcadores de posición con sus valores reales:
+
+          ```yaml
+          extensions:
+            health_check:
+              endpoint: 127.0.0.1:13133
+
+          processors:
+
+            filter/ibmmq-overhead:
+              metrics:
+                exclude:
+                  match_type: regexp
+                  metric_names:
+                    - "^go_.*"
+                    - "^process_.*"
+                    - "^promhttp_.*"
+                    - "^scrape_.*"
+
+            filter/ibmmq-queues:
+              metrics:
+                datapoint:
+                  - 'attributes["queue"] != nil and IsMatch(attributes["queue"], "^SYSTEM\\.(ADMIN\\.|MQSC\\.|DEFAULT\\.|AUTH\\.|CHANNEL\\.|CHLAUTH\\.|CICS\\.|SYNCPOINT\\.|INTERNAL\\.|PENDING\\.|PROTECTION\\.|BROKER\\.|AMQP\\.|DOTNET\\.|REST\\.|RETAINED\\.|SELECTION\\.|DURABLE\\.|HIERARCHY\\.|DDELAY\\.)")'
+                  - 'attributes["queue"] != nil and IsMatch(attributes["queue"], "^SYSTEM\\.CLUSTER\\.(COMMAND|HISTORY)\\.QUEUE$")'
+                  - 'attributes["queue"] != nil and IsMatch(attributes["queue"], "^AMQ\\.")'
+
+            resourcedetection:
+              detectors: [env, ec2, system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+
+            transform/ibmmq-cleanup:
+              metric_statements:
+                - context: resource
+                  statements:
+                    - delete_key(attributes, "server.address")
+                    - delete_key(attributes, "server.port")
+                    - delete_key(attributes, "url.scheme")
+                - context: datapoint
+                  statements:
+                    # Rename the injected identity labels to their OTel dotted form — the
+                    # names New Relic's IBM MQ entity synthesis keys on. qmgr / queue stay raw.
+                    - set(attributes["target.name"], attributes["targetName"]) where attributes["targetName"] != nil
+                    - delete_key(attributes, "targetName")
+                    - set(attributes["cluster.name"], attributes["clusterName"]) where attributes["clusterName"] != nil
+                    - delete_key(attributes, "clusterName")
+                    - delete_key(attributes, "instance")
+                    - delete_key(attributes, "job")
+
+            memory_limiter/ibmmq:
+              check_interval: 1s
+              limit_mib: 512
+              spike_limit_mib: 256
+
+            cumulativetodelta/ibmmq: {}
+
+            batch/ibmmq:
+              send_batch_size: 1000
+              timeout: 200ms
+
+          exporters:
+
+            otlphttp/ibmmq:
+              endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          receivers:
+
+            prometheus/ibmmq-qm1:
+              config:
+                scrape_configs:
+                  - job_name: 'ibmmq-qm1'
+                    scrape_interval: ${env:IBMMQ_SCRAPE_INTERVAL:-60s}
+                    scrape_timeout: 15s
+                    static_configs:
+                      - targets:
+                          - "${env:IBMMQ_QM1_ENDPOINT:-localhost:9157}"
+                        labels:
+                          targetName: "${env:TARGET_NAME}"
+                          clusterName: "${env:IBMMQ_CLUSTER_NAME:-}"
+
+          service:
+            pipelines:
+              metrics/ibmmq-qm1:
+                receivers: [prometheus/ibmmq-qm1]
+                processors:
+                  - filter/ibmmq-overhead
+                  - filter/ibmmq-queues
+                  - resourcedetection
+                  - transform/ibmmq-cleanup
+                  - memory_limiter/ibmmq
+                  - cumulativetodelta/ibmmq
+                  - batch/ibmmq
+                exporters: [otlphttp/ibmmq]
+
+            extensions: [health_check]
+          ```
+
+          <Callout variant="important">
+            No reordenes ni elimines los procesadores. El orden de la cadena de procesadores es fundamental para la síntesis de entidades. El procesador `transform/ibmmq-cleanup` debe ejecutarse después del procesador `resourcedetection`. Invertir este orden hace que las métricas de IBM MQ se asocien con la propia entidad del recolector en lugar de con las entidades `IBMMQ_MANAGER`, lo que evita que los datos se muestren en los dashboards.
+          </Callout>
+
+          #### Qué hace esta configuración [#config-explanation]
+
+          Esta configuración crea un pipeline que recopila métricas de los gestores de colas de IBM MQ y enruta datos estructurados a New Relic. Cada componente realiza una función específica:
+
+          | Componente                | Descripción                                                                                                                                                                                                                                                                                                                              |
+          | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `health_check`            | Proporciona un extremo de estado en `127.0.0.1:13133` que devuelve `{"status":"Server available"}` para verificar que el recolector se está ejecutando y para solucionar problemas de inicio.                                                                                                                                            |
+          | `prometheus/ibmmq-qm1`    | Se conecta al exportador para cada gestor de colas cada 60 segundos para recopilar métricas. Cada gestor de colas utiliza un receptor independiente; si un gestor de colas falla, los receptores restantes continúan operando normalmente. Para agregar más gestores de colas, consulte la sección [Agregar otro gestor de colas](#add). |
+          | `filter/ibmmq-overhead`   | Elimina las métricas internas del exportador (como `go_*` y `process_*`) que no contienen una señal de IBM MQ. Esto optimiza los costos de ingesta de datos al filtrar la telemetría innecesaria.                                                                                                                                        |
+          | `filter/ibmmq-queues`     | Excluye las colas internas del sistema IBM MQ (`SYSTEM.*` y `AMQ.*`) para que solo las colas de la aplicación se conviertan en entidades `IBMMQ_QUEUE`. Esto reduce el recuento total de entidades y centra el monitoreo en los activos críticos.                                                                                        |
+          | `transform/ibmmq-cleanup` | Este es un componente crítico que asigna las métricas a las entidades de IBM MQ correspondientes en New Relic. Sin este componente, los datos aparecen como métricas de recolector genéricas en lugar de sintetizar las entidades `IBMMQ_MANAGER` y `IBMMQ_QUEUE` con los dashboards y alertas asociados.                                |
+          | `memory_limiter/ibmmq`    | Limita el uso de memoria a 512 MB (con un margen para picos de 256 MB) para evitar que el recolector exceda los límites de recursos del sistema.                                                                                                                                                                                         |
+          | `batch/ibmmq`             | Agrupa las métricas antes de la transmisión para reducir la sobrecarga de la red empaquetando hasta 1000 puntos de datos por solicitud.                                                                                                                                                                                                  |
+          | `otlphttp/ibmmq`          | Exporta las métricas procesadas a New Relic usando la clave de licencia configurada para la autenticación y el extremo regional designado.                                                                                                                                                                                               |
+
+          Cada gestor de colas utiliza un pipeline independiente para que un problema con una instancia no afecte a las demás. El orden de los procesadores es crítico, no reordene ni elimine procesadores, o las métricas no se asignarán correctamente a las entidades de IBM MQ.
+        </Step>
+
+        <Step>
+          ### Establezca las variables de entorno NRDOT [#set-nrdot]
+
+          La configuración de su recolector utiliza variables de entorno para valores específicos del despliegue, como la clave de licencia de New Relic y los extremos del gestor de colas. Este enfoque mantiene los secretos separados de los archivos de configuración y facilita ajustar la configuración sin editar YAML.
+
+          1. Cree un archivo de entorno para el recolector NRDOT:
+
+          ```bash
+          # Owner nrdot, mode 0600 — this file holds the license key
+          sudo install -o nrdot -g nrdot -m 0600 /dev/null /etc/nrdot-collector/ibmmq-env
+          sudo -u nrdot ${EDITOR:-vi} /etc/nrdot-collector/ibmmq-env
+          ```
+
+          2. Agregue su valor como líneas `KEY=VALUE` al archivo, reemplazando los marcadores de posición con sus valores reales:
+
+          ```ini
+          # /etc/nrdot-collector/ibmmq-env
+
+          # --- Required ---
+
+          # New Relic ingest license key (40 chars, suffix NRAL)
+          NEW_RELIC_LICENSE_KEY=<YOUR-LICENSE-KEY>
+
+          # Stable host identity — first segment of every IBMMQ entity GUID
+          TARGET_NAME=<YOUR-HOSTNAME>
+
+          # mq-metric-samples exporter endpoints, one per queue manager
+          IBMMQ_QM1_ENDPOINT=localhost:9157
+
+          # --- Optional (shown with defaults) ---
+
+          # OTLP endpoint: US prod default shown; For more information, refer to [New Relic OTLP endpoint](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp).
+          NEW_RELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318
+
+          # Optional tag grouping for the IBMMQ_MANAGER entity (does not affect the entity GUID).
+          # Leave unset to omit cluster.name (nullable); set it to group QMs under one cluster tag.
+          # IBMMQ_CLUSTER_NAME=prod-mq-cluster
+
+          # Scrape interval — must be >= the mq-metric-samples pollInterval (default 60s)
+          IBMMQ_SCRAPE_INTERVAL=60s
+          ```
+
+          <Callout variant="caution">
+            No cambie el valor `TARGET_NAME` después del despliegue inicial. Este valor forma el primer segmento del GUID de cada entidad `IBMMQ_MANAGER` y `IBMMQ_QUEUE` (`target.name:qmgr`). Cambiar este valor después del despliegue crea nuevas entidades y deja huérfanas las existentes, lo que rompe los dashboards y las alertas asociados. Seleccione una cadena estable durante la configuración inicial, como el QMID del Queue Manager. Para obtener más información, consulta [El modelo de entidad de IBM MQ](/docs/opentelemetry/integrations/ibm-mq/overview#entity-model).
+          </Callout>
+
+          Configure las siguientes variables de entorno en su shell para verificar la configuración antes de iniciar el recolector:
+
+          | Variable                  | Requerido | Descripción                                                                                                                                                                             |
+          | ------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `NEW_RELIC_LICENSE_KEY`   | Sí        | Tu [clave de licencia de ingesta](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic.                                                                           |
+          | `TARGET_NAME`             | Sí        | Un identificador para su host, como el nombre de host o el ID del gestor de colas. No cambie esto después del despliegue inicial, ya que se convierte en parte de los ID de su entidad. |
+          | `IBMMQ_QM1_ENDPOINT`      | Sí        | Ubicación del exportador de su primer gestor de colas. Por ejemplo, `localhost:9157` si se ejecuta en el mismo host.                                                                    |
+          | `NEW_RELIC_OTLP_ENDPOINT` | No        | Extremo OTLP de New Relic para su región. Para obtener más información, consulte el [extremo OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp).                 |
+          | `IBMMQ_CLUSTER_NAME`      | No        | Nombre del Cluster para agrupar sus gestores de colas en New Relic.                                                                                                                     |
+          | `IBMMQ_SCRAPE_INTERVAL`   | No        | Intervalo de recopilación para exportar métricas a New Relic. El intervalo de recopilación predeterminado es de 60 segundos.                                                            |
+        </Step>
+
+        <Step>
+          ### Configure el servicio systemd de NRDOT [#nrdot-systemd]
+
+          1. Cree un archivo drop-in de `systemd` para cargar los archivos de configuración y de entorno.
+
+          ```bash
+          sudo mkdir -p /etc/systemd/system/nrdot-collector.service.d
+          sudo tee /etc/systemd/system/nrdot-collector.service.d/ibmmq.conf > /dev/null << 'EOF'
+          [Service]
+          EnvironmentFile=/etc/nrdot-collector/ibmmq-env
+          ExecStart=
+          ExecStart=/usr/bin/nrdot-collector --config /etc/nrdot-collector/ibmmq-config.yaml
+          MemoryMax=1G
+          LimitNOFILE=65536
+          NoNewPrivileges=true
+          ProtectSystem=strict
+          ProtectHome=true
+          EOF
+          ```
+
+          La línea `ExecStart=` vacía borra el comando predeterminado y la segunda línea establece el comando personalizado. Esto evita que el recolector se inicie dos veces. Las otras configuraciones cargan el archivo de entorno, limitan el uso de memoria y mejoran la seguridad.
+
+          2. Después de crear el drop-in, verifique que systemd pueda analizarlo sin errores:
+
+          ```bash
+          sudo systemd-analyze verify /etc/systemd/system/nrdot-collector.service
+          # No output means no syntax errors
+          ```
+        </Step>
+
+        <Step>
+          ### Inicia el recolector NRDOT y verifica [#start-nrdot]
+
+          1. Inicie el recolector y habilítelo para que se ejecute automáticamente en el arranque:
+
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl enable --now nrdot-collector.service
+          sudo systemctl status nrdot-collector.service --no-pager
+          ```
+
+          El comando `status` debería mostrar `Active: active (running)`. Si ve `Active: failed`, revise los logs con `journalctl -u nrdot-collector.service -n 200 --no-pager`.
+
+          2. Verifique que el recolector esté en buen estado:
+
+          ```bash
+          curl -sS http://127.0.0.1:13133
+          # Expected: {"status":"Server available", ...}
+          ```
+
+          3. Confirme que sus métricas de IBM MQ fluyen hacia New Relic. Espere 60 segundos después de que se inicie el recolector, luego verifique sus datos usando las consultas de verificación en [Buscar y consultar sus datos](/docs/opentelemetry/integrations/ibm-mq/view-data).
+        </Step>
+
+        <Step>
+          ### Ver tus datos en New Relic [#view-nrdot]
+
+          Una vez que su recolector esté en ejecución y las métricas fluyan, verá sus gestores de colas como entidades `IBMMQ_MANAGER` en New Relic, con sus colas como entidades `IBMMQ_QUEUE` secundarias. Para obtener detalles sobre cómo buscar sus datos, ejecutar consultas y configurar dashboards y alertas, consulte [Buscar y consultar sus datos](/docs/opentelemetry/integrations/ibm-mq/view-data).
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol">
+      <Steps>
+        <Step>
+          ### Instalar OpenTelemetry Collector Contrib [#install-otelcol]
+
+          Descargue la distribución de OpenTelemetry Collector Contrib (`otelcol-contrib`) para su plataforma desde la página de [versiones de OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-releases/releases). La compilación Contrib incluye el receptor `prometheus` y los procesadores `filter`, `transform` y `cumulativetodelta` en los que se basa esta guía.
+
+          <Callout variant="tip">
+            Ejecute `otelcol-contrib --version` para confirmar que el binario está instalado y accesible.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Configurar OpenTelemetry Collector [#config-otelcol]
+
+          Configure el OpenTelemetry Collector para recopilar métricas de IBM MQ y enviarlas a New Relic. Esta configuración se encarga de tres tareas principales:
+
+          * Conectarse a sus administradores de colas
+          * Limpiar los datos
+          * Enviar los datos a New Relic
+
+          1. Para crear el directorio y el archivo de configuración del recolector con los permisos requeridos, ejecute:
+
+          ```bash
+          # Config directory for OpenTelemetry Collector
+          sudo mkdir -p /etc/otelcol-contrib
+          sudo chmod 755 /etc/otelcol-contrib
+
+          # Create the config file with correct permissions
+          sudo touch /etc/otelcol-contrib/ibmmq-config.yaml
+          sudo chmod 644 /etc/otelcol-contrib/ibmmq-config.yaml
+          sudo ${EDITOR:-vi} /etc/otelcol-contrib/ibmmq-config.yaml
+          ```
+
+          2. Pegue la siguiente configuración en el archivo de configuración creado, reemplazando los marcadores de posición con sus valores reales:
+
+          ```yaml
+          extensions:
+            health_check:
+              endpoint: 127.0.0.1:13133
+
+          processors:
+
+            filter/ibmmq-overhead:
+              metrics:
+                exclude:
+                  match_type: regexp
+                  metric_names:
+                    - "^go_.*"
+                    - "^process_.*"
+                    - "^promhttp_.*"
+                    - "^scrape_.*"
+
+            filter/ibmmq-queues:
+              metrics:
+                datapoint:
+                  - 'attributes["queue"] != nil and IsMatch(attributes["queue"], "^SYSTEM\\.(ADMIN\\.|MQSC\\.|DEFAULT\\.|AUTH\\.|CHANNEL\\.|CHLAUTH\\.|CICS\\.|SYNCPOINT\\.|INTERNAL\\.|PENDING\\.|PROTECTION\\.|BROKER\\.|AMQP\\.|DOTNET\\.|REST\\.|RETAINED\\.|SELECTION\\.|DURABLE\\.|HIERARCHY\\.|DDELAY\\.)")'
+                  - 'attributes["queue"] != nil and IsMatch(attributes["queue"], "^SYSTEM\\.CLUSTER\\.(COMMAND|HISTORY)\\.QUEUE$")'
+                  - 'attributes["queue"] != nil and IsMatch(attributes["queue"], "^AMQ\\.")'
+
+            resourcedetection:
+              detectors: [env, ec2, gcp, azure, system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+
+            transform/ibmmq-cleanup:
+              metric_statements:
+                - context: resource
+                  statements:
+                    - delete_key(attributes, "server.address")
+                    - delete_key(attributes, "server.port")
+                    - delete_key(attributes, "url.scheme")
+                - context: datapoint
+                  statements:
+                    # Rename the injected identity labels to their OTel dotted form — the
+                    # names New Relic's IBM MQ entity synthesis keys on. qmgr / queue stay raw.
+                    - set(attributes["target.name"], attributes["targetName"]) where attributes["targetName"] != nil
+                    - delete_key(attributes, "targetName")
+                    - set(attributes["cluster.name"], attributes["clusterName"]) where attributes["clusterName"] != nil
+                    - delete_key(attributes, "clusterName")
+                    - delete_key(attributes, "instance")
+                    - delete_key(attributes, "job")
+
+            memory_limiter/ibmmq:
+              check_interval: 1s
+              limit_mib: 512
+              spike_limit_mib: 256
+
+            cumulativetodelta/ibmmq: {}
+
+            batch/ibmmq:
+              send_batch_size: 1000
+              timeout: 200ms
+
+          exporters:
+
+            otlphttp/ibmmq:
+              endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          receivers:
+
+            prometheus/ibmmq-qm1:
+              config:
+                scrape_configs:
+                  - job_name: 'ibmmq-qm1'
+                    scrape_interval: ${env:IBMMQ_SCRAPE_INTERVAL:-60s}
+                    scrape_timeout: 15s
+                    static_configs:
+                      - targets:
+                          - "${env:IBMMQ_QM1_ENDPOINT:-localhost:9157}"
+                        labels:
+                          targetName: "${env:TARGET_NAME}"
+                          clusterName: "${env:IBMMQ_CLUSTER_NAME:-}"
+
+          service:
+            pipelines:
+              metrics/ibmmq-qm1:
+                receivers: [prometheus/ibmmq-qm1]
+                processors:
+                  - filter/ibmmq-overhead
+                  - filter/ibmmq-queues
+                  - resourcedetection
+                  - transform/ibmmq-cleanup
+                  - memory_limiter/ibmmq
+                  - cumulativetodelta/ibmmq
+                  - batch/ibmmq
+                exporters: [otlphttp/ibmmq]
+
+            extensions: [health_check]
+          ```
+
+          <Callout variant="important">
+            No reordenes ni elimines los procesadores. El orden de la cadena de procesadores es fundamental para la síntesis de entidades. El procesador `transform/ibmmq-cleanup` debe ejecutarse después del procesador `resourcedetection`. Invertir este orden hace que las métricas de IBM MQ se asocien con la propia entidad del recolector en lugar de con las entidades `IBMMQ_MANAGER`, lo que evita que los datos se muestren en los dashboards.
+          </Callout>
+
+          #### Qué hace esta configuración [#config-explanation]
+
+          Esta configuración crea un pipeline que recopila métricas de los gestores de colas de IBM MQ y enruta datos estructurados a New Relic. Cada componente realiza una función específica:
+
+          | Componente                | Descripción                                                                                                                                                                                                                                                                                                                              |
+          | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `health_check`            | Proporciona un extremo de estado en `127.0.0.1:13133` que devuelve `{"status":"Server available"}` para verificar que el recolector se está ejecutando y para solucionar problemas de inicio.                                                                                                                                            |
+          | `prometheus/ibmmq-qm1`    | Se conecta al exportador para cada gestor de colas cada 60 segundos para recopilar métricas. Cada gestor de colas utiliza un receptor independiente; si un gestor de colas falla, los receptores restantes continúan operando normalmente. Para agregar más gestores de colas, consulte la sección [Agregar otro gestor de colas](#add). |
+          | `filter/ibmmq-overhead`   | Elimina las métricas internas del exportador (como `go_*` y `process_*`) que no contienen una señal de IBM MQ. Esto optimiza los costos de ingesta de datos al filtrar la telemetría innecesaria.                                                                                                                                        |
+          | `filter/ibmmq-queues`     | Excluye las colas internas del sistema IBM MQ (`SYSTEM.*` y `AMQ.*`) para que solo las colas de la aplicación se conviertan en entidades `IBMMQ_QUEUE`. Esto reduce el recuento total de entidades y centra el monitoreo en los activos críticos.                                                                                        |
+          | `transform/ibmmq-cleanup` | Este es un componente crítico que asigna las métricas a las entidades de IBM MQ correspondientes en New Relic. Sin este componente, los datos aparecen como métricas de recolector genéricas en lugar de sintetizar las entidades `IBMMQ_MANAGER` y `IBMMQ_QUEUE` con los dashboards y alertas asociados.                                |
+          | `memory_limiter/ibmmq`    | Limita el uso de memoria a 512 MB (con un margen para picos de 256 MB) para evitar que el recolector exceda los límites de recursos del sistema.                                                                                                                                                                                         |
+          | `batch/ibmmq`             | Agrupa las métricas antes de la transmisión para reducir la sobrecarga de la red empaquetando hasta 1000 puntos de datos por solicitud.                                                                                                                                                                                                  |
+          | `otlphttp/ibmmq`          | Exporta las métricas procesadas a New Relic usando la clave de licencia configurada para la autenticación y el extremo regional designado.                                                                                                                                                                                               |
+
+          Cada gestor de colas utiliza un pipeline independiente para que un problema con una instancia no afecte a las demás. El orden de los procesadores es crítico, no reordene ni elimine procesadores, o las métricas no se asignarán correctamente a las entidades de IBM MQ.
+        </Step>
+
+        <Step>
+          ### Establezca las variables de entorno de OpenTelemetry [#set-otelcol]
+
+          La configuración de su recolector utiliza variables de entorno para valores específicos del despliegue, como la clave de licencia de New Relic y los extremos del gestor de colas. Este enfoque mantiene los secretos separados de los archivos de configuración y facilita ajustar la configuración sin editar YAML.
+
+          1. Cree un archivo de entorno para el OpenTelemetry Collector:
+
+          ```bash
+          # Owner root, mode 0600 — this file holds the license key
+          sudo touch /etc/otelcol-contrib/ibmmq-env
+          sudo chmod 600 /etc/otelcol-contrib/ibmmq-env
+          sudo ${EDITOR:-vi} /etc/otelcol-contrib/ibmmq-env
+          ```
+
+          2. Agregue su valor como líneas `KEY=VALUE` al archivo, reemplazando los marcadores de posición con sus valores reales:
+
+          ```ini
+          # /etc/otelcol-contrib/ibmmq-env
+
+          # --- Required ---
+
+          # New Relic ingest license key (40 chars, suffix NRAL)
+          NEW_RELIC_LICENSE_KEY=<YOUR-LICENSE-KEY>
+
+          # Stable host identity — first segment of every IBMMQ entity GUID
+          TARGET_NAME=<YOUR-HOSTNAME>
+
+          # mq-metric-samples exporter endpoints, one per queue manager
+          IBMMQ_QM1_ENDPOINT=localhost:9157
+
+          # --- Optional (shown with defaults) ---
+
+          # OTLP endpoint: US prod default shown; For more information, refer to [New Relic OTLP endpoint](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp).
+          NEW_RELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318
+
+          # Optional tag grouping for the IBMMQ_MANAGER entity (does not affect the entity GUID).
+          # Leave unset to omit cluster.name (nullable); set it to group QMs under one cluster tag.
+          # IBMMQ_CLUSTER_NAME=prod-mq-cluster
+
+          # Scrape interval — must be >= the mq-metric-samples pollInterval (default 60s)
+          IBMMQ_SCRAPE_INTERVAL=60s
+          ```
+
+          <Callout variant="caution">
+            No cambie el valor `TARGET_NAME` después del despliegue inicial. Este valor forma el primer segmento del GUID de cada entidad `IBMMQ_MANAGER` y `IBMMQ_QUEUE` (`target.name:qmgr`). Cambiar este valor después del despliegue crea nuevas entidades y deja huérfanas las existentes, lo que rompe los dashboards y las alertas asociados. Seleccione una cadena estable durante la configuración inicial, como el QMID del Queue Manager. Para obtener más información, consulta [El modelo de entidad de IBM MQ](/docs/opentelemetry/integrations/ibm-mq/overview#entity-model).
+          </Callout>
+
+          Configure las siguientes variables de entorno en su shell para verificar la configuración antes de iniciar el recolector:
+
+          | Variable                  | Requerido | Descripción                                                                                                                                                                             |
+          | ------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `NEW_RELIC_LICENSE_KEY`   | Sí        | Tu [clave de licencia de ingesta](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic.                                                                           |
+          | `TARGET_NAME`             | Sí        | Un identificador para su host, como el nombre de host o el ID del gestor de colas. No cambie esto después del despliegue inicial, ya que se convierte en parte de los ID de su entidad. |
+          | `IBMMQ_QM1_ENDPOINT`      | Sí        | Ubicación del exportador de su primer gestor de colas. Por ejemplo, `localhost:9157` si se ejecuta en el mismo host.                                                                    |
+          | `NEW_RELIC_OTLP_ENDPOINT` | No        | Extremo OTLP de New Relic para su región. Para obtener más información, consulte el [extremo OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp).                 |
+          | `IBMMQ_CLUSTER_NAME`      | No        | Nombre del Cluster para agrupar sus gestores de colas en New Relic.                                                                                                                     |
+          | `IBMMQ_SCRAPE_INTERVAL`   | No        | Intervalo de recopilación para exportar métricas a New Relic. El intervalo de recopilación predeterminado es de 60 segundos.                                                            |
+        </Step>
+
+        <Step>
+          ### Configurar el servicio systemd de OpenTelemetry [#otelcol-systemd]
+
+          1. Cree un archivo de servicio de systemd para el OpenTelemetry Collector:
+
+          ```poweshell
+            sudo tee /etc/systemd/system/otelcol-contrib.service > /dev/null << 'EOF'
+            [Unit]
+            Description=OpenTelemetry Collector Contrib
+            After=network.target
+
+            [Service]
+            Type=simple
+            User=nobody
+            Group=nogroup
+            ExecStart=/usr/bin/otelcol-contrib --config=/etc/otelcol-contrib/ibmmq-config.yaml
+            EnvironmentFile=/etc/otelcol-contrib/ibmmq-env
+            Restart=on-failure
+            RestartSec=5
+            StandardOutput=journal
+            StandardError=journal
+            SyslogIdentifier=otelcol-contrib
+            KillMode=mixed
+            KillSignal=SIGTERM
+            MemoryMax=1G
+            LimitNOFILE=65536
+            NoNewPrivileges=true
+            ProtectSystem=strict
+            ProtectHome=true
+            ReadWritePaths=/tmp
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+          ```
+
+          El servicio se ejecuta como `nobody:nogroup` por seguridad, carga el archivo de entorno e incluye límites de memoria y refuerzo de seguridad.
+
+          2. Después de crear el servicio, verifique que systemd pueda analizarlo sin errores:
+
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl status otelcol-contrib.service
+          # No output means no syntax errors
+          ```
+        </Step>
+
+        <Step>
+          ### Iniciar el recolector de OpenTelemetry y verificar [#start-otelcol]
+
+          1. Inicie el recolector y habilítelo para que se ejecute automáticamente en el arranque:
+
+          ```bash
+          sudo systemctl enable --now otelcol-contrib.service
+          sudo systemctl status otelcol-contrib.service --no-pager
+          ```
+
+          El comando `status` debería mostrar `Active: active (running)`. Si ve `Active: failed`, revise los logs con `journalctl -u otelcol-contrib.service -n 200 --no-pager`.
+
+          2. Verifique que el recolector esté en buen estado:
+
+          ```bash
+          curl -sS http://127.0.0.1:13133
+          # Expected: {"status":"Server available", ...}
+          ```
+
+          3. Confirme que sus métricas de IBM MQ fluyen hacia New Relic. Espere 60 segundos después de que se inicie el recolector, luego verifique sus datos usando las consultas de verificación en [Buscar y consultar sus datos](/docs/opentelemetry/integrations/ibm-mq/view-data).
+        </Step>
+
+        <Step>
+          ### Ver tus datos en New Relic [#view-otelcol]
+
+          Una vez que su recolector esté en ejecución y las métricas fluyan, verá sus gestores de colas como entidades `IBMMQ_MANAGER` en New Relic, con sus colas como entidades `IBMMQ_QUEUE` secundarias. Para obtener detalles sobre cómo buscar sus datos, ejecutar consultas y configurar dashboards y alertas, consulte [Buscar y consultar sus datos](/docs/opentelemetry/integrations/ibm-mq/view-data).
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Configuración avanzada [#advanced]
+
+Use estas configuraciones para personalizar su configuración para diferentes escenarios.
+
+### Escalado y gestión del gestor de colas
+
+<CollapserGroup>
+  <Collapser id="add" title="Agregar otro gestor de colas">
+    Para agregar otro gestor de colas (como `QM2` en el puerto `9160`), deberá actualizar tanto los archivos de configuración como los de entorno:
+
+    1. Confirme que el exportador mq-metric-samples para `QM2` se está ejecutando y es accesible:
+
+       ```bash
+       curl -sS http://localhost:9160/metrics | grep -E '^ibmmq_qmgr_status' | head -1
+       ```
+
+    2. Agregue `IBMMQ_QM2_ENDPOINT` al archivo env en `/etc/nrdot-collector/ibmmq-env`:
+
+       ```ini
+       IBMMQ_QM2_ENDPOINT=localhost:9160
+       ```
+
+    3. Abra `/etc/nrdot-collector/ibmmq-config.yaml` y agregue un cuarto bloque de receptor dentro de `receivers:`:
+
+       ```yaml
+       prometheus/ibmmq-qm2:
+         config:
+           scrape_configs:
+             - job_name: 'ibmmq-qm2'
+               scrape_interval: ${env:IBMMQ_SCRAPE_INTERVAL:-60s}
+               scrape_timeout: 15s
+               static_configs:
+                 - targets:
+                     - "${env:IBMMQ_QM2_ENDPOINT:-localhost:9160}"
+                   labels:
+                     targetName: "${env:TARGET_NAME}"
+                     clusterName: "${env:IBMMQ_CLUSTER_NAME:-}"
+       ```
+
+    4. Agregue el pipeline correspondiente dentro de `service.pipelines:`:
+
+       ```yaml
+       metrics/ibmmq-qm2:
+         receivers: [prometheus/ibmmq-qm2]
+         processors:
+           - filter/ibmmq-overhead
+           - filter/ibmmq-queues
+           - resourcedetection
+           - transform/ibmmq-cleanup
+           - memory_limiter/ibmmq
+           - cumulativetodelta/ibmmq
+           - batch/ibmmq
+         exporters: [otlphttp/ibmmq]
+       ```
+
+    5. Reinicie el colector:
+
+       ```bash
+       sudo systemctl restart nrdot-collector.service
+       ```
+
+    Para **eliminar** un gestor de colas, deshabilite su servicio de exportador, elimine sus bloques de receptor y pipeline de `ibmmq-config.yaml`, elimine su `IBMMQ_QMN_ENDPOINT` del archivo env y reinicie el recolector. La entidad caduca según la ventana de informes de New Relic.
+  </Collapser>
+</CollapserGroup>
+
+### Seguridad y redes
+
+<CollapserGroup>
+  <Collapser id="tls-basic-auth" title="TLS y autenticación básica para el raspado del exportador">
+    Si su exportador mq-metric-samples está configurado para requerir HTTPS o autenticación básica, agregue los campos correspondientes al bloque `scrape_configs` de cada receptor. A continuación se muestran ambas opciones para `prometheus/ibmmq-qm1` — aplique el mismo patrón a `qm2` y `qm3`:
+
+    ```yaml
+    prometheus/ibmmq-qm1:
+      config:
+        scrape_configs:
+          - job_name: 'ibmmq-qm1'
+            scrape_interval: ${env:IBMMQ_SCRAPE_INTERVAL:-60s}
+            scrape_timeout: 15s
+            scheme: https
+            tls_config:
+              ca_file: /etc/nrdot-collector/ca.pem
+              insecure_skip_verify: false
+            basic_auth:
+              username: ${env:IBMMQ_EXPORTER_USER}
+              password: ${env:IBMMQ_EXPORTER_PASSWORD}
+            static_configs:
+              - targets:
+                  - "${env:IBMMQ_QM1_ENDPOINT:-localhost:9157}"
+                labels:
+                  targetName: "${env:TARGET_NAME}"
+                  clusterName: "${env:IBMMQ_CLUSTER_NAME:-}"
+    ```
+
+    Agregue las variables correspondientes a `/etc/nrdot-collector/ibmmq-env`:
+
+    ```ini
+    IBMMQ_EXPORTER_USER=mqmonitor
+    IBMMQ_EXPORTER_PASSWORD=<YOUR_EXPORTER_PASSWORD>
+    ```
+  </Collapser>
+
+  <Collapser id="remote-exporter" title="Exportador remoto (recolector y administrador de colas en hosts separados)">
+    Cuando el exportador mq-metric-samples se ejecuta en un host diferente al del recolector, cambie los valores de `IBMMQ_QMN_ENDPOINT` en el archivo env para que apunten al host remoto:
+
+    ```ini
+    IBMMQ_QM1_ENDPOINT=mq-host-1.example.com:9157
+    IBMMQ_QM2_ENDPOINT=mq-host-1.example.com:9158
+    IBMMQ_QM3_ENDPOINT=mq-host-2.example.com:9159
+    ```
+
+    Configure el firewall para los puertos del exportador de modo que solo la IP del recolector pueda alcanzarlos. En Ubuntu/UFW:
+
+    ```bash
+    sudo ufw allow from <collector-ip> to any port 9157 proto tcp
+    sudo ufw allow from <collector-ip> to any port 9158 proto tcp
+    sudo ufw allow from <collector-ip> to any port 9159 proto tcp
+    ```
+
+    En RHEL/firewalld, cree una zona dedicada limitada a la IP de origen del recolector y a los tres puertos.
+
+    Si el recolector está detrás de un proxy de salida, agregue `HTTPS_PROXY` al archivo env e incluya `NO_PROXY=localhost,127.0.0.1` para evitar que el proxy intercepte las requests de extracción locales:
+
+    ```ini
+    HTTPS_PROXY=http://proxy.example.com:3128
+    NO_PROXY=localhost,127.0.0.1
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Documentación relacionada [#related-docs]
+
+<DocTiles>
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    Obtenga información sobre las métricas de OpenTelemetry de IBM MQ disponibles en New Relic.
+  </DocTile>
+
+  <DocTile title="Ve y consulta tus datos" path="/docs/opentelemetry/integrations/ibm-mq/view-data">
+    Aprenda a ver y consultar sus datos de IBM MQ en New Relic.
+  </DocTile>
+
+  <DocTile title="Resolución de problemas" path="/docs/opentelemetry/integrations/ibm-mq/troubleshooting">
+    Aprenda a solucionar problemas de monitoreo de IBM MQ en New Relic.
+  </DocTile>
+</DocTiles>

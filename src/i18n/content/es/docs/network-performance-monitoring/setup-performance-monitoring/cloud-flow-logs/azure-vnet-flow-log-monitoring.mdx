@@ -1,0 +1,677 @@
+---
+title: Configurar monitoreo de Azure VNet Flow Logs
+tags:
+  - Integrations
+  - Network monitoring
+  - Installation
+  - Setup
+  - Azure
+  - VNet
+  - Flow Logs
+metaDescription: Set up Azure VNet Flow Logs monitoring to forward flow log data to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Los logs de Azure Virtual Network (VNet) Flow le permiten registrar información sobre el tráfico IP que fluye a través de sus redes virtuales. Con el reenviador de logs de VNet Flow de New Relic, puede reenviar automáticamente estos registros a New Relic para el análisis de rendimiento y la resolución de problemas de conectividad de red.
+
+## Cómo funciona [#how-it-works]
+
+El reenviador de logs de VNet Flow es una Azure Function App basada en eventos:
+
+<img title="Azure VNet Flow Logs Architecture" alt="Azure VNet Flow Logs Architecture" src="/images/azure-arch.webp" />
+
+1. **Event Grid → Event Hub**: una suscripción de Event Grid en su cuenta de almacenamiento de flow-log escucha `BlobCreated` eventos en los blobs PT1H.json y los entrega directamente a un Event Hub. La suscripción utiliza la ruta del blob (asunto del evento) como clave de partición para garantizar el orden cronológico por archivo. No hay una función de retransmisión separada.
+
+2. **VNetFlowLogsConsumer**: una función desencadenada por Event Hub que procesa cada evento de blob mediante:
+
+   * Leer un cursor de Azure Table Storage para determinar qué ya se ha procesado.
+   * Descargar solo los bloques recién agregados del blob PT1H.json (lecturas delta).
+   * Analizar los registros de VNet flow (tuplas de flujo) en entradas de registro estructuradas.
+   * Envío de los registros analizados a New Relic a través de la API de Logs.
+   * Confirmar el cursor actualizado tras una entrega exitosa.
+
+3. **VNetFlowLogsCleanup**: una función desencadenada por temporizador que elimina periódicamente las entradas de cursor obsoletas de Azure Table Storage (por defecto, diariamente a las 03:00 UTC).
+
+Esta arquitectura garantiza un procesamiento eficiente e incremental — solo se leen y reenvían los datos nuevos, lo que evita el procesamiento duplicado de registros ya vistos.
+
+## Requisitos previos [#prerequisites]
+
+### Requisitos previos New Relic [#prerequisites-NR]
+
+Necesita lo siguiente en New Relic:
+
+* Una cuenta New Relic . ¿No tienes uno? [¡Registrate gratis!](https://newrelic.com/signup) No se requiere tarjeta de crédito.
+* Una New Relic <InlinePopover type="licenseKey" />.
+
+### Requisitos previos Azure [#prerequisites-azure]
+
+Necesita lo siguiente en Azure:
+
+* Una suscripción de Azure con VNet Flow Logs habilitado en las redes virtuales objetivo. Consulte la [documentación de Microsoft sobre cómo habilitar VNet Flow Logs](https://learn.microsoft.com/en-us/azure/network-watcher/vnet-flow-logs-manage?tabs=portal).
+* Una cuenta de almacenamiento donde se escriben sus VNet Flow Logs (blobs PT1H.json).
+* Un namespace de Event Hub y un Event Hub para la entrega de eventos (se puede crear automáticamente mediante la plantilla ARM/Bicep).
+* Una cuenta de almacenamiento de Azure para el tiempo de ejecución de la aplicación de funciones y el almacenamiento de la tabla de cursores (se puede crear automáticamente mediante la plantilla ARM/Bicep).
+
+## Desplegar el reenviador de logs de VNet Flow [#deploy]
+
+Puedes desplegar el reenviador de logs de VNet Flow mediante plantillas ARM/Bicep (recomendado) o manualmente.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="arm-deploy">
+      Plantilla de ARM/Bicep (recomendada)
+    </TabsBarItem>
+
+    <TabsBarItem id="manual-deploy">
+      Despliegue manual
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="arm-deploy">
+      La [plantilla de ARM de New Relic VNet Flow Logs](https://github.com/newrelic/azure-vnet-flow-logs/blob/main/arm/azuredeploy-vnetflowlogsforwarder.json) y la [plantilla de Bicep](https://github.com/newrelic/azure-vnet-flow-logs/blob/main/bicep/azuredeploy-vnetflowlogsforwarder.bicep) proporcionan el despliegue automatizado de todos los recursos requeridos.
+
+      La plantilla automáticamente:
+
+      * Cree un namespace de Event Hub, un Event Hub y un grupo de consumidores
+      * Desplegar la aplicación de funciones (plan de consumo Flex, Node.js 22) con las funciones de VNet Flow Logs
+      * Crea una cuenta de almacenamiento para el tiempo de ejecución de la Function App y el seguimiento del cursor
+      * Cree un tema del sistema y una suscripción de Event Grid que enrute los eventos de creación de blobs PT1H.json directamente al Event Hub
+      * Asignar una identidad administrada con las asignaciones de roles requeridas
+      * Configure todos los ajustes necesarios de la aplicación
+      * Opcionalmente, habilite las redes privadas con integración de VNet y extremos privados
+
+      Sigue estos pasos:
+
+      1. Vaya a <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Integrations &amp; Agents**</DNT>.
+
+      2. En <DNT>**Collections**</DNT>, seleccione <DNT>**Logging**</DNT> y luego haga clic en el mosaico <DNT>**Microsoft Azure VNet Flow Logs**</DNT>.
+
+      3. Desde el menú desplegable <DNT>**Select an account**</DNT>, elija la cuenta a la que enviar sus registros y haga clic en <DNT>**Continue**</DNT>.
+
+      4. En el paso <DNT>**Enter your license key**</DNT>, haga clic en <DNT>**Create a new key**</DNT>, haga clic en <DNT>**Copy key**</DNT> y guárdelo en un lugar seguro, luego haga clic en <DNT>**Continue**</DNT>.
+
+      5. Haga clic en <DNT>**Deploy to Azure**</DNT>. Se abre una nueva pestaña en Azure con la plantilla ARM cargada.
+
+      6. Seleccione el <DNT>**Resource group**</DNT> y un <DNT>**Region**</DNT> para el despliegue. Recomendamos un nuevo grupo de recursos, para evitar eliminar accidentalmente los componentes que crea.
+
+      7. En el campo <DNT>**New Relic license key**</DNT>, pegue la clave de licencia que copió anteriormente.
+
+      8. Asegúrese de que el [extremo New Relic](/docs/logs/log-api/introduction-log-api/#endpoint) esté configurado en el correspondiente a su cuenta (US, EU o JP).
+
+      9. (Opcional) Ingrese el <DNT>**Source Storage Account Name**</DNT> donde se almacenan sus VNet Flow Logs. Debe estar en el mismo grupo de recursos que este despliegue. Déjelo en blanco para crear una nueva cuenta de almacenamiento de origen automáticamente.
+
+      10. (Opcional) Seleccione <DNT>**Disable Public Access To Storage Account**</DNT> para habilitar el modo de red privada con integración de VNet y extremos privados.
+
+      11. (Opcional) Configure los ajustes avanzados:
+
+          * <DNT>**New Relic Tags**</DNT>: etiquetas separadas por punto y coma (formato: `key1:value1;key2:value2`)
+          * <DNT>**Max Retries**</DNT>: máximo de reintentos de entrega (predeterminado: 3)
+          * <DNT>**Retry Interval**</DNT>: milisegundos entre reintentos (predeterminado: 2000)
+          * <DNT>**Function Log Level**</DNT>: verbosidad de los logs de la Function App — `Trace`, `Debug`, `Information`, `Warning` o `Error` (predeterminado: `Information`)
+          * <DNT>**Max Event Batch Size**</DNT>: número máximo de eventos de Event Hub procesados por lote (predeterminado: 10)
+          * <DNT>**Min Event Batch Size**</DNT>: número mínimo de eventos de Event Hub por lote (predeterminado: 5)
+          * <DNT>**Max Wait Time**</DNT>: tiempo máximo que espera el disparador para llenar un lote antes de procesarlo, como `hh:mm:ss` (predeterminado: `00:00:30`)
+          * <DNT>**Event Hub Scaling Mode**</DNT>: `Basic` (1 unidad de rendimiento, 4 particiones, sin inflado automático — tráfico bajo a medio) o `Enterprise` (inflado automático de hasta 40 unidades de rendimiento, 32 particiones — volúmenes de alto rendimiento) (predeterminado: `Basic`)
+
+      12. Haga clic en <DNT>**Review + create**</DNT>, revise la configuración y haga clic en <DNT>**Create**</DNT>.
+
+      13. De vuelta en New Relic, en el paso <DNT>**Create log partition**</DNT>, haga clic en <DNT>**Create partition**</DNT>. Esto crea una partición de datos `Log_VNET_Flows_Azure` (regla: `instrumentation.name = 'vnet-app'`, retención STANDARD) para que sus VNet Flow Logs se almacenen y consulten por separado de sus otros registros. Si ya existe una partición `Log_VNET_Flows_Azure` en la cuenta, haga clic en <DNT>**Continue**</DNT> para omitir este paso.
+
+      14. En el paso <DNT>**Test your logs**</DNT>, confirme que los datos están llegando ejecutando `SELECT * FROM Log_VNET_Flows_Azure`, luego haga clic en <DNT>**See your data**</DNT>.
+
+      ### Arquitecturas de despliegue [#deployment-architectures]
+
+      La plantilla ARM/Bicep admite dos modos de despliegue:
+
+      **Despliegue estándar** (predeterminado):
+
+      * Usa Event Grid para monitorear el evento de creación de blobs en la cuenta de almacenamiento de origen
+      * Enruta los eventos directamente al evento Hub para un procesamiento ordenado, utilizando el asunto como clave de partición
+      * Procesa los registros de VNet Flow en la Function App y los reenvía a New Relic
+      * Habilita el acceso a la red pública en la Function App, su cuenta de almacenamiento y el Event Hub
+
+      **Despliegue de red privada** (opcional, `disablePublicAccessToStorageAccount=true`):
+
+      * Incluye todas las características del despliegue estándar
+      * Aísla la Function App, su cuenta de almacenamiento y el Event Hub dentro de una red virtual privada, con el acceso a la red pública deshabilitado para ellos
+      * Agrega integración de VNet con extremos privados para servicios de almacenamiento (blob, archivo, cola y tabla)
+      * Crea zonas DNS privadas para la resolución de nombres
+      * No modifica la cuenta de almacenamiento de origen (que contiene los VNet Flow Logs), la cual debe mantener habilitado el acceso a la red pública
+    </TabsPageItem>
+
+    <TabsPageItem id="manual-deploy">
+      Si prefiere el despliegue manual o necesita una configuración personalizada:
+
+      1. Despliegue la Function App [azure-vnet-flow-logs](https://github.com/newrelic/azure-vnet-flow-logs) en su suscripción de Azure.
+      2. Asegúrese de que las funciones `VNetFlowForwarder` (`VNetFlowLogsConsumer` y `VNetFlowLogsCleanup`) estén incluidas en el despliegue.
+      3. Configure las variables de entorno requeridas (configuración de la aplicación) que se enumeran a continuación.
+      4. Configure una suscripción de Event Grid en su cuenta de almacenamiento de registros de flujo para enrutar los eventos `BlobCreated` directamente al Event Hub, utilizando el asunto del evento como clave de partición.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Configuración [#configuration]
+
+Configure los siguientes ajustes de la aplicación en su Azure Function App:
+
+### Ajustes requeridos [#required-settings]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Variable ambiental
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `NR_LICENSE_KEY`
+      </td>
+
+      <td>
+        Su clave de licencia de New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `SOURCE_STORAGE_CONNECTION`
+      </td>
+
+      <td>
+        Cadena de conexión para la cuenta de Azure Storage donde se almacenan los VNet Flow Logs.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `CURSOR_STORAGE_CONNECTION`
+      </td>
+
+      <td>
+        Cadena de conexión para la cuenta de Azure Storage utilizada para persistir el estado del cursor (puede ser la misma que la de origen).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `EVENTHUB_CONSUMER_CONNECTION`
+      </td>
+
+      <td>
+        Cadena de conexión para el Event Hub que entrega eventos de creación de blobs a la función del consumidor.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `EVENTHUB_NAME`
+      </td>
+
+      <td>
+        Nombre de la instancia de Event Hub.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Ajustes opcionales [#optional-settings]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Variable ambiental
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th>
+        Por defecto
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `NR_ENDPOINT`
+      </td>
+
+      <td>
+        Extremo de API de New Relic Logs. Use 
+
+        `https://log-api.eu.newrelic.com/log/v1`
+
+         para cuentas de la UE.
+      </td>
+
+      <td>
+        `https://log-api.newrelic.com/log/v1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NR_TAGS`
+      </td>
+
+      <td>
+        Etiquetas separadas por punto y coma para agregar a todos los registros reenviados. Formato: 
+
+        `key1:value1;key2:value2`
+      </td>
+
+      <td>
+        Ninguno
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NR_MAX_RETRIES`
+      </td>
+
+      <td>
+        Número máximo de reintentos de entrega a New Relic.
+      </td>
+
+      <td>
+        `3`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NR_RETRY_INTERVAL`
+      </td>
+
+      <td>
+        Intervalo entre reintentos en milisegundos.
+      </td>
+
+      <td>
+        `2000`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `EVENTHUB_CONSUMER_GROUP`
+      </td>
+
+      <td>
+        Grupo de consumidor del evento Hub.
+      </td>
+
+      <td>
+        `$Default`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `CURSOR_RETENTION_HOURS`
+      </td>
+
+      <td>
+        Número de horas para retener los registros del cursor de blob antes de que el trabajo de limpieza los elimine.
+      </td>
+
+      <td>
+        `48`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `CURSOR_CLEANUP_SCHEDULE`
+      </td>
+
+      <td>
+        Programación NCRONTAB para el desencadenador del temporizador de limpieza del cursor.
+      </td>
+
+      <td>
+        `0 0 3 * * *`
+
+         (diariamente a las 03:00 UTC)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `MAX_CONSECUTIVE_FAILURES`
+      </td>
+
+      <td>
+        Número de fallas consecutivas por blob antes de que el reenviador de logs lo omita como un evento envenenado.
+      </td>
+
+      <td>
+        `5`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ver datos de registro de flujo [#find-data]
+
+Una vez configurados, los datos de VNet Flow Log aparecerán en New Relic. Puede consultarlo usando NRQL:
+
+```sql
+SELECT * FROM Log_VNET_Flows_Azure
+```
+
+<img title="Azure cloud flow logs view" alt="Azure cloud flow logs" src="/images/log-query.webp" />
+
+También puede visualizar estos datos en la vista <DNT>**Conversations**</DNT>, que agrupa sus flujos principales por origen, dirección, protocolo y destino:
+
+<img title="Azure VNet Flow Logs Conversations view" alt="Conversations view showing top flows grouped by source endpoint, direction, protocol, and destination address" src="/images/azure-sanky.webp" />
+
+Cada registro de flujo incluye los siguientes atributos:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Atributo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `srcAddr`
+      </td>
+
+      <td>
+        Dirección IP de origen
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `destAddr`
+      </td>
+
+      <td>
+        Dirección IP de destino
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `srcPort`
+      </td>
+
+      <td>
+        Puerto de origen
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `destPort`
+      </td>
+
+      <td>
+        Puerto de destino
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `protocol`
+      </td>
+
+      <td>
+        Protocolo (TCP, UDP e ICMP)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `direction`
+      </td>
+
+      <td>
+        Dirección de Traffic (entrante, saliente)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `flowState`
+      </td>
+
+      <td>
+        Estado del flujo: 
+
+        `Begin`
+
+        , 
+
+        `Continuing`
+
+        , 
+
+        `End`
+
+         o 
+
+        `Deny`
+
+        . Un flujo denegado se expresa aquí como 
+
+        `Deny`
+
+         — no hay un atributo de acción separado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `encryption`
+      </td>
+
+      <td>
+        Estado de cifrado: 
+
+        `Encrypted`
+
+        , 
+
+        `Not Encrypted`
+
+         o un código de motivo 
+
+        `NX_*`
+
+         (por ejemplo, 
+
+        `NX_HW_NOT_SUPPORTED`
+
+        )
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesSrcToDest`
+      </td>
+
+      <td>
+        Bytes de origen a destino
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesDestToSrc`
+      </td>
+
+      <td>
+        Bytes desde el destino hasta el origen
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `packetsSrcToDest`
+      </td>
+
+      <td>
+        Paquetes de origen a destino
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `packetsDestToSrc`
+      </td>
+
+      <td>
+        Paquetes de destino a origen
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `aclID`
+      </td>
+
+      <td>
+        ID de la lista de control de acceso asociado con el flujo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `rule`
+      </td>
+
+      <td>
+        Nombre de la regla NSG/ACL que coincidió con el flujo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `targetResourceID`
+      </td>
+
+      <td>
+        ID de recurso de Azure completo del recurso objetivo monitoreado
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `virtualNetworkName`
+      </td>
+
+      <td>
+        Nombre de la red virtual (cuando el objetivo es una VNet o subred)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `subnetName`
+      </td>
+
+      <td>
+        Nombre de la subred (cuando corresponda)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `macAddress`
+      </td>
+
+      <td>
+        Dirección MAC asociada con el registro de flujo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `category`
+      </td>
+
+      <td>
+        Categoría de registro (por ejemplo, 
+
+        `FlowLogFlowEvent`
+
+        )
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `operationName`
+      </td>
+
+      <td>
+        Nombre de la operación del registro de flujo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `flowLogVersion`
+      </td>
+
+      <td>
+        Versión del esquema de logs de VNet Flow
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `flowLogGUID`
+      </td>
+
+      <td>
+        Identificador único del recurso de log de flujo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `flowLogResourceID`
+      </td>
+
+      <td>
+        ID de recurso de Azure del registro de flujo
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  Cada registro reenviado también lleva los atributos comunes `instrumentation.provider` (`azure`), `instrumentation.name` (`vnet-app`) y `instrumentation.version` (la versión del reenviador), además de cualquier par de valor principal personalizado que configure en `NR_TAGS`. El CSV de tupla de flujo sin procesar se conserva en el campo `message` del registro.
+</Callout>
+
+## Resolución de problemas [#troubleshooting]
+
+Para obtener ayuda con datos de registro de flujo faltantes, registros duplicados o eventos omitidos (tóxicos), consulte [Solucionar problemas del monitoreo de Azure VNet Flow Logs](/docs/network-performance-monitoring/troubleshooting/azure-vnet-flow-logs).
