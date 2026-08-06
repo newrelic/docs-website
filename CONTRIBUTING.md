@@ -106,7 +106,7 @@ If the workflows are enabled and running, you will want to disable them. You can
 3. Before you raise a PR, test your changes! Review the project's [contribution guide](https://github.com/newrelic/docs-website/blob/develop/CONTRIBUTING.md#getting-started) for instructions on how to build and run tests locally.
 4. Submit a `Pull Request` to this project with your changes.
 5. If you really require a preview url, reach out to one of the writers and they will generate one for you.
-6. If/when your `PR` is approved and merged, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+6. When your PR is approved and merged, the automation in this project will build the site and publish a new version of the code to [docs.newrelic.com](https://docs.newrelic.com).
 7. And you are done!
 
 ### Submitting a PR from a cloned repo
