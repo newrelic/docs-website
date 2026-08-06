@@ -70,83 +70,131 @@ To install using CloudFormation:
        id="fargate-cloudformation"
        title="AWS Fargate launch type"
      >
-       1. Download the task definition example with the sidecar container to be deployed:
-          ```sh
-          curl -O https://download.newrelic.com/infrastructure_agent/integrations/ecs/newrelic-infra-ecs-fargate-example-latest.json
-          ```
-          <Callout variant="tip">
-            For Graviton, replace `"cpuArchitecture": "X86_64"` with `"cpuArchitecture": "ARM64"`.
-          </Callout>
+        1. Download the task definition example with the sidecar container to be deployed:
+           ```sh
+           curl -O https://download.newrelic.com/infrastructure_agent/integrations/ecs/newrelic-infra-ecs-fargate-example-latest.json
+           ```
+           <Callout variant="tip">
+             For Graviton, replace `"cpuArchitecture": "X86_64"` with `"cpuArchitecture": "ARM64"`.
+           </Callout>
 
-       2. Add the `newrelic-infra` container in this task definition as a sidecar to the task definitions you want to monitor. In this example task, your application's containers replace the placeholder `busybox` container.
+        2. Add the `newrelic-infra` container in this task definition as a sidecar to the task definitions you want to monitor. In this example task, your application's containers replace the placeholder `busybox` container.
 
-       ### Configure NRIA_IS_FORWARD_ONLY for Fargate [#fargate-isforwardonly]
+        ### Configure infrastructure agent forward modes for Fargate [#fargate-forward-modes]
 
-       When deploying the New Relic infrastructure agent as a sidecar in Fargate environments, you must set the `NRIA_IS_FORWARD_ONLY` environment variable to `true`. This is a critical configuration for proper operation in serverless Fargate deployments.
+        When deploying the New Relic infrastructure agent as a sidecar in Fargate environments, you must configure the agent's forward mode. Fargate is a serverless compute service where AWS manages the underlying infrastructure, so the agent should not report host-level metrics or attempt to create host entities.
 
-       *Why this setting is required:*
-       * **Prevents incorrect host entity creation:** Fargate is serverless and AWS manages the underlying compute resources. Without this setting, the infrastructure agent may attempt to create host entities for non-existent infrastructure.
-       * **Avoids billing discrepancies:** Entity-based metering charges customers based on the number of monitored entities. Incorrect host entity creation causes billing issues.
-       * **Enables proper APM-to-Container linking:** This setting ensures that APM applications are correctly linked to Container entities rather than synthetic Host entities.
+        #### Recommended: NRIA_IS_FORWARD_ONLY
 
-       This example task definition includes the required Fargate configuration:
-       ```json
-       {
-         "family": "newrelic-infra-fargate",
-         "networkMode": "awsvpc",
-         "requiresCompatibilities": ["FARGATE"],
-         "cpu": "256",
-         "memory": "512",
-         "containerDefinitions": [
-           {
-             "name": "newrelic-infra",
-             "image": "newrelic/nri-ecs:latest",
-             "essential": false,
-             "environment": [
-               {
-                 "name": "NRIA_IS_FORWARD_ONLY",
-                 "value": "true"
-               },
-               {
-                 "name": "NRIA_LICENSE_KEY",
-                 "value": "your-license-key"
-               },
-               {
-                 "name": "NRIA_PASSTHROUGH_ENVIRONMENT",
-                 "value": "ECS_CONTAINER_METADATA_URI,ECS_CONTAINER_METADATA_URI_V4,FARGATE"
-               },
-               {
-                 "name": "FARGATE",
-                 "value": "true"
-               }
-             ]
-           },
-           {
-             "name": "your-application",
-             "image": "your-app-image:latest",
-             "essential": true
-           }
-         ]
-       }
-       ```
+        For most Fargate deployments, set `NRIA_IS_FORWARD_ONLY` to `true`:
 
-       <Callout variant="important">
-         The `NRIA_IS_FORWARD_ONLY=true` environment variable is **required** for all Fargate deployments. Omitting this setting can result in:
-         * Incorrect host entity creation
-         * APM-to-Container relationship failures  
-         * Billing discrepancies due to unexpected entity counts
+        ```json
+        {
+          "name": "NRIA_IS_FORWARD_ONLY",
+          "value": "true"
+        }
+        ```
 
-         If you download the example task definition, verify that this environment variable is present and set to true.
-       </Callout>
+        **Why this is recommended for Fargate:**
+        * **Prevents unnecessary host entity creation:** The infrastructure agent will not create a host entity in New Relic, since Fargate is serverless and AWS manages the underlying compute resources.
+        * **Avoids billing discrepancies:** Entity-based metering charges are based on the number of monitored entities. Incorrect host entity creation causes unexpected billing.
+        * **Enables proper APM-to-Container linking:** APM applications are correctly linked to Container entities rather than synthetic Host entities.
+        * **Focuses on integration data:** The agent collects and forwards integration data (databases, web servers, message queues, etc.) without reporting host metrics.
 
-       3. Register the task definition:
-          ```sh
-          aws ecs register-task-definition --cli-input-json file://newrelic-infra-ecs-fargate-example-latest.json
-          ```
+        #### Alternative: NRIA_IS_SECURE_FORWARD_ONLY
 
-       4. Create a service or run a task using this task definition.
-     </Collapser>
-   </CollapserGroup>
+        An alternative forward mode is `NRIA_IS_SECURE_FORWARD_ONLY`. Set this to `true` if you need host entity visibility in the New Relic UI:
+
+        ```json
+        {
+          "name": "NRIA_IS_SECURE_FORWARD_ONLY",
+          "value": "true"
+        }
+        ```
+
+        **Differences between forward modes:**
+
+        | Capability | NRIA_IS_FORWARD_ONLY | NRIA_IS_SECURE_FORWARD_ONLY |
+        | :--- | :--- | :--- |
+        | Host entity visible in NR1 | No | Yes |
+        | Host inventory visible in Infrastructure UI | No | Yes |
+        | Integration inventory | No | Yes |
+        | Integration events forwarded | Yes | Yes |
+        | Integration entities (e.g., Redis server) | No | Yes |
+        | Host metrics (CPU, Memory, Disk) | No | No |
+        | Container metadata decorated | No | Yes |
+        | Entity metadata on integration events | No | Partial |
+
+        **When to use each mode:**
+
+        * **Use `NRIA_IS_FORWARD_ONLY=true` (recommended) if:**
+          - You want to minimize entity count and billing impact
+          - You only need container and integration monitoring
+          - You don't need to see host inventory in the New Relic UI
+
+        * **Use `NRIA_IS_SECURE_FORWARD_ONLY=true` if:**
+          - You need to see host metadata and inventory information in the New Relic UI
+          - You want integration entities to appear in the Infrastructure UI
+          - Entity count is not a concern
+
+        *Example task definition with required Fargate configuration:*
+        ```json
+        {
+          "family": "newrelic-infra-fargate",
+          "networkMode": "awsvpc",
+          "requiresCompatibilities": ["FARGATE"],
+          "cpu": "256",
+          "memory": "512",
+          "containerDefinitions": [
+            {
+              "name": "newrelic-infra",
+              "image": "newrelic/nri-ecs:latest",
+              "essential": false,
+              "environment": [
+                {
+                  "name": "NRIA_IS_FORWARD_ONLY",
+                  "value": "true"
+                },
+                {
+                  "name": "NRIA_LICENSE_KEY",
+                  "value": "your-license-key"
+                },
+                {
+                  "name": "NRIA_PASSTHROUGH_ENVIRONMENT",
+                  "value": "ECS_CONTAINER_METADATA_URI,ECS_CONTAINER_METADATA_URI_V4,FARGATE"
+                },
+                {
+                  "name": "FARGATE",
+                  "value": "true"
+                }
+              ]
+            },
+            {
+              "name": "your-application",
+              "image": "your-app-image:latest",
+              "essential": true
+            }
+          ]
+        }
+        ```
+
+        <Callout variant="important">
+          The `NRIA_IS_FORWARD_ONLY=true` environment variable is **required** for all Fargate deployments. Omitting this setting can result in:
+          * Incorrect host entity creation
+          * APM-to-Container relationship failures  
+          * Billing discrepancies due to unexpected entity counts
+
+          If you download the example task definition, verify that this environment variable is present and set to true.
+        </Callout>
+
+        3. Register the task definition:
+           ```sh
+           aws ecs register-task-definition --cli-input-json file://newrelic-infra-ecs-fargate-example-latest.json
+           ```
+
+        4. Create a service or run a task using this task definition.
+      </Collapser>
+    </CollapserGroup>
 
 When you're done, see [Next steps](#next-steps).
 
