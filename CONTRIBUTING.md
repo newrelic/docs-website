@@ -117,7 +117,7 @@ If the workflows are enabled and running, you will want to disable them. You can
 3. Make your changes.
 4. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
 5. Submit a `Pull Request` to this project with your changes.
-6. If you really require a preview url, reach out to one of the writers and they will generate one for you.
+6. If you want a preview for your PR, drop a comment in the PR or contact the docs team and they'll generate one for you.
 7. If/when your `PR` is approved and merged, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
 8. And you are done!
 
