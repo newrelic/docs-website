@@ -3,23 +3,136 @@ title: Detecção de anomalia
 tags:
   - Anomaly detection
   - Alerts
-metaDescription: Learn how anomaly detection in New Relic notifies you of unusual app behavior.
+metaDescription: Learn how anomaly detection in New Relic notifies you of unusual app behavior
 freshnessValidatedDate: never
 translationType: machine
 ---
 
-a detecção de anomalias permite à sua equipe maior versatilidade ao detectar comportamentos incomuns em seu sistema. A detecção de anomalias dá à sua equipe a capacidade de alertar sobre qualquer entidade ou sinal e de ajustar e otimizar seu limite de sensibilidade. a detecção de anomalias usa o mesmo pipeline de alerta de streaming que os alertas de limite estático e compartilha as mesmas configurações de ajuste avançado. Isto garante que o processamento do fluxo esteja alinhado às características do seu sinal de telemetria para reduzir alertas falsos.
+A detecção de anomalia oferece à equipe um monitoramento flexível e adaptável para comportamentos incomuns nos sistemas. Em vez de depender de limites fixos, ela aprende os padrões normais dos dados e se ajusta automaticamente, reduzindo alarmes falsos e o excesso de alertas. É possível ajustar a sensibilidade, adicionar contexto personalizado às notificações de alerta e permitir que a New Relic aprenda as tendências de baseline automaticamente, ou definir as próprias.
 
-Você pode enriquecer sua configuração de detecção de anomalias com metadados adicionais para fornecer mais contexto e adicionar descrições personalizadas de eventos de alerta que podem fornecer instruções adicionais aos seus engenheiros de plantão. Por padrão, condições de anomalia utilizam a detecção automática de sazonalidade da New Relic. Alternativamente, você pode definir configurações de sazonalidade personalizadas.
+## Guia de início rápido [#quick-start]
 
-## Configurar limite de anomalia de sensibilidade [#configure-custom-anomalies]
+* [Quando usar a detecção de anomalias](#why-anomaly-detection)
+* [Como funciona a detecção de anomalias](#how-it-works)
+* [Configurar limites](#configure-custom-anomalies)
+* [Configurações de sazonalidade](#seasonality)
+* [Direção da anomalia](#anomaly-direction)
+* [Entenda quando os alertas são acionados](#understanding-alerts)
+* [Condições de múltiplos sinais](#faceted-queries)
+* [Ajuste os limites usando dados de sinal](#tune-with-nraisignal)
+* [Solucionar problemas comuns](#troubleshooting)
 
-Você pode criar limite de sensibilidade de anomalia a partir de uma [condição do alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/). Aqui estão algumas dicas para definir o limite de anomalia:
+## Quando usar a detecção de anomalia vs. limites estáticos [#why-anomaly-detection]
 
-* Defina a [direção da anomalia](#anomaly-direction) para monitorar eventos de alerta que ocorrem acima ou abaixo da anomalia.
+Os limites estáticos são fixados em números fixos. A detecção de anomalia avalia o comportamento matemático esperado de um sinal ao longo do tempo. Utilize esta tabela para escolher o modelo correto para a métrica:
+
+| Cenário                                                                                      | Tipo recomendado           | Por que                                                                                                                                                               |
+| :------------------------------------------------------------------------------------------- | :------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Padrões naturais ou sazonais (horário comercial, ciclos semanais, picos de compras sazonais) | Anomalia                   | Aprende baselines cíclicos para que picos programados não acionem tempestades de alertas                                                                              |
+| Sistemas dinâmicos onde o &quot;normal&quot; muda ao longo do tempo                          | Anomalia                   | Adapta-se automaticamente à medida que o sistema cresce, sem reajuste manual                                                                                          |
+| Métricas totalmente novas ou altamente voláteis                                              | Estático (temporariamente) | A detecção de anomalias precisa de 1–4 semanas de histórico para criar um baseline estável, e métricas voláteis podem produzir faixas largas demais para serem úteis. |
+| Limites rígidos de capacidade (espaço em disco, memória, limites de conexão)                 | Estático                   | Limites físicos críticos precisam de ação imediata, independentemente das tendências de padrões passados.                                                             |
+| Destinos de SLA ou conformidade (por exemplo, tempo de resposta &lt; 2 segundos)             | Estático                   | Melhor quando é necessário garantir um limite de desempenho fixo                                                                                                      |
+| Estados binários (serviço ativo/inativo, falhas de pagamento)                                | Estático                   | Estes não são padrões — qualquer falha importa                                                                                                                        |
+
+<Collapser id="real-world-examples" title="Recomenda-se consultar exemplos de decisões do mundo real.">
+  <CollapserGroup>
+    <Collapser id="ecommerce-cpu-scenario" title="Monitoramento de CPU de e-commerce">
+      * **Limite estático:** &quot;Alerta se a CPU &gt; 80%&quot;
+
+        * Problema: 80% de CPU é normal durante a Black Friday, mas alarmante em uma terça-feira tranquila.
+        * Resultado: perdem-se os problemas de terça-feira OU ocorre uma sobrecarga durante eventos de vendas
+
+      * **Detecção de anomalia:** aprende os padrões normais de CPU para diferentes horários/estações
+        * Resultado: Alertas adequados para ambos os cenários com base no que é normal para esse contexto
+    </Collapser>
+
+    <Collapser id="api-response-scenario" title="Monitoramento do tempo de resposta da API">
+      * **Limite estático:** &quot;Alerta se o tempo de resposta &gt; 500 ms&quot;
+
+        * Problema: o pico da manhã (9h) pode normalmente atingir 400 ms, mas 300 ms às 3h indica problemas
+        * Resultado: ignora problemas fora do horário comercial que são realmente graves
+
+      * **Detecção de anomalias:** entende padrões diários.
+        * Resultado: alertas em 300 ms às 3h (incomum), mas não em 400 ms às 9h (normal)
+    </Collapser>
+
+    <Collapser id="database-connection-scenario" title="Monitoramento da conexão do banco de dados">
+      * **Limite estático:** &quot;Alerta se as conexões &gt; 100&quot;
+
+        * Boa escolha: Limite rígido do banco de dados que nunca deve ser excedido
+        * Resultado: alerta claro e imediato ao se aproximar da capacidade.
+
+      * **Detecção de anomalias:** não é ideal para limites rígidos.
+        * Problema: pode &quot;aprender&quot; que 95 conexões é normal e não emitir alerta até que seja tarde demais.
+    </Collapser>
+  </CollapserGroup>
+</Collapser>
+
+## Como funciona a detecção de anomalias [#how-it-works]
+
+O New Relic avalia as tendências históricas para construir um baseline previsto e uma zona de variação aceitável (a faixa cinza) ao redor dele:
+
+* **Fase de aprendizado:** o New Relic observa os dados por 1–4 semanas e aprende padrões como &quot;as segundas-feiras são sempre movimentadas&quot; ou &quot;o tráfego cai às 18:00.&quot;
+* **Previsão:** o sistema prevê qual deve ser o próximo ponto de dados, com base em padrões históricos.
+* **Zona de variação (faixa cinza):** uma faixa de variação aceitável envolve a previsão. Pode ser considerado como uma estrada com guardrails — permanecer dentro dos guardrails é normal.
+* **Gatilho do alerta:** um alerta é acionado apenas quando os dados reais saem da zona de variação **e** permanecem nela durante a duração especificada.
+
+A New Relic também ajusta essas previsões automaticamente:
+
+* **Consistência de dados:** métricas que permanecem em um intervalo estreito e previsível recebem faixas mais estreitas. Métricas ruidosas ou imprevisíveis recebem faixas mais largas, para evitar falsos alarmes.
+* **Flutuações cíclicas:** o algoritmo procura padrões recorrentes com duração inferior a uma semana (como uma implantação na quarta-feira às 13h ou trabalhos em lote noturnos) e ajusta as previsões para corresponder.
+* **Idade dos dados:** o New Relic calcula as previsões usando 1–4 semanas de histórico, dependendo da disponibilidade dos dados (as consultas que usam a cláusula `FACET` não são treinadas em dados armazenados e começam a aprender do zero). Quanto menos histórico um sinal tiver, mais a sua baseline flutuará. A precisão melhora à medida que mais dados se acumulam, e o New Relic dá mais peso aos dados recentes.
+
+<Collapser id="key-concepts" title="Conceitos chave">
+  * **Baseline (valor previsto):** a linha que a New Relic desenha mostrando os valores esperados, como uma previsão do tempo.
+
+  * **Faixa de previsão cinza:** A zona de &quot;variação aceitável&quot; em torno do baseline. Faixas mais estreitas = alertas mais sensíveis.
+
+  * **Duration:** quanto tempo o problema deve persistir antes de alertar. Isso evita alarmes falsos de picos breves.
+
+  * **Desvios padrão:** uma maneira de medir a que distância os dados estão do normal. Pense nisso como definir o quão exigentes são os alertas — números mais altos significam que apenas dados muito incomuns acionam alertas.
+</Collapser>
+
+## Configurar limites [#configure-custom-anomalies]
+
+Os limites de sensibilidade de anomalia controlam a facilidade com que os alertas são acionados. A sensibilidade mais alta captura alterações menores, mas pode criar mais alarmes falsos. A sensibilidade mais baixa alerta apenas sobre problemas maiores, mas pode perder problemas sutis.
+
+### Entender o gráfico de detecção de anomalias
+
+<img width="80%;" title="Anomaly detection chart components" alt="Screenshot showing the anomaly detection chart with baseline, signal line, and threshold bands in the New Relic UI" src="/images/anomalydetectionchart.webp" />
+
+| Elemento do gráfico                  | O que mostra                                                                          |
+| :----------------------------------- | :------------------------------------------------------------------------------------ |
+| 1. Linha verde (sinal)               | Os dados reais da consulta NRQL — o que realmente está acontecendo                    |
+| 2. Linha pontilhada preta (baseline) | Previsão do New Relic com base em padrões históricos                                  |
+| 3. Faixa cinza claro (interna)       | Limite crítico — quanto mais estreita a faixa, mais sensível ela é                    |
+| 4. Faixa cinza-escura (externa)      | Limite de aviso (opcional) — quanto mais larga a faixa, menos sensível ela é          |
+| 5. Áreas vermelhas                   | Eventos de alerta — o sinal esteve fora da faixa cinza durante a duração especificada |
+
+**Configurações de comportamento do gráfico:**
+
+* **Janela de agregação:** Aumentar isso torna a baseline mais estável e reduz a variação do sinal. Diminuí-lo resulta em um sinal com mais picos.
+* **Duração da janela:** durações mais altas criam uma linha de sinal mais suave. Durações mais baixas resultam em um sinal mais pontiagudo e responsivo.
+
+### Controle de sensibilidade: faixas mais estreitas vs. mais largas
+
+Isso controla diretamente a quantidade de alertas recebidos:
+
+* **Bandas mais estreitas (área cinza menor):** mais próximo do baseline = mais eventos de alerta, porque os dados têm menos espaço para variação normal.
+* **Faixas mais largas (área cinza maior):** mais distante da baseline = menos eventos de alerta, pois os dados podem variar mais antes de acionar alertas.
+
+**Exemplo:** se a CPU normalmente opera a 50%:
+
+* Banda mais estreita: alerta quando a CPU atinge 55% (mais sensível)
+* Faixa mais larga: emite alertas quando a CPU atinge 70% (menos sensível).
+
+É possível criar limites de sensibilidade de anomalia a partir de uma [condição do alerta](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/). Algumas dicas para definir limites de anomalia:
+
 * Defina a [sazonalidade](#seasonality) para especificar um padrão de sazonalidade conhecido.
+* Defina a [direção da anomalia](#anomaly-direction) para monitorar eventos de alerta que ocorrem acima ou abaixo da anomalia.
 * Use a barra deslizante para ajustar o limite de sensibilidade <DNT>**Critical**</DNT>, representado no gráfico de pré-visualização pela área cinza-clara ao redor do sinal. Quanto mais estreita for a faixa ao redor do sinal, mais sensível ela será e mais eventos de alerta gerará.
-* Você pode criar um [limite<DNT>**Warning**</DNT> ](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/set-thresholds-alert-condition/#threshold-levels)(a área cinza mais escura ao redor da anomalia).
+* Opcionalmente, adicione um [limite<DNT>**Warning**</DNT> ](/docs/alerts/create-alert/set-thresholds/set-thresholds-alert-condition/#threshold-levels)(a área cinza mais escura ao redor do sinal) para receber notificações antecipadas antes que os problemas se tornem críticos. Isso proporciona tempo para investigar os problemas antes que eles acionem o alerta principal.
 
 Siga estas etapas para criar uma condição de alerta de detecção de anomalia:
 
@@ -31,40 +144,121 @@ Siga estas etapas para criar uma condição de alerta de detecção de anomalia:
 
 4. Selecione <DNT>**Anomaly**</DNT>.
 
-   <DNT>
-     {/* <img
-       width="80%;"
-       title="Set anomoly thresholds"
-       alt="Screenshot of the anomoly thresholds options"
-       src="/images/alerts_screenshot-crop_try-anomaly-thresholds.webp"
-     /> */}
-   </DNT>
+   <img width="80%;" title="Set anomaly thresholds" alt="Screenshot showing the anomaly threshold configuration options in the New Relic UI" src="/images/alerts_screenshot-crop_try-anomaly-thresholds.webp" />
 
-5. Selecione uma opção para calcular a sazonalidade da condição do alerta. Para entender a sazonalidade e como ela afeta seu status de alerta, consulte [Sazonalidade](#seasonality).
+5. Na dropdown <DNT>**Calculate seasonality**</DNT>, escolha com que frequência os padrões de dados se repetem. Para mais detalhes, consulte [Sazonalidade](#seasonality).
 
-6. Defina as configurações para um ou mais limites. a detecção de anomalias faz uma previsão sobre qual será o próximo ponto de dados com base na atividade anterior. O valor limite para detecção de anomalia controla a sensibilidade da condição do alerta para tolerar o quão distante o valor real está do valor previsto. O limite é o número de Desvio padrão em que o valor do seu sinal está distante do valor que foi previsto. Rastreamos o Desvio padrão entre o valor previsto e o valor real dos dados dos 7 dias anteriores.
+6. Na dropdown <DNT>**Threshold direction**</DNT>, escolha quando acionar alertas. Para mais detalhes, consulte [Direção da anomalia](#anomaly-direction).
 
-   Para configurar o limite, você precisará:
+7. Eventos de alerta abertos com um <DNT>**severity level**</DNT>. Escolher no dropdown:
 
-   * Defina a &apos;direção do limite&apos; como superior, inferior ou ambos. Isso significa que criaremos um evento de alerta apenas se o valor do sinal (a saída da consulta) estiver acima do valor previsto, abaixo do valor previsto ou em ambos, respectivamente.
+   * <DNT>**Critical**</DNT>: Para problemas urgentes que exigem atenção imediata (faixa cinza-escura)
+   * <DNT>**Warning**</DNT>: Para problemas menos urgentes que precisam de monitoramento (faixa cinza-clara, opcional)
 
-     Este campo determina quantos pontos de dados durante um período de tempo especificado devem estar fora do limite. As opções são <DNT>**for at least**</DNT> e <DNT>**at least once in**</DNT>. Selecionar <DNT>**for at least**</DNT> significa que TODOS os pontos de dados do seu sinal devem estar fora do limite durante o período de tempo especificado antes que um evento de alerta seja aberto. O inverso deve ser verdadeiro para fechar o evento de alerta. A opção <DNT>**at least once in**</DNT> significa simplesmente que, assim que qualquer um dos pontos de dados do seu sinal estiver fora do limite, um evento de alerta será aberto. Com esta opção, a duração não é relevante para determinar quando abrir um evento de alerta. No entanto, é relevante para fechar eventos de alerta. Todos os pontos de dados do seu sinal devem estar dentro do limite durante o período de tempo especificado
+   Um alerta de anomalia é acionado quando o **sinal (linha verde) se afasta da baseline (linha preta pontilhada)** por um número especificado de desvios-padrão. A área da faixa cinza representa o intervalo de limite.
 
-   * Defina a &apos;duração do limite&apos;. Pense nisso como o tempo que o valor do sinal deve permanecer fora do limite antes que um evento de alerta seja aberto. Por outro lado, é também o tempo que um sinal deve permanecer dentro do limite para que um evento de alerta seja fechado.
+   <Callout variant="important">
+     **Conceito crítico:** o sinal deve permanecer em violação pela duração especificada antes de criar um evento de alerta — um pico breve que se autocorrige não acionará um. Consulte [Entenda quando os alertas são acionados](#understanding-alerts) para ver a linha do tempo completa de como um alerta é aberto e fechado.
+   </Callout>
 
-     Este campo responde ao período mencionado acima. É quanto tempo o sinal excede o limite que está sendo definido. Esta é a duração real do limite.
+   Configurar as configurações de limite:
 
-   * Defina o &apos;nível limite&apos;. Para detecção de anomalia personalizada, este é o número de Desvio padrão em que o ponto de dados do sinal está a partir do valor que previmos que seria.
+   * Escolher regras de tempo:
 
-7. Adicione os detalhes da condição do alerta e clique em <DNT>**Save condition**</DNT>.
+     * <DNT>**For at least**</DNT> - O sinal deve permanecer fora da banda durante todo o período antes de alertar. Reduz alarmes falsos.
+     * <DNT>**At least once in**</DNT> - Alerta quando o sinal sai da banda dentro da janela de tempo. Detecção mais rápida.
 
-## Definir limite para condições multissinais (consulta facetada) [#faceted-queries]
+   * **Definir duração da violação:** escolher no dropdown quanto tempo (em minutos) o sinal deve permanecer fora do limite:
 
-Dependendo de como você definiu sua consulta na etapa 1, a condição do alerta pode ser monitorar vários sinais, não apenas um. Ao trabalhar com NRQL, essas consultas usam a [cláusula`FACET` ](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-facet). O número máximo de sinais que uma condição de alerta pode monitorar é 20.000. As configurações de limite que você especificar serão aplicadas da mesma forma a todos os sinais monitorados por essa condição. Cada sinal é monitorado e avaliado individualmente, mas as configurações se aplicam de forma consistente a todos os sinais. Mostraremos no máximo 500 sinais no gráfico de pré-visualização. No entanto, não mostramos o sinal previsto e as bandas limite quando há mais de um sinal exibido no gráfico. Para exibir essas informações ao determinar o valor limite ideal, selecione um dos sinais da série temporal na legenda para filtrar o gráfico e obter uma única série temporal.
+     * **Duração mais curta** = mais eventos de alerta (mesmo violações breves acionam alertas)
+     * **Duração mais longa** = menos eventos de alerta (apenas violações contínuas acionam alertas)
 
-## Direção da anomalia: selecione faixas superiores ou inferiores [#anomaly-direction]
+   * **Definir nível de sensibilidade (desvios-padrão):** Utilizar o controle deslizante para controlar o estreitamento da faixa:
 
-Você pode escolher se deseja que a condição procure um comportamento que esteja acima do valor previsto (&quot;superior&quot;) ou que esteja abaixo do valor previsto (&quot;inferior&quot;), ou que esteja acima ou abaixo. Você escolhe estes com o seletor de direção de previsão.
+     * **Banda mais estreita** (em direção a &quot;mais eventos de alerta&quot;) = o sinal tem menos espaço para desvio, mais alertas
+     * **Faixa mais larga** (em direção a &quot;menos eventos de alerta&quot;) = o sinal tem mais espaço para desvio, menos alertas
+
+   É possível adicionar mais um limite clicando em <DNT>**+ Add threshold**</DNT> para criar níveis de aviso e críticos com diferentes configurações de sensibilidade.
+
+8. Adicione os detalhes da condição do alerta e clique em <DNT>**Save condition**</DNT>.
+
+## Configurações de sazonalidade [#seasonality]
+
+A sazonalidade ajuda a detecção de anomalias a distinguir entre mudanças esperadas (como maior tráfego durante o horário comercial ou lentidão nos fins de semana) e problemas reais (como interrupções do sistema).
+
+| O padrão                                                                                                  | Escolher                           |
+| :-------------------------------------------------------------------------------------------------------- | :--------------------------------- |
+| Sem certeza, misto ou um ambiente complexo (microsserviços, aplicativos globais)                          | Cálculo do New Relic (recomendado) |
+| A métrica deve permanecer estável — qualquer pico é um problema (erros, eventos de segurança)             | Nenhum                             |
+| Atividade em horário comercial (ferramentas internas, aplicativos corporativos)                           | Diário                             |
+| Dias de semana movimentados, fins de semana tranquilos (aplicativos B2B, serviços baseados em escritório) | Semanalmente                       |
+| Trabalhos agendados regulares (processamento em lote por hora).                                           | De hora em hora                    |
+
+<Collapser id="seasonality-decision-guide" title="Veja orientações detalhadas e exemplos reais de clientes">
+  Pergunte a si mesmo: **a minha métrica segue uma programação previsível?**
+
+  ### Se não houver um padrão previsível → escolha &quot;Cálculo do New Relic&quot; (recomendado) ou &quot;Nenhum&quot;
+
+  <CollapserGroup>
+    <Collapser id="new-relic-calculation" title="Deve-se utilizar o &#x22;cálculo da New Relic&#x22; quando:">
+      * Ao monitorar ambientes complexos e mistos (microsserviços, aplicativos globais)
+      * Houver incerteza sobre os padrões ou existirem vários padrões diferentes.
+      * Deseja-se que o sistema descubra automaticamente
+    </Collapser>
+
+    <Collapser id="none-seasonality" title="Deve-se utilizar &#x22;Nenhum&#x22; quando:">
+      * Monitoram-se taxas de erros, eventos de segurança ou falhas de sistema
+      * A métrica deve permanecer estável e qualquer pico é um problema
+      * Não é desejável que os padrões influenciem os alertas (cada anomalia importa)
+    </Collapser>
+  </CollapserGroup>
+
+  ### Se sim, padrões previsíveis → deve-se escolher com base no tipo de padrão:
+
+  <CollapserGroup>
+    <Collapser id="daily-patterns" title="Padrões diários → escolha 'Diário'">
+      * **Quando usar:** aplicativos em horário comercial, ferramentas corporativas internas
+      * **Exemplo real de cliente:** um sistema corporativo de RH que processa 200 requests/hora durante o horário comercial das 9h às 17h, mas cai para 10 requests/hora durante a noite e aos finais de semana
+      * **Padrão:** alta atividade durante o horário de trabalho (09:00–18:00), baixa atividade à noite/fins de semana
+      * **Por que funciona:** a detecção de anomalia aprende que 15 requests/hora às 14:00 é um problema, mas 15 requests/hora às 02:00 é normal
+    </Collapser>
+
+    <Collapser id="weekly-patterns" title="Padrões semanais → escolha 'Semanal'">
+      * **Quando usar:** aplicativos B2B, serviços baseados em escritório
+      * **Exemplo real de clientes:** um provedor de e-mail escolar que atinge o pico de 1.000 e-mails/hora todos os dias da semana por volta do meio-dia (anúncios de almoço), mas lida com apenas 50 e-mails/hora nos fins de semana
+      * **Padrão:** dias de semana movimentados, finais de semana tranquilos
+      * **Por que funciona:** o sistema espera períodos de calmaria nos fins de semana e não emitirá alerta sobre a baixa atividade no fim de semana, mas emitirá alerta se o tráfego ao meio-dia de um dia de semana cair inesperadamente
+    </Collapser>
+
+    <Collapser id="hourly-patterns" title="Padrões por hora → escolha 'Por hora'">
+      * **Quando usar:** trabalhos agendados, processos automatizados
+      * **Exemplo real de clientes:** um pipeline de processamento de dados que é executado a cada hora aos :00 minutos, processando 10.000 registros a cada vez, com atividade mínima entre as execuções
+      * **Padrão:** picos de atividade em intervalos regulares de hora em hora (picos acentuados seguidos por vales).
+      * **Por que funciona:** emite alertas se o trabalho por hora falhar ao processar o volume esperado, mas ignora a baixa atividade entre as execuções agendadas
+    </Collapser>
+  </CollapserGroup>
+</Collapser>
+
+<Collapser id="industry-examples" title="Exemplos reais por setor">
+  **E-commerce/Varejo:** use o &quot;cálculo da New Relic&quot; - padrões complexos com compras sazonais, picos diários e clientes globais
+
+  **Restaurantes:** use &quot;Diariamente&quot; - padrões claros de horário comercial com picos de refeições previsíveis
+
+  **Software B2B:** utilize &quot;Semanalmente&quot; — movimentado durante a semana comercial, calmo nos fins de semana
+
+  **Monitoramento do sistema:** deve-se utilizar &quot;Nenhum&quot; - a taxa de erros deve permanecer baixa, independentemente dos padrões de tempo.
+</Collapser>
+
+<Collapser id="common-mistakes" title="Erros comuns a serem evitados.">
+  * **Não use &quot;Diário&quot; para aplicativos de consumidor 24/7** - Usuários globais significam atividade a todas as horas
+  * **Não use &quot;Semanal&quot; para aplicativos móveis de consumidor** — Usuários ativos durante toda a semana
+  * **Não utilizar nenhuma sazonalidade para métricas de erro** - Erros são sempre ruins
+  * **Não use &quot;Por hora&quot; a menos que haja trabalhos reais por hora** - Criará falsas expectativas
+</Collapser>
+
+## Direção da anomalia [#anomaly-direction]
+
+É possível escolher se a condição deve procurar um comportamento que fique acima do valor previsto (&quot;upper&quot;), abaixo do valor previsto (&quot;lower&quot;) ou ambos. Isso é escolhido com o seletor de direção de previsão, para qualquer condição — de sinal único ou de vários sinais.
 
 Exemplos de casos de uso para isso:
 
@@ -75,38 +269,228 @@ Aqui estão exemplos de como grandes flutuações nos seus dados seriam tratadas
 
 <img title="A screenshot of anomaly details in the New Relic UI" alt="A screenshot demonstrating how to select upper and lower ranges for anomalies" src="/images/alerts_screenshot-full_anomalies-set-upper-and-lower-ranges.webp" />
 
-## Regras que regem o cálculo do valor previsto [#anomaly-rules]
+## Entenda quando os alertas são acionados [#understanding-alerts]
 
-O algoritmo para calcular a previsão é matematicamente complexo. Aqui estão algumas das principais regras que regem suas habilidades preditivas:
+Os alertas de detecção de anomalia não são acionados no momento em que os dados tocam a faixa cinza de limite. O tempo depende das configurações de duração e de quanto tempo a violação persiste.
 
-* <DNT>**Age of data**</DNT> Na criação inicial, a previsão é calculada usando de 1 a 4 semanas de dados, dependendo da disponibilidade dos dados e do tipo de previsão. Atualmente, as consultas que usam a cláusula `FACET` não são treinadas em dados armazenados. Após a sua criação, o algoritmo leva em consideração as flutuações contínuas dos dados durante um longo período de tempo, embora seja dado maior peso aos dados mais recentes. Para dados que existem há pouco tempo, o valor previsto provavelmente flutuará bastante e não será muito preciso. Isso ocorre porque não há dados suficientes para determinar seus valores e comportamento habituais. Quanto mais histórico os dados tiverem, mais precisa se tornará a previsão.
-* <DNT>**Consistency of data**</DNT> Para valores métricos que permanecem num intervalo consistente ou que apresentam tendências lentas e constantes, o seu comportamento mais previsível significa que o seu limite de sensibilidade se tornará mais apertado em torno da previsão. Dados mais variados e imprevisíveis terão limites de sensibilidade mais flexíveis (mais amplos).
-* <DNT>**Regular fluctuations**</DNT> Para flutuações cíclicas com duração inferior a uma semana (como implantação semanal às 13h de quarta-feira ou relatórios noturnos), o algoritmo de previsão procura essas flutuações cíclicas e tenta ajustar-se a elas.
+Isto é o que muitos clientes vivenciam:
 
-## Sazonalidade [#seasonality]
+**Expectativa do cliente:** &quot;Minha CPU atingiu um pico de 90% e saiu da área cinza, então por que não recebi um alerta?&quot;
 
-Para lidar com flutuações recorrentes em seus sinais, como picos de tráfego durante a semana, você pode especificar a sazonalidade de uma condição. Por padrão, a detecção de anomalias calcula automaticamente a sazonalidade de cada sinal usando <DNT>\*\* New Relic calculation\*\*</DNT>. No entanto, você pode optar por definir o cálculo de sazonalidade para um valor específico ou desativá-lo completamente. As opções disponíveis são:
-
-* <DNT>**New Relic calculation**</DNT> (padrão): determina automaticamente a sazonalidade de cada sinal com base em vários fatores, incluindo a idade dos dados, a consistência dos dados e flutuações regulares.
-
-  **Exemplo:** Uma arquitetura de microsserviços dinâmica onde você monitora dezenas de serviços distintos em uma única condição. Serviços voltados ao usuário podem enfrentar picos diários de tráfego, enquanto serviços de processamento em segundo plano podem não ter nenhum padrão previsível. Essa configuração permite que o sistema se adapte a cada sinal específico sem ajuste manual.
-
-* <DNT>**Hourly**</DNT>: Aplica um padrão horário a todos os sinais dentro da condição de detecção de anomalias.
-
-  **Exemplo:** Um servidor que executa um cron job com uso intensivo de recursos no início de cada hora, como um script de sincronização de dados horário ou um processador de fila em lote. Esta configuração ajuda a detectar anomalias nos padrões de uso de CPU e memória.
-
-* <DNT>**Daily**</DNT>: Aplica um padrão diário a todos os sinais dentro da condição de detecção de anomalias.
-
-  **Exemplo:** Uma aplicação corporativa interna, como um portal de RH ou intranet, que registra consistentemente altas taxas de login a partir das 08:00 e diminui drasticamente após as 17:00 todos os dias.
-
-* <DNT>**Weekly**</DNT>: Aplica um padrão semanal a todos os sinais dentro da condição de detecção de anomalias.
-
-  **Exemplo:** Uma plataforma de software B2B que registra picos de tráfego de segunda a quinta-feira, uma queda notável às sextas-feiras e tráfego quase zero durante o fim de semana.
-
-* <DNT>**None**</DNT>: Desativa completamente a sazonalidade, garantindo que nenhum padrão sazonal seja considerado ao avaliar sinais.
-
-  **Exemplo:** Um monitor de taxa de erros críticos do sistema, como erros HTTP 500 ou timeouts de conexão com o banco de dados. Idealmente, essas métricas devem permanecer em uma linha de base plana próxima de zero em todos os momentos. Um pico às 14:00 é uma anomalia, independentemente de ter ocorrido ontem às 14:00 também.
+**Realidade:** se o pico durar apenas 2 minutos, mas a duração estiver definida para 5 minutos, nenhum alerta será criado — mesmo que os dados tenham saído claramente das faixas cinzas.
 
 <Callout variant="tip">
-  A solução atual não suporta opções de sazonalidade mensal e anual devido a limitações computacionais, incluindo fatores como retenção de dados, computação e avaliação em tempo real.
+  **Equívoco comum:** A duração controla por quanto tempo um problema deve persistir antes de alertar, não a rapidez com que a notificação será recebida. Definir a duração para 5 minutos não significa &quot;notificar-me em 5 minutos&quot; — significa &quot;notificar-me apenas se a anomalia durar 5 minutos.&quot; Uma duração menor significa que os alertas são acionados mais cedo, mas é possível que ocorram mais alarmes falsos.
 </Callout>
+
+<Collapser id="alert-timeline" title="A linha do tempo de um alerta de anomalia">
+  Eis o que realmente acontece quando a detecção de anomalia avalia os dados:
+
+  Passo 1: o ponto de dados chega e sai da banda cinza → Nenhum alerta ainda
+
+  Passo 2: os dados permanecem fora da faixa → ainda sem alerta
+
+  Passo 3: os dados estiveram fora da faixa pela duração especificada → o alerta é acionado
+
+  Passo 4: Os dados retornam para dentro da faixa → O alerta permanece aberto
+
+  Passo 5: Os dados permanecem dentro da faixa pela duração especificada → O alerta é fechado
+</Collapser>
+
+## Condições de múltiplos sinais [#faceted-queries]
+
+Dependendo de como a consulta NRQL foi definida ao criar a condição do alerta, ela pode estar monitorando muitos sinais, não apenas um. Ao trabalhar com NRQL, essas consultas usam a [cláusula`FACET` ](/docs/nrql/nrql-syntax-clauses-functions/#sel-facet). Tenha em mente o seguinte:
+
+* **Limite de sinal:** uma única condição do alerta de anomalia pode monitorar até 20.000 sinais individuais.
+* **Avaliação independente:** cada sinal é rastreado e avaliado em relação à sua própria baseline histórica. Uma anomalia em um sinal aciona um incidente sem que o comportamento normal de outro sinal o distorça ou mascare.
+* **Configurações uniformes:** as configurações de limite especificadas se aplicam da mesma forma a todos os sinais monitorados por esta condição, embora os baselines sejam calculados por sinal.
+* **Visualização do gráfico:** é exibido um máximo de 500 sinais no gráfico de visualização. O sinal previsto e as faixas de limite não são exibidos quando há mais de um sinal no gráfico — selecionar uma única série temporal na legenda para isolar o seu baseline e os limites.
+
+## Ajuste os limites usando dados de sinal [#tune-with-nraisignal]
+
+Depois que uma condição avaliar os dados por alguns dias ou mais, não tente adivinhar um limite. Cada avaliação de condição de anomalia publica um evento `NrAiSignal` contendo o valor real, o valor previsto e o desvio padrão do erro de previsão (`numberOfDeviations`). Faça a consulta desses eventos para ver exatamente como o limite atua e para criar gráficos do sinal e das previsões em janelas de tempo mais longas do que o gráfico de visualização do editor de condições permite.
+
+<Callout variant="tip">
+  Cada consulta nesta página precisa do ID da condição. Encontre-o na URL da condição do alerta na interface da New Relic (o número após `/conditions/`) ou execute `FROM NrAiSignal SELECT uniques(conditionId) SINCE 1 week ago` para listar os IDs de condição que relatam dados na conta.
+</Callout>
+
+<Callout variant="important">
+  Essas consultas filtram apenas por `conditionId`. Para uma [condição de múltiplos sinais](#faceted-queries), isso mistura os desvios de todos os sinais em vez de isolar um, de modo que os resultados não fornecerão muitas informações sobre nenhum sinal individual. Para analisar um sinal dentro de uma condição facetada, também será necessário filtrar ou facetar essas consultas pelo atributo de identificação desse sinal.
+</Callout>
+
+### Encontrar o intervalo típico de desvios
+
+Um histograma de `numberOfDeviations` ao longo de uma semana ou mais mostra o intervalo típico de desvios para o sinal, o que ajuda a escolher um limite inicial:
+
+```sql
+FROM NrAiSignal SELECT histogram(numberOfDeviations, start: -10, width: 20, buckets: 40) WHERE conditionId = YOUR_CONDITION_ID SINCE 1 week ago
+```
+
+<img title="Histogram of NrAiSignal deviations" alt="A histogram chart showing the distribution of numberOfDeviations values for a condition over the past week, with most values clustered near zero" src="/images/anomaly-nraisignal-zscore-histogram.webp" />
+
+### Comparar desvios com um limite candidato ao longo do tempo
+
+Trace os mesmos desvios como uma série temporal ao lado de uma linha de limite candidata, para ver com que frequência e em quanto o sinal a teria violado:
+
+```sql
+FROM NrAiSignal SELECT max(abs(numberOfDeviations)), 5 AS criticalValue WHERE conditionId = YOUR_CONDITION_ID SINCE 1 week ago TIMESERIES 28 minutes
+```
+
+Substitua `5` pelo limite candidato. Defina a janela `TIMESERIES` para um múltiplo da janela de agregação da condição e evite `TIMESERIES MAX` para esta comparação.
+
+<img title="Time series of NrAiSignal deviations against a candidate threshold" alt="A time series chart showing the maximum absolute number of deviations over a week, compared against a flat candidate threshold line" src="/images/anomaly-nraisignal-zscore-timeseries.webp" />
+
+### Calcular o desvio médio e de percentil
+
+Para obter uma visão mais holística, calcule a média e o desvio padrão do percentil em uma janela mais longa. Por exemplo, este sinal de latência tem um pico de cerca de 120 ms:
+
+<img title="Latency signal with a spike" alt="A line chart of a latency signal with a visible spike to around 120 milliseconds" src="/images/anomaly-nraisignal-latency-spike.webp" />
+
+Nesse mesmo momento, o desvio padrão é de cerca de 30,43:
+
+<img title="Standard deviation at the same point as the latency spike" alt="A line chart of the standard deviation of the latency signal, showing a value of about 30.43 at the time of the spike" src="/images/anomaly-nraisignal-stddev-at-spike.webp" />
+
+Recomenda-se executar esta consulta para comparar o desvio padrão médio e do percentil com o limite atual:
+
+```sql
+SELECT average(deviations) AS 'avg', percentile(deviations, 75) AS 'p75', percentile(deviations, 95) AS 'p95' FROM (FROM NrAiSignal SELECT max(abs(numberOfDeviations)) AS 'deviations' WHERE conditionId = YOUR_CONDITION_ID TIMESERIES 1 hour LIMIT MAX) SINCE 1 week ago COMPARE WITH 2 weeks ago FACET string(7) AS 'Current Threshold'
+```
+
+<img title="Percentile standard deviation compared against the current threshold" alt="A table comparing average, 75th percentile, and 95th percentile standard deviation against the condition's current threshold" src="/images/anomaly-nraisignal-percentile-stddev.webp" />
+
+Neste exemplo, um limite entre 10 e 17 seria mais adequado do que o limite atual de 7.
+
+### Verifique o comportamento do modelo
+
+Trace o sinal real, o valor previsto e o limite calculado juntos para ver se o modelo está bem treinado e se o limite está bem calibrado:
+
+```sql
+FROM NrAiSignal SELECT latest(signalValue), latest(predictedValue), latest(predictedValue + (standardDeviation * {condition_threshold})) AS 'Upper Threshold' WHERE conditionId = {condition_id} SINCE 1 week ago TIMESERIES 30 minutes
+```
+
+* **signalValue:** O valor real do sinal da condição.
+* **predictedValue:** o baseline calculado do modelo, que muda ao longo do tempo à medida que aprende tendências semanais e históricas.
+* **Limite superior/inferior:** O limite alto ou baixo calculado a partir do limite de desvio padrão da condição.
+
+<img title="Model behavior: signal, predicted value, and upper threshold" alt="A chart comparing the actual signal value, the model's predicted value, and the calculated upper threshold over one week" src="/images/anomaly-nraisignal-model-behavior.webp" />
+
+Esta tendência mostra uma condição bem ajustada:
+
+* O sinal não está consistentemente acima do limite superior, portanto, o limite de desvio padrão provavelmente está definido corretamente.
+* O valor previsto acompanha o sinal real de perto, portanto, o modelo está bem treinado.
+
+Utilizar isto para diagnosticar problemas:
+
+* Se o sinal estiver consistentemente acima do limite superior ou abaixo do limite inferior, o limite de desvio padrão precisará de ajuste.
+* Se a tendência do valor previsto variar muito do sinal real, o modelo precisará de mais tempo para aprender. Forneça mais dados antes de fazer mais ajustes.
+
+<Callout variant="tip">
+  Para um limite inferior, deve-se substituir o termo do limite superior por `predictedValue - (standardDeviation * {condition_threshold})`. Para um limite bilateral, deve-se incluir ambos os termos na mesma consulta para traçar as linhas de limite superior e inferior juntas.
+</Callout>
+
+## Solucionar problemas comuns [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="alerts-too-noisy" title="Problema: os meus alertas são muito ruidosos">
+    Alertas são recebidos a cada poucas horas devido a flutuações normais de negócios.
+
+    **Causa:** As configurações de duração, sensibilidade ou sazonalidade estão ajustadas de forma mais estreita do que a variação normal da métrica.
+
+    **Solução:** tente estas correções, em ordem:
+
+    1. **Aumentar a duração** — recomenda-se tentar 10–15 minutos em vez de 2–5 minutos.
+    2. **Diminuir a sensibilidade** — aumente o limite de desvio padrão (tente 3 em vez de 2).
+    3. **Verificar a sazonalidade** — garantir que corresponda ao padrão de negócios.
+    4. **Mudar para &quot;for at least&quot;** — em vez de &quot;at least once in&quot;, para exigir problemas contínuos.
+
+    Não tem certeza de qual número usar? [Obtenha-o a partir dos desvios reais do sinal](#tune-with-nraisignal) em vez de adivinhar.
+
+    |        | Desvio padrão | Duração    | Regra de gatilho |
+    | :----- | :------------ | :--------- | :--------------- |
+    | Antes  | 2             | 3 minutos  | At least once in |
+    | Depois | 3             | 15 minutos | For at least     |
+
+    Isso normalmente resulta em cerca de 90% menos alarmes falsos.
+  </Collapser>
+
+  <Collapser id="critical-issue-no-alert" title="Problema: uma questão crítica não acionou um alerta">
+    Uma interrupção ou um problema real não criou um alerta quando deveria.
+
+    **Causa:** uma das seguintes opções geralmente explica isso:
+
+    * **Duração muito longa** — o problema foi resolvido antes que o alerta pudesse ser acionado.
+    * **Direção errada** — definido como &quot;upper&quot;, mas o problema foi uma queda no tráfego (&quot;lower&quot;).
+    * **Dados insuficientes** — novas métricas precisam de 1–4 semanas para aprender os padrões com precisão.
+    * **Desvio padrão muito alto** — definido de forma muito conservadora, perdendo problemas reais.
+
+    **Solução:** adequar a correção à causa:
+
+    * Reduza a duração para 1–2 minutos em sistemas críticos.
+    * Verifique se a configuração de direção corresponde ao caso de uso.
+    * Use limites estáticos até que dados suficientes sejam coletados.
+    * Recomenda-se reduzir o limite de desvio padrão (tentar 2 em vez de 3).
+  </Collapser>
+
+  <Collapser id="predictions-wrong" title="Problema: a baseline prevista parece incorreta ou irregular">
+    A baseline não corresponde ao que se vê na realidade.
+
+    **Causa:** uma das seguintes opções geralmente explica isso:
+
+    * **Nova métrica (com menos de 4 semanas):** espera-se que as previsões sejam imprecisas e instáveis neste estágio.
+    * **Mudanças recentes no sistema:** Uma grande implantação, mudança de infraestrutura ou mudança de negócios pode prejudicar as previsões.
+    * **Configuração de sazonalidade incorreta:** por exemplo, usar &quot;Diário&quot; para um aplicativo global 24/7, ou &quot;Semanal&quot; para um aplicativo móvel de consumidor.
+    * **Inconsistência de dados:** A métrica possui padrões extremamente variáveis.
+
+    **Solução:** adequar a correção à causa:
+
+    * Aguardar por mais dados ou usar limites estáticos temporariamente.
+    * Aguarde 1–2 semanas — as previsões se adaptam a novos padrões.
+    * Recomenda-se mudar para o &quot;cálculo da New Relic&quot; ou escolher um padrão mais apropriado.
+    * Devem-se usar limites de desvio padrão mais amplos ou considerar se a detecção de anomalias é a escolha certa para esta métrica.
+  </Collapser>
+
+  <Collapser id="faceted-queries-issues" title="Problema: as consultas facetadas não estão funcionando como esperado">
+    Vários servidores ou serviços estão sendo monitorados, mas as previsões parecem incorretas.
+
+    **Causa:** as consultas facetadas (`FACET`) têm algumas limitações integradas:
+
+    * **Sem dados históricos** — as consultas facetadas começam a aprender do zero (elas não usam dados armazenados).
+    * **Mesmas configurações para todos** — todos os 20.000 sinais usam configurações de limite idênticas.
+    * **Limitações de visualização** — apenas 500 sinais no máximo mostrados no gráfico.
+    * **Aprendizado individual** — cada sinal aprende de forma independente, o que leva tempo.
+
+    **Solução:** aguarde 4 ou mais semanas para que cada sinal estabeleça previsões precisas, comece com configurações conservadoras (desvios padrão mais altos, durações mais longas) e considere condições separadas para diferentes tipos de servidores ou serviços.
+  </Collapser>
+
+  <Collapser id="standard-deviations-confusing" title="Problema: os desvios padrão são confusos">
+    Não há certeza sobre o que uma determinada configuração de desvio padrão realmente faz ao volume de alertas.
+
+    **Causa:** o valor do desvio padrão não é intuitivo por si só — ele mapeia para uma porcentagem estatística de variação normal.
+
+    **Solução:** use este guia de tradução:
+
+    | Desvios padrão | Cobertura                         | Frequência de alerta           |
+    | :------------- | :-------------------------------- | :----------------------------- |
+    | 1              | Cerca de 68% da variação normal   | Muito sensível, muitos alertas |
+    | 2              | Cerca de 95% da variação normal   | Equilibrado, mais comum.       |
+    | 3              | Cerca de 99,7% da variação normal | Conservador, menos alertas     |
+
+    Recomendações práticas:
+
+    * **Iniciar com 2–3** para a maioria dos casos de uso.
+    * **Use 1–2** para sistemas críticos onde a detecção precoce é desejada.
+    * **Usar 3–4** para métricas ruidosas nas quais se deseja apenas anomalias óbvias.
+
+    Para obter um número exato em vez de uma regra prática, consultar [Ajustar limites usando dados de sinal](#tune-with-nraisignal).
+  </Collapser>
+
+  <Collapser id="diagnostic-checklist" title="Lista de verificação rápida de diagnóstico">
+    Quando a detecção de anomalias não estiver funcionando como esperado, recomenda-se verificar os seguintes itens em ordem:
+
+    1. **Idade dos dados** — deve-se verificar se a métrica tem mais de 4 semanas.
+    2. **Correspondência de sazonalidade** — verificar se a configuração corresponde aos padrões reais de negócios.
+    3. **Definição de direção** — verificar se o monitoramento está na direção correta (superior/inferior/ambas).
+    4. **Equilíbrio entre duração e sensibilidade** — muito sensível e muito curto causa ruído, muito conservador e muito longo causa problemas não detectados.
+    5. **Nível de desvio padrão** — recomenda-se começar com 2 e ajustar com base nos resultados.
+  </Collapser>
+</CollapserGroup>
