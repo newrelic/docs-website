@@ -20,7 +20,6 @@
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
-    - [Deploy previews with Netlify](#deploy-previews-with-netlify)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Private edits](#private-edits)
@@ -105,8 +104,8 @@ If the workflows are enabled and running, you will want to disable them. You can
 2. Make your changes.
 3. Before you raise a PR, test your changes! Review the project's [contribution guide](https://github.com/newrelic/docs-website/blob/develop/CONTRIBUTING.md#getting-started) for instructions on how to build and run tests locally.
 4. Submit a `Pull Request` to this project with your changes.
-5. If you really require a preview url, reach out to one of the writers and they will generate one for you.
-6. If/when your `PR` is approved and merged, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+5. If you want a preview for your PR, drop a comment in the PR or contact the docs team and they'll generate one for you.
+6. When your PR is approved and merged, the automation in this project will build the site and publish a new version of the code to [docs.newrelic.com](https://docs.newrelic.com).
 7. And you are done!
 
 ### Submitting a PR from a cloned repo
@@ -117,8 +116,8 @@ If the workflows are enabled and running, you will want to disable them. You can
 3. Make your changes.
 4. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
 5. Submit a `Pull Request` to this project with your changes.
-6. If you really require a preview url, reach out to one of the writers and they will generate one for you.
-7. If/when your `PR` is approved and merged, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+6. If you want a preview for your PR, drop a comment in the PR or contact the docs team and they'll generate one for you.
+7. When your PR is approved and merged, the automation in this project will build the site and publish a new version of the code to [docs.newrelic.com](https://docs.newrelic.com).
 8. And you are done!
 
 ### Using the `develop` branch
@@ -206,16 +205,6 @@ Feat is for major functional changes or additions to code.
 ```bash
 git commit -m "feat(errors inbox): add new documents"
 ```
-
-### Deploy previews with Netlify
-
-To generate a Netlify preview link, comment `netlify build` on your PR. Netlify will then automatically build and generate the preview.
-
-`netlify bot` will leave a comment on your PR. You can monitor the progress via the comment details which include:
-
-- The status of the preview build. (`processing`, `ready`, or `failed`)
-- The commit that is being built or has failed.
-- Once the build succeeds, the comment will update with a link to view the preview site.
 
 ## Reusable components
 
