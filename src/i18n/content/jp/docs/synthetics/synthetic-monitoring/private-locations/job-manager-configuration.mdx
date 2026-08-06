@@ -1850,6 +1850,91 @@ SJMが証明書を正常にロードできるようにするには、証明書�
   </Collapser>
 </CollapserGroup>
 
+## mTLSクライアント証明書 [#mtls-client-certificates]
+
+モニターが相互TLS（mTLS）を強制する内部エンドポイントに接続する場合 — クライアントに証明書の提示を要求する場合 — ターゲットのホスト名にマッピングされたクライアント証明書を提供できます。モニターは正しい証明書を自動的に提示します。スクリプトの変更は必要ありません。
+
+**要件：**
+
+* 証明書とキーファイルはPEM形式である必要があります
+* ホスト名を証明書およびキーファイルにマッピングする`cert-map.json`ファイルが必要です。
+
+**cert-map.jsonの形式：**
+
+```json
+{
+  "api.internal.company.com": { "cert": "client.crt",   "key": "client.key" },
+  "*.payments.internal":      { "cert": "payments.crt", "key": "payments.key" },
+  "default":                  { "cert": "fallback.crt", "key": "fallback.key" }
+}
+```
+
+ホスト名の一致の優先順位：完全一致 → ワイルドカード（`*.domain.com`） → `default` キャッチオール → 証明書なし（非mTLS接続は影響を受けません）。
+
+<CollapserGroup>
+  <Collapser id="mtls-docker" title="Docker">
+    `cert-map.json`と、参照される証明書およびキーファイルを含むディレクトリをマウントします:
+
+    ```sh
+    docker run \
+      -v /path/to/ca-certs:/var/lib/newrelic/synthetics/certs:ro \
+      -v /path/to/client-certs:/var/lib/newrelic/synthetics/client-cert:ro \
+      newrelic/synthetics-job-manager
+    ```
+
+    ランタイムコンテナ内のDNS経由でmTLSサーバーのホスト名を解決できない場合は、`RUNTIME_EXTRA_HOSTS`を使用してホスト名のマッピングを追加します：
+
+    ```sh
+    docker run \
+      -e 'RUNTIME_EXTRA_HOSTS=api.internal.company.com:10.0.0.1,svc.internal:10.0.0.2' \
+      -v /path/to/client-certs:/var/lib/newrelic/synthetics/client-cert:ro \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser id="mtls-podman" title="ポッドマン">
+    クライアント証明書ディレクトリをマウントします。SELinuxの場合は`:z`または`:Z`を追加します:
+
+    ```sh
+    podman run \
+      -v /path/to/client-certs:/var/lib/newrelic/synthetics/client-cert:ro,z \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser id="mtls-kubernetes" title="Kubernetes">
+    `cert-map.json`と参照されるすべての証明書およびキーファイルを含むKubernetesシークレットを作成します：
+
+    ```sh
+    kubectl create secret generic my-mtls-certs \
+      --from-file=cert-map.json=/path/to/cert-map.json \
+      --from-file=client.crt=/path/to/client.crt \
+      --from-file=client.key=/path/to/client.key \
+      -n newrelic
+    ```
+
+    Helmのvaluesでシークレットを参照します：
+
+    ```yaml
+    global:
+      clientCertificates:
+        volume:
+          secret:
+            secretName: my-mtls-certs
+    ```
+
+    シークレットは、すべてのランタイムポッドに自動的に読み取り専用でマウントされます。
+  </Collapser>
+</CollapserGroup>
+
+## 証明書サポートの制限事項 [#certificates-support-limitations]
+
+特に明記されていない限り、以下の制限はカスタムCA証明書とmTLSクライアント証明書の両方に適用されます：
+
+* **証明書の変更には再起動が必要** — 証明書はコンテナの起動時に読み込まれます。証明書の追加、削除、またはローテーションを行った後、変更を適用するには、ジョブマネージャーコンテナ（またはKubernetesのランタイムポッド）を再起動します。
+* **サポートされているランタイム** — カスタム証明書機能は、スクリプト化APIおよびスクリプト化ブラウザモニターにのみ適用されます。Pingモニターは影響を受けません。
+* **証明書ごとに一意のサブジェクトCN（mTLSのみ）** — 各クライアント証明書には、一意のサブジェクト共通名（CN）が必要です。Chromeは、ホスト名ごとに正しい証明書を識別して自動選択するためにCNを使用します。
+
 ## データの永久保存 [#permanent-data-storage]
 
 ユーザーは、 `user_defined_variables.json`ファイルを提供したり、カスタム ノード モジュールをサポートしたりするために、永続的なデータ ストレージを使用することがあります。
