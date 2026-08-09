@@ -1,0 +1,239 @@
+---
+title: "SQL Query Receiver with NRDOT"
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - NRDOT
+  - Database
+  - Custom metrics
+  - SQL queries
+metaDescription: Run custom SQL queries against your database and ingest results as metrics using the SQL Query Receiver with New Relic's Distribution of OpenTelemetry (NRDOT).
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+
+</Callout>
+
+The `sqlqueryreceiver` is an OpenTelemetry Collector receiver that lets you run any custom SQL query against your database and ingest the results as metrics into New Relic.
+
+Use this when you want to monitor data not covered by the built-in `nroracledbreceiver` / `nrsqlserverreceiver` metrics. Custom metrics collected via `sqlqueryreceiver` appear under the same Oracle or SQL Server entity in New Relic as the built-in receiver data, provided `host.name` is configured correctly.
+
+## Prerequisites [#prerequisites]
+
+* The database user configured in the datasource must have `SELECT` privilege on any view or table you intend to query.
+* The collector binary must include the `sqlqueryreceiver` component.
+
+## Configuration [#config]
+
+<Tabs>
+<TabsBar>
+<TabsBarItem id="oracle">Oracle</TabsBarItem>
+<TabsBarItem id="sqlserver">SQL Server</TabsBarItem>
+</TabsBar>
+
+<TabsPages>
+<TabsPageItem id="oracle">
+
+Add the `sqlqueryreceiver` block inside the `receivers:` section of your existing `oracle-config.yaml`, alongside the existing `nroracledb` block:
+
+```yaml
+receivers:
+  nroracledb:
+    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+    username: "C##<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    service: "<YOUR_CDB_SERVICE_NAME>"
+
+  sqlquery/oracle:
+    driver: oracle
+    datasource: "oracle://<YOUR_DB_USERNAME>:<YOUR_DB_PASSWORD>@<YOUR_DB_HOST>:<YOUR_DB_PORT>/<YOUR_SERVICE_NAME>"
+    collection_interval: 60s
+    queries:
+      - sql: "<YOUR_CUSTOM_SQL>"
+        metrics:
+          - metric_name: oracledb.<your_metric_name>
+            value_column: <RESULT_COLUMN>
+            attribute_columns: [<DIMENSION_COLUMN_1>, <DIMENSION_COLUMN_2>]
+            value_type: double
+```
+
+<Callout variant="important">
+
+**Note:** For Oracle CDB users (`C##` prefix), encode `#` as `%23` in the datasource URL.
+
+Example: `c##newrelic` → `c%23%23newrelic`
+
+</Callout>
+
+### Naming convention
+
+Metric names **must** start with `oracledb.` to be associated with the correct entity in New Relic. Metrics with a different prefix will be ingested but will not appear under the database entity.
+
+### Entity synthesis — making custom metrics appear under the same entity
+
+Add a `resource/add_host` processor to set `host.name` to the same value used by the database receiver. Without this, custom metrics will not be linked to the database entity.
+
+Add the processor in the `processors:` section:
+
+```yaml
+processors:
+  batch:
+  resource/add_event_name:
+    attributes:
+      - key: host.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+  resource/add_host:
+    attributes:
+      - key: host.name
+        value: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+        action: upsert
+```
+
+### Pipeline configuration
+
+Add a `metrics/custom` pipeline in the `service.pipelines:` section of the config, alongside the existing pipelines:
+
+```yaml
+service:
+  pipelines:
+    metrics/oracledb:
+      receivers: [nroracledb]
+      processors: [resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+    logs/oracledb:
+      receivers: [nroracledb]
+      processors: [resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+
+    metrics/custom:
+      receivers: [sqlquery/oracle]
+      processors: [resource/add_host, resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+```
+
+<Callout variant="important">
+
+**Note:** `resource/add_host` must come before `batch` in the processor list.
+
+</Callout>
+
+### NRQL to validate data
+
+After restarting the collector, run the following to confirm custom metrics are arriving:
+
+```sql
+SELECT uniques(metricName) FROM Metric
+WHERE otel.library.name LIKE '%sqlqueryreceiver%'
+AND metricName LIKE 'oracledb.%'
+SINCE 1 hour ago
+```
+
+</TabsPageItem>
+
+<TabsPageItem id="sqlserver">
+
+Add the `sqlqueryreceiver` block inside the `receivers:` section of your SQL Server collector configuration, alongside the existing `nrsqlserver` block:
+
+```yaml
+receivers:
+  nrsqlserver:
+    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    database: "<YOUR_DATABASE_NAME>"
+
+  sqlquery/sqlserver:
+    driver: mssql
+    datasource: "sqlserver://<YOUR_DB_USERNAME>:<YOUR_DB_PASSWORD>@<YOUR_DB_HOST>:<YOUR_DB_PORT>?database=<YOUR_DATABASE_NAME>"
+    collection_interval: 60s
+    queries:
+      - sql: "<YOUR_CUSTOM_SQL>"
+        metrics:
+          - metric_name: sqlserver.<your_metric_name>
+            value_column: <RESULT_COLUMN>
+            attribute_columns: [<DIMENSION_COLUMN_1>, <DIMENSION_COLUMN_2>]
+            value_type: double
+```
+
+### Naming convention
+
+Metric names **must** start with `sqlserver.` to be associated with the correct entity in New Relic. Metrics with a different prefix will be ingested but will not appear under the database entity.
+
+### Entity synthesis — making custom metrics appear under the same entity
+
+Add a `resource/add_host` processor to set `host.name` to the same value used by the database receiver. Without this, custom metrics will not be linked to the database entity.
+
+Add the processor in the `processors:` section:
+
+```yaml
+processors:
+  batch:
+  resource/add_event_name:
+    attributes:
+      - key: host.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+  resource/add_host:
+    attributes:
+      - key: host.name
+        value: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+        action: upsert
+```
+
+### Pipeline configuration
+
+Add a `metrics/custom` pipeline in the `service.pipelines:` section of the config, alongside the existing pipelines:
+
+```yaml
+service:
+  pipelines:
+    metrics/sqlserver:
+      receivers: [nrsqlserver]
+      processors: [resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+    logs/sqlserver:
+      receivers: [nrsqlserver]
+      processors: [resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+
+    metrics/custom:
+      receivers: [sqlquery/sqlserver]
+      processors: [resource/add_host, resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+```
+
+<Callout variant="important">
+
+**Note:** `resource/add_host` must come before `batch` in the processor list.
+
+</Callout>
+
+### NRQL to validate data
+
+After restarting the collector, run the following to confirm custom metrics are arriving:
+
+```sql
+SELECT uniques(metricName) FROM Metric
+WHERE otel.library.name LIKE '%sqlqueryreceiver%'
+AND metricName LIKE 'sqlserver.%'
+SINCE 1 hour ago
+```
+
+</TabsPageItem>
+</TabsPages>
+</Tabs>
+
+## Troubleshooting [#troubleshooting]
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| `ORA-00942: table or view does not exist` | Database user missing SELECT privilege | Grant `SELECT ON <VIEW_NAME>` to the user |
+| `missing port in address` | `#` in username/password not URL-encoded | Replace `#` with `%23` in the datasource URL |
+| No data in New Relic | `host.name` not set or mismatched | Add `resource/add_host` processor with the correct host value |
+| Metrics not under database entity | Metric name missing required prefix | Ensure metric names start with `oracledb.` for Oracle database or `sqlserver.` for SQL Server. |
