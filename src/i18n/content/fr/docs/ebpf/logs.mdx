@@ -1,0 +1,115 @@
+---
+title: Log eBPF
+metaDescription: 'Learn how to collect application logs with New Relic''s eBPF agent, without deploying a separate log forwarder.'
+tags:
+  - Integrations
+  - eBPF integration
+  - eBPF logs
+  - Logs
+  - extended Berkeley Packet Filter (eBPF)
+  - Linux host
+  - Kubernetes cluster
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Aperçu">
+  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
+
+  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un programme d&apos;aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+L&apos;agent eBPF de New Relic peut désormais collecter votre log d&apos;application directement depuis le même hôte ou conteneur où il collecte déjà la télémétrie APM et réseau, en utilisant une visibilité au niveau du noyau au lieu de « suivre » le fichier de log comme un redirecteur de logs traditionnel. Cela vous offre :
+
+* **Enrichissement automatique des métadonnées**: enrichit le log capturé avec les métadonnées New Relic par défaut, vous donnant un contexte de dépannage aux côtés de la télémétrie APM et réseau du même agent, sans aucune configuration requise de la part des clients.
+* **Un agent de moins à gérer**: élimine les conflits de ressources, les lacunes de corrélation et les frais de maintenance liés à l&apos;exécution d&apos;un redirecteur de logs dédié (tel que Fluent Bit) à côté de l&apos;agent eBPF.
+* **Une surface d&apos;attaque plus petite**: supprime le middleware de journalisation basé sur des plug-in dont dépend un redirecteur distinct, réduisant ainsi l&apos;exposition aux CVE et la dépendance aux plug-in de transfert de logs tiers.
+
+## Configurer le log eBPF [#setup]
+
+<Callout variant="important" title="Important">
+  Le log eBPF est une fonctionnalité en libre-service. Tout log ingéré via le log eBPF est facturable selon votre commande applicable.
+
+  L&apos;obfuscation et la suppression des données pour les informations sensibles ne sont disponibles que via le [Gateway de Contrôle de pipeline (PCG)](/docs/new-relic-control/pipeline-control/gateway/transform-processor) en utilisant le langage de transformation OpenTelemetry (OTTL). Le flux de données direct d&apos;eBPF vers New Relic n&apos;inclut pas d&apos;obfuscation intégrée. Contactez votre représentant de compte pour ajouter PCG à votre commande.
+
+  Le pipeline d&apos;ingestion de log de New Relic obfusque automatiquement les cartes de crédit et les numéros de sécurité sociale dans le champ `message` pour tous les comptes, indépendamment de PCG. Pour les autres données sensibles, configurez le routage PCG pour les masquer avant l&apos;ingestion. Par exemple, cette configuration masque un champ `password` du message de log eBPF :
+
+  ```yaml
+  transform/Logs:
+    log_statements:
+    - statements:
+      - replace_pattern(log.body, "password:[^,]+", "password:***")
+      conditions:
+      - IsMatch(log.body, "password:")
+  ```
+
+  Cet exemple masque uniquement le modèle `password` affiché. Pour des règles d&apos;obfuscation et de suppression supplémentaires ou personnalisables, configurez directement le [Processeur de transformation OTTL](/docs/new-relic-control/pipeline-control/gateway/transform-processor) pris en charge par PCG. Reportez-vous à [Masquer les PII](/docs/new-relic-control/pipeline-control/gateway/transform-processor#example-5-redact-pii) pour plus d&apos;exemples.
+</Callout>
+
+Activez le log eBPF en suivant ces étapes :
+
+1. Mettez à jour votre agent eBPF vers la version 1.5.0 ou ultérieure, que New Relic recommande pour le reporting de log.
+
+   * Pour Kubernetes, reportez-vous à [Mettre à niveau l&apos;agent eBPF](/docs/ebpf/k8s-installation/#upgrade).
+   * Pour les hôtes Linux, reportez-vous à [Mettre à niveau l&apos;agent eBPF](/docs/ebpf/linux-installation/#upgrade).
+
+2. Définissez les paramètres suivants :
+
+   * `reportLogs`: définissez sur `"auto"` ou `"true"` pour activer la collecte de log (voir [Détection automatique et recul](#automatic-backoff) ci-dessous pour savoir ce que fait chaque valeur).
+   * `logDataFilters.applicationLogReporting.enabled`: confirmez qu&apos;il s&apos;agit de `true` (sa valeur par défaut), ou définissez-le explicitement si vous avez personnalisé votre configuration.
+
+   Pour la liste complète des paramètres liés au log, reportez-vous à la section des paramètres de configuration du guide d&apos;[installation Linux](/docs/ebpf/linux-installation/#config-params) ou d&apos;[installation Kubernetes](/docs/ebpf/k8s-installation/#config-params).
+
+3. Redémarrez l&apos;agent eBPF.
+
+## Détection automatique et recul [#automatic-backoff]
+
+Pour éviter d&apos;envoyer une télémétrie en double, l&apos;agent eBPF peut détecter automatiquement si un autre agent signale déjà un log pour une entité et reculer en conséquence. Il s&apos;agit du même modèle qu&apos;il utilise déjà pour les données APM et les métriques réseau.
+
+Le paramètre `reportLogs` accepte :
+
+* `"auto"`: le comportement de l&apos;agent eBPF dépend du type d&apos;agent attaché :
+
+  * **Agent New Relic APM**: l&apos;agent eBPF collecte et signale le log uniquement si l&apos;agent APM ne collecte ni ne transfère activement le log. S&apos;il détecte une collecte de log active de la part de l&apos;agent APM, il supprime la sienne pour éviter les doublons.
+  * **Agent OpenTelemetry**: l&apos;agent eBPF supprime entièrement la collecte de log chaque fois qu&apos;un agent OpenTelemetry est attaché.
+
+* `"true"`: l&apos;agent eBPF collecte et signale toujours le log, quels que soient les autres agents présents.
+
+* `"false"` (par défaut) : l&apos;agent eBPF ne collecte ni ne signale jamais le log.
+
+Cela reflète la façon dont `reportApmData` et `reportNetworkMetrics` se comportent pour l&apos;APM eBPF et les métriques réseau. Pour le modèle équivalent appliqué aux métriques réseau, reportez-vous à [Activer le mode métriques réseau uniquement](/docs/ebpf/network-metrics/#network-only-mode).
+
+## Visualiser vos données de log eBPF [#view-data]
+
+Vous pouvez visualiser le log eBPF dans l&apos;UI de New Relic :
+
+1. Accédez à **[one.newrelic.com](https://one.newrelic.com) &gt; APM &amp; Services**.
+2. Sélectionnez l&apos;entité dont vous souhaitez afficher le log.
+3. Cliquez sur l&apos;onglet **Logs**.
+
+<Callout variant="tip">
+  L&apos;agent eBPF génère automatiquement des noms d&apos;entités en fonction de votre environnement :
+
+  * **Sur les hôtes ou Docker**: les noms combinent le nom du processus, le chemin du répertoire ou l&apos;ID de conteneur, et le port d&apos;écoute. Par exemple, `ruby:/home/ubuntu/app:[5678]` ou `java:f4aead533895:[8080]`.
+  * **Dans Kubernetes**: les noms sont dérivés du nom du service, par exemple `mysql-database-service`.
+</Callout>
+
+Le log eBPF capture actuellement **uniquement les logs d&apos;application**, et non le log d&apos;infrastructure.
+
+<DocTiles>
+  <DocTile title="APM eBPF" path="/docs/ebpf/ebpf-apm/">
+    Découvrez comment utiliser l&apos;APM eBPF de New Relic pour un monitoring d&apos;applications sans code et indépendant du langage.
+  </DocTile>
+
+  <DocTile title="Métriques du réseau eBPF" path="/docs/ebpf/network-metrics/">
+    Explorez les capacités de monitoring réseau de l&apos;agent eBPF.
+  </DocTile>
+
+  <DocTile title="Référence des attributs de l'agent eBPF" path="/docs/ebpf/attributes-reference/">
+    Consultez la liste complète des attributs que l&apos;agent eBPF ajoute à vos données.
+  </DocTile>
+
+  <DocTile title="eBPF bonnes pratiques" path="/docs/ebpf/best-practices/">
+    Découvrez les bonnes pratiques d&apos;utilisation de l&apos;agent New Relic eBPF.
+  </DocTile>
+</DocTiles>
