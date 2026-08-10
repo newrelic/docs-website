@@ -279,7 +279,7 @@ eBPF APM cambia la perspectiva de monitoreo de la capa de aplicación a la capa 
 
 ## mejores prácticas para implementar [#deployment-best-practices]
 
-### 1. Complementar el APM tradicional
+### Complemente el APM tradicional
 
 Utilice el agente eBPF para complementar los agentes de lenguaje APM para una cobertura integral. Esto le proporciona una cobertura completa de APM con coexistencia entre eBPF APM y los agentes de APM, sin doble ingesta de datos.
 
@@ -288,7 +288,7 @@ Utilice el agente eBPF para complementar los agentes de lenguaje APM para una co
 * **APM language agente:** Úselo para sus aplicaciones más críticas que requieren información valiosa, rastreo distribuido o instrumentación personalizada de nivel profundo.
 * **eBPF APM:** Úselo para cubrir todo lo demás, incluyendo servicios no instrumentados, aplicaciones de terceros y para descubrir/reportar continuamente nuevos servicios.
 
-### 2. Agregue métricas de red para un contexto más profundo
+### Agregue métricas de red para obtener un contexto más profundo
 
 El agente eBPF también puede proporcionar métricas de red granulares (TCP, DNS, etc.) para brindarle visibilidad fuera de los límites de su aplicación. Esta capacidad es complementaria y puede utilizarse con o sin eBPF APM. Para obtener más información, consulte [network-metrics](/docs/ebpf/network-metrics/).
 
@@ -342,20 +342,178 @@ Las siguientes opciones de implementación están disponibles:
   </tbody>
 </table>
 
-### 3. Crear un enfoque de monitoreo unificado
+### Agregue la recopilación de logs para obtener un MELT completo
 
-Al seguir las prácticas anteriores, puede utilizar el agente eBPF único para gestionar las necesidades de monitoreo tanto de infraestructura como de aplicaciones. Esto unifica su observabilidad, permitiendo que el agente recopile automáticamente datos críticos de rendimiento de la aplicación (APM eBPF) y métricas de red (métricas de red eBPF) para alimentar los dashboards existentes, proporcionando un contexto profundo sin cambios en el código ni reinicios.
+El agente eBPF también puede recopilar logs de aplicación y enriquecerlos con metadatos de New Relic de forma predeterminada, sin desplegar un reenviador de logs independiente. Esta capacidad se ejecuta en el mismo agente, por lo que puede activarla junto con eBPF APM y las métricas de red sin desplegar nada adicional. Para obtener más información, consulte los [logs de eBPF](/docs/ebpf/logs/).
 
-**Beneficios:**
-
-* Información valiosa APM que completa automáticamente UI New Relic APM.
-* Red de información valiosa del mismo agente.
+Use `reportLogs: "auto"` para evitar la recopilación de logs duplicados automáticamente: el agente eBPF retrocede de un agente APM solo si ese agente está recopilando logs activamente por sí mismo, y retrocede por completo siempre que se adjunte un agente de OpenTelemetry. Use `"true"` solo cuando haya confirmado que ningún otro agente está reportando logs para esa entidad.
 
 ## Recomendaciones de implementación [#implementation-recommendations]
 
 * **Comience con eBPF APM para escalar:** Si necesita implementar el monitoreo a gran escala en muchas aplicaciones y desea métricas &quot;lo suficientemente buenas&quot; sin una coordinación compleja, comience con eBPF APM.
 
 * **Agregue métricas de red para una visibilidad completa:** Una vez implementado eBPF APM, considere agregar métricas de red eBPF para obtener visibilidad más allá de los límites de la aplicación para capacidades integrales de resolución de problemas.
+
+* **Añada la recopilación de logs para una resolución de problemas unificada:** una vez que esté listo, active los logs de eBPF para recopilar logs de aplicación sin desplegar un reenviador de logs independiente.
+
+## Muestreo de datos y ajuste fino [#data-sampling]
+
+Los agentes de lenguaje de APM limitan los **eventos de transacción** con un depósito fijo, de forma predeterminada **10 000 eventos por minuto** (configurado con `transaction_events.max_samples_stored`). El agente eBPF no utiliza un único límite fijo por minuto. En su lugar, muestrea cada tipo de telemetría de manera diferente, por lo que comprender cómo se comporta cada tipo le ayuda a controlar el volumen de datos y el costo sin perder las señales que le interesan.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Tipo de datos
+      </th>
+
+      <th>
+        ¿Muestreado?
+      </th>
+
+      <th>
+        Controles
+      </th>
+
+      <th>
+        Por defecto
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Métricas (rendimiento, latencia, tasa de errores)
+      </td>
+
+      <td>
+        No, siempre completo
+      </td>
+
+      <td>
+        `protocols.<protocol>.enabled`
+      </td>
+
+      <td>
+        Habilitado por protocolo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Se extiende
+      </td>
+
+      <td>
+        Sí, por umbral
+      </td>
+
+      <td>
+        `samplingLatency`
+
+        , 
+
+        `samplingErrorRate`
+      </td>
+
+      <td>
+        `p50`
+
+         latencia
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Spans no vinculados (sin padre)
+      </td>
+
+      <td>
+        Sí, limitado
+      </td>
+
+      <td>
+        `max_unlinked_spans`
+
+        , 
+
+        `unlinked_spans_error_quota_percentage`
+      </td>
+
+      <td>
+        `100`
+
+         por protocolo, 
+
+        `30`
+
+        % reservado para errores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Logs
+      </td>
+
+      <td>
+        Sí, depósito
+      </td>
+
+      <td>
+        `maxSamplesPerMinute`
+      </td>
+
+      <td>
+        `10000`
+
+         por minuto
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Las métricas nunca se muestrean, los dashboards de rendimiento, latencia y tasa de errores se mantienen precisos incluso cuando los spans se muestrean de forma agresiva. El muestreo de spans solo afecta a las trazas individuales que puede inspeccionar, no a las métricas agregadas.
+</Callout>
+
+### Cómo funciona el muestreo de spans [#span-sampling]
+
+El agente eBPF no limita los spans a un número fijo por minuto. Para cada protocolo, exporta solo los spans que cruzan un umbral que establezca:
+
+* **Umbral de latencia** (`samplingLatency`): exporta los spans más lentos que el percentil elegido para una ruta determinada. El valor predeterminado es `p50` (la mediana). Auméntelo hacia `p90` o `p99` para mantener solo la cola más lenta y reducir el volumen de datos; redúzcalo hacia `p1` o `p0` para mantener casi todos los spans y aumentar la visibilidad. Se acepta cualquier percentil de `p0` a `p99`.
+* **Umbral de tasa de errores** (`samplingErrorRate`, HTTP): un valor de `1` a `100`. Cuando la tasa de errores de una ruta supera este umbral, se exportan los spans de esa ruta para que las fallas nunca se descarten por muestreo. Déjelo vacío para deshabilitar la exportación basada en errores.
+
+### Control de spans no vinculados [#unlinked-spans]
+
+Los spans que el agente captura pero que no puede asociar con un padre se denominan spans *no vinculados*. Están limitados por protocolo por `max_unlinked_spans` (predeterminado `100`; establézcalo en `0` para deshabilitar el límite). La configuración `unlinked_spans_error_quota_percentage` (predeterminado `30`) reserva parte de ese presupuesto para los spans de error, de modo que las fallas permanezcan visibles incluso cuando los spans normales lleguen primero.
+
+### Ejemplos de ajuste [#tuning-examples]
+
+El muestreo se configura en el archivo `values.yaml` de Helm (Kubernetes) o en `/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml` (host de Linux). Las claves son idénticas para ambos.
+
+```yaml
+protocols:
+  global:
+    max_unlinked_spans: 100          # 0 disables the cap
+    unlinked_spans_error_quota_percentage: 30
+  http:
+    enabled: true
+    spans:
+      enabled: true
+      samplingLatency: "p90"         # keep only slower requests, less data
+      samplingErrorRate: "5"         # always keep routes with >5% errors
+logDataFilters:
+  applicationLogReporting:
+    maxSamplesPerMinute: 10000         # APM-equivalent reservoir for logs
+```
+
+### Recomendaciones [#sampling-recommendations]
+
+* **Para maximizar la visibilidad de las trazas:** reduzca `samplingLatency` hacia `p0` y establezca un `samplingErrorRate` bajo, pero espere una mayor ingesta.
+* **Para reducir los datos:** aumente `samplingLatency` (por ejemplo, `p90` o `p99`), deshabilite los protocolos no deseados por completo (o solo `spans.enabled: false` para mantener únicamente las métricas del protocolo) y reduzca `maxSamplesPerMinute` para los registros.
+* **Tenga en cuenta las métricas:** las métricas no se ven afectadas por el muestreo de spans. Deshabilite un protocolo completo solo cuando no necesite sus datos en absoluto.
 
 ## Artículos relacionados [#related-articles]
 
@@ -366,6 +524,10 @@ Al seguir las prácticas anteriores, puede utilizar el agente eBPF único para g
 
   <DocTile title="Instalación de eBPF Linux" path="/docs/ebpf/linux-installation/">
     Aprenda a configurar el agente eBPF de New Relic para su host Linux.
+  </DocTile>
+
+  <DocTile title="Logs eBPF" path="/docs/ebpf/logs/">
+    Aprenda a recopilar logs de aplicación con el agente eBPF de New Relic.
   </DocTile>
 
   <DocTile title="resolución de problemas eBPF" path="/docs/ebpf/troubleshooting/no-ui-data/">
