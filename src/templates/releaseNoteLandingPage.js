@@ -47,10 +47,13 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   }, []);
 
   const sortedPosts = uniquePosts.slice().sort((a, b) => {
-    // Sort by releaseDate descending
-    return (
-      new Date(b.frontmatter.releaseDate) - new Date(a.frontmatter.releaseDate)
-    );
+    // Sort by releaseDate descending, then by version descending to break ties
+    const dateDiff =
+      new Date(b.frontmatter.releaseDate) - new Date(a.frontmatter.releaseDate);
+
+    return dateDiff !== 0
+      ? dateDiff
+      : Number(b.frontmatter.version) - Number(a.frontmatter.version);
   });
 
   const title = `${subject} release notes`;
@@ -238,7 +241,10 @@ export const pageQuery = graphql`
       filter: {
         frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
       }
-      sort: { fields: [frontmatter___releaseDate], order: [DESC] }
+      sort: {
+        fields: [frontmatter___releaseDate, frontmatter___version]
+        order: [DESC, DESC]
+      }
       limit: $limit
       skip: $skip
     ) {

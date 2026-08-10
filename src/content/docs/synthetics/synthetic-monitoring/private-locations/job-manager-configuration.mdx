@@ -84,6 +84,8 @@ Environmental variables allow you to fine-tune the synthetics job manager config
 
             For [EU-based](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy) accounts, the endpoint is: `https://synthetics-horde.eu01.nr-data.net/`
 
+            For JP-based accounts, the endpoint is: `https://synthetics-horde.jp.nr-data.net/`
+
             Ensure your synthetics job manager can connect to the appropriate endpoint in order to serve your monitor.
           </td>
         </tr>
@@ -280,6 +282,8 @@ Environmental variables allow you to fine-tune the synthetics job manager config
           For US-based accounts, the endpoint is: `https://synthetics-horde.nr-data.net.`
 
           For [EU-based](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy) accounts, the endpoint is: `https://synthetics-horde.eu01.nr-data.net/`
+
+          For JP-based accounts, the endpoint is: `https://synthetics-horde.jp.nr-data.net/`
 
           Ensure your synthetics job manager can connect to the appropriate endpoint in order to serve your monitor.
         </td>
@@ -571,6 +575,8 @@ Environmental variables allow you to fine-tune the synthetics job manager config
             For US-based accounts, the endpoint is: `https://synthetics-horde.nr-data.net.`
 
             For [EU-based](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy) accounts, the endpoint is: `https://synthetics-horde.eu01.nr-data.net/`
+
+            For JP-based accounts, the endpoint is: `https://synthetics-horde.jp.nr-data.net/`
 
             Ensure your synthetics job manager can connect to the appropriate endpoint in order to serve your monitor.
           </td>
@@ -1038,6 +1044,8 @@ Environmental variables allow you to fine-tune the synthetics job manager config
             For US-based accounts, the endpoint is: `https://synthetics-horde.nr-data.net.`
 
             For [EU-based](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy) accounts, the endpoint is: `https://synthetics-horde.eu01.nr-data.net/`
+
+            For JP-based accounts, the endpoint is: `https://synthetics-horde.jp.nr-data.net/`
 
             Ensure your synthetics job manager can connect to the appropriate endpoint in order to serve your monitor.
           </td>
@@ -1799,6 +1807,160 @@ In addition to local and hosted modules, you can utilize [Node.js modules](/docs
   Local modules: While your `package.json` can include any local module, these modules must reside inside the tree under your custom module directory. If stored outside the tree, the initialization process will fail and you will see an error message in the [docker logs](/docs/synthetics/new-relic-synthetics/private-locations/job-manager-maintenance-monitoring#monitor-docker-logs) after launching SJM.
 </Callout>
 
+## Configure custom CA certificates for private locations [#custom-ca-certificates]
+
+If your synthetic monitors need to connect to internal HTTPS endpoints secured by a private Certificate Authority (CA), you can mount your custom CA certificates directly into the SJM.
+
+The SJM automatically detects these certificates and passes them to each runtime container at startup. This ensures your monitors trust your internal endpoints without requiring you to build or maintain custom runtime images.
+
+### Certificate requirements
+
+To ensure the SJM loads your certificates successfully, they must meet the following criteria:
+
+- **Format:** Certificates must be in PEM format with a `.pem` file extension.
+- **Permissions:** Files must be readable by UID 2000 (the non-root user that runs the runtime container).
+- **Certificate type:** Only CA certificates are loaded. Any leaf certificates (server or client certificates) that lack the `CA:TRUE` basic constraint extension are automatically ignored.
+
+### Deployment environments
+
+Select your container orchestration platform below to mount your certificates.
+
+<CollapserGroup>
+  <Collapser id="custom-ca-docker" title="Docker">
+    Mount the local host directory containing your PEM files to the SJM container path `/var/lib/newrelic/synthetics/certs` as a read-only volume.
+
+    ```sh
+    docker run \
+      -v /PATH/TO/YOUR_CA_CERTS:/var/lib/newrelic/synthetics/certs:ro \
+      newrelic/synthetics-job-manager
+    ```
+
+    **How this works:** The SJM detects this mount at startup and propagates the certificates as read-only to every dynamic container it spawns.
+  </Collapser>
+
+  <Collapser id="custom-ca-podman" title="Podman">
+    For Podman environments—especially those running with SELinux enabled—you must append the `:z` or `:Z` flag to the volume mount to configure the correct security context.
+
+    ```sh
+    podman run \
+      -v /PATH/TO/YOUR_CA_CERTS:/var/lib/newrelic/synthetics/certs:ro,z \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser id="custom-ca-kubernetes" title="Kubernetes (Helm)">
+    When deploying SJM to a Kubernetes cluster via Helm, you can manage your custom CA bundle as a generic Kubernetes secret.
+
+    **1. Create the Kubernetes secret**
+
+    Store your PEM certificate file(s) in a secret within your New Relic agent namespace:
+
+    ```sh
+    kubectl create secret generic my-ca-bundle \
+      --from-file=/PATH/TO/YOUR_CA_CERTS/ \
+      -n newrelic
+    ```
+
+    **2. Update your Helm values**
+
+    Reference the newly created secret in your custom `values.yaml` configuration:
+
+    ```yaml
+    global:
+      customCertificates:
+        volume:
+          secret:
+            secretName: my-ca-bundle
+    ```
+
+    **How this works:** At startup, the SJM mounts this secret and automatically passes it down to all newly spawned execution pods.
+  </Collapser>
+</CollapserGroup>
+
+## mTLS client certificates [#mtls-client-certificates]
+
+If your monitors connect to internal endpoints that enforce mutual TLS (mTLS) — requiring the client to present a certificate — you can provide client certificates mapped to target hostnames. Monitors present the correct certificate automatically. No script changes are required.
+
+**Requirements:**
+- Certificate and key files must be in PEM format
+- A `cert-map.json` file mapping hostnames to certificate and key files is required
+
+**cert-map.json format:**
+
+```json
+{
+  "api.internal.company.com": { "cert": "client.crt",   "key": "client.key" },
+  "*.payments.internal":      { "cert": "payments.crt", "key": "payments.key" },
+  "default":                  { "cert": "fallback.crt", "key": "fallback.key" }
+}
+```
+
+Hostname matching priority: exact match → wildcard (`*.domain.com`) → `default` catch-all → no certificate (non-mTLS connections are unaffected).
+
+<CollapserGroup>
+  <Collapser id="mtls-docker" title="Docker">
+    Mount a directory containing `cert-map.json` and the referenced certificate and key files:
+
+    ```sh
+    docker run \
+      -v /path/to/ca-certs:/var/lib/newrelic/synthetics/certs:ro \
+      -v /path/to/client-certs:/var/lib/newrelic/synthetics/client-cert:ro \
+      newrelic/synthetics-job-manager
+    ```
+
+    If the mTLS server hostnames are not resolvable via DNS inside the runtime containers, add hostname mappings using `RUNTIME_EXTRA_HOSTS`:
+
+    ```sh
+    docker run \
+      -e 'RUNTIME_EXTRA_HOSTS=api.internal.company.com:10.0.0.1,svc.internal:10.0.0.2' \
+      -v /path/to/client-certs:/var/lib/newrelic/synthetics/client-cert:ro \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser id="mtls-podman" title="Podman">
+    Mount the client certificate directory. For SELinux add `:z` or `:Z`:
+
+    ```sh
+    podman run \
+      -v /path/to/client-certs:/var/lib/newrelic/synthetics/client-cert:ro,z \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser id="mtls-kubernetes" title="Kubernetes">
+    Create a Kubernetes Secret containing `cert-map.json` and all referenced certificate and key files:
+
+    ```sh
+    kubectl create secret generic my-mtls-certs \
+      --from-file=cert-map.json=/path/to/cert-map.json \
+      --from-file=client.crt=/path/to/client.crt \
+      --from-file=client.key=/path/to/client.key \
+      -n newrelic
+    ```
+
+    Reference the secret in your Helm values:
+
+    ```yaml
+    global:
+      clientCertificates:
+        volume:
+          secret:
+            secretName: my-mtls-certs
+    ```
+
+    The secret is mounted read-only into all runtime pods automatically.
+  </Collapser>
+</CollapserGroup>
+
+## Certificates support limitations [#certificates-support-limitations]
+
+The following limitations apply to both custom CA certificates and mTLS client certificates unless noted:
+
+- **Restart required for cert changes** — Certificates are loaded at container startup. After adding, removing, or rotating certificates, restart the job manager container (or the runtime pods in Kubernetes) for changes to take effect.
+- **Supported runtimes** — Custom certificate features apply to scripted API and scripted browser monitors only. Ping monitors are not affected.
+- **Unique Subject CN per certificate (mTLS only)** — Each client certificate must have a unique Subject Common Name (CN). Chrome uses the CN to identify and auto-select the correct certificate per hostname.
+
 ## Permanent data storage [#permanent-data-storage]
 
 Users may want to use permanent data storage to provide the `user_defined_variables.json` file or support custom node modules.
@@ -1992,8 +2154,8 @@ While they are less resource-intensive, a high volume of ping jobs, especially f
 </Collapser>
 
 
-<Collapser 
-  id="k8s-sizing" 
+<Collapser
+  id="k8s-sizing"
   title="For Kubernetes and OpenShift"
 >
 

@@ -1,0 +1,147 @@
+---
+title: IBM MQ OpenTelemetry監視の概要
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+metaDescription: 'Monitor IBM MQ queue managers with the OpenTelemetry Collector: ship queue manager, queue, and channel metrics to New Relic from a Linux host or Kubernetes.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+現代のエンタープライズアーキテクチャーは、支払いの処理、注文のルーティング、サービスの同期マッチングなどの重要なタスクを処理するために、メッセージ駆動型アプリケーションに大きく依存しています。しかし、これらのメッセージバックボーンが拡張するにつれて、パフォーマンス低下を追跡することは複雑になります。アプリケーションが突然遅くなることを想像してみてください。深い可視性がなければ、遅延の原因がアプリケーション消費者にあるのか、IBM MQキューのバックログにあるのかを特定することは非常に困難です。
+
+New Relicは、IBM MQキューマネージャーに純粋なOpenTelemetry監視パスを提供することで、これらのオブザーバビリティのギャップを埋めるのに役立ちます。IBM MQチームの公式[mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) Prometheusエクスポーターを活用することで、OpenTelemetry Collectorは生のテレメトリーを収集し、New Relicのデータベースに直接整形します。各キューマネージャーは個別の`IBMMQ_MANAGER`エンティティとして自動的に表示され、そのキューは子`IBMMQ_QUEUE`エンティティとしてマッピングされます — プロプライエタリなエージェントを一切必要とせずに、事前構築済みのダッシュボード、アラート、およびシステムのゴールデンシグナルに即座にアクセスできます。
+
+<img title="IBM MQ OpenTelemetry dashboard" alt="New Relic dashboard showing IBM MQ queue manager health, connections, message rates, and queue depth" src="/images/ibm-mq-otel.webp" />
+
+<figcaption>
+  New Relic IBM MQダッシュボードで、キューマネージャーのヘルス、接続、メッセージスループット、およびキューの深さを可視化します。
+</figcaption>
+
+## 主な特徴 [#key-features]
+
+New RelicのIBM MQ OpenTelemetryインテグレーションにより、独自のエージェントのオーバーヘッドなしに、メッセージングインフラストラクチャに対する詳細でベンダーニュートラルな可視性が得られます。このインテグレーションを実装することで、非同期システムをスムーズに稼働させるために設計された4つのコア監視機能を利用できるようになります：
+
+* **自動化されたバックログの防止とアラート:** メッセージ配信パスの死角を排除します。メッセージングバックボーンに依存するダウンストリームアプリケーションで遅延が発生する前にボトルネックを捕捉するために、キューの深さの増加、コミットされていないメッセージのスパイク、および停止したチャネルに対するアクティブなアラートを構成できます。
+
+* **詳細なスループットとパフォーマンスの最適化:** メッセージ処理が遅延している箇所を正確に特定します。リアルタイムのMQPUTおよびMQGETレートを接続数やキュー待機時間とともに追跡することで、処理の遅延の原因がIBM MQブローカー自体にあるのか、それとも遅いアプリケーション消費者にあるのかを迅速に判断できます。
+
+* **プロアクティブなキャパシティとリソースのサイジング:** インフラストラクチャのスケーリングから推測を排除します。インテグレーションは、重要なホストレベルのブローカーメトリクス — アクティブなログファイルのサイズ閾値、ファイルシステムの使用量、オープンハンドルの傾向など — を提示し、リソースの枯渇によってブローカーがクラッシュする前に、キューマネージャーをプロアクティブにスケーリングできるようにします。
+
+* **信頼性の高い配信とデッドレターキュー（DLQ）の追跡:** トランザクションデータの整合性を保護します。チャネルステータスの変更を即座にモニターし、デッドレターキューの蓄積を追跡し、失敗したMQI呼び出しを早期に捕捉して、データが永久に失われる前にルーティングの構成ミスやドロップオフを特定します。
+
+## 使い方 [#how-it-works]
+
+テレメトリーデータがどのように収集、処理、モデル化されるかを理解することは、監視パイプラインを最適化するのに役立ちます。以下のセクションでは、インテグレーションがブローカーからUIまでデータをどのように処理するかを正確に解説します。
+
+### テレメトリーデータフロー [#telemetry]
+
+テレメトリーデータは、New Relic内で視覚化される前に、4つの異なるレイヤーを順番に流れます：
+
+1. **ブローカーレイヤー:** 各IBM MQキューマネージャーは、Programmable Command Format（PCF）を使用して、運用パフォーマンスの統計をネイティブに追跡します。
+2. **エクスポーター層:** 必須の`mq-metric-samples`エクスポーターは、これらのPCF統計をプルし、標準のHTTP`/metrics`Prometheusエンドポイントで公開します。各セットアップガイドでは、このコンポーネントがクラスタ内で既に実行されていることを前提としています。
+3. **Collectorレイヤー:** エクスポーターのエンドポイントをスクレイプするようにOpenTelemetry Collectorを設定します。コレクターはバックグラウンドノイズをフィルタリングし、IDタグをフォーマットして、クリーンなOTLPデータをNew Relicに転送します。
+4. **合成レイヤー:** New RelicはOTLPペイロードを受信し、データを読みやすく、ナビゲート可能なIBM MQワークスペースエンティティに自動的にマッピングします。
+
+### パイプライン処理チェーン [#processing]
+
+データをクリーンに保ち、取り込みレートを最適化するために、コレクターによって収集されたすべてのメトリクスは、`config.yaml`ファイル内の自動化された順序に依存する処理シーケンスを経由します：
+
+1. Prometheus Ingest: 実行中のエクスポーターから生のPrometheus`/metrics`エンドポイントをスクレイプします。
+2. オーバーヘッドフィルター: ボリュームノイズを最小限に抑えるために、エクスポーター自身のセルフメトリクスとバックグラウンドトラッキングサイクルを破棄します。
+3. キューフィルター：アクティブなパフォーマンス追跡を必要としない内部システムキューを除外します。
+4. リソース検出: ペイロードにホストインフラストラクチャのIDタグと環境メタデータをスタンプします。
+5. ラベル変換: 生のPrometheusラベルを標準のドット付きOTel形式に正規化します。たとえば、`targetName`を`target.name`に再マッピングします。
+6. メモリリミッター: ホストの安定性を保護するために、コレクタープロセスに厳密なメモリカプセルバッファを課します。
+7. Cumulative-to-Delta: 絶対的で連続的なPrometheusメトリクスカウンターを明確なデルタ値に変換します。
+8. バッチバンドリング: ネットワーク効率を最大化するために、個々のテレメトリーイベントをバッチ処理されたOTLPペイロードにグループ化します。
+9. OTLP HTTP Export: 確定され、圧縮されたデータブロックをNew Relicのデータ取り込みシステムに直接送信します。
+
+### Collectorのデプロイメントオプション [#collector-options]
+
+New Relicは、IBM MQインテグレーション向けに2つのOpenTelemetry Collectorディストリビューションを完全にサポートしています。どちらのオプションも同一の機能を提供し、同じコア設定ファイルを共有します：
+
+* **NRDOT Collector（推奨）:** New Relicのテクニカルサポート支援によって直接バックアップされた、OpenTelemetry CollectorのNew Relicによる厳選されたディストリビューションです。[NRDOT Collector GitHubリポジトリ](https://github.com/newrelic/nrdot-collector-releases/tree/main/distributions/nrdot-collector)でオープンソースのコードベースを確認してください。
+* **OpenTelemetry Collector:** アップストリームのCNCFコミュニティディストリビューション。プロジェクトの詳細については、[OpenTelemetry Collector ContribのGitHubリポジトリ](https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib)を確認してください。
+
+### IBM MQエンティティモデル [#entity-model]
+
+New Relicは、テレメトリーストリーム内の特定のマーカーを評価して、生データを自動的にエンティティに合成します：
+
+* `ibmmq_qmgr_status`などの生のアンダースコア付きメトリクス名と `ibmmq_queue_depth`
+* 構造的な`qmgr`および`queue`データラベル
+* コレクターのセットアップに応じた`target.name`ID属性
+
+これらのルールを使用して、プラットフォームはデータを明確な親子構造に編成します：
+
+| エンティティタイプ       | 複合アイデンティティキー             | コア表現                                  |
+| :-------------- | :----------------------- | :------------------------------------ |
+| `IBMMQ_MANAGER` | `target.name:qmgr`       | 単一のキューマネージャーを表します。例： `prod-mq-01:QM1` |
+| `IBMMQ_QUEUE`   | `target.name:qmgr:queue` | マネージャー内にネストされた単一のメッセージキューを表します        |
+
+<Callout variant="caution">
+  メトリクス名や`qmgr`および`queue`ラベルの名前を変更しないでください。New Relicは、ワークスペースを自動的に合成するために、生のPrometheusアンダースコア形式（`ibmmq_*`）に依存しています。これらの名前を変更したり、ドット表記に変換したりすると、インテグレーションが機能しなくなり、ダッシュボードが空になります。唯一の例外は`targetName`および`clusterName`スクレイプラベルであり、プラットフォームのルックアップキーを満たすために`target.name`および`cluster.name`にマッピングする必要があります。
+</Callout>
+
+## 始めましょう [#get-started]
+
+IBM MQ監視パイプラインのセットアップには、3つの主要な実装フェーズが含まれます。
+
+<Steps>
+  <Step>
+    ### 前提条件 [#prereq]
+
+    環境が、その環境に対して定義されたインテグレーションのすべての要件を満たしていることを確認してください：
+
+    * [セルフホスト](/docs/opentelemetry/integrations/ibm-mq/host/#prereq)の場合
+    * [Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes/#prereq)の場合
+  </Step>
+
+  <Step>
+    ### Collectorのセットアップ [#collector-setup]
+
+    インフラストラクチャに基づいてインストレーションパスを選択してください：
+
+    * [セルフホスト](/docs/opentelemetry/integrations/ibm-mq/host)の場合
+    * [Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes)の場合
+  </Step>
+
+  <Step>
+    ### 自分のデータを見る [#view-data]
+
+    コレクターのセットアップが完了すると、New RelicでIBM MQのメトリクスを表示し、NRQLでクエリを実行し、ダッシュボードを構築して、アラートを設定できます。詳細については、[データの表示とクエリ](/docs/opentelemetry/integrations/ibm-mq/view-data)ドキュメントを参照してください。
+
+    <Callout variant="important">
+      New Relic IBM MQインテグレーションは、さまざまなブローカーメトリクスを追跡します。サポートされているデータ型と属性の詳細については、『[IBM MQメトリクスリファレンス](/docs/opentelemetry/integrations/ibm-mq/metrics)ガイド』を参照してください。
+    </Callout>
+  </Step>
+</Steps>
+
+{/* ## Available metrics [#metrics]
+
+The collector gathers queue manager, queue, and channel metrics from the mq-metric-samples exporter, including:
+
+- **Queue manager health** — running status, connection counts, and command-server and channel-initiator status
+- **Queue state and throughput** — depth, maximum depth, oldest-message age, MQPUT/MQGET rates, and queue times
+- **Channel and messaging** — channel status, messages and bytes transferred, and publish/subscribe activity
+
+Throughput and timing metrics (MQPUT/MQGET counts, queue times) appear only once MQI statistics are enabled on the queue manager — each setup guide shows how.
+
+**For the complete metric list, types, and attributes:** see the [IBM MQ OpenTelemetry metrics reference](/docs/opentelemetry/integrations/ibm-mq/ibm-mq-otel-metrics-reference). */}
+
+## 関連ドキュメント [#related-docs]
+
+<DocTiles>
+  <DocTile title="IBM MQのセルフホスト型計装" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    New Relicでセルフホスト型監視のためにIBM MQを設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="IBM MQのKubernetes計装" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    New RelicでIBM MQ for Kubernetes監視を設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="データの表示およびクエリ" path="/docs/opentelemetry/integrations/ibm-mq/view-data">
+    New RelicでIBM MQデータを表示およびクエリする方法をご覧ください。
+  </DocTile>
+</DocTiles>

@@ -1,0 +1,285 @@
+---
+title: 뉴렐릭에서 IBM MQ 데이터 찾기 및 쿼리
+metaDescription: 'Find your IBM MQ metrics in New Relic, query queue managers and queues with NRQL, create dashboards and alerts, and troubleshoot data visibility.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+수집기가 실행되고 데이터가 흐르면 뉴렐릭에서 IBM MQ 메트릭을 확인하고, NRQL로 쿼리하고, 대시보드를 구축하고, 알림을 설정할 수 있습니다. 각 큐 관리자는 `IBMMQ_MANAGER` 엔티티(`target.name:qmgr`(으)로 키 지정됨)로 표시되며 해당 큐는 하위 `IBMMQ_QUEUE` 엔티티로 표시됩니다.
+
+## 뉴렐릭에서 IBM MQ 데이터 보기 [#find-data]
+
+몇 분 후 뉴렐릭에 IBM MQ 메트릭이 나타납니다. 파이프라인은 원시 Prometheus 형태 ― 밑줄 메트릭 이름(`ibmmq_*`) 및 원시 `qmgr` 및 `queue` 레이블 ― 를 유지하고 모든 메트릭에 `target.name` ID를 부여하며, 뉴렐릭은 이를 사용하여 엔티티를 합성합니다.
+
+<CollapserGroup>
+  <Collapser id="via-entity-explorer" title="엔티티 탐색기를 통해">
+    1. <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **All entities**</DNT> 으)로 이동합니다.
+    2. `IBMMQ_MANAGER` 및 `IBMMQ_QUEUE`을(를) 필터링하거나 큐 관리자 이름을 검색합니다.
+    3. 큐 관리자를 열어 골든 메트릭 ― 연결, 풋/겟 메시지 속도 ― 과 큐가 관련 엔티티로 나열된 사전 구축된 IBM MQ 대시보드를 확인합니다.
+  </Collapser>
+
+  <Collapser id="via-dashboard" title="IBM MQ 대시보드를 통해">
+    `IBMMQ_MANAGER` 엔티티를 열면 뉴렐릭은 큐 관리자 상태, 연결, 메시지 처리량, 오류 및 파일 시스템 사용량을 요약하는 사전 구축된 대시보드를 표시합니다. 큐별 깊이, 메시지 수명 및 처리량을 확인하려면 `IBMMQ_QUEUE` 엔티티를 엽니다. 직접 구축할 수도 있습니다 ― [커스텀 대시보드 생성](#dashboards)을 참조하세요.
+  </Collapser>
+</CollapserGroup>
+
+데이터 가시성 문제를 해결하려면 [문제 진단, 해결](/docs/opentelemetry/integrations/ibm-mq/troubleshooting) 문서를 참조하십시오.
+
+## NRQL로 데이터 쿼리 [#query-data]
+
+<Callout variant="tip">
+  밑줄 이름과 원시 레이블로 메트릭 쿼리 — `ibmmq_qmgr_status`, `ibmmq_queue_depth`, `qmgr`, `queue`. 메트릭 이름은 점으로 구분되지 **않으며** `qmgr` 레이블은 이름이 변경되지 **않으므로**, `ibmmq.*` 또는 `ibmmq.queue_manager.name` 에 대해 작성된 NRQL은 일치하지 않습니다.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        사용 사례
+      </th>
+
+      <th>
+        질문
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        데이터가 모든 IBM MQ 메트릭으로 유입되는지 확인하려면
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT count(*) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        보고 중인 큐 관리자를 계산하려면(각각 하나의 
+
+        `IBMMQ_MANAGER`
+
+         엔티티가 됩니다).
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT uniqueCount(qmgr) WHERE metricName LIKE 'ibmmq_%' FACET target.name SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        대기열 관리자당 하나의 행으로 대기열 관리자 상태(
+
+        `2`
+
+         \=실행 중)를 확인하십시오.
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        채널 상태를 확인하려면(
+
+        `3`
+
+         \=실행 중)
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        모든 모니터 대기열의 현재 깊이를 확인하십시오.
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) FACET qmgr, queue SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        일반적인 공지 신호로서 플릿 전체의 데드 레터 대기열 깊이를 확인하십시오.
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        대기열 처리량, 분당 put 및 get을 확인하십시오. MQI 통계를 활성화해야 합니다.
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT rate(sum(ibmmq_queue_mqput_count), 1 minute) AS 'Puts/min', rate(sum(ibmmq_queue_mqget_count), 1 minute) AS 'Gets/min' FACET qmgr, queue TIMESERIES SINCE 1 hour ago
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+엔티티를 직접 찾아보려면 뉴렐릭 UI의 <DNT>**All entities**</DNT> (으)로 이동하여 `IBMMQ_MANAGER` 및 `IBMMQ_QUEUE` 엔티티를 필터링하거나 위의 쿼리 중 하나에서 큐 관리자를 엽니다.
+
+## 맞춤형 대시보드 만들기 [#dashboards]
+
+자체 IBM MQ 대시보드를 구축하려면:
+
+1. <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **Dashboards**</DNT> 으로 이동하여 <DNT>**Create a dashboard**</DNT> 클릭합니다.
+
+2. 위젯을 추가하고 <DNT>**Add a chart**</DNT>을(를) 선택한 다음 [위의 NRQL 쿼리](#query-data) 중 하나를 붙여넣습니다.
+
+3. 한눈에 파악할 수 있도록 포커스 영역별로 위젯을 그룹화합니다:
+
+   * **큐 관리자 건전성** — `ibmmq_qmgr_status`, `ibmmq_qmgr_connection_count`, `ibmmq_channel_status`
+   * **큐 깊이 및 백로그** ― `ibmmq_queue_depth`, `ibmmq_queue_oldest_message_age`, `ibmmq_queue_uncommitted_messages`
+   * **처리량** — `ibmmq_queue_mqput_count`, `ibmmq_queue_mqget_count` (비율로 차트에 표시됨)
+   * **용량** — `ibmmq_qmgr_log_in_use_bytes`, `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`
+
+## 알림 설정 [#alerts]
+
+메시징에 의존하는 애플리케이션에 영향을 미치기 전에 문제를 파악할 수 있도록 `ibmmq_*` 메트릭에 대한 [NRQL 공지 조건](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) 을 생성하십시오.
+
+다음 표는 권장 IBM MQ 공지 조건을 보여줍니다:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        공지
+      </th>
+
+      <th>
+        NRQL 쿼리
+      </th>
+
+      <th>
+        추천 레노버 값, 경계
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        큐 관리자가 실행 중이 아님
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr, target.name
+        ```
+      </td>
+
+      <td>
+        값이 최소 2분 동안 
+
+        `2`
+
+         와(과) 같지 않은 경우 Critical입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        채널이 실행 중이 아님
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel
+        ```
+      </td>
+
+      <td>
+        값이 최소 5분 동안 
+
+        `3`
+
+         과(와) 같지 않으면 Critical 상태가 됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        큐가 최대치를 향해 채워짐
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) / latest(ibmmq_queue_attribute_max_depth) * 100 AS 'Depth %' FACET qmgr, queue
+        ```
+      </td>
+
+      <td>
+        `80%`
+
+        에서 경고, 
+
+        `95%`
+
+        에서 심각입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        데드 레터 큐의 메시지
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr
+        ```
+      </td>
+
+      <td>
+        값이 
+
+        `0`
+
+        보다 클 때 Critical입니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 관련 문서 [#related-docs]
+
+<DocTiles>
+  <DocTile title="IBM MQ용 Kubernetes 계측" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    뉴렐릭에서 Kubernetes 모니터링을 위한 IBM MQ를 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="지표 참조" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    뉴렐릭이 수집한 IBM MQ 메트릭에 대해 알아보세요.
+  </DocTile>
+
+  <DocTile title="문제점 해결" path="/docs/opentelemetry/integrations/ibm-mq/troubleshooting">
+    뉴렐릭에서 IBM MQ 모니터링 문제를 해결하는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>
