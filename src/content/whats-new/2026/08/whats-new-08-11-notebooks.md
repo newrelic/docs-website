@@ -5,12 +5,12 @@ releaseDate: '2026-08-11'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/notebooks/introduction-notebooks/'
 ---
 
-New Relic Notebooks is now generally available and integrated into the core New Relic platform. Notebooks let you build structured, collaborative documents that combine live telemetry queries, visualizations, and markdown text in a single workspace — ending "tab fatigue" and preserving the investigative context that disappears when an incident is over.
+New Relic Notebooks is now generally available and integrated into the core New Relic platform. Notebooks let you build structured, collaborative documents that combine live telemetry queries, visualizations, and markdown text in a single workspace—ending "tab fatigue" and preserving the investigative context that disappears when an incident is over.
 
 ## What you can do with Notebooks
 
 **Unified multi-cell canvas**
-Build step-by-step logical narratives by combining live telemetry and explanatory text in one collaborative workspace. Each cell can be an independent NRQL query, a visualization, or a block of markdown — so your analysis tells a complete story.
+Build step-by-step logical narratives by combining live telemetry and explanatory text in one collaborative workspace. Each cell can be an independent NRQL query, a visualization, or a block of markdown—so your analysis tells a complete story.
 
 **Save, share, and collaborate**
 Save notebooks as persistent documents and share them directly with teammates. Your investigative work no longer lives only in your browser history.
