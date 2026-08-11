@@ -1,0 +1,310 @@
+---
+title: Integrar manualmente seu Google Cloud Platform
+tags:
+  - Integrations
+  - Google Cloud Platform integrations
+  - Get started
+metaDescription: Connect your Google Cloud Platform project to New Relic using Workload Identity Federation and short-lived credentials.
+freshnessValidatedDate: '2026-06-30T00:00:00.000Z'
+translationType: machine
+---
+
+<DNT>**Workload Identity Federation (WIF)**</DNT> permite que a New Relic acesse as métricas do GCP usando tokens de curta duração em vez de chaves de longa duração. A conta de serviço é criada e controlada no próprio projeto do GCP, de modo que a New Relic nunca armazena credenciais estáticas.
+
+Este guia aborda a configuração manual por meio da [interface da New Relic](https://onenr.io/0VRVAVapXwa). Caso prefira infraestrutura como código, consulte [Automatizar com Terraform](/docs/infrastructure/google-cloud-platform-integrations/get-started/install-and-configure/connect-gcp-workload-identity-federation-terraform).
+
+<Callout variant="tip">
+  Já há projetos conectados com uma conta de serviço? Adicione novos projetos com WIF junto a eles — ambos os métodos funcionam na mesma conta da New Relic. Basta seguir este guia para adicionar uma conexão baseada em WIF.
+</Callout>
+
+## Requisitos [#requirements]
+
+Estes são os requisitos para a integração:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Requerimento
+      </th>
+
+      <th>
+        Detalhes
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Conta New Relic
+      </td>
+
+      <td>
+        É necessária uma conta New Relic com permissões de administrador. Caso ainda não tenha uma, [crie uma conta New Relic](https://newrelic.com/signup).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        APIs do GCP
+      </td>
+
+      <td>
+        No <DNT>**API &amp; Services Library**</DNT> do projeto do GCP, ative cinco APIs: IAM, Security Token Service, Service Account Credentials, Stackdriver Monitoring e Asset. Para ver a lista completa com os links, consulte [Ativar as APIs Necessárias do GCP](#step-2).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Permissões do GCP
+      </td>
+
+      <td>
+        São necessárias permissões para criar contas de serviço, pools de identidade de workload e vinculações do IAM — normalmente a função <DNT>**Owner**</DNT> ou <DNT>**IAM Admin**</DNT>.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Conta de serviço
+      </td>
+
+      <td>
+        É necessário criar uma conta de serviço com as funções <DNT>**Viewer**</DNT>, <DNT>**Service Usage Consumer**</DNT>, <DNT>**Cloud Asset Viewer**</DNT> e <DNT>**Folder Viewer**</DNT>. O New Relic personifica esta conta para ler as métricas. Para as etapas de configuração, consulte [Criar ou selecionar uma conta de serviço](#step-3).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Pool de identidade de workload
+      </td>
+
+      <td>
+        Um pool WIF com um provedor OIDC configurado para confiar no New Relic. O assistente de configuração orienta durante a criação. Para as etapas de configuração, consulte [Criar um Workload Identity Pool](#step-4) até [Configurar Atributos do Provedor](#step-6).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Devido a requisitos de segurança e conformidade, a integração do GCP com o New Relic não deve ser usada se as contas ou os dados estiverem sujeitos ao FedRAMP. O uso deste recurso com contas regulamentadas pelo FedRAMP é estritamente proibido.
+</Callout>
+
+## Integrar manualmente o GCP [#manual-setup]
+
+<Steps>
+  <Step>
+    ### Iniciar a integração no New Relic [#step-1]
+
+    1. Vá para <DNT>**Infrastructure &gt; Google Cloud Platform**</DNT> no New Relic.
+    2. Selecione <DNT>**Add a GCP account**</DNT> (ou o botão de ação principal se esta for a primeira integração).
+    3. Selecione a conta New Relic que deseja usar.
+    4. Em <DNT>**Select instrumentation method**</DNT>, escolha <DNT>**Workload Identity Federation**</DNT>.
+    5. Em <DNT>**Choose setup method**</DNT>, selecione <DNT>**Manually integrate your GCP project or folder**</DNT>.
+
+    {/* Image needed: the instrumentation method selection screen showing WIF highlighted as recommended */}
+  </Step>
+
+  <Step>
+    ### Ativar as APIs necessárias do GCP [#step-2]
+
+    1. Ative estas cinco APIs no projeto do GCP. Elas permitem que a New Relic autentique e colete dados:
+
+       * [IAM API](https://console.cloud.google.com/apis/library/iam.googleapis.com?pli=1): gerenciar o acesso à conta de serviço
+       * [API Security Token Service](https://console.cloud.google.com/apis/library/sts.googleapis.com): trocar tokens durante a autenticação WIF
+       * [Service Account Credentials API](https://console.cloud.google.com/apis/library/iamcredentials.googleapis.com): gerar token de acesso de curta duração
+       * [API de monitoramento do Stackdriver](https://console.cloud.google.com/apis/library/monitoring.googleapis.com): ler métricas do monitoramento de nuvem do GCP
+       * [Asset API](https://console.cloud.google.com/apis/library/cloudasset.googleapis.com): descobrir recursos e metadados
+       * [Cloud Resource Manager API](https://console.cloud.google.com/apis/library/cloudresourcemanager.googleapis.com): obter `displayName` da pasta
+
+    2. Confirme a caixa de seleção assim que todos os cinco estiverem ativados e, em seguida, selecione <DNT>**Continue**</DNT>.
+
+    {/* Image needed: prerequisites screen showing the five API links and confirmation checkbox */}
+  </Step>
+
+  <Step>
+    ### Criar ou selecionar uma conta de serviço [#step-3]
+
+    No projeto do GCP, criar uma conta de serviço para o New Relic personificar:
+
+    1. No Console do GCP, acesse <DNT>**[IAM &amp; Admin](https://console.cloud.google.com/projectselector2/iam-admin) &gt; Service Accounts**</DNT>.
+
+    2. Crie uma nova conta de serviço ou use uma existente.
+
+    3. Atribuir as seguintes funções à conta de serviço:
+
+       * <DNT>**Viewer**</DNT>
+       * <DNT>**Service Usage Consumer**</DNT>
+       * <DNT>**Cloud Asset Viewer**</DNT>
+       * <DNT>**Folder Viewer**</DNT> (necessário apenas para integrações configuradas no nível da pasta)
+
+    4. Selecione <DNT>**Save**</DNT>.
+
+    <Callout variant="important">
+      Para monitorar todos os projetos em uma pasta por meio de uma conexão, conceda essas funções na pasta em vez de em um único projeto. Consulte [Integrar no nível da pasta](#folder-level).
+    </Callout>
+
+    {/* Image needed: enabling service account screen with instructions */}
+  </Step>
+
+  <Step>
+    ### Criar um pool de identidade de workload [#step-4]
+
+    Um pool de identidades de workload é um contêiner para identidades externas (como o New Relic) de confiança.
+
+    1. No Console do GCP, acesse <DNT>**[IAM &amp; Admin &gt; Workload Identity Federation](https://console.cloud.google.com/getting-started)**</DNT>.
+    2. Selecione <DNT>**Get Started**</DNT> (ou <DNT>**Create Pool**</DNT>).
+    3. Insira um nome e uma descrição para o pool e, em seguida, ative o pool.
+    4. Selecione <DNT>**Continue**</DNT>.
+  </Step>
+
+  <Step>
+    ### Adicione um provedor OIDC ao pool [#step-5]
+
+    Isso instrui o GCP a confiar em token assinado pela New Relic.
+
+    1. Em <DNT>**Select a provider**</DNT>, escolha <DNT>**OpenID Connect (OIDC)**</DNT>.
+
+    2. Copie esses valores da interface da New Relic para o Console do GCP:
+
+       * <DNT>**Provider pool name**</DNT>: exibido na tela de configuração do New Relic.
+       * <DNT>**Issuer URL**</DNT>: mostrado na tela de configuração do New Relic (por exemplo, `https://oidc.newrelic.com/r/gcp-cmp`).
+
+    3. Em <DNT>**Allowed audiences**</DNT>, selecione-o e mantenha o público-alvo padrão desmarcado.
+
+    4. Copiar o <DNT>**Audience URL**</DNT> da interface do New Relic.
+
+    5. Selecione <DNT>**Continue**</DNT>.
+
+    {/* Image needed: create an identity pool screen showing provider name, issuer URL, and audience fields pre-filled from New Relic */}
+  </Step>
+
+  <Step>
+    ### Configurar atributos do provedor [#step-6]
+
+    Os mapeamentos de atributos informam ao GCP como ler os tokens da New Relic. Adicione estes dois mapeamentos:
+
+    | Atributo do Google        | Atributo OIDC             |
+    | ------------------------- | ------------------------- |
+    | `google.subject`          | `assertion.sub`           |
+    | `attribute.nr_account_id` | `assertion.nr_account_id` |
+
+    A interface da New Relic mostra o ID da conta pré-preenchido. Copie-o para o campo de condição no GCP.
+
+    <Callout variant="important">
+      A condição de atributo garante que apenas a conta da New Relic possa usar esse pool. Sem ela, qualquer conta da New Relic poderia acessar o projeto do GCP.
+    </Callout>
+
+    {/* Image needed: configure provider attributes screen showing the two mappings and the attribute condition */}
+  </Step>
+
+  <Step>
+    ### Conceder acesso ao pool [#step-7]
+
+    Conecte o pool de identidades à conta de serviço para que o New Relic possa representá-la:
+
+    1. Nos detalhes do pool, selecione <DNT>**Grant Access**</DNT>.
+    2. Habilite <DNT>**Grant access using service account impersonation**</DNT>.
+    3. Selecione a conta de serviço criada na etapa [Criar ou selecionar uma conta de serviço](#step-3).
+    4. Em <DNT>**Add principals**</DNT>, selecione <DNT>**Principal with access**</DNT>.
+    5. Adicione o atributo de identidade `nr_account_id` com o valor do [ID da conta](/docs/accounts-partnerships/accounts/account-setup/account-id) do New Relic.
+    6. Selecione <DNT>**Save**</DNT>.
+
+    {/* Image needed: GCP access pool details screen showing service account impersonation and identity attributes */}
+  </Step>
+
+  <Step>
+    ### Baixe e faça o upload do arquivo de configuração [#step-8]
+
+    Esta etapa vincula a configuração do GCP ao New Relic:
+
+    1. No Console do GCP, na seção <DNT>**Connected Service Accounts**</DNT> do pool, selecione a conta de serviço.
+
+    2. Definir estes parâmetros:
+
+       * <DNT>**Service Provider**</DNT>: selecione o provedor recém-criado.
+       * <DNT>**OIDC ID Token Path**</DNT>: selecionar `/`
+       * <DNT>**Format Type**</DNT>: JSON
+
+    3. Selecione <DNT>**Download Config**</DNT> para obter um arquivo JSON.
+
+    4. Retornar à tela de configuração da New Relic e fazer o upload deste arquivo JSON.
+
+    A New Relic valida a configuração com uma autenticação de teste. Se for bem-sucedido, uma mensagem <DNT>**Connection succeeded**</DNT> será exibida.
+
+    <Callout variant="important">
+      Não feche a guia do navegador antes de selecionar <DNT>**Continue**</DNT> após o upload. Caso o faça, o progresso será perdido.
+    </Callout>
+
+    {/* Image needed: application configuration screen showing the file upload area and the success toast */}
+  </Step>
+
+  <Step>
+    ### Selecionar projetos e serviços [#step-9]
+
+    Após a conexão ser verificada:
+
+    1. O New Relic lista os projetos do GCP que a conta de serviço pode acessar.
+    2. Expanda um projeto para ver os serviços disponíveis.
+    3. Selecione os serviços que deseja monitorar.
+    4. Selecione <DNT>**Instrument**</DNT> para começar a coletar dados.
+
+    Os serviços se dividem em duas categorias:
+
+    * <DNT>**Full entity support**</DNT> — métricas, entidades no explorador de entidades e dashboards.
+    * <DNT>**Metrics only**</DNT> — New Relic coleta métricas, mas não cria uma entidade.
+
+    {/* Image needed: project and service selection screen showing an expanded project with Full entity support / Metrics only tabs */}
+  </Step>
+</Steps>
+
+## Integrar no nível da pasta [#folder-level]
+
+Com a Workload Identity Federation, é possível integrar um único projeto ou uma pasta inteira de projetos. No GCP, ao conceder funções do IAM no nível da pasta, todos os projetos dentro dessa pasta as herdam. Portanto, se as funções da conta de serviço forem concedidas em uma pasta em vez de em um projeto, a New Relic poderá monitorar todos os projetos nessa pasta por meio de uma única conexão.
+
+Para fazer isso, em [Criar ou Selecionar uma Conta de Serviço](#step-3), é necessário conceder à conta de serviço as funções <DNT>**Viewer**</DNT>, <DNT>**Service Usage Consumer**</DNT>, <DNT>**Cloud Asset Viewer**</DNT> e <DNT>**Folder Viewer**</DNT> na pasta em vez de em um único projeto. Ao chegar a [Selecionar Projetos e Serviços](#step-9), o New Relic lista todos os projetos nessa pasta para que seja possível escolher quais monitorar.
+
+## Ver seus dados do GCP [#explore]
+
+Após a conclusão da configuração, o New Relic inicia o monitoramento dos dados do GCP em [intervalos de sondagem](/docs/infrastructure/google-cloud-platform-integrations/get-started/view-your-data/polling-intervals-gcp-integrations) regulares, e os dados aparecem na interface do New Relic após alguns minutos. Para saber como visualizar, consultar e explorar esses dados — incluindo dashboards, alertas e entidades —, consulte [Visualizar e consultar os dados do GCP](/docs/infrastructure/google-cloud-platform-integrations/get-started/view-your-data/view-and-query-your-gcp-data).
+
+## Vincule vários projetos do Google [#link-multiple]
+
+Uma única configuração WIF concede acesso aos projetos do GCP para os quais a conta de serviço tem permissões. Durante a configuração, a New Relic lista todos os projetos acessíveis para que seja possível selecionar quais monitorar.
+
+Para monitorar projetos adicionais do GCP posteriormente:
+
+* Se os novos projetos estiverem na mesma organização do GCP e a conta de serviço já tiver acesso, acesse <DNT>**Infrastructure &gt; GCP &gt; Manage services**</DNT> e adicione-os.
+* Se os novos projetos exigirem uma conta de serviço ou pool de identidades diferente, será necessário repetir a configuração para criar uma nova conexão WIF.
+
+## Gerenciar serviços [#manage]
+
+Após a configuração, é possível alterar quais serviços são monitorados para cada projeto:
+
+1. Vá para <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Infrastructure &gt; GCP**</DNT>.
+2. Selecione <DNT>**Manage services**</DNT> ao lado da conta.
+3. Ativar ou desativar serviços por projeto.
+4. Salve suas alterações.
+
+## Desative ou desvincule as integrações do GCP [#unlink]
+
+É possível desativar serviços individuais ou desconectar completamente o projeto do GCP da New Relic.
+
+### Desativar um ou mais serviços do GCP [#disable-services]
+
+1. Vá para <DNT>**Infrastructure &gt; GCP &gt; Manage services**</DNT>.
+2. Desmarque a caixa de seleção de cada serviço a ser desativado.
+3. Salve suas alterações.
+
+### Desconecte a conta do GCP totalmente [#disconnect-account]
+
+1. Vá para <DNT>**Infrastructure &gt; GCP &gt; Manage services**</DNT>.
+2. Selecione <DNT>**Unlink this account**</DNT>.
+3. Salve suas alterações.
+
+Após a desvinculação na New Relic, faça a limpeza no lado do GCP:
+
+1. Abra o console do GCP e acesse <DNT>**IAM &amp; Admin &gt; Workload Identity Federation**</DNT>.
+2. Exclua o pool de identidades criado para a New Relic ou remova o provedor OIDC dele.
+3. Opcionalmente, a conta de serviço pode ser excluída se tiver sido criada exclusivamente para o New Relic.
