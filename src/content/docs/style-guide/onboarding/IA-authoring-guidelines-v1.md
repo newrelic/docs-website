@@ -34,6 +34,8 @@ Seven load-bearing ideas. Everything else follows from these.
 
 Onboarding consists of two pages per supported combination. Each maps to one user intent.
 
+**Exception — UI-only product areas.** When a product area's only install path is a guided UI experience, onboarding consists of the **Intro page only**. No Install page is created, and the Intro omits `Installation at a glance` and `Next: install and configure`. The Intro orients the user and points them to the UI; the UI documents the workflow itself. See Section 7 (UI-as-docs rule).
+
 | Page | URL slug | User intent | Owns | Doesn't own |
 |---|---|---|---|---|
 | `onboarding-intro` | `intro` | "Is this for me?" | Overview of what the integration does, capabilities provided, install-path chooser (when there's more than one path), UI-alternative pointer, roundtrip TTFV, at-a-glance preview of the install-page tasks | Install steps, compatibility, requirements, verification |
@@ -67,11 +69,12 @@ Each onboarding page has a canonical structure: which sections appear, in what o
 | # | Req | Heading | Anchor | Purpose |
 |---|---|---|---|---|
 | 1 | ✓ | Capabilities | `#capabilities` | Bullet list of what the integration or feature provides. For telemetry-producing integrations: telemetry types (metrics, events, logs, traces, entities). For non-telemetry capabilities (Change Tracking, Alerts, SRE Agent, NR Control, Lens, etc.): what the feature does. Outliers get worked out with writers case by case. |
-| 2 | ◌ | Choose your install path | `#choose` | Bullet list of the supported install paths for this integration; mark the recommended one; one-line rationale per path (environment fit, upgrade model, tooling assumptions). Include only when the integration has multiple install paths. |
-| 3 | ◌ | Guided installation | `#ui-install` | One-sentence pointer to the NR1 entry point; no walkthrough. The anchor stays `#ui-install` for stability; the heading text reflects how the flow is framed in NR1. |
-| 4 | ◌ | Time to first data | `#ttfv` | One-line expectation, e.g., "Expect data within ~15 minutes." |
-| 5 | ✓ | Installation at a glance | `#at-a-glance` | Numbered preview of the high-level tasks on the Install page. Each item corresponds 1:1 to an actionable H2 on Install (see "Correspondence rule" below the table). Not the actual instructions — a glimpse that sets reader expectations before they click through. |
-| 6 | ✓ | Next: install and configure | `#next` | Link to the Install page in this flow |
+| 2 | ✓ | Pricing | `#pricing` | Content comes directly from Legal and Product — do not write it yourself. Paste approved copy as-is. If approved copy is not yet available, include a clearly marked placeholder naming the dependency and point of contact. |
+| 3 | ◌ | Choose your install path | `#choose` | Bullet list of the supported install paths for this integration; mark the recommended one; one-line rationale per path (environment fit, upgrade model, tooling assumptions). Include only when the integration has multiple install paths. |
+| 4 | ◌ | Guided installation | `#ui-install` | One-sentence pointer to the NR1 entry point; no walkthrough. The anchor stays `#ui-install` for stability; the heading text reflects how the flow is framed in NR1. |
+| 5 | ◌ | Time to first data | `#ttfv` | One-line expectation, e.g., "Expect data within ~15 minutes." |
+| 6 | ✓ | Installation at a glance | `#at-a-glance` | Numbered preview of the high-level tasks on the Install page. Each item corresponds 1:1 to an actionable H2 on Install (see "Correspondence rule" below the table). Not the actual instructions — a glimpse that sets reader expectations before they click through. Omit this section when there is no Install page (UI-only product areas). |
+| 7 | ✓ | Next: install and configure | `#next` | Link to the Install page in this flow. Omit when there is no Install page (UI-only product areas). |
 
 **Example — *Intro lede*:**
 
@@ -140,6 +143,8 @@ Worked mapping for a typical K8s Install page:
 | 5 | ✓ | Related articles | `#related-articles` | Affinity-based link set to deeper topics (using `<DocTiles>` or a bullet list) — advanced config, related integrations, usage/analysis references. Framed as related content, not sequential "next steps": onboarding was the sequential piece; from here on the content is a-temporal. `flow.next` is `null`. |
 
 **Guided-installation callout (not a section).** Between the lede and Compatibility, include a `<Callout variant="tip" title="Guided installation">` pointing readers to the NR1 entry point if a UI install path exists. This is intentionally a callout (an aside) rather than an H2 section (a topic) — the content is a pointer for the search-first reader who missed the Intro, not a page-level subject. On the Intro the same content is a section (`#ui-install`) because the reader there is still orienting; on Install the reader has committed to CLI and only needs a bail-out option. Delete the callout when the integration has no UI install path.
+
+**Ordered H2s — Install, Configure, Verify.** The three sequential action sections (`## Install`, `## Configure`, `## Verify your install`) are wrapped in a `<Steps>/<Step>` component to make the ordering visually explicit. `## Compatibility and requirements` and `## Related articles` sit outside the wrapper — they are not sequential steps. See Section 16 for `<Steps>` usage.
 
 **Notes:**
 - Each numbered install step gets a stable anchor `[#install-step-N]` so AI/RAG consumers can cite a specific step.
@@ -763,6 +768,7 @@ A numbered procedural sequence with rich content per step. Available as the cano
 
 **Use on onboarding pages for:**
 - The install steps under `## Install` (markdown numbered lists are also fine — pick one approach per page)
+- Wrapping the three sequential action H2s on the Install page (`## Install`, `## Configure`, `## Verify your install`) to make their ordering visually explicit — each H2 and its content goes inside a `<Step>` block, with `<Steps>` wrapping all three. `## Compatibility and requirements` and `## Related articles` sit outside this wrapper.
 
 **Don't use for:**
 - Conceptual prose on the Intro
