@@ -1,0 +1,206 @@
+---
+title: "Compatibility and prerequisites"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Prerequisites
+metaDescription: Environment compatibility and prerequisites for MySQL monitoring with NRDOT collector
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Before you begin monitoring your MySQL or MariaDB with NRDOT, ensure your environment meets these requirements.
+
+## Prerequisites
+
+Before you begin, ensure you have the following:
+
+* Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* Administrative access to your MySQL/MariaDB instance
+* Network connectivity between the NRDOT collector and your database
+* MySQL client tools (`mysql` CLI or MySQL Workbench)
+* This integration is available as a part of New Relic public preview program. Check with your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
+
+## Supported database versions
+
+The receiver detects the database product and version on first connection and adjusts its behavior accordingly — unsupported/older versions still work, but with reduced functionality (see the fallback columns below).
+
+<table>
+  <thead>
+    <tr>
+      <th>Product</th>
+      <th>Versions</th>
+      <th>Query plans on `db.server.top_query`</th>
+      <th>Traceparent propagation</th>
+      <th>`client.port` / `network.peer.port`</th>
+      <th>Replica status syntax</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>MySQL</td>
+      <td>5.7.x</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>0</td>
+      <td>`SHOW SLAVE STATUS`</td>
+    </tr>
+    <tr>
+      <td>MySQL</td>
+      <td>8.0.0–8.0.21</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>0</td>
+      <td>`SHOW SLAVE STATUS`</td>
+    </tr>
+    <tr>
+      <td>MySQL</td>
+      <td>8.0.22+</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>Populated</td>
+      <td>`SHOW REPLICA STATUS`</td>
+    </tr>
+    <tr>
+      <td>MySQL</td>
+      <td>8.4.x</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>Populated</td>
+      <td>`SHOW REPLICA STATUS`</td>
+    </tr>
+    <tr>
+      <td>MySQL</td>
+      <td>9.x</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>Populated</td>
+      <td>`SHOW REPLICA STATUS`</td>
+    </tr>
+    <tr>
+      <td>MariaDB</td>
+      <td>10.5.x–10.11.x</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>0</td>
+      <td>`SHOW SLAVE STATUS`</td>
+    </tr>
+    <tr>
+      <td>MariaDB</td>
+      <td>11.x (LTS: 11.4, 11.8)</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>0</td>
+      <td>`SHOW SLAVE STATUS`</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+Version detection is non-fatal: if it fails, the receiver falls back to MySQL <8 behavior rather than erroring.
+</Callout>
+
+## Required grants
+
+The monitoring user needs access to the Performance Schema for query samples, top queries, and blocking-session detection:
+
+```sql
+GRANT SELECT ON performance_schema.* TO '<your-user>'@'%';
+```
+
+Most metrics only need `SHOW GLOBAL STATUS`. The grant above is required for query samples, top queries, and blocking-session detection.
+
+### Optional grants for enhanced monitoring
+
+Required only for `mysql.events_waits_current.timer_wait` (lock-wait duration on `db.server.query_sample`) — this Performance Schema consumer is **disabled by default** everywhere, including AWS RDS:
+
+```sql
+GRANT UPDATE ON performance_schema.setup_consumers TO '<your-user>'@'%';
+```
+
+## Recommended server parameters
+
+For optimal monitoring experience, configure these MySQL server parameters:
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Recommended value</th>
+      <th>Why</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`performance_schema`</td>
+      <td>Enabled (**required**)</td>
+      <td>Query samples, top queries, and blocking detection all depend on it</td>
+    </tr>
+    <tr>
+      <td>`max_digest_length`</td>
+      <td>`4096`</td>
+      <td>Longer digest text before MySQL truncates it</td>
+    </tr>
+    <tr>
+      <td>`performance_schema_max_digest_length`</td>
+      <td>`4096`</td>
+      <td>Same, at the Performance Schema layer</td>
+    </tr>
+    <tr>
+      <td>`performance_schema_max_sql_text_length`</td>
+      <td>`4096`</td>
+      <td>If a captured statement is truncated (ends in `...`), the receiver **skips** `EXPLAIN` for it entirely — query plans silently disappear for long statements at the 1024-byte default</td>
+    </tr>
+  </tbody>
+</table>
+
+## Performance Schema consumer configuration
+
+The `events_waits_current` consumer provides lock-wait duration information but requires platform-specific configuration:
+
+<table>
+  <thead>
+    <tr>
+      <th>Platform</th>
+      <th>Method</th>
+      <th>Persistent across restarts?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Self-managed MySQL/MariaDB</td>
+      <td>`performance-schema-consumer-events-waits-current=ON` in `[mysqld]` (`my.cnf`/`my.ini`)</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>AWS RDS</td>
+      <td>`UPDATE performance_schema.setup_consumers SET ENABLED='YES' WHERE NAME='events_waits_current';`</td>
+      <td>**No** — resets on restart/failover. Re-run after each restart, or grant the receiver user this `UPDATE` so it can re-enable the consumer automatically on reconnect.</td>
+    </tr>
+  </tbody>
+</table>
+
+## System requirements
+
+* System to run the NRDOT collector (Linux, Windows, or macOS)
+* Network connectivity to New Relic's OTLP endpoint
+* At least 512MB RAM and 1 CPU core for the collector
+
+## Next steps
+
+Once you've verified your environment meets these prerequisites:
+
+1. Choose your installation method:
+  - [Guided install](/docs/opentelemetry/database/mysql/guided) (recommended for quick starts)
+  - [Self-hosted setup](/docs/opentelemetry/database/mysql/self-hosted)
+  - [AWS RDS setup](/docs/opentelemetry/database/mysql/rds)
+
+2. Review the [available metrics](/docs/opentelemetry/database/mysql/metrics-reference) that will be collected
+3. Check our [troubleshooting guide](/docs/opentelemetry/database/mysql/troubleshooting) for common issues

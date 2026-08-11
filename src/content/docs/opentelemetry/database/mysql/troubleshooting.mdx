@@ -1,0 +1,347 @@
+---
+title: "Troubleshooting MySQL NRDOT monitoring"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Troubleshooting
+metaDescription: Troubleshoot common issues with MySQL monitoring using NRDOT collector
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Troubleshoot common issues you may encounter when monitoring your MySQL or MariaDB with the NRDOT collector.
+
+## Test connectivity
+
+### Test network connectivity to MySQL
+
+```bash
+mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
+```
+
+A successful connection and result confirms the monitoring user, host, and port are reachable before troubleshooting the collector itself.
+
+### Test OTLP endpoint connectivity
+
+Verify the NRDOT collector can reach New Relic's OTLP endpoint:
+
+```bash
+curl -v <YOUR_NEWRELIC_OTLP_ENDPOINT>
+```
+
+## Common issues
+
+<CollapserGroup>
+
+<Collapser
+  id="no-query-events"
+  title="No db.server.query_sample or db.server.top_query events"
+>
+
+**Symptoms:** Missing query sample and top query log events in New Relic.
+
+**Possible causes:**
+- `performance_schema` disabled
+- Query events not enabled in receiver configuration
+- Insufficient database privileges
+
+**Solutions:**
+
+1. **Verify Performance Schema is enabled:**
+   ```sql
+   SHOW VARIABLES LIKE 'performance_schema';
+   ```
+   The value should be `ON`.
+
+2. **Check receiver configuration:**
+   ```yaml
+   events:
+     db.server.query_sample:
+       enabled: true
+     db.server.top_query:
+       enabled: true
+   ```
+
+3. **Verify database privileges:**
+   ```sql
+   SHOW GRANTS FOR '<YOUR_DB_USERNAME>'@'%';
+   ```
+   Should include `SELECT` on `performance_schema.*`.
+
+</Collapser>
+
+<Collapser
+  id="missing-wait-times"
+  title="mysql.events_waits_current.timer_wait always 0"
+>
+
+**Symptoms:** Lock wait duration metrics always show 0 seconds.
+
+**Cause:** The `events_waits_current` Performance Schema consumer is disabled.
+
+**Solutions:**
+
+**For self-managed MySQL/MariaDB:**
+Add to `my.cnf`/`my.ini`:
+```ini
+[mysqld]
+performance-schema-consumer-events-waits-current=ON
+```
+Then restart MySQL.
+
+**For AWS RDS:**
+```sql
+UPDATE performance_schema.setup_consumers 
+SET ENABLED='YES' 
+WHERE NAME='events_waits_current';
+```
+
+<Callout variant="important">
+On RDS, this setting doesn't persist across restarts. Grant the monitoring user UPDATE privileges on `performance_schema.setup_consumers` so the collector can re-enable it automatically.
+</Callout>
+
+</Collapser>
+
+<Collapser
+  id="missing-query-plans"
+  title="Query plans missing for long queries"
+>
+
+**Symptoms:** `mysql.query_plan` is empty for some queries, particularly longer ones.
+
+**Cause:** Statement text is truncated by MySQL's digest length limits, causing the receiver to skip `EXPLAIN`.
+
+**Solution:**
+Increase MySQL server parameters:
+```sql
+SET GLOBAL max_digest_length = 4096;
+SET GLOBAL performance_schema_max_digest_length = 4096;
+SET GLOBAL performance_schema_max_sql_text_length = 4096;
+```
+
+Add to `my.cnf` to make permanent:
+```ini
+[mysqld]
+max_digest_length = 4096
+performance_schema_max_digest_length = 4096
+performance_schema_max_sql_text_length = 4096
+```
+
+</Collapser>
+
+<Collapser
+  id="no-query-plans-mariadb"
+  title="Query plans missing for MariaDB / MySQL 5.x"
+>
+
+**Symptoms:** No query plans available in `db.server.top_query` events.
+
+**Cause:** Expected behavior — `query_sample_text` doesn't exist on MariaDB or MySQL versions before 8.0.
+
+**Solutions:**
+- Upgrade to MySQL 8.0+ for query plan support
+- For MariaDB, query plans are not available regardless of version
+
+</Collapser>
+
+<Collapser
+  id="write-statement-plans"
+  title="Write statement (UPDATE/INSERT/etc.) plans missing"
+>
+
+**Symptoms:** Query plans missing for `UPDATE`, `INSERT`, `DELETE`, or `REPLACE` statements.
+
+**Cause:** Monitoring user lacks DML privileges and `explain_mode` is set to `inline`.
+
+**Solution:**
+Switch to `procedure` mode in your receiver configuration:
+```yaml
+nrmysql:
+  explain_mode: procedure
+```
+
+This uses a `SQL SECURITY DEFINER` procedure to explain write statements without granting DML privileges to the monitoring user.
+
+</Collapser>
+
+<Collapser
+  id="empty-client-name"
+  title="mysql.session.client_name empty for some sessions"
+>
+
+**Symptoms:** The `mysql.session.client_name` attribute is empty for some database connections.
+
+**Cause:** Not a bug — some client drivers don't send connect attributes by default.
+
+**Notes:**
+- This is data-dependent behavior
+- Different MySQL client libraries have varying support for connection attributes
+- Not all applications configure their drivers to send this information
+
+</Collapser>
+
+<Collapser
+  id="empty-comment-tags"
+  title="db.query.comment_tags.nr_service_guid always empty"
+>
+
+**Symptoms:** APM correlation tags are not being extracted from SQL comments.
+
+**Cause:** Comment tag extraction is not configured.
+
+**Solution:**
+Add `allowed_comment_keys` to both collection blocks in your configuration:
+```yaml
+query_sample_collection:
+  allowed_comment_keys: [nr_service_guid]
+top_query_collection:
+  allowed_comment_keys: [nr_service_guid]
+```
+
+Comment tag extraction is empty by default for security reasons.
+
+</Collapser>
+
+<Collapser
+  id="entity-missing"
+  title="MySQL entity doesn't appear or app→MySQL relationship doesn't resolve"
+>
+
+**Symptoms:** 
+- MySQL entity missing from Entity Explorer
+- APM application doesn't show database relationships
+
+**Cause:** Missing `server.address` and `server.port` resource attributes required for entity synthesis.
+
+**Solution:**
+Add a resource processor to your collector configuration:
+```yaml
+processors:
+  resource/mysql:
+    attributes:
+      - key: server.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+      - key: server.port
+        value: <YOUR_DB_PORT>
+        action: upsert
+
+service:
+  pipelines:
+    metrics:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlphttp/newrelic]
+    logs:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlphttp/newrelic]
+```
+
+</Collapser>
+
+<Collapser
+  id="connection-errors"
+  title="Connection refused or authentication errors"
+>
+
+**Symptoms:** 
+- "Connection refused" errors
+- "Access denied" authentication failures
+
+**Solutions:**
+
+**For connection refused:**
+1. Verify MySQL is running:
+   ```bash
+   systemctl status mysql
+   ```
+2. Check firewall rules allow connections on MySQL port (default 3306)
+3. Verify `bind-address` in MySQL configuration allows external connections
+
+**For authentication errors:**
+1. Verify user exists and has correct privileges:
+   ```sql
+   SELECT User, Host FROM mysql.user WHERE User='<YOUR_DB_USERNAME>';
+   SHOW GRANTS FOR '<YOUR_DB_USERNAME>'@'%';
+   ```
+2. Check password is correct
+3. For RDS, ensure security group allows inbound connections
+
+</Collapser>
+
+<Collapser
+  id="rds-specific-issues"
+  title="AWS RDS specific issues"
+>
+
+**RDS Performance Schema consumer resets:**
+The `events_waits_current` consumer automatically disables on RDS restart/failover. Grant UPDATE privileges on `performance_schema.setup_consumers` so the collector can re-enable it:
+
+```sql
+GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+**RDS parameter group issues:**
+Verify `performance_schema = 1` in your RDS parameter group. Changes require an instance restart.
+
+**RDS network security:**
+Ensure your RDS security group allows inbound traffic on port 3306 from the NRDOT collector's IP address or security group.
+
+</Collapser>
+
+</CollapserGroup>
+
+## NRQL query examples
+
+Use these NRQL queries to troubleshoot and verify your MySQL monitoring:
+
+### Check for blocked queries
+```sql
+FROM Log SELECT * WHERE event.name = 'db.server.query_sample' 
+AND mysql.blocking.blocker.thread_id > 0 
+SINCE 1 hour ago
+```
+
+### Find slowest queries
+```sql
+FROM Log SELECT db.query.text, 
+mysql.events_statements_summary_by_digest.sum_timer_wait,
+mysql.events_statements_summary_by_digest.count_star
+WHERE event.name = 'db.server.top_query'
+ORDER BY mysql.events_statements_summary_by_digest.sum_timer_wait DESC
+LIMIT 10
+```
+
+### Verify entity synthesis
+```sql
+FROM Metric SELECT uniqueCount(entity.guid) 
+WHERE metricName LIKE 'mysql.%' 
+FACET server.address, server.port
+SINCE 1 hour ago
+```
+
+## Getting help
+
+If you continue experiencing issues:
+
+1. Check the NRDOT collector logs:
+   ```bash
+   journalctl -u nrdot-collector -f
+   ```
+
+2. Verify your configuration syntax:
+   ```bash
+   nrdot-collector --config-validate --config-file=<your-config-file>
+   ```
+
+3. Review our [compatibility requirements](/docs/opentelemetry/database/mysql/compatibility)
+
+4. Contact New Relic support with your collector logs and configuration (remove sensitive information like passwords)

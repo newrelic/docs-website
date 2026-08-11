@@ -1,0 +1,345 @@
+---
+title: "AWS RDS MySQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - AWS RDS
+metaDescription: Set up MySQL and MariaDB monitoring with NRDOT collector on AWS RDS environments
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Set up MySQL or MariaDB monitoring using the NRDOT collector for AWS RDS MySQL instances. RDS environments have specific considerations for Performance Schema consumers and privileges.
+
+<Steps>
+
+<Step>
+
+### Prerequisites [#prerequisites]
+
+Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mysql/compatibility).
+
+**Additional RDS requirements:**
+* RDS MySQL or MariaDB instance with network accessibility from your NRDOT collector host
+* RDS parameter group with `performance_schema = 1` enabled
+* Master user credentials or a user with sufficient privileges
+
+</Step>
+
+<Step>
+
+### Setup the NRDOT Collector [#setup]
+
+Install the NRDOT Collector on a system that can connect to your RDS instance:
+
+<CollapserGroup>
+
+<Collapser
+  title="For AMD64 architecture"
+  id="amd"
+>
+
+* For Debian/Ubuntu system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+* For RHEL/CentOS/OEL system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+</Collapser>
+
+<Collapser
+  title="For ARM64 architecture"
+  id="arm"
+>
+
+* For Debian/Ubuntu system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+* For RHEL/CentOS/OEL system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_aarch64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+</Collapser>
+
+</CollapserGroup>
+
+</Step>
+
+<Step>
+
+### Configure database user [#database-user]
+
+Create a monitoring user with the necessary privileges for your RDS MySQL instance.
+Connect to your RDS instance as the master user and run:
+
+```sql
+CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<USER_PASSWORD>';
+GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+</Step>
+
+<Step>
+
+### Grant monitoring privileges for RDS [#database-grants]
+
+For RDS environments, grant the monitoring user permission to enable Performance Schema consumers:
+
+```sql
+GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+<Callout variant="important">
+**RDS-specific behavior**: The `events_waits_current` consumer resets to disabled on RDS restart/failover. The NRDOT collector will automatically re-enable it on reconnect if the monitoring user has UPDATE privileges on `performance_schema.setup_consumers`.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Configure NRDOT Collector [#configure-collector]
+
+Configure the NRDOT Collector with your RDS MySQL-specific settings. Create a configuration file (e.g., `rds-mysql-config.yaml`) with the following content:
+
+```yaml
+receivers:
+  nrmysql:
+    endpoint: "<YOUR_RDS_ENDPOINT>:<YOUR_DB_PORT>"
+    transport: tcp
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    database: "<YOUR_DATABASE_NAME>"
+    allow_native_passwords: true
+    collection_interval: 10s
+    initial_delay: 1s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+    # Use "procedure" mode for write statement EXPLAIN plans
+    explain_mode: procedure
+    statement_events:
+      digest_text_limit: 4096
+      time_limit: 24h
+      limit: 500
+    query_sample_collection:
+      max_rows_per_query: 100
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      lookback_time: 120
+      max_query_sample_count: 5000
+      top_query_count: 200
+      collection_interval: 60s
+      query_plan_cache_size: 1000
+      query_plan_cache_ttl: 1h
+      allowed_comment_keys: [nr_service_guid]
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+processors:
+  batch:
+  resource/mysql:
+    attributes:
+      - key: server.address
+        value: "<YOUR_RDS_ENDPOINT>"
+        action: upsert
+      - key: server.port
+        value: <YOUR_DB_PORT>
+        action: upsert
+      - key: cloud.provider
+        value: "aws"
+        action: upsert
+      - key: cloud.platform
+        value: "aws_rds"
+        action: upsert
+
+exporters:
+  otlphttp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlphttp/newrelic]
+    logs:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlphttp/newrelic]
+```
+
+<Callout variant="tip">
+**RDS endpoint format**: Use your RDS endpoint hostname (e.g., `mydb.cluster-abcd1234.us-east-1.rds.amazonaws.com`) as the server address. The standard MySQL port is 3306 unless you've configured a custom port.
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Set up SQL Query Receiver [#query-receiver]
+
+You can configure [SQL Query Receiver](/docs/opentelemetry/database/capabilities/sql-query-receiver/) to collect custom metrics from your RDS MySQL Database. For more information, refer to the [SQL Query Receiver documentation](/docs/opentelemetry/database/capabilities/sql-query-receiver/).
+
+</Step>
+
+<Step>
+
+### Restart NRDOT collector [#restart-collector]
+
+After configuring the collector, restart the NRDOT collector service to apply the changes:
+
+```bash
+sudo systemctl restart nrdot-collector
+```
+
+To verify that the collector is running properly, check the service status:
+
+```bash
+sudo systemctl status nrdot-collector
+```
+
+</Step>
+
+<Step>
+
+### (Optional) Multi-RDS configuration [#multi-rds]
+
+To monitor multiple RDS MySQL instances from one collector:
+
+```yaml
+receivers:
+  nrmysql/rds1: &nrmysql-rds-common
+    endpoint: "<RDS_INSTANCE_1_ENDPOINT>:<PORT>"
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    collection_interval: 10s
+    explain_mode: procedure
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+  nrmysql/rds2:
+    <<: *nrmysql-rds-common
+    endpoint: "<RDS_INSTANCE_2_ENDPOINT>:<PORT>"
+
+processors:
+  batch:
+  resource/mysql_rds1:
+    attributes:
+      - key: server.address
+        value: "<RDS_INSTANCE_1_ENDPOINT>"
+        action: upsert
+      - key: server.port
+        value: <PORT>
+        action: upsert
+      - key: cloud.provider
+        value: "aws"
+        action: upsert
+  resource/mysql_rds2:
+    attributes:
+      - key: server.address
+        value: "<RDS_INSTANCE_2_ENDPOINT>"
+        action: upsert
+      - key: server.port
+        value: <PORT>
+        action: upsert
+      - key: cloud.provider
+        value: "aws"
+        action: upsert
+
+service:
+  pipelines:
+    metrics/rds1:
+      receivers: [nrmysql/rds1]
+      processors: [resource/mysql_rds1, batch]
+      exporters: [otlphttp/newrelic]
+    metrics/rds2:
+      receivers: [nrmysql/rds2]
+      processors: [resource/mysql_rds2, batch]
+      exporters: [otlphttp/newrelic]
+```
+
+</Step>
+
+<Step>
+
+### (Optional) Set up APM-database correlation [#optional-service-id]
+
+To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/capabilities/db-apm/) to get APM-database correlation in New Relic.
+
+<Callout variant="important">
+  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Find and use your data [#find-use-data]
+
+Once your data is being collected, you can access comprehensive RDS MySQL database monitoring through New Relic's UI.
+
+To find your RDS MySQL database entity in New Relic:
+
+1. Go to <DNT>**[https://one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MySQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your RDS MySQL database from the list of entities.
+
+</Step>
+
+</Steps>
+
+## RDS-specific considerations
+
+### Performance Schema consumers
+
+On AWS RDS, the `events_waits_current` Performance Schema consumer is disabled by default and **does not persist across restarts or failovers**. The NRDOT collector will automatically attempt to re-enable it if the monitoring user has the appropriate UPDATE privileges.
+
+### Network security
+
+Ensure your RDS security groups allow inbound connections on the MySQL port (default 3306) from the system running the NRDOT collector.
+
+### Parameter groups
+
+Verify that your RDS parameter group has `performance_schema = 1` enabled. This requires a restart of the RDS instance if changed.
+
+## What's next
+
+After setting up RDS MySQL database monitoring with NRDOT:
+
+* [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your database metrics
+* [Set up alerts](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) for critical database performance thresholds
+* [Explore available metrics](/docs/opentelemetry/database/mysql/metrics-reference) collected by the NRDOT collector
+* [Troubleshoot common issues](/docs/opentelemetry/database/mysql/troubleshooting) with your monitoring setup

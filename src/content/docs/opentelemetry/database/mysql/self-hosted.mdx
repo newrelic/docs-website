@@ -1,0 +1,297 @@
+---
+title: "Self-hosted MySQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Self-hosted
+metaDescription: Set up MySQL and MariaDB monitoring with NRDOT collector on self-hosted environments
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Set up MySQL or MariaDB monitoring using the NRDOT collector on self-hosted environments including physical servers, virtual machines, and standalone installations.
+
+<Steps>
+
+<Step>
+
+### Prerequisites [#prerequisites]
+
+Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mysql/compatibility).
+
+</Step>
+
+<Step>
+
+### Setup the NRDOT Collector [#setup]
+
+Install the NRDOT Collector on your system:
+
+<CollapserGroup>
+
+<Collapser
+  title="For AMD64 architecture"
+  id="amd"
+>
+
+* For Debian/Ubuntu system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+* For RHEL/CentOS/OEL system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+</Collapser>
+
+<Collapser
+  title="For ARM64 architecture"
+  id="arm"
+>
+
+* For Debian/Ubuntu system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+* For RHEL/CentOS/OEL system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_aarch64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+</Collapser>
+
+</CollapserGroup>
+
+</Step>
+
+<Step>
+
+### Configure database user [#database-user]
+
+Create a monitoring user with the necessary privileges for your MySQL Database instance.
+Run the following statements as an administrative user inside your MySQL database:
+
+```sql
+CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<USER_PASSWORD>';
+GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+</Step>
+
+<Step>
+
+### Grant monitoring privileges [#database-grants]
+
+For enhanced monitoring capabilities, grant additional privileges to collect lock-wait duration information:
+
+```sql
+GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+This grant is optional and enables `mysql.events_waits_current.timer_wait` metrics for lock-wait duration analysis.
+
+</Step>
+
+<Step>
+
+### Configure NRDOT Collector [#configure-collector]
+
+Configure the NRDOT Collector with your MySQL-specific settings. Create a configuration file (e.g., `mysql-config.yaml`) with the following content:
+
+```yaml
+receivers:
+  nrmysql:
+    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+    transport: tcp
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    database: "<YOUR_DATABASE_NAME>"
+    allow_native_passwords: true
+    collection_interval: 10s
+    initial_delay: 1s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+    # "procedure" collects EXPLAIN plans for write statements (UPDATE/DELETE/INSERT/REPLACE)
+    # without granting DML to the monitoring user, via a SQL SECURITY DEFINER procedure.
+    # Falls back to "inline" (default) automatically if the procedure is absent for a schema.
+    explain_mode: procedure
+    statement_events:
+      digest_text_limit: 4096
+      time_limit: 24h
+      limit: 500
+    query_sample_collection:
+      max_rows_per_query: 100
+      # APM-DB correlation: surfaces the nr_service_guid SQL comment tag (e.g. injected by
+      # transaction_tracer.sql_metadata_comments in the Java agent) as db.query.comment_tags /
+      # db.query.comment_tags.nr_service_guid. Empty list by default — nothing is extracted
+      # unless the key is explicitly allow-listed here.
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      lookback_time: 120
+      max_query_sample_count: 5000
+      top_query_count: 200
+      collection_interval: 60s
+      query_plan_cache_size: 1000
+      query_plan_cache_ttl: 1h
+      allowed_comment_keys: [nr_service_guid]
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+processors:
+  batch:
+  resource/mysql:
+    attributes:
+      - key: server.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+      - key: server.port
+        value: <YOUR_DB_PORT> # unquoted — must parse as a YAML int, not a string
+        action: upsert
+
+exporters:
+  otlphttp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlphttp/newrelic]
+    logs:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlphttp/newrelic]
+```
+
+<Callout variant="important">
+**Entity synthesis requirements**: The `server.address` and `server.port` attributes in the `resource/mysql` processor are **required** for APM correlation and entity synthesis in New Relic. Without these attributes, the MySQL entity won't populate correctly and APM-database relationships won't resolve.
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Set up SQL Query Receiver [#query-receiver]
+
+You can configure [SQL Query Receiver](/docs/opentelemetry/database/capabilities/sql-query-receiver/) to collect custom metrics from your MySQL Database. For more information, refer to the [SQL Query Receiver documentation](/docs/opentelemetry/database/capabilities/sql-query-receiver/).
+
+</Step>
+
+<Step>
+
+### Restart NRDOT collector [#restart-collector]
+
+After configuring the collector, restart the NRDOT collector service to apply the changes:
+
+```bash
+sudo systemctl restart nrdot-collector
+```
+
+To verify that the collector is running properly, check the service status:
+
+```bash
+sudo systemctl status nrdot-collector
+```
+
+<Callout variant="tip">
+  Always restart the NRDOT collector after making configuration changes to ensure the new settings take effect.
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Multi-receiver configuration [#multi-receiver]
+
+To monitor multiple MySQL instances from one collector, add multiple named instances of the receiver:
+
+```yaml
+receivers:
+  nrmysql/instance1: &nrmysql-common
+    endpoint: "<INSTANCE_1_HOST>:<PORT>"
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    collection_interval: 10s
+  nrmysql/instance2:
+    <<: *nrmysql-common
+    endpoint: "<INSTANCE_2_HOST>:<PORT>"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [nrmysql/instance1, nrmysql/instance2]
+      processors: [resource/mysql, batch]
+      exporters: [otlphttp/newrelic]
+    logs:
+      receivers: [nrmysql/instance1, nrmysql/instance2]
+      processors: [resource/mysql, batch]
+      exporters: [otlphttp/newrelic]
+```
+
+</Step>
+
+<Step>
+
+### (Optional) Set up APM-database correlation [#optional-service-id]
+
+To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/capabilities/db-apm/) to get APM-database correlation in New Relic.
+
+<Callout variant="important">
+  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Find and use your data [#find-use-data]
+
+Once your data is being collected, you can access comprehensive MySQL database monitoring through New Relic's UI.
+
+To find your MySQL database entity in New Relic:
+
+1. Go to <DNT>**[https://one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MySQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your MySQL database from the list of entities.
+
+</Step>
+
+</Steps>
+
+## What's next
+
+After setting up MySQL database monitoring with NRDOT:
+
+* [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your database metrics
+* [Set up alerts](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) for critical database performance thresholds
+* [Explore available metrics](/docs/opentelemetry/database/mysql/metrics-reference) collected by the NRDOT collector
+* [Troubleshoot common issues](/docs/opentelemetry/database/mysql/troubleshooting) with your monitoring setup
