@@ -1,0 +1,129 @@
+---
+title: Automatiser avec Terraform
+tags:
+  - Integrations
+  - Google Cloud Platform integrations
+  - Get started
+metaDescription: Automate the Workload Identity Federation setup for your Google Cloud Platform integration with New Relic using Terraform.
+freshnessValidatedDate: '2026-06-30T00:00:00.000Z'
+translationType: machine
+---
+
+Vous pouvez automatiser la configuration de la fédération d&apos;identité de workload à l&apos;aide de Terraform au lieu de la configurer manuellement via la console GCP et l&apos;UI de New Relic.
+
+Pour la configuration manuelle, consultez [Intégrer manuellement votre Google Cloud Platform](/docs/infrastructure/google-cloud-platform-integrations/get-started/install-and-configure/connect-gcp-workload-identity-federation).
+
+## Avant de commencer [#before-you-begin]
+
+* Terraform v1.0 ou version ultérieure installé
+* Le fournisseur Terraform New Relic configuré
+* Le fournisseur Terraform Google Cloud configuré
+* Un projet GCP avec les API requises activées (voir [Prérequis](/docs/infrastructure/google-cloud-platform-integrations/get-started/install-and-configure/connect-gcp-workload-identity-federation#requirements))
+
+## Ce que Terraform configure [#what-terraform-configures]
+
+La configuration Terraform crée :
+
+* Un compte de service GCP avec <DNT>**Viewer**</DNT>, <DNT>**Service Usage Consumer**</DNT>, <DNT>**Cloud Asset Viewer**</DNT>, <DNT>**Folder Viewer**</DNT> (requis uniquement pour les intégrations configurées au niveau du dossier).
+* Un pool d&apos;identités de workload (Workload Identity Pool) avec un fournisseur OIDC pointant vers New Relic
+* Liaisons IAM permettant à New Relic d’emprunter l’identité du compte de service
+* Le lien cloud New Relic connectant le projet GCP
+
+## Exemple de configuration [#example]
+
+<Callout variant="tip">
+  Ceci est un exemple de référence. Adaptez les valeurs à votre projet, à votre région et à votre compte New Relic. Un module Terraform complet et fonctionnel est disponible dans le Terraform Registry.
+</Callout>
+
+```hcl
+# Variables
+variable "gcp_project_id" {}
+variable "gcp_folder_id"  {}  # Required only for folder-level integrations
+variable "nr_account_id" {}
+
+# Service account
+resource "google_service_account" "newrelic" {
+  account_id   = "newrelic-gcp-integration"
+  display_name = "New Relic GCP Integration"
+  project      = var.gcp_project_id
+}
+
+resource "google_project_iam_member" "viewer" {
+  project = var.gcp_project_id
+  role    = "roles/viewer"
+  member  = "serviceAccount:${google_service_account.newrelic.email}"
+}
+
+resource "google_project_iam_member" "service_usage" {
+  project = var.gcp_project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${google_service_account.newrelic.email}"
+}
+
+resource "google_project_iam_member" "cloud_asset_viewer" {
+  project = var.gcp_project_id
+  role    = "roles/cloudasset.viewer"
+  member  = "serviceAccount:${google_service_account.newrelic.email}"
+}
+
+# Required only for integrations configured at the folder level
+resource "google_folder_iam_member" "folder_viewer" {
+  folder = var.gcp_folder_id
+  role   = "roles/resourcemanager.folderViewer"
+  member = "serviceAccount:${google_service_account.newrelic.email}"
+}
+
+# Workload Identity Pool
+resource "google_iam_workload_identity_pool" "newrelic" {
+  workload_identity_pool_id = "newrelic-pool"
+  display_name              = "New Relic Pool"
+  project                   = var.gcp_project_id
+}
+
+# OIDC Provider
+resource "google_iam_workload_identity_pool_provider" "newrelic" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.newrelic.workload_identity_pool_id
+  workload_identity_pool_provider_id = "newrelic-provider"
+  display_name                       = "New Relic OIDC Provider"
+  project                            = var.gcp_project_id
+
+  attribute_mapping = {
+    "google.subject"          = "assertion.sub"
+    "attribute.nr_account_id" = "assertion.nr_account_id"
+  }
+
+  attribute_condition = "assertion.nr_account_id == '${var.nr_account_id}'"
+
+  oidc {
+    issuer_uri        = "https://oidc.newrelic.com/r/gcp-cmp"
+    allowed_audiences = ["newrelic-gcp-integrations"]
+  }
+}
+
+# Allow impersonation
+resource "google_service_account_iam_member" "wif_binding" {
+  service_account_id = google_service_account.newrelic.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principal://iam.googleapis.com/${google_iam_workload_identity_pool.newrelic.name}/attribute.nr_account_id/${var.nr_account_id}"
+}
+```
+
+<Callout variant="important">
+  Utilisez l&apos;URL qui correspond à la région de votre compte :
+
+  * NOUS: `https://oidc.newrelic.com/r/gcp-cmp`
+  * UE: `https://oidc.eu.newrelic.com/r/gcp-cmp`
+  * JP : `https://oidc.jp.newrelic.com/r/gcp-cmp`
+</Callout>
+
+{/*
+## After applying [#after-applying]
+
+After `terraform apply` completes, you still need to:
+
+1. Download the WIF configuration JSON from GCP (the <DNT>**Connected Service Accounts**</DNT> section in the pool).
+2. Upload the JSON file in New Relic to complete the link, or use the NerdGraph API to link the account programmatically.
+
+*/}
+
+Consultez la [documentation officielle de Terraform](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide) pour obtenir l&apos;intégralité des ressources du fournisseur New Relic pour l&apos;intégration cloud.
