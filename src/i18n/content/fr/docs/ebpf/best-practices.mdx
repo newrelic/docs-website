@@ -279,7 +279,7 @@ L&apos;APM eBPF déplace la perspective de monitoring de la couche applicative v
 
 ## bonnes pratiques pour déployer [#deployment-best-practices]
 
-### 1. Compléter le modèle APM traditionnel
+### Compléter l&apos;APM traditionnel
 
 Utilisez l&apos;agent eBPF pour compléter les agents de langage APM pour une couverture complète. Cela vous offre une couverture APM complète avec une coexistence entre l&apos;APM eBPF et les agents APM, sans double ingestion de données.
 
@@ -288,7 +288,7 @@ Utilisez l&apos;agent eBPF pour compléter les agents de langage APM pour une co
 * **Agents de langage APM :** à utiliser pour vos applications les plus critiques qui nécessitent des informations détaillées, un tracing distribué ou une instrumentation personnalisée de niveau approfondi.
 * **eBPF APM :** À utiliser pour couvrir tout le reste, y compris les services non instrumentés, les applications tierces, et pour découvrir/signaler en continu de nouveaux services.
 
-### 2. Ajoutez des métriques de réseau pour un contexte plus approfondi
+### Ajouter des métriques du réseau pour un contexte plus approfondi
 
 L&apos;agent eBPF peut également fournir des métriques réseau granulaires (TCP, DNS, etc.) pour vous donner de la visibilité en dehors du périmètre de votre application. Cette fonctionnalité est complémentaire et peut être utilisée avec ou sans eBPF APM. Pour plus d&apos;informations, consultez [network-metrics](/docs/ebpf/network-metrics/).
 
@@ -342,20 +342,178 @@ Les options de déploiement suivantes sont disponibles :
   </tbody>
 </table>
 
-### 3. Créer une approche monitoring unifiée
+### Ajout de la collecte de log pour MELT complet
 
-En suivant les pratiques ci-dessus, vous pouvez utiliser l&apos;agent eBPF unique pour gérer à la fois les besoins de monitoring de l&apos;infrastructure et des applications. Cela unifie votre observabilité, permettant à l&apos;agent de collecter automatiquement des données critiques sur les performances des applications (APM eBPF) et des métriques réseau (métriques réseau eBPF) pour alimenter les dashboards existants, offrant un contexte approfondi sans modification de code ni redémarrage.
+L&apos;agent eBPF peut également collecter les logs d&apos;application et les enrichir avec les métadonnées New Relic par défaut, sans déployer de redirecteur de logs distinct. Cette capacité s&apos;exécute sur le même agent, vous pouvez donc l&apos;activer aux côtés de l&apos;APM eBPF et des métriques réseau sans rien déployer de plus. Pour plus d&apos;informations, consultez [les logs eBPF](/docs/ebpf/logs/).
 
-**Avantages:**
-
-* Informations APM détaillées qui remplissent automatiquement l&apos;interface utilisateur New Relic APM.
-* Informations réseau détaillées du même agent.
+Utilisez `reportLogs: "auto"` pour éviter automatiquement la collecte de logs en double : l&apos;agent eBPF se retire d&apos;un agent APM uniquement si cet agent collecte activement des logs lui-même, et se retire entièrement chaque fois qu&apos;un agent OpenTelemetry est attaché. N&apos;utilisez `"true"` que lorsque vous avez confirmé qu&apos;aucun autre agent ne signale de log pour cette entité.
 
 ## Recommandations de mise en œuvre [#implementation-recommendations]
 
 * **Commencez par l&apos;APM eBPF pour la mise à l&apos;échelle :** Si vous avez besoin de déployer le monitoring à grande échelle sur de nombreuses applications et que vous souhaitez des métriques &quot;suffisamment bonnes&quot; sans coordination complexe, commencez par l&apos;APM eBPF.
 
 * **Ajoutez des métriques réseau pour une visibilité complète :** Une fois eBPF APM déployé, envisagez d&apos;ajouter des métriques réseau eBPF pour gagner en visibilité au-delà du périmètre de l&apos;application et bénéficier de capacités de dépannage complètes.
+
+* **Ajoutez la collecte de logs pour un dépannage unifié :** Une fois que vous êtes prêt, activez les logs eBPF pour collecter les logs d&apos;application sans déployer un redirecteur de logs distinct.
+
+## Échantillonnage et ajustement des données [#data-sampling]
+
+Les agents de langage APM limitent les **événements de transaction** avec un réservoir fixe, par défaut **10 000 événements par minute** (configuré avec `transaction_events.max_samples_stored`). L&apos;agent eBPF n&apos;utilise pas de limite fixe unique par minute. Au lieu de cela, il échantillonne chaque type de télémétrie différemment, donc comprendre comment chaque type se comporte vous aide à contrôler le volume de données et les coûts sans perdre les signaux qui vous intéressent.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Type de données
+      </th>
+
+      <th>
+        Échantillonné ?
+      </th>
+
+      <th>
+        Contrôles
+      </th>
+
+      <th>
+        Défaut
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Métriques (débit, latence, taux d’erreur)
+      </td>
+
+      <td>
+        Non, toujours complet
+      </td>
+
+      <td>
+        `protocols.<protocol>.enabled`
+      </td>
+
+      <td>
+        Activé par protocole
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        travées
+      </td>
+
+      <td>
+        Oui, par seuil
+      </td>
+
+      <td>
+        `samplingLatency`
+
+        , 
+
+        `samplingErrorRate`
+      </td>
+
+      <td>
+        `p50`
+
+         latence
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Spans non liés (aucun parent)
+      </td>
+
+      <td>
+        Oui, plafonné
+      </td>
+
+      <td>
+        `max_unlinked_spans`
+
+        , 
+
+        `unlinked_spans_error_quota_percentage`
+      </td>
+
+      <td>
+        `100`
+
+         par protocole, 
+
+        `30`
+
+        % réservés aux erreurs
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Logs
+      </td>
+
+      <td>
+        Oui, réservoir
+      </td>
+
+      <td>
+        `maxSamplesPerMinute`
+      </td>
+
+      <td>
+        `10000`
+
+         par minute
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Les Métriques ne sont jamais échantillonnées, les dashboards de débit, de latence et de taux d’erreur restent précis même lorsque les spans sont échantillonnées de manière agressive. L&apos;échantillonnage de span n&apos;affecte que les trace individuelles que vous pouvez inspecter, pas la métrique agrégée.
+</Callout>
+
+### Comment fonctionne l&apos;échantillonnage de portée [#span-sampling]
+
+L&apos;agent eBPF ne limite pas les spans à un nombre fixe par minute. Pour chaque protocole, il exporte uniquement les spans qui franchissent un seuil que vous avez défini :
+
+* **Seuil de latence** (`samplingLatency`) : exporte les spans plus lents que le percentile choisi pour une route donnée. La valeur par défaut est `p50` (la médiane). Augmentez-le vers `p90` ou `p99` pour ne conserver que la queue la plus lente et réduire le volume de données ; diminuez-le vers `p1` ou `p0` pour conserver presque tous les spans et augmenter la visibilité. Tout percentile de `p0` à `p99` est accepté.
+* **Seuil de taux d’erreur** (`samplingErrorRate`, HTTP) : une valeur de `1` à `100`. Lorsque le taux d’erreur d&apos;une route dépasse ce seuil, les spans pour cette route sont exportées afin que les échecs ne soient jamais exclus de l&apos;échantillonnage. Laissez-le vide pour désactiver l&apos;exportation basée sur les erreurs.
+
+### Contrôle des spans non liées [#unlinked-spans]
+
+Les spans que l’agent capture mais ne peut pas associer à un parent sont appelés spans *non liés*. Ils sont plafonnés par protocole par `max_unlinked_spans` (par défaut `100`; définissez sur `0` pour désactiver le plafond). Le paramètre `unlinked_spans_error_quota_percentage` (par défaut `30`) réserve une partie de ce budget pour les spans d’erreur, de sorte que les échecs restent visibles même lorsque les spans normaux arrivent en premier.
+
+### Exemples de réglage [#tuning-examples]
+
+L&apos;échantillonnage est configuré dans le fichier Helm `values.yaml` (Kubernetes) ou dans `/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml` (hôte Linux). Les clés sont identiques pour les deux.
+
+```yaml
+protocols:
+  global:
+    max_unlinked_spans: 100          # 0 disables the cap
+    unlinked_spans_error_quota_percentage: 30
+  http:
+    enabled: true
+    spans:
+      enabled: true
+      samplingLatency: "p90"         # keep only slower requests, less data
+      samplingErrorRate: "5"         # always keep routes with >5% errors
+logDataFilters:
+  applicationLogReporting:
+    maxSamplesPerMinute: 10000         # APM-equivalent reservoir for logs
+```
+
+### Recommandations [#sampling-recommendations]
+
+* **Pour maximiser la visibilité des traces :** abaissez `samplingLatency` vers `p0` et définissez un `samplingErrorRate` bas, mais attendez-vous à une ingestion plus élevée.
+* **Pour réduire les données :** augmentez `samplingLatency` (par exemple, `p90` ou `p99`), désactivez complètement les protocoles indésirables (ou juste `spans.enabled: false` pour ne conserver que les métriques de protocole), et diminuez `maxSamplesPerMinute` pour les logs.
+* **Gardez les métriques à l&apos;esprit :** les métriques ne sont pas affectées par l&apos;échantillonnage des spans. Désactivez un protocole entier uniquement lorsque vous n&apos;avez pas du tout besoin de ses données.
 
 ## Articles connexes [#related-articles]
 
@@ -366,6 +524,10 @@ En suivant les pratiques ci-dessus, vous pouvez utiliser l&apos;agent eBPF uniqu
 
   <DocTile title="Installation Linux eBPF" path="/docs/ebpf/linux-installation/">
     Découvrez comment configurer l&apos;agent New Relic eBPF pour votre hôte Linux.
+  </DocTile>
+
+  <DocTile title="Log eBPF" path="/docs/ebpf/logs/">
+    Découvrez comment collecter les logs d&apos;application avec l&apos;agent eBPF de New Relic.
   </DocTile>
 
   <DocTile title="dépannage eBPF" path="/docs/ebpf/troubleshooting/no-ui-data/">
