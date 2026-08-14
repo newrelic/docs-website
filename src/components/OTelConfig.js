@@ -7,7 +7,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const OTelConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
+const OtelConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
   const [state, setState] = useState([...inputOptions]);
   const { body } = tipMdx;
 
@@ -93,7 +93,7 @@ const OTelConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
   );
 };
 
-OTelConfig.propTypes = {
+OtelConfig.propTypes = {
   inputOptions: PropTypes.arrayOf(
     PropTypes.shape({
       name: PropTypes.string.isRequired,
@@ -109,4 +109,4 @@ OTelConfig.propTypes = {
   onChange: PropTypes.func,
 };
 
-export default OTelConfig;
+export default OtelConfig;
