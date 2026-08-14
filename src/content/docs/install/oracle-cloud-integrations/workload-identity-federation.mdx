@@ -1,0 +1,428 @@
+---
+title: "Set up Workload Identity Federation for the OCI integration"
+metaDescription: "Set up Workload Identity Federation (WIF) so New Relic can securely authenticate to your Oracle Cloud Infrastructure account."
+tags:
+  - Integrations
+  - Oracle Cloud integrations
+  - Get started
+freshnessValidatedDate: 2026-08-14
+---
+
+import ociIntegratedApp from 'images/oci_integrated_app-1.webp'
+import ociEditOauthConfig from 'images/oci_edit_oauth_config-1.webp'
+import ociCreatePolicies from 'images/oci_create_policies-1.webp'
+import ociAppRole from 'images/oci_app_roles-1.webp'
+import ociAddApplication from 'images/oci_add_application-1.webp'
+import ociActions from 'images/oci-active-option.webp'
+import ociOauthConfig from 'images/oci_oauth_config-1.webp'
+import ociCreateGroups from 'images/oci_create_groups-1.webp'
+import ociSVCUserUUID from 'images/oci-svc-uuid.webp'
+
+This topic covers Workload Identity Federation (WIF) setup for the [OCI integration](/install/oracle-cloud-integrations/intro) — the authentication step required before you deploy the integration through [Oracle Resource Manager](/install/oracle-cloud-integrations/orm/install-configure), [manual configuration](/install/oracle-cloud-integrations/manual/install-configure), or Terraform.
+
+Select the trust type used to create the identity-propagation trust. New Relic supports two options, with UPST as the default configuration.
+
+- **User Principal Session Token (UPST):** WIF that enables external workloads to make API calls in OCI on behalf of a dedicated service user. This option is configured by default unless a specific architecture requires an alternative.
+- **Resource Principal Session Token (RPST):** An ephemeral, claim-based principal (`identityfederateddomainapp`). IAM policies scope on `ext_account_id` and `ext_tenancy_id` claims propagated from the New Relic-signed JWT. Select RPST for multi-account environments, when encountering OCI IAM policy-statement limits, or when claim-based or tag-based authorization is required.
+
+Both paths share steps 1, 2, and the final "share credentials" step. Only the IAM policy and the identity propagation trust body differ.
+
+<div id="oci-authentication-setup">
+
+<Collapser id="upst-setup" title="Option 1: UPST setup (default)">
+
+New Relic integrates with Oracle Cloud Infrastructure (OCI) using Workload Identity Federation for secure, read-only access to OCI APIs. This authentication setup is a prerequisite for onboarding to the New Relic Cloud Monitoring Platform.
+
+Authentication process:
+* Trust configuration: Establish trust between New Relic and the OCI IAM Domain.
+* Token exchange: New Relic uses this trust to exchange a standard JSON Web Token (JWT) for a temporary OCI-native token.
+* Secure authentication: This exchanged token, known as a User Principal Session Token, is then used to securely authenticate with OCI's SDKs and APIs.
+* Data collection: With successful authentication, New Relic gains the necessary read-only permissions to fetch telemetry data for monitoring. These read-only permissions are controlled by policies configured for the service user.
+
+Configuration requirements:
+* Two Identity Domain Applications: One with administrative privileges for setup and one with no privileges for the routine token exchange.
+* A Service User and Group: A dedicated user and group for New Relic to operate under the principle of least privilege.
+* IAM Policies: The rules that grant the service user read-only access to the necessary OCI resources.
+* An Identity Propagation Trust: The core component that defines the trust relationship between OCI and New Relic.
+
+For more details, see Oracle's [Workload Identity Federation](https://www.ateam-oracle.com/post/workload-identity-federation) documentation.
+
+<Steps>
+
+<Step>
+
+### Create identity domain applications [#create-identity-domain-apps]
+
+Create two distinct OAuth applications following the principle of least privilege. Save the Client ID and Client Secret from both applications securely.
+
+(Optional) Administrator application (for setup):
+The token generated using this application's credentials would be used for creating a service user and completing the trust configuration. If there's an existing OAuth Application with Identity Domain Administrator Role, it can be used for this configuration.
+
+<Callout variant="important">
+  The administrator application has high-level permissions needed only for initial setup. For security, disable this application right after completing the WIF configuration to reduce security risks.
+</Callout>
+
+1. Navigate to **Identity & Security > Domains** and choose your domain.
+2. Go to **Integrated Applications** and click **Add application**.
+
+<img
+   title="Create admin application"
+   alt="Create admin application"
+   src={ociIntegratedApp}
+   style={{ maxWidth: '65%' }}
+/>
+
+3. Select **Confidential Application** and launch the workflow.
+
+<img
+   title="Select Confidential application"
+   alt="Select Confidential application"
+   src={ociAddApplication}
+   style={{ maxWidth: '65%' }}
+/>
+
+4. Create app with name prefix `newrelic` (for example, `newrelic-ida-app`).
+5. Go to the newly created app (`newrelic-ida-app`) and select **Edit OAuth Configuration**
+
+<img
+   title="Edit OAuth Configuration"
+   alt="Edit OAuth Configuration"
+   src={ociOauthConfig}
+   style={{ maxWidth: '65%' }}
+/>
+
+6. Configure OAuth Settings:
+   * Select **Configure this application as a client now** under **Client configuration**
+   * Select **Client credentials** grant type.
+   * Enable the **Add app roles** toggle
+   * Grant **Identity Domain Administrator** role under App Roles
+
+<img
+   title="Edit OAuth Configuration"
+   alt="Edit OAuth Configuration"
+   src={ociEditOauthConfig}
+   style={{ maxWidth: '65%' }}
+/>
+
+<img
+   title="Add App Roles"
+   alt="Add App Roles"
+   src={ociAppRole}
+   style={{ maxWidth: '65%' }}
+/>
+
+7. Activate your app from **Actions**.
+
+<img
+   title="An image showing the Active option"
+   alt="An image showing the Active option"
+   src={ociActions}
+   style={{ maxWidth: '65%' }}
+/>
+
+8. Save the generated client credentials securely.
+
+Token exchange application (for routine use):
+1. Create a second confidential application with prefix `newrelic` (for example, `newrelic-token-exchange-app`).
+2. Configure **Client credentials** grant type.
+3. **Do not assign any App Roles** (used only for JWT to UPST token exchange).
+4. Store the generated client credentials securely.
+
+For detailed steps, see Oracle's [Adding a Confidential Application](https://docs.oracle.com/en-us/iaas/Content/Identity/applications/add-confidential-application.htm) documentation.
+
+</Step>
+
+<Step>
+
+### Generate identity domain administration token [#generate-admin-token]
+
+Generate an access token for creating service users and configuring trust settings. This token authenticates the HTTP requests required for the configuration process.
+
+1. Locate your IAM Domain URL:
+   * Navigate to **Identity & Security > Domains > [Your Domain] > Details**
+   * Copy the Domain URL for use in API requests
+
+2. Generate the access token:
+   Use the Client ID and Client Secret from the administrator application (`newrelic-ida-app`) created in the previous step. Execute this command to generate the administration token:
+   ```
+   curl --location 'https://$IAM_DOMAIN_URL/oauth2/v1/token' \
+   --header 'Content-Type: application/x-www-form-urlencoded;charset=UTF-8' \
+   --user '$CLIENT_ID:$CLIENT_SECRET' \
+   --data 'grant_type=client_credentials&scope=urn:opc:idm:__myscopes__'
+   ```
+
+3. Store the token securely:
+   Save the generated token as IDA_Access_Token in a secure location for use in subsequent configuration steps.
+
+</Step>
+
+<Step>
+
+### Create IAM group, service user, and configure policies [#create-iam-resources]
+
+Create isolated permissions for New Relic using dedicated groups, users, and policies.
+
+#### Create a Group
+1. Navigate to **Identity & Security > Domains** and select your Identity Domain (usually a default).
+2. Select the **User Management** tab next to **Details**.
+3. Go to **Groups**, then click **Create group**.
+
+<img
+   title="Create Groups"
+   alt="Create Groups"
+   src={ociCreateGroups}
+   style={{ maxWidth: '65%' }}
+/>
+
+4. Name it with `newrelic` prefix (for example, `newrelic-svc-user-group`).
+
+#### Create IAM Policies
+1. Navigate to **Identity & Security > Policies** in the root compartment.
+2. Click **Create Policy** with name `newrelic-svc-user-policy`
+
+<img
+   title="Create Policies"
+   alt="Create Policies"
+   src={ociCreatePolicies}
+   style={{ maxWidth: '65%' }}
+/>
+
+3. Add this policy statement for read-only access:
+```
+Allow group newrelic-svc-user-group to read all-resources in tenancy
+```
+4. Save the policy configuration.
+
+#### Create Service User [#create-service-user]
+1. OCI service users can only be created via API calls. This service user will be used for secure authentication with New Relic.
+2. Use the `IDA_Access_Token` generated in the previous step for authentication validation.
+3. Run this command to create a service user with the `newrelic` prefix:
+```
+curl --location 'https://$IAM_DOMAIN_URL/admin/v1/Users' \
+--header 'Authorization: Bearer $IDA_Access_Token' \
+--header 'Content-Type: application/json' \
+--data '{
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "urn:ietf:params:scim:schemas:oracle:idcs:extension:user:User": {
+        "serviceUser": true
+    },
+    "userName": "newrelic-wif-svc-user"
+}'
+```
+4. Assign user group (`newrelic-svc-user-group`) to the created user (`newrelic-wif-svc-user`).
+
+For more information, see Oracle's [Managing Groups](https://docs.oracle.com/en-us/iaas/Content/Identity/groups/managinggroups.htm), [Getting Started with Policies](https://docs.oracle.com/en-us/iaas/Content/Identity/policiesgs/get-started-with-policies.htm), and [Service User](https://docs.oracle.com/en-us/iaas/Content/Identity/api-getstarted/json_web_token_exchange.htm#jwt_token_exchange__use-service-user) documentation.
+
+</Step>
+
+<Step>
+
+### Create identity propagation trust [#create-identity-trust]
+
+This is the main step where you set up OCI to trust New Relic's identity tokens and exchange them for OCI access tokens.
+
+Required Parameters:
+
+* `IAM_DOMAIN_URL`: **Identity & Security > Domains > Choose Domain in which OAuth applications are created > Details > Find Domain URL**.
+* `CLIENT_ID_OF_NEWRELIC_TOKEN_EXCHANGE_APP`: **Identity & Security -> Domains -> Choose Domain in which OAuth applications are created > Integrated application > newrelic-token-exchange-app > client-id**.
+* `OCI_SVC_USER_UUID`: The unique identifier of the service user created in the previous step. Copy the `id` field value from the JSON response returned when you created the service user (`newrelic-wif-svc-user`) using the [curl command above](#create-service-user).
+
+for example (below is the sample response)
+
+<img
+   title="OCI SVC User UUID"
+   alt="OCI SVC User UUID"
+   src={ociSVCUserUUID}
+   style={{ maxWidth: '65%' }}
+/>
+
+**Before executing the curl commands below:**
+1. Replace `$IAM_DOMAIN_URL` with the actual IAM Domain URL
+2. Replace `$CLIENT_ID_OF_NEWRELIC_TOKEN_EXCHANGE_APP` with your actual newrelic-token-exchange-app Client ID
+3. Replace `$OCI_SVC_USER_UUID` with your actual service user UUID
+4. Replace `$IDA_Access_Token` with your access token generated earlier
+5. Replace `$NAME_OF_TRUST_BEING_SETUP` with a descriptive name (for example, `newrelic-oci-trust`)
+
+Create the Trust:
+Execute the appropriate HTTP request based on your New Relic account region to establish the identity propagation trust:
+
+**For New Relic US Region:**
+```
+curl --location 'https://$IAM_DOMAIN_URL/admin/v1/IdentityPropagationTrusts' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer $IDA_Access_Token' \
+--data '{
+  "active": true,
+  "allowImpersonation": true,
+  "issuer": "newrelic-oci-us-production-issuer",
+  "name": "$NAME_OF_TRUST_BEING_SETUP",
+  "oauthClients": ["$CLIENT_ID_OF_NEWRELIC_TOKEN_EXCHANGE_APP"],
+  "publicKeyEndpoint": "https://publickeys.newrelic.com/r/oci-cmp/us/c5623ba5-1cc7-491a-8ec3-eeee809374f7/jwks.json",
+  "impersonationServiceUsers": [{
+    "rule": "sub eq newrelic-oci-us-production-user",
+    "value": "$OCI_SVC_USER_UUID"
+  }],
+  "subjectType": "User",
+  "type": "JWT",
+  "schemas": ["urn:ietf:params:scim:schemas:oracle:idcs:IdentityPropagationTrust"]
+}'
+```
+
+**For New Relic EU Region:**
+```
+curl --location 'https://$IAM_DOMAIN_URL/admin/v1/IdentityPropagationTrusts' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer $IDA_Access_Token' \
+--data '{
+  "active": true,
+  "allowImpersonation": true,
+  "issuer": "newrelic-oci-eu-production-issuer",
+  "name": "$NAME_OF_TRUST_BEING_SETUP",
+  "oauthClients": ["$CLIENT_ID_OF_NEWRELIC_TOKEN_EXCHANGE_APP"],
+  "publicKeyEndpoint": "https://publickeys.eu.newrelic.com/r/oci-cmp/eu/f923dba9-84a8-491c-b714-6c0e61b90c5b/jwks.json",
+  "impersonationServiceUsers": [{
+    "rule": "sub eq newrelic-oci-eu-production-user",
+    "value": "$OCI_SVC_USER_UUID"
+  }],
+  "subjectType": "User",
+  "type": "JWT",
+  "schemas": ["urn:ietf:params:scim:schemas:oracle:idcs:IdentityPropagationTrust"]
+}'
+```
+
+**For New Relic JP Region:**
+```
+curl --location 'https://$IAM_DOMAIN_URL/admin/v1/IdentityPropagationTrusts' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer $IDA_Access_Token' \
+--data '{
+  "active": true,
+  "allowImpersonation": true,
+  "issuer": "newrelic-oci-jp-production-issuer",
+  "name": "$NAME_OF_TRUST_BEING_SETUP",
+  "oauthClients": ["$CLIENT_ID_OF_NEWRELIC_TOKEN_EXCHANGE_APP"],
+  "publicKeyEndpoint": "https://publickeys.jp.newrelic.com/r/oci-cmp/jp/89625529-5f3e-47b8-a13a-25229f85989d/jwks.json",
+  "impersonationServiceUsers": [{
+    "rule": "sub eq newrelic-oci-jp-production-user",
+    "value": "$OCI_SVC_USER_UUID"
+  }],
+  "subjectType": "User",
+  "type": "JWT",
+  "schemas": ["urn:ietf:params:scim:schemas:oracle:idcs:IdentityPropagationTrust"]
+}'
+```
+
+For more information, see Oracle's [Create an identity propagation trust configuration](https://docs.oracle.com/en-us/iaas/Content/Identity/api-getstarted/json_web_token_exchange.htm#jwt_token_exchange__create-identity-propagation-trust) documentation.
+
+</Step>
+
+<Step>
+
+### Share configuration details with New Relic [#share-config-details]
+
+Provide the following configuration details to complete the New Relic integration setup:
+
+Required Information:
+* **IAM Domain URL**: The domain URL where your configuration is set up.
+* **Client Credentials**: Client ID and secret from the `newrelic-token-exchange-app` application.
+
+These details are used during the ORM Stack or Terraform deployment process to establish the secure connection between OCI and New Relic.
+
+</Step>
+
+</Steps>
+
+</Collapser>
+
+<Collapser id="rpst-setup" title="Option 2: RPST setup">
+
+### Create identity domain applications [#create-identity-domain-apps-rpst]
+
+Same as UPST — see [Create identity domain applications](#create-identity-domain-apps).
+
+### Generate identity domain administration token [#generate-admin-token-rpst]
+
+Same as UPST — see [Generate identity domain administration token](#generate-admin-token).
+
+### Create IAM policy [#create-iam-resources-rpst]
+
+RPST doesn't require an IAM group or service user. Create a single claim-based policy that authorizes any principal whose claims match the designated New Relic account and OCI tenancy.
+
+1. In the OCI Console, open **Identity & Security > Policies**.
+2. Click **Create Policy**.
+3. Enter a name (such as `newrelic-svc-user-policy`) and description.
+4. Choose the root compartment or the target compartment for this configuration.
+5. Click **Show manual editor** and paste the following statement, replacing `<YOUR_NEW_RELIC_ACCOUNT_ID>` and `<TENANCY_OCID>` with the actual account and tenancy identifiers:
+
+```
+allow any-user to read all-resources in tenancy where all { request.principal.type = 'identityfederateddomainapp', request.principal.ext_account_id = '<NR_ACCOUNT_ID>', request.principal.ext_tenancy_id = '<TENANCY_OCID>' }
+```
+
+6. Click **Create**.
+
+### Create identity propagation trust [#create-identity-trust-rpst]
+
+Use the admin OAuth application access token from step 2 to create the trust. This configuration differs from UPST in three distinct ways:
+
+- `subjectType` is set to `Resource`.
+- `impersonatingResource` binds to a specific `res_type` value.
+- `claimPropagations` copies the JWT `ext_*` claims into the resulting RPST.
+
+Replace `<IAM_DOMAIN_URL>` with the identity domain URL, `<ADMIN_ACCESS_TOKEN>` with the token from step 2, and `<TOKEN_EXCHANGE_APP_NAME>` with the name of the token-exchange OAuth application created in step 1.
+
+```bash
+curl --location '<IAM_DOMAIN_URL>/admin/v1/IdentityPropagationTrusts' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>' \
+  --data '{
+    "active": true,
+    "allowImpersonation": true,
+    "issuer": "https://newrelic.com/oci/rpst",
+    "name": "newrelic-rpst-trust-setup",
+    "oauthClients": ["<TOKEN_EXCHANGE_APP_NAME>"],
+    "publicKeyEndpoint": "https://oci-wif.newrelic.com/.well-known/jwks.json",
+    "impersonatingResource": "newrelic-integration",
+    "claimPropagations": ["ext_account_id", "ext_tenancy_id", "ext_resource_tag"],
+    "subjectType": "Resource",
+    "type": "JWT",
+    "schemas": ["urn:ietf:params:scim:schemas:oracle:idcs:IdentityPropagationTrust"]
+  }'
+```
+
+<Callout variant="tip">
+The `ext_resource_tag` entry in `claimPropagations` is included proactively — it's only populated when a customer sets `resource_tag` via the terraform provider. OCI silently skips propagating claims that aren't present in the JWT, so listing all three claim names is safe.
+</Callout>
+
+### Share configuration details with New Relic [#share-config-details-rpst]
+
+Provide the IAM domain URL and the token-exchange OAuth app credentials (client ID + client secret) to New Relic. Unlike UPST, **no service user name** is required — RPST principals are ephemeral.
+
+</Collapser>
+
+</div>
+
+<Callout variant="tip" title="Advanced: tag-based scoping (RPST only)">
+RPST supports scoping IAM policies by resource tag via the `ext_resource_tag` claim. This is only exposed via the [terraform provider](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/cloud_oci_link_account). To configure it, set the `resource_tag` field on the `newrelic_cloud_oci_link_account` resource. When configured, New Relic stamps `ext_resource_tag` on every JWT, allowing the reference of `request.principal.ext_resource_tag` inside the IAM policy. The onboarding wizard and OCI Resource Manager template do not currently support this capability.
+</Callout>
+
+## Troubleshooting [#troubleshooting]
+
+If you encounter issues or want to optimize your setup:
+
+1. Common troubleshooting steps:
+   * Verify OCI permissions and policies
+   * Check network connectivity between OCI and New Relic
+
+2. To resolve 409 conflicts while creating a Trust Configuration with the same name, delete the older configuration using the conflicting details and then re-create it.
+
+   Follow these steps using the OCI cloud shell:
+
+   * List the identity domain (this step can be skipped if the ID is already known):
+   ```
+   oci identity-domains identity-propagation-trusts list --all --endpoint $DOMAIN_URL
+   ```
+
+   * Using the ID of the trust configuration — be cautious while using the delete command:
+   ```
+   oci identity-domains identity-propagation-trust delete --endpoint $DOMAIN_URL --identity-propagation-trust-id $TRUST_CONFIGURATION_ID
+   ```
