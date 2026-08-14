@@ -7,7 +7,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const AgentConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
+const OTelConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
   const [state, setState] = useState([...inputOptions]);
   const { body } = tipMdx;
 
@@ -56,7 +56,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
               css={css`
                 margin-bottom: 1.5rem;
               `}
-              containerId="agent-config-codeblock"
+              containerId="otel-config-codeblock"
             />
           )
         )}
@@ -64,9 +64,9 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
       </div>
       <InteractiveOutput
         inputs={state}
-        config={config}
+        config={config.replace(/^\s{2}([a-z][a-z0-9_]*):(\s*)$/gm, '$1:$2')}
         fileName={fileName}
-        containerId="agent-config-codeblock"
+        containerId="otel-config-codeblock"
         css={css`
           margin-top: 1rem;
           width: 49%;
@@ -74,7 +74,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
             width: 100%;
           }
 
-          #agent-config-codeblock {
+          #otel-config-codeblock {
             // removing the height of the buttons at the top or it overflows
             max-height: calc(100% - 50px);
           }
@@ -93,7 +93,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
   );
 };
 
-AgentConfig.propTypes = {
+OTelConfig.propTypes = {
   inputOptions: PropTypes.arrayOf(
     PropTypes.shape({
       name: PropTypes.string.isRequired,
@@ -109,4 +109,4 @@ AgentConfig.propTypes = {
   onChange: PropTypes.func,
 };
 
-export default AgentConfig;
+export default OTelConfig;
