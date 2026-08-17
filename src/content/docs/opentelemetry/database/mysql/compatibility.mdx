@@ -18,19 +18,20 @@ freshnessValidatedDate: never
 
 Before you begin monitoring your MySQL with NRDOT, ensure your environment meets these requirements.
 
-## Prerequisites
+## Prerequisites [#prereq]
 
 Before you begin, ensure you have the following:
 
 * Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
 * Administrative access to your MySQL database instance
-* Network connectivity between the NRDOT Collector and your database
+* Network connectivity between the host where you install the NRDOT Collector and your MySQL database. If you're planning to install the NRDOT Collector on a different host than your MySQL database, refer to [Network access requirements](#network).
+* Network connectivity to [New Relic OTLP endpoints documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
 * MySQL client tools (`mysql` CLI or MySQL Workbench)
 * This integration is available as a part of New Relic public preview program. Check with your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
 
-## Supported database versions
+## Supported MySQL versions [#versions]
 
-The receiver detects the database product and version on first connection and adjusts its behavior accordingly — unsupported/older versions still work, but with reduced functionality (see the fallback columns below).
+The receiver detects the database product and version on first connection and adjusts its behavior accordingly — unsupported/older versions still work, but with reduced functionality:
 
 <table>
   <thead>
@@ -51,7 +52,14 @@ The receiver detects the database product and version on first connection and ad
       <td>`SHOW SLAVE STATUS`</td>
     </tr>
     <tr>
-      <td>`8.0.0`–`8.0.21`</td>
+      <td>`8.0.0`–`8.0.2`</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>0</td>
+      <td>`SHOW SLAVE STATUS`</td>
+    </tr>
+    <tr>
+      <td>`8.0.3`–`8.0.21`</td>
       <td>Yes</td>
       <td>Yes</td>
       <td>0</td>
@@ -85,7 +93,7 @@ The receiver detects the database product and version on first connection and ad
 Version detection is non-fatal: if it fails, the receiver falls back to MySQL `< 8` behavior rather than erroring.
 </Callout>
 
-## Required grants
+## Required permissions [#grants]
 
 The monitoring user needs access to the Performance Schema for query samples, top queries, and blocking-session detection:
 
@@ -95,6 +103,10 @@ GRANT SELECT ON performance_schema.* TO '<your-user>'@'%';
 
 Most metrics only need `SHOW GLOBAL STATUS`. The grant above is required for query samples, top queries, and blocking-session detection.
 
+<Callout variant="important">
+`performance_schema` must be enabled. If it isn't, query samples, top queries, and blocking-session detection don't work at all — you'll only get basic `SHOW GLOBAL STATUS` metrics. Confirm it's on before relying on any of the log-based events documented in the [metrics reference](/docs/opentelemetry/database/mysql/metrics-reference).
+</Callout>
+
 ### Optional grants for enhanced monitoring
 
 Required only for `mysql.events_waits_current.timer_wait` (lock-wait duration on `db.server.query_sample`) — this Performance Schema consumer is **disabled by default** everywhere, including AWS RDS:
@@ -103,7 +115,38 @@ Required only for `mysql.events_waits_current.timer_wait` (lock-wait duration on
 GRANT UPDATE ON performance_schema.setup_consumers TO '<your-user>'@'%';
 ```
 
-## Recommended server parameters
+## Network access requirements [#network]
+
+By default, NRDOT connects over **TCP** (`transport: tcp` in the receiver config, the default). If the collector runs on the same host as the database, you can instead set `transport: unix` and point `endpoint` at the database's Unix domain socket (for example, `/var/run/mysqld/mysqld.sock`), which sidesteps the network checks below entirely. For any other deployment — collector and database on different hosts, containers, or VPCs — TCP is required.
+
+<table>
+  <thead>
+    <tr>
+      <th>Deployment</th>
+      <th>What to check</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Self-managed MySQL on EC2</td>
+      <td>**Security group**: add an inbound rule on the DB port (default `3306`) from the collector's source — its own security group ID (same-VPC, preferred over a raw IP) if the collector runs on a different EC2 instance, or no rule needed if it runs as a sidecar on the same instance. Also check `bind-address` in `my.cnf`: many distro defaults ship `bind-address = 127.0.0.1`, which refuses any non-local TCP connection — set it to the instance's private IP or `0.0.0.0` before a remote collector can reach it.</td>
+    </tr>
+    <tr>
+      <td>Amazon RDS / Aurora for MySQL</td>
+      <td>**VPC security group**: add an inbound rule on the RDS instance's port (default `3306`) from the collector's security group or private IP; RDS has no OS-level `my.cnf` to edit, so this is the only network gate. **Grants** must come from the RDS master user — RDS has no `root` account. **Restricted privileges**: `SUPER` and `FILE` are restricted or unavailable depending on RDS engine version and parameter group. **TLS**: RDS instances with "Require SSL/TLS" enforcement need the collector to trust Amazon's RDS CA — set `tls.ca_file` (or `tls.ca_pem`) to the [Amazon RDS certificate bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem) and leave `tls.insecure`/`tls.insecure_skip_verify` at `false`.</td>
+    </tr>
+    <tr>
+      <td>Any remote/cross-host deployment</td>
+      <td>MySQL treats `'<user>'@'localhost'` and `'<user>'@'%'` (or a specific host/CIDR) as **different accounts**, even with an identical username — creating the monitoring user as `'<user>'@'localhost'` silently fails to authenticate from a collector running anywhere else, with an access-denied error indistinguishable from a wrong password. Use `'<user>'@'%'` or scope it to the collector's specific private IP/CIDR.</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+Verified against a live Amazon RDS for MySQL instance: RDS's `mysql8.0` parameter-group family exposes no `performance_schema_consumer_*` parameters at all — only sizing/buffer parameters plus `performance_schema`, `slow_query_log`, and `long_query_time` are settable there. This means `events_waits_current` (needed for `mysql.events_waits_current.timer_wait`, and wait-based dashboards generally) can only be turned on at runtime on RDS, and it doesn't survive a restart or failover.
+</Callout>
+
+## Recommended server parameters [#params]
 
 For optimal monitoring experience, configure these MySQL server parameters:
 
@@ -139,7 +182,37 @@ For optimal monitoring experience, configure these MySQL server parameters:
   </tbody>
 </table>
 
-## Performance Schema consumer configuration
+## Query plans for write statements [#query]
+
+Follow this section only when you want `EXPLAIN` plans for write statements (`UPDATE`/`DELETE`/`INSERT`/`REPLACE`) without granting DML privileges to the monitoring user. Skip this if `SELECT`-only workloads are required, or you grant direct DML privileges to the monitoring user instead; in that case, leave `explain_mode` at its `inline` default.
+
+<Callout variant="important">
+When you set `explain_mode` to `procedure`, the receiver looks for a `SQL SECURITY DEFINER` procedure named `<schema>.explain_statement`. If that procedure doesn't exist, or the monitoring user lacks privilege on it, the receiver silently falls back to `inline` mode. Write statements then fail to get a query plan. You'll see the following warning in the collector log: `unable to execute explain statement`.
+</Callout>
+
+Run the following as a privileged account (for example, `root`) once per schema you want write-statement plans for:
+
+```sql
+DELIMITER //
+CREATE DEFINER = 'root'@'%' PROCEDURE <YOUR_SCHEMA>.explain_statement(IN q TEXT)
+SQL SECURITY DEFINER
+BEGIN
+  SET @nr_explain_sql = CONCAT('EXPLAIN FORMAT=JSON ', q);
+  PREPARE nr_explain_stmt FROM @nr_explain_sql;
+  EXECUTE nr_explain_stmt;
+  DEALLOCATE PREPARE nr_explain_stmt;
+END//
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE <YOUR_SCHEMA>.explain_statement TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+The `GRANT EXECUTE` step matters for more than being able to `CALL` the procedure — without it, the monitoring user also can't see the procedure in `information_schema.ROUTINES`, which the receiver relies on to detect whether it exists. A missed `GRANT EXECUTE` looks identical to a missing procedure — it falls back to `inline` either way.
+
+<Callout variant="tip">
+This is stateful per schema — a new or restored database, or a dropped procedure, silently re-disables write-statement plan collection for that schema (it falls back to `inline` again). `SQL SECURITY DEFINER` stored routines apply the definer's privileges to dynamic SQL executed via `PREPARE`/`EXECUTE` inside them, which is what lets a `SELECT`-only monitoring user get plans for statements it has no direct privilege to run.
+</Callout>
+
+## Enable lock-wait duration tracking [#lock]
 
 The `events_waits_current` consumer provides lock-wait duration information but requires platform-specific configuration:
 
@@ -165,13 +238,8 @@ The `events_waits_current` consumer provides lock-wait duration information but 
   </tbody>
 </table>
 
-## System requirements
 
-* System to run the NRDOT Collector (Linux, Windows, or macOS)
-* Network connectivity to New Relic's OTLP endpoint
-* At least 512MB RAM and 1 CPU core for the collector
-
-## Next steps
+## Next steps [#next]
 
 Once you've verified your environment meets these prerequisites:
 
