@@ -22,19 +22,32 @@ Troubleshoot common issues you may encounter when monitoring your MySQL with the
 
 ### Test network connectivity to MySQL
 
+First confirm the port is reachable at all:
+
+```bash
+nc -zv <YOUR_DB_HOST> <YOUR_DB_PORT>
+```
+
+Then confirm the monitoring user can actually authenticate and query:
+
 ```bash
 mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
 ```
 
-A successful connection and result confirms the monitoring user, host, and port are reachable before troubleshooting the collector itself.
+If the command completes without an error, the monitoring user, host, and port are all correct.
 
 ### Test OTLP endpoint connectivity
 
-Verify the NRDOT Collector can reach New Relic's OTLP endpoint:
+Run the following to verify your host can reach the selected New Relic OTLP endpoint:
 
-```bash
-curl -v <YOUR_NEWRELIC_OTLP_ENDPOINT>
+```shell
+ENDPOINT="<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+HOST=$(echo "$ENDPOINT" | sed 's|https://||' | cut -d: -f1)
+PORT=$(echo "$ENDPOINT" | awk -F: '{print $NF}')
+(timeout 2 bash -c "</dev/tcp/$HOST/$PORT" && echo "SUCCESS") || echo "FAILED"
 ```
+
+**Expected output:** `SUCCESS`
 
 ## Common issues
 
@@ -42,7 +55,7 @@ curl -v <YOUR_NEWRELIC_OTLP_ENDPOINT>
 
 <Collapser
   id="no-query-events"
-  title="No db.server.query_sample or db.server.top_query events"
+  title="Query events or samples aren't appearing"
 >
 
 **Symptoms:** Missing query sample and top query log events in New Relic.
@@ -79,7 +92,7 @@ curl -v <YOUR_NEWRELIC_OTLP_ENDPOINT>
 
 <Collapser
   id="missing-wait-times"
-  title="mysql.events_waits_current.timer_wait always 0"
+  title="Wait time metrics aren't appearing"
 >
 
 **Symptoms:** Lock wait duration metrics always show 0 seconds.
@@ -137,22 +150,21 @@ performance_schema_max_sql_text_length = 4096
 </Collapser>
 
 <Collapser
-  id="no-query-plansa"
-  title="Query plans missing for MySQL 5.x"
+  id="no-query-plans-old-versions"
+  title="Query plans missing in top query events"
 >
 
 **Symptoms:** No query plans available in `db.server.top_query` events.
 
-**Cause:** Expected behavior — `query_sample_text` doesn't exist on MySQL versions before 8.0.
+**Cause:** Expected behavior — `query_sample_text` doesn't exist on MySQL `5.7.x` or `8.0.0`–`8.0.2`.
 
-**Solutions:** Upgrade to MySQL 8.0+ for query plan support
-
+**Solutions:** Upgrade to MySQL `8.0.3` or later for query plan support.
 
 </Collapser>
 
 <Collapser
   id="write-statement-plans"
-  title="Write statement (UPDATE/INSERT/etc.) plans missing"
+  title="Write statement plans missing"
 >
 
 **Symptoms:** Query plans missing for `UPDATE`, `INSERT`, `DELETE`, or `REPLACE` statements.
@@ -172,7 +184,7 @@ This uses a `SQL SECURITY DEFINER` procedure to explain write statements without
 
 <Collapser
   id="empty-client-name"
-  title="mysql.session.client_name empty for some sessions"
+  title="Client name is empty for sessions"
 >
 
 **Symptoms:** The `mysql.session.client_name` attribute is empty for some database connections.
@@ -188,7 +200,7 @@ This uses a `SQL SECURITY DEFINER` procedure to explain write statements without
 
 <Collapser
   id="empty-comment-tags"
-  title="db.query.comment_tags.nr_service_guid always empty"
+  title="Comment tags are empty"
 >
 
 **Symptoms:** APM correlation tags are not being extracted from SQL comments.
@@ -210,7 +222,7 @@ Comment tag extraction is empty by default for security reasons.
 
 <Collapser
   id="entity-missing"
-  title="MySQL entity doesn't appear or app→MySQL relationship doesn't resolve"
+  title="MySQL entity or APM relationship missing"
 >
 
 **Symptoms:** 
@@ -237,11 +249,11 @@ service:
     metrics:
       receivers: [nrmysql]
       processors: [resource/mysql, batch]
-      exporters: [otlphttp/newrelic]
+      exporters: [otlp/newrelic]
     logs:
       receivers: [nrmysql]
       processors: [resource/mysql, batch]
-      exporters: [otlphttp/newrelic]
+      exporters: [otlp/newrelic]
 ```
 
 </Collapser>
@@ -288,11 +300,30 @@ The `events_waits_current` consumer automatically disables on RDS restart/failov
 GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
 ```
 
-**RDS parameter group issues:**
-Verify `performance_schema = 1` in your RDS parameter group. Changes require an instance restart.
-
 **RDS network security:**
 Ensure your RDS security group allows inbound traffic on port 3306 from the NRDOT Collector's IP address or security group.
+
+</Collapser>
+
+<Collapser
+  id="rds-tls-certificate-error"
+  title="TLS certificate error connecting to RDS"
+>
+
+**Symptoms:** The collector fails to connect, with a certificate or TLS-related error.
+
+**Cause:** RDS enforces TLS. The collector doesn't trust Amazon's RDS CA by default.
+
+**Solution:**
+Set `tls.ca_file` (or `tls.ca_pem`) to the [Amazon RDS certificate bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem), and leave `tls.insecure`/`tls.insecure_skip_verify` at `false`:
+
+```yaml
+nrmysql:
+  tls:
+    insecure: false
+    insecure_skip_verify: false
+    ca_file: /path/to/global-bundle.pem
+```
 
 </Collapser>
 
@@ -305,9 +336,13 @@ Use these NRQL queries to troubleshoot and verify your MySQL monitoring:
 ### Check for blocked queries
 ```sql
 FROM Log SELECT * WHERE event.name = 'db.server.query_sample' 
-AND mysql.blocking.blocker.thread_id > 0 
+AND mysql.blocking.blocker.count > 0 
 SINCE 1 hour ago
 ```
+
+<Callout variant="tip">
+Filter with `mysql.blocking.blocker.count > 0`, not `!= 0` — in NRQL, `null != 0` evaluates to `TRUE`, which would silently include non-blocked sessions in your results.
+</Callout>
 
 ### Find slowest queries
 ```sql
@@ -338,7 +373,7 @@ If you continue experiencing issues:
 
 2. Verify your configuration syntax:
    ```bash
-   nrdot-collector --config-validate --config-file=<your-config-file>
+   nrdot-collector validate --config=<your-config-file>
    ```
 
 3. Review our [compatibility requirements](/docs/opentelemetry/database/mysql/compatibility)
