@@ -22,15 +22,23 @@ Set up MySQL monitoring using the NRDOT Collector on self-hosted environments in
 
 <Step>
 
-### Prerequisites [#prerequisites]
+## Prerequisites [#prerequisites]
 
-Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/mysql/compatibility).
+Before you install, make sure you have:
+
+* A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+* Administrative access to your MySQL instance.
+* Network connectivity between the host where you install the NRDOT Collector and your MySQL database.
+* Network connectivity to [New Relic OTLP endpoints documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+* This integration is available as a part of New Relic public preview program. Check with your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
+
+For supported MySQL versions, required grants, and `performance_schema` requirements, see [Compatibility and prerequisites](/docs/opentelemetry/database/mysql/compatibility).
 
 </Step>
 
 <Step>
 
-### Setup the NRDOT Collector [#setup]
+## Set up NRDOT Collector [#setup]
 
 Install the NRDOT Collector on your system:
 
@@ -79,37 +87,65 @@ Install the NRDOT Collector on your system:
 
 <Step>
 
-### Configure database user [#database-user]
+## Configure database user [#user]
 
-Create a monitoring user with the necessary privileges for your MySQL Database instance.
-Run the following statements as an administrative user inside your MySQL database:
+Create a monitoring user with the necessary privileges for your MySQL database instance. 
+
+### Create a monitoring user
+
+Run the following as an administrative user inside your MySQL database:
 
 ```sql
-CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<USER_PASSWORD>';
+CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>';
+```
+
+### Set grants for monitoring user
+
+* To collect query samples and top queries, grant the following privileges to the monitoring user:
+
+```sql
 GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%';
 ```
 
-</Step>
-
-<Step>
-
-### Grant monitoring privileges [#database-grants]
-
-For enhanced monitoring capabilities, grant additional privileges to collect lock-wait duration information:
+* (Optional) To view the wait-time data in New Relic platform, grant the following privileges to the monitoring user:
 
 ```sql
 GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
 ```
 
-This grant is optional and enables `mysql.events_waits_current.timer_wait` metrics for lock-wait duration analysis.
+
+* (Optional) To verify the connection and grants, run:
+
+```shell
+mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
+```
+
+A successful connection and result confirms the monitoring user, host, and port are reachable before configuring the collector.
 
 </Step>
 
 <Step>
 
-### Configure NRDOT Collector [#configure-collector]
+## Configure NRDOT Collector [#configure]
 
-Configure the NRDOT Collector with your MySQL-specific settings. Create a configuration file (e.g., `mysql-config.yaml`) with the following content:
+Configure the NRDOT Collector with your MySQL-specific settings. Select your configuration type based on your monitoring needs:
+
+<CollapserGroup>
+
+<Collapser
+  id="standard"
+  title="Standard configuration"
+>
+
+This configuration focuses on essential MySQL monitoring with the `nrmysql` receiver only.
+
+1. Create a configuration file named as `mysql-config.yaml`:
+
+  ```bash
+    sudo nano /etc/nrdot-collector/mysql-config.yaml
+  ```
+
+2. Add the following configuration to the `mysql-config.yaml` file you created in the previous step.
 
 ```yaml
 receivers:
@@ -125,9 +161,7 @@ receivers:
     tls:
       insecure: false
       insecure_skip_verify: false
-    # "procedure" collects EXPLAIN plans for write statements (UPDATE/DELETE/INSERT/REPLACE)
-    # without granting DML to the monitoring user, via a SQL SECURITY DEFINER procedure.
-    # Falls back to "inline" (default) automatically if the procedure is absent for a schema.
+      # ca_file: /path/to/global-bundle.pem
     explain_mode: procedure
     statement_events:
       digest_text_limit: 4096
@@ -135,10 +169,6 @@ receivers:
       limit: 500
     query_sample_collection:
       max_rows_per_query: 100
-      # APM-DB correlation: surfaces the nr_service_guid SQL comment tag (e.g. injected by
-      # transaction_tracer.sql_metadata_comments in the Java agent) as db.query.comment_tags /
-      # db.query.comment_tags.nr_service_guid. Empty list by default — nothing is extracted
-      # unless the key is explicitly allow-listed here.
       allowed_comment_keys: [nr_service_guid]
     top_query_collection:
       lookback_time: 120
@@ -162,11 +192,280 @@ processors:
         value: "<YOUR_DB_HOST>"
         action: upsert
       - key: server.port
-        value: <YOUR_DB_PORT> # unquoted — must parse as a YAML int, not a string
+        value: <YOUR_DB_PORT>
         action: upsert
 
 exporters:
-  otlphttp/newrelic:
+  otlp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  pipelines:
+    metrics:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlp/newrelic]
+    logs:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlp/newrelic]
+```
+
+</Collapser>
+
+<Collapser
+  id="full"
+  title="Full-feature configuration"
+>
+
+This configuration adds host-level metrics (CPU, memory, disk, network) alongside MySQL database monitoring.
+
+1. Create a configuration file named as `mysql-config.yaml`:
+
+  ```bash
+    sudo nano /etc/nrdot-collector/mysql-config.yaml
+  ```
+
+2. Add the following configuration to the `mysql-config.yaml` file you created in the previous step.
+
+```yaml
+extensions:
+  health_check:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+  host_metrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.time:
+            enabled: false
+          system.cpu.utilization:
+            enabled: true
+      load:
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      paging:
+        metrics:
+          system.paging.utilization:
+            enabled: false
+          system.paging.faults:
+            enabled: false
+      filesystem:
+        metrics:
+          system.filesystem.utilization:
+            enabled: true
+      disk:
+        metrics:
+          system.disk.merged:
+            enabled: false
+          system.disk.pending_operations:
+            enabled: false
+          system.disk.weighted_io_time:
+            enabled: false
+      network:
+        metrics:
+          system.network.connections:
+            enabled: false
+      # Uncomment to enable process metrics, which can be noisy but valuable.
+      # processes:
+      # process:
+      #  metrics:
+      #    process.cpu.utilization:
+      #      enabled: true
+      #    process.cpu.time:
+      #      enabled: false
+
+  nrmysql:
+    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+    transport: tcp
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    database: "<YOUR_DATABASE_NAME>"
+    allow_native_passwords: true
+    collection_interval: 10s
+    initial_delay: 1s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+      # Required for Amazon RDS/Aurora with SSL/TLS enforcement -- see
+      # Prerequisites -> Network access -> Amazon RDS / Aurora for MySQL.
+      # ca_file: /path/to/global-bundle.pem
+    # "procedure" collects EXPLAIN plans for write statements (UPDATE/DELETE/INSERT/REPLACE)
+    # without granting DML to the monitoring user, via a SQL SECURITY DEFINER procedure.
+    # Falls back to "inline" (default) automatically if the procedure is absent for a schema.
+    # Requires one-time setup per schema -- see Prerequisites -> DML query plan collection.
+    explain_mode: procedure
+    statement_events:
+      digest_text_limit: 4096
+      time_limit: 24h
+      limit: 500
+    query_sample_collection:
+      max_rows_per_query: 100
+      # APM-DB correlation: surfaces the nr_service_guid SQL comment tag (e.g. injected by
+      # transaction_tracer.sql_metadata_comments in the Java agent) as db.query.comment_tags /
+      # db.query.comment_tags.nr_service_guid. Empty list by default -- nothing is extracted
+      # unless the key is explicitly allow-listed here.
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      lookback_time: 120
+      max_query_sample_count: 5000
+      top_query_count: 200
+      collection_interval: 60s
+      query_plan_cache_size: 1000
+      query_plan_cache_ttl: 1h
+      allowed_comment_keys: [nr_service_guid]
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+processors:
+  metrics_transform:
+    transforms:
+      - include: system.cpu.utilization
+        action: update
+        operations:
+          - action: aggregate_labels
+            label_set: [state]
+            aggregation_type: mean
+      - include: system.paging.operations
+        action: update
+        operations:
+          - action: aggregate_labels
+            label_set: [direction]
+            aggregation_type: sum
+
+  filter/exclude_cpu_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+
+  filter/exclude_memory_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+
+  filter/exclude_memory_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+        - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+
+  filter/exclude_filesystem_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+
+  filter/exclude_filesystem_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+        - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+
+  filter/exclude_filesystem_inodes_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+        - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+
+  filter/exclude_system_disk:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+
+  filter/exclude_network:
+    metrics:
+      datapoint:
+        - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+
+  attributes/exclude_system_paging:
+    include:
+      match_type: strict
+      metric_names:
+        - system.paging.operations
+    actions:
+      - key: type
+        action: delete
+
+  cumulative_to_delta:
+
+  transform:
+    trace_statements:
+      - context: span
+        statements:
+          - truncate_all(span.attributes, 4095)
+          - truncate_all(resource.attributes, 4095)
+
+  transform/host:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(metric.description, "")
+          - set(metric.unit, "")
+
+  # Static server.address/server.port, reusing the same <YOUR_DB_HOST>/<YOUR_DB_PORT>
+  # values already set on the receiver's own `endpoint` field above -- nrmysqlreceiver
+  # itself emits no server.address/server.port, only its own mysql.instance.endpoint
+  # (a combined "host:port" string). Applies uniformly to both metrics and logs
+  # pipelines since neither depends on how that string is derived.
+  resource/mysql:
+    attributes:
+      - key: server.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+      - key: server.port
+        value: <YOUR_DB_PORT>
+        action: upsert
+
+  batch:
+
+  resource_detection:
+    detectors: ["system"]
+    system:
+      hostname_sources: ["os"]
+      resource_attributes:
+        host.id:
+          enabled: true
+
+  resource_detection/cloud:
+    detectors: ["gcp", "ec2", "azure"]
+    timeout: 2s
+    override: true
+
+  resource_detection/env:
+    detectors: ["env"]
+    timeout: 2s
+    override: true
+
+exporters:
+  otlp/newrelic:
     endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
     headers:
       api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
@@ -181,40 +480,129 @@ service:
   telemetry:
     metrics:
       level: none
+
+  extensions: [health_check]
+
   pipelines:
+    metrics/host:
+      receivers: [host_metrics]
+      processors:
+        - metrics_transform
+        - filter/exclude_cpu_utilization
+        - filter/exclude_memory_utilization
+        - filter/exclude_memory_usage
+        - filter/exclude_filesystem_utilization
+        - filter/exclude_filesystem_usage
+        - filter/exclude_filesystem_inodes_usage
+        - filter/exclude_system_disk
+        - filter/exclude_network
+        - attributes/exclude_system_paging
+        - transform/host
+        - resource_detection
+        - resource_detection/cloud
+        - resource_detection/env
+        - cumulative_to_delta
+        - batch
+      exporters: [otlp/newrelic]
+
+    metrics/mysql:
+      receivers: [nrmysql]
+      processors:
+        - resource/mysql
+        - resource_detection
+        - resource_detection/cloud
+        - resource_detection/env
+        - batch
+      exporters: [otlp/newrelic]
+
+    logs/mysql:
+      receivers: [nrmysql]
+      processors:
+        - resource/mysql
+        - resource_detection
+        - resource_detection/cloud
+        - resource_detection/env
+        - batch
+      exporters: [otlp/newrelic]
+
+    traces:
+      receivers: [otlp]
+      processors: [transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+      exporters: [otlp/newrelic]
+
     metrics:
-      receivers: [nrmysql]
-      processors: [resource/mysql, batch]
-      exporters: [otlphttp/newrelic]
+      receivers: [otlp]
+      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+      exporters: [otlp/newrelic]
+
     logs:
-      receivers: [nrmysql]
-      processors: [resource/mysql, batch]
-      exporters: [otlphttp/newrelic]
+      receivers: [otlp]
+      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+      exporters: [otlp/newrelic]
 ```
 
-<Callout variant="important">
-**Entity synthesis requirements**: The `server.address` and `server.port` attributes in the `resource/mysql` processor are **required** for APM correlation and entity synthesis in New Relic. Without these attributes, the MySQL entity won't populate correctly and APM-database relationships won't resolve.
+</Collapser>
+
+</CollapserGroup>
+
+### Configuration parameters
+
+The following table describes the key configuration parameters for the `nrmysql` receiver:
+
+| Parameter | Description |
+| --- | --- |
+| `<YOUR_DB_HOST>` | Enter your MySQL host name or IP address. |
+| `<YOUR_DB_PORT>` | Enter your MySQL port number. The default value is `3306`. |
+| `<YOUR_DB_USERNAME>` | Enter the username of the monitoring user you created in [Configure database user](#user). |
+| `<YOUR_DB_PASSWORD>` | Enter the password of the monitoring user you created in [Configure database user](#user). |
+| `<YOUR_DATABASE_NAME>` | Optional. Enter a specific database name to restrict monitoring to it. Omit this parameter to monitor every database the monitoring user can access. |
+| `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, see [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
+| `<YOUR_NEWRELIC_LICENSE_KEY>` | Enter your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+| `transport` | Default value is set to `tcp` to connect over the network. If your NRDOT Collector runs on the same host as MySQL, use `unix` to connect through a Unix domain socket instead. |
+| `collection_interval` | Enter the interval between metric scrapes. Default: `10s`. |
+| `explain_mode` | Default value is set to `inline`. Set the value to `procedure` to collect query plans for write statements without granting DML privileges to the monitoring user. See [Query plans for write statements](/docs/opentelemetry/database/mysql/compatibility#query). |
+
+
+</Step>
+
+<Step>
+
+## Validate NRDOT Collector configuration [#validate]
+
+1. Update the config path to point to your new `mysql-config.yaml` file:
+
+  ```bash
+    OTELCOL_CONFIG="/etc/nrdot-collector/mysql-config.yaml"
+  ```
+2. Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly:
+
+  ```bash
+    sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mysql-config.yaml
+  ```
+
+<Callout variant="tip">
+  You can also:
+  * [Configure multiple receivers](/docs/opentelemetry/database/mysql/multi-receiver): To monitor multiple MySQL instances from one collector.
+  * [Link your MySQL database with APM](/docs/opentelemetry/database/capabilities/db-apm): To correlate your application performance with database operations. This allows you to see exactly which applications are generating specific database workloads. 
+  * [Configure SQL Query Receiver](/docs/opentelemetry/database/capabilities/sql-query-receiver): To collect custom metrics from your MySQL database.
+  * [Set up secret management](/docs/opentelemetry/database/database-service-identification/#secret-management): To securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files.
 </Callout>
 
 </Step>
 
 <Step>
 
-### (Optional) Set up SQL Query Receiver [#query-receiver]
+## Restart NRDOT Collector [#restart]
 
-You can configure [SQL Query Receiver](/docs/opentelemetry/database/capabilities/sql-query-receiver/) to collect custom metrics from your MySQL Database. For more information, refer to the [SQL Query Receiver documentation](/docs/opentelemetry/database/capabilities/sql-query-receiver/).
-
-</Step>
-
-<Step>
-
-### Restart NRDOT Collector [#restart-collector]
-
-After configuring the collector, restart the NRDOT Collector service to apply the changes:
+After updating your configuration, restart the NRDOT Collector service:
 
 ```bash
 sudo systemctl restart nrdot-collector
 ```
+
+<Callout variant="tip">
+  Always restart the NRDOT collector service after making configuration changes to ensure the new settings take effect.
+</Callout>
 
 To verify that the collector is running properly, check the service status:
 
@@ -222,58 +610,11 @@ To verify that the collector is running properly, check the service status:
 sudo systemctl status nrdot-collector
 ```
 
-<Callout variant="tip">
-  Always restart the NRDOT Collector after making configuration changes to ensure the new settings take effect.
-</Callout>
-
 </Step>
 
 <Step>
 
-### (Optional) Multi-receiver configuration [#multi-receiver]
-
-To monitor multiple MySQL instances from one collector, add multiple named instances of the receiver:
-
-```yaml
-receivers:
-  nrmysql/instance1: &nrmysql-common
-    endpoint: "<INSTANCE_1_HOST>:<PORT>"
-    username: "<YOUR_DB_USERNAME>"
-    password: "<YOUR_DB_PASSWORD>"
-    collection_interval: 10s
-  nrmysql/instance2:
-    <<: *nrmysql-common
-    endpoint: "<INSTANCE_2_HOST>:<PORT>"
-
-service:
-  pipelines:
-    metrics:
-      receivers: [nrmysql/instance1, nrmysql/instance2]
-      processors: [resource/mysql, batch]
-      exporters: [otlphttp/newrelic]
-    logs:
-      receivers: [nrmysql/instance1, nrmysql/instance2]
-      processors: [resource/mysql, batch]
-      exporters: [otlphttp/newrelic]
-```
-
-</Step>
-
-<Step>
-
-### (Optional) Set up APM-database correlation [#optional-service-id]
-
-To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/capabilities/db-apm/) to get APM-database correlation in New Relic.
-
-<Callout variant="important">
-  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
-</Callout>
-
-</Step>
-
-<Step>
-
-### Find and use your data [#find-use-data]
+## Find and use your data [#find]
 
 Once your data is being collected, you can access comprehensive MySQL database monitoring through New Relic's UI.
 
