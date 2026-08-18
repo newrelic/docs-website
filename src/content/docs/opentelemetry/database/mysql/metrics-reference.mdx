@@ -487,30 +487,76 @@ The following metrics are disabled by default but can be enabled for deeper insi
 
 ### `db.server.query_sample`
 
-Real-time visibility into currently-running database statements, a point-in-time snapshot taken every scrape, not a complete execution log. 
+Real-time visibility into currently-running database statements — a point-in-time snapshot taken every scrape, not a complete execution log. Disabled by default.
 
-**Key attributes:**
-- `db.system.name`: `mysql`
-- `mysql.threads.thread_id`: Unique identifier for the thread executing the statement
-- `mysql.session.id`: `PROCESSLIST_ID` — the connection ID visible via `SHOW PROCESSLIST`
-- `user.name`: Foreground-thread user; empty for background threads
-- `db.namespace`: Thread's current database (`processlist_db`)
-- `db.query.text`: SQL statement text
-- `mysql.events_statements_current.timer_wait`: Elapsed execution time, in seconds
-- `mysql.events_waits_current.timer_wait`: Elapsed wait time, in seconds (requires the `events_waits_current` consumer)
-- `mysql.query_plan` / `mysql.query_plan.hash`: Query plan, if available, and its cache key
+| Attribute | Description |
+| --- | --- |
+| `db.system.name` | `mysql` |
+| `mysql.threads.thread_id` | Unique identifier for the thread executing the statement |
+| `mysql.session.id` | `PROCESSLIST_ID` — the connection ID visible via `SHOW PROCESSLIST` |
+| `user.name` | Foreground-thread user; empty for background threads |
+| `db.namespace` | Thread's current database (`processlist_db`) |
+| `mysql.threads.processlist_command` | Command type, or `Sleep` if idle |
+| `mysql.threads.processlist_state` | Current action/state of the thread |
+| `db.query.text` | SQL statement text |
+| `mysql.events_statements_current.digest` | SHA-256 statement digest |
+| `mysql.events_statements_current.timer_start` | Monotonic picosecond counter marking statement start — a stable per-execution key across scrape cycles |
+| `mysql.events_statements_current.timer_wait` | Elapsed execution time, in seconds |
+| `mysql.events_waits_current.timer_wait` | Elapsed wait time, in seconds (requires the `events_waits_current` consumer) |
+| `mysql.wait_event_type` | Top-level wait classification derived from the wait event name (`io`, `lock`, `synch`), or `CPU`/`User sleep`/`other` when not actually waiting. Paired with `mysql.wait_event`. |
+| `mysql.wait_event` | Detailed wait breakdown — the wait event name with its category segment stripped (for example, `table/sql/handler`, `mutex/innodb/checkpoint_state`), or `CPU`/`User sleep`/`other` when not actually waiting. Paired with `mysql.wait_event_type`. |
+| `mysql.wait_type` | Raw, unprocessed name of the instrument that produced the wait event — for the parsed/categorized breakdown, see `mysql.wait_event_type` / `mysql.wait_event`. |
+| `mysql.session.status` | `waiting`, `running`, or `other` |
+| `mysql.query_plan` / `mysql.query_plan.hash` | Query plan, if available, and its cache key |
+| `mysql.event_id` | Thread + current event number when the event started |
+| `client.address` / `client.port` | Client host/port (port populated on MySQL 8.0.22+ only, else `0`) |
+| `network.peer.address` / `network.peer.port` | Same, as network-layer attributes |
+| `mysql.blocking.blockers` | JSON array of `{thread_id, session_id}` tuples, one per concurrent InnoDB row-lock blocker for this session — not just the first, if more than one exists. `"[]"` when not blocked; a blocker's `session_id` is `null` if it disconnected before it could be resolved. |
+| `mysql.blocking.blocker.count` | Integer count of concurrent blockers. `0` means not blocked. |
+| `mysql.session.client_name` | Client driver's self-reported identity (for example, `MySQL Connector/J`), from `session_connect_attrs`. Empty if the driver doesn't send connect attributes. |
+| `db.query.comment_tags` / `.nr_service_guid` | APM-correlation comment tags — see [(Optional) Set up APM-database correlation](/docs/opentelemetry/database/mysql/hosted#validate) |
+| `db.query.text.normalized.hash` | MD5 of normalized SQL for cross-engine correlation |
+
+<Callout variant="tip">
+Filter blocking with `mysql.blocking.blocker.count > 0`, not `!= 0` — `null != 0` evaluates `TRUE` in NRQL, which would silently include non-blocked sessions in your results.
+</Callout>
 
 ### `db.server.top_query`
 
-The queries consuming the most execution time, aggregated server-side by MySQL's own `performance_schema.events_statements_summary_by_digest` — a true per-digest execution counter, not a sample count.
+The queries consuming the most execution time, aggregated server-side by MySQL's own `performance_schema.events_statements_summary_by_digest` — a true per-digest execution counter, not a sample count. Disabled by default.
 
-**Key attributes:**
-- `db.system.name`: `mysql`
-- `db.query.text`: SQL statement text (obfuscated)
-- `db.namespace`: Digest's `SCHEMA_NAME`
-- `mysql.events_statements_summary_by_digest.count_star`: Times the statement executed, reported as a **per-scrape delta**
-- `mysql.events_statements_summary_by_digest.sum_timer_wait`: Total execution time, delta seconds
-- `mysql.query_plan` / `mysql.query_plan.hash`: Query plan (via `EXPLAIN`), if available
+| Attribute | Description |
+| --- | --- |
+| `db.system.name` | `mysql` |
+| `db.query.text` | SQL statement text (obfuscated) |
+| `db.namespace` | Digest's `SCHEMA_NAME` |
+| `mysql.events_statements_summary_by_digest.digest` | SHA-256 statement digest |
+| `mysql.events_statements_summary_by_digest.count_star` | Times the statement executed, reported as a **per-scrape delta**, not cumulative |
+| `mysql.events_statements_summary_by_digest.sum_timer_wait` | Total execution time, delta seconds |
+| `mysql.events_statements_summary_by_digest.sum_rows_examined` / `.sum_rows_sent` | Delta row counts — dividing by `count_star` gives per-execution averages. These are row counts, not logical reads. |
+| `mysql.query_plan` / `mysql.query_plan.hash` | Query plan (via `EXPLAIN`), if available — see [Execution plan collection](#explain) |
+| `db.query.comment_tags` / `.nr_service_guid` | Same as `query_sample` |
+| `db.query.text.normalized.hash` | Same as `query_sample` |
+
+### Execution plan collection [#explain]
+
+`EXPLAIN` needs a literal SQL statement — the normalized digest text uses placeholders (`SELECT ? FROM t WHERE id = ?`) that MySQL can't execute.
+
+| MySQL version | Plan availability |
+| --- | --- |
+| `8.0.3`+ | Available — `query_sample_text` on the digest summary table holds a real statement to `EXPLAIN` |
+| `5.x`, `8.0.0`–`8.0.2` | Not available — no `query_sample_text` to explain |
+
+If a captured statement is truncated (ends in `...`), `EXPLAIN` is skipped on every version — see [Recommended server parameters](/docs/opentelemetry/database/mysql/compatibility#params).
+
+| `explain_mode` | Behavior |
+| --- | --- |
+| `inline` (default) | Runs `EXPLAIN FORMAT=json <statement>` directly — sufficient for `SELECT`-only workloads |
+| `procedure` | Routes through a `SQL SECURITY DEFINER` procedure (`<schema>.explain_statement`) so write statements (`UPDATE`/`DELETE`/`INSERT`/`REPLACE`) can be explained without granting DML to the monitoring user. Falls back to `inline` if the procedure is missing. Requires the one-time setup step per schema — see [Query plans for write statements](/docs/opentelemetry/database/mysql/advanced-config#query). |
+
+<Callout variant="important">
+`mysql.query_plan` is the raw `EXPLAIN FORMAT=json` output, wrapped in a one-element JSON array before caching, so New Relic's log ingest doesn't auto-flatten and destroy it. Parse index `[0]` to recover the plan object.
+</Callout>
 
 ## Timer units
 
@@ -537,7 +583,7 @@ The queries consuming the most execution time, aggregated server-side by MySQL's
 </table>
 
 <Callout variant="important">
-`mysql.events_waits_current.timer_wait` is the one field that is a genuine, distinct wait/block duration (not total elapsed time) — pair it with `mysql.wait_type`.
+`mysql.events_waits_current.timer_wait` is the one field that is a genuine, distinct wait/block duration (not total elapsed time) — pair it with `mysql.wait_event_type` / `mysql.wait_event` (or the raw `mysql.wait_type`).
 </Callout>
 
 ## Related documentation [#related]
