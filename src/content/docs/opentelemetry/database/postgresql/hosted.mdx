@@ -21,15 +21,23 @@ Set up PostgreSQL monitoring using the NRDOT Collector on self-hosted environmen
 
 <Step>
 
-### Prerequisites [#prerequisites]
+## Prerequisites [#prerequisites]
 
-Ensure your environment meets our [compatibility and prerequisites](/docs/opentelemetry/database/postgresql/compatibility).
+Before you install, make sure you have:
+
+* A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+* Administrative access to your PostgreSQL instance.
+* Network connectivity between the host where you install the NRDOT Collector and your PostgreSQL database.
+* Network connectivity to [New Relic OTLP endpoints documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+* This integration is available as a part of New Relic public preview program. Check with your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
+
+For supported PostgreSQL versions, required grants, and recommended server parameters, see [Compatibility and prerequisites](/docs/opentelemetry/database/postgresql/compatibility).
 
 </Step>
 
 <Step>
 
-### Setup the NRDOT Collector [#setup]
+## Set up NRDOT Collector [#setup]
 
 Install the NRDOT Collector on your system:
 
@@ -76,164 +84,186 @@ Install the NRDOT Collector on your system:
 
 </Step>
 
+{/*
 <Step>
 
-### Configure PostgreSQL server settings [#server-settings]
+## Configure PostgreSQL server settings [#server-settings]
+
+TODO — commented out until confirmed with dev: dev's draft only gives the required/optional parameter tables (already in compatibility.mdx) and says "configure these in postgresql.conf and restart the server." It doesn't provide the actual file-edit/restart mechanics shown below. Restore and verify before publishing.
 
 1. Open `postgresql.conf`:
-   
+
    ```bash
    sudo nano /var/lib/pgsql/data/postgresql.conf
    ```
 
 2. Add `pg_stat_statements` to `shared_preload_libraries`, and optionally configure other recommended settings:
-   
+
    ```ini
    shared_preload_libraries = 'pg_stat_statements'
-   pg_stat_statements.max = 10000 # optional: normalized queries tracked
-   pg_stat_statements.track = all # optional: track statements inside functions
-   pg_stat_statements.save = on # optional: persist stats across restarts
-   track_activity_query_size = 4096 # optional: improves query sample text fidelity
-   track_functions = all # optional: required for function call metrics
+   pg_stat_statements.max = 10000
+   pg_stat_statements.track = ALL
+   pg_stat_statements.save = on
+   track_activity_query_size = 4096
+   track_functions = all
+   pg_stat_statements.track_utility = off
    ```
 
 3. Restart PostgreSQL server:
-   
+
    ```bash
    sudo systemctl restart postgresql-*
    ```
 
 </Step>
 
+*/}
+
 <Step>
 
-### Configure database user and grants [#database-user]
+## Configure database user and grants [#database-user]
 
-#### 1. Connect as a superuser (once)
+Create a monitoring user with the necessary privileges for your PostgreSQL instance.
 
-```bash
+### Connect and create the monitoring user
+
+Connect to your PostgreSQL instance as a superuser (or another user with sufficient permissions):
+
+```shell
 sudo -u postgres psql --dbname=postgres --port=5432
 ```
 
-#### 2. Create the monitoring role (once, cluster-wide)
+Create the monitoring user:
 
 ```sql
-CREATE USER otelu WITH LOGIN PASSWORD '<USER_PASSWORD>';
+CREATE USER <YOUR_DB_USERNAME> WITH LOGIN PASSWORD '<YOUR_DB_PASSWORD>';
 ```
 
-#### 3. Grant cluster-wide monitoring privileges (once, cluster-wide)
+### Create the monitoring schema and grant access
 
-```sql
-GRANT SELECT ON pg_stat_database TO otelu;
-GRANT pg_monitor TO otelu;
-```
+* Required on PostgreSQL 15+ only — role membership defaults changed in PG15. On PostgreSQL 14, roles inherit privileges by default and this is a no-op — safe to run on any supported version either way:
 
-#### 4. Connect to each database you want to monitor (repeat per database)
+  ```sql
+  ALTER ROLE <YOUR_DB_USERNAME> INHERIT;
+  ```
 
-```bash
-psql --username=postgres --dbname=<YOUR_DATABASE_NAME>
-```
+* Create the following schema and grants in every database you want to monitor:
 
-#### 5. Grant table access and create `pg_stat_statements` (per database)
+  ```sql
+  CREATE SCHEMA IF NOT EXISTS otel;
+  GRANT USAGE ON SCHEMA otel TO <YOUR_DB_USERNAME>;
+  GRANT USAGE ON SCHEMA public TO <YOUR_DB_USERNAME>;
+  GRANT SELECT ON ALL TABLES IN SCHEMA public TO <YOUR_DB_USERNAME>;
+  GRANT pg_monitor TO <YOUR_DB_USERNAME>;
+  CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+  ```
 
-```sql
-GRANT USAGE ON SCHEMA public TO otelu;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO otelu;
-CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
--- Repeat the GRANT lines for any additional schema you want metrics from:
--- GRANT USAGE ON SCHEMA <schema> TO otelu;
--- GRANT SELECT ON ALL TABLES IN SCHEMA <schema> TO otelu;
-```
+* (Optional) To collect vector metrics, create the `pgvector` extension in each database:
 
-#### 6. (Optional) Create `pgvector` extension (per database — required only for vector metrics)
+  ```sql
+  CREATE EXTENSION IF NOT EXISTS vector;
+  ```
 
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-```
+  Requires PostgreSQL 13+. The `l1`, `hamming`, and `jaccard` distance functions require pgvector 0.7.0+.
 
-Requires PostgreSQL 13+. The `l1`, `hamming`, and `jaccard` distance functions require pgvector 0.7.0+.
+* (Optional) To collect `EXPLAIN` plans on locking or write statements without granting write access to the monitoring user, create the EXPLAIN helper function in each database:
 
-#### 7. (Optional) Create the EXPLAIN helper function (per database)
+  ```sql
+  CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+  RETURNS json
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  AS $$
+  DECLARE
+      v_plan json;
+      v_param_count int;
+      v_nulls text := '';
+      i int;
+  BEGIN
+      SET TRANSACTION READ ONLY;
+      SET plan_cache_mode = force_generic_plan;
 
-For EXPLAIN plans on write statements without granting write access to the monitoring user:
+      EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
 
-```sql
-CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
-RETURNS json
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-v_plan json;
-v_param_count int;
-v_nulls text := '';
-i int;
-BEGIN
-SET TRANSACTION READ ONLY;
-SET plan_cache_mode = force_generic_plan;
-EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
-SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
-FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
-IF v_param_count > 0 THEN
-FOR i IN 1..v_param_count LOOP
-v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
-END LOOP;
-v_nulls := '(' || v_nulls || ')';
-END IF;
-EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
-DEALLOCATE otel_explain_stmt;
-RETURN v_plan;
-EXCEPTION WHEN OTHERS THEN
-IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
-DEALLOCATE otel_explain_stmt;
-END IF;
-RAISE;
-END;
-$$;
-GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO otelu;
-```
+      SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+      FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
 
-#### 8. Verify the connection and grants
+      IF v_param_count > 0 THEN
+          FOR i IN 1..v_param_count LOOP
+              v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+          END LOOP;
+          v_nulls := '(' || v_nulls || ')';
+      END IF;
 
-```bash
-psql --username=otelu --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> --command '\conninfo'
-psql --username=otelu --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
--c "SELECT * FROM pg_stat_database LIMIT 1;" && echo "pg_stat_database OK"
-psql --username=otelu --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
--c "SELECT * FROM pg_stat_activity LIMIT 1;" && echo "pg_stat_activity OK"
-psql --username=otelu --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
--c "SELECT * FROM pg_stat_statements LIMIT 1;" && echo "pg_stat_statements OK"
-```
+      EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+      DEALLOCATE otel_explain_stmt;
+      RETURN v_plan;
+  EXCEPTION WHEN OTHERS THEN
+      IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+          DEALLOCATE otel_explain_stmt;
+      END IF;
+      RAISE;
+  END;
+  $$;
+
+  GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+  ```
+
+* (Optional) To verify the connection and grants, run:
+
+  ```shell
+  psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> --command '\conninfo'
+  psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+    -c "SELECT * FROM pg_stat_database LIMIT 1;" && echo "pg_stat_database OK"
+  psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+    -c "SELECT * FROM pg_stat_activity LIMIT 1;" && echo "pg_stat_activity OK"
+  psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+    -c "SELECT * FROM pg_stat_statements LIMIT 1;" && echo "pg_stat_statements OK"
+  ```
+
+  If each command completes without an error, the monitoring user, host, and port are all correct.
 
 </Step>
 
 <Step>
 
-### Configure NRDOT Collector [#configure-collector]
+## Configure NRDOT Collector [#configure-collector]
 
-Configure the NRDOT Collector with your PostgreSQL-specific settings. Create a configuration file (e.g., `postgresql-config.yaml`) with the following content:
+Configure the NRDOT Collector with your PostgreSQL-specific settings. Select your configuration type based on your monitoring needs:
+
+<CollapserGroup>
+
+<Collapser
+  id="standard"
+  title="Standard configuration"
+>
+
+This configuration focuses on essential PostgreSQL monitoring with the `nrpostgresql` receiver only.
+
+1. Create a configuration file named as `postgresql-config.yaml`:
+
+  ```bash
+    sudo nano /etc/nrdot-collector/postgresql-config.yaml
+  ```
+
+2. Add the following configuration to the `postgresql-config.yaml` file you created in the previous step.
 
 ```yaml
 receivers:
   nrpostgresql:
     endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
-    transport: tcp
     username: "<YOUR_DB_USERNAME>"
     password: "<YOUR_DB_PASSWORD>"
     databases:
-      - "<YOUR_DATABASE_NAME>"
-    collection_interval: 10s
-    initial_delay: 1s
-    tls:
-      insecure: false
-      insecure_skip_verify: false
+      - <YOUR_DATABASE_NAME>
+    # top_query/query_sample scan pg_stat_statements/pg_stat_activity cluster-wide
+    # regardless of the databases list above.
+    collection_interval: 15s
     events:
-      db.server.query_sample:
-        enabled: true
       db.server.top_query:
         enabled: true
-    query_sample_collection:
-      max_rows_per_query: 1000
+      db.server.query_sample:
+        enabled: true
     top_query_collection:
       max_rows_per_query: 1000
       top_n_query: 200
@@ -243,7 +273,11 @@ receivers:
       query_plan_cache_ttl: 1h
       explain_function_name: otel.explain_statement
       allowed_comment_keys: [nr_service_guid]
-    # Metrics needed for the out-of-the-box dashboard but disabled by default
+    query_sample_collection:
+      max_rows_per_query: 1000
+      allowed_comment_keys: [nr_service_guid]
+    # Metrics needed for the out-of-the-box dashboard but disabled by default —
+    # see the metrics reference for the full default-on/default-off breakdown.
     metrics:
       postgresql.database.locks:
         enabled: true
@@ -262,21 +296,285 @@ receivers:
 
 processors:
   batch:
-  # Transform processor to add server.address and server.port for entity synthesis
-  transform/postgresql_server_attrs:
-    metric_statements:
-      - context: resource
-        statements:
-          - set(resource.attributes["server.address"], Split(resource.attributes["service.instance.id"], ":")[0])
-          - set(resource.attributes["server.port"], Int(Split(resource.attributes["service.instance.id"], ":")[1]))
-    log_statements:
-      - context: resource
-        statements:
-          - set(resource.attributes["server.address"], Split(resource.attributes["service.instance.id"], ":")[0])
-          - set(resource.attributes["server.port"], Int(Split(resource.attributes["service.instance.id"], ":")[1]))
+  # Static server.address/server.port instead of deriving them from
+  # service.instance.id — with receiver.nrpostgresql.useOTelSemconv enabled,
+  # service.instance.id becomes a UUID v5 hash, not a "host:port" string, so
+  # a Split(...)-based transform breaks. Applies uniformly to both metrics
+  # and logs pipelines since neither depends on that internal format.
+  resource/postgresql:
+    attributes:
+      - key: server.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+      - key: server.port
+        value: <YOUR_DB_PORT>
+        action: upsert
 
 exporters:
-  otlphttp/newrelic:
+  otlp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  pipelines:
+    metrics:
+      receivers: [nrpostgresql]
+      processors: [resource/postgresql, batch]
+      exporters: [otlp/newrelic]
+    logs:
+      receivers: [nrpostgresql]
+      processors: [resource/postgresql, batch]
+      exporters: [otlp/newrelic]
+```
+
+</Collapser>
+
+<Collapser
+  id="full"
+  title="Full-feature configuration"
+>
+
+This configuration adds host-level metrics (CPU, memory, disk, network) alongside PostgreSQL database monitoring.
+
+1. Create a configuration file named as `postgresql-config.yaml`:
+
+  ```bash
+    sudo nano /etc/nrdot-collector/postgresql-config.yaml
+  ```
+
+2. Add the following configuration to the `postgresql-config.yaml` file you created in the previous step.
+
+<Callout variant="important">
+  If you're an existing NRDOT Collector user, ensure to merge the configuration with your existing `config.yaml` file. This includes adding the new receivers, processors, and exporters for PostgreSQL database monitoring while retaining your current configurations.
+</Callout>
+
+```yaml
+extensions:
+  health_check:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+  host_metrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.time:
+            enabled: false
+          system.cpu.utilization:
+            enabled: true
+      load:
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      paging:
+        metrics:
+          system.paging.utilization:
+            enabled: false
+          system.paging.faults:
+            enabled: false
+      filesystem:
+        metrics:
+          system.filesystem.utilization:
+            enabled: true
+      disk:
+        metrics:
+          system.disk.merged:
+            enabled: false
+          system.disk.pending_operations:
+            enabled: false
+          system.disk.weighted_io_time:
+            enabled: false
+      network:
+        metrics:
+          system.network.connections:
+            enabled: false
+      # Uncomment to enable process metrics, which can be noisy but valuable.
+      # processes:
+      # process:
+      #  metrics:
+      #    process.cpu.utilization:
+      #      enabled: true
+      #    process.cpu.time:
+      #      enabled: false
+
+  nrpostgresql:
+    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    databases:
+      - <YOUR_DATABASE_NAME>
+    collection_interval: 15s
+    events:
+      db.server.top_query:
+        enabled: true
+      db.server.query_sample:
+        enabled: true
+    top_query_collection:
+      max_rows_per_query: 1000
+      top_n_query: 200
+      collection_interval: 60s
+      max_explain_each_interval: 1000
+      query_plan_cache_size: 1000
+      query_plan_cache_ttl: 1h
+      explain_function_name: otel.explain_statement
+      allowed_comment_keys: [nr_service_guid]
+    query_sample_collection:
+      max_rows_per_query: 1000
+      allowed_comment_keys: [nr_service_guid]
+    metrics:
+      postgresql.database.locks:
+        enabled: true
+      postgresql.deadlocks:
+        enabled: true
+      postgresql.function.calls:
+        enabled: true
+      postgresql.query.conflicts:
+        enabled: true
+      postgresql.sequential_scans:
+        enabled: true
+      postgresql.temp.io:
+        enabled: true
+      postgresql.temp_files:
+        enabled: true
+
+processors:
+  metrics_transform:
+    transforms:
+      - include: system.cpu.utilization
+        action: update
+        operations:
+          - action: aggregate_labels
+            label_set: [state]
+            aggregation_type: mean
+      - include: system.paging.operations
+        action: update
+        operations:
+          - action: aggregate_labels
+            label_set: [direction]
+            aggregation_type: sum
+
+  filter/exclude_cpu_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+
+  filter/exclude_memory_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+
+  filter/exclude_memory_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+        - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+
+  filter/exclude_filesystem_utilization:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+
+  filter/exclude_filesystem_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+        - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+
+  filter/exclude_filesystem_inodes_usage:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+        - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+
+  filter/exclude_system_disk:
+    metrics:
+      datapoint:
+        - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+        - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+
+  filter/exclude_network:
+    metrics:
+      datapoint:
+        - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+
+  attributes/exclude_system_paging:
+    include:
+      match_type: strict
+      metric_names:
+        - system.paging.operations
+    actions:
+      - key: type
+        action: delete
+
+  cumulative_to_delta:
+
+  transform:
+    trace_statements:
+      - context: span
+        statements:
+          - truncate_all(span.attributes, 4095)
+          - truncate_all(resource.attributes, 4095)
+
+  transform/host:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(metric.description, "")
+          - set(metric.unit, "")
+
+  resource/postgresql:
+    attributes:
+      - key: server.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+      - key: server.port
+        value: <YOUR_DB_PORT>
+        action: upsert
+
+  batch:
+
+  resource_detection:
+    detectors: ["system"]
+    system:
+      hostname_sources: ["os"]
+      resource_attributes:
+        host.id:
+          enabled: true
+
+  resource_detection/cloud:
+    detectors: ["gcp", "ec2", "azure"]
+    timeout: 2s
+    override: true
+
+  resource_detection/env:
+    detectors: ["env"]
+    timeout: 2s
+    override: true
+
+exporters:
+  otlp/newrelic:
     endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
     headers:
       api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
@@ -291,34 +589,118 @@ service:
   telemetry:
     metrics:
       level: none
+
+  extensions: [health_check]
+
   pipelines:
+    metrics/host:
+      receivers: [host_metrics]
+      processors:
+        - metrics_transform
+        - filter/exclude_cpu_utilization
+        - filter/exclude_memory_utilization
+        - filter/exclude_memory_usage
+        - filter/exclude_filesystem_utilization
+        - filter/exclude_filesystem_usage
+        - filter/exclude_filesystem_inodes_usage
+        - filter/exclude_system_disk
+        - filter/exclude_network
+        - attributes/exclude_system_paging
+        - transform/host
+        - resource_detection
+        - resource_detection/cloud
+        - resource_detection/env
+        - cumulative_to_delta
+        - batch
+      exporters: [otlp/newrelic]
+
+    metrics/postgresql:
+      receivers: [nrpostgresql]
+      processors:
+        - resource/postgresql
+        - resource_detection
+        - resource_detection/cloud
+        - resource_detection/env
+        - batch
+      exporters: [otlp/newrelic]
+
+    logs/postgresql:
+      receivers: [nrpostgresql]
+      processors:
+        - resource/postgresql
+        - resource_detection
+        - resource_detection/cloud
+        - resource_detection/env
+        - batch
+      exporters: [otlp/newrelic]
+
+    traces:
+      receivers: [otlp]
+      processors: [transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+      exporters: [otlp/newrelic]
+
     metrics:
-      receivers: [nrpostgresql]
-      processors: [transform/postgresql_server_attrs, batch]
-      exporters: [otlphttp/newrelic]
+      receivers: [otlp]
+      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+      exporters: [otlp/newrelic]
+
     logs:
-      receivers: [nrpostgresql]
-      processors: [transform/postgresql_server_attrs, batch]
-      exporters: [otlphttp/newrelic]
+      receivers: [otlp]
+      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+      exporters: [otlp/newrelic]
 ```
 
-<Callout variant="important">
-**Entity synthesis requirements**: The transform processor adds `server.address` and `server.port` attributes that are **required** for APM correlation and entity synthesis in New Relic. Without these attributes, the PostgreSQL entity won't populate correctly and APM-database relationships won't resolve.
+</Collapser>
+
+</CollapserGroup>
+
+### Configuration parameters
+
+The following table describes the key configuration parameters for the `nrpostgresql` receiver:
+
+| Parameter | Description |
+| --- | --- |
+| `<YOUR_DB_HOST>` | Enter your PostgreSQL Database hostname. |
+| `<YOUR_DB_PORT>` | Enter your PostgreSQL Database port. |
+| `<YOUR_DB_USERNAME>` | Enter your database username. |
+| `<YOUR_DB_PASSWORD>` | Enter your database password. |
+| `<YOUR_DATABASE_NAME>` | Enter the name of the database you want to monitor. |
+| `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, see [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
+| `<YOUR_NEWRELIC_LICENSE_KEY>` | Enter your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+| `collection_interval` | Enter the interval between metric scrapes. Default: `15s`. |
+
+**Under the Events section, enable these event types to collect their data:**
+
+| Event | Description |
+| --- | --- |
+| `db.server.query_sample` | Point-in-time snapshot of currently-running statements from `pg_stat_activity`, including SQL text, wait state, and blocking details. |
+| `db.server.top_query` | Aggregated per-normalized-query execution stats from `pg_stat_statements`, reported as incremental (delta) values, including query plans when obtainable. |
+
+**Configure the collection settings for each event type:**
+
+| Configuration | Parameter | Default value |
+| --- | --- | --- |
+| `top_query_collection` | `max_rows_per_query` | `1000` |
+| `top_query_collection` | `top_n_query` | `200` |
+| `top_query_collection` | `collection_interval` | `60s` |
+| `top_query_collection` | `max_explain_each_interval` | `1000` |
+| `top_query_collection` | `query_plan_cache_size` | `1000` |
+| `top_query_collection` | `query_plan_cache_ttl` | `1h` |
+| `query_sample_collection` | `max_rows_per_query` | `1000` |
+
+<Callout variant="tip">
+  You can also:
+  * [Configure multiple receivers](/docs/opentelemetry/database/postgresql/multi-receiver): To monitor multiple PostgreSQL instances from one collector.
+  * [Link your PostgreSQL database with APM](/docs/opentelemetry/database/capabilities/db-apm): To correlate your application performance with database operations. This allows you to see exactly which applications are generating specific database workloads.
+  * [Configure SQL Query Receiver](/docs/opentelemetry/database/capabilities/sql-query-receiver): To collect custom metrics from your PostgreSQL database.
+  * [Set up secret management](/docs/opentelemetry/database/database-service-identification/#secret-management): To securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files.
 </Callout>
 
 </Step>
 
 <Step>
 
-### (Optional) Set up SQL Query Receiver [#query-receiver]
-
-You can configure [SQL Query Receiver](/docs/opentelemetry/database/capabilities/sql-query-receiver/) to collect custom metrics from your PostgreSQL Database. For more information, refer to the [SQL Query Receiver documentation](/docs/opentelemetry/database/capabilities/sql-query-receiver/).
-
-</Step>
-
-<Step>
-
-### Restart NRDOT Collector [#restart-collector]
+## Restart NRDOT Collector [#restart-collector]
 
 After configuring the collector, restart the NRDOT Collector service to apply the changes:
 
@@ -340,67 +722,15 @@ sudo systemctl status nrdot-collector
 
 <Step>
 
-### (Optional) Multi-receiver configuration [#multi-receiver]
+## Find and use your data [#find-use-data]
 
-To monitor multiple PostgreSQL instances from one collector, add multiple named instances of the receiver:
-
-```yaml
-receivers:
-  nrpostgresql/instance1: &nrpostgresql-common
-    endpoint: "<INSTANCE_1_HOST>:<PORT>"
-    username: "<YOUR_DB_USERNAME>"
-    password: "<YOUR_DB_PASSWORD>"
-    databases:
-      - "<INSTANCE_1_DATABASE_NAME>"
-    collection_interval: 10s
-  nrpostgresql/instance2:
-    <<: *nrpostgresql-common
-    endpoint: "<INSTANCE_2_HOST>:<PORT>"
-    databases:
-      - "<INSTANCE_2_DATABASE_NAME>"
-
-service:
-  pipelines:
-    metrics:
-      receivers: [nrpostgresql/instance1, nrpostgresql/instance2]
-      processors: [transform/postgresql_server_attrs, batch]
-      exporters: [otlphttp/newrelic]
-    logs:
-      receivers: [nrpostgresql/instance1, nrpostgresql/instance2]
-      processors: [transform/postgresql_server_attrs, batch]
-      exporters: [otlphttp/newrelic]
-```
-
-</Step>
-
-<Step>
-
-### (Optional) Set up APM-database correlation [#optional-service-id]
-
-To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/capabilities/db-apm/) to get APM-database correlation in New Relic.
-
-<Callout variant="important">
-  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
-</Callout>
-
-</Step>
-
-<Step>
-
-### Find and use your data [#find-use-data]
-
-Once your data is being collected, you can access comprehensive PostgreSQL database monitoring through New Relic's UI.
+Query samples and top queries arrive as log events (`event.name = 'db.server.query_sample'` / `'db.server.top_query'`, `db.system.name = 'postgresql'`). Metrics arrive under the `postgresql.*` namespace.
 
 To find your PostgreSQL database entity in New Relic:
 
 1. Go to <DNT>**[https://one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DNT>.
 2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**PostgreSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
 3. Select your PostgreSQL database from the list of entities.
-    
-    After setting up PostgreSQL database monitoring with NRDOT:
-
-      * [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your database metrics
-      * [Set up alerts](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) for critical database performance thresholds
 
 </Step>
 
@@ -411,5 +741,4 @@ To find your PostgreSQL database entity in New Relic:
 <DocTiles>
   <DocTile title="Troubleshooting guide" path="/docs/opentelemetry/database/postgresql/troubleshooting">Learn how to troubleshoot common issues with PostgreSQL monitoring.</DocTile>
   <DocTile title="Metrics reference" path="/docs/opentelemetry/database/postgresql/metrics-reference">Learn about the available metrics collected by the NRDOT Collector.</DocTile>
-  {/* <DocTile title="Instrumentation in RDS environments" path="/docs/opentelemetry/database/postgresql/rds">Learn how to set up PostgreSQL monitoring in RDS environments with New Relic.</DocTile> */}
 </DocTiles>
