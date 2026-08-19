@@ -1,5 +1,5 @@
 ---
-title: "Self-hosted PostgreSQL monitoring with NRDOT Collector"
+title: "Install & configure NRDOT Collector for self-hosted PostgreSQL monitoring"
 tags:
   - OpenTelemetry
   - NRDOT
@@ -25,6 +25,7 @@ Set up PostgreSQL monitoring using the NRDOT Collector on self-hosted environmen
 
 Before you install, make sure you have:
 
+* PostgreSQL `14` and above
 * A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
 * Administrative access to your PostgreSQL instance.
 * Network connectivity between the host where you install the NRDOT Collector and your PostgreSQL database.
@@ -125,101 +126,62 @@ TODO — commented out until confirmed with dev: dev's draft only gives the requ
 
 Create a monitoring user with the necessary privileges for your PostgreSQL instance.
 
-### Connect and create the monitoring user
+**To create the monitoring user and grants:**
 
-Connect to your PostgreSQL instance as a superuser (or another user with sufficient permissions):
-
-```shell
-sudo -u postgres psql --dbname=postgres --port=5432
-```
-
-Create the monitoring user:
-
-```sql
-CREATE USER <YOUR_DB_USERNAME> WITH LOGIN PASSWORD '<YOUR_DB_PASSWORD>';
-```
-
-### Create the monitoring schema and grant access
-
-* Required on PostgreSQL 15+ only — role membership defaults changed in PG15. On PostgreSQL 14, roles inherit privileges by default and this is a no-op — safe to run on any supported version either way:
-
-  ```sql
-  ALTER ROLE <YOUR_DB_USERNAME> INHERIT;
-  ```
-
-* Create the following schema and grants in every database you want to monitor:
-
-  ```sql
-  CREATE SCHEMA IF NOT EXISTS otel;
-  GRANT USAGE ON SCHEMA otel TO <YOUR_DB_USERNAME>;
-  GRANT USAGE ON SCHEMA public TO <YOUR_DB_USERNAME>;
-  GRANT SELECT ON ALL TABLES IN SCHEMA public TO <YOUR_DB_USERNAME>;
-  GRANT pg_monitor TO <YOUR_DB_USERNAME>;
-  CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
-  ```
-
-* (Optional) To collect vector metrics, create the `pgvector` extension in each database:
-
-  ```sql
-  CREATE EXTENSION IF NOT EXISTS vector;
-  ```
-
-  Requires PostgreSQL 13+. The `l1`, `hamming`, and `jaccard` distance functions require pgvector 0.7.0+.
-
-* (Optional) To collect `EXPLAIN` plans on locking or write statements without granting write access to the monitoring user, create the EXPLAIN helper function in each database:
-
-  ```sql
-  CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
-  RETURNS json
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  AS $$
-  DECLARE
-      v_plan json;
-      v_param_count int;
-      v_nulls text := '';
-      i int;
-  BEGIN
-      SET TRANSACTION READ ONLY;
-      SET plan_cache_mode = force_generic_plan;
-
-      EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
-
-      SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
-      FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
-
-      IF v_param_count > 0 THEN
-          FOR i IN 1..v_param_count LOOP
-              v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
-          END LOOP;
-          v_nulls := '(' || v_nulls || ')';
-      END IF;
-
-      EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
-      DEALLOCATE otel_explain_stmt;
-      RETURN v_plan;
-  EXCEPTION WHEN OTHERS THEN
-      IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
-          DEALLOCATE otel_explain_stmt;
-      END IF;
-      RAISE;
-  END;
-  $$;
-
-  GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
-  ```
-
-* (Optional) To verify the connection and grants, run:
+1. Connect to your PostgreSQL instance as a superuser or another user with required permissions:
 
   ```shell
-  psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> --command '\conninfo'
-  psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
-    -c "SELECT * FROM pg_stat_database LIMIT 1;" && echo "pg_stat_database OK"
-  psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
-    -c "SELECT * FROM pg_stat_activity LIMIT 1;" && echo "pg_stat_activity OK"
-  psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
-    -c "SELECT * FROM pg_stat_statements LIMIT 1;" && echo "pg_stat_statements OK"
+  sudo -u postgres psql --dbname=postgres --port=5432
   ```
+
+2. Create the monitoring user:
+
+  ```sql
+  CREATE USER <YOUR_DB_USERNAME> WITH LOGIN PASSWORD '<YOUR_DB_PASSWORD>';
+  ```
+
+3. Grant the monitoring user role membership as needed:
+
+  * If you're on PostgreSQL 15 and above, assign role to inherit privileges:
+
+    ```sql
+    ALTER ROLE <YOUR_DB_USERNAME> INHERIT;
+    ```
+
+    <Callout variant="tip">
+      If you're on PostgreSQL 14, the monitoring user inherits privileges by default, so you can skip this step.
+    </Callout>
+
+  * Create the following schema and grants in every database you want to monitor:
+
+    ```sql
+    CREATE SCHEMA IF NOT EXISTS otel;
+    GRANT USAGE ON SCHEMA otel TO <YOUR_DB_USERNAME>;
+    GRANT USAGE ON SCHEMA public TO <YOUR_DB_USERNAME>;
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO <YOUR_DB_USERNAME>;
+    GRANT pg_monitor TO <YOUR_DB_USERNAME>;
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+    ```
+
+  * (Optional) To collect vector metrics, create the `pgvector` extension in each database:
+
+    ```sql
+    CREATE EXTENSION IF NOT EXISTS vector;
+    ```
+
+    The `l1`, `hamming`, and `jaccard` distance functions require `pgvector` version `0.7.0` or above.
+
+  * (Optional) To verify the connection and grants, run:
+
+    ```shell
+    psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> --command '\conninfo'
+    psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+      -c "SELECT * FROM pg_stat_database LIMIT 1;" && echo "pg_stat_database OK"
+    psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+      -c "SELECT * FROM pg_stat_activity LIMIT 1;" && echo "pg_stat_activity OK"
+    psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+      -c "SELECT * FROM pg_stat_statements LIMIT 1;" && echo "pg_stat_statements OK"
+    ```
 
   If each command completes without an error, the monitoring user, host, and port are all correct.
 
@@ -256,8 +218,6 @@ receivers:
     password: "<YOUR_DB_PASSWORD>"
     databases:
       - <YOUR_DATABASE_NAME>
-    # top_query/query_sample scan pg_stat_statements/pg_stat_activity cluster-wide
-    # regardless of the databases list above.
     collection_interval: 15s
     events:
       db.server.top_query:
@@ -268,16 +228,12 @@ receivers:
       max_rows_per_query: 1000
       top_n_query: 200
       collection_interval: 60s
-      max_explain_each_interval: 1000
-      query_plan_cache_size: 1000
-      query_plan_cache_ttl: 1h
-      explain_function_name: otel.explain_statement
       allowed_comment_keys: [nr_service_guid]
     query_sample_collection:
       max_rows_per_query: 1000
       allowed_comment_keys: [nr_service_guid]
     # Metrics needed for the out-of-the-box dashboard but disabled by default —
-    # see the metrics reference for the full default-on/default-off breakdown.
+    # see "Available metrics" below for the full default-on/default-off breakdown.
     metrics:
       postgresql.database.locks:
         enabled: true
@@ -341,7 +297,7 @@ service:
   title="Full-feature configuration"
 >
 
-This configuration adds host-level metrics (CPU, memory, disk, network) alongside PostgreSQL database monitoring.
+This configuration adds host-level metrics such as CPU, memory, disk, network, and more alongside PostgreSQL database monitoring.
 
 1. Create a configuration file named as `postgresql-config.yaml`:
 
@@ -351,9 +307,6 @@ This configuration adds host-level metrics (CPU, memory, disk, network) alongsid
 
 2. Add the following configuration to the `postgresql-config.yaml` file you created in the previous step.
 
-<Callout variant="important">
-  If you're an existing NRDOT Collector user, ensure to merge the configuration with your existing `config.yaml` file. This includes adding the new receivers, processors, and exporters for PostgreSQL database monitoring while retaining your current configurations.
-</Callout>
 
 ```yaml
 extensions:
@@ -401,7 +354,7 @@ receivers:
         metrics:
           system.network.connections:
             enabled: false
-      # Uncomment to enable process metrics, which can be noisy but valuable.
+      # Uncomment to enable process metrics
       # processes:
       # process:
       #  metrics:
@@ -422,18 +375,16 @@ receivers:
         enabled: true
       db.server.query_sample:
         enabled: true
+    query_sample_collection:
+      max_rows_per_query: 1000
+      allowed_comment_keys: [nr_service_guid]
     top_query_collection:
       max_rows_per_query: 1000
       top_n_query: 200
       collection_interval: 60s
-      max_explain_each_interval: 1000
-      query_plan_cache_size: 1000
-      query_plan_cache_ttl: 1h
-      explain_function_name: otel.explain_statement
       allowed_comment_keys: [nr_service_guid]
-    query_sample_collection:
-      max_rows_per_query: 1000
-      allowed_comment_keys: [nr_service_guid]
+    # Metrics needed for the out-of-the-box dashboard but disabled by default —
+    # see "Available metrics" in the docs for the full default-on/default-off breakdown.
     metrics:
       postgresql.database.locks:
         enabled: true
@@ -536,7 +487,7 @@ processors:
         statements:
           - truncate_all(span.attributes, 4095)
           - truncate_all(resource.attributes, 4095)
-
+          
   transform/host:
     metric_statements:
       - context: metric
@@ -544,6 +495,11 @@ processors:
           - set(metric.description, "")
           - set(metric.unit, "")
 
+  # Static server.address/server.port instead of deriving them from
+  # service.instance.id — with receiver.nrpostgresql.useOTelSemconv enabled,
+  # service.instance.id becomes a UUID v5 hash, not a "host:port" string, so
+  # a Split(...)-based transform breaks. Applies uniformly to both metrics
+  # and logs pipelines since neither depends on that internal format.
   resource/postgresql:
     attributes:
       - key: server.address
@@ -668,25 +624,8 @@ The following table describes the key configuration parameters for the `nrpostgr
 | `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, see [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
 | `<YOUR_NEWRELIC_LICENSE_KEY>` | Enter your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
 | `collection_interval` | Enter the interval between metric scrapes. Default: `15s`. |
+| `explain_function_name` | Enter `otel.explain_statement` to collect query plans for locking or write statements without granting write access to the monitoring user. See [EXPLAIN plan permissions](/docs/opentelemetry/database/postgresql/explain-permissions#explain). |
 
-**Under the Events section, enable these event types to collect their data:**
-
-| Event | Description |
-| --- | --- |
-| `db.server.query_sample` | Point-in-time snapshot of currently-running statements from `pg_stat_activity`, including SQL text, wait state, and blocking details. |
-| `db.server.top_query` | Aggregated per-normalized-query execution stats from `pg_stat_statements`, reported as incremental (delta) values, including query plans when obtainable. |
-
-**Configure the collection settings for each event type:**
-
-| Configuration | Parameter | Default value |
-| --- | --- | --- |
-| `top_query_collection` | `max_rows_per_query` | `1000` |
-| `top_query_collection` | `top_n_query` | `200` |
-| `top_query_collection` | `collection_interval` | `60s` |
-| `top_query_collection` | `max_explain_each_interval` | `1000` |
-| `top_query_collection` | `query_plan_cache_size` | `1000` |
-| `top_query_collection` | `query_plan_cache_ttl` | `1h` |
-| `query_sample_collection` | `max_rows_per_query` | `1000` |
 
 <Callout variant="tip">
   You can also:
