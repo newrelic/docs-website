@@ -1,0 +1,77 @@
+---
+title: "EXPLAIN plan permissions for PostgreSQL monitoring"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Advanced configuration
+metaDescription: Collect EXPLAIN plans for write statements without granting write access to the PostgreSQL monitoring user
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+By default, `EXPLAIN` runs directly as the monitoring user, and PostgreSQL checks table privileges at plan time — so row-locking or write statements fail with `permission denied` unless the monitoring user has write access, which it should never have.
+
+## Create the EXPLAIN helper function [#explain]
+
+To collect query plans for locking or write statements without granting write access to the monitoring user, create the following function in each database:
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+
+### Execution plan collection mechanics
+
+* **Rate limiting:** `top_query_collection.max_explain_each_interval` (default `1000`) caps `EXPLAIN`s per scrape.
+* **Caching:** `query_plan_cache_size` / `query_plan_cache_ttl` (default `1000` entries / `1h`) cache a plan once obtained, keyed by query ID.
+
+## Related documentation [#related]
+
+<DocTiles>
+  <DocTile title="Instrumentation in self-hosted environments" path="/docs/opentelemetry/database/postgresql/hosted">Learn how to set up PostgreSQL monitoring in self-hosted environments with New Relic.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/database/postgresql/metrics-reference">Learn about the available metrics collected by the NRDOT Collector.</DocTile>
+  <DocTile title="Troubleshooting guide" path="/docs/opentelemetry/database/postgresql/troubleshooting">Learn how to troubleshoot common issues with PostgreSQL monitoring.</DocTile>
+</DocTiles>
