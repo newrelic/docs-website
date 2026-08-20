@@ -7,7 +7,15 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const OtelConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
+const ConfigBuilder = ({
+  inputOptions,
+  config,
+  tipMdx,
+  onChange,
+  fileName,
+  containerId,
+  configTransform,
+}) => {
   const [state, setState] = useState([...inputOptions]);
   const { body } = tipMdx;
 
@@ -56,7 +64,7 @@ const OtelConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
               css={css`
                 margin-bottom: 1.5rem;
               `}
-              containerId="otel-config-codeblock"
+              containerId={containerId}
             />
           )
         )}
@@ -64,9 +72,9 @@ const OtelConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
       </div>
       <InteractiveOutput
         inputs={state}
-        config={config.replace(/^\s{2}([a-z][a-z0-9_]*):(\s*)$/gm, '$1:$2')}
+        config={configTransform ? configTransform(config) : config}
         fileName={fileName}
-        containerId="otel-config-codeblock"
+        containerId={containerId}
         css={css`
           margin-top: 1rem;
           width: 49%;
@@ -74,7 +82,7 @@ const OtelConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
             width: 100%;
           }
 
-          #otel-config-codeblock {
+          #${containerId} {
             // removing the height of the buttons at the top or it overflows
             max-height: calc(100% - 50px);
           }
@@ -93,7 +101,7 @@ const OtelConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
   );
 };
 
-OtelConfig.propTypes = {
+ConfigBuilder.propTypes = {
   inputOptions: PropTypes.arrayOf(
     PropTypes.shape({
       name: PropTypes.string.isRequired,
@@ -107,6 +115,9 @@ OtelConfig.propTypes = {
   config: PropTypes.string,
   tipMdx: PropTypes.node,
   onChange: PropTypes.func,
+  fileName: PropTypes.string,
+  containerId: PropTypes.string.isRequired,
+  configTransform: PropTypes.func,
 };
 
-export default OtelConfig;
+export default ConfigBuilder;

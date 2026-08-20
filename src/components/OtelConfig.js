@@ -2,11 +2,18 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import ConfigBuilder from './ConfigBuilder';
 
-const AgentConfig = (props) => (
-  <ConfigBuilder {...props} containerId="agent-config-codeblock" />
+const otelConfigTransform = (config) =>
+  config.replace(/^\s{2}([a-z][a-z0-9_]*):(\s*)$/gm, '$1:$2');
+
+const OtelConfig = (props) => (
+  <ConfigBuilder
+    {...props}
+    containerId="otel-config-codeblock"
+    configTransform={otelConfigTransform}
+  />
 );
 
-AgentConfig.propTypes = {
+OtelConfig.propTypes = {
   inputOptions: PropTypes.arrayOf(
     PropTypes.shape({
       name: PropTypes.string.isRequired,
@@ -22,4 +29,4 @@ AgentConfig.propTypes = {
   onChange: PropTypes.func,
 };
 
-export default AgentConfig;
+export default OtelConfig;
