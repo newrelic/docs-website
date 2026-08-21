@@ -15,8 +15,9 @@ L&apos;intégration ECS de New Relic génère des rapports et affiche les donné
 
 Avant d&apos;[installer](#install-options), il peut vous être utile de comprendre à un niveau élevé comment notre agent infrastructure (`newrelic-infra`) est déployé pour ces deux types de lancement :
 
-* <DNT>**EC2 and EXTERNAL (ECS Anywhere) launch type:**</DNT> Notre agent est déployé sur un cluster ECS en tant que service en utilisant la stratégie de planification de déploiement ([expliquée ici dans la documentation AWS](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/scheduling_tasks.html)). Cela installe l&apos;agent dans toutes les instances EC2 du cluster, puis monitore ECS et le conteneur Docker .
-* <DNT>**AWS Fargate launch type:**</DNT> Dans chaque tâche à monitorer, notre agent intervient en tant que side-car. Facultatif : [apprenez-en plus sur la façon dont AWS définit un side-car](https://aws.github.io/copilot-cli/docs/developing/sidecars/).
+* <DNT>**EC2 and EXTERNAL (ECS Anywhere) launch type:**</DNT> La stratégie de planification de daemon déploie notre agent sur un cluster ECS en tant que service ([expliqué ici dans la documentation AWS](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/scheduling_tasks.html)). Cela installe l&apos;agent dans toutes les instances EC2 du cluster, puis monitore ECS et les conteneurs Docker.
+
+* <DNT>**AWS Fargate launch type:**</DNT> Dans chaque tâche à monitorer, vous déployez notre agent en tant que side-car. Vous pouvez facultativement [en apprendre davantage sur la façon dont AWS définit un side-car](https://aws.github.io/copilot-cli/docs/developing/sidecars/).
 
 ## Options d&apos;installation [#install-options]
 
@@ -32,12 +33,12 @@ Pour vous aider à installer à l&apos;aide d&apos;AWS CloudFormation, nous four
 
 Pour installer à l&apos;aide de CloudFormation :
 
-1. Pour enregistrer la tâche d&apos;intégration ECS, déployez [cette stack](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://nr-downloads-main.s3.amazonaws.com/infrastructure_agent/integrations/ecs/cloudformation/task/master.yaml&stackName=NewRelicECSIntegration). Assurez-vous de déployer la stack dans la ou les régions souhaitées. Cette stack crée les ressources suivantes :
+1. Pour enregistrer la tâche d&apos;intégration ECS, déployez [cette stack](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://nr-downloads-main.s3.amazonaws.com/infrastructure_agent/integrations/ecs/cloudformation/task/master.yaml&stackName=NewRelicECSIntegration). Assurez-vous de déployer la stack dans une ou plusieurs des régions souhaitées. Cette stack crée les ressources suivantes :
 
    * Un secret qui stocke New Relic <InlinePopover type="licenseKey" />.
    * Une politique pour accéder à la clé de licence.
    * Un rôle d’instance à utiliser comme tâche ECS `ExecutionRole`, avec accès à la clé de licence.
-   * Pour le type de lancement EC2 et externe (ECS Anywhere) : enregistre la tâche d&apos;intégration ECS New Relic Infrastructure.
+   * Un enregistrement de la tâche d’intégration ECS de New Relic Infrastructure, pour le type de lancement EC2 et Externe (ECS Anywhere).
 
 2. Suivez les instructions supplémentaires correspondant à votre type de lancement :
 
@@ -66,6 +67,126 @@ Pour installer à l&apos;aide de CloudFormation :
           </Callout>
 
        2. Ajoutez le conteneur `newrelic-infra` dans cette définition de tâche en tant que side-car aux définitions de tâches que vous souhaitez monitorer. Dans cet exemple de tâche, le conteneur de votre application remplace le conteneur espace réservé `busybox` .
+
+       ### Configure infrastructure agent forward modes for Fargate [#fargate-forward-modes]
+
+       When deploying the New Relic infrastructure agent as a sidecar in Fargate environments, you must configure the agent&apos;s forward mode. Fargate is a serverless compute service where AWS manages the underlying infrastructure, so the agent should not report host-level metrics or attempt to create host entities.
+
+       #### Recommended: NRIA\_IS\_FORWARD\_ONLY
+
+       For most Fargate deployments, set `NRIA_IS_FORWARD_ONLY` to `true`:
+
+       ```json
+       {
+         "name": "NRIA_IS_FORWARD_ONLY",
+         "value": "true"
+       }
+       ```
+
+       **Why this is recommended for Fargate:**
+
+       * **Prevents unnecessary host entity creation:** The infrastructure agent will not create a host entity in New Relic, since Fargate is serverless and AWS manages the underlying compute resources.
+       * **Avoids billing discrepancies:** Entity-based metering charges are based on the number of monitored entities. Incorrect host entity creation causes unexpected billing.
+       * **Enables proper APM-to-Container linking:** APM applications are correctly linked to Container entities rather than synthetic Host entities.
+       * **Focuses on integration data:** The agent collects and forwards integration data (databases, web servers, message queues, etc.) without reporting host metrics.
+
+       #### Alternative: NRIA\_IS\_SECURE\_FORWARD\_ONLY
+
+       An alternative forward mode is `NRIA_IS_SECURE_FORWARD_ONLY`. Set this to `true` if you need host entity visibility in the New Relic UI:
+
+       ```json
+       {
+         "name": "NRIA_IS_SECURE_FORWARD_ONLY",
+         "value": "true"
+       }
+       ```
+
+       **Differences between forward modes:**
+
+       | Capacité                                    | NRIA\_IS\_FORWARD\_ONLY | NRIA\_IS\_SECURE\_FORWARD\_ONLY |
+       | :------------------------------------------ | :---------------------- | :------------------------------ |
+       | Host entity visible in NR1                  | Non                     | Oui                             |
+       | Host inventory visible in Infrastructure UI | Non                     | Oui                             |
+       | Integration inventory                       | Non                     | Oui                             |
+       | Integration events forwarded                | Oui                     | Oui                             |
+       | Integration entities (e.g., Redis server)   | Non                     | Oui                             |
+       | Host metrics (CPU, Memory, Disk)            | Non                     | Non                             |
+       | Container metadata decorated                | Non                     | Oui                             |
+       | Entity metadata on integration events       | Non                     | Partiel                         |
+
+       **When to use each mode:**
+
+       * **Use `NRIA_IS_FORWARD_ONLY=true` (recommended) if:**
+
+         * You want to minimize entity count and billing impact
+         * You only need container and integration monitoring
+         * You don&apos;t need to see host inventory in the New Relic UI
+
+       * **Use `NRIA_IS_SECURE_FORWARD_ONLY=true` if:**
+
+         * You need to see host metadata and inventory information in the New Relic UI
+         * You want integration entities to appear in the Infrastructure UI
+         * Entity count is not a concern
+
+       *Example task definition with required Fargate configuration:*
+
+       ```json
+       {
+         "family": "newrelic-infra-fargate",
+         "networkMode": "awsvpc",
+         "requiresCompatibilities": ["FARGATE"],
+         "cpu": "256",
+         "memory": "512",
+         "containerDefinitions": [
+           {
+             "name": "newrelic-infra",
+             "image": "newrelic/nri-ecs:latest",
+             "essential": false,
+             "environment": [
+               {
+                 "name": "NRIA_IS_FORWARD_ONLY",
+                 "value": "true"
+               },
+               {
+                 "name": "NRIA_LICENSE_KEY",
+                 "value": "your-license-key"
+               },
+               {
+                 "name": "NRIA_PASSTHROUGH_ENVIRONMENT",
+                 "value": "ECS_CONTAINER_METADATA_URI,ECS_CONTAINER_METADATA_URI_V4,FARGATE"
+               },
+               {
+                 "name": "FARGATE",
+                 "value": "true"
+               }
+             ]
+           },
+           {
+             "name": "your-application",
+             "image": "your-app-image:latest",
+             "essential": true
+           }
+         ]
+       }
+       ```
+
+       <Callout variant="important">
+         La variable d&apos;environnement `NRIA_IS_FORWARD_ONLY=true` est **requise** pour tous les déploiements Fargate. L&apos;omission de ce paramètre peut entraîner :
+
+         * Création incorrecte d’entité d’hôte
+         * Échecs de la relation APM-conteneur
+         * Écarts de facturation dus à un nombre inattendu d’entités
+
+         Si vous téléchargez l’exemple de définition de tâche, vérifiez que cette variable d’environnement est présente et définie sur true.
+       </Callout>
+
+       3. Enregistrez la définition de tâche :
+
+          ```sh
+          aws ecs register-task-definition --cli-input-json file://newrelic-infra-ecs-fargate-example-latest.json
+          ```
+
+       4. Créez un service ou exécutez une tâche à l&apos;aide de cette définition de tâche.
      </Collapser>
    </CollapserGroup>
 
@@ -98,7 +219,7 @@ Une [option d&apos;installation](#install-overview) consiste à utiliser notre s
    ```sh
    aws configure get region
    [output] us-east-1
-   [output] 
+
    aws ecs list-clusters
    [output] YOUR_CLUSTER_ARNS 	
    [output] arn:aws:ecs:us-east-1:YOUR_AWS_ACCOUNT:cluster/YOUR_CLUSTER
@@ -138,25 +259,31 @@ Une [option d&apos;installation](#install-overview) consiste à utiliser notre s
        Pour Graviton, remplacez `"cpuArchitecture": "X86_64"` par `"cpuArchitecture": "ARM64"`.
      </Callout>
 
-     Notez que le `NewRelicECSTaskExecutionRole` qui vient d’être créé doit être utilisé comme rôle d’exécution de tâche. Politiques attachées au rôle (tous les types de lancement) :
+     Notez que vous devez utiliser le rôle que vous venez de créer, `NewRelicECSTaskExecutionRole`, comme rôle d&apos;exécution de tâche.
+
+     Ce rôle inclut les politiques suivantes pour tous les types de lancement :
 
      * `NewRelicSSMLicenseKeyReadAccess` qui permet d&apos;accéder au paramètre SSM avec la clé de licence.
      * `AmazonECSTaskExecutionRolePolicy`
 
-   * Ensuite, vous pouvez ajouter le conteneur que vous souhaitez monitorer en tant que side-car.
+   * Ajoutez le conteneur que vous souhaitez monitorer en tant que side-car.
+
+   <Callout variant="important">
+     Lorsque vous utilisez AWS Fargate, vous devez également vous assurer que le conteneur sidecar a la variable d&apos;environnement `NRIA_IS_FORWARD_ONLY` définie sur `true` dans votre définition de tâche. Reportez-vous aux [instructions de configuration Fargate](#fargate-isforwardonly) sous CloudFormation pour obtenir des détails sur la configuration et comprendre pourquoi ce paramètre est critique.
+   </Callout>
 
 Lorsque vous avez terminé, consultez [Étapes suivantes](#next-steps).
 
 ## Installation manuelle
 
-Une [option d&apos;installation](#install-overview) consiste à effectuer manuellement les étapes effectuées par le [scriptdu programme d&apos;installation automatique](#auto-script-install). Nous allons décrire comment cela est réalisé à l&apos;aide de l&apos;outil `awscli` :
+Une [option d&apos;installation](#install-overview) consiste à effectuer manuellement les étapes réalisées par le [script du programme d&apos;installation automatique](#auto-script-install). Nous allons décrire comment cela est fait à l&apos;aide de l&apos;outil `awscli` :
 
 1. Vérifiez que votre profil AWS pointe vers la même région où votre cluster ECS a été créé :
 
    ```sh
    aws configure get region
    [output] us-east-1
-   [output] 
+
    aws ecs list-clusters
    [output] YOUR_CLUSTER_ARNS
    [output] arn:aws:ecs:us-east-1:YOUR_AWS_ACCOUNT:cluster/YOUR_CLUSTER
@@ -177,7 +304,7 @@ Une [option d&apos;installation](#install-overview) consiste à effectuer manuel
    ```sh
    aws iam create-policy \
      --policy-name "NewRelicSSMLicenseKeyReadAccess" \
-     --policy-document "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"ssm:GetParameters\"],\"Resource\":[\"ARN_OF_LICENSE_KEY_PARAMETER\"]}]}" \
+     --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ssm:GetParameters"],"Resource":["ARN_OF_LICENSE_KEY_PARAMETER"]}]}' \
      --description "Provides read access to the New Relic SSM license key parameter"
    ```
 
@@ -201,7 +328,7 @@ Une [option d&apos;installation](#install-overview) consiste à effectuer manuel
 6. Choisissez votre type de lancement pour plus d&apos;instructions :
 
    <CollapserGroup>
-     <Collapser id="manual-ec2" title="Type de lancement EC2 et EXTERNE (ECS Anywhere)">
+     <Collapser id="manual-ec2" title="Type de lancement EC2 et External (ECS Anywhere)">
        Étapes supplémentaires pour le type de lancement EC2 :
 
        1. Téléchargez le fichier de modèle de définition de tâche d&apos;intégration New Relic ECS :
@@ -262,6 +389,10 @@ Une [option d&apos;installation](#install-overview) consiste à effectuer manuel
           </Callout>
 
        2. Ajoutez le conteneur `newrelic-infra` dans cette définition de tâche en tant que side-car aux définitions de tâches que vous souhaitez monitorer. Dans cet exemple de tâche, le conteneur de votre application remplace le conteneur espace réservé `busybox` .
+
+       <Callout variant="important">
+         Assurez-vous de configurer la variable d’environnement `NRIA_IS_FORWARD_ONLY` sur `true` dans les paramètres du conteneur side-car de votre définition de tâche modifiée manuellement. Consultez la [section CloudFormation Fargate](#fargate-isforwardonly) pour obtenir des instructions détaillées et un exemple JSON complet.
+       </Callout>
      </Collapser>
    </CollapserGroup>
 
@@ -274,7 +405,7 @@ Lorsque vous avez terminé, consultez [Étapes suivantes](#next-steps).
 Après avoir installé cette intégration :
 
 * Attendez quelques minutes, puis [recherchez vos données dans l&apos;UI](/docs/ecs-integration-understand-use-data).
-* Recommandé : installez notre [cloudd&apos;intégration ECS](/docs/integrations/amazon-integrations/aws-integrations-list/aws-ecsecr-monitoring-integration), qui vous permet d&apos;obtenir d&apos;autres données ECS, notamment des informations sur le cluster et les services.
+* Installez notre [intégration cloud ECS](/docs/integrations/amazon-integrations/aws-integrations-list/aws-ecsecr-monitoring-integration) recommandée, qui vous permet d&apos;obtenir d&apos;autres données ECS, y compris des informations sur les clusters et les services.
 * Voir [la condition d&apos;alerte recommandée](/docs/ecs-integration-recommended-alert-conditions).
 * Comprendre les [ressources AWS](#aws-resources) créées par ce processus.
 
@@ -286,15 +417,15 @@ Lorsque vous installez l’intégration ECS à l’aide des valeurs par défaut/
 
 * Crée la politique IAM `NewRelicSSMLicenseKeyReadAccess`, qui permet l&apos;accès au paramètre SSM avec la clé de licence.
 
-* Crée le rôle IAM `NewRelicECSTaskExecutionRole` utilisé comme [rôle d’exécution de tâche](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html). Politiques liées au rôle :
+* Crée le rôle IAM `NewRelicECSTaskExecutionRole` utilisé comme [rôle d’exécution de tâche](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html). Ce rôle inclut les politiques suivantes :
 
   * `NewRelicSSMLicenseKeyReadAccess` (créé par le programme d&apos;installation).
   * `AmazonECSTaskExecutionRolePolicy`
 
 * Enregistre la définition de tâche ECS `newrelic-infra` pour les types de lancement EC2 et externe (ECS Anywhere).
 
-* Pour [le type de lancement](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/launch_types.html) EC2, cela se fait également :
-  * Crée le service `newrelic-infra` pour la tâche enregistrée à l’aide d’une stratégie [de planification de daemon](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html) et d’un type de lancement EC2.
+* Crée les éléments suivants pour le [type de lancement](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/launch_types.html) EC2 :
+  * Le service `newrelic-infra` pour la tâche enregistrée, à l’aide d’une stratégie [de planification de daemon](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html) et d’un type de lancement EC2.
 
-* Pour [le type de lancement](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/launch_types.html) EXTERNE (ECS Anywhere), cela se fait également :
-  * Crée le service `newrelic-infra-external` pour la tâche enregistrée à l&apos;aide d&apos;une stratégie [de planification de daemon](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html) et d&apos;un type de lancement EXTERNE (ECS Anywhere).
+* Crée les éléments suivants pour le [type de lancement](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/launch_types.html) EXTERNE (ECS Anywhere) :
+  * Le service `newrelic-infra-external` pour la tâche enregistrée, à l&apos;aide d&apos;une stratégie [de planification de daemon](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html) et d&apos;un type de lancement EXTERNAL (ECS Anywhere).
