@@ -1,0 +1,133 @@
+---
+title: NRDOTを使用したMySQL監視の高度な設定
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Advanced configuration
+metaDescription: 'Advanced, optional configuration options for MySQL monitoring with the NRDOT Collector'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/)に従ってプレビューの一部として提供されています。
+</Callout>
+
+MySQLインスタンスに関するより深いインサイトを得るために、以下のオプションを設定できます：
+
+* [書き込みステートメントのクエリプラン](#query)
+* [ロック待機時間の追跡の有効化](#lock)
+
+## 書き込みステートメントのクエリプラン [#query]
+
+`explain_mode`を`procedure`に設定すると、監視ユーザーにDML権限を付与することなく、NRDOT Collectorが書き込みステートメントの`EXPLAIN`プランを収集できるようになります。設定すると、レシーバーは`<schema>.explain_statement`という名前の`SQL SECURITY DEFINER`プロシージャを検索します。そのプロシージャが存在しない場合、または監視ユーザーにその実行権限がない場合、レシーバーは`inline`モードにフォールバックします。この状態では、書き込みステートメントはクエリプランの収集に失敗し、コレクターのログに次の警告が表示されます：`unable to execute explain statement`。
+
+`explain_mode`を`procedure`に設定するには、特権アカウント（たとえば、`root`）として、スキーマごとに1回以下を実行してください：
+
+```sql
+DELIMITER //
+CREATE DEFINER = 'root'@'%' PROCEDURE <YOUR_SCHEMA>.explain_statement(IN q TEXT)
+SQL SECURITY DEFINER
+BEGIN
+  SET @nr_explain_sql = CONCAT('EXPLAIN FORMAT=JSON ', q);
+  PREPARE nr_explain_stmt FROM @nr_explain_sql;
+  EXECUTE nr_explain_stmt;
+  DEALLOCATE PREPARE nr_explain_stmt;
+END//
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE <YOUR_SCHEMA>.explain_statement TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+`GRANT EXECUTE`ステップは、`CALL`ステートメントを実行する以上の目的で必要です。この権限がないと、監視ユーザーはレシーバーが存在確認に使用する`information_schema.ROUTINES`内のプロシージャを表示できません。`GRANT EXECUTE`を省略すると、プロシージャが欠落している場合と同じ結果になり、どちらの場合もレシーバーは`inline`モードにフォールバックします。
+
+<Callout variant="tip">
+  この設定はスキーマごとにステートフルです。データベースの作成または復元、あるいはプロシージャの削除を行うと、そのスキーマの書き込みステートメントのプラン収集が暗黙的に無効になり、`inline`モードへのフォールバックがトリガーされます。`SQL SECURITY DEFINER`ストアドルーチンは、その中の`PREPARE`/`EXECUTE`ステートメントを通じて実行される動的SQLに、定義者の権限を適用します。これにより、`SELECT`のみの監視ユーザーが、直接の実行権限を持たないステートメントのプランを取得できるようになります。
+</Callout>
+
+## ロック待機時間の追跡の有効化 [#lock]
+
+`events_waits_current`の消費者はロック待機時間情報を提供しますが、プラットフォーム固有の設定が必要です：
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        プラットフォーム
+      </th>
+
+      <th>
+        方法
+      </th>
+
+      <th>
+        再起動後も永続しますか？
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        セルフマネージドMySQL
+      </td>
+
+      <td>
+        `performance-schema-consumer-events-waits-current=ON`
+
+         
+
+        `[mysqld]`
+
+        （
+
+        `my.cnf`
+
+        ）で
+      </td>
+
+      <td>
+        はい
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AWS RDS
+      </td>
+
+      <td>
+        `UPDATE performance_schema.setup_consumers SET ENABLED='YES' WHERE NAME='events_waits_current';`
+      </td>
+
+      <td>
+        **いいえ**
+
+        : 再起動またはフェイルオーバー時にリセットされます。再起動のたびに再実行するか、再接続時に消費者を自動的に再有効化できるように、レシーバーユーザーにこの
+
+        `UPDATE`
+
+        を付与します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+  <DocTile title="互換性と前提条件" path="/docs/opentelemetry/database/mysql/compatibility">
+    サポートされているMySQLのバージョン、ネットワーク要件、および推奨されるサーバーパラメーターについて確認してください。
+  </DocTile>
+
+  <DocTile title="セルフホスト環境での計装" path="/docs/opentelemetry/database/mysql/hosted">
+    New Relicを使用してセルフホスト環境でMySQL監視を設定する方法について説明します。
+  </DocTile>
+
+  <DocTile title="RDS環境での計装" path="/docs/opentelemetry/database/mysql/rds">
+    New Relicを使用してRDS環境でMySQL監視をセットアップする方法について説明します。
+  </DocTile>
+</DocTiles>

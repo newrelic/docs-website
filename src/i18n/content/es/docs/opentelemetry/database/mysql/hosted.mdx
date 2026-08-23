@@ -1,0 +1,614 @@
+---
+title: Instalar y configurar NRDOT para MySQL autohospedado
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Self-hosted
+metaDescription: Set up MySQL and MariaDB monitoring with NRDOT Collector on self-hosted environments
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta función se proporciona actualmente como parte de una vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Configure el monitoreo de MySQL utilizando el Collector de NRDOT en entornos autohospedados, incluyendo servidores físicos, máquinas virtuales e instalaciones independientes.
+
+<Steps>
+  <Step>
+    ## Requisitos previos [#prerequisites]
+
+    Antes de instalar, asegúrese de tener:
+
+    * Una [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic.
+    * Acceso administrativo a su instancia de MySQL.
+    * Conectividad de red entre el host donde instala el NRDOT Collector y su base de datos MySQL.
+    * Conectividad de red a la [documentación de los extremos OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+    * Esta integración está disponible como parte del programa de vista previa pública (public preview) de New Relic. Consulte con el Gerente de su organización para activarla desde la página de [Previsualizaciones y pruebas (Previews &amp; Trials)](https://one.newrelic.com/admin-portal/promotion-management/home).
+
+    Para conocer las versiones de MySQL compatibles, los permisos requeridos y los requisitos de `performance_schema`, consulte [Compatibilidad y requisitos previos](/docs/opentelemetry/database/mysql/compatibility).
+  </Step>
+
+  <Step>
+    ## Configurar NRDOT Collector [#setup]
+
+    Instale el NRDOT Collector en su sistema:
+
+    <CollapserGroup>
+      <Collapser title="Para la arquitectura AMD64" id="amd">
+        * Para sistemas Debian/Ubuntu, ejecute:
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+          ```
+
+        * Para sistemas RHEL/CentOS/OEL, ejecute:
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+          ```
+      </Collapser>
+
+      <Collapser title="Para la arquitectura ARM64" id="arm">
+        * Para sistemas Debian/Ubuntu, ejecute:
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+          ```
+
+        * Para sistemas RHEL/CentOS/OEL, ejecute:
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+          ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Configurar el usuario de la base de datos [#user]
+
+    Cree un usuario de monitoreo con los privilegios necesarios para su instancia de base de datos MySQL.
+
+    * Para crear un usuario de monitoreo, ejecute el siguiente comando en su base de datos MySQL:
+
+      ```sql
+      CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>';
+      ```
+
+    * Para recopilar muestras de consultas y las consultas principales, otorgue los siguientes privilegios al usuario de monitoreo:
+
+      ```sql
+      GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%';
+      ```
+
+    * (Opcional) Para ver los datos de tiempo de espera en la plataforma New Relic, otorgue los siguientes privilegios al usuario de monitoreo:
+
+      ```sql
+      GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+      ```
+
+    * (Opcional) Para verificar la conexión y los permisos, ejecute:
+
+      ```shell
+      mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
+      ```
+
+      Si el comando se completa sin errores, el usuario de monitoreo, el host y el puerto son correctos.
+  </Step>
+
+  <Step>
+    ## Configurar el Colector NRDOT [#configure]
+
+    Configure el NRDOT Collector con su configuración específica de MySQL. Seleccione su tipo de configuración según sus necesidades de monitoreo:
+
+    <CollapserGroup>
+      <Collapser id="standard" title="Configuración estándar">
+        Esta configuración se centra en el monitoreo esencial de MySQL únicamente con el receptor `nrmysql`.
+
+        1. Cree un archivo de configuración llamado `mysql-config.yaml`:
+
+        ```bash
+          sudo nano /etc/nrdot-collector/mysql-config.yaml
+        ```
+
+        2. Agregue la siguiente configuración al archivo `mysql-config.yaml` que creó en el paso anterior.
+
+        ```yaml
+        receivers:
+          nrmysql:
+            endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+            transport: tcp
+            username: "<YOUR_DB_USERNAME>"
+            password: "<YOUR_DB_PASSWORD>"
+            database: "<YOUR_DATABASE_NAME>"
+            allow_native_passwords: true
+            collection_interval: 10s
+            initial_delay: 1s
+            tls:
+              insecure: false
+              insecure_skip_verify: false
+              # ca_file: /path/to/global-bundle.pem
+            explain_mode: procedure
+            statement_events:
+              digest_text_limit: 4096
+              time_limit: 24h
+              limit: 500
+            query_sample_collection:
+              max_rows_per_query: 100
+              allowed_comment_keys: [nr_service_guid]
+            top_query_collection:
+              lookback_time: 120
+              max_query_sample_count: 5000
+              top_query_count: 200
+              collection_interval: 60s
+              query_plan_cache_size: 1000
+              query_plan_cache_ttl: 1h
+              allowed_comment_keys: [nr_service_guid]
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+
+        processors:
+          batch:
+          resource/mysql:
+            attributes:
+              - key: server.address
+                value: "<YOUR_DB_HOST>"
+                action: upsert
+              - key: server.port
+                value: <YOUR_DB_PORT>
+                action: upsert
+
+        exporters:
+          otlp/newrelic:
+            endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+            headers:
+              api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+            compression: gzip
+            retry_on_failure:
+              enabled: true
+              initial_interval: 5s
+              max_interval: 30s
+              max_elapsed_time: 300s
+
+        service:
+          pipelines:
+            metrics:
+              receivers: [nrmysql]
+              processors: [resource/mysql, batch]
+              exporters: [otlp/newrelic]
+            logs:
+              receivers: [nrmysql]
+              processors: [resource/mysql, batch]
+              exporters: [otlp/newrelic]
+        ```
+      </Collapser>
+
+      <Collapser id="full" title="Configuración de características completas">
+        Esta configuración agrega métricas a nivel de host (CPU, memoria, disco, red) junto con el monitoreo de la base de datos MySQL.
+
+        1. Cree un archivo de configuración llamado `mysql-config.yaml`:
+
+        ```bash
+          sudo nano /etc/nrdot-collector/mysql-config.yaml
+        ```
+
+        2. Agregue la siguiente configuración al archivo `mysql-config.yaml` que creó en el paso anterior.
+
+        ```yaml
+        extensions:
+          health_check:
+
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+              http:
+
+          host_metrics:
+            collection_interval: 30s
+            scrapers:
+              cpu:
+                metrics:
+                  system.cpu.time:
+                    enabled: false
+                  system.cpu.utilization:
+                    enabled: true
+              load:
+              memory:
+                metrics:
+                  system.memory.utilization:
+                    enabled: true
+              paging:
+                metrics:
+                  system.paging.utilization:
+                    enabled: false
+                  system.paging.faults:
+                    enabled: false
+              filesystem:
+                metrics:
+                  system.filesystem.utilization:
+                    enabled: true
+              disk:
+                metrics:
+                  system.disk.merged:
+                    enabled: false
+                  system.disk.pending_operations:
+                    enabled: false
+                  system.disk.weighted_io_time:
+                    enabled: false
+              network:
+                metrics:
+                  system.network.connections:
+                    enabled: false
+              # Uncomment to enable process metrics, which can be noisy but valuable.
+              # processes:
+              # process:
+              #  metrics:
+              #    process.cpu.utilization:
+              #      enabled: true
+              #    process.cpu.time:
+              #      enabled: false
+
+          nrmysql:
+            endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+            transport: tcp
+            username: "<YOUR_DB_USERNAME>"
+            password: "<YOUR_DB_PASSWORD>"
+            database: "<YOUR_DATABASE_NAME>"
+            allow_native_passwords: true
+            collection_interval: 10s
+            initial_delay: 1s
+            tls:
+              insecure: false
+              insecure_skip_verify: false
+              # Required for Amazon RDS/Aurora with SSL/TLS enforcement -- see
+              # Prerequisites -> Network access -> Amazon RDS / Aurora for MySQL.
+              # ca_file: /path/to/global-bundle.pem
+            # "procedure" collects EXPLAIN plans for write statements (UPDATE/DELETE/INSERT/REPLACE)
+            # without granting DML to the monitoring user, via a SQL SECURITY DEFINER procedure.
+            # Falls back to "inline" (default) automatically if the procedure is absent for a schema.
+            # Requires one-time setup per schema -- see Prerequisites -> DML query plan collection.
+            explain_mode: procedure
+            statement_events:
+              digest_text_limit: 4096
+              time_limit: 24h
+              limit: 500
+            query_sample_collection:
+              max_rows_per_query: 100
+              # APM-DB correlation: surfaces the nr_service_guid SQL comment tag (e.g. injected by
+              # transaction_tracer.sql_metadata_comments in the Java agent) as db.query.comment_tags /
+              # db.query.comment_tags.nr_service_guid. Empty list by default -- nothing is extracted
+              # unless the key is explicitly allow-listed here.
+              allowed_comment_keys: [nr_service_guid]
+            top_query_collection:
+              lookback_time: 120
+              max_query_sample_count: 5000
+              top_query_count: 200
+              collection_interval: 60s
+              query_plan_cache_size: 1000
+              query_plan_cache_ttl: 1h
+              allowed_comment_keys: [nr_service_guid]
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+
+        processors:
+          metrics_transform:
+            transforms:
+              - include: system.cpu.utilization
+                action: update
+                operations:
+                  - action: aggregate_labels
+                    label_set: [state]
+                    aggregation_type: mean
+              - include: system.paging.operations
+                action: update
+                operations:
+                  - action: aggregate_labels
+                    label_set: [direction]
+                    aggregation_type: sum
+
+          filter/exclude_cpu_utilization:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+                - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+
+          filter/exclude_memory_utilization:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+                - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+
+          filter/exclude_memory_usage:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+                - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+
+          filter/exclude_filesystem_utilization:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+
+          filter/exclude_filesystem_usage:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+                - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+
+          filter/exclude_filesystem_inodes_usage:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+                - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+
+          filter/exclude_system_disk:
+            metrics:
+              datapoint:
+                - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+                - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+
+          filter/exclude_network:
+            metrics:
+              datapoint:
+                - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+
+          attributes/exclude_system_paging:
+            include:
+              match_type: strict
+              metric_names:
+                - system.paging.operations
+            actions:
+              - key: type
+                action: delete
+
+          cumulative_to_delta:
+
+          transform:
+            trace_statements:
+              - context: span
+                statements:
+                  - truncate_all(span.attributes, 4095)
+                  - truncate_all(resource.attributes, 4095)
+
+          transform/host:
+            metric_statements:
+              - context: metric
+                statements:
+                  - set(metric.description, "")
+                  - set(metric.unit, "")
+
+          # Static server.address/server.port, reusing the same <YOUR_DB_HOST>/<YOUR_DB_PORT>
+          # values already set on the receiver's own `endpoint` field above -- nrmysqlreceiver
+          # itself emits no server.address/server.port, only its own mysql.instance.endpoint
+          # (a combined "host:port" string). Applies uniformly to both metrics and logs
+          # pipelines since neither depends on how that string is derived.
+          resource/mysql:
+            attributes:
+              - key: server.address
+                value: "<YOUR_DB_HOST>"
+                action: upsert
+              - key: server.port
+                value: <YOUR_DB_PORT>
+                action: upsert
+
+          batch:
+
+          resource_detection:
+            detectors: ["system"]
+            system:
+              hostname_sources: ["os"]
+              resource_attributes:
+                host.id:
+                  enabled: true
+
+          resource_detection/cloud:
+            detectors: ["gcp", "ec2", "azure"]
+            timeout: 2s
+            override: true
+
+          resource_detection/env:
+            detectors: ["env"]
+            timeout: 2s
+            override: true
+
+        exporters:
+          otlp/newrelic:
+            endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+            headers:
+              api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+            compression: gzip
+            retry_on_failure:
+              enabled: true
+              initial_interval: 5s
+              max_interval: 30s
+              max_elapsed_time: 300s
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+
+          extensions: [health_check]
+
+          pipelines:
+            metrics/host:
+              receivers: [host_metrics]
+              processors:
+                - metrics_transform
+                - filter/exclude_cpu_utilization
+                - filter/exclude_memory_utilization
+                - filter/exclude_memory_usage
+                - filter/exclude_filesystem_utilization
+                - filter/exclude_filesystem_usage
+                - filter/exclude_filesystem_inodes_usage
+                - filter/exclude_system_disk
+                - filter/exclude_network
+                - attributes/exclude_system_paging
+                - transform/host
+                - resource_detection
+                - resource_detection/cloud
+                - resource_detection/env
+                - cumulative_to_delta
+                - batch
+              exporters: [otlp/newrelic]
+
+            metrics/mysql:
+              receivers: [nrmysql]
+              processors:
+                - resource/mysql
+                - resource_detection
+                - resource_detection/cloud
+                - resource_detection/env
+                - batch
+              exporters: [otlp/newrelic]
+
+            logs/mysql:
+              receivers: [nrmysql]
+              processors:
+                - resource/mysql
+                - resource_detection
+                - resource_detection/cloud
+                - resource_detection/env
+                - batch
+              exporters: [otlp/newrelic]
+
+            traces:
+              receivers: [otlp]
+              processors: [transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
+              exporters: [otlp/newrelic]
+
+            metrics:
+              receivers: [otlp]
+              processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+              exporters: [otlp/newrelic]
+
+            logs:
+              receivers: [otlp]
+              processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
+              exporters: [otlp/newrelic]
+        ```
+
+        <Callout variant="important">
+          La integración de MySQL a través del NRDOT Collector sigue los [precios de ingesta de datos](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data) estándar. Tenga en cuenta que la configuración completa de características ingiere más datos que una configuración estándar, lo que puede aumentar su factura general.
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+
+    ### Parámetro de configuración
+
+    La siguiente tabla describe los parámetros de configuración clave para el receptor `nrmysql`:
+
+    | Parámetro                       | Descripción                                                                                                                                                                                                                                                                                                                              |
+    | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_DB_HOST>`                | Ingrese el nombre de host o la dirección IP de MySQL.                                                                                                                                                                                                                                                                                    |
+    | `<YOUR_DB_PORT>`                | Ingrese el número de puerto de MySQL. El valor predeterminado es `3306`.                                                                                                                                                                                                                                                                 |
+    | `<YOUR_DB_USERNAME>`            | Ingrese el nombre de usuario del usuario de monitoreo que creó en [Configurar usuario de base de datos](#user).                                                                                                                                                                                                                          |
+    | `<YOUR_DB_PASSWORD>`            | Ingrese la contraseña del usuario de monitoreo que creó en [Configurar usuario de base de datos](#user).                                                                                                                                                                                                                                 |
+    | `<YOUR_DATABASE_NAME>`          | Opcional. Ingrese un nombre de base de datos específico para restringir el monitoreo a esta. Omita este parámetro para monitorear todas las bases de datos a las que el usuario de monitoreo pueda acceder.                                                                                                                              |
+    | `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Ingrese el extremo OTLP de New Relic. Para obtener más información, consulte [Extremos OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/).                                                                                                                                                                       |
+    | `<YOUR_NEWRELIC_LICENSE_KEY>`   | Ingrese su [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic.                                                                                                                                                                                                                               |
+    | `transport`                     | El valor predeterminado está establecido en `tcp` para conectarse a través de la red. Si su NRDOT Collector se ejecuta en el mismo host que MySQL, use `unix` para conectarse a través de un socket de dominio Unix en su lugar.                                                                                                         |
+    | `collection_interval`           | Ingrese el intervalo entre los raspados de métricas. Predeterminado: `10s`.                                                                                                                                                                                                                                                              |
+    | `explain_mode`                  | El valor predeterminado está establecido en `inline`. Establezca el valor en `procedure` para recopilar planes de consulta para declaraciones de escritura sin otorgar privilegios DML al usuario de monitoreo. Consulte [Planes de consulta para declaraciones de escritura](/docs/opentelemetry/database/mysql/advanced-config#query). |
+  </Step>
+
+  <Step>
+    ## Valide la configuración de NRDOT Collector [#validate]
+
+    1. Actualice la ruta de configuración para que apunte a su nuevo archivo `mysql-config.yaml`:
+
+    ```bash
+      OTELCOL_OPTIONS="/etc/nrdot-collector/mysql-config.yaml"
+    ```
+
+    2. Valide la configuración del NRDOT Collector para asegurarse de que tenga el formato correcto y funcione correctamente:
+
+    ```bash
+      sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mysql-config.yaml
+    ```
+
+    <Callout variant="tip">
+      Tú también puedes:
+
+      * [Configure múltiples receptores](/docs/opentelemetry/database/mysql/multi-receiver): para monitorear múltiples instancias de MySQL desde un recolector.
+      * [Vincule su base de datos MySQL con APM](/docs/opentelemetry/database/capabilities/db-apm): para correlacionar el rendimiento de la aplicación con las operaciones de la base de datos. Esto le permite ver exactamente qué aplicaciones están generando workloads de base de datos específicas.
+      * [Configurar SQL Query Receiver](/docs/opentelemetry/database/capabilities/sql-query-receiver): para recopilar métricas personalizadas de su base de datos MySQL.
+      * [Configure la gestión de secretos](/docs/opentelemetry/database/database-service-identification/#secret-management): para administrar de forma segura información confidencial, como las credenciales de bases de datos. Esto ayuda a mejorar la seguridad de su configuración de monitoreo al evitar la codificación rígida de datos sensibles en los archivos de configuración.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Reiniciar NRDOT Collector [#restart]
+
+    Después de actualizar su configuración, reinicie el servicio NRDOT Collector:
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      Siempre reinicie el servicio de recopilador NRDOT después de realizar cambios de configuración para garantizar que los nuevos ajustes surtan efecto.
+    </Callout>
+
+    Para verificar que el recolector se esté ejecutando correctamente, verifique el estado del servicio:
+
+    ```bash
+    sudo systemctl status nrdot-collector
+    ```
+  </Step>
+
+  <Step>
+    ## Encuentra y utiliza tus datos [#find]
+
+    Una vez que se estén recopilando sus datos, puede acceder a un monitoreo integral de bases de datos MySQL a través de la UI de New Relic.
+
+    Para encontrar su entidad de base de datos MySQL en New Relic:
+
+    1. Vaya a <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>.
+
+    2. En el menú desplegable **<DNT>Entity type</DNT>**, seleccione <DNT>**MySQL instance**</DNT> y luego haga clic en <DNT>**Apply**</DNT>.
+
+    3. Seleccione su base de datos MySQL de la lista de entidades.
+
+       Después de configurar el monitoreo de bases de datos MySQL con NRDOT:
+
+       * [Crea dashboards personalizados](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) para visualizar las métricas de tu base de datos
+       * [Configura alertas](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) para umbrales críticos de rendimiento de la base de datos
+  </Step>
+</Steps>
+
+## Documentación relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Guía de solución de problemas" path="/docs/opentelemetry/database/mysql/troubleshooting">
+    Aprenda a solucionar problemas comunes con el monitoreo de MySQL.
+  </DocTile>
+
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/database/mysql/metrics-reference">
+    Obtenga información sobre las métricas disponibles recopiladas por NRDOT Collector.
+  </DocTile>
+
+  <DocTile title="Instrumentación en entornos RDS" path="/docs/opentelemetry/database/mysql/rds">
+    Aprenda a configurar el monitoreo de MySQL en entornos RDS con New Relic.
+  </DocTile>
+</DocTiles>
