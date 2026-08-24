@@ -1,0 +1,314 @@
+---
+title: Androidの難読化ルール
+metaDescription: Configure regex-based obfuscation rules to mask sensitive data before the Android streaming media agent transmits it to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+難読化ルールを使用すると、エージェントがNew Relicに送信する前に機密データをマスクできます。各ルールは、正規表現パターンと置換文字列のペアです。エージェントは、すべての送信イベントのすべての文字列属性値に順番にルールを適用します — <DNT>QoE events</DNT>やクラッシュから回復したイベントを含みます。
+
+## 使い方 [#how-it-works]
+
+1. 正規表現パターンと置換文字列をそれぞれ持つ、`ObfuscationRule`オブジェクトのリストを定義します。
+2. 設定ビルダーの`.withObfuscationRules()`にリストを渡します。
+3. 各HTTP送信の直前に、`ObfuscationEngine`はバッチ内のすべてのイベントのすべての文字列属性を反復処理し、ルールを順番に適用します。
+4. 文字列値のみが処理されます — 整数、long、ブール値、nullは変更されずにそのまま渡されます。
+5. 元のイベントオブジェクトが変更されることはないため、失敗したバッチは二重に難読化されることなくクリーンに再試行できます。
+
+## 構成 [#configuration]
+
+```java
+import com.newrelic.videoagent.core.ObfuscationRule;
+import java.util.Arrays;
+import java.util.List;
+
+// Define rules — each rule is a regex pattern and a replacement string.
+// Rules are applied in order on every string attribute of every outgoing event.
+List<ObfuscationRule> obfuscationRules = Arrays.asList(
+    // Mask account IDs:  "account-83729"  →  "ACCOUNT_ID"
+    new ObfuscationRule("account-\\d+", "ACCOUNT_ID"),
+
+    // Mask auth tokens:  "token=abc123xyz"  →  "token=REDACTED"
+    new ObfuscationRule("token=[^&\"]+", "token=REDACTED"),
+
+    // Mask user path segments:  "/users/john_doe"  →  "/users/USER_ID"
+    new ObfuscationRule("/users/[^\"/]+", "/users/USER_ID")
+);
+
+NRVideoConfiguration config = new NRVideoConfiguration.Builder("application-token")
+        .autoDetectPlatform(getApplicationContext())
+        .withHarvestCycle(5 * 60)
+        .withObfuscationRules(obfuscationRules)
+        .build();
+
+NRVideo.newBuilder(getApplicationContext()).withConfiguration(config).build();
+```
+
+## `ObfuscationRule` [#constructor]
+
+```java
+new ObfuscationRule(String pattern, String replacement)
+```
+
+<table>
+  <thead>
+    <tr>
+      <th width="20%">
+        パラメータ
+      </th>
+
+      <th width="10%">
+        タイプ
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `pattern`
+      </td>
+
+      <td>
+        `String`
+      </td>
+
+      <td>
+        Javaの正規表現パターン文字列。事前コンパイルされます — 無効なパターンの場合、構築時に`IllegalArgumentException`がスローされます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `replacement`
+      </td>
+
+      <td>
+        `String`
+      </td>
+
+      <td>
+        各一致を置換する文字列。一致を削除するには`""`を使用します。`$`と`\`は後方参照ではなく、通常の文字として扱われます。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## `obfuscationRules` [#parameter]
+
+HTTP送信の直前に、すべての送信イベントのすべての文字列属性に適用される`ObfuscationRule`オブジェクトのリスト。ルールは宣言された順序で実行されます — 1つのルールの出力が次のルールに渡されます。**デフォルト: 空のリスト**（難読化なし）。
+
+## 一般的なパターン [#common-patterns]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        マスクする対象
+      </th>
+
+      <th>
+        パターン
+      </th>
+
+      <th>
+        置き換え
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        数値のアカウントID
+      </td>
+
+      <td>
+        `account-\\d+`
+      </td>
+
+      <td>
+        `ACCOUNT_ID`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        認証/ベアラートークン
+      </td>
+
+      <td>
+        `token=[^&\"]+`
+      </td>
+
+      <td>
+        `token=REDACTED`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ユーザーパスセグメント
+      </td>
+
+      <td>
+        `/users/[^\"/]+`
+      </td>
+
+      <td>
+        `/users/USER_ID`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        メールアドレス
+      </td>
+
+      <td>
+        `[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}`
+      </td>
+
+      <td>
+        `EMAIL_REDACTED`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        UUID
+      </td>
+
+      <td>
+        `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
+      </td>
+
+      <td>
+        `UUID_REDACTED`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## ルールの順序 [#rule-ordering]
+
+ルールは左から右へ適用されます。ルールNの出力は、ルールN+1の入力になります。あるルールの置換が後のルールのパターンと一致する可能性がある場合、順序が重要になります。
+
+```java
+// Rule 1 turns "/john" into "/USER", then Rule 2 sees "/USER_profile" and masks it.
+new ObfuscationRule("john", "USER"),
+new ObfuscationRule("USER_profile", "PROFILE")
+// Result: "/john_profile" → "/USER_profile" → "/PROFILE"
+```
+
+## エッジケース [#edge-cases]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        状況
+      </th>
+
+      <th>
+        動作
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        ルールが設定されていない
+      </td>
+
+      <td>
+        No-op — オーバーヘッドはゼロで、元のリストがそのまま返されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        パターンが一致しない
+      </td>
+
+      <td>
+        値は変更されずにそのまま渡されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        空の置換 `""`
+      </td>
+
+      <td>
+        一致したコンテンツは削除されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$` または置換の`\`
+      </td>
+
+      <td>
+        プレーン文字として扱われます（正規表現の後方参照ではありません）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Integer/Long/Boolean値
+      </td>
+
+      <td>
+        スキップされました — `String`値のみが処理されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `null` value
+      </td>
+
+      <td>
+        スキップされました — NullPointerExceptionはありません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        無効な正規表現パターン
+      </td>
+
+      <td>
+        `IllegalArgumentException` `new ObfuscationRule(...)`の構築時にスローされます — ハーベスト時にサイレントに失敗するのではなく、起動時にフェイルファストします。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `null` 置換
+      </td>
+
+      <td>
+        `IllegalArgumentException` 構築時にスローされます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        HTTP送信の失敗 → デッドレター再試行
+      </td>
+
+      <td>
+        元の（難読化されていない）イベントが再試行されます；再試行パスでは難読化が正しく再適用されます。
+      </td>
+    </tr>
+  </tbody>
+</table>

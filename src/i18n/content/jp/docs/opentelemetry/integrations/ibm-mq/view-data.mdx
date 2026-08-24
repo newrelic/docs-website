@@ -1,0 +1,285 @@
+---
+title: New RelicでIBM MQデータを見つけてクエリする
+metaDescription: 'Find your IBM MQ metrics in New Relic, query queue managers and queues with NRQL, create dashboards and alerts, and troubleshoot data visibility.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+コレクターが稼働してデータが流入すると、New RelicでIBM MQメトリクスを表示し、NRQLでクエリを実行し、ダッシュボードを構築して、アラートを設定できます。各キューマネージャーは、そのキューを子`IBMMQ_QUEUE`エンティティとして持つ`IBMMQ_MANAGER`エンティティ（`target.name:qmgr`としてキー設定）として表示されます。
+
+## New RelicでIBM MQデータの表示 [#find-data]
+
+数分後、IBM MQメトリクスがNew Relicに表示されます。パイプラインは生のPrometheusの形状 — アンダースコアのメトリクス名（`ibmmq_*`）と生の`qmgr`および`queue`ラベル — を保持し、すべてのメトリクスに`target.name`のIDを付与します。New Relicはこれを使用してエンティティを合成します。
+
+<CollapserGroup>
+  <Collapser id="via-entity-explorer" title="エンティティエクスプローラーから">
+    1. <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **All entities**</DNT>に移動します。
+    2. `IBMMQ_MANAGER`と`IBMMQ_QUEUE`でフィルタリングするか、キューマネージャー名を検索します。
+    3. キューマネージャーを開いて、そのゴールデンメトリクス — 接続、put/getメッセージレート — と、キューが関連エンティティとしてリストされている事前構築済みのIBM MQダッシュボードを確認します。
+  </Collapser>
+
+  <Collapser id="via-dashboard" title="IBM MQダッシュボードから">
+    `IBMMQ_MANAGER`エンティティを開くと、New Relicは、キューマネージャーのヘルス、接続、メッセージスループット、エラー、およびファイルシステムの使用状況を要約した事前構築済みのダッシュボードを表示します。`IBMMQ_QUEUE`エンティティを開いて、キューごとの深さ、メッセージの経過時間、およびスループットを確認します。独自に構築することもできます — [カスタムダッシュボードの作成](#dashboards)を参照してください。
+  </Collapser>
+</CollapserGroup>
+
+データの可視性に関する問題をトラブルシューティングするには、[トラブルシューティング](/docs/opentelemetry/integrations/ibm-mq/troubleshooting)のドキュメントを参照してください。
+
+## NRQLでデータをクエリする [#query-data]
+
+<Callout variant="tip">
+  アンダースコアの名前と生のラベルでメトリクスをクエリします — `ibmmq_qmgr_status`、`ibmmq_queue_depth`、`qmgr`、`queue`。メトリクス名はドット区切りでは**なく**、`qmgr`ラベルの名前は変更され**ない**ため、`ibmmq.*`または`ibmmq.queue_manager.name`に対して記述されたNRQLは一致しません。
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        使用事例
+      </th>
+
+      <th>
+        クエリ
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        すべてのIBM MQメトリクスにデータが送信されていることを確認するには
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT count(*) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        レポートしているキューマネージャーをカウントするには（それぞれが1つの
+
+        `IBMMQ_MANAGER`
+
+        エンティティになります）
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT uniqueCount(qmgr) WHERE metricName LIKE 'ibmmq_%' FACET target.name SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        キューマネージャーのステータス（
+
+        `2`
+
+        \=実行中）を表示します（キューマネージャーごとに1行）。
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        チャネルのステータス（
+
+        `3`
+
+        \=実行中）を表示します。
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        モニター対象のすべてのキューの現在の深度を表示します。
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) FACET qmgr, queue SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        フリート全体のデッドレターキューの深度を共通の集計シグナルとして表示します。
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        キューのスループット、1分あたりのputおよびgetを表示するには。これにはMQI統計が有効になっている必要があります
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT rate(sum(ibmmq_queue_mqput_count), 1 minute) AS 'Puts/min', rate(sum(ibmmq_queue_mqget_count), 1 minute) AS 'Gets/min' FACET qmgr, queue TIMESERIES SINCE 1 hour ago
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+エンティティを直接参照するには、New Relic UIの<DNT>**All entities**</DNT>に移動して`IBMMQ_MANAGER`および`IBMMQ_QUEUE`エンティティをフィルタリングするか、上記のいずれかのクエリからキューマネージャーを開きます。
+
+## カスタムダッシュボードを作成する [#dashboards]
+
+独自のIBM MQダッシュボードを構築するには：
+
+1. <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **Dashboards**</DNT>に移動し、 <DNT>**Create a dashboard**</DNT>をクリックします。
+
+2. ウィジェットを追加し、<DNT>**Add a chart**</DNT>を選択して、[上記のNRQLクエリ](#query-data)のいずれかを貼り付けます。
+
+3. 一目でわかるように、フォーカスエリアごとにウィジェットをグループ化します：
+
+   * **キューマネージャーのヘルス** — `ibmmq_qmgr_status`、`ibmmq_qmgr_connection_count`、 `ibmmq_channel_status`
+   * **キュー深度とバックログ** — `ibmmq_queue_depth`、`ibmmq_queue_oldest_message_age`、 `ibmmq_queue_uncommitted_messages`
+   * **スループット** — `ibmmq_queue_mqput_count`、`ibmmq_queue_mqget_count`（レートとしてグラフ化）
+   * **キャパシティ** — `ibmmq_qmgr_log_in_use_bytes`、 `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`
+
+## アラートの設定 [#alerts]
+
+メッセージングに依存するアプリケーションに影響が及ぶ前に問題を検出するには、`ibmmq_*`メトリクスに対して[NRQLアラート条件](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/)を作成します。
+
+以下の表は、推奨されるIBM MQのアラート条件を示しています：
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        集計
+      </th>
+
+      <th>
+        NRQLクエリ
+      </th>
+
+      <th>
+        推奨閾値
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        キューマネージャーが実行されていません
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr, target.name
+        ```
+      </td>
+
+      <td>
+        値が少なくとも2分間
+
+        `2`
+
+        と等しくない場合、クリティカルになります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        チャネルが実行されていない
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel
+        ```
+      </td>
+
+      <td>
+        少なくとも5分間、値が
+
+        `3`
+
+        と等しくない場合はクリティカルになります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        キューが最大値に近づいています
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) / latest(ibmmq_queue_attribute_max_depth) * 100 AS 'Depth %' FACET qmgr, queue
+        ```
+      </td>
+
+      <td>
+        `80%`
+
+        で警告、
+
+        `95%`
+
+        でクリティカルになります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        デッドレター・キューのメッセージ
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr
+        ```
+      </td>
+
+      <td>
+        値が
+
+        `0`
+
+        より大きい場合、クリティカルになります。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 関連ドキュメント [#related-docs]
+
+<DocTiles>
+  <DocTile title="IBM MQのKubernetes計装" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    New RelicでIBM MQ for Kubernetes監視を設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    New Relicが収集するIBM MQメトリクスについて説明します。
+  </DocTile>
+
+  <DocTile title="トラブルシューティング" path="/docs/opentelemetry/integrations/ibm-mq/troubleshooting">
+    New RelicでIBM MQ監視をトラブルシューティングする方法を学びます。
+  </DocTile>
+</DocTiles>

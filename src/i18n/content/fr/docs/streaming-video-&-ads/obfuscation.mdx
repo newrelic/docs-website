@@ -1,0 +1,116 @@
+---
+title: Obfusquer les données de l'agent de médias en continu
+tags:
+  - Streaming Video & Ads
+  - Obfuscation
+  - Privacy
+  - iOS
+  - Roku
+metaDescription: Configure regex-based obfuscation rules to mask sensitive data before your iOS or Roku streaming media agent transmits it to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Les règles d’obfuscation vous permettent de masquer les données sensibles avant que l’agent ne les transmette à New Relic. Chaque règle est un modèle regex associé à une chaîne de remplacement. L’agent applique les règles dans l’ordre à chaque valeur d’attribut de chaîne dans chaque événement sortant — y compris les événements QoE et les événements récupérés après un plantage.
+
+## iOS [#ios]
+
+### Configuration [#ios-configuration]
+
+<DNT>**Objective-C**</DNT>
+
+```objectivec
+NRVAVideoConfiguration *config = [[[[NRVAVideoConfiguration builder]
+    withApplicationToken:@"YOUR_NEW_RELIC_TOKEN"]
+    withObfuscationRules:@[
+        @{ @"regex": @"account-\\d+",  @"replacement": @"ACCOUNT_ID" },
+        @{ @"regex": @"token=[^&\"]+", @"replacement": @"token=REDACTED" },
+    ]]
+    build];
+[[[NRVAVideo newBuilder] withConfiguration:config] build];
+```
+
+<DNT>**Swift**</DNT>
+
+```swift
+let config = NRVAVideoConfiguration.builder()
+    .withApplicationToken("YOUR_NEW_RELIC_TOKEN")
+    .withObfuscationRules([
+        ["regex": "account-\\d+",  "replacement": "ACCOUNT_ID"],
+        ["regex": "token=[^&\"]+", "replacement": "token=REDACTED"],
+    ])
+    .build()
+NRVAVideo.newBuilder().with(configuration: config).build()
+```
+
+### Comment ça marche [#ios-how-it-works]
+
+* L’agent applique les règles par valeur d’attribut de chaîne, et non à la charge JSON brute — les attributs numériques et booléens ne sont pas affectés.
+* Toutes les règles s’exécutent sur chaque événement sortant, y compris les événements réguliers, en direct, QoE et récupérés après un crash.
+* Les règles s’exécutent dans l’ordre dans lequel vous les déclarez. Si deux règles peuvent correspondre à la même valeur, l’ordre a de l’importance.
+* L&apos;agent n&apos;obfusque jamais le `applicationToken` ou les en-têtes d&apos;authentification HTTP — l&apos;obfuscation ne s&apos;applique qu&apos;aux valeurs d&apos;attribut d&apos;événement.
+
+### Cas limites [#ios-edge-cases]
+
+| Scénario                                                   | Comportement                                                                                                                                                                                                           |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Aucune règle configurée                                    | L’agent transmet toutes les valeurs d’attribut sans modification et sans impact sur les performances.                                                                                                                  |
+| Chaîne de remplacement vide                                | L’agent supprime le contenu correspondant de la valeur.                                                                                                                                                                |
+| Motif regex invalide                                       | `withObfuscationRules:` renvoie `NSInvalidArgumentException` au moment de la configuration, avant que des événements ne soient envoyés.                                                                                |
+| Valeur d&apos;attribut non-chaîne                          | L’agent ignore l’attribut. Seules les valeurs de chaîne sont traitées.                                                                                                                                                 |
+| Entrée d’éventail de règles mal formée                     | L’agent ignore toute entrée qui n’est pas un dictionnaire et écrit un avertissement dans le log.                                                                                                                       |
+| `applicationToken` et les en-têtes d’authentification HTTP | Ceux-ci ne sont jamais inclus dans les attributs d’événement et ne sont pas affectés par les règles d’obfuscation.                                                                                                     |
+| Ordre des règles                                           | Les règles s’exécutent dans l’ordre où elles sont déclarées dans l’éventail.                                                                                                                                           |
+| Retour sur trace catastrophique                            | `NSRegularExpression` n’a pas de délai d’attente intégré sur iOS. Évitez les modèles avec des quantificateurs imbriqués non bornés (par exemple, `(a+)+`). Testez les règles avec les pires entrées avant de déployer. |
+
+## Roku [#roku]
+
+Vous pouvez configurer l’agent avec des règles d’obfuscation basées sur des expressions régulières pour masquer les données sensibles avant que l’agent n’envoie des événements à New Relic. Utilisez cette fonctionnalité lorsque des champs tels que `contentSrc`, `contentTitle`, `origUrl` ou des attributs personnalisés peuvent contenir par inadvertance des identifiants d’utilisateur, des jetons ou d’autres informations personnelles.
+
+L&apos;agent applique des règles à chaque attribut de chaîne dans chaque événement sortant — y compris les événements vidéo, publicitaires (RAF et IMA), QOE, système et les événements personnalisés — avant que l&apos;événement n&apos;entre dans le tampon interne.
+
+### Configuration [#roku-configuration]
+
+Appelez `nrSetObfuscationRules` après avoir créé l’agent. Chaque règle est un éventail associatif avec une chaîne `regex` et une chaîne `replacement` :
+
+```brightscript
+m.nr = NewRelic("ACCOUNT_ID", "API_KEY", "APP_NAME", "APP_TOKEN")
+nrSetObfuscationRules(m.nr, [
+    { regex: "account-[0-9]+",  replacement: "ACCOUNT_ID" },
+    { regex: "token=[^&]+",     replacement: "token=REDACTED" },
+    { regex: "/users/[^/]+",    replacement: "/users/USER_ID" }
+])
+```
+
+Pour supprimer toutes les règles à l’exécution, appelez `nrSetObfuscationRules` avec un éventail vide :
+
+```brightscript
+nrSetObfuscationRules(m.nr, [])
+```
+
+### Ordre des règles [#roku-rule-ordering]
+
+L&apos;agent applique les règles dans l&apos;ordre où elles apparaissent dans l&apos;éventail. La sortie d&apos;une règle devient l&apos;entrée de la suivante. L&apos;ordre est important lorsque les modèles peuvent se chevaucher :
+
+```brightscript
+nrSetObfuscationRules(m.nr, [
+    ' Applied first — masks the specific token format
+    { regex: "auth-token-[a-z0-9]+", replacement: "AUTH_TOKEN" },
+    ' Applied second — masks any remaining bare token references
+    { regex: "token=[^&]+",          replacement: "token=REDACTED" }
+])
+```
+
+### Comportement et cas limites [#roku-edge-cases]
+
+| Cas                               | Comportement                                                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Aucune règle configurée           | L’agent transmet toutes les valeurs d’attribut sans modification et sans impact sur les performances.            |
+| Chaîne `replacement` vide         | L’agent supprime le contenu correspondant de la valeur.                                                          |
+| Motif regex invalide              | L’agent ignore la règle et écrit un avertissement dans le log.                                                   |
+| Valeurs d’attribut non-chaîne     | L’agent les transmet sans modification. Seules les valeurs de chaîne sont traitées.                              |
+| Remplacement de toutes les règles | Appelez à nouveau `nrSetObfuscationRules` avec le nouvel éventail. L’agent ignore toutes les règles précédentes. |
+
+<Callout variant="important">
+  Roku utilise `roRegex` pour la correspondance de motifs. Roku ne prend pas en charge les assertions complexes de type lookahead/lookbehind. Les motifs qui sont valides dans les regex JavaScript ou Java peuvent nécessiter d’être simplifiés pour Roku.
+</Callout>

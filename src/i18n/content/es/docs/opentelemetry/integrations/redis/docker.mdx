@@ -1,0 +1,1542 @@
+---
+title: Monitorear Redis con Docker Compose (OpenTelemetry)
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Redis
+  - Docker
+metaDescription: Deploy the OpenTelemetry Collector with Docker Compose to monitor Redis instances and send telemetry data to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Monitoree sus instancias de Redis usando Docker Compose al desplegar el OpenTelemetry Collector como un contenedor junto a su Redis existente.
+
+## Antes de que empieces [#prereq]
+
+Necesitará lo siguiente antes de configurar el recolector:
+
+* **Docker** y **Docker Compose** (v2 o posterior) instalados
+* Tu New Relic<InlinePopover type="licenseKey" />
+* Redis en ejecución y accesible — se recomienda la versión 6.0 o posterior (la 4.0 y posteriores funcionan con un conjunto de métricas reducido)
+* HTTPS saliente (puerto 443) al [extremo OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp)de New Relic
+
+Elija la distribución de su recolector en [Opciones de instalación](#installation-options): el recolector NRDOT, el OpenTelemetry Collector Contrib o el receptor de Prometheus. El archivo Docker Compose de cada ruta extrae las imágenes que necesita, incluido el [redis\_exporter](https://github.com/oliver006/redis_exporter) para la ruta del receptor de Prometheus.
+
+## Opciones de instalación [#installation-options]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot">Recolector NRDOT</TabsBarItem> <TabsBarItem id="otel-contrib">OpenTelemetry Collector Contrib</TabsBarItem> <TabsBarItem id="prometheus">Receptor de Prometheus</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot">
+      <Steps>
+        <Step>
+          ### Cree la configuración del recolector [#config-nrdot]
+
+          Esta configuración le indica al recolector cómo recopilar las métricas de Redis y enviarlas a New Relic. Se encarga de tres tareas principales:
+
+          * **Recopile** métricas de Redis a través del receptor `redis`
+          * **Dar forma** a los datos — reducir la cardinalidad, convertir contadores en deltas y etiquetarlos para la síntesis de entidades
+          * **Exporte** las métricas procesadas a New Relic a través de OTLP
+
+          Cree `otel-collector-config.yaml` en el directorio de su proyecto:
+
+          ```yaml
+          extensions:
+            health_check:
+              endpoint: "0.0.0.0:13133"
+
+          receivers:
+            redis:
+              endpoint: "redis:6379"  # Update with your Redis service name:port
+              collection_interval: 10s
+              metrics:
+                redis.maxmemory:
+                  enabled: true
+                redis.role:
+                  enabled: false
+                redis.cmd.calls:
+                  enabled: true
+                redis.cmd.usec:
+                  enabled: true
+                redis.clients.max_input_buffer:
+                  enabled: false
+                redis.clients.max_output_buffer:
+                  enabled: false
+                redis.replication.backlog_first_byte_offset:
+                  enabled: false
+              resource_attributes:
+                server.address:
+                  enabled: true
+                server.port:
+                  enabled: true
+
+          processors:
+            memory_limiter:
+              check_interval: 5s
+              limit_mib: 512
+              spike_limit_mib: 128
+
+            resource_detection:
+              detectors: [env, system]
+              timeout: 5s
+              override: false
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+
+            # Uncomment the section below to use a custom human-readable name for your
+            # Redis entity instead of the default server.address:server.port identifier.
+            # resource/redis:
+            #   attributes:
+            #     - key: redis.instance.id
+            #       value: "my-redis-instance"
+            #       action: upsert
+
+            attributes/entity_tags:
+              actions:
+                - key: instrumentation.provider
+                  value: opentelemetry
+                  action: upsert
+
+            cumulativetodelta:
+              include:
+                match_type: regexp
+                metrics:
+                  - redis\.commands\.processed
+                  - redis\.connections\.received
+                  - redis\.connections\.rejected
+                  - redis\.keys\.evicted
+                  - redis\.keys\.expired
+                  - redis\.keyspace\.hits
+                  - redis\.keyspace\.misses
+                  - redis\.net\.input
+                  - redis\.net\.output
+                  - redis\.cpu\.time
+                  - redis\.cmd\.calls
+                  - redis\.cmd\.usec
+                  - redis\.uptime
+
+            filter/cardinality:
+              metrics:
+                datapoint:
+                  - 'metric.name == "redis.cpu.time" and attributes["state"] != "sys" and attributes["state"] != "user"'
+                  - 'metric.name == "redis.cmd.calls" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+                  - 'metric.name == "redis.cmd.usec" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+
+            batch:
+              send_batch_size: 2048
+              send_batch_max_size: 4096
+              timeout: 10s
+
+          exporters:
+            otlp_http:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+              compression: gzip
+
+          service:
+            extensions: [health_check]
+            pipelines:
+              metrics/redis:
+                receivers: [redis]
+                # If using resource/redis for custom name, add it to the processors list:
+                # processors: [memory_limiter, resource_detection, resource/redis, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+          ```
+
+          #### Qué hace esta configuración [#config-explanation-nrdot]
+
+          Cada componente en la canalización tiene un trabajo específico:
+
+          | Componente                   | Descripción                                                                                                                                                                           |
+          | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `health_check`               | Expone un extremo de estado en `0.0.0.0:13133` para que pueda confirmar que el recolector se está ejecutando.                                                                         |
+          | `redis` receptor             | Se conecta a su extremo de Redis cada 10 segundos y lee las métricas del comando `INFO` de Redis. `server.address` y `server.port` se convierten en la identidad de la entidad.       |
+          | `memory_limiter`             | Limita el uso de memoria del recolector (límite flexible de 512 MiB, pico de 128 MiB) para proteger el contenedor.                                                                    |
+          | `resource_detection`         | Detecta el host y agrega `host.name` y `host.id`, vinculando las métricas de Redis a la entidad de host subyacente.                                                                   |
+          | `attributes/entity_tags`     | Marca `instrumentation.provider: opentelemetry` en cada métrica para que pueda limitar las consultas a la ruta de OpenTelemetry.                                                      |
+          | `cumulativetodelta`          | Convierte los contadores acumulativos de Redis —comandos, aciertos de keyspace, desalojos, etc.— a valores delta para que New Relic grafique las tasas correctamente.                 |
+          | `filter/cardinality`         | Descarta los puntos de datos de alta cardinalidad (estados de CPU distintos de `user` y `sys`, y métricas por comando para comandos poco comunes) para controlar el costo de ingesta. |
+          | `transform/metadata_nullify` | Borra las descripciones y unidades de las métricas para reducir el tamaño de la carga.                                                                                                |
+          | `batch`                      | Agrupa los puntos de datos antes de la exportación (2048 por lote, hasta 4096) y los vacía al menos cada 10 segundos para reducir la sobrecarga de la red.                            |
+          | `otlp_http`                  | Exporta las métricas procesadas a New Relic a través de OTLP con compresión gzip, autenticadas con su clave de licencia.                                                              |
+
+          <Callout variant="tip">
+            **¿Desea un nombre de entidad fácil de usar?** De forma predeterminada, su entidad de Redis se nombra usando la combinación `server.address:server.port`. Para usar un nombre personalizado legible por humanos en su lugar, descomente la sección `resource/redis` en la configuración anterior, establezca su nombre preferido en el valor `redis.instance.id` y agregue `resource/redis` al pipeline de procesadores.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Opcional: configurar la autenticación [#auth-nrdot]
+
+          Por defecto, el recolector se conecta a Redis sin credenciales. Si su instancia de Redis requiere autenticación, agregue las credenciales correspondientes al receptor `redis`. Seleccione la opción que coincida con su configuración:
+
+          <CollapserGroup>
+            <Collapser id="nrdot-docker-auth-password" title="Contraseña legacy (requirepass)">
+              ```yaml
+              receivers:
+                redis:
+                  endpoint: "redis:6379"
+                  password: "${env:REDIS_PASSWORD}"
+              ```
+
+              Agregue `REDIS_PASSWORD` a su archivo `.env`:
+
+              ```bash
+              REDIS_PASSWORD=your-redis-password
+              ```
+            </Collapser>
+
+            <Collapser id="nrdot-docker-auth-acl" title="Nombre de usuario + contraseña de ACL (Redis 6+)">
+              ```yaml
+              receivers:
+                redis:
+                  endpoint: "redis:6379"
+                  username: "${env:REDIS_USERNAME}"
+                  password: "${env:REDIS_PASSWORD}"
+              ```
+
+              Agregue a su archivo `.env`:
+
+              ```bash
+              REDIS_USERNAME=otel-monitor
+              REDIS_PASSWORD=your-monitor-password
+              ```
+            </Collapser>
+
+            <Collapser id="nrdot-docker-auth-tls" title="Conexión cifrada con TLS/SSL">
+              ```yaml
+              receivers:
+                redis:
+                  endpoint: "redis:6380"
+                  password: "${env:REDIS_PASSWORD}"
+                  tls:
+                    insecure: false
+                    ca_file: /etc/ssl/redis/ca.crt
+                    cert_file: /etc/ssl/redis/client.crt
+                    key_file: /etc/ssl/redis/client.key
+              ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### Opcional: recopilar logs de Redis [#logs-nrdot]
+
+          Más allá de las métricas, el recolector puede reenviar el archivo de log de Redis a New Relic para que pueda correlacionar los logs de eventos —reinicios, eventos de persistencia o errores— con picos de métricas en la misma entidad.
+
+          <Callout variant="important">
+            Por defecto, Redis en Docker registra en **stdout** (no en un archivo). Para recopilar logs con el receptor filelog, debe configurar Redis para que escriba en un archivo de log y compartirlo a través de un volumen de Docker entre los contenedores de Redis y del recolector.
+
+            Agregue esto a su servicio de Redis en `docker-compose.yml`:
+
+            ```yaml
+              redis:
+                image: redis:7
+                command: >
+                  sh -c "touch /data/redis.log && chmod 644 /data/redis.log && redis-server --logfile /data/redis.log"
+                volumes:
+                  - redis-logs:/data
+            ```
+
+            Y agregue el volumen compartido a su servicio de recolector:
+
+            ```yaml
+              otel-collector:
+                volumes:
+                  - redis-logs:/var/log/redis:ro
+            ```
+
+            Luego agregue en la parte inferior de su `docker-compose.yml`:
+
+            ```yaml
+            volumes:
+              redis-logs:
+            ```
+          </Callout>
+
+          Agregue el receptor filelog a su `otel-collector-config.yaml`:
+
+          ```yaml
+          receivers:
+            # ... existing redis receiver ...
+            file_log/redis:
+              include:
+                - /var/log/redis/redis.log
+              start_at: end
+              operators:
+                - type: regex_parser
+                  regex: '^\d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+                  on_error: send
+              resource:
+                db.system: redis
+          ```
+
+          Las líneas de registro del archivo no tienen contexto de conexión de Redis por sí solas —debe adjuntar explícitamente atributos de identidad para que New Relic asocie los registros con su entidad de Redis. Agregue un procesador `resource/redis_logs` con **valores codificados que coincidan con la identidad de su entidad de Redis**:
+
+          ```yaml
+          processors:
+            # ... existing processors ...
+            resource/redis_logs:
+              attributes:
+                - key: server.address
+                  value: "redis"  # Must match your redis receiver endpoint host
+                  action: upsert
+                - key: server.port
+                  value: 6379  # Must match your redis receiver endpoint port
+                  action: upsert
+                - key: instrumentation.provider
+                  value: opentelemetry
+                  action: upsert
+          ```
+
+          <Callout variant="tip">
+            **¿Usa un ID de la instancia personalizado?** Si habilitó el procesador `resource/redis` para la asignación de nombres de entidades personalizadas, reemplace `server.address` y `server.port` anteriores con su `redis.instance.id`:
+
+            ```yaml
+              resource/redis_logs:
+                attributes:
+                  - key: redis.instance.id
+                    value: "my-redis-instance"  # Must match the value in resource/redis
+                    action: upsert
+                  - key: instrumentation.provider
+                    value: opentelemetry
+                    action: upsert
+            ```
+          </Callout>
+
+          Agregue un pipeline de logs **separado** a la sección de servicio:
+
+          ```yaml
+          service:
+            pipelines:
+              metrics/redis:
+                receivers: [redis]
+                processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+              logs/redis:
+                receivers: [file_log/redis]
+                processors: [memory_limiter, resource/redis_logs, batch]
+                exporters: [otlp_http]
+          ```
+
+          <Callout variant="important">
+            El contenedor del recolector debe tener acceso de lectura al archivo de log de Redis. Al montar el directorio de logs en su contenedor, asegúrese de que el archivo sea legible para el proceso del recolector. En el host, ejecute:
+
+            ```bash
+            sudo chmod 755 /var/log/redis
+            sudo chmod 644 /var/log/redis/redis.log
+            ```
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Opcional: recopilar métricas del host [#hostmetrics-nrdot]
+
+          El rendimiento de Redis a menudo refleja la presión de los recursos del host — saturación de CPU, agotamiento de memoria o contención de I/O de disco. Agregue el receptor `hostmetrics` para recopilar métricas del sistema junto con Redis para que pueda correlacionar ambos en New Relic. La configuración `root_path: /hostfs` es obligatoria cuando se ejecuta dentro de un contenedor de Docker para que el recolector lea el sistema de archivos del host, no el del contenedor:
+
+          ```yaml
+          receivers:
+            # ... existing receivers ...
+            host_metrics:
+              collection_interval: 10s
+              root_path: /hostfs
+              scrapers:
+                cpu:
+                  metrics:
+                    system.cpu.utilization: {enabled: true}
+                    system.cpu.time: {enabled: true}
+                load:
+                  metrics:
+                    system.cpu.load_average.1m: {enabled: true}
+                    system.cpu.load_average.5m: {enabled: true}
+                    system.cpu.load_average.15m: {enabled: true}
+                memory:
+                  metrics:
+                    system.memory.usage: {enabled: true}
+                    system.memory.utilization: {enabled: true}
+                disk:
+                  metrics:
+                    system.disk.io: {enabled: true}
+                    system.disk.operations: {enabled: true}
+                filesystem:
+                  metrics:
+                    system.filesystem.usage: {enabled: true}
+                    system.filesystem.utilization: {enabled: true}
+                network:
+                  metrics:
+                    system.network.io: {enabled: true}
+                    system.network.packets: {enabled: true}
+          ```
+
+          Agregue una canalización de `metrics/host` **separada** para las métricas del host (no agregue `host_metrics` a la canalización de Redis):
+
+          ```yaml
+          service:
+            pipelines:
+              metrics/redis:
+                receivers: [redis]
+                processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+              metrics/host:
+                receivers: [host_metrics]
+                processors: [memory_limiter, resource_detection, attributes/entity_tags, batch]
+                exporters: [otlp_http]
+          ```
+        </Step>
+
+        <Step>
+          ### Opcional: agregar metadatos personalizados [#custom-metadata-nrdot]
+
+          Los atributos de recursos personalizados etiquetan cada métrica de Redis con contexto — entorno, equipo o nivel — para que pueda filtrar y agrupar sus datos en New Relic. Agregue un procesador `resource/custom` con las etiquetas que desee:
+
+          ```yaml
+          processors:
+            # ... existing processors ...
+            resource/custom:
+              attributes:
+                - key: environment
+                  value: "production"
+                  action: upsert
+                - key: team
+                  value: "platform"
+                  action: upsert
+          ```
+
+          Incluya el procesador en su pipeline:
+
+          ```yaml
+          service:
+            pipelines:
+              metrics/redis:
+                receivers: [redis]
+                processors: [memory_limiter, resource_detection, resource/custom, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+          ```
+        </Step>
+
+        <Step>
+          ### Opcional: habilitar el monitoreo de Redis Cluster [#cluster-nrdot]
+
+          El monitoreo de Redis Cluster actualmente requiere el enfoque del receptor de Prometheus (usando `redis_exporter`). El receptor de Redis nativo del NRDOT Collector aún no es compatible con el comando `CLUSTER INFO` necesario para las métricas del clúster. Use la pestaña del [receptor de Prometheus](/docs/opentelemetry/integrations/redis/docker/#prometheus) para la configuración del monitoreo del clúster.
+        </Step>
+
+        <Step>
+          ### Cree el archivo de Docker Compose [#compose-nrdot]
+
+          Cree `docker-compose.yml` para ejecutar el recolector junto a su Redis existente. El archivo `.env` en el mismo directorio es cargado automáticamente por Docker Compose:
+
+          ```yaml
+          services:
+            otel-collector:
+              image: newrelic/nrdot-collector:latest
+              env_file: .env
+              volumes:
+                - ./otel-collector-config.yaml:/etc/otel/config.yaml:ro
+                - /etc/machine-id:/etc/machine-id:ro
+                # Uncomment if collecting Redis logs (requires shared volume — see logs step above):
+                # - redis-logs:/var/log/redis:ro
+                # Uncomment if collecting host metrics:
+                # - /:/hostfs:ro
+                # Uncomment if using TLS:
+                # - ./certs:/etc/ssl/redis:ro
+              environment:
+                - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
+                - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+                # Uncomment if collecting host metrics:
+                # - HOST_PROC=/hostfs/proc
+                # - HOST_SYS=/hostfs/sys
+                # - HOST_ETC=/hostfs/etc
+                # Uncomment if using Redis authentication:
+                # - REDIS_PASSWORD=${REDIS_PASSWORD}
+                # - REDIS_USERNAME=${REDIS_USERNAME}
+              command: ["--config=/etc/otel/config.yaml"]
+              ports:
+                - "13133:13133"
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:13133"]
+                interval: 10s
+                timeout: 5s
+                retries: 3
+
+          # Uncomment if collecting Redis logs:
+          # volumes:
+          #   redis-logs:
+          ```
+
+          <Callout variant="tip">
+            Si habilitó alguna característica opcional (registros, métricas de host, TLS o autenticación) en los pasos anteriores, descomente las líneas correspondientes en el archivo Docker Compose anterior.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Cree el archivo de entorno [#env-nrdot]
+
+          Docker Compose lee los valores específicos del despliegue de un archivo `.env` en el mismo directorio que su `docker-compose.yml`, lo que mantiene su clave de licencia fuera del archivo compose. Cree el archivo `.env`:
+
+          ```bash
+          NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
+          OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
+          # Set the New Relic OTLP endpoint for your region.
+          # See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
+          ```
+
+          Reemplace los marcadores de posición con sus propios valores:
+
+          | Variable                      | Requerido | Descripción                                                                                                                                                             |
+          | ----------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `NEW_RELIC_LICENSE_KEY`       | Sí        | Tu [clave de licencia de ingesta](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic.                                                           |
+          | `OTEL_EXPORTER_OTLP_ENDPOINT` | Sí        | Extremo OTLP de New Relic para su región. Para obtener más información, consulte el [extremo OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
+        </Step>
+
+        <Step>
+          ### Iniciar y verificar [#verify-nrdot]
+
+          Inicie el recolector en segundo plano:
+
+          ```bash
+          docker compose up -d
+          ```
+
+          Confirme que los contenedores se estén ejecutando con `docker compose ps` — el recolector debería mostrar un estado `running`. Si se cerró, verifique sus logs con `docker compose logs otel-collector` — las causas más comunes son errores de sangría YAML y un extremo de Redis inalcanzable.
+
+          Luego confirme que sus métricas están llegando a New Relic. Espere aproximadamente un minuto después del inicio, luego ejecute esta consulta en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+          ```sql
+          SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.provider = 'opentelemetry' SINCE 5 minutes ago
+          ```
+
+          Un recuento distinto de cero confirma que las métricas de Redis están fluyendo. Si devuelve `0`, consulte [Solucionar problemas de Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="otel-contrib">
+      <Steps>
+        <Step>
+          ### Cree la configuración del recolector [#config-otel]
+
+          Esta configuración le indica al recolector cómo recopilar las métricas de Redis y enviarlas a New Relic. Se encarga de tres tareas principales:
+
+          * **Recopile** métricas de Redis a través del receptor `redis`
+          * **Dar forma** a los datos — reducir la cardinalidad, convertir contadores en deltas y etiquetarlos para la síntesis de entidades
+          * **Exporte** las métricas procesadas a New Relic a través de OTLP
+
+          Cree `otel-collector-config.yaml` en el directorio de su proyecto:
+
+          ```yaml
+          extensions:
+            health_check:
+              endpoint: "0.0.0.0:13133"
+
+          receivers:
+            redis:
+              endpoint: "redis:6379"  # Update with your Redis service name:port
+              collection_interval: 10s
+              metrics:
+                redis.maxmemory:
+                  enabled: true
+                redis.role:
+                  enabled: false
+                redis.cmd.calls:
+                  enabled: true
+                redis.cmd.usec:
+                  enabled: true
+                redis.clients.max_input_buffer:
+                  enabled: false
+                redis.clients.max_output_buffer:
+                  enabled: false
+                redis.replication.backlog_first_byte_offset:
+                  enabled: false
+              resource_attributes:
+                server.address:
+                  enabled: true
+                server.port:
+                  enabled: true
+
+          processors:
+            memory_limiter:
+              check_interval: 5s
+              limit_mib: 512
+              spike_limit_mib: 128
+
+            resource_detection:
+              detectors: [env, system]
+              timeout: 5s
+              override: false
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+
+            # Uncomment the section below to use a custom human-readable name for your
+            # Redis entity instead of the default server.address:server.port identifier.
+            # resource/redis:
+            #   attributes:
+            #     - key: redis.instance.id
+            #       value: "my-redis-instance"
+            #       action: upsert
+
+            attributes/entity_tags:
+              actions:
+                - key: instrumentation.provider
+                  value: opentelemetry
+                  action: upsert
+
+            cumulativetodelta:
+              include:
+                match_type: regexp
+                metrics:
+                  - redis\.commands\.processed
+                  - redis\.connections\.received
+                  - redis\.connections\.rejected
+                  - redis\.keys\.evicted
+                  - redis\.keys\.expired
+                  - redis\.keyspace\.hits
+                  - redis\.keyspace\.misses
+                  - redis\.net\.input
+                  - redis\.net\.output
+                  - redis\.cpu\.time
+                  - redis\.cmd\.calls
+                  - redis\.cmd\.usec
+                  - redis\.uptime
+
+            filter/cardinality:
+              metrics:
+                datapoint:
+                  - 'metric.name == "redis.cpu.time" and attributes["state"] != "sys" and attributes["state"] != "user"'
+                  - 'metric.name == "redis.cmd.calls" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+                  - 'metric.name == "redis.cmd.usec" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+
+            batch:
+              send_batch_size: 2048
+              send_batch_max_size: 4096
+              timeout: 10s
+
+          exporters:
+            otlp_http:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+              compression: gzip
+
+          service:
+            extensions: [health_check]
+            pipelines:
+              metrics/redis:
+                receivers: [redis]
+                # If using resource/redis for custom name, add it to the processors list:
+                # processors: [memory_limiter, resource_detection, resource/redis, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+          ```
+
+          #### Qué hace esta configuración [#config-explanation-otel]
+
+          Cada componente en la canalización tiene un trabajo específico:
+
+          | Componente                   | Descripción                                                                                                                                                                           |
+          | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `health_check`               | Expone un extremo de estado en `0.0.0.0:13133` para que pueda confirmar que el recolector se está ejecutando.                                                                         |
+          | `redis` receptor             | Se conecta a su extremo de Redis cada 10 segundos y lee las métricas del comando `INFO` de Redis. `server.address` y `server.port` se convierten en la identidad de la entidad.       |
+          | `memory_limiter`             | Limita el uso de memoria del recolector (límite flexible de 512 MiB, pico de 128 MiB) para proteger el contenedor.                                                                    |
+          | `resource_detection`         | Detecta el host y agrega `host.name` y `host.id`, vinculando las métricas de Redis a la entidad de host subyacente.                                                                   |
+          | `attributes/entity_tags`     | Marca `instrumentation.provider: opentelemetry` en cada métrica para que pueda limitar las consultas a la ruta de OpenTelemetry.                                                      |
+          | `cumulativetodelta`          | Convierte los contadores acumulativos de Redis —comandos, aciertos de keyspace, desalojos, etc.— a valores delta para que New Relic grafique las tasas correctamente.                 |
+          | `filter/cardinality`         | Descarta los puntos de datos de alta cardinalidad (estados de CPU distintos de `user` y `sys`, y métricas por comando para comandos poco comunes) para controlar el costo de ingesta. |
+          | `transform/metadata_nullify` | Borra las descripciones y unidades de las métricas para reducir el tamaño de la carga.                                                                                                |
+          | `batch`                      | Agrupa los puntos de datos antes de la exportación (2048 por lote, hasta 4096) y los vacía al menos cada 10 segundos para reducir la sobrecarga de la red.                            |
+          | `otlp_http`                  | Exporta las métricas procesadas a New Relic a través de OTLP con compresión gzip, autenticadas con su clave de licencia.                                                              |
+
+          <Callout variant="tip">
+            **¿Desea un nombre de entidad fácil de usar?** De forma predeterminada, su entidad de Redis se nombra usando la combinación `server.address:server.port`. Para usar un nombre personalizado legible por humanos en su lugar, descomente la sección `resource/redis` en la configuración anterior, establezca su nombre preferido en el valor `redis.instance.id` y agregue `resource/redis` al pipeline de procesadores.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Opcional: configurar la autenticación [#auth-otel]
+
+          Por defecto, el recolector se conecta a Redis sin credenciales. Si su instancia de Redis requiere autenticación, agregue las credenciales correspondientes al receptor `redis`. Seleccione la opción que coincida con su configuración:
+
+          <CollapserGroup>
+            <Collapser id="otel-docker-auth-password" title="Contraseña legacy (requirepass)">
+              ```yaml
+              receivers:
+                redis:
+                  endpoint: "redis:6379"
+                  password: "${env:REDIS_PASSWORD}"
+              ```
+
+              Agregue `REDIS_PASSWORD` a su archivo `.env`:
+
+              ```bash
+              REDIS_PASSWORD=your-redis-password
+              ```
+            </Collapser>
+
+            <Collapser id="otel-docker-auth-acl" title="Nombre de usuario + contraseña de ACL (Redis 6+)">
+              ```yaml
+              receivers:
+                redis:
+                  endpoint: "redis:6379"
+                  username: "${env:REDIS_USERNAME}"
+                  password: "${env:REDIS_PASSWORD}"
+              ```
+
+              Agregue a su archivo `.env`:
+
+              ```bash
+              REDIS_USERNAME=otel-monitor
+              REDIS_PASSWORD=your-monitor-password
+              ```
+            </Collapser>
+
+            <Collapser id="otel-docker-auth-tls" title="Conexión cifrada con TLS/SSL">
+              ```yaml
+              receivers:
+                redis:
+                  endpoint: "redis:6380"
+                  password: "${env:REDIS_PASSWORD}"
+                  tls:
+                    insecure: false
+                    ca_file: /etc/ssl/redis/ca.crt
+                    cert_file: /etc/ssl/redis/client.crt
+                    key_file: /etc/ssl/redis/client.key
+              ```
+            </Collapser>
+          </CollapserGroup>
+        </Step>
+
+        <Step>
+          ### Opcional: recopilar logs de Redis [#logs-otel]
+
+          Más allá de las métricas, el recolector puede reenviar el archivo de log de Redis a New Relic para que pueda correlacionar los logs de eventos —reinicios, eventos de persistencia o errores— con picos de métricas en la misma entidad.
+
+          <Callout variant="important">
+            Por defecto, Redis en Docker registra en **stdout** (no en un archivo). Para recopilar logs con el receptor filelog, debe configurar Redis para que escriba en un archivo de log y compartirlo a través de un volumen de Docker entre los contenedores de Redis y del recolector.
+
+            Agregue esto a su servicio de Redis en `docker-compose.yml`:
+
+            ```yaml
+              redis:
+                image: redis:7
+                command: >
+                  sh -c "touch /data/redis.log && chmod 644 /data/redis.log && redis-server --logfile /data/redis.log"
+                volumes:
+                  - redis-logs:/data
+            ```
+
+            Y agregue el volumen compartido a su servicio de recolector:
+
+            ```yaml
+              otel-collector:
+                volumes:
+                  - redis-logs:/var/log/redis:ro
+            ```
+
+            Luego agregue en la parte inferior de su `docker-compose.yml`:
+
+            ```yaml
+            volumes:
+              redis-logs:
+            ```
+          </Callout>
+
+          Agregue el receptor filelog a su `otel-collector-config.yaml`:
+
+          ```yaml
+          receivers:
+            # ... existing redis receiver ...
+            file_log/redis:
+              include:
+                - /var/log/redis/redis.log
+              start_at: end
+              operators:
+                - type: regex_parser
+                  regex: '^\d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+                  on_error: send
+              resource:
+                db.system: redis
+          ```
+
+          Las líneas de registro del archivo no tienen contexto de conexión de Redis por sí solas —debe adjuntar explícitamente atributos de identidad para que New Relic asocie los registros con su entidad de Redis. Agregue un procesador `resource/redis_logs` con **valores codificados que coincidan con la identidad de su entidad de Redis**:
+
+          ```yaml
+          processors:
+            # ... existing processors ...
+            resource/redis_logs:
+              attributes:
+                - key: server.address
+                  value: "redis"  # Must match your redis receiver endpoint host
+                  action: upsert
+                - key: server.port
+                  value: 6379  # Must match your redis receiver endpoint port
+                  action: upsert
+                - key: instrumentation.provider
+                  value: opentelemetry
+                  action: upsert
+          ```
+
+          <Callout variant="tip">
+            **¿Usa un ID de la instancia personalizado?** Si habilitó el procesador `resource/redis` para la asignación de nombres de entidades personalizadas, reemplace `server.address` y `server.port` anteriores con su `redis.instance.id`:
+
+            ```yaml
+              resource/redis_logs:
+                attributes:
+                  - key: redis.instance.id
+                    value: "my-redis-instance"  # Must match the value in resource/redis
+                    action: upsert
+                  - key: instrumentation.provider
+                    value: opentelemetry
+                    action: upsert
+            ```
+          </Callout>
+
+          Agregue un pipeline de logs **separado** a la sección de servicio:
+
+          ```yaml
+          service:
+            pipelines:
+              metrics/redis:
+                receivers: [redis]
+                processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+              logs/redis:
+                receivers: [file_log/redis]
+                processors: [memory_limiter, resource/redis_logs, batch]
+                exporters: [otlp_http]
+          ```
+
+          <Callout variant="important">
+            El contenedor del recolector debe tener acceso de lectura al archivo de log de Redis. Al montar el directorio de logs en su contenedor, asegúrese de que el archivo sea legible para el proceso del recolector. En el host, ejecute:
+
+            ```bash
+            sudo chmod 755 /var/log/redis
+            sudo chmod 644 /var/log/redis/redis.log
+            ```
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Opcional: recopilar métricas del host [#hostmetrics-otel]
+
+          El rendimiento de Redis a menudo refleja la presión de los recursos del host — saturación de CPU, agotamiento de memoria o contención de I/O de disco. Agregue el receptor `hostmetrics` para recopilar métricas del sistema junto con Redis para que pueda correlacionar ambos en New Relic. La configuración `root_path: /hostfs` es obligatoria cuando se ejecuta dentro de un contenedor de Docker para que el recolector lea el sistema de archivos del host, no el del contenedor:
+
+          ```yaml
+          receivers:
+            # ... existing receivers ...
+            host_metrics:
+              collection_interval: 10s
+              root_path: /hostfs
+              scrapers:
+                cpu:
+                  metrics:
+                    system.cpu.utilization: {enabled: true}
+                    system.cpu.time: {enabled: true}
+                load:
+                  metrics:
+                    system.cpu.load_average.1m: {enabled: true}
+                    system.cpu.load_average.5m: {enabled: true}
+                    system.cpu.load_average.15m: {enabled: true}
+                memory:
+                  metrics:
+                    system.memory.usage: {enabled: true}
+                    system.memory.utilization: {enabled: true}
+                disk:
+                  metrics:
+                    system.disk.io: {enabled: true}
+                    system.disk.operations: {enabled: true}
+                filesystem:
+                  metrics:
+                    system.filesystem.usage: {enabled: true}
+                    system.filesystem.utilization: {enabled: true}
+                network:
+                  metrics:
+                    system.network.io: {enabled: true}
+                    system.network.packets: {enabled: true}
+          ```
+
+          Agregue una canalización de `metrics/host` **separada** para las métricas del host (no agregue `host_metrics` a la canalización de Redis):
+
+          ```yaml
+          service:
+            pipelines:
+              metrics/redis:
+                receivers: [redis]
+                processors: [memory_limiter, resource_detection, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+              metrics/host:
+                receivers: [host_metrics]
+                processors: [memory_limiter, resource_detection, attributes/entity_tags, batch]
+                exporters: [otlp_http]
+          ```
+        </Step>
+
+        <Step>
+          ### Opcional: agregar metadatos personalizados [#custom-metadata-otel]
+
+          Los atributos de recursos personalizados etiquetan cada métrica de Redis con contexto — entorno, equipo o nivel — para que pueda filtrar y agrupar sus datos en New Relic. Agregue un procesador `resource/custom` con las etiquetas que desee:
+
+          ```yaml
+          processors:
+            # ... existing processors ...
+            resource/custom:
+              attributes:
+                - key: environment
+                  value: "production"
+                  action: upsert
+                - key: team
+                  value: "platform"
+                  action: upsert
+          ```
+
+          Incluya el procesador en su pipeline:
+
+          ```yaml
+          service:
+            pipelines:
+              metrics/redis:
+                receivers: [redis]
+                processors: [memory_limiter, resource_detection, resource/custom, attributes/entity_tags, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+          ```
+        </Step>
+
+        <Step>
+          ### Opcional: habilitar el monitoreo de Redis Cluster [#cluster-otel]
+
+          El monitoreo de Redis Cluster actualmente requiere el enfoque del receptor de Prometheus (usando `redis_exporter`). El receptor de Redis nativo de OTel Collector Contrib aún no es compatible con el comando `CLUSTER INFO` necesario para las métricas del clúster. Use la pestaña [Receptor de Prometheus](/docs/opentelemetry/integrations/redis/docker/#prometheus) para la configuración del monitoreo del clúster.
+        </Step>
+
+        <Step>
+          ### Cree el archivo de Docker Compose [#compose-otel]
+
+          Cree `docker-compose.yml` para ejecutar el recolector junto a su Redis existente. El archivo `.env` en el mismo directorio es cargado automáticamente por Docker Compose:
+
+          ```yaml
+          services:
+            otel-collector:
+              image: otel/opentelemetry-collector-contrib:latest
+              env_file: .env
+              volumes:
+                - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+                - /etc/machine-id:/etc/machine-id:ro
+                # Uncomment if collecting Redis logs (requires shared volume — see logs step above):
+                # - redis-logs:/var/log/redis:ro
+                # Uncomment if collecting host metrics:
+                # - /:/hostfs:ro
+                # Uncomment if using TLS:
+                # - ./certs:/etc/ssl/redis:ro
+              environment:
+                - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
+                - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+                # Uncomment if collecting host metrics:
+                # - HOST_PROC=/hostfs/proc
+                # - HOST_SYS=/hostfs/sys
+                # - HOST_ETC=/hostfs/etc
+                # Uncomment if using Redis authentication:
+                # - REDIS_PASSWORD=${REDIS_PASSWORD}
+                # - REDIS_USERNAME=${REDIS_USERNAME}
+              command: ["--config=/etc/otelcol-contrib/config.yaml"]
+              ports:
+                - "13133:13133"
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:13133"]
+                interval: 10s
+                timeout: 5s
+                retries: 3
+
+          # Uncomment if collecting Redis logs:
+          # volumes:
+          #   redis-logs:
+          ```
+
+          <Callout variant="tip">
+            Si habilitó alguna característica opcional (registros, métricas de host, TLS o autenticación) en los pasos anteriores, descomente las líneas correspondientes en el archivo Docker Compose anterior.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Cree el archivo de entorno [#env-otel]
+
+          Docker Compose lee los valores específicos del despliegue de un archivo `.env` en el mismo directorio que su `docker-compose.yml`, lo que mantiene su clave de licencia fuera del archivo compose. Cree el archivo `.env`:
+
+          ```bash
+          NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
+          OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
+          # Set the New Relic OTLP endpoint for your region.
+          # See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
+          ```
+
+          Reemplace los marcadores de posición con sus propios valores:
+
+          | Variable                      | Requerido | Descripción                                                                                                                                                             |
+          | ----------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `NEW_RELIC_LICENSE_KEY`       | Sí        | Tu [clave de licencia de ingesta](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic.                                                           |
+          | `OTEL_EXPORTER_OTLP_ENDPOINT` | Sí        | Extremo OTLP de New Relic para su región. Para obtener más información, consulte el [extremo OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
+        </Step>
+
+        <Step>
+          ### Iniciar y verificar [#verify-otel]
+
+          Inicie el recolector en segundo plano:
+
+          ```bash
+          docker compose up -d
+          ```
+
+          Confirme que los contenedores se estén ejecutando con `docker compose ps` — el recolector debería mostrar un estado `running`. Si se cerró, verifique sus logs con `docker compose logs otel-collector` — las causas más comunes son errores de sangría YAML y un extremo de Redis inalcanzable.
+
+          Luego confirme que sus métricas están llegando a New Relic. Espere aproximadamente un minuto después del inicio, luego ejecute esta consulta en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+          ```sql
+          SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.provider = 'opentelemetry' SINCE 5 minutes ago
+          ```
+
+          Un recuento distinto de cero confirma que las métricas de Redis están fluyendo. Si devuelve `0`, consulte [Solucionar problemas de Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="prometheus">
+      <Steps>
+        <Step>
+          ### Cree la configuración del recolector [#config-prometheus]
+
+          Esta configuración extrae métricas de `redis_exporter` y las envía a New Relic. Se encarga de estos trabajos principales:
+
+          * **Extraer** el extremo de Prometheus `redis_exporter` a través del receptor `prometheus`
+          * **Renombre** las métricas de Prometheus a los nombres de métricas de Redis de New Relic
+          * **Dar forma** a los datos — reducir la cardinalidad, convertir contadores en deltas y etiquetarlos para la síntesis de entidades
+          * **Exporte** las métricas procesadas a New Relic a través de OTLP
+
+          Cree `otel-collector-config.yaml` en el directorio de su proyecto:
+
+          ```yaml
+          extensions:
+            health_check:
+              endpoint: "0.0.0.0:13133"
+
+          receivers:
+            prometheus:
+              config:
+                scrape_configs:
+                  - job_name: 'redis'
+                    scrape_interval: 10s
+                    static_configs:
+                      - targets: ['redis-exporter:9121']  # Update with your Redis exporter host:port
+                    metric_relabel_configs:
+                      - source_labels: [__name__]
+                        regex: '(go_|process_|promhttp_|redis_exporter_).*'
+                        action: drop
+
+          processors:
+            memory_limiter:
+              check_interval: 5s
+              limit_mib: 512
+              spike_limit_mib: 128
+
+            resource_detection:
+              detectors: [env, system]
+              timeout: 5s
+              override: false
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+
+            # Required: Set a unique identifier for your Redis entity.
+            # The Prometheus receiver does not provide server.address/server.port,
+            # so redis.instance.id is required for entity creation in New Relic.
+            resource/redis_identity:
+              attributes:
+                - key: redis.instance.id
+                  value: "my-redis-instance:6379"  # Update with a unique name for this Redis instance
+                  action: upsert
+
+            attributes/entity_tags:
+              actions:
+                - key: instrumentation.provider
+                  value: opentelemetry
+                  action: upsert
+
+            metricstransform:
+              transforms:
+                - include: redis_uptime_in_seconds
+                  action: update
+                  new_name: redis.uptime
+                - include: redis_connected_clients
+                  action: update
+                  new_name: redis.clients.connected
+                - include: redis_blocked_clients
+                  action: update
+                  new_name: redis.clients.blocked
+                - include: redis_memory_used_bytes
+                  action: update
+                  new_name: redis.memory.used
+                - include: redis_memory_max_bytes
+                  action: update
+                  new_name: redis.maxmemory
+                - include: redis_mem_fragmentation_ratio
+                  action: update
+                  new_name: redis.memory.fragmentation_ratio
+                - include: redis_memory_used_rss_bytes
+                  action: update
+                  new_name: redis.memory.rss
+                - include: redis_memory_used_peak_bytes
+                  action: update
+                  new_name: redis.memory.peak
+                - include: redis_memory_used_lua_bytes
+                  action: update
+                  new_name: redis.memory.lua
+                - include: redis_connections_received_total
+                  action: update
+                  new_name: redis.connections.received
+                - include: redis_rejected_connections_total
+                  action: update
+                  new_name: redis.connections.rejected
+                - include: redis_commands_processed_total
+                  action: update
+                  new_name: redis.commands.processed
+                - include: redis_keyspace_hits_total
+                  action: update
+                  new_name: redis.keyspace.hits
+                - include: redis_keyspace_misses_total
+                  action: update
+                  new_name: redis.keyspace.misses
+                - include: redis_evicted_keys_total
+                  action: update
+                  new_name: redis.keys.evicted
+                - include: redis_expired_keys_total
+                  action: update
+                  new_name: redis.keys.expired
+                - include: redis_net_input_bytes_total
+                  action: update
+                  new_name: redis.net.input
+                - include: redis_net_output_bytes_total
+                  action: update
+                  new_name: redis.net.output
+                - include: redis_connected_slaves
+                  action: update
+                  new_name: redis.slaves.connected
+                - include: redis_db_keys
+                  action: update
+                  new_name: redis.db.keys
+                - include: redis_db_keys_expiring
+                  action: update
+                  new_name: redis.db.expires
+                - include: redis_rdb_changes_since_last_save
+                  action: update
+                  new_name: redis.rdb.changes_since_last_save
+                - include: redis_db_avg_ttl_seconds
+                  action: update
+                  new_name: redis.db.avg_ttl
+                - include: redis_latest_fork_seconds
+                  action: update
+                  new_name: redis.latest_fork
+                - include: redis_master_repl_offset
+                  action: update
+                  new_name: redis.replication.offset
+                - include: redis_repl_backlog_first_byte_offset
+                  action: update
+                  new_name: redis.replication.backlog_first_byte_offset
+                - include: redis_commands_total
+                  action: update
+                  new_name: redis.cmd.calls
+                - include: redis_commands_duration_seconds_total
+                  action: update
+                  new_name: redis.cmd.usec
+                - include: redis_cpu_sys_seconds_total
+                  action: update
+                  new_name: redis.cpu.time
+                  operations:
+                    - action: add_label
+                      new_label: state
+                      new_value: sys
+                - include: redis_cpu_user_seconds_total
+                  action: update
+                  new_name: redis.cpu.time
+                  operations:
+                    - action: add_label
+                      new_label: state
+                      new_value: user
+
+            cumulativetodelta:
+              include:
+                match_type: regexp
+                metrics:
+                  - redis\.commands\.processed
+                  - redis\.connections\.received
+                  - redis\.connections\.rejected
+                  - redis\.keys\.evicted
+                  - redis\.keys\.expired
+                  - redis\.keyspace\.hits
+                  - redis\.keyspace\.misses
+                  - redis\.net\.input
+                  - redis\.net\.output
+                  - redis\.cpu\.time
+                  - redis\.cmd\.calls
+                  - redis\.cmd\.usec
+                  - redis\.uptime
+
+            filter/cardinality:
+              metrics:
+                datapoint:
+                  - 'metric.name == "redis.cpu.time" and attributes["state"] != "sys" and attributes["state"] != "user"'
+                  - 'metric.name == "redis.cmd.calls" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+                  - 'metric.name == "redis.cmd.usec" and attributes["cmd"] != "get" and attributes["cmd"] != "set" and attributes["cmd"] != "del" and attributes["cmd"] != "hget" and attributes["cmd"] != "hset" and attributes["cmd"] != "hgetall" and attributes["cmd"] != "lpush" and attributes["cmd"] != "rpop" and attributes["cmd"] != "zadd" and attributes["cmd"] != "expire"'
+
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+
+            batch:
+              send_batch_size: 2048
+              send_batch_max_size: 4096
+              timeout: 10s
+
+          exporters:
+            otlp_http:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+              compression: gzip
+
+          service:
+            extensions: [health_check]
+            pipelines:
+              metrics/redis:
+                receivers: [prometheus]
+                processors: [memory_limiter, resource_detection, resource/redis_identity, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+          ```
+
+          #### Qué hace esta configuración [#config-explanation-prometheus]
+
+          Cada componente en la canalización tiene un trabajo específico:
+
+          | Componente                   | Descripción                                                                                                                                                                                          |
+          | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `health_check`               | Expone un extremo de estado en `0.0.0.0:13133` para que pueda confirmar que el recolector se está ejecutando.                                                                                        |
+          | `prometheus` receptor        | Extrae del extremo `redis_exporter` (por defecto `redis-exporter:9121`) cada 10 segundos y descarta las métricas `go_*`, `process_*`, `promhttp_*` y `redis_exporter_*` propias del exportador.      |
+          | `memory_limiter`             | Limita el uso de memoria del recolector (límite flexible de 512 MiB, pico de 128 MiB) para proteger el contenedor.                                                                                   |
+          | `resource_detection`         | Detecta el host y agrega `host.name` y `host.id`, vinculando las métricas de Redis a la entidad de host subyacente.                                                                                  |
+          | `resource/redis_identity`    | Establece `redis.instance.id`, que identifica la entidad de Redis en New Relic. Es necesario aquí porque el receptor de Prometheus no proporciona `server.address` ni `server.port`.                 |
+          | `attributes/entity_tags`     | Marca `instrumentation.provider: opentelemetry` en cada métrica para que pueda limitar las consultas a la ruta de OpenTelemetry.                                                                     |
+          | `metricstransform`           | Renombra las métricas de Prometheus del exportador (por ejemplo, `redis_uptime_in_seconds`) a los nombres de Redis de New Relic (`redis.uptime`) y agrega la etiqueta `state` a las métricas de CPU. |
+          | `cumulativetodelta`          | Convierte los contadores acumulativos — comandos, aciertos de keyspace, desalojos, etc. — en valores delta para que New Relic grafique las tasas correctamente.                                      |
+          | `filter/cardinality`         | Descarta los puntos de datos de alta cardinalidad (estados de CPU distintos de `user` y `sys`, y métricas por comando para comandos poco comunes) para controlar el costo de ingesta.                |
+          | `transform/metadata_nullify` | Borra las descripciones y unidades de las métricas para reducir el tamaño de la carga.                                                                                                               |
+          | `batch`                      | Agrupa los puntos de datos antes de la exportación (2048 por lote, hasta 4096) y los vacía al menos cada 10 segundos para reducir la sobrecarga de la red.                                           |
+          | `otlp_http`                  | Exporta las métricas procesadas a New Relic a través de OTLP con compresión gzip, autenticadas con su clave de licencia.                                                                             |
+
+          <Callout variant="important">
+            El procesador `resource/redis_identity` con `redis.instance.id` es **obligatorio** para el enfoque del receptor de Prometheus. A diferencia del receptor de Redis nativo, el receptor de Prometheus no proporciona `server.address` ni `server.port` — por lo que `redis.instance.id` es la única forma de identificar su entidad de Redis en New Relic. Establézcalo en un nombre único y descriptivo para cada instancia (por ejemplo, `prod-redis-cache:6379`).
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Opcional: habilitar el monitoreo de Redis Cluster [#cluster-prometheus]
+
+          Si su Redis se está ejecutando en modo Cluster, inicie `redis_exporter` con la bandera `--is-cluster` para recopilar automáticamente las métricas de estado del clúster de todos los nodos:
+
+          ```bash
+          redis_exporter --redis.addr=redis://localhost:7000 --is-cluster
+          ```
+
+          La configuración del receptor de Prometheus anterior ya cambia el nombre de las métricas del clúster (por ejemplo, `redis_cluster_state` → `redis.cluster.state`). Para crear una entidad de clúster separada en New Relic, agregue un atributo de recurso `redis.cluster.name` a una **canalización separada** que NO incluya `redis.instance.id`:
+
+          ```yaml
+            resource/cluster:
+              attributes:
+                - key: redis.cluster.name
+                  value: "my-redis-cluster"  # Update with your cluster name
+                  action: upsert
+          ```
+
+          Agregue una canalización de clúster a su sección de servicio:
+
+          ```yaml
+              metrics/cluster:
+                receivers: [prometheus]
+                processors: [memory_limiter, resource_detection, resource/cluster, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+          ```
+
+          <Callout variant="important">
+            La entidad de clúster requiere que `redis.cluster.name` esté presente Y que `redis.instance.id` esté ausente. Si ambos se establecen en las mismas métricas, solo se creará la entidad de instancia. Use canalizaciones separadas para las métricas de instancia y de clúster.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Opcional: recopilar logs de Redis [#logs-prometheus]
+
+          Más allá de las métricas, el recolector puede reenviar el archivo de log de Redis a New Relic para que pueda correlacionar los logs de eventos —reinicios, eventos de persistencia o errores— con picos de métricas en la misma entidad.
+
+          <Callout variant="important">
+            Por defecto, Redis en Docker registra en **stdout** (no en un archivo). Para recopilar logs con el receptor filelog, debe configurar Redis para que escriba en un archivo de log y compartirlo a través de un volumen de Docker entre los contenedores de Redis y del recolector.
+
+            Agregue esto a su servicio de Redis en `docker-compose.yml`:
+
+            ```yaml
+              redis:
+                image: redis:7
+                command: >
+                  sh -c "touch /data/redis.log && chmod 644 /data/redis.log && redis-server --logfile /data/redis.log"
+                volumes:
+                  - redis-logs:/data
+            ```
+
+            Y agregue el volumen compartido a su servicio de recolector:
+
+            ```yaml
+              otel-collector:
+                volumes:
+                  - redis-logs:/var/log/redis:ro
+            ```
+
+            Luego agregue en la parte inferior de su `docker-compose.yml`:
+
+            ```yaml
+            volumes:
+              redis-logs:
+            ```
+          </Callout>
+
+          Agregue el receptor filelog a su `otel-collector-config.yaml`:
+
+          ```yaml
+          receivers:
+            # ... existing prometheus receiver ...
+            file_log/redis:
+              include:
+                - /var/log/redis/redis.log
+              start_at: end
+              operators:
+                - type: regex_parser
+                  regex: '^\d+:[XCSM] \d+ \w+ \d+ \d+:\d+:\d+\.\d+ (?P<level>.) '
+                  on_error: send
+              resource:
+                db.system: redis
+          ```
+
+          Las líneas de registro del archivo no tienen contexto de conexión de Redis por sí solas —debe adjuntar explícitamente atributos de identidad para que New Relic asocie los registros con su entidad de Redis. Agregue un procesador `resource/redis_logs` con **valores codificados que coincidan con la identidad de su entidad de Redis**:
+
+          ```yaml
+          processors:
+            # ... existing processors ...
+            resource/redis_logs:
+              attributes:
+                - key: redis.instance.id
+                  value: "my-redis-instance:6379"  # Must match the value in resource/redis_identity
+                  action: upsert
+                - key: instrumentation.provider
+                  value: opentelemetry
+                  action: upsert
+          ```
+
+          Agregue un pipeline de logs **separado** a la sección de servicio:
+
+          ```yaml
+          service:
+            pipelines:
+              metrics/redis:
+                receivers: [prometheus]
+                processors: [memory_limiter, resource_detection, resource/redis_identity, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+              logs/redis:
+                receivers: [file_log/redis]
+                processors: [memory_limiter, resource/redis_logs, batch]
+                exporters: [otlp_http]
+          ```
+        </Step>
+
+        <Step>
+          ### Opcional: recopilar métricas del host [#hostmetrics-prometheus]
+
+          El rendimiento de Redis a menudo refleja la presión de los recursos del host — saturación de CPU, agotamiento de memoria o contención de I/O de disco. Agregue el receptor `hostmetrics` para recopilar métricas del sistema junto con Redis para que pueda correlacionar ambos en New Relic. La configuración `root_path: /hostfs` es obligatoria cuando se ejecuta dentro de un contenedor de Docker para que el recolector lea el sistema de archivos del host, no el del contenedor:
+
+          ```yaml
+          receivers:
+            # ... existing receivers ...
+            host_metrics:
+              collection_interval: 10s
+              root_path: /hostfs
+              scrapers:
+                cpu:
+                  metrics:
+                    system.cpu.utilization: {enabled: true}
+                    system.cpu.time: {enabled: true}
+                load:
+                  metrics:
+                    system.cpu.load_average.1m: {enabled: true}
+                    system.cpu.load_average.5m: {enabled: true}
+                    system.cpu.load_average.15m: {enabled: true}
+                memory:
+                  metrics:
+                    system.memory.usage: {enabled: true}
+                    system.memory.utilization: {enabled: true}
+                disk:
+                  metrics:
+                    system.disk.io: {enabled: true}
+                    system.disk.operations: {enabled: true}
+                filesystem:
+                  metrics:
+                    system.filesystem.usage: {enabled: true}
+                    system.filesystem.utilization: {enabled: true}
+                network:
+                  metrics:
+                    system.network.io: {enabled: true}
+                    system.network.packets: {enabled: true}
+          ```
+
+          Agregue una canalización de `metrics/host` **separada** para las métricas del host (no agregue `host_metrics` a la canalización de Redis):
+
+          ```yaml
+          service:
+            pipelines:
+              metrics/redis:
+                receivers: [prometheus]
+                processors: [memory_limiter, resource_detection, resource/redis_identity, attributes/entity_tags, metricstransform, cumulativetodelta, filter/cardinality, transform/metadata_nullify, batch]
+                exporters: [otlp_http]
+              metrics/host:
+                receivers: [host_metrics]
+                processors: [memory_limiter, resource_detection, attributes/entity_tags, batch]
+                exporters: [otlp_http]
+          ```
+        </Step>
+
+        <Step>
+          ### Cree el archivo de Docker Compose [#compose-prometheus]
+
+          Cree `docker-compose.yml` para ejecutar el redis\_exporter y el recolector junto a su Redis existente. El archivo `.env` en el mismo directorio es cargado automáticamente por Docker Compose:
+
+          ```yaml
+          services:
+            redis-exporter:
+              image: oliver006/redis_exporter:latest
+              environment:
+                - REDIS_ADDR=redis://redis:6379  # Update with your Redis service name:port
+                # Uncomment if using Redis authentication:
+                # - REDIS_PASSWORD=${REDIS_PASSWORD}
+                # - REDIS_USER=${REDIS_USERNAME}
+              ports:
+                - "9121:9121"
+              healthcheck:
+                test: ["CMD-SHELL", "redis_exporter --version || exit 1"]
+                interval: 10s
+                timeout: 5s
+                retries: 3
+
+            otel-collector:
+              image: otel/opentelemetry-collector-contrib:latest
+              env_file: .env
+              volumes:
+                - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+                - /etc/machine-id:/etc/machine-id:ro
+              environment:
+                - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
+                - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+              command: ["--config=/etc/otelcol-contrib/config.yaml"]
+              ports:
+                - "13133:13133"
+              depends_on:
+                redis-exporter:
+                  condition: service_healthy
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:13133"]
+                interval: 10s
+                timeout: 5s
+                retries: 3
+          ```
+
+          <Callout variant="tip">
+            Para usar el recolector NRDOT en su lugar, reemplace la imagen `otel-collector` con `newrelic/nrdot-collector:latest` y actualice la ruta de montaje de la configuración a `/etc/otel/config.yaml`.
+          </Callout>
+        </Step>
+
+        <Step>
+          ### Cree el archivo de entorno [#env-prometheus]
+
+          Docker Compose lee los valores específicos del despliegue de un archivo `.env` en el mismo directorio que su `docker-compose.yml`, lo que mantiene su clave de licencia fuera del archivo compose. Cree el archivo `.env`:
+
+          ```bash
+          NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY
+          OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT
+          # Set the New Relic OTLP endpoint for your region.
+          # See https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
+          ```
+
+          Reemplace los marcadores de posición con sus propios valores:
+
+          | Variable                      | Requerido | Descripción                                                                                                                                                             |
+          | ----------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `NEW_RELIC_LICENSE_KEY`       | Sí        | Tu [clave de licencia de ingesta](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic.                                                           |
+          | `OTEL_EXPORTER_OTLP_ENDPOINT` | Sí        | Extremo OTLP de New Relic para su región. Para obtener más información, consulte el [extremo OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
+        </Step>
+
+        <Step>
+          ### Iniciar y verificar [#verify-prometheus]
+
+          Inicie el recolector y `redis_exporter` en segundo plano:
+
+          ```bash
+          docker compose up -d
+          ```
+
+          Confirme que los contenedores se estén ejecutando con `docker compose ps` —tanto el recolector como `redis-exporter` deben mostrar un estado `running`. Si el recolector se cerró, verifique sus registros con `docker compose logs otel-collector` —las causas más comunes son errores de sangría de YAML, un `redis_exporter` inalcanzable o que el exportador no se esté ejecutando.
+
+          Luego confirme que sus métricas están llegando a New Relic. Espere aproximadamente un minuto después del inicio, luego ejecute esta consulta en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+          ```sql
+          SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' AND instrumentation.provider = 'opentelemetry' SINCE 5 minutes ago
+          ```
+
+          Un recuento distinto de cero confirma que las métricas de Redis están fluyendo. Si devuelve `0`, consulte [Solucionar problemas de Redis (OpenTelemetry)](/docs/opentelemetry/integrations/redis/troubleshooting).
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+<Callout variant="tip">
+  **Correlacione APM con Redis**: para conectar su aplicación de APM y su instancia de Redis en los mapas de servicio, incluya `db.system="redis"` junto con el patrón de identificador de entidad elegido —ya sea `redis.instance.id` o `server.address` y `server.port` — como atributos de recursos en sus métricas de APM. Los valores deben coincidir con lo que configuró en el recolector. Esto permite la visibilidad entre servicios y una resolución de problemas más rápida dentro de New Relic.
+</Callout>
+
+## Próximos pasos [#next-steps]
+
+* **[Instalación autohospedada](/docs/opentelemetry/integrations/redis/host)**: monitorear Redis en máquina virtual (VM)/bare metal
+* **[Instalación de Kubernetes](/docs/opentelemetry/integrations/redis/kubernetes)**: desplegar en Kubernetes con DaemonSet
+* **[Ver sus datos](/docs/opentelemetry/integrations/redis/view-data)**: explore los dashboards y configure alertas
+* **[Referencia de métricas](/docs/opentelemetry/integrations/redis/metrics)**: lista completa de métricas disponibles
+* **[Resolución de problemas](/docs/opentelemetry/integrations/redis/troubleshooting)**: problemas y soluciones comunes

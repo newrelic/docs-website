@@ -1,0 +1,116 @@
+---
+title: Ofuscar dados do agente de streaming de mídia
+tags:
+  - Streaming Video & Ads
+  - Obfuscation
+  - Privacy
+  - iOS
+  - Roku
+metaDescription: Configure regex-based obfuscation rules to mask sensitive data before your iOS or Roku streaming media agent transmits it to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+As regras de ofuscação permitem mascarar dados confidenciais antes que o agente os transmita para a New Relic. Cada regra é um padrão de regex emparelhado com uma string de substituição. O agente aplica as regras em ordem a cada valor de atributo de string em cada evento de saída — incluindo eventos de QoE e eventos recuperados de falhas.
+
+## iOS [#ios]
+
+### Configuração [#ios-configuration]
+
+<DNT>**Objective-C**</DNT>
+
+```objectivec
+NRVAVideoConfiguration *config = [[[[NRVAVideoConfiguration builder]
+    withApplicationToken:@"YOUR_NEW_RELIC_TOKEN"]
+    withObfuscationRules:@[
+        @{ @"regex": @"account-\\d+",  @"replacement": @"ACCOUNT_ID" },
+        @{ @"regex": @"token=[^&\"]+", @"replacement": @"token=REDACTED" },
+    ]]
+    build];
+[[[NRVAVideo newBuilder] withConfiguration:config] build];
+```
+
+<DNT>**Swift**</DNT>
+
+```swift
+let config = NRVAVideoConfiguration.builder()
+    .withApplicationToken("YOUR_NEW_RELIC_TOKEN")
+    .withObfuscationRules([
+        ["regex": "account-\\d+",  "replacement": "ACCOUNT_ID"],
+        ["regex": "token=[^&\"]+", "replacement": "token=REDACTED"],
+    ])
+    .build()
+NRVAVideo.newBuilder().with(configuration: config).build()
+```
+
+### Como funciona [#ios-how-it-works]
+
+* O agente aplica as regras por valor de atributo de string, não à carga JSON bruta — atributos numéricos e booleanos não são afetados.
+* Todas as regras são executadas em cada evento de saída, incluindo eventos regulares, ao vivo, de QoE e recuperados de falhas.
+* As regras são executadas na ordem em que você as declara. Se duas regras puderem corresponder ao mesmo valor, a ordem é importante.
+* O agente nunca ofusca o `applicationToken` ou os cabeçalhos de autenticação HTTP — a ofuscação se aplica apenas aos valores de atributo de evento.
+
+### Casos extremos [#ios-edge-cases]
+
+| Cenário                                              | Comportamento                                                                                                                                                                                                 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nenhuma regra configurada                            | O agente repassa todos os valores de atributo inalterados sem impacto no desempenho.                                                                                                                          |
+| String de substituição vazia                         | O agente remove o conteúdo correspondente do valor.                                                                                                                                                           |
+| Padrão regex inválido                                | `withObfuscationRules:` lança `NSInvalidArgumentException` no momento da configuração, antes que quaisquer eventos sejam enviados.                                                                            |
+| Valor de atributo não string                         | O agente ignora o atributo. Apenas valores de string são processados.                                                                                                                                         |
+| Entrada de matriz de regras malformada               | O agente ignora qualquer entrada que não seja um dicionário e grava um aviso no log.                                                                                                                          |
+| `applicationToken` e cabeçalhos de autenticação HTTP | Eles nunca são incluídos em atributos de evento e não são afetados por regras de ofuscação.                                                                                                                   |
+| Ordenação de regras                                  | As regras são executadas na ordem em que são declaradas na matriz.                                                                                                                                            |
+| Backtracking catastrófico                            | `NSRegularExpression` não tem tempo limite integrado no iOS. Evite padrões com quantificadores aninhados ilimitados (por exemplo, `(a+)+`). Teste as regras em relação às piores entradas antes de implantar. |
+
+## Roku [#roku]
+
+Você pode configurar o agente com regras de ofuscação baseadas em regex para mascarar dados confidenciais antes que o agente envie eventos para a New Relic. Use este recurso quando campos como `contentSrc`, `contentTitle`, `origUrl` ou atributos personalizados puderem conter inadvertidamente IDs de usuário, tokens ou outras PII.
+
+O agente aplica as regras a cada atributo de string em cada evento de saída — incluindo vídeo, anúncio (RAF e IMA), QOE, sistema e eventos personalizados — antes que o evento entre no buffer interno.
+
+### Configuração [#roku-configuration]
+
+Chame `nrSetObfuscationRules` depois de criar o agente. Cada regra é uma matriz associativa com uma string `regex` e uma string `replacement`:
+
+```brightscript
+m.nr = NewRelic("ACCOUNT_ID", "API_KEY", "APP_NAME", "APP_TOKEN")
+nrSetObfuscationRules(m.nr, [
+    { regex: "account-[0-9]+",  replacement: "ACCOUNT_ID" },
+    { regex: "token=[^&]+",     replacement: "token=REDACTED" },
+    { regex: "/users/[^/]+",    replacement: "/users/USER_ID" }
+])
+```
+
+Para remover todas as regras em tempo de execução, chame `nrSetObfuscationRules` com uma matriz vazia:
+
+```brightscript
+nrSetObfuscationRules(m.nr, [])
+```
+
+### Ordenação de regras [#roku-rule-ordering]
+
+O agente aplica as regras na ordem em que aparecem na matriz. A saída de uma regra se torna a entrada para a próxima. A ordem é importante quando os padrões podem se sobrepor:
+
+```brightscript
+nrSetObfuscationRules(m.nr, [
+    ' Applied first — masks the specific token format
+    { regex: "auth-token-[a-z0-9]+", replacement: "AUTH_TOKEN" },
+    ' Applied second — masks any remaining bare token references
+    { regex: "token=[^&]+",          replacement: "token=REDACTED" }
+])
+```
+
+### Comportamento e casos extremos [#roku-edge-cases]
+
+| Caso                           | Comportamento                                                                                            |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Nenhuma regra configurada      | O agente repassa todos os valores de atributo inalterados sem impacto no desempenho.                     |
+| String `replacement` vazia     | O agente remove o conteúdo correspondente do valor.                                                      |
+| Padrão regex inválido          | O agente ignora a regra e grava um aviso no log.                                                         |
+| Valores de atributo não string | O agente os repassa inalterados. Apenas valores de string são processados.                               |
+| Substituindo todas as regras   | Chame `nrSetObfuscationRules` novamente com a nova matriz. O agente descarta todas as regras anteriores. |
+
+<Callout variant="important">
+  O Roku usa `roRegex` para correspondência de padrão. O Roku não oferece suporte a asserções complexas de lookahead/lookbehind. Os padrões que são válidos em regex de JavaScript ou Java podem precisar ser simplificados para o Roku.
+</Callout>

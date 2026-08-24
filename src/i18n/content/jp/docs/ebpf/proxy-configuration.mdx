@@ -1,0 +1,287 @@
+---
+title: New Relic eBPFエージェントのプロキシを設定する
+metaDescription: Route New Relic eBPF agent telemetry through an HTTP proxy on Linux hosts or Kubernetes clusters in restricted-network environments.
+tags:
+  - New Relic integrations with eBPF
+  - New Relic eBPF agent
+  - eBPF integration
+  - eBPF proxy
+  - Corporate proxy
+freshnessValidatedDate: never
+translationType: machine
+---
+
+環境でアウトバウンドトラフィックを企業プロキシ経由でルーティングしている場合、そのプロキシ経由でOTLPテレメトリーを送信するようにNew Relic <DNT>eBPF agent</DNT>を設定できます。このページでは、LinuxホストおよびKubernetesクラスタでのプロキシサポートの設定方法、プロキシサーバーの要件、および一般的な問題のトラブルシューティング方法について説明します。
+
+<Callout variant="important">
+  <DNT>eBPF agent</DNT>は、<DNT>`http://`</DNT>スキームを使用するHTTP CONNECTプロキシのみをサポートします。gRPCの制限により、エージェントは<DNT>`https://`</DNT>スキーム（プロキシへの直接のTLS暗号化接続）をサポートしていません。ただし、テレメトリーデータは、エージェントとNew Relic OTLPエンドポイント間で常に**エンドツーエンド**でTLS暗号化されます。<DNT>`http://`</DNT>プレフィックスは、エージェントがプロキシと通信してトンネルを確立する方法のみを決定します。プロキシ自体は暗号化されたトラフィックのみを認識し、お客様のデータにアクセスすることは一切ありません。
+</Callout>
+
+## プロキシサポートの仕組み [#how-it-works]
+
+<DNT>eBPF agent</DNT>はgRPCの組み込みHTTPプロキシサポートを使用します。プロキシを設定すると、エージェントは：
+
+1. プロキシサーバーに接続します。
+2. New Relic OTLPエンドポイントへのトンネルを開くための<DNT>`HTTP CONNECT`</DNT>リクエストを送信します。
+3. そのトンネルを介してOTLPエンドポイントとTLSハンドシェイクを実行します。
+4. 資格情報を提供した場合、<DNT>`Proxy-Authorization: Basic <base64>`</DNT>ヘッダーを追加します。
+
+## プロキシサーバーの要件 [#proxy-requirements]
+
+プロキシサーバーは以下をサポートしている必要があります：
+
+* HTTP<DNT>`CONNECT`</DNT>メソッド（OTLPエンドポイントへのTLSトンネリングに必要）。
+* ポート`443`へのトンネリング（OTLPエンドポイントはHTTPSを使用します）。
+* 認証付きプロキシアクセスを使用する場合は、HTTP基本認証。
+
+### サポートされているプロキシサーバー [#supported-proxies]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        プロキシ
+      </th>
+
+      <th>
+        サポート対象？
+      </th>
+
+      <th>
+        メモ
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Squid
+      </td>
+
+      <td>
+        はい
+      </td>
+
+      <td>
+        推奨。
+
+        <DNT>`CONNECT`</DNT>
+
+        を標準でサポートしています。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Apache 
+
+        <DNT>`mod_proxy`</DNT>
+      </td>
+
+      <td>
+        はい
+      </td>
+
+      <td>
+        <DNT>`AllowCONNECT`</DNT>
+
+        の設定が必要です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        nginx
+      </td>
+
+      <td>
+        モジュールを使用
+      </td>
+
+      <td>
+        <DNT>`ngx_http_proxy_connect_module`</DNT>
+
+        モジュールが必要です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        HAProxy
+      </td>
+
+      <td>
+        いいえ
+      </td>
+
+      <td>
+        HAProxyはリバースプロキシ/ロードバランサーであり、フォワードプロキシの
+
+        <DNT>`CONNECT`</DNT>
+
+        メソッドをサポートしていません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ほとんどの企業プロキシ
+      </td>
+
+      <td>
+        通常は「はい」です
+      </td>
+
+      <td>
+        ITチームまたはネットワークチームにご確認ください。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 資格情報の文字制限 [#credential-limitations]
+
+<Callout variant="caution">
+  プロキシユーザー名に大文字が含まれている場合、またはユーザー名やパスワードに特殊文字が含まれている場合、プロキシ認証はエラーを出さずに失敗します。<DNT>eBPF agent</DNT>は起動時にこれらのケースを捕捉してエラーをログに記録するため、サイレント障害のデバッグに追われることはありません。
+</Callout>
+
+プロキシの認証情報を設定する場合は、次の文字のみを使用してください：
+
+* **ユーザー名:** 小文字（`a–z`）、数字（`0–9`）、ハイフン（`-`）、アンダースコア（`_`）、ピリオド（`.`）、およびチルダ（`~`）。大文字は許可されていません。
+* **パスワード:** 英字（`a–z`、`A–Z`）、数字（`0–9`）、ハイフン（`-`）、アンダースコア（`_`）、ピリオド（`.`）、およびチルダ（`~`）。
+
+ユーザー名またはパスワードには、次の文字は**許可されていません**：`@`、`:`、`/`、`?`、`#`、`[`、`]`、`!`、`$`、`&`、`'`、`(`、`)`、`*`、`+`、`,`、`;`、`=`、`%`、スペース、およびその他の特殊文字。
+
+既存のプロキシ資格情報に許可されていない文字が使用されている場合は、小文字の英数字のユーザー名とシンプルなパスワードを使用する<DNT>eBPF agent</DNT>専用のプロキシアカウントを作成するように、プロキシのアドミニストレーターに依頼してください。
+
+## 設定の優先順位 [#configuration-precedence]
+
+複数のソースでプロキシが定義されている場合、エージェントは次の順序でそれらを適用します：
+
+* <DNT>`otlpProxy.url`</DNT> — 完全なプロキシURL。
+* <DNT>`otlpProxy.*`</DNT> — 個別のプロキシ設定（<DNT>`host`</DNT>、<DNT>`port`</DNT>、<DNT>`scheme`</DNT>、<DNT>`user`</DNT>、<DNT>`password`</DNT>）。
+
+この優先順位は、LinuxホストとKubernetesデプロイメントの両方に適用されます。
+
+## プロキシの設定 [#configure]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="k8s">Kubernetes向け</TabsBarItem><TabsBarItem id="linux">Linux向け</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="k8s">
+      Kubernetesクラスタの場合は、<DNT>Helm</DNT><DNT>`values.yaml`</DNT>ファイルでプロキシを設定します。
+
+      <DNT>`otlpProxy:`</DNT>ブロックを<DNT>`values.yaml`</DNT>に追加します：
+
+      ```yaml
+      otlpProxy:
+        host: "proxy.corporate.com"
+        port: 8080
+        scheme: "http"
+        user: "myuser"
+        password: "mypassword"
+        url: ""
+        existingSecret: ""
+      ```
+
+      または、完全なプロキシURLを指定するには、<DNT>`url:`</DNT>を<DNT>`http://[user:pass@]host:port`</DNT>に設定します。エージェントは<DNT>`http`</DNT>スキームのみをサポートします。
+
+      本番環境のデプロイメントでは、<DNT>`user:`</DNT>と<DNT>`password:`</DNT>をインラインで設定するのではなく、認証情報をKubernetesシークレットに保存してください。<DNT>`proxy-user`</DNT> および <DNT>`proxy-password`</DNT> キーを使用してシークレットを作成し、<DNT>`existingSecret:`</DNT> を介して参照します：
+
+      ```bash
+      kubectl create secret generic ebpf-proxy-creds \
+        --namespace newrelic \
+        --from-literal=proxy-user=myuser \
+        --from-literal=proxy-password=mypassword
+      ```
+
+      次に、変更を適用します：
+
+      ```bash
+      helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
+      ```
+
+      <DNT>`otlpProxy.*`</DNT>パラメーターの完全なリストについては、Kubernetesインストレーションページの[K8s設定パラメーター](/docs/ebpf/k8s-installation/#config-params)を参照してください。
+    </TabsPageItem>
+
+    <TabsPageItem id="linux">
+      Linuxホストの場合は、<DNT>`newrelic-ebpf-agent.yaml`</DNT>設定ファイルでプロキシを設定します。
+
+      <DNT>`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml`</DNT>に<DNT>`otlpProxy:`</DNT>ブロックを追加します。
+
+      ```yaml
+      otlpProxy:
+        host: "proxy.corporate.com"
+        port: 8080
+        scheme: "http"
+        user: "myuser"
+        password: "mypassword"
+        url: ""
+      ```
+
+      または、完全なプロキシURLを指定するには、<DNT>`url:`</DNT>を<DNT>`http://[user:pass@]host:port`</DNT>に設定します。エージェントは<DNT>`http`</DNT>スキームのみをサポートします。
+
+      ファイルを保存した後、その権限を制限してエージェントを再起動します：
+
+      ```bash
+      sudo chmod 600 /etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml
+      sudo systemctl restart newrelic-ebpf-agent
+      ```
+
+      <DNT>`otlpProxy.*`</DNT>パラメーターの完全なリストについては、Linuxインストレーションページの[設定パラメーター](/docs/ebpf/linux-installation/#config-params)を参照してください。
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## プロキシ設定を確認します [#verify-config]
+
+プロキシを設定した後、エージェントが期待どおりにプロキシを使用していることを確認します。
+
+### エージェントログを確認する [#check-agent-log]
+
+エージェントログでプロキシ関連のメッセージを確認します：
+
+```bash
+journalctl -u newrelic-ebpf-agent | grep -i proxy
+```
+
+これらのメッセージのいずれかを探す：
+
+* <DNT>`Using proxy for OTLP endpoint: <endpoint> via http://<host>:<port>`</DNT> — プロキシが有効になっています。
+* <DNT>`Proxy authentication enabled (username: <user>)`</DNT> — 基本認証が設定されています。
+* <DNT>`Direct connection to OTLP endpoint (no proxy configured)`</DNT> — プロキシは使用されていません。
+
+### プロキシ接続のテスト [#test-connectivity]
+
+<DNT>`curl`</DNT>を使用して、プロキシが<DNT>`HTTP CONNECT`</DNT>メソッドをサポートし、New Relic OTLPエンドポイントに到達できることを確認します：
+
+```bash
+# Unauthenticated proxy
+curl -v -x http://proxy.example.com:8080 https://otlp.nr-data.net
+
+# Authenticated proxy
+curl -v -x http://user:pass@proxy.example.com:8080 https://otlp.nr-data.net
+```
+
+成功レスポンスには以下が含まれます：
+
+```
+< HTTP/1.1 200 Connection established
+* Proxy replied 200 to CONNECT request
+* CONNECT phase completed!
+```
+
+エージェントがプロキシ経由でルーティングされない場合、またはエラーが発生した場合は、[eBPFプロキシのトラブルシューティング](/docs/ebpf/troubleshooting/proxy)を参照してください。
+
+## セキュリティに関する懸念事項 [#security]
+
+エージェントをプロキシ経由でルーティングするときは、次の点に注意してください。
+
+* **テレメトリーデータは、エンドツーエンドでTLS暗号化された状態が維持されます。**プロキシには、OTLPエンドポイントへの暗号化されたトンネルのみが見えます。データにアクセスすることは決してありません。
+* エージェントが<DNT>`https://`</DNT>プロキシスキームをサポートしていないため、**プロキシの認証情報はプレーンテキストでプロキシに送信されます**。プロキシ認証は、エージェントとプロキシ間の信頼されたネットワーク上でのみ使用してください。エージェントとプロキシ間で暗号化された通信が必要な場合は、<DNT>`localhost`</DNT>でプロキシを実行するか、VPNを使用してください。
+* **エージェントがパスワードをログに書き込むことはありません。**デバッグのため、ユーザー名が<DNT>`Proxy authentication enabled (username: <user>)`</DNT>などのログ行に表示される場合があります。
+* プロキシパスワードを<DNT>`values.yaml`</DNT>ファイルやソース管理に含めないようにするため、**Kubernetesデプロイメントではインラインの認証情報ではなく<DNT>`existingSecret`</DNT>を使用する必要があります**。

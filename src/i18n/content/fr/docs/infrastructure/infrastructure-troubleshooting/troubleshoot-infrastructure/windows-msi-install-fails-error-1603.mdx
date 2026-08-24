@@ -1,0 +1,68 @@
+---
+title: L’installation MSI de Windows échoue avec l’erreur 1603
+type: troubleshooting
+tags:
+  - Infrastructure
+  - Infrastructure monitoring troubleshooting
+  - Troubleshoot infrastructure
+metaDescription: Troubleshooting procedures when the New Relic infrastructure agent MSI installation fails with error 1603 on Windows.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  **Problème connu pour l’agent d’infrastructure v1.73.0 et versions ultérieures :** l’installation MSI peut échouer avec l’erreur **1603** sur les systèmes avec des restrictions de stratégie de groupe Windows.
+</Callout>
+
+## Problème [#problem]
+
+* L&apos;installation a fonctionné avec la v1.72.x mais échoue avec la v1.73.0 ou une version ultérieure
+* Se produit sur les systèmes Windows durcis ou conformes à la norme CIS
+* Le service `newrelic-infra` n’est pas créé
+
+## Cause [#cause]
+
+L’agent d’infrastructure v1.73.0+ utilise des actions personnalisées PowerShell différées pour l’installation. Le paramètre de stratégie de groupe Windows `HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer\DisableMSI` (lorsqu’il est défini sur `1` ou `2`) bloque ces actions pour des raisons de sécurité.
+
+## Solution [#solution]
+
+Désactivez temporairement la restriction MSI pendant l&apos;installation :
+
+```powershell
+# Store original value
+$regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer"
+$origValue = (Get-ItemProperty -Path $regPath -Name DisableMSI -ErrorAction SilentlyContinue).DisableMSI
+
+try {
+    # Temporarily allow MSI custom actions
+    if (-not (Test-Path $regPath)) { 
+        New-Item -Path $regPath -Force | Out-Null 
+    }
+    Set-ItemProperty -Path $regPath -Name DisableMSI -Value 0 -Type DWord -Force
+    
+    # Run the installation
+    msiexec.exe /qn /i PATH\TO\newrelic-infra.msi GENERATE_CONFIG=true LICENSE_KEY=YOUR_LICENSE_KEY
+    
+} finally {
+    # Restore original value
+    if ($null -ne $origValue) {
+        Set-ItemProperty -Path $regPath -Name DisableMSI -Value $origValue -Type DWord -Force
+    } else {
+        Remove-ItemProperty -Path $regPath -Name DisableMSI -ErrorAction SilentlyContinue
+    }
+}
+```
+
+Exécutez ce script PowerShell pour vérifier si la politique DisableMSI causera des problèmes :
+
+```powershell
+$regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer"
+$disableMsi = (Get-ItemProperty -Path $regPath -Name DisableMSI -ErrorAction SilentlyContinue).DisableMSI
+
+if ($null -eq $disableMsi -or $disableMsi -eq 0) {
+    Write-Host "DisableMSI not set or set to 0 - Installation should work"
+} else {
+    Write-Host "WARNING: DisableMSI is set to $disableMsi - Installation will likely fail with error 1603"
+    Write-Host "Use the workaround above to install successfully"
+}
+```

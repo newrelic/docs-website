@@ -1,0 +1,291 @@
+---
+title: Configurer un proxy pour l'agent eBPF New Relic
+metaDescription: Route New Relic eBPF agent telemetry through an HTTP proxy on Linux hosts or Kubernetes clusters in restricted-network environments.
+tags:
+  - New Relic integrations with eBPF
+  - New Relic eBPF agent
+  - eBPF integration
+  - eBPF proxy
+  - Corporate proxy
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si votre environnement achemine le trafic sortant via un proxy d&apos;entreprise, vous pouvez configurer le <DNT>eBPF agent</DNT> New Relic pour envoyer la télémétrie OTLP via ce proxy. Cette page explique comment configurer la prise en charge du proxy sur les hôtes Linux et les clusters Kubernetes, les exigences du serveur proxy, et comment résoudre les problèmes courants.
+
+<Callout variant="important">
+  Le <DNT>eBPF agent</DNT> prend en charge les proxys HTTP CONNECT utilisant uniquement le schéma <DNT>`http://`</DNT>. En raison des limitations de gRPC, l’agent ne prend pas en charge le schéma <DNT>`https://`</DNT> (une connexion chiffrée par TLS directement vers le proxy). Cependant, vos données télémétriques sont toujours chiffrées par TLS **de bout en bout** entre l’agent et le point de terminaison OTLP de New Relic. Le préfixe <DNT>`http://`</DNT> définit uniquement la façon dont l&apos;agent communique avec le proxy pour établir le tunnel. Le proxy lui-même ne voit que le trafic chiffré et n&apos;a jamais accès à vos données.
+</Callout>
+
+## Comment fonctionne la prise en charge du proxy [#how-it-works]
+
+Le <DNT>eBPF agent</DNT> utilise la prise en charge intégrée du proxy HTTP de gRPC. Lorsque vous configurez un proxy, l&apos;agent :
+
+1. Se connecte au serveur proxy.
+2. Envoie une requête <DNT>`HTTP CONNECT`</DNT> pour ouvrir un tunnel vers le point de terminaison OTLP de New Relic.
+3. Effectue une négociation TLS avec le point de terminaison OTLP via ce tunnel.
+4. Ajoute un en-tête <DNT>`Proxy-Authorization: Basic <base64>`</DNT> si vous avez fourni des identifiants.
+
+## Exigences du serveur proxy [#proxy-requirements]
+
+Votre serveur proxy doit prendre en charge :
+
+* La méthode HTTP <DNT>`CONNECT`</DNT> (requise pour le tunneling TLS vers le point de terminaison OTLP).
+* Tunneling vers le port `443` (le point de terminaison OTLP utilise HTTPS).
+* Authentification de base HTTP, si vous utilisez un accès proxy authentifié.
+
+### Serveurs proxy pris en charge [#supported-proxies]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Proxy
+      </th>
+
+      <th>
+        Pris en charge ?
+      </th>
+
+      <th>
+        Remarques
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Squid
+      </td>
+
+      <td>
+        Oui
+      </td>
+
+      <td>
+        Recommandé.Prend en charge 
+
+        <DNT>`CONNECT`</DNT>
+
+         nativement.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Apache 
+
+        <DNT>`mod_proxy`</DNT>
+      </td>
+
+      <td>
+        Oui
+      </td>
+
+      <td>
+        Nécessite la configuration 
+
+        <DNT>`AllowCONNECT`</DNT>
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        nginx
+      </td>
+
+      <td>
+        Avec module
+      </td>
+
+      <td>
+        Nécessite le module 
+
+        <DNT>`ngx_http_proxy_connect_module`</DNT>
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        HAProxy
+      </td>
+
+      <td>
+        Non
+      </td>
+
+      <td>
+        HAProxy est un proxy inverse/équilibreur de charge et ne prend pas en charge la méthode 
+
+        <DNT>`CONNECT`</DNT>
+
+         de proxy direct.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        La plupart des proxys d&apos;entreprise
+      </td>
+
+      <td>
+        Généralement oui
+      </td>
+
+      <td>
+        Vérifiez auprès de votre équipe informatique ou réseau.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Limitations de caractères des identifiants [#credential-limitations]
+
+<Callout variant="caution">
+  Si votre nom d&apos;utilisateur proxy contient des lettres majuscules, ou si votre nom d&apos;utilisateur ou mot de passe contient des caractères spéciaux, l&apos;authentification proxy échoue silencieusement. Le <DNT>eBPF agent</DNT> intercepte ces cas au démarrage et enregistre une erreur afin que vous ne vous retrouviez pas à déboguer une défaillance silencieuse.
+</Callout>
+
+Lorsque vous configurez les identifiants du proxy, utilisez uniquement les caractères suivants :
+
+* **Nom d&apos;utilisateur :** lettres minuscules (`a–z`), chiffres (`0–9`), trait d&apos;union (`-`), trait de soulignement (`_`), point (`.`) et tilde (`~`). Les majuscules ne sont pas autorisées.
+* **Mot de passe :** lettres (`a–z`, `A–Z`), chiffres (`0–9`), trait d’union (`-`), trait de soulignement (`_`), point (`.`) et tilde (`~`).
+
+Les caractères suivants ne sont **pas autorisés** dans le nom d’utilisateur ou le mot de passe : `@`, `:`, `/`, `?`, `#`, `[`, `]`, `!`, `$`, `&`, `'`, `(`, `)`, `*`, `+`, `,`, `;`, `=`, `%`, les espaces et autres caractères spéciaux.
+
+Si vos identifiants de proxy actuels utilisent des caractères non autorisés, demandez à votre administrateur de proxy de créer un compte de proxy dédié pour le <DNT>eBPF agent</DNT> qui utilise un nom d&apos;utilisateur alphanumérique en minuscules et un mot de passe simple.
+
+## Préséance de configuration [#configuration-precedence]
+
+Lorsque plus d&apos;une source définit un proxy, l&apos;agent les applique dans cet ordre :
+
+* <DNT>`otlpProxy.url`</DNT> — URL complète du proxy.
+* <DNT>`otlpProxy.*`</DNT> — Paramètres de proxy individuels (<DNT>`host`</DNT>, <DNT>`port`</DNT>, <DNT>`scheme`</DNT>, <DNT>`user`</DNT>, <DNT>`password`</DNT>).
+
+Cette priorité s&apos;applique aux déploiements sur hôte Linux et Kubernetes.
+
+## Configurer un proxy [#configure]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="k8s">Pour Kubernetes</TabsBarItem> <TabsBarItem id="linux">sous Linux</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="k8s">
+      Pour les clusters Kubernetes, configurez le proxy dans votre fichier <DNT>Helm</DNT> <DNT>`values.yaml`</DNT>.
+
+      Ajoutez un bloc <DNT>`otlpProxy:`</DNT> à votre <DNT>`values.yaml`</DNT>:
+
+      ```yaml
+      otlpProxy:
+        host: "proxy.corporate.com"
+        port: 8080
+        scheme: "http"
+        user: "myuser"
+        password: "mypassword"
+        url: ""
+        existingSecret: ""
+      ```
+
+      Sinon, définissez <DNT>`url:`</DNT> sur <DNT>`http://[user:pass@]host:port`</DNT> pour fournir une URL de proxy complète. L&apos;agent ne prend en charge que le schéma <DNT>`http`</DNT>.
+
+      Pour les déploiements de production, stockez les identifiants dans un secret Kubernetes au lieu de définir <DNT>`user:`</DNT> et <DNT>`password:`</DNT> en ligne. Créez le secret avec les clés <DNT>`proxy-user`</DNT> et <DNT>`proxy-password`</DNT>, et référencez-le via <DNT>`existingSecret:`</DNT>:
+
+      ```bash
+      kubectl create secret generic ebpf-proxy-creds \
+        --namespace newrelic \
+        --from-literal=proxy-user=myuser \
+        --from-literal=proxy-password=mypassword
+      ```
+
+      Puis appliquez la modification :
+
+      ```bash
+      helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
+      ```
+
+      Pour la liste complète des paramètres <DNT>`otlpProxy.*`</DNT>, consultez les [paramètres de configuration K8s](/docs/ebpf/k8s-installation/#config-params) sur la page d&apos;installation de Kubernetes.
+    </TabsPageItem>
+
+    <TabsPageItem id="linux">
+      Pour les hôtes Linux, configurez le proxy dans le fichier de configuration <DNT>`newrelic-ebpf-agent.yaml`</DNT>.
+
+      Ajoutez un bloc <DNT>`otlpProxy:`</DNT> à <DNT>`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml`</DNT>:
+
+      ```yaml
+      otlpProxy:
+        host: "proxy.corporate.com"
+        port: 8080
+        scheme: "http"
+        user: "myuser"
+        password: "mypassword"
+        url: ""
+      ```
+
+      Sinon, définissez <DNT>`url:`</DNT> sur <DNT>`http://[user:pass@]host:port`</DNT> pour fournir une URL de proxy complète. L&apos;agent ne prend en charge que le schéma <DNT>`http`</DNT>.
+
+      Après avoir enregistré le fichier, restreignez ses permissions et redémarrez l&apos;agent :
+
+      ```bash
+      sudo chmod 600 /etc/newrelic-ebpf-agent/newrelic-ebpf-agent.yaml
+      sudo systemctl restart newrelic-ebpf-agent
+      ```
+
+      Pour la liste complète des paramètres <DNT>`otlpProxy.*`</DNT>, consultez [Paramètres de configuration](/docs/ebpf/linux-installation/#config-params) sur la page d&apos;installation de Linux.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Vérifiez la configuration de votre proxy [#verify-config]
+
+Après avoir configuré le proxy, vérifiez que l&apos;agent l&apos;utilise comme prévu.
+
+### Vérifier le log de l&apos;agent [#check-agent-log]
+
+Vérifiez le log de l&apos;agent pour les messages liés au proxy :
+
+```bash
+journalctl -u newrelic-ebpf-agent | grep -i proxy
+```
+
+Recherchez l&apos;un de ces messages :
+
+* <DNT>`Using proxy for OTLP endpoint: <endpoint> via http://<host>:<port>`</DNT> — Le proxy est activé.
+* <DNT>`Proxy authentication enabled (username: <user>)`</DNT> — L&apos;authentification de base est configurée.
+* <DNT>`Direct connection to OTLP endpoint (no proxy configured)`</DNT> — Aucun proxy n&apos;est utilisé.
+
+### Tester la connectivité du proxy [#test-connectivity]
+
+Utilisez <DNT>`curl`</DNT> pour confirmer que votre proxy prend en charge la méthode <DNT>`HTTP CONNECT`</DNT> et peut atteindre le point de terminaison OTLP de New Relic :
+
+```bash
+# Unauthenticated proxy
+curl -v -x http://proxy.example.com:8080 https://otlp.nr-data.net
+
+# Authenticated proxy
+curl -v -x http://user:pass@proxy.example.com:8080 https://otlp.nr-data.net
+```
+
+Une réponse réussie inclut :
+
+```
+< HTTP/1.1 200 Connection established
+* Proxy replied 200 to CONNECT request
+* CONNECT phase completed!
+```
+
+Si l’agent ne passe pas par le proxy ou si vous rencontrez des erreurs, consultez [Dépanner le proxy eBPF](/docs/ebpf/troubleshooting/proxy).
+
+## Considérations de sécurité [#security]
+
+Lorsque vous acheminez l&apos;agent via un proxy, gardez à l&apos;esprit ce qui suit :
+
+* **Les données télémétriques restent chiffrées par TLS de bout en bout.** Le proxy ne voit qu&apos;un tunnel chiffré vers le point de terminaison OTLP. Il n&apos;a jamais accès à vos données.
+* **Les identifiants du proxy sont envoyés en clair au proxy** parce que l&apos;agent ne prend pas en charge le schéma de proxy <DNT>`https://`</DNT>. Utilisez l&apos;authentification par proxy uniquement sur un réseau de confiance entre l&apos;agent et le proxy. Si vous avez besoin d&apos;un transport chiffré entre l&apos;agent et le proxy, exécutez le proxy sur <DNT>`localhost`</DNT> ou utilisez un VPN.
+* **L’agent n’écrit jamais de mots de passe dans ses logs.** Le nom d&apos;utilisateur peut apparaître dans des lignes de log telles que <DNT>`Proxy authentication enabled (username: <user>)`</DNT> pour le débogage.
+* **Les déploiements Kubernetes devraient utiliser <DNT>`existingSecret`</DNT> au lieu d’identifiants en ligne** pour conserver les mots de passe de proxy en dehors de votre fichier <DNT>`values.yaml`</DNT> et du contrôle de code source.

@@ -17,10 +17,7 @@ const AGENTS = {
   'job-manager-release-notes': 'job manager',
   'kubernetes-integration-release-notes': 'kubernetes',
   'pipeline-control-gateway-release-notes': 'pipeline_control_gateway',
-  'agent-control-deployment-chart-release-notes':
-    'agent_control_deployment_chart',
-  'agent-control-continuous-delivery-chart-release-notes':
-    'agent_control_continuous_delivery_chart',
+  'agent-control-release-notes': 'agent_control',
   'prometheus-agent-release-notes': 'prometheus',
   'logs-release-notes': 'logs',
   'fluentbit-release-notes': 'fluentbit',
