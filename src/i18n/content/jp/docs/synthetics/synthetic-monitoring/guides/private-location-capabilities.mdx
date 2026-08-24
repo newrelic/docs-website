@@ -1,0 +1,315 @@
+---
+title: プライベートロケーションの機能
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: 'A consolidated overview of what New Relic synthetic monitoring private locations can do: security, compliance, networking, scaling, and automation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+プライベートロケーションは、外形監視ジョブマネージャー（SJM）のコレクション — お客様自身の環境で実行するコンテナです。SJMはNew Relicのコレクター（&quot;Horde&quot;エンドポイント）へのアウトバウンドコールのみを行うため、ネットワークへのインバウンドアクセスを開放することなく、内部、ファイアウォール内、またはその他のプライベートなターゲットをモニターできます。テストスクリプト、シークレット、およびトラフィックは、インフラストラクチャ内に留まります。これは、世界中のNew Relicが運営するインフラストラクチャから実行される、New Relicが管理するパブリックロケーションとは対照的です。
+
+以下の表は、プライベートロケーションがサポートする内容をまとめたものです。各機能の詳細は以下のセクションに記載されています。
+
+| 機能                                                      | 提供される機能                                                   |
+| ------------------------------------------------------- | --------------------------------------------------------- |
+| マルチプラットフォームのデプロイメント（Docker/Podman/Kubernetes/OpenShift） | ファイアウォールの背後にある独自のインフラストラクチャ内でモニターを実行します。                  |
+| カスタムCAの証明書                                              | 内部またはプライベートPKIのHTTPSエンドポイントの信頼                            |
+| mTLSクライアント証明書                                           | 内部mTLSエンドポイント（`cert-map.json`）へのクライアント証明書の提示              |
+| 非root実行                                                 | 強化されたコンテナで非rootユーザーとしてSJMを実行します。                          |
+| 検証済みスクリプト実行 (VSE)                                       | ロケーションでスクリプトを実行できるユーザーのパスフレーズによる制限                        |
+| 認証情報の保護                                                 | シークレットを暗号化されたボールトに保存し、結果やログから秘匿化します。                      |
+| FedRAMP 中位                                              | FedRAMP認定アカウントでの外形監視の使用                                   |
+| デュアルスタック（IPv4+IPv6）                                     | IPv4とIPv6の両方のエンドポイントをモニターします。                             |
+| アウトバウンドプロキシ                                             | HTTP/HTTPSプロキシ経由でNew Relicに到達します。                         |
+| カスタムNodeモジュール                                           | スクリプトで独自のnpmパッケージを使用します。                                  |
+| ユーザー定義変数                                                | シークレット以外の設定をスクリプトに挿入する                                    |
+| 水平および垂直スケーリング                                           | スループットのためにSJM（同じキー）を追加するか、CPU/RAMを追加します。                  |
+| 自動化とコードとしてのインフラストラクチャ                                   | <DNT>NerdGraph</DNT>を使用してロケーションを管理し、 <DNT>Terraform</DNT> |
+| 共有ロケーション                                                | 組織内のすべてのアカウントで1つのロケーションを共有します。                            |
+| ヘルスとオブザーバビリティ                                           | 事前構築済みのジョブマネージャーダッシュボードでステータスイベントを追跡します。                  |
+| カスタムホスト名（`RUNTIME_EXTRA_HOSTS`）                         | ランタイムDNS解決のために内部ホスト名をIPにマッピングします。                         |
+
+## 基盤: 独自のインフラストラクチャに監視をデプロイします。 [#foundation]
+
+**解決する問題:** 内部アプリケーションは、New Relicのパブリックロケーションが到達できないファイアウォールの背後に配置されており、監視ツールのためにインバウンドアクセスを開放することは許容されません。プライベートロケーションは、独自ネットワークの内部からアウトバウンドのみでそれらのシステムをモニターします。
+
+<CollapserGroup>
+  <Collapser id="foundation-details" title="アーキテクチャーと要件を確認します。">
+    プライベートロケーションは、完全に管理下のインフラストラクチャ上で実行されます：
+
+    * プライベートロケーションには、任意の数のSJMを含めることができます。UIでモニターをロケーションに割り当てると、SJMがジョブをプルし、結果をNew Relicに報告します。
+
+    * SJMは、単一のイメージ（`newrelic/synthetics-job-manager`）からDocker、Podman、Kubernetes、およびOpenShift上で実行されます。
+
+    * **チェックごとのサンドボックス化：**スクリプト化されたチェックまたはブラウザチェックごとに、SJMは新しいランタイムコンテナまたはポッドを起動してから破棄し、実行を互いに分離します。
+
+    * **SJMが管理するランタイム：**
+
+      * `synthetics-ping-runtime` — pingモニター（軽量）
+      * `synthetics-node-api-runtime` — スクリプト化されたAPI、リンク切れ、証明書チェック
+      * `synthetics-node-browser-runtime` — シンプルおよびスクリプト化ブラウザモニター（<DNT>Chrome</DNT>）
+
+    * **アウトバウンドのみ:** SJMはHordeエンドポイント（US`https://synthetics-horde.nr-data.net/`、EU`https://synthetics-horde.eu01.nr-data.net/`、JP`https://synthetics-horde.jp.nr-data.net/`）に到達する必要があります。以下との接続をテストします：
+
+      ```bash
+      curl -X GET https://synthetics-horde.nr-data.net/synthetics/api/v1/ping
+      ```
+
+    設定については、[プライベートロケーションの概要](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/)および[ジョブマネージャーのインストール](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/)を参照してください。
+
+    ランタイムバージョンを制御できます。プライベートロケーションでは、ランタイムバージョンはSJMがデプロイするランタイムイメージによって完全に決定されます — `DESIRED_RUNTIMES`（DockerおよびPodman）または`synthetics.desiredRuntimes`（Kubernetes）を使用して設定します。<DNT>Docker Hub</DNT>から現在サポートされているランタイムイメージを実行するには、`latest`タグを使用します — これがプライベートロケーションの推奨セットアップです。アップグレードを採用する前に検証する必要がある場合は、代わりに特定の公開されたイメージタグを固定できます。いずれにせよ、イメージはSJMの起動時にプルされるため、変更を適用するにはSJMを再起動または再デプロイします。
+
+    一般設定の**Browser**および**Runtime**バージョンのドロップダウンはプライベートロケーションには影響しません。また、`SyntheticCheck`の`runtimeTypeVersion`はプライベートジョブのランタイムを特定する信頼できる方法ではありません — 代わりに`nr.runtimeVersion`をクエリしてください。現在のランタイムは、<DNT>Chrome</DNT> 147以降を搭載した<DNT>Node.js</DNT> 22です。古い<DNT>Node.js</DNT> 16および<DNT>Chrome</DNT> 134のランタイムは[サポートを終了しました](/eol/2026/05/eol-05-18-26-node-16-chrome-134-runtimes/)。詳細については、[ランタイムへの移行ガイド](/docs/synthetics/synthetic-monitoring/private-locations/runtime-transition-guide/)を参照してください。
+  </Collapser>
+</CollapserGroup>
+
+## セキュリティと堅牢化 [#security]
+
+### カスタムCAの証明書 [#custom-certs]
+
+**解決する問題:** モニターは独自の認証局によって署名された内部HTTPSエンドポイントを検証できないため、ビジネスに不可欠な内部アプリがモニターされないままになるか、カスタムランタイムイメージの維持を余儀なくされます。CA証明書をマウントすることで、TLS検証を維持したまま、これらのエンドポイントをモニター可能にします。
+
+<CollapserGroup>
+  <Collapser id="custom-certs-details" title="カスタムCA証明書をセットアップする">
+    SJMはマウントされた証明書を自動検出し、生成するすべてのランタイムに（読み取り専用で）伝播するため、カスタムランタイムイメージは必要ありません。
+
+    * **フォーマット:** PEM、`.pem`拡張子付き、UID `2000`で読み取り可能。SJMは`CA:TRUE`の基本制約を持つ証明書のみをロードし、リーフ証明書を無視します。
+    * **Docker:** `/var/lib/newrelic/synthetics/certs`に読み取り専用でマウントします。
+    * **Kubernetes:** Secretを作成し、`global.customCertificates.volume.secret.secretName`で参照します。
+  </Collapser>
+</CollapserGroup>
+
+[カスタムCA証明書の設定](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#custom-ca-certificates)を参照してください。
+
+### mTLSクライアント証明書 [#mtls]
+
+**解決する問題:** 呼び出し元にクライアント証明書の提示を要求するサービスは、モニターを完全に拒否します。これにより、カバレッジを得るためだけにサービスごとにプロキシを構築および維持する必要が生じることがよくあります。ホスト名にマッピングされたクライアント証明書により、その回避策は完全に不要になります。
+
+<CollapserGroup>
+  <Collapser id="mtls-details" title="mTLSクライアント証明書をセットアップする">
+    モニターは、スクリプトを変更することなく、ホスト名ごとに正しい証明書を自動的に提示します。
+
+    * ホスト名をPEM証明書/キーファイルにマッピングする`cert-map.json`を指定します（一致の優先順位：完全一致 → ワイルドカード`*.domain.com` → `default` → 証明書なし）。
+    * **Docker:**クライアント証明書ディレクトリを`/var/lib/newrelic/synthetics/client-cert`に読み取り専用でマウントします。
+    * **Kubernetes:** `cert-map.json`と証明書/キーファイルを含むSecret（Kubernetesリソースタイプ）を作成し、`global.clientCertificates.volume.secret.secretName`で参照します。
+    * mTLSは相互であるため、モニターもサーバーを信頼する必要があります。エンドポイントの証明書がプライベートCAによって発行されている場合は、そのCAを[カスタムCA証明書](#custom-certs)としてマウントします（Docker:`/var/lib/newrelic/synthetics/certs`、Kubernetes:`global.customCertificates.volume.secret.secretName`）。
+    * ランタイム内のDNS経由でmTLSホスト名を解決できない場合は、[カスタムホスト名](#custom-hostnames)でマッピングします。
+
+    <Callout variant="tip" title="証明書サポートの制限事項">
+      カスタムCAおよびmTLS証明書は、スクリプト化APIおよびスクリプト化ブラウザモニターにのみ適用されます（pingモニターは影響を受けません）。証明書はコンテナの起動時に読み込まれるため、証明書を追加、削除、またはローテーションした後は、ジョブマネージャー（またはKubernetes上のランタイムポッド）を再起動してください。mTLSの場合、各クライアント証明書には一意のSubject CNが必要です — <DNT>Chrome</DNT>はこれを使用して、ホスト名ごとに正しい証明書を自動選択します。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+[mTLSクライアント証明書](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#mtls-client-certificates)をご覧ください。
+
+### 非root実行 [#non-root]
+
+**解決する問題:**多くの組織のコンテナセキュリティ基準では、ワークロードをrootとして実行することが禁止されており、これが原因でジョブマネージャーをまったくデプロイできなくなる可能性があります。非rootでの実行により、監視がプラットフォームのセキュリティレビューに合格できるようになります。
+
+<CollapserGroup>
+  <Collapser id="non-root-details" title="ジョブマネージャーを非rootとして実行します。">
+    SJMはデフォルトでrootとして実行されます（実行はサンドボックス化されているため安全です）が、非rootユーザーとしての実行もサポートしています。
+
+    * **Docker:** ユーザーは`docker`グループに属している（または`DOCKER_HOST`経由でDocker TCPソケットを使用する）必要があり、マウントされたボリュームへの読み取り/書き込みアクセス権を持っている必要があります。その後、`-u UID:GID`で実行します。
+    * ランタイムコンテナは常にUID `2000`として実行されます。
+    * **Kubernetes**は、`runAsUser`、`runAsNonRoot`、および`fsGroup`に対して`podSecurityContext` <DNT>Helm</DNT>値を公開します。Podmanは完全なルートレスモデルをサポートしています。
+  </Collapser>
+</CollapserGroup>
+
+[セキュリティ、サンドボックス化、および非rootとしての実行](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#run-non-root)を参照してください。
+
+### 検証済みスクリプト実行 (VSE) [#vse]
+
+**解決する問題:** スクリプト化されたモニターは任意のコードであるため、アカウントへのアクセス権を持つ人なら誰でも、ネットワーク内のインフラストラクチャ上でスクリプトを実行できます。自分だけが保持するパスフレーズにより、信頼できるスクリプトのみがジョブマネージャーで実行されるようになります。
+
+<CollapserGroup>
+  <Collapser id="vse-details" title="検証済みスクリプトの実行を可能にする">
+    ロケーションにスクリプトを割り当てたり、SJMを追加したりする前に、パスフレーズを設定する必要があります。VSEはスクリプト化されたモニターにのみ適用されることに注意してください。スクリプト化されていないモニター（単純なpingなど）は、パスフレーズの入力が免除されます。
+
+    * `VSE_PASSPHRASE`（Docker/Podman）または`synthetics.vsePassphrase`/`synthetics.vsePassphraseSecretName`（Kubernetes）を使用してパスフレーズを設定し、ロケーションの**編集**メニューでVSEを有効にして、各モニターのパスフレーズを入力します。
+
+    <Callout variant="caution">
+      New RelicはVSEパスフレーズを保存することはなく、誰も — New Relicサポートを含め — それを復元することはできません。紛失した場合は、SJMでリセットし、そのロケーションに割り当てられているすべてのモニターを再認証する必要があります。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+[プライベートロケーションの検証済みスクリプト実行](/docs/synthetics/synthetic-monitoring/private-locations/verified-script-execution-private-locations/)をご覧ください。
+
+### 共有ロケーション [#shared-locations]
+
+**解決する問題:** デフォルトでは、1つのアカウントで作成されたプライベートロケーションは他のアカウントでは使用できないため、各アカウントは同じネットワーク専用のジョブマネージャーを持つことになり — インフラストラクチャ、コスト、およびメンテナンスが重複します。共有することで、1つのロケーションで多くのアカウントにサービスを提供できます。
+
+<CollapserGroup>
+  <Collapser id="shared-locations-details" title="アカウント間でロケーションを共有する">
+    共有はロケーションごとに制御されるため、どのアカウントがインフラストラクチャにジョブを送信できるかを決定できます。
+
+    * `shared`を`true`に設定すると、組織内のすべてのアカウントでロケーションを使用できるようになります。
+    * 親アカウントで作成されたロケーションは、その子アカウントで使用できます。子アカウントで作成されたロケーションは、そのアカウントに対してプライベートなままになります。
+    * 他のアカウントのモニターがまだ使用している間は、ロケーションの共有を解除できません — まずそれらのモニターを移行してください。
+  </Collapser>
+</CollapserGroup>
+
+[プライベートロケーションの概要](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/)を参照してください。
+
+### 認証情報の保護 [#secure-credentials]
+
+**解決する問題:** 認証されたジャーニーのテストには実際の認証情報が必要ですが、それらをスクリプトに記述すると、スクリプトやチェック結果を読める人なら誰でも見られるようになります。暗号化されたボールトにより、シークレットは使用可能でありながら読み取れない状態に保たれ、1つの値をローテーションするだけで、すべてのモニターが一度に更新されます。
+
+<CollapserGroup>
+  <Collapser id="secure-credentials-details" title="安全な認証情報の仕組みを確認する">
+    `$secure.MY_KEY`を使用して、スクリプト内の保存されたシークレットを参照します。
+
+    * 保存時にAES-GCM 256ビット暗号化を使用し、<DNT>AWS Key Management Service (KMS)</DNT>がキーを管理します。値を読み戻すことはできません — 参照することのみ可能です。
+    * New Relicは、すべての結果とアラート（パーセントエンコードされた形式を含む）から値をスクラブし、それらを`_SECURECREDENTIAL_`に置き換えます。
+    * スクリプトブラウザ、API、およびステップモニターで利用できます。1アカウントあたりの認証情報の制限は1,000個です。管理者は、作成、表示、削除、および使用の権限を制御します。
+
+    <Callout variant="important">
+      プライベートロケーションで実行されているモニターが侵害された場合は、そのセキュアな認証情報をローテーションし、プライベートロケーションキーをローテーションします。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+[安全な認証情報を保存する](/docs/synthetics/synthetic-monitoring/using-monitors/store-secure-credentials-scripted-browsers-api-tests/)を参照してください。
+
+## コンプライアンス：FedRAMP [#fedramp]
+
+**解決する問題:** 公共部門および規制対象のワークロードは、FedRAMP要件を満たすサービスでのみ実行できます。そうでない場合、評価が始まる前に監視ツールが除外されてしまいます。
+
+<CollapserGroup>
+  <Collapser id="fedramp-details" title="スコープと要件の確認">
+    外形監視がFedRAMPプログラムにどのように適合するかは以下のとおりです：
+
+    * New RelicはFedRAMP認定（Moderate）を受けており、外形監視はその対象範囲内です — 対象外のサービスリストには含まれていません。
+    * 個別の`gov-`外形監視Hordeエンドポイントはありません。New Relicのエンドポイントルールに従い、エンドポイントが個別にリストされておらず、スコープ外でもないサービスは、標準エンドポイントでFedRAMP要件を満たします。FedRAMPアカウントのプライベートロケーションSJMは、標準のHordeエンドポイントを使用します。
+    * 顧客の義務には、New Relicが承認したアカウント、Data Plusを備えたエンタープライズエディション（または承認された代替手段）、FedRAMP指定のエンドポイントに設定されたエージェントとサービス、およびFedRAMP認定機能のみの使用が含まれます。FedRAMPは子アカウントに継承されます。
+  </Collapser>
+</CollapserGroup>
+
+[FedRAMP](/docs/security/security-privacy/compliance/certificates-standards-regulations/fedramp/)および[FedRAMP準拠エンドポイント](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints/)を参照してください。
+
+## ネットワーキング [#networking]
+
+### デュアルスタック（IPv4+IPv6） [#dual-stack]
+
+**解決する問題:** ネットワークがIPv6を採用するにつれて、IPv4にしか到達できないモニターはIPv6パスを未検証のままにします — これは、ユーザーが遭遇する障害を把握できないというギャップになります。デュアルスタックは、1つのロケーションから両方のアドレスファミリを検証します。
+
+<CollapserGroup>
+  <Collapser id="dual-stack-details" title="デュアルスタックの要件を確認する">
+    製品内にトグルはありません — SJMはホストまたはクラスタネットワークからデュアルスタック機能を継承し、最小イメージバージョンによって制限されます：
+
+    * ジョブマネージャー`519`以降、pingランタイム`1.65.0`以降、および現在のNode APIとブラウザランタイムイメージ — `latest`タグを使用します。
+    * **Docker:** ホストとDockerデーモンでIPv6が有効になっている必要があります。
+    * **Kubernetes:** クラスタは、デュアルスタックが有効になっているv1.20以降である必要があります。
+  </Collapser>
+</CollapserGroup>
+
+[Docker](/docs/synthetics/synthetic-monitoring/private-locations/install-synthetics-dual-stack-docker/)、[Kubernetes](/docs/synthetics/synthetic-monitoring/private-locations/install-synthetics-dual-stack-kubernetes/)、および[Podman](/docs/synthetics/synthetic-monitoring/private-locations/install-synthetics-dual-stack-podman/)のデュアルスタックインストールガイドをご覧ください。
+
+### アウトバウンドプロキシ [#proxy]
+
+**解決する問題:**ロックダウンされたネットワークでは直接の出力が許可されないため、ジョブマネージャーがNew Relicに到達できず、プライベートロケーション全体がオフラインになります。プロキシのサポートにより、出力ポリシーを変更することなくレポートを継続できます。
+
+<CollapserGroup>
+  <Collapser id="proxy-details" title="プロキシ変数の設定">
+    ジョブマネージャーで以下の変数を設定します：
+
+    * **Docker/Podman:** `HORDE_API_PROXY_HOST`、`HORDE_API_PROXY_PORT`、`HORDE_API_PROXY_USERNAME`、`HORDE_API_PROXY_PW`、および`HORDE_API_PROXY_ACCEPT_SELF_SIGNED_CERT`。
+    * **Kubernetes:** `synthetics.apiProxyHost`、`synthetics.apiProxyPort`、`synthetics.hordeApiProxyUsername`、`synthetics.hordeApiProxyPw`、および`synthetics.hordeApiProxySelfSignedCert`。
+
+    <Callout variant="tip">
+      これらの変数は、SJMからNew Relicへのトラフィックを制御します。任意のモニターからターゲットへのトラフィックに対する、文書化された汎用プロキシ変数はありません。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+[ジョブマネージャーの設定](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#environment-variables)を参照してください。
+
+### カスタムホスト名 [#custom-hostnames]
+
+**解決する問題:** モニターが、ネットワーク内でのみ解決されるホスト名を持つ内部サービスに到達できない — またはランタイムコンテナ内で間違ったアドレスに解決される — ため、テストしようとした対象ではなくDNSでチェックが失敗します。
+
+<CollapserGroup>
+  <Collapser id="custom-hostnames-details" title="ホスト名をIPアドレスにマッピングする">
+    Dockerデプロイメントでは、ジョブマネージャーで`RUNTIME_EXTRA_HOSTS`を設定すると、生成されるすべてのランタイムコンテナにマッピングが渡されるため、スクリプトはアプリケーションと同じホスト名を使用できます。
+
+    * **フォーマット:**カンマ区切りの`hostname:ip`ペア、たとえば`api.internal.example.com:10.0.0.1,svc.internal:10.0.0.2`。
+    * 内部名がランタイムから解決できない場合に便利です — これには`cert-map.json`で参照されるmTLSターゲットも含まれます。
+  </Collapser>
+</CollapserGroup>
+
+[mTLSクライアント証明書](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#mtls-client-certificates)をご覧ください。
+
+## 拡張性 [#extensibility]
+
+### カスタムNodeモジュール [#custom-modules]
+
+**解決する問題:** デフォルトのランタイムに欠けているプロトコル、cloud SDK、またはデータ形式のサードパーティパッケージをインポートできるようにすることで、監視されないギャップや余分なツールの分散を防ぎます。
+
+<CollapserGroup>
+  <Collapser id="custom-modules-details" title="カスタムNodeモジュールを設定する">
+    スクリプトAPIおよびブラウザモニターで`require()`と一緒に使用するために、独自のnpmパッケージ（ホスト型またはローカル）をバンドルします。
+
+    * ルートが`package.json`のディレクトリを指定すると、SJMは起動時に`npm install`を実行します。
+    * `/var/lib/newrelic/synthetics/modules`にマウントします（Docker/Podman、読み取り/書き込み）。Kubernetesでは、`global.customNodeModules.customNodeModulesPath`を介して<DNT>PersistentVolume</DNT>（ポッド間で共有する場合は`ReadWriteMany`）を使用します。
+  </Collapser>
+</CollapserGroup>
+
+[カスタムNodeモジュール](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#custom-modules)をご覧ください。
+
+### ユーザー定義変数 [#user-defined-variables]
+
+**解決する問題:** 環境固有の値をスクリプトにハードコーディングすると、環境ごとにほぼ重複したスクリプトを維持し、何かが変更されるたびにそれぞれを編集することになります。設定を注入することで、1つのスクリプトをどこでも実行できるようになります。
+
+<CollapserGroup>
+  <Collapser id="user-defined-variables-details" title="ユーザー定義変数を設定する">
+    `$env.USER_DEFINED_VARIABLES.MY_VARIABLE`を使用して、スクリプト内の挿入された値にアクセスします。`USER_DEFINED_VARIABLES`（JSON文字列）を設定するか、`user_defined_variables.json`ファイルをマウントします。
+
+    <Callout variant="caution">
+      ユーザー定義変数はログからサニタイズされません。機密性の高いものには[セキュアな認証情報](#secure-credentials)を使用してください。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+[スクリプト化されたモニターのユーザー定義変数](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#user-defined-vars)を参照してください。
+
+## スケーリングと運用 [#scaling]
+
+**解決する問題:**単一のジョブマネージャーには固定のスループット上限があるため、モニター数が増加するとキューが滞留し、チェックの実行が遅れたり、まったく実行されなくなったりして — 暗黙のうちにカバレッジが低下します。スケールアウトにより、キャパシティとフェイルオーバーが追加されます。
+
+<CollapserGroup>
+  <Collapser id="scaling-details" title="サイジング、スケーリング、および運用の確認">
+    プライベートロケーションは、監視負荷に合わせてスケーリングします：
+
+    * **ジョブタイプ:**ヘビーウェイトジョブ（シンプルおよびスクリプト化されたブラウザ、スクリプト化されたAPI）は、同時ジョブごとに約1つのCPUコアを使用します。軽量ジョブ（ping）は、それぞれフルコアではなくワーカースレッドプールで実行されます。
+    * **SJMあたりのスループット:** 設計上、1分あたり15個のヘビーウェイトジョブと1分あたり75個のpingチェックの制限があります。パフォーマンスに影響を与える要因の詳細については、[ヘビーウェイトジョブ](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#vm-sizing)、[pingジョブ](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#note-about-ping-monitors-and-the-pingjobs-queue)を参照してください
+    * **スケールアウト（水平）:** 同じプライベートロケーションキーを使用して、より多くのSJMをデプロイします。ジョブはそれらの間でロードバランシングされ、スループットは加算され、フェイルオーバーが得られます。
+    * **スケールアップ（垂直）:** ホストにCPUとメモリを追加するか、<DNT>Helm</DNT>チャートで各ランタイムのサイズを個別に設定します（APIおよびブラウザランタイムの場合は`parallelism`/`completions`、pingの場合は`replicaCount`）。
+    * **健全性とオブザーバビリティ:** 各SJMにはステータスインジケーターが表示されます。NRQLイベント`SyntheticsPrivateLocationStatus`および`SyntheticsPrivateMinion`はキューとリソースのメトリクスを公開し、New Relicは事前構築済みの&quot;外形監視ジョブマネージャー&quot;ダッシュボードを提供します。
+    * **キュー管理:**UIで滞留したキューをクリアするか、<DNT>NerdGraph</DNT>ミューテーション`syntheticsPurgePrivateLocationQueue`を使用してパージします。
+    * **キーのローテーション:** キーをインプレースでローテーションすることはできません。新しいロケーションを作成し、モニターをそこに移行し、新しいキーでSJMを再デプロイしてから、古いロケーションを削除します。モニターが使用したセキュアな認証情報をローテーションします。
+  </Collapser>
+</CollapserGroup>
+
+[外形監視ジョブマネージャーの設定](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/)および[プライベートロケーションのモニター](/docs/synthetics/synthetic-monitoring/private-locations/monitor-private-locations/)を参照してください。
+
+## 自動化とコードとしてのインフラストラクチャ [#automation]
+
+**解決する問題：**手動でロケーションを作成および設定することは、チームや環境全体にスケールせず、手作業で構築された設定は時間の経過とともに乖離していきます。それらをコードとして管理することで、監視は再現可能かつレビュー可能になります。
+
+<CollapserGroup>
+  <Collapser id="automation-details" title="APIおよびTerraformのオプションを確認する">
+    プログラムでプライベートロケーションを作成および管理できます：
+
+    * **<DNT>NerdGraph</DNT> API:** `syntheticsCreatePrivateLocation`、`syntheticsUpdatePrivateLocation`、`syntheticsPurgePrivateLocationQueue`、および`syntheticsDeletePrivateLocation`、さらに安全な認証情報のミューテーション。ロケーションを作成すると、`guid`が返されます。
+    * **<DNT>Terraform</DNT>:** `newrelic_synthetics_private_location`リソース（必須の`name`と`description`；オプションの`shared`と`verified_script_execution`）。SJMに提供する`key`をエクスポートするため、1つのパイプラインでロケーションをプロビジョニングし、ランタイムを接続できます。
+  </Collapser>
+</CollapserGroup>
+
+[<DNT>NerdGraph</DNT>を使用したプライベートロケーションの管理](/docs/apis/nerdgraph/examples/synthetics-api/private-locations/)および[<DNT>Terraform</DNT>プロバイダーのドキュメント](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/synthetics_private_location)をご覧ください。
+
+***
