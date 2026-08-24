@@ -1,0 +1,85 @@
+---
+title: Permissions du plan EXPLAIN pour le monitoring PostgreSQL
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Advanced configuration
+metaDescription: Collect EXPLAIN plans for write statements without granting write access to the PostgreSQL monitoring user
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Aperçu">
+  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
+
+  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Par défaut, `EXPLAIN` s&apos;exécute directement en tant qu&apos;utilisateur de monitoring, et PostgreSQL vérifie les privilèges des tables au moment de la planification — les instructions de verrouillage de ligne ou d&apos;écriture échouent donc avec `permission denied` à moins que l&apos;utilisateur de monitoring n&apos;ait un accès en écriture, ce qu&apos;il ne devrait jamais avoir.
+
+## Créez la fonction d’aide EXPLAIN [#explain]
+
+Pour collecter des plans de requête pour les instructions de verrouillage ou d&apos;écriture sans accorder d&apos;accès en écriture à l&apos;utilisateur de monitoring, créez la fonction suivante dans chaque base de données :
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+### Mécanismes de collecte du plan d’exécution
+
+* **Limitation de débit :** `top_query_collection.max_explain_each_interval` (par défaut `1000`) limite les `EXPLAIN`s par extraction.
+* **Mise en cache :** `query_plan_cache_size` / `query_plan_cache_ttl` (par défaut `1000` entrées/ `1h`) met en cache un plan une fois obtenu, indexé par l&apos;ID de requête.
+
+## Documentation associée [#related]
+
+<DocTiles>
+  <DocTile title="Instrumentation dans les environnements auto-hébergés" path="/docs/opentelemetry/database/postgresql/hosted">
+    Découvrez comment configurer le monitoring PostgreSQL dans des environnements auto-hébergés avec New Relic.
+  </DocTile>
+
+  <DocTile title="Référence des métriques" path="/docs/opentelemetry/database/postgresql/metrics-reference">
+    Découvrez les métriques disponibles collectées par le collecteur NRDOT.
+  </DocTile>
+
+  <DocTile title="Guide de dépannage" path="/docs/opentelemetry/database/postgresql/troubleshooting">
+    Apprenez à résoudre les problèmes courants liés au monitoring PostgreSQL.
+  </DocTile>
+</DocTiles>

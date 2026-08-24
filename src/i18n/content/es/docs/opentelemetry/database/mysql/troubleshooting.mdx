@@ -1,0 +1,357 @@
+---
+title: Resolución de problemas de monitoreo de MySQL NRDOT
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Troubleshooting
+metaDescription: Troubleshoot common issues with MySQL monitoring using NRDOT Collector
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta función se proporciona actualmente como parte de una vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Solucione los problemas comunes que puede encontrar al monitorear su MySQL con el NRDOT Collector.
+
+## Probar conectividad
+
+### Probar la conectividad de red con MySQL
+
+Primero confirme que el puerto sea accesible:
+
+```bash
+nc -zv <YOUR_DB_HOST> <YOUR_DB_PORT>
+```
+
+Luego confirme que el usuario de monitoreo realmente puede autenticarse y realizar consultas:
+
+```bash
+mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
+```
+
+Si el comando se completa sin errores, el usuario de monitoreo, el host y el puerto son correctos.
+
+### Probar la conectividad del extremo OTLP
+
+Ejecute lo siguiente para verificar que su host pueda alcanzar el extremo OTLP de New Relic seleccionado:
+
+```shell
+ENDPOINT="<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+HOST=$(echo "$ENDPOINT" | sed 's|https://||' | cut -d: -f1)
+PORT=$(echo "$ENDPOINT" | awk -F: '{print $NF}')
+(timeout 2 bash -c "</dev/tcp/$HOST/$PORT" && echo "SUCCESS") || echo "FAILED"
+```
+
+**Resultado esperado:** `SUCCESS`
+
+## Problemas comunes
+
+<CollapserGroup>
+  <Collapser id="no-query-events" title="Los eventos de consulta o las muestras no aparecen">
+    **Síntomas:** faltan la muestra de consulta y los logs de eventos de consultas principales en New Relic.
+
+    **Posibles causas:**
+
+    * `performance_schema` deshabilitado
+    * Los eventos de consulta no están habilitados en la configuración del receptor
+    * Privilegios de base de datos insuficientes
+
+    **Soluciones:**
+
+    1. **Verifique que el esquema de rendimiento esté habilitado:**
+
+       ```sql
+       SHOW VARIABLES LIKE 'performance_schema';
+       ```
+
+       El valor debe ser `ON`.
+
+    2. **Verifique la configuración del receptor:**
+
+       ```yaml
+       events:
+         db.server.query_sample:
+           enabled: true
+         db.server.top_query:
+           enabled: true
+       ```
+
+    3. **Verifique los privilegios de la base de datos:**
+
+       ```sql
+       SHOW GRANTS FOR '<YOUR_DB_USERNAME>'@'%';
+       ```
+
+       Debería incluir `SELECT` en `performance_schema.*`.
+  </Collapser>
+
+  <Collapser id="missing-wait-times" title="Las métricas de tiempo de espera no aparecen">
+    **Síntomas:** las métricas de duración de espera de bloqueo siempre muestran 0 segundos.
+
+    **Causa:** el consumidor del esquema de rendimiento de `events_waits_current` está deshabilitado.
+
+    **Soluciones:**
+
+    **Para base de datos MySQL autoadministrada:** agregue a `my.cnf`/`my.ini`:
+
+    ```ini
+    [mysqld]
+    performance-schema-consumer-events-waits-current=ON
+    ```
+
+    Luego reinicie MySQL.
+
+    **Para AWS RDS:**
+
+    ```sql
+    UPDATE performance_schema.setup_consumers 
+    SET ENABLED='YES' 
+    WHERE NAME='events_waits_current';
+    ```
+
+    <Callout variant="important">
+      En RDS, esta configuración no persiste después de los reinicios. Otorgue al usuario de monitoreo privilegios de UPDATE en `performance_schema.setup_consumers` para que el recolector pueda volver a habilitarlo automáticamente.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="missing-query-plans" title="Faltan planes de consulta para consultas largas">
+    **Síntomas:** `mysql.query_plan` está vacío para algunas consultas, particularmente las más largas.
+
+    **Causa:** El texto de la declaración es truncado por los límites de longitud de resumen de MySQL, lo que hace que el receptor omita `EXPLAIN`.
+
+    **Solución:** aumente los parámetros del servidor MySQL:
+
+    ```sql
+    SET GLOBAL max_digest_length = 4096;
+    SET GLOBAL performance_schema_max_digest_length = 4096;
+    SET GLOBAL performance_schema_max_sql_text_length = 4096;
+    ```
+
+    Agregue a `my.cnf` para hacerlo permanente:
+
+    ```ini
+    [mysqld]
+    max_digest_length = 4096
+    performance_schema_max_digest_length = 4096
+    performance_schema_max_sql_text_length = 4096
+    ```
+  </Collapser>
+
+  <Collapser id="no-query-plans-old-versions" title="Planes de consulta faltantes en eventos de consulta principales">
+    **Síntomas:** no hay planes de consulta disponibles en los eventos `db.server.top_query`.
+
+    **Causa:** comportamiento esperado — `query_sample_text` no existe en MySQL `5.7.x` o `8.0.0`–`8.0.2`.
+
+    **Soluciones:** actualice a MySQL `8.0.3` o posterior para obtener soporte para planes de consulta.
+  </Collapser>
+
+  <Collapser id="write-statement-plans" title="Faltan los planes de sentencias de escritura">
+    **Síntomas:** Faltan los planes de consulta para las sentencias `UPDATE`, `INSERT`, `DELETE` o `REPLACE`.
+
+    **Causa:** El usuario de monitoreo carece de privilegios DML y `explain_mode` está establecido en `inline`.
+
+    **Solución:** Cambie al modo `procedure` en la configuración de su receptor:
+
+    ```yaml
+    nrmysql:
+      explain_mode: procedure
+    ```
+
+    Esto utiliza un procedimiento `SQL SECURITY DEFINER` para explicar las sentencias de escritura sin otorgar privilegios DML al usuario de monitoreo.
+  </Collapser>
+
+  <Collapser id="empty-client-name" title="El nombre del cliente está vacío para las sesiones">
+    **Síntomas:** El atributo `mysql.session.client_name` está vacío para algunas conexiones de base de datos.
+
+    **Causa:** No es un error — algunos controladores de cliente no envían atributos de conexión de forma predeterminada.
+
+    **Notas:**
+
+    * Este es un comportamiento dependiente de los datos
+    * Diferentes bibliotecas de cliente de MySQL tienen distinto soporte para los atributos de conexión
+    * No todas las aplicaciones configuran sus controladores para enviar esta información
+  </Collapser>
+
+  <Collapser id="empty-comment-tags" title="Las etiquetas de comentarios están vacías">
+    **Síntomas:** las etiquetas de correlación de APM no se están extrayendo de los comentarios de SQL.
+
+    **Causa:** la extracción de la etiqueta de comentario no está configurada.
+
+    **Solución:** agregue `allowed_comment_keys` a ambos bloques de recopilación en su configuración:
+
+    ```yaml
+    query_sample_collection:
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      allowed_comment_keys: [nr_service_guid]
+    ```
+
+    La extracción de la etiqueta de comentario está vacía de forma predeterminada por razones de seguridad.
+  </Collapser>
+
+  <Collapser id="entity-missing" title="Falta la entidad de MySQL o la relación de APM">
+    **Síntomas:**
+
+    * Falta la entidad de MySQL en el explorador de entidades
+    * La aplicación APM no muestra las relaciones de base de datos
+
+    **Causa:** faltan los atributos de recursos `server.address` y `server.port` requeridos para la síntesis de entidades.
+
+    **Solución:** agregue un procesador de recursos a la configuración de su recolector:
+
+    ```yaml
+    processors:
+      resource/mysql:
+        attributes:
+          - key: server.address
+            value: "<YOUR_DB_HOST>"
+            action: upsert
+          - key: server.port
+            value: <YOUR_DB_PORT>
+            action: upsert
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [nrmysql]
+          processors: [resource/mysql, batch]
+          exporters: [otlp/newrelic]
+        logs:
+          receivers: [nrmysql]
+          processors: [resource/mysql, batch]
+          exporters: [otlp/newrelic]
+    ```
+  </Collapser>
+
+  <Collapser id="connection-errors" title="Errores de conexión rechazada o de autenticación">
+    **Síntomas:**
+
+    * Errores de &quot;conexión rechazada&quot;
+    * Fallas de autenticación &quot;Access denied&quot;
+
+    **Soluciones:**
+
+    **Para conexión rechazada:**
+
+    1. Verifique que MySQL se esté ejecutando:
+       ```bash
+       systemctl status mysql
+       ```
+    2. Compruebe que las reglas del firewall permitan conexiones en el puerto de MySQL (predeterminado 3306)
+    3. Verifique que `bind-address` en la configuración de MySQL permita conexiones externas
+
+    **Para errores de autenticación:**
+
+    1. Verifique que el usuario exista y tenga los privilegios correctos:
+       ```sql
+       SELECT User, Host FROM mysql.user WHERE User='<YOUR_DB_USERNAME>';
+       SHOW GRANTS FOR '<YOUR_DB_USERNAME>'@'%';
+       ```
+    2. Verifique que la contraseña sea correcta
+    3. Para RDS, asegúrese de que el grupo de seguridad permita conexiones entrantes
+  </Collapser>
+
+  <Collapser id="rds-specific-issues" title="Problemas específicos de AWS RDS">
+    **Restablecimientos del consumidor del esquema de rendimiento de RDS:** el consumidor `events_waits_current` se deshabilita automáticamente en el reinicio/conmutación por error de RDS. Otorgue privilegios de UPDATE en `performance_schema.setup_consumers` para que el recolector pueda volver a habilitarlo:
+
+    ```sql
+    GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+    ```
+
+    **Seguridad de red de RDS:** Asegúrese de que su grupo de seguridad de RDS permita el tráfico entrante en el puerto 3306 desde la dirección IP o el grupo de seguridad del NRDOT Collector.
+  </Collapser>
+
+  <Collapser id="rds-tls-certificate-error" title="Error de certificado TLS al conectarse a RDS">
+    **Síntomas:** El recolector no se puede conectar, con un error relacionado con el certificado o TLS.
+
+    **Causa:** RDS aplica TLS. El recolector no confía en la CA de RDS de Amazon de forma predeterminada.
+
+    **Solución:** Establezca `tls.ca_file` (o `tls.ca_pem`) en el [paquete de certificados de Amazon RDS](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem), y deje `tls.insecure`/`tls.insecure_skip_verify` en `false`:
+
+    ```yaml
+    nrmysql:
+      tls:
+        insecure: false
+        insecure_skip_verify: false
+        ca_file: /path/to/global-bundle.pem
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Ejemplos de consultas NRQL
+
+Use estas consultas NRQL para solucionar problemas y verificar su monitoreo de MySQL:
+
+### Verifique si hay consultas bloqueadas
+
+```sql
+FROM Log SELECT * WHERE event.name = 'db.server.query_sample' 
+AND mysql.blocking.blocker.count > 0 
+SINCE 1 hour ago
+```
+
+<Callout variant="tip">
+  Filtre con `mysql.blocking.blocker.count > 0`, no con `!= 0` — en NRQL, `null != 0` se evalúa como `TRUE`, lo que incluiría silenciosamente sesiones no bloqueadas en sus resultados.
+</Callout>
+
+### Encontrar las consultas más lentas
+
+```sql
+FROM Log SELECT db.query.text, 
+mysql.events_statements_summary_by_digest.sum_timer_wait,
+mysql.events_statements_summary_by_digest.count_star
+WHERE event.name = 'db.server.top_query'
+ORDER BY mysql.events_statements_summary_by_digest.sum_timer_wait DESC
+LIMIT 10
+```
+
+### Verifique la síntesis de entidad
+
+```sql
+FROM Metric SELECT uniqueCount(entity.guid) 
+WHERE metricName LIKE 'mysql.%' 
+FACET server.address, server.port
+SINCE 1 hour ago
+```
+
+## Obtener ayuda
+
+Si continúa experimentando problemas:
+
+1. Verifique los logs de NRDOT Collector:
+
+   ```bash
+   journalctl -u nrdot-collector -f
+   ```
+
+2. Verifique su sintaxis de configuración:
+
+   ```bash
+   nrdot-collector validate --config=<your-config-file>
+   ```
+
+3. Revise nuestros [requisitos de compatibilidad](/docs/opentelemetry/database/mysql/compatibility)
+
+4. Comuníquese con el soporte de New Relic con los logs y la configuración de su recolector (elimine la información confidencial como las contraseñas)
+
+## Documentación relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Instrumentación en entornos autohospedados" path="/docs/opentelemetry/database/mysql/hosted">
+    Aprenda a configurar el monitoreo de MySQL en entornos autohospedados con New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentación en entornos RDS" path="/docs/opentelemetry/database/mysql/rds">
+    Aprenda a configurar el monitoreo de MySQL en entornos RDS con New Relic.
+  </DocTile>
+
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/database/mysql/metrics-reference">
+    Obtenga información sobre las métricas disponibles recopiladas por NRDOT Collector.
+  </DocTile>
+</DocTiles>
