@@ -11,22 +11,46 @@ translationType: machine
 ---
 
 <Callout variant="important">
-  **인프라 에이전트 v1.73.0 이상의 알려진 문제:** Windows 그룹 정책 제한이 있는 시스템에서 MSI 설치가 오류 **1603** 으로 실패할 수 있습니다.
+  **Known Issue for infrastructure agent v1.73.0 and above:** Silent MSI installation (`/qn`) will fail with error **1603** if mandatory configuration parameters are missing, or on systems with strict Windows Group Policy restrictions.
 </Callout>
 
 ## 문제 [#problem]
 
 * v1.72.x에서는 설치가 작동했지만 v1.73.0 이상 버전에서는 실패합니다
+* MSI silent installation exits with Error **1603**
 * 강화되거나 CIS를 준수하는 Windows 시스템에서 발생합니다
 * 서비스 `newrelic-infra` 이(가) 생성되지 않았습니다
 
 ## 원인 [#cause]
 
-인프라 에이전트 v1.73.0 이상은 설치를 위해 지연된 PowerShell 사용자 지정 작업을 사용합니다. Windows 그룹 정책 설정 `HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer\DisableMSI` (`1` 또는 `2`로 설정된 경우)은 보안상의 이유로 이러한 작업을 차단합니다.
+From version v1.73.0 onwards, the <DNT>Windows MSI</DNT> installer uses deferred <DNT>PowerShell</DNT> custom actions to automatically validate and generate the agent&apos;s configuration file during the installation phase.
+
+This error is typically triggered by one of the following two causes:
+
+* **Missing mandatory installation parameters (most common):** When using the `/qn` (silent) switch, the installer&apos;s custom action script will immediately fail and rollback the installation (Error 1603) if you do not explicitly pass `GENERATE_CONFIG=true` and `LICENSE_KEY=YOUR_LICENSE_KEY` as command-line arguments.
+* **Windows group policy restrictions:** On hardened or CIS-compliant <DNT>Windows</DNT> systems, the group policy setting `HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer\DisableMSI` (when set to `1` or `2`) blocks these deferred <DNT>PowerShell</DNT> custom actions from executing, resulting in a 1603 error.
 
 ## 해결책 [#solution]
 
-설치 중 MSI 제한을 일시적으로 비활성화하십시오:
+### Step 1: Ensure mandatory parameters are passed (primary solution)
+
+If you are performing a silent installation, you **must** provide the mandatory configuration parameters directly in the `msiexec.exe` command line.
+
+Ensure you are executing the installation using the following parameter-inclusive syntax:
+
+```powershell
+msiexec.exe /qn /i PATH\TO\newrelic-infra.msi GENERATE_CONFIG=true LICENSE_KEY=YOUR_LICENSE_KEY
+```
+
+<Callout title="메모">
+  The installer requires these parameters to successfully complete the silent installation loop. If you wish to manage or overwrite the `newrelic-infra.yml` file post-install via external configuration management tools, you still need to pass these parameters to allow the <DNT>MSI</DNT> to complete successfully.
+</Callout>
+
+### Step 2: Temporarily disable MSI restriction (for hardened systems)
+
+If the installation still fails with Error 1603 even after passing the mandatory parameters in Step 1, your OS security policy is likely blocking the installer&apos;s custom actions.
+
+Run the following script to temporarily disable the <DNT>DisableMSI</DNT> restriction during installation and restore it immediately afterward:
 
 ```powershell
 # Store original value
@@ -40,7 +64,7 @@ try {
     }
     Set-ItemProperty -Path $regPath -Name DisableMSI -Value 0 -Type DWord -Force
     
-    # Run the installation
+    # Run the installation with mandatory parameters
     msiexec.exe /qn /i PATH\TO\newrelic-infra.msi GENERATE_CONFIG=true LICENSE_KEY=YOUR_LICENSE_KEY
     
 } finally {
@@ -53,16 +77,16 @@ try {
 }
 ```
 
-이 PowerShell 스크립트를 실행하여 DisableMSI 정책이 문제를 일으키는지 확인하십시오:
+You can use this <DNT>PowerShell</DNT> script to pre-check if the <DNT>DisableMSI</DNT> policy exists and is likely to cause issues:
 
 ```powershell
 $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer"
 $disableMsi = (Get-ItemProperty -Path $regPath -Name DisableMSI -ErrorAction SilentlyContinue).DisableMSI
 
 if ($null -eq $disableMsi -or $disableMsi -eq 0) {
-    Write-Host "DisableMSI not set or set to 0 - Installation should work"
+    Write-Host "DisableMSI not set or set to 0 - Installation should work if mandatory parameters are supplied."
 } else {
-    Write-Host "WARNING: DisableMSI is set to $disableMsi - Installation will likely fail with error 1603"
-    Write-Host "Use the workaround above to install successfully"
+    Write-Host "WARNING: DisableMSI is set to $disableMsi - Installation will likely fail with error 1603 due to OS security policy."
+    Write-Host "Use the Step 2 workaround script above to install successfully."
 }
 ```
