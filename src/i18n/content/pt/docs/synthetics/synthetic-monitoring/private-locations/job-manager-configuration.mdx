@@ -77,7 +77,7 @@ As variáveis ambientais permitem ajustar a configuração do gerenciador de tar
           </td>
 
           <td>
-            Para contas baseadas nos EUA, o endpoint é: `https://synthetics-horde.nr-data.net.`
+            Para contas baseadas nos EUA (padrão), o endpoint é: `https://synthetics-horde.nr-data.net.`
 
             Para contas [baseadas na UE](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy) , o endpoint é: `https://synthetics-horde.eu01.nr-data.net/`
 
@@ -273,7 +273,7 @@ As variáveis ambientais permitem ajustar a configuração do gerenciador de tar
           </td>
 
           <td>
-            Para contas baseadas nos EUA, o endpoint é: `https://synthetics-horde.nr-data.net.`
+            Para contas baseadas nos EUA (padrão), o endpoint é: `https://synthetics-horde.nr-data.net.`
 
             Para contas [baseadas na UE](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy) , o endpoint é: `https://synthetics-horde.eu01.nr-data.net/`
 
@@ -563,7 +563,7 @@ As variáveis ambientais permitem ajustar a configuração do gerenciador de tar
           </td>
 
           <td>
-            Para contas baseadas nos EUA, o endpoint é: `https://synthetics-horde.nr-data.net.`
+            Para contas baseadas nos EUA (padrão), o endpoint é: `https://synthetics-horde.nr-data.net.`
 
             Para contas [baseadas na UE](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy) , o endpoint é: `https://synthetics-horde.eu01.nr-data.net/`
 
@@ -1029,7 +1029,7 @@ As variáveis ambientais permitem ajustar a configuração do gerenciador de tar
           </td>
 
           <td>
-            Para contas baseadas nos EUA, o endpoint é: `https://synthetics-horde.nr-data.net.`
+            Para contas baseadas nos EUA (padrão), o endpoint é: `https://synthetics-horde.nr-data.net.`
 
             Para contas [baseadas na UE](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy) , o endpoint é: `https://synthetics-horde.eu01.nr-data.net/`
 
@@ -1849,6 +1849,91 @@ Selecione sua plataforma de orquestração de contêineres abaixo para montar se
     **Como isso funciona:** na inicialização, o SJM monta esse secret e o repassa automaticamente para todos os pods de execução recém-criados.
   </Collapser>
 </CollapserGroup>
+
+## Certificados de cliente mTLS [#mtls-client-certificates]
+
+Se os monitores se conectarem a endpoints internos que impõem o TLS mútuo (mTLS) — exigindo que o cliente apresente um certificado —, será possível fornecer certificados de cliente mapeados para nomes de host de destino. Os monitores apresentam o certificado correto automaticamente. Nenhuma alteração de script é necessária.
+
+**Requisitos:**
+
+* Os arquivos de certificado e chave devem estar no formato PEM
+* Um arquivo `cert-map.json` de mapeamento de nomes de host para arquivos de certificado e chave é necessário
+
+**Formato do cert-map.json:**
+
+```json
+{
+  "api.internal.company.com": { "cert": "client.crt",   "key": "client.key" },
+  "*.payments.internal":      { "cert": "payments.crt", "key": "payments.key" },
+  "default":                  { "cert": "fallback.crt", "key": "fallback.key" }
+}
+```
+
+Prioridade de correspondência de nome do host: correspondência exata → curinga (`*.domain.com`) → `default` catch-all → nenhum certificado (conexões não mTLS não são afetadas).
+
+<CollapserGroup>
+  <Collapser id="mtls-docker" title="Docker">
+    Montar um diretório contendo `cert-map.json` e os arquivos de certificado e chave referenciados:
+
+    ```sh
+    docker run \
+      -v /path/to/ca-certs:/var/lib/newrelic/synthetics/certs:ro \
+      -v /path/to/client-certs:/var/lib/newrelic/synthetics/client-cert:ro \
+      newrelic/synthetics-job-manager
+    ```
+
+    Se os nomes do host do servidor mTLS não puderem ser resolvidos via DNS dentro dos contêineres de tempo de execução, adicione mapeamentos de nome do host usando `RUNTIME_EXTRA_HOSTS`:
+
+    ```sh
+    docker run \
+      -e 'RUNTIME_EXTRA_HOSTS=api.internal.company.com:10.0.0.1,svc.internal:10.0.0.2' \
+      -v /path/to/client-certs:/var/lib/newrelic/synthetics/client-cert:ro \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser id="mtls-podman" title="Homem-Pod">
+    Montar o diretório de certificados do cliente. Para o SELinux, adicionar `:z` ou `:Z`:
+
+    ```sh
+    podman run \
+      -v /path/to/client-certs:/var/lib/newrelic/synthetics/client-cert:ro,z \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser id="mtls-kubernetes" title="Kubernetes">
+    Crie um Kubernetes Secret contendo `cert-map.json` e todos os arquivos de certificado e chave referenciados:
+
+    ```sh
+    kubectl create secret generic my-mtls-certs \
+      --from-file=cert-map.json=/path/to/cert-map.json \
+      --from-file=client.crt=/path/to/client.crt \
+      --from-file=client.key=/path/to/client.key \
+      -n newrelic
+    ```
+
+    Referenciar o secret nos valores do Helm:
+
+    ```yaml
+    global:
+      clientCertificates:
+        volume:
+          secret:
+            secretName: my-mtls-certs
+    ```
+
+    O secret é montado como somente leitura em todos os pods de tempo de execução automaticamente.
+  </Collapser>
+</CollapserGroup>
+
+## Limitações do suporte a certificados [#certificates-support-limitations]
+
+As seguintes limitações se aplicam tanto aos certificados de CA personalizados quanto aos certificados de cliente mTLS, a menos que indicado o contrário:
+
+* **Reinicialização necessária para alterações de certificado** — Os certificados são carregados na inicialização do contêiner. Após adicionar, remover ou rotacionar certificados, reinicie o contêiner do gerenciador de jobs (ou os pods de tempo de execução no Kubernetes) para que as alterações entrem em vigor.
+* **Tempos de execução suportados** — Os recursos de certificado personalizado aplicam-se apenas a monitores de API com script e monitores de browser com script. Monitores de ping não são afetados.
+* **CN do titular exclusivo por certificado (apenas mTLS)** — Cada certificado de cliente deve ter um Nome comum (CN) do titular exclusivo. O Chrome usa o CN para identificar e selecionar automaticamente o certificado correto por nome do host.
 
 ## Armazenamento permanente de dados [#permanent-data-storage]
 

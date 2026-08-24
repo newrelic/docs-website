@@ -1,0 +1,137 @@
+---
+title: RCA d'alerte avec Autopilot et Slack
+tags:
+  - workflow automation
+  - workflow
+  - autopilot
+  - slack
+  - RCA
+  - incident response
+metaDescription: Trigger Autopilot to investigate a New Relic alert and post the root cause analysis findings to a Slack channel.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Lorsqu&apos;une alerte se déclenche, déclenchez [Autopilot](/docs/agentic-ai/autopilot/overview) pour exécuter une analyse des causes profondes et publier les résultats directement sur un canal Slack. Si Autopilot ne renvoie aucune réponse utilisable, le workflow envoie un avis d&apos;erreur à la place afin que l&apos;équipe sache qu&apos;elle doit enquêter manuellement.
+
+Avant d&apos;utiliser ce workflow, assurez-vous d&apos;avoir :
+
+* Un ID de problème d&apos;alerte New Relic au format UUID
+* Destination Slack configurée dans New Relic — voir [Créer des destinations](/docs/workflow-automation/setup-and-configure/create-destinations)
+* L’UUID de la destination et le nom du canal Slack cible
+
+Ce workflow effectue les étapes suivantes :
+
+1. Envoie un message Slack initial pour accuser réception de l&apos;alerte et informer l&apos;équipe que la RCA est en cours
+2. Exécute Autopilot avec un prompt d&apos;analyse des causes profondes limité à l&apos;ID du problème d&apos;alerte
+3. Vérifie si Autopilot a renvoyé une réponse utilisable
+4. En cas de succès : reformate la réponse sous forme de blocs Slack Block Kit et publie les résultats sur Slack si Autopilot réussit.
+5. En cas d’échec : publie un message d’erreur avec l’ID du problème si Autopilot échoue.
+
+Ce workflow utilise `newrelic.autopilot.run` et `newrelic.notification.sendSlack`
+
+```yaml
+name: autopilotSlackRCA
+description: Automatically analyze New Relic alerts with Autopilot and send cleanly formatted findings to Slack
+workflowInputs:
+  issueId:
+    type: String
+    required: true
+    validations:
+      - errorMessage: Must be a valid New Relic issue ID in UUID format
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        type: regex
+  slackDestinationId:
+    type: String
+    required: true
+    validations:
+      - pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+        errorMessage: "Invalid format. Please provide a valid UUID."
+        type: regex
+  channel:
+    type: String
+    required: true
+steps:
+  - name: notifyAlertReceived
+    type: action
+    action: newrelic.notification.sendSlack
+    version: 1
+    inputs:
+      destinationId: ${{ .workflowInputs.slackDestinationId }}
+      channel: ${{ .workflowInputs.channel }}
+      text: |-
+        🔔 *Alert Received — Starting Root Cause Analysis*
+
+        ⏳ Running Autopilot for RCA, please wait...
+
+  - name: runAutopilot
+    type: action
+    action: newrelic.autopilot.run
+    version: 1
+    inputs:
+      prompt: >-
+        Perform a root cause analysis for the following New Relic alert:
+        Issue ID: ${{ .workflowInputs.issueId }}
+        Provide your comprehensive analysis including Summary, Root Cause, and Remediation Actions.
+      selectors:
+        - name: agentResponse
+          expression: .response.finalAnswer
+    ignoreErrors: true
+
+  - name: checkAgentResponse
+    type: switch
+    switch:
+      - condition: ${{ (.steps.runAutopilot.outputs.agentResponse // "") != "" }}
+        next: buildSlackBlocks
+    next: sendAutopilotError
+
+  - name: buildSlackBlocks
+    type: assign
+    inputs:
+      blocks: '${{ (.steps.runAutopilot.outputs.agentResponse // "") as $r | (if ($r|type)=="string" then ($r | try fromjson catch null) else $r end) as $json | (if ($json|type)=="array" then ($json[0].text // ($json | tostring)) elif ($json|type)=="object" and ($json.card.body|type)=="array" then [ $json.card.body[] | if .type=="Text" then (.value // "") else "" end ] | join("\n\n") elif ($json|type)=="object" and ($json.text|type)=="string" then $json.text else ($r | tostring) end) | gsub("\\*\\*"; "*") | gsub("### "; "*") | gsub("## "; "*") as $text | ([ $text / "\n" ]) as $lines | [ { "type": "header", "text": { "type": "plain_text", "text": "✅ Autopilot RCA Complete" } }, { "type": "divider" } ] + [ $lines[][] | select(. != "") | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ] }}'
+    next: sendRcaFindings
+
+  - name: sendRcaFindings
+    type: action
+    action: newrelic.notification.sendSlack
+    version: 1
+    inputs:
+      destinationId: ${{ .workflowInputs.slackDestinationId }}
+      channel: ${{ .workflowInputs.channel }}
+      blocks: ${{ .steps.buildSlackBlocks.outputs.blocks }}
+    next: end
+
+  - name: sendAutopilotError
+    type: action
+    action: newrelic.notification.sendSlack
+    version: 1
+    inputs:
+      destinationId: ${{ .workflowInputs.slackDestinationId }}
+      channel: ${{ .workflowInputs.channel }}
+      text: |-
+        🟥 *Autopilot RCA Failed*
+
+        Could not extract findings from Autopilot response for issue: ${{ .workflowInputs.issueId }}
+        Please investigate manually.
+    next: end
+```
+
+## Sujets connexes [#related-topics]
+
+<DocTiles>
+  <DocTile title="Vue d’ensemble d’Autopilot" path="/docs/agentic-ai/autopilot/overview">
+    Découvrez comment Autopilot enquête sur les alertes et les incidents
+  </DocTile>
+
+  <DocTile title="Logique conditionnelle" path="/docs/workflow-automation/workflow-examples/basic-patterns/conditional-logic">
+    Utilisez des instructions switch pour bifurquer en cas de succès ou d&apos;échec
+  </DocTile>
+
+  <DocTile title="Envoyer des notifications Slack" path="/docs/workflow-automation/setup-and-configure/actions-catalog/newrelic/newrelic-notification#newrelic.notification.sendSlack">
+    Référence complète pour l’action sendSlack
+  </DocTile>
+
+  <DocTile title="Créer des destinations" path="/docs/workflow-automation/setup-and-configure/create-destinations">
+    Configurez la destination Slack requise par ce workflow
+  </DocTile>
+</DocTiles>
