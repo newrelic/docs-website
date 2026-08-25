@@ -2,50 +2,47 @@
 title: 'React Native symbolication support launches'
 summary: 'Shorten MTTR with better stack trace visibility into your mobile errors'
 releaseDate: '2026-08-25'
-learnMoreLink: ''
+learnMoreLink: 'https://docs.newrelic.com/docs/mobile-monitoring/new-relic-monitoring-react-native/react-native-agent-js-error-reporting'
 ---
 
-## React Native symbolication support launches 
+New Relic now supports React Native symbolication. Apply source map files to unminify stack traces so you can see the exact line of code behind every mobile JavaScript error, and resolve issues faster.
 
+Source map support helps with:
 
-# Troubleshoot quicker and shorten MTTR with better stack trace visibility into your mobile errors. To learn more, [see our docs.]()  
+* **Speeding up debugging and lowering MTTR:** Remove the guesswork and see the exact line of code that caused an error.
+* **Easy controls using enhanced API:** Search for and list source maps via an API.
+* **Easier triaging:** Teams can identify whether an error belongs to app code or a third-party package.
 
-New Relic is excited to announce that we now support React Native symbolication, which will allow you to see the underlying code from mobile JavaScript errors to speed up issue resolution. 
+## Key features
 
-The application of source map files to unminify stack traces helps with:
+**Intuitive UI:** See React Native errors in errors inbox in the platform. Get better visibility into your overall React Native JavaScript error rate and users affected.
 
-* **Speeding up debugging and lowering MTTR:** Remove the guesswork and see the exact line of code that caused an error. 
-* **Easy controls using enhanced API:** Search for and list source maps via an API. 
-* **Easier triaging:** Teams can identify whether an error belongs to app code or a third-party package. 
+**Query map files via NerdGraph or NRQL:** Standard API operations mean you can audit and view your uploaded source map files.
 
-**Key Features:** 
+**Query new event:** Add to existing dashboards and track `errorMessage` and `errorType` fields and more. Example NRQL query:
 
-**Intuitive UI:** See React Native errors in Errors Inbox in the platform. Get better visibility into and understand your overall React Native JavaScript error rate and users affected. 
+```sql
+FROM MobileJSError SELECT errorMessage, errorName, isFatalError SINCE 1 week ago
+```
 
-**Query map files via NerdGraph or NRQL:** Standard API operations mean you can easily audit and view your uploaded source map files. 
+## Important: breaking change in error reporting
 
-**Query new event:** Add to existing dashboards and track errorMessage and errorType fields and more. Example NRQL query: 
+These events are now captured as `MobileJSError` events rather than as `MobileHandledException` events. Upon updating the agent, revisit the following:
 
-FROM MobileJSError SELECT errorMessage, errorName, isFatalError since 1 week ago
+* **Drop rules:** If you have existing drop rules for `MobileHandledException` events for React Native apps and don't want this data, you'll need to change them to handle the new event type.
 
-**With newer React Native Agent update, please note:** 
+* **Alert conditions:** Create new conditions to get threshold alerts for the new event type. Error rates under `MobileHandledException` may not stay the same.
 
-These events are now captured as MobileJSError events rather than as HandledException events. Upon updating the agent, you should revisit the following: 
+* **Dashboards:** Create new nerdlets in dashboards to track `MobileJSError` events.
 
-* Drop rules for HandledException events for React Native apps. If you have existing drop rules whereby you do not want this data, you will need to modify to handle for the new event. 
+* **Service levels:** If your team has service levels set up to track health metrics for your mobile app, consider creating new rules for `MobileJSError`.
 
-* Alert conditions. Creating new conditions to be notified on thresholds for the new event type. As this data will be captured under the new event, error rates under HandledException may not stay the same. 
+## Get started
 
-* Dashboards. Creating new nerdlets in dashboards to monitor MobileJSError events. 
-
-* Service Levels. If your team has service levels set up to monitor health metrics for your mobile app, consider creating new rules for tracking MobileJSError. 
-
-Get started
-
-React Native symbolication support is now available and included in the New Relic platform. This feature will contribute to your GB/ingest pricing, though rather than report under HandledException event, it will report under MobileJSError event. Start using today with the latest agent versions listed below: 
+React Native symbolication support is now available and included in the New Relic platform. This feature contributes to your GB/ingest pricing and reports under `MobileJSError` instead of `MobileHandledException`. Start using today with the latest agent versions:
 
 * iOS Agent: 7.7.6
-* Android Agent: 7.8.0
-* React Native v1.9.0 
+* Android Agent: 7.8.2
+* React Native Agent: 1.9.0
 
-
+To learn more, see the [React Native JavaScript error reporting documentation](https://docs.newrelic.com/docs/mobile-monitoring/new-relic-monitoring-react-native/react-native-agent-js-error-reporting).
