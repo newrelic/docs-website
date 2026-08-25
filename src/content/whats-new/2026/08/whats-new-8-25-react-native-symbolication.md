@@ -42,7 +42,7 @@ These events are now captured as `MobileJSError` events rather than as `MobileHa
 React Native symbolication support is now available and included in the New Relic platform. This feature contributes to your GB/ingest pricing and reports under `MobileJSError` instead of `MobileHandledException`. Start using today with the latest agent versions:
 
 * iOS Agent: 7.7.6
-* Android Agent: 7.8.2
+* Android Agent: 7.8.0
 * React Native Agent: 1.9.0
 
 To learn more, see the [React Native JavaScript error reporting documentation](https://docs.newrelic.com/docs/mobile-monitoring/new-relic-monitoring-react-native/react-native-agent-js-error-reporting).
