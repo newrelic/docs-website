@@ -2,7 +2,7 @@
 title: 'Infra Monitoring with Amazon EC2 to see lower TDP costs' 
 summary: 'If you use New Relic’s Infrastructure Monitoring with Amazon Web Services (AWS) Elastic Compute Cloud (Amazon EC2), this post is for you. We are reducing the cost of ingesting Amazon EC2 infrastructure telemetry data, effective December 15th, 2021.' 
 releaseDate: '2021-12-15' 
-learnMoreLink: 'https://discuss.newrelic.com/t/infra-monitoring-with-amazon-ec2-to-see-lower-tdp-costs/170743' 
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008clJ/infra-monitoring-with-amazon-ec2-to-see-lower-tdp-costs' 
 getStartedLink: 'https://newrelic.com/blog/nerdlog/infrastructure-monitoring-in-preview'
 ---
 ## AWS and New Relic: Better Together
