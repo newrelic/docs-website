@@ -1,0 +1,115 @@
+---
+title: eBPFログ
+metaDescription: 'Learn how to collect application logs with New Relic''s eBPF agent, without deploying a separate log forwarder.'
+tags:
+  - Integrations
+  - eBPF integration
+  - eBPF logs
+  - Logs
+  - extended Berkeley Packet Filter (eBPF)
+  - Linux host
+  - Kubernetes cluster
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
+</Callout>
+
+New Relic eBPFエージェントは、従来のフォワーダーのようにログファイルを&quot;tailing&quot;する代わりに、カーネルレベルの可視性を使用して、APMおよびネットワークテレメトリーをすでに収集しているのと同じホストまたはコンテナから直接アプリケーションログを収集できるようになりました。これにより、以下のことが可能になります：
+
+* **自動メタデータエンリッチメント**: デフォルトで、キャプチャされたログにNew Relicのメタデータをエンリッチします。これにより、顧客の設定を必要とせずに、同じエージェントのAPMおよびネットワークテレメトリーとともにトラブルシューティングのコンテキストが提供されます。
+* **管理するエージェントを1つ削減** : eBPFエージェントと並行して専用のログフォワーダー（Fluent Bitなど）を実行することによるリソースの競合、相関関係のギャップ、およびメンテナンスのオーバーヘッドを排除します。
+* **アタックサーフェスの縮小** : 別のフォワーダーが依存するプラグインベースのロギングミドルウェアを削除し、CVEへの露出とサードパーティのログ転送プラグインへの依存関係の両方を削減します。
+
+## eBPFログのセットアップ [#setup]
+
+<Callout variant="important" title="重要">
+  eBPFログはセルフサービス機能です。eBPFログを通じて取り込まれたすべてのログは、適用される注文に従って課金対象となります。
+
+  機密情報のデータ難読化およびドロップは、OpenTelemetry Transformation Language（OTTL）を使用して、[Pipeline Control Gateway（PCG）](/docs/new-relic-control/pipeline-control/gateway/transform-processor)経由でのみ利用可能です。eBPFからNew Relicへの直接のデータフローには、組み込みの難読化は含まれていません。注文にPCGを追加するには、アカウント担当者にお問い合わせください。
+
+  New Relicのログ取り込みパイプラインは、PCGに依存せず、すべてのアカウントの`message`フィールドにあるクレジットカード番号と社会保障番号を自動的に難読化します。その他の機密データについては、取り込み前にマスキングするようにPCGルーティングを設定してください。たとえば、この設定ではeBPFログメッセージから`password`フィールドをマスキングします：
+
+  ```yaml
+  transform/Logs:
+    log_statements:
+    - statements:
+      - replace_pattern(log.body, "password:[^,]+", "password:***")
+      conditions:
+      - IsMatch(log.body, "password:")
+  ```
+
+  この例では、示されている`password`パターンのみをマスキングします。追加の、またはカスタマイズ可能な難読化およびドロップルールについては、PCGで直接サポートされている[OTTL Transformプロセッサ](/docs/new-relic-control/pipeline-control/gateway/transform-processor)を設定してください。その他の例については、[Redact PII](/docs/new-relic-control/pipeline-control/gateway/transform-processor#example-5-redact-pii)を参照してください。
+</Callout>
+
+次の手順を完了して、eBPFログをオンにします：
+
+1. eBPFエージェントをバージョン1.5.0以降にアップデートしてください。これは、New Relicがログレポートに推奨しているバージョンです。
+
+   * Kubernetesについては、[eBPFエージェントのアップグレード](/docs/ebpf/k8s-installation/#upgrade)を参照してください。
+   * Linuxホストの場合は、[eBPFエージェントのアップグレード](/docs/ebpf/linux-installation/#upgrade)を参照してください。
+
+2. 次のパラメーターを設定します：
+
+   * `reportLogs`: ログ収集をオンにするには、`"auto"`または`"true"`に設定します（各値の機能については、以下の[自動検出とバックオフ](#automatic-backoff)を参照してください）。
+   * `logDataFilters.applicationLogReporting.enabled`：これが`true`（デフォルト値）であることを確認するか、設定をカスタマイズしている場合は明示的に設定してください。
+
+   ログ関連のパラメーターの完全なリストについては、[Linuxインストレーション](/docs/ebpf/linux-installation/#config-params)または[Kubernetesインストレーション](/docs/ebpf/k8s-installation/#config-params)ガイドの「設定パラメーター」セクションを参照してください。
+
+3. eBPFエージェントを再起動します。
+
+## 自動検出とバックオフ [#automatic-backoff]
+
+重複するテレメトリーの送信を避けるため、eBPFエージェントは、別のエージェントがすでにエンティティのログを報告しているかどうかを自動的に検出し、それに応じてバックオフすることができます。これは、APMデータおよびネットワークメトリクスにすでに使用されているのと同じパターンです。
+
+`reportLogs`パラメーターは以下を受け入れます：
+
+* `"auto"`: eBPFエージェントの動作は、アタッチされたエージェントのタイプによって異なります：
+
+  * **New Relic APMエージェント** : APMエージェントがログをアクティブに収集または転送していない場合にのみ、eBPFエージェントはログを収集してレポートします。APMエージェントからのアクティブなログ収集を検出した場合、重複を避けるために自身の収集を抑制します。
+  * **OpenTelemetryエージェント**: OpenTelemetryエージェントがアタッチされている場合、eBPFエージェントはログ収集を完全に抑制します。
+
+* `"true"`: 他のエージェントが存在するかどうかにかかわらず、eBPFエージェントは常にログを収集して報告します。
+
+* `"false"` （デフォルト） : eBPFエージェントはログを収集またはレポートしません。
+
+これは、eBPF APMおよびネットワークメトリクスに対する`reportApmData`と`reportNetworkMetrics`の動作を反映しています。ネットワークメトリクスに適用される同等のパターンについては、[ネットワークメトリクス専用モードの有効化](/docs/ebpf/network-metrics/#network-only-mode)を参照してください。
+
+## eBPFログデータの表示 [#view-data]
+
+New Relic UIでeBPFログを表示できます：
+
+1. **[one.newrelic.com](https://one.newrelic.com) &gt; APM &amp; Services**に移動します。
+2. ログを表示するエンティティを選択します。
+3. **Logs** \[ログ] タブをクリックします。
+
+<Callout variant="tip">
+  eBPF エージェントは、環境に基づいてエンティティ名を自動的に生成します。
+
+  * **ホストまたはDockerの場合**: 名前は、プロセス名、ディレクトリパスまたはコンテナID、およびリスニングポートを組み合わせたものです。たとえば、`ruby:/home/ubuntu/app:[5678]`または`java:f4aead533895:[8080]`です。
+  * **Kubernetesの場合** : 名前はサービス名から派生します（例：`mysql-database-service`）。
+</Callout>
+
+eBPFログは現在、インフラストラクチャログではなく、**アプリケーションログのみ**をキャプチャします。
+
+<DocTiles>
+  <DocTile title="eBPF APM" path="/docs/ebpf/ebpf-apm/">
+    ゼロコードで言語に依存しないアプリケーション監視を行うための、New RelicのeBPF APMの使用方法をご覧ください。
+  </DocTile>
+
+  <DocTile title="eBPFネットワークメトリクス" path="/docs/ebpf/network-metrics/">
+    eBPFエージェントのネットワーク監視機能をご確認ください。
+  </DocTile>
+
+  <DocTile title="eBPFエージェントの属性リファレンス" path="/docs/ebpf/attributes-reference/">
+    eBPFエージェントがデータに追加する属性の完全なリストをご覧ください。
+  </DocTile>
+
+  <DocTile title="eBPFのベストプラクティス" path="/docs/ebpf/best-practices/">
+    New Relic eBPF エージェントを使用するためのベストプラクティスについて学びます。
+  </DocTile>
+</DocTiles>

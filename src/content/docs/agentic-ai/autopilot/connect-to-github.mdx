@@ -1,0 +1,137 @@
+---
+title: Connect Autopilot to GitHub
+metaDescription: "Connect New Relic Autopilot to GitHub so it can retrieve Pull Request context from Change Tracking deployments during incident investigations."
+tags:
+  - Agentic AI
+  - Autopilot
+  - GitHub
+  - Change Tracking
+  - Integration
+freshnessValidatedDate: never
+---
+
+<Callout title="preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+When an alert points at a deployment-related regression, the first question is almost always "what shipped?" You end up switching between the New Relic incident, your Change Tracking event, and the GitHub PR to piece the story together. That context switching slows every response.
+
+Connect <DNT>Autopilot</DNT> to GitHub so it can pull the Pull Request behind a Change Tracking deployment and hand you the "what shipped" story inline. When <DNT>Autopilot</DNT> investigates an incident — whether triggered by an alert, invoked manually from Slack, or started from the AI Chat panel — and finds a Change Tracking event with a commit SHA, it uses your organization's GitHub access to fetch the PR that carried the commit and returns a summary of the change alongside the rest of its analysis.
+
+<Callout variant="important">
+  <DNT>Autopilot</DNT> uses read-only access to your GitHub organization. It never writes to GitHub. No PR is created, commented on, merged, or approved. It never stores full file contents or source code — only commit metadata and PR metadata.
+</Callout>
+
+## Prerequisites [#prerequisites]
+
+Before you begin, make sure you have:
+
+* **A configured Autopilot:** An active agent with accounts and permissions set up. Refer to [Set up Autopilot](/docs/agentic-ai/autopilot/setup).
+* **Change Tracking with GitHub enabled:** The services you want <DNT>Autopilot</DNT> to reason about must already be sending deployment markers with commit SHAs to New Relic Change Tracking. Without a commit SHA, there is nothing to look up.
+* **GitHub admin access:** Admin permission on the GitHub organization (or on the specific repositories) whose PRs you want <DNT>Autopilot</DNT> to read. Only an admin can create a fine-grained Personal Access Token scoped to organization resources.
+* **New Relic org manager access:** Only an organization manager for your New Relic account can configure the GitHub connection.
+* **Preview opt-ins:** Active <DNT>Autopilot</DNT> preview trial and the `sre_agent_github_integration` feature flag enabled for your New Relic account. Your New Relic contact can confirm this.
+
+<Callout variant="important">
+  This preview uses a single organization-level Personal Access Token. Per-user authorization is not available yet. Any user in your New Relic organization who can use <DNT>Autopilot</DNT> will see the same GitHub PR and commit data the token can see. Create the token with least privilege (see Step 1). If your GitHub organization requires per-user read boundaries on PRs or commits, wait for per-user support before enabling this integration.
+</Callout>
+
+## Set up the GitHub connection [#setup]
+
+### Step 1: Create a least-privilege GitHub Personal Access Token (admin) [#create-token]
+
+A GitHub admin creates the token that <DNT>Autopilot</DNT> will use. The token grants only the permissions <DNT>Autopilot</DNT> actually needs.
+
+1. Sign in to GitHub as an organization administrator.
+
+2. Go to <DNT>**Settings > Developer settings > Personal access tokens > Fine-grained tokens**</DNT>, then click <DNT>**Generate new token**</DNT>.
+
+3. Fill in the token form:
+   - **Token name:** something you'll recognize later, for example, `newrelic-autopilot-pr-lookup`.
+   - **Resource owner:** your GitHub organization (not a personal account). Owning the token at the org level lets a GitHub admin revoke it centrally.
+   - **Expiration:** 90 days or less. Short expirations force healthy rotation.
+   - **Repository access:** select <DNT>**Only select repositories**</DNT> and pick the specific repos whose deployments are tracked in New Relic Change Tracking. Do not select <DNT>**All repositories**</DNT>.
+
+4. Under <DNT>**Repository permissions**</DNT>, set exactly these three:
+   - **Pull requests: Read** — required for PR lookup by commit SHA, PR search, and listing recent PRs.
+   - **Contents: Read** — required for commit inspection (files changed, additions, deletions) and commit history. <DNT>Autopilot</DNT> uses commit metadata and diff statistics only; it does not store full file contents or source code.
+   - **Metadata: Read** — auto-granted whenever any other repository permission is set.
+
+5. Leave every other permission at <DNT>**No access**</DNT>. In particular, do not grant Organization permissions or Account permissions.
+
+6. Review the permissions summary. It should list only Pull requests: Read, Contents: Read, and Metadata: Read. If anything else shows anything other than "No access," go back and remove it.
+
+<Callout variant="important">
+  Fine-grained PATs bake their scopes at the moment you click <DNT>**Generate token**</DNT>. You cannot edit a fine-grained PAT's permissions after it is created. If you realize you need to add or remove a scope, revoke the existing token and generate a new one from the beginning of Step 1.
+
+  Follow your internal policies for generating, using, and rotating secrets, including its TTL, use of PATs, and the minimum permissions needed.
+</Callout>
+
+7. Click <DNT>**Generate token**</DNT>. GitHub shows the token value only once. Copy it and go straight to Step 2. Do not save the token to a document, chat, ticket, or shared password manager entry; paste it directly into the New Relic setup UI.
+
+<Callout variant="tip">
+  **If your GitHub organization enforces SAML SSO:** After you generate the token, GitHub shows an option to <DNT>**Authorize**</DNT> it for SSO. Complete that authorization before continuing to Step 2. A token that isn't SSO-authorized will fail with 403 the first time <DNT>Autopilot</DNT> tries to use it.
+</Callout>
+
+### Step 2: Connect GitHub to Autopilot (org manager) [#connect-github]
+
+A New Relic organization manager connects GitHub from the <DNT>Autopilot</DNT> configuration panel:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com)**</DNT> and open your account home.
+2. In the top-right of the header, open the agent tray and select the <DNT>**Configure**</DNT> side panel.
+3. Under <DNT>**Agents**</DNT>, click <DNT>**Autopilot**</DNT>. The <DNT>**Configure Autopilot**</DNT> modal opens.
+4. Scroll to the <DNT>**External MCP connections**</DNT> section, find the GitHub row (shown as <DNT>**Not connected**</DNT>), and click <DNT>**Create GitHub MCP connection**</DNT> to expand it.
+5. Fill in the two fields:
+   - **GitHub personal access token:** paste the fine-grained PAT you created in Step 1. The field is masked; use the eye icon to reveal only if you need to verify what you pasted.
+   - **GitHub URL:** leave as `github.com`. This preview supports public GitHub only. GitHub Enterprise Server (self-hosted) and GHE.com (data-residency tier) are not supported.
+6. Click <DNT>**Save**</DNT>. The GitHub row updates to <DNT>**Connected**</DNT>.
+7. Click <DNT>**Update agent**</DNT> at the bottom of the modal to save the overall <DNT>Autopilot</DNT> configuration.
+
+<Callout variant="important">
+  The connection is scoped to your New Relic organization. Every user in your New Relic org who can use <DNT>Autopilot</DNT> will see the same GitHub PR and commit data the token allows. This is why Step 1 stresses least privilege.
+</Callout>
+
+### Step 3: Confirm Autopilot can reach GitHub [#confirm-connection]
+
+There is no separate test button. The connection is exercised by the next <DNT>Autopilot</DNT> investigation that finds a Change Tracking event.
+
+* If you need to test, trigger an incident that has a Change Tracking event with a GitHub commit SHA. Alternatively, wait for one to come in naturally.
+* Ask <DNT>Autopilot</DNT> to investigate. If the token is valid and has the correct scope, <DNT>Autopilot</DNT>'s response will include the PR that shipped the deployment along with the files it touched.
+* If the token is invalid, missing scope, or not SSO-authorized, the GitHub step of the investigation will fail silently and <DNT>Autopilot</DNT> will continue without PR context. Any org manager can open the <DNT>Autopilot</DNT> configuration panel and paste a corrected token to fix it.
+
+## Rotate the GitHub token [#rotate-token]
+
+Rotate the token before its expiration date:
+
+1. In GitHub, create a new fine-grained token with the same scope as Step 1. Keep the old token active in GitHub until step 3 completes.
+2. In New Relic, go back to <DNT>**Configure Autopilot > External MCP connections > GitHub**</DNT> and enter the new token in the same field you used during initial setup. Click <DNT>**Save**</DNT>.
+3. Wait for the next <DNT>Autopilot</DNT> investigation that fetches a PR. If the investigation returns PR context, the new token is working end-to-end.
+4. Revoke the old token in GitHub (<DNT>**Settings > Developer settings > Personal access tokens > Fine-grained tokens > Revoke**</DNT>).
+
+## Pause the GitHub integration [#pause]
+
+If you want to stop <DNT>Autopilot</DNT> from calling GitHub without deleting anything, ask your New Relic contact to disable the `sre_agent_github_integration` feature flag for your account. The stored token stays encrypted in the Secrets Service and is inaccessible to <DNT>Autopilot</DNT> until the flag is re-enabled.
+
+## Disable the GitHub integration [#disable]
+
+<Callout variant="important">
+  Disabling the GitHub integration stops <DNT>Autopilot</DNT> from adding PR and commit context to investigations. Investigations still run; they just no longer link deployments to Pull Requests. If you only want to pause the integration temporarily, refer to [Pause the GitHub integration](#pause) above.
+</Callout>
+
+In this preview, you disable the integration via GitHub, not in New Relic:
+
+1. Sign in to GitHub as the owner of the token you created in Step 1.
+2. Go to <DNT>**Settings > Developer settings > Personal access tokens > Fine-grained tokens**</DNT>.
+3. Find the token used for <DNT>Autopilot</DNT> (for example, `newrelic-autopilot-pr-lookup`) and click <DNT>**Revoke**</DNT>.
+
+GitHub invalidates the token immediately. From that moment, any <DNT>Autopilot</DNT> lookup against `https://api.githubcopilot.com/mcp/` fails with 401, <DNT>Autopilot</DNT> skips the GitHub step, and no PR context is added to future investigations.
+
+The stored copy of the token remains in the New Relic Secrets Service after revocation, but it is a dead token. It is inaccessible to any other New Relic product. If you also want the stored secret removed during this preview, contact your New Relic account team.
+
+## Related articles [#related]
+
+* [Use Autopilot with GitHub](/docs/agentic-ai/autopilot/use-autopilot-with-github)
+* [Troubleshoot the GitHub connection](/docs/agentic-ai/autopilot/troubleshoot-github-connection)
+* [Set up Autopilot](/docs/agentic-ai/autopilot/setup)
