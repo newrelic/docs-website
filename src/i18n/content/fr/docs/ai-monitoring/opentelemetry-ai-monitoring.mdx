@@ -1,0 +1,259 @@
+---
+title: Envoyez vos traces d’IA générative (GenAI) à New Relic avec OpenTelemetry
+metaDescription: 'Learn how to send OpenTelemetry GenAI traces to New Relic so the AI monitoring view shows every LLM call, tool call, and agent step your service makes.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Une fois que votre application envoie des traces d&apos;IA générative (GenAI) OpenTelemetry (OTel) à New Relic, la vue de monitoring de l&apos;IA affiche :
+
+* Chaque appel LLM effectué par votre service — prompt, complétion, modèle, latence, nombre de jetons et raison de fin.
+* Appels d&apos;outils et étapes d&apos;agent dans le cadre de la trace complète de la requête, afin que vous puissiez voir pourquoi un modèle a pris une décision.
+* Erreurs, échecs de limitation de débit et appels lents présentés avec le reste de vos données APM.
+
+Aucun agent New Relic n’est requis. Si votre application émet déjà des traces OpenTelemetry, vous avez fait le plus gros du travail.
+
+## Avant de commencer
+
+Vous aurez besoin de :
+
+* Un compte New Relic avec le monitoring de l&apos;IA activé. Si vous n&apos;êtes pas sûr qu&apos;il soit activé, contactez l&apos;équipe de votre compte New Relic.
+* Une clé de licence d&apos;ingestion New Relic. Allez à <DNT>**Account settings &gt; API keys &gt; Ingest - License**</DNT>.
+* Une application qui appelle un LLM. Des exemples Python pour OpenAI, Anthropic, LangChain et AWS Bedrock sont présentés ci-dessous. Les autres langages dotés de l&apos;instrumentation OpenTelemetry pour l&apos;IA générative (GenAI) fonctionnent de la même manière.
+* Sortie réseau de votre application vers `otlp.nr-data.net` (US) ou `otlp.eu01.nr-data.net` (EU) sur le port 443.
+
+<Callout variant="important">
+  Les instrumentations d’IA générative (GenAI) OTel peuvent capturer les prompts et les complétions exacts que vos utilisateurs envoient et reçoivent. Cela peut inclure des informations personnelles identifiables (PII), des identifiants ou des données réglementées. La capture de contenu est désactivée par défaut. Avant de l’activer, passez en revue les politiques de traitement des données de votre organisation et consultez [Contrôler quels prompts et complétions sont envoyés](#controlling-content).
+</Callout>
+
+<Steps>
+  <Step>
+    ### Pointez votre exportateur OpenTelemetry vers New Relic [#step-1]
+
+    Définissez ces variables d’environnement sur le processus exécutant votre application :
+
+    ```sh
+    # US datacenter. For EU use https://otlp.eu01.nr-data.net:443
+    export OTEL_EXPORTER_OTLP_ENDPOINT="https://otlp.nr-data.net:443"
+    export OTEL_EXPORTER_OTLP_HEADERS="api-key=$NEW_RELIC_LICENSE_KEY"
+
+    # Name that will identify this service in New Relic
+    export OTEL_SERVICE_NAME="my-genai-service"
+
+    # Allow long prompts and completions through without truncation
+    export OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+    export OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+    ```
+
+    Pour obtenir la liste actuelle des points de terminaison OTLP de New Relic, des ports pris en charge et des limites d&apos;ingestion, consultez la [documentation OpenTelemetry de New Relic](/docs/opentelemetry/best-practices/opentelemetry-best-practices-overview).
+  </Step>
+
+  <Step>
+    ### Ajouter le bon package d&apos;instrumentation [#step-2]
+
+    Choisissez la section qui correspond à ce que votre application utilise. Vous pouvez en combiner plusieurs — par exemple, une application LangChain qui appelle Bedrock installerait les deux.
+
+    <Callout variant="tip">
+      Les noms et versions exacts des packages évoluent rapidement dans l’écosystème d’IA générative (GenAI) OpenTelemetry. Vérifiez toujours le registre contrib Python d’OpenTelemetry et la documentation du monitoring de l’IA de New Relic pour le package que votre équipe prend actuellement en charge.
+    </Callout>
+
+    <CollapserGroup>
+      <Collapser id="openai" title="OpenAI">
+        Installez l’instrumentation officielle d’IA générative (GenAI) OpenAI du projet OpenTelemetry, puis exécutez votre application avec `opentelemetry-instrument` ou appelez l’instrumenteur explicitement :
+
+        ```python
+        from opentelemetry.instrumentation.openai_v2 import OpenAIInstrumentor
+        OpenAIInstrumentor().instrument()
+
+        from openai import OpenAI
+        OpenAI().chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+        ```
+      </Collapser>
+
+      <Collapser id="anthropic" title="Anthropic">
+        Installez une instrumentation Anthropic OpenTelemetry (disponible dans le registre contrib OpenTelemetry et dans les distributions communautaires telles qu&apos;OpenLLMetry). Ensuite, activez-la :
+
+        ```python
+        from opentelemetry.instrumentation.anthropic import AnthropicInstrumentor
+        AnthropicInstrumentor().instrument()
+
+        import anthropic
+        anthropic.Anthropic().messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+        ```
+      </Collapser>
+
+      <Collapser id="langchain" title="LangChain">
+        L&apos;instrumentation LangChain couvre la chaîne, tous les appels d&apos;outils et le client de modèle sous-jacent dans un seul package. Installez l&apos;instrumentation LangChain communautaire de votre choix et activez-la au démarrage :
+
+        ```python
+        from opentelemetry.instrumentation.langchain import LangchainInstrumentor
+        LangchainInstrumentor().instrument()
+        ```
+
+        Vos chaînes `ChatOpenAI`, `ChatAnthropic` ou similaires existantes seront tracées automatiquement. Les étapes d&apos;outil et d&apos;agent apparaissent sous forme de spans enfants sous l&apos;invocation de la chaîne parente.
+      </Collapser>
+
+      <Collapser id="aws-bedrock" title="Base AWS">
+        Le trafic Bedrock passe par le SDK AWS. Installez l&apos;instrumentation OpenTelemetry du SDK AWS (botocore) et activez-la :
+
+        ```python
+        from opentelemetry.instrumentation.botocore import BotocoreInstrumentor
+        BotocoreInstrumentor().instrument()
+
+        import boto3, json
+        boto3.client("bedrock-runtime", region_name="us-east-1").invoke_model(
+            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 256,
+                "messages": [{"role": "user", "content": "Hello"}],
+            }),
+        )
+        ```
+
+        Vérifiez que votre version installée émet des attributs d&apos;IA générative (GenAI) (`gen_ai.system`, `gen_ai.request.model` et l&apos;utilisation des jetons) pour les appels Bedrock — la prise en charge a été intégrée progressivement au fil des versions.
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ### Vérifier que vos données arrivent [#step-3]
+
+    1. Redémarrez votre application pour que les nouvelles variables d&apos;environnement et l&apos;instrumentation prennent effet.
+
+    2. Déclenchez une petite quantité de trafic réel — quelques complétions de chat suffisent.
+
+    3. Dans New Relic, ouvrez <DNT>**Query Your Data**</DNT> et exécutez :
+
+       ```sql
+       SELECT count(*) FROM Span
+       WHERE gen_ai.system IS NOT NULL OR gen_ai.provider.name IS NOT NULL
+       SINCE 30 minutes ago
+       FACET service.name, gen_ai.operation.name
+       ```
+
+    4. Dans un délai d&apos;une à deux minutes, vous devriez voir des lignes facettées par le nom de votre service et l&apos;opération (`chat`, `completion`, `embeddings`).
+
+    5. Allez dans <DNT>**APM &amp; Services &gt; AI monitoring**</DNT> et sélectionnez votre service pour voir la vue de l&apos;IA générative (GenAI) se remplir.
+  </Step>
+</Steps>
+
+## Contrôlez quels prompts et complétions sont envoyés [#controlling-content]
+
+Par défaut, la plupart des instrumentations d&apos;IA générative (GenAI) OpenTelemetry ne capturent pas le texte des prompts ou des complétions. Les spans incluront le modèle, le nombre de jetons, la latence et le statut, mais pas le corps des messages.
+
+Pour rendre le contenu des messages visible dans le monitoring de l’IA, vous devez l’accepter explicitement. Le nom de l’indicateur dépend du package d’instrumentation que vous avez installé — consultez la documentation de ce package spécifique. Les exemples courants incluent :
+
+* `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` pour les instrumentations maintenues par OpenTelemetry.
+* `TRACELOOP_TRACE_CONTENT=true` pour les instrumentations communautaires (famille OpenLLMetry).
+
+Avant d&apos;activer la capture de contenu en production, procédez comme suit :
+
+* Passez en revue les données que contiennent vos prompts. Si vos utilisateurs soumettent des informations personnelles (PII), des identifiants ou des données réglementées, ce contenu sera stocké dans New Relic.
+* Envisagez des filtres de suppression ou une obfuscation au niveau des attributs pour supprimer ou hacher des champs spécifiques avant qu’ils ne quittent votre environnement. Consultez [la documentation de New Relic sur le traitement des données](/docs/ai-monitoring/drop-sensitive-data).
+* Vérifiez les exigences de conservation et de conformité de votre organisation (par exemple, RGPD, HIPAA ou PCI).
+
+Si vous n&apos;avez besoin que de la visibilité sur la latence, les jetons et les erreurs — et non sur le corps des messages —, laissez la capture de contenu désactivée.
+
+## Dépannage
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Ce que vous voyez
+      </th>
+
+      <th>
+        Ce qu&apos;il faut essayer
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        La requête de l&apos;étape 3 ne renvoie aucune ligne
+      </td>
+
+      <td>
+        Confirmez que votre point de terminaison OTLP correspond à la région de votre compte et que l&apos;en-tête `api-key` contient une clé de licence d&apos;ingestion valide (et non une clé utilisateur).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Les traces arrivent dans New Relic mais le service n&apos;apparaît pas dans le monitoring de l&apos;IA
+      </td>
+
+      <td>
+        New Relic active automatiquement la vue de monitoring de l’IA pour les services dont les spans portent des attributs d’IA générative (GenAI). Si le service n’apparaît pas, confirmez que ses spans incluent `gen_ai.system` ou `gen_ai.provider.name`, et mettez à niveau le package d’instrumentation si ce n’est pas le cas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Les spans arrivent mais la vue du monitoring de l&apos;IA est vide pour votre service
+      </td>
+
+      <td>
+        Les spans peuvent ne pas être tagués avec les attributs d&apos;IA générative (GenAI) attendus. Mettez à niveau le package d&apos;instrumentation ou contactez l&apos;assistance New Relic avec un exemple de span.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Les prompts longs sont coupés
+      </td>
+
+      <td>
+        Levez `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT` et `OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT` côté application.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Le nombre de jetons est manquant
+      </td>
+
+      <td>
+        Le fournisseur LLM les a renvoyés, mais votre version d&apos;instrumentation ne les enregistre pas encore. Mettez à niveau le package d&apos;instrumentation.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Le monitoring de l&apos;IA affiche des traces mais les prompts/complétions sont vides
+      </td>
+
+      <td>
+        La capture de contenu est désactivée. Consultez [Contrôler quels prompts et complétions sont envoyés](#controlling-content).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Vous vous attendez à ce que le monitoring de l&apos;IA soit disponible mais la vue n&apos;apparaît pas
+      </td>
+
+      <td>
+        Contactez votre équipe de compte New Relic pour confirmer que le monitoring de l&apos;IA est activé sur votre compte.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Obtenir de l&apos;aide
+
+Si vous êtes bloqué après avoir suivi les étapes ci-dessus :
+
+* Ouvrez un dossier de support New Relic et incluez un exemple de charge de span et le nom de votre service.
+* Contactez l&apos;équipe de votre compte New Relic pour toute question de configuration au niveau du compte.
+* Pour les questions générales sur l&apos;IA générative (GenAI) OpenTelemetry, consultez les [conventions sémantiques de l&apos;IA générative (GenAI) OpenTelemetry](https://opentelemetry.io/docs/specs/semconv/gen-ai/), la référence faisant autorité.
