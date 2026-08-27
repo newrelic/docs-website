@@ -2,7 +2,7 @@
 title: 'Alerting: Loss of signal detection and configurable gap-filling strategies'
 summary: Specify how long the system should wait before a signal is considered lost.
 releaseDate: '2020-10-09'
-learnMoreLink: 'https://discuss.newrelic.com/t/announcing-new-relic-one-streaming-alerts-for-nrql-conditions/115361'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008b5p/announcing-new-relic-one-streaming-alerts-for-nrql-conditions'
 getStartedLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alerts-nerdgraph/nerdgraph-api-loss-signal-gap-filling'
 ---
 
