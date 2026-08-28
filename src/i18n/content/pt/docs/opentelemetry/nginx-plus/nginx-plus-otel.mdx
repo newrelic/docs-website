@@ -1,0 +1,1414 @@
+---
+title: Monitore o NGINX Plus auto-hospedado com OpenTelemetry
+metaDescription: Send your NGINX Plus metrics to New Relic using the OpenTelemetry contrib collector.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Monitore seus servidores NGINX Plus em execução em um host usando o [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) para enviar métricas e dados de telemetria para o New Relic.
+
+Esta integração utiliza o [prometheusreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver) do OpenTelemetry e o [nginx-prometheus-exporter](https://github.com/nginx/nginx-prometheus-exporter) para monitorar as métricas de desempenho, estatísticas de conexão e integridade do servidor do NGINX Plus. A rica API HTTP no NGINX Plus fornece métricas significativamente mais detalhadas em comparação com o módulo de status stub básico no NGINX padrão.
+
+<img title="NGINX dashboard" alt="Image of the NGINX dashboard" src="/images/opentelemetry_screenshot-nginx-dashboard.webp" />
+
+<figcaption>
+  Dashboard disponível através do [quickstart New Relic NGINX OpenTelemetry Monitor](https://newrelic.com/instant-observability/nginx-opentelemetry).
+</figcaption>
+
+## Antes de você começar [#prerequisites]
+
+Antes de começar, certifique-se de ter:
+
+* Uma [conta New Relic](https://newrelic.com/signup) com uma<InlinePopover type="licenseKey" />
+
+* Versão NGINX Plus [R13](https://docs.nginx.com/nginx/releases/#r13) ou superior
+
+* NGINX Plus com o módulo [HTTP API](https://nginx.org/en/docs/http/ngx_http_api_module.html) habilitado
+
+* [Exportador NGINX Prometheus](https://github.com/nginx/nginx-prometheus-exporter) instalado e em execução junto com sua instância NGINX Plus para expor métricas da API HTTP no formato Prometheus
+
+* [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) instalado e em execução em um host Linux
+
+* Acesso à rede do host Linux para:
+
+  * Endpoint da API HTTP do NGINX Plus
+  * Qualquer um dos endpoints [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+### Verifique sua configuração
+
+Verifique a versão do NGINX Plus:
+
+```bash
+nginx -V 2>&1 | grep -o "nginx/[0-9.]*"
+```
+
+Saída esperada: `nginx/1.25.0` ou superior (R13+)
+
+Verifique o OpenTelemetry Collector:
+
+```bash
+otelcol-contrib --version
+```
+
+Saída esperada: Informações da versão (mínimo v0.88.0 requerido)
+
+Teste a conectividade de rede:
+
+```bash
+# For US region
+curl -I https://otlp.nr-data.net:4318/v1/metrics
+# For EU region
+curl -I https://otlp.eu01.nr-data.net:4318/v1/metrics
+```
+
+Saída esperada: `HTTP/2 405` (método não permitido é esperado)
+
+## Etapa 1: Configurar o NGINX Plus [#configure-nginx]
+
+Configure e habilite o módulo [HTTP API](https://nginx.org/en/docs/http/ngx_http_api_module.html) para expor métricas do seu servidor NGINX Plus.
+
+<CollapserGroup>
+  <Collapser id="step1-enable-api" title="Habilitar o módulo de API HTTP">
+    Adicione a configuração da API HTTP ao seu arquivo `nginx.conf`. Normalmente, adicione isso dentro do bloco `http`:
+
+    ```nginx
+    server {
+        listen 8080;
+        server_name localhost;
+
+        location /api {
+            api write=on;
+            # Restrict access as needed
+            allow 127.0.0.1;
+            deny all;
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="step1-test-reload" title="Teste e recarregue a configuração">
+    Após atualizar `nginx.conf`, teste e recarregue o serviço:
+
+    ```bash
+    sudo nginx -t && sudo nginx -s reload
+    ```
+  </Collapser>
+
+  <Collapser id="step1-verify-api" title="Verifique o endpoint da API">
+    Confirme o caminho do endpoint da API (incluindo a versão) exposto em sua configuração. Registre o caminho completo do endpoint da API (sem a barra inicial) e a porta que o serve. Os padrões comuns são `api/9` na porta `8080`.
+
+    Use `curl` para confirmar se seu endpoint de API está acessível:
+
+    ```bash
+    curl -I http://127.0.0.1:8080/api/9 2>/dev/null | head -n 1 | cut -d$' ' -f1,2
+    ```
+
+    Resultado esperado:
+
+    ```
+    HTTP/1.1 200
+    ```
+
+    Se você vir uma resposta diferente, verifique sua configuração do NGINX Plus e certifique-se de que o módulo API esteja devidamente habilitado.
+  </Collapser>
+</CollapserGroup>
+
+## Etapa 2: Configurar o OpenTelemetry Collector [#configure-collector]
+
+Configure o OpenTelemetry Collector para coletar métricas do seu exportador Prometheus do NGINX Plus e enviá-las para o New Relic.
+
+<CollapserGroup>
+  <Collapser id="step2-install-exporter" title="Instale o exportador NGINX Prometheus">
+    Instale e configure o [exportador NGINX Prometheus](https://github.com/nginx/nginx-prometheus-exporter) para expor métricas da API NGINX Plus no formato Prometheus:
+
+    ```bash
+    # Download and install the exporter
+    wget https://github.com/nginx/nginx-prometheus-exporter/releases/latest/download/nginx-prometheus-exporter_linux_amd64.tar.gz
+    tar -xzf nginx-prometheus-exporter_linux_amd64.tar.gz
+    sudo mv nginx-prometheus-exporter /usr/local/bin/
+
+    # Run the exporter (customize the -nginx.scrape-uri as needed)
+    nginx-prometheus-exporter -nginx.scrape-uri=http://127.0.0.1:8080/api
+    ```
+
+    Por padrão, o exportador é executado na porta `9113` e expõe métricas em `/metrics`.
+  </Collapser>
+
+  <Collapser id="step2-config-collector" title="Configurar a configuração do coletor">
+    Atualize sua configuração do OpenTelemetry Collector (normalmente localizada em `/etc/otelcol-contrib/config.yaml`). No trecho de configuração abaixo:
+
+    * Atualize o valor `nginx.deployment.name` com um nome exclusivo para identificar este servidor NGINX Plus em sua conta New Relic
+    * Atualize o valor `targets` para corresponder ao host e à porta do seu exportador Prometheus (o padrão é `127.0.0.1:9113`)
+    * Atualize o valor `nginx.server.endpoint` para corresponder ao seu caminho e porta de status da API
+    * Atualize o `filter/nginx_metrics` de acordo com sua necessidade para ingerir métricas adicionais
+
+    Mescle os receivers, processors, exporters e pipelines de serviço do trecho abaixo em sua configuração atual:
+
+    ```yaml
+    receivers:
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: 'nginx-plus'
+              scrape_interval: 30s
+              static_configs:
+                - targets: ['127.0.0.1:9113']
+    processors:
+      batch:
+        send_batch_size: 1024
+        timeout: 30s
+      filter/nginx_metrics:
+        metrics:
+          include:
+            match_type: regexp
+            metric_names:
+              - "nginxplus_connections_.*"
+              - "nginxplus_http_requests_.*"
+              - "nginxplus_ssl_.*"
+          exclude:
+            match_type: regexp
+            metric_names:
+              - "nginxplus_server_.*"
+              - "nginxplus_location_zone_.*"
+              - "nginxplus_cache_.*"
+              - "nginxplus_stream_server_.*"
+              - "nginxplus_upstream_.*"
+              - "nginxplus_stream_upstream_.*"
+              - "nginxplus_stream_zone_sync_zone_.*"
+              - "nginxplus_resolver_.*"
+              - "nginxplus_limit_request_.*"
+              - "nginxplus_limit_connection_.*"
+              - "nginxplus_stream_limit_connection_.*"
+              - "nginxplus_worker_.*"
+      resource/nginx:
+        attributes:
+          - key: nginx.server.endpoint
+            value: <API_ENDPOINT>
+            action: insert
+          - key: nginx.deployment.name
+            value: <DEPLOYMENT_NAME>
+            action: insert
+      resourcedetection:
+        detectors: [system]
+        system:
+          resource_attributes:
+            host.name:
+              enabled: true
+            host.id:
+              enabled: true
+      transform/nginx:
+        metric_statements:
+          - context: resource
+            statements:
+              - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+          - context: resource
+            statements:
+              - delete_key(attributes, "service.name")
+      transform/metadata_nullify:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "")
+              - set(unit, "")
+    exporters:
+      otlp_http/newrelic:
+        endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEWRELIC_LICENSE_KEY}
+    service:
+      pipelines:
+        metrics/nginx:
+          receivers: [prometheus]
+          processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx, transform/metadata_nullify]
+          exporters: [otlp_http/newrelic]
+    ```
+
+    Salve o arquivo e certifique-se de que o usuário do sistema `otelcol-contrib` possa lê-lo.
+  </Collapser>
+
+  <Collapser id="step2-enable-additional-metrics-otelcol" title="(Opcional) Habilitar métricas adicionais">
+    Por padrão, a configuração coleta apenas métricas principais (conexões, requisições HTTP e SSL). Para habilitar categorias de métricas adicionais, como zonas de servidor, zonas de localização ou métricas de cache:
+
+    1. **Identifique as métricas que você deseja habilitar** na [lista de métricas](#metrics) abaixo. Observe a qual categoria eles pertencem (por exemplo, Zonas de Servidor HTTP, Zonas de Localização, Cache).
+
+    2. **Mova o prefixo de métrica correspondente de `exclude` para `include`** no processador `filter/nginx_metrics`.
+
+    **Exemplo: Habilitar métricas de zonas do servidor HTTP**
+
+    Localize esta linha na seção `exclude`:
+
+    ```yaml
+    filter/nginx_metrics:
+      metrics:
+        include:
+        # existing include metrics
+        exclude:
+          match_type: regexp
+          metric_names:
+            - "nginxplus_server_.*"
+    ```
+
+    Mova para a seção `include`:
+
+    ```yaml
+    filter/nginx_metrics:
+      metrics:
+        include:
+          match_type: regexp
+          metric_names:
+            - "nginxplus_connections_.*"
+            - "nginxplus_http_requests_.*"
+            - "nginxplus_ssl_.*"
+            - "nginxplus_server_.*"  # Added to enable server zone metrics
+        exclude:
+          match_type: regexp
+          metric_names:
+            # Remove "nginxplus_server_.*" from here
+            - "nginxplus_location_zone_.*"
+            - "nginxplus_cache_.*"
+            # ... rest of exclude list
+    ```
+
+    3. **Reinicie o coletor** após fazer alterações:
+       ```bash
+       sudo systemctl restart otelcol-contri.service
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## Etapa 3: Defina as variáveis de ambiente para o coletor [#set-environment]
+
+Injete seu endpoint New Relic <InlinePopover type="licenseKey" />e OTLP no serviço do coletor para que o exportador possa autenticar.
+
+<CollapserGroup>
+  <Collapser id="step3-create-override" title="Criar diretório de substituição do systemd">
+    Crie um diretório de substituição do systemd:
+
+    ```bash
+    sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+    ```
+  </Collapser>
+
+  <Collapser id="step3-set-credentials" title="Defina as credenciais do New Relic">
+    Escreva `environment.conf` com seu endpoint OTLP. Substitua `YOUR_LICENSE_KEY` pela chave de licença New Relic e `YOUR_OTLP_ENDPOINT` pelo endpoint apropriado para sua região. Consulte a [documentação](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) do endpoint OTLP para selecionar o endpoint correto.
+
+    ```bash
+    cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+    [Service]
+    Environment="NEWRELIC_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT"
+    Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+    EOF
+    ```
+  </Collapser>
+
+  <Collapser id="step3-restart-collector" title="Reinicie o coletor">
+    Recarregue o systemd e reinicie o coletor:
+
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl restart otelcol-contrib.service
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Etapa 4: Verifique a coleta de dados [#verify-data]
+
+Confirme se o OpenTelemetry Collector está coletando com sucesso as métricas do NGINX Plus e enviando-as para o New Relic.
+
+<CollapserGroup>
+  <Collapser id="step4-check-logs" title="Verifique os logs do coletor">
+    Monitore os logs do coletor para garantir que ele esteja sendo executado sem erros:
+
+    ```bash
+    sudo journalctl -u otelcol-contrib.service -n 20
+    ```
+
+    **Procure estes indicadores de sucesso:**
+
+    * ✅ `"Everything is ready. Begin running and processing data."`
+    * ✅ `"Scraping metrics"` - Coleta bem-sucedida do exportador Prometheus
+    * ✅ `"Exporting metrics"` - Enviando com sucesso para New Relic
+  </Collapser>
+
+  <Collapser id="step4-test-traffic" title="Gerar tráfego de teste">
+    Gere tráfego de teste para criar métricas:
+
+    ```bash
+    # Make a few requests to your NGINX Plus server
+    curl http://localhost
+    ```
+  </Collapser>
+
+  <Collapser id="step4-verify-dashboard" title="Verifique os dados no New Relic">
+    Acesse seu [dashboard NGINX](/docs/opentelemetry/nginx/find-and-query-your-data#find-data) para verificar a coleta de dados.
+  </Collapser>
+</CollapserGroup>
+
+## Etapa 5: (Opcional) Encaminhar logs do NGINX [#forward-logs]
+
+Estenda a configuração do seu coletor para incluir logs de acesso e erros se você quiser eventos de log junto com as métricas.
+
+### Configurar o formato de log do NGINX Plus
+
+Antes de encaminhar os logs, configure o NGINX Plus para usar um formato de log estruturado. Consulte a [documentação de logging do NGINX](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/) para obter orientação sobre como configurar logs de acesso e erro.
+
+### Configure o OpenTelemetry Collector para encaminhamento de logs
+
+1. Observe os caminhos completos para seus arquivos de log de acesso e erro do NGINX. Os padrões são geralmente `/var/log/nginx/access.log` e `/var/log/nginx/error.log`.
+
+2. Atualize `/etc/otelcol-contrib/config.yaml` para adicionar um receptor `filelog` e pipeline de log:
+
+   ```yaml
+   receivers:
+     prometheus:
+       # existing Prometheus receiver configuration
+     filelog/nginx_access_logs:
+       include:
+         - /var/log/nginx/access.log
+     filelog/nginx_error_logs:
+       include:
+         - /var/log/nginx/error.log
+
+   processors:
+     batch:
+       # existing settings
+     filter/nginx_metrics:
+       # existing settings
+     resourcedetection:
+       # existing settings
+     resource/nginx:
+       # existing settings
+     transform/nginx_metrics:
+       # existing settings
+     transform/nginx_access_logs:
+       log_statements:
+         - context: resource
+           statements:
+             - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+             - set(attributes["logtype"], "nginx")
+     transform/nginx_error_logs:
+       log_statements:
+         - context: resource
+           statements:
+             - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+             - set(attributes["logtype"], "nginx-error")
+
+   exporters:
+     # existing exporter setup
+
+   service:
+     pipelines:
+       metrics/nginx:
+         receivers: [prometheus]
+         processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx_metrics, transform/metadata_nullify]
+         exporters: [otlp_http/newrelic]
+       logs/nginx-access:
+         receivers: [filelog/nginx_access_logs]
+         processors: [batch, resource/nginx, transform/nginx_access_logs]
+         exporters: [otlp_http/newrelic]
+       logs/nginx-error:
+         receivers: [filelog/nginx_error_logs]
+         processors: [batch, resource/nginx, transform/nginx_error_logs]
+         exporters: [otlp_http/newrelic]
+   ```
+
+3. Conceda ao usuário `otelcol-contrib` acesso de leitura aos arquivos de log:
+
+   ```bash
+   sudo usermod -a -G adm otelcol-contrib
+   sudo chmod 644 /var/log/nginx/access.log
+   sudo chmod 644 /var/log/nginx/error.log
+   ```
+
+4. Reinicie o coletor para aplicar as alterações:
+
+   ```bash
+   sudo systemctl restart otelcol-contrib
+   ```
+
+## Encontre e use dados [#find-data]
+
+1. Acesse **[one.newrelic.com](https://one.newrelic.com) &gt; Integrations &amp; Agents**.
+2. Selecione **Dashboards** e clique no dashboard **NGINX OTel overview**.
+3. Na janela pop-up, selecione sua conta.
+4. Clique em \[View dashboard] e veja seus dados do NGINX Plus no New Relic.
+
+As métricas do NGINX Plus são anexadas ao `Metric` [tipo de evento](/docs/using-new-relic/data/understand-data/new-relic-data-types#events-new-relic). Você pode [consultar esses dados](/docs/using-new-relic/data/understand-data/query-new-relic-data) para fins de solução de problemas ou para criar gráficos e dashboards personalizados.
+
+## Métricas coletadas [#metrics]
+
+O OpenTelemetry Collector coleta métricas do [NGINX Prometheus exporter](https://github.com/nginx/nginx-prometheus-exporter), que expõe métricas da API HTTP do NGINX Plus no formato Prometheus.
+
+Abaixo estão as métricas do NGINX Plus disponíveis:
+
+<CollapserGroup>
+  <Collapser id="plus-connections" title="Conexões">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descrição
+          </th>
+
+          <th>
+            Tipo
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_connections_accepted`
+          </td>
+
+          <td>
+            Conexões de cliente aceitas
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_connections_active`
+          </td>
+
+          <td>
+            Conexões de cliente ativas
+          </td>
+
+          <td>
+            Medidor
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_connections_dropped`
+          </td>
+
+          <td>
+            Conexões de cliente descartadas
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_connections_idle`
+          </td>
+
+          <td>
+            Conexões de cliente ociosas
+          </td>
+
+          <td>
+            Medidor
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-http" title="HTTP">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descrição
+          </th>
+
+          <th>
+            Tipo
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_http_requests_total`
+          </td>
+
+          <td>
+            Total de solicitações http
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_http_requests_current`
+          </td>
+
+          <td>
+            Solicitações http atuais
+          </td>
+
+          <td>
+            Medidor
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-ssl" title="SSL">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descrição
+          </th>
+
+          <th>
+            Tipo
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_ssl_handshakes`
+          </td>
+
+          <td>
+            Handshakes SSL bem-sucedidos
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_ssl_handshakes_failed`
+          </td>
+
+          <td>
+            Handshakes SSL com falha
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_ssl_session_reuses`
+          </td>
+
+          <td>
+            Reutilização de sessão durante o handshake SSL
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-server-zone" title="Zonas do servidor HTTP">
+    <Callout variant="important">
+      **Nota:** Estas métricas estão desativadas por padrão. Para habilitá-las, consulte [(Opcional) Habilitar métricas adicionais](#step2-enable-additional-metrics-otelcol) para o OpenTelemetry Collector Contrib.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descrição
+          </th>
+
+          <th>
+            Tipo
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_server_zone_processing`
+          </td>
+
+          <td>
+            Solicitações de cliente que estão sendo processadas no momento
+          </td>
+
+          <td>
+            Medidor
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_requests`
+          </td>
+
+          <td>
+            Total de requisições do cliente
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_responses`
+          </td>
+
+          <td>
+            Total de respostas enviadas aos clientes
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_responses_codes`
+          </td>
+
+          <td>
+            Total de respostas enviadas aos clientes por código
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_discarded`
+          </td>
+
+          <td>
+            Requisições concluídas sem enviar uma resposta
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_received`
+          </td>
+
+          <td>
+            Bytes recebidos de clientes
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_zone_sent`
+          </td>
+
+          <td>
+            Bytes enviados aos clientes
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_ssl_handshakes`
+          </td>
+
+          <td>
+            Handshakes SSL bem-sucedidos
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_ssl_handshakes_failed`
+          </td>
+
+          <td>
+            Handshakes SSL com falha
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_server_ssl_session_reuses`
+          </td>
+
+          <td>
+            Reutilização de sessão durante o handshake SSL
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-location-zones" title="Zonas de localização">
+    <Callout variant="important">
+      **Nota:** Estas métricas estão desativadas por padrão. Para habilitá-las, consulte [(Opcional) Habilitar métricas adicionais](#step2-enable-additional-metrics-otelcol) para o OpenTelemetry Collector Contrib.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descrição
+          </th>
+
+          <th>
+            Tipo
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_location_zone_requests`
+          </td>
+
+          <td>
+            Total de requisições do cliente
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_responses`
+          </td>
+
+          <td>
+            Total de respostas enviadas aos clientes
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_responses_codes`
+          </td>
+
+          <td>
+            Total de respostas enviadas aos clientes por código
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_discarded`
+          </td>
+
+          <td>
+            Requisições concluídas sem enviar uma resposta
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_received`
+          </td>
+
+          <td>
+            Bytes recebidos de clientes
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_location_zone_sent`
+          </td>
+
+          <td>
+            Bytes enviados aos clientes
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-cache" title="Cache">
+    <Callout variant="important">
+      **Nota:** Estas métricas estão desativadas por padrão. Para habilitá-las, consulte [(Opcional) Habilitar métricas adicionais](#step2-enable-additional-metrics-otelcol) para o OpenTelemetry Collector Contrib.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descrição
+          </th>
+
+          <th>
+            Tipo
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nginxplus_cache_size`
+          </td>
+
+          <td>
+            Tamanho total do cache
+          </td>
+
+          <td>
+            Medidor
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_max_size`
+          </td>
+
+          <td>
+            Tamanho máximo do cache
+          </td>
+
+          <td>
+            Medidor
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_cold`
+          </td>
+
+          <td>
+            O cache é considerado frio?
+          </td>
+
+          <td>
+            Medidor
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_hit_responses`
+          </td>
+
+          <td>
+            Número total de acertos no cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_hit_bytes`
+          </td>
+
+          <td>
+            Número total de bytes retornados de acertos de cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_stale_responses`
+          </td>
+
+          <td>
+            Número total de acertos de cache desatualizados
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_stale_bytes`
+          </td>
+
+          <td>
+            Número total de bytes retornados de acertos de cache desatualizados
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_updating_responses`
+          </td>
+
+          <td>
+            Número total de acertos no cache enquanto o cache está sendo atualizado
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_updating_bytes`
+          </td>
+
+          <td>
+            Número total de bytes retornados do cache enquanto o cache está sendo atualizado
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_revalidated_responses`
+          </td>
+
+          <td>
+            Número total de revalidações de cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_revalidated_bytes`
+          </td>
+
+          <td>
+            Número total de bytes retornados de revalidações de cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_miss_responses`
+          </td>
+
+          <td>
+            Número total de falhas de cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_miss_bytes`
+          </td>
+
+          <td>
+            Número total de bytes retornados de falhas de cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_expired_responses`
+          </td>
+
+          <td>
+            Número total de acertos de cache com TTL expirado
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_expired_bytes`
+          </td>
+
+          <td>
+            Número total de bytes retornados de acertos de cache com TTL expirado
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_expired_responses_written`
+          </td>
+
+          <td>
+            Número total de acertos de cache com TTL expirado gravados no cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_expired_bytes_written`
+          </td>
+
+          <td>
+            Número total de bytes gravados no cache de acertos de cache com TTL expirado
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_bypass_responses`
+          </td>
+
+          <td>
+            Número total de desvios do cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_bypass_bytes`
+          </td>
+
+          <td>
+            Número total de bytes retornados de desvios de cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_bypass_responses_written`
+          </td>
+
+          <td>
+            Número total de desvios de cache gravados no cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginxplus_cache_bypass_bytes_written`
+          </td>
+
+          <td>
+            Número total de bytes gravados no cache de desvios de cache
+          </td>
+
+          <td>
+            Soma
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="plus-attributes" title="Atributo">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Atributo
+          </th>
+
+          <th style={{ width: "350px" }}>
+            Descrição
+          </th>
+
+          <th>
+            Valores de exemplo
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `server_zone`
+          </td>
+
+          <td>
+            O nome da zona do servidor (aplica-se às métricas de Zonas do Servidor HTTP)
+          </td>
+
+          <td>
+            `example.com`, `api.example.com`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `code`
+          </td>
+
+          <td>
+            Código de status da resposta HTTP (aplica-se a métricas de resposta)
+          </td>
+
+          <td>
+            `1xx`, `2xx`, `3xx`, `4xx`, `5xx`, `200`, `404`, `500`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `location_zone`
+          </td>
+
+          <td>
+            O nome da zona de localização
+          </td>
+
+          <td>
+            `/api`, `/images`, `/static`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cache`
+          </td>
+
+          <td>
+            O nome do cache
+          </td>
+
+          <td>
+            `my_cache`, `static_cache`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginx.server.endpoint`
+          </td>
+
+          <td>
+            A URL do endpoint da API NGINX Plus
+          </td>
+
+          <td>
+            `http://localhost:8080/api`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginx.deployment.name`
+          </td>
+
+          <td>
+            Um nome exclusivo para identificar esta implantação do NGINX Plus
+          </td>
+
+          <td>
+            `production-web-01`, `staging-api`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nginx.display.name`
+          </td>
+
+          <td>
+            Um nome amigável para exibição que combina o prefixo &quot;servidor&quot; com o nome da implantação
+          </td>
+
+          <td>
+            `server:production-web-01`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `host.name`
+          </td>
+
+          <td>
+            O nome do host do sistema em que o NGINX Plus está em execução
+          </td>
+
+          <td>
+            `web-server-01.example.com`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `host.id`
+          </td>
+
+          <td>
+            O identificador exclusivo do sistema host
+          </td>
+
+          <td>
+            `i-1234567890abcdef0`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `logtype`
+          </td>
+
+          <td>
+            O tipo de log que está sendo coletado (aplicável apenas a logs). Usado pelas [regras de análise](https://docs.newrelic.com/docs/logs/ui-data/built-log-parsing-rules/#nginx) integradas do New Relic. Este atributo está disponível somente quando o encaminhamento de log está ativado.
+          </td>
+
+          <td>
+            `nginx` (para logs de acesso), `nginx-error` (para logs de erro)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Próximos passos [#next-steps]
+
+**Saiba mais sobre seus dados:**
+
+* [Encontre e consulte seus dados do NGINX](/docs/opentelemetry/nginx/find-and-query-your-data/) - Acesse dashboards, crie consultas personalizadas e configure alertas
+* [Introdução ao NRQL](/docs/nrql/get-started/introduction-nrql-new-relics-query-language/) - Aprenda a linguagem de consulta do New Relic para análise avançada de dados
+* [Crie condições de alerta NRQL](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) - Configure alertas personalizados com base em suas métricas do NGINX Plus
+
+**Explore o monitoramento relacionado:**
+
+* [Monitore o NGINX auto-hospedado com OpenTelemetry](/docs/opentelemetry/nginx/nginx-otel-host/) - Para implantações NGINX padrão
+* [Monitore o NGINX no Kubernetes com OpenTelemetry](/docs/opentelemetry/nginx/nginx-otel-kubernetes/) - Para ambientes em contêiner
+* [Visão geral do NGINX OpenTelemetry](/docs/opentelemetry/nginx/nginx-otel-overview/) - Entenda as métricas, atributos e casos de uso coletados
+* [Melhores práticas do OpenTelemetry](/docs/opentelemetry/best-practices/opentelemetry-otlp/) - Otimize sua configuração do OpenTelemetry
+
+**Recursos do NGINX Plus:**
+
+* [Documentação do exportador NGINX Prometheus](https://github.com/nginx/nginx-prometheus-exporter?tab=readme-ov-file#metrics-for-nginx-plus) - Detalhes técnicos e configuração avançada
+* [Documentação da API do NGINX Plus](https://docs.nginx.com/nginx/admin-guide/monitoring/live-activity-monitoring/) - Referência completa da API e recursos
