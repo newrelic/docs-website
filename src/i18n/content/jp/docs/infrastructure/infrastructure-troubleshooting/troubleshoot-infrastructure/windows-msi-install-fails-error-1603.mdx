@@ -11,22 +11,46 @@ translationType: machine
 ---
 
 <Callout variant="important">
-  **Infrastructureエージェント v1.73.0以降の既知の問題:** Windowsグループポリシーの制限があるシステムでは、MSIインストレーションがエラー**1603**で失敗する場合があります。
+  **infrastructureエージェント v1.73.0以降の既知の問題:** 必須の設定パラメーターが欠落している場合、または厳格なWindowsグループポリシーの制限があるシステムでは、サイレントMSIインストレーション（`/qn`）がエラー**1603**で失敗します。
 </Callout>
 
 ## 問題 [#problem]
 
 * v1.72.xではインストレーションに成功しましたが、v1.73.0以降では失敗します
+* MSIサイレントインストレーションがエラー**1603**で終了します。
 * 堅牢化された、またはCISに準拠したWindowsシステムで発生します
 * サービス`newrelic-infra`が作成されません
 
 ## 原因 [#cause]
 
-infrastructureエージェントv1.73.0以降では、インストレーションに遅延PowerShellカスタムアクションを使用します。Windowsグループポリシー設定`HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer\DisableMSI`（`1`または`2`に設定されている場合）は、セキュリティ上の理由からこれらのアクションをブロックします。
+バージョンv1.73.0以降、<DNT>Windows MSI</DNT>インストーラは遅延<DNT>PowerShell</DNT>カスタムアクションを使用して、インストレーションフェーズ中にエージェントの設定ファイルを自動的に検証および生成します。
+
+このエラーは通常、次の2つの原因のいずれかによって引き起こされます：
+
+* **必須のインストレーションパラメーターの欠落（最も一般的）:** `/qn`（サイレント）スイッチを使用する場合、`GENERATE_CONFIG=true`および`LICENSE_KEY=YOUR_LICENSE_KEY`をコマンドライン引数として明示的に渡さないと、インストーラのカスタムアクションスクリプトは直ちに失敗し、インストレーションをロールバックします（エラー1603）。
+* **Windowsグループポリシーの制限:** 堅牢化された、またはCISに準拠した<DNT>Windows</DNT>システムでは、グループポリシー設定`HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer\DisableMSI`（`1`または`2`に設定されている場合）がこれらの遅延<DNT>PowerShell</DNT>カスタムアクションの実行をブロックし、1603エラーが発生します。
 
 ## 解決 [#solution]
 
-インストレーション中はMSI制限を一時的に無効にします：
+### ステップ1：必須パラメーターが渡されていることを確認する（主な解決策）
+
+サイレントインストレーションを実行する場合は、必須の設定パラメーターを`msiexec.exe`コマンドラインで直接指定する**必要があります**。
+
+次のパラメーターを含む構文を使用してインストレーションを実行していることを確認してください：
+
+```powershell
+msiexec.exe /qn /i PATH\TO\newrelic-infra.msi GENERATE_CONFIG=true LICENSE_KEY=YOUR_LICENSE_KEY
+```
+
+<Callout title="注記">
+  インストーラがサイレントインストレーションループを正常に完了するには、これらのパラメーターが必要です。インストレーション後に外部の設定管理ツールを使用して`newrelic-infra.yml`ファイルを管理または上書きする場合でも、<DNT>MSI</DNT>を正常に完了させるためにこれらのパラメーターを渡す必要があります。
+</Callout>
+
+### ステップ2：MSIの制限を一時的に無効にする（堅牢化されたシステム向け）
+
+ステップ1で必須パラメーターを渡してもインストレーションがエラー1603で失敗する場合は、OSのセキュリティポリシーがインストーラのカスタムアクションをブロックしている可能性があります。
+
+次のスクリプトを実行して、インストレーション中に<DNT>DisableMSI</DNT>の制限を一時的に無効にし、その後すぐに元に戻します：
 
 ```powershell
 # Store original value
@@ -40,7 +64,7 @@ try {
     }
     Set-ItemProperty -Path $regPath -Name DisableMSI -Value 0 -Type DWord -Force
     
-    # Run the installation
+    # Run the installation with mandatory parameters
     msiexec.exe /qn /i PATH\TO\newrelic-infra.msi GENERATE_CONFIG=true LICENSE_KEY=YOUR_LICENSE_KEY
     
 } finally {
@@ -53,16 +77,16 @@ try {
 }
 ```
 
-このPowerShellスクリプトを実行して、DisableMSIポリシーが問題を引き起こすかどうかを確認します：
+この<DNT>PowerShell</DNT>スクリプトを使用して、<DNT>DisableMSI</DNT>ポリシーが存在し、問題を引き起こす可能性があるかどうかを事前に確認できます：
 
 ```powershell
 $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer"
 $disableMsi = (Get-ItemProperty -Path $regPath -Name DisableMSI -ErrorAction SilentlyContinue).DisableMSI
 
 if ($null -eq $disableMsi -or $disableMsi -eq 0) {
-    Write-Host "DisableMSI not set or set to 0 - Installation should work"
+    Write-Host "DisableMSI not set or set to 0 - Installation should work if mandatory parameters are supplied."
 } else {
-    Write-Host "WARNING: DisableMSI is set to $disableMsi - Installation will likely fail with error 1603"
-    Write-Host "Use the workaround above to install successfully"
+    Write-Host "WARNING: DisableMSI is set to $disableMsi - Installation will likely fail with error 1603 due to OS security policy."
+    Write-Host "Use the Step 2 workaround script above to install successfully."
 }
 ```
