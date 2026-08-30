@@ -1,6 +1,6 @@
 ---
-title: サポートされているエージェントの種類
-metaDescription: Types of agents that can be managed by Agent Control
+title: エージェントのタイプ
+metaDescription: 'What agent types are in Agent Control, how they work, and which agents are currently supported'
 freshnessValidatedDate: never
 translationType: machine
 ---
@@ -9,17 +9,90 @@ translationType: machine
   Agent ControlとNew Relic Controlは、Kubernetes向けに**一般提供されて**います。LinuxおよびWindowsホストのサポートは、当社の[ プレリリースポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy) に基づき、** パブリックプレビュー** プログラムとして提供されています。
 </Callout>
 
-## 概要
+エージェントタイプ定義は、Agent Controlが特定のエージェントを識別、ダウンロード、設定、および実行する方法を記述するYAMLファイルです。宣言された変数は、フリートからサブエージェントをデプロイまたは更新する際にFleet Controlがオペレーターに公開する設定スキーマも形成します。すべての定義は、**メタデータ**、**変数**、および**デプロイメント**の3つの主要なセクションと、ファイルが記述されているスキーマ言語のバージョンを示すトップレベルの`protocol_version`フィールドで構成されています。
 
-Agent Control 、フリート全体でさまざまなNew RelicおよびOpenTelemetryエージェントを管理するための単一の統合プラットフォームを提供します。 管理を一元化することで、計装のデプロイ、設定、更新が簡単に行えます。
+### メタデータ
 
-Agent ControlはKubernetes環境とホストベース環境の両方をサポートするように設計されていますが、特定のエージェントタイプに対するサポート状況は異なります。以下の表はAgent Controlで管理可能なエージェントと、各環境におけるサポート状況を包括的に示しています。
+メタデータセクションはエージェントタイプを識別します：その`name`、`namespace`、`version`、ターゲット`platform`（`host`または`kubernetes`）、および`operating_system`（ホストベースのタイプに必須）。Agent Controlはこれらのフィールドを使用して定義を一意にアドレス指定し、正しいデプロイメントエンジンにディスパッチします。
+
+### 変数
+
+variablesセクションでは、オペレーターがサブエージェントを設定に追加する際に設定できる構成可能な入力を宣言します。各変数には、`type`（`string`、`bool`、または`yaml`など）、オプションの`default`、および受け入れ可能な値のオプションの`variants`リストがあります。変数は、`${nr-var:variable_name}`を使用してデプロイメントセクション全体で参照されます。
+
+### デプロイメント
+
+デプロイメントセクションでは、Agent Controlがターゲットプラットフォームにエージェントをインストールして実行する方法について説明します。これはいくつかのサブセクションで構成されています：
+
+* **`packages`**：エージェントの起動前にダウンロードするOCIアーティファクト — 通常はエージェントのバイナリまたはインテグレーションパッケージです。
+* **`executables`**: Agent Controlが開始、モニター、再起動するプロセスのリスト。このセクションを持たないエージェントタイプは、管理対象のインテグレーション（OHI）として扱われます：Agent Controlはそのアーティファクトを処理しますが、実行は別のエージェントに委任します。
+* **`health`**：Agent Controlがエージェントの正常性を判断する方法 — プロセスの存在、HTTPエンドポイントのチェック、またはその両方を使用します。
+* **`filesystem`**：設定ファイルや証明書など、エージェントを起動する前にAgent Controlがホストに書き込む個々のファイルまたはディレクトリ。
+* **`shared_filesystem`**: 同じAgent Controlインスタンスによって管理される他のエージェントがアクセスできる共有ドロップゾーンに書き込まれるエントリです。OHIエージェントタイプが設定とバイナリをinfrastructureエージェントに渡すために使用されます。
+
+完全なスキーマリファレンスと利用可能なすべてのフィールドについては、[エージェントタイプスキーマリファレンス](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/agent_type.md)をご覧ください。
+
+## リンクされたエージェントのタイプ
+
+一方のエージェントのタイプが共有ファイルシステムにアーティファクト（設定、バイナリ、またはその他のファイル）を書き込み、もう一方が同じパスから読み取るように設定されている場合、2つのエージェントのタイプは**リンク**されています。ライターには`executables`セクションがない場合があり、Agent Controlはそのアーティファクトを管理しますが、そのためのプロセスを開始することはありません。代わりに、リーダーエージェントには、共有ファイルシステムの既知のパスからバイナリと設定を検出して実行する組み込みロジックがあり、事実上、ライターに代わってアドオンを実行します。
+
+共有ファイルシステムのルートは次のとおりです：
+
+| OS     | パス                                                                  |
+| ------ | ------------------------------------------------------------------- |
+| Linux  | `/var/lib/newrelic-agent-control/shared-filesystem`                 |
+| ウィンドウズ | `C:\ProgramData\New Relic\newrelic-agent-control\shared-filesystem` |
+
+同じAgent Controlインスタンスによって管理されるすべてのエージェントは、このルートを共有します。サブディレクトリ名は、リンクされたエージェントタイプ間の規則によって選択されます。
+
+### オンホストインテグレーション（OHI）
+
+オンホストインテグレーション（OHI）は、Agent Controlにおけるリンクされたエージェントの主な例です；他のエージェントはAgent Controlによって開始されるプロセスを持ちますが、OHIエージェントは独自のプロセスを持たず、Agent Controlによって開始されることはありません。これらにより、Agent ControlはNew Relic Infrastructureインテグレーションの完全なライフサイクルを管理し、ダウンロード、設定、アップグレード、およびアンインストールを行う一方で、その実行をinfrastructureエージェントに委任します。infrastructureエージェントは、共有ファイルシステムからインテグレーションバイナリを検出して実行します。
+
+### infrastructureエージェントとOHIエージェントの関係
+
+1. OHIエージェントのタイプがインストールされると、Agent ControlはOCI経由でインテグレーションのバイナリをダウンロードし、共有ファイルシステムに2つのエントリを書き込みます：
+
+   * `infra-agent-ohi-configs/`配下の設定ファイル（例：`nri-redis.yaml`）
+   * `infra-agent-ohi-binaries/`の下にあるインテグレーションバイナリ（例：`nri-redis`）
+
+2. infrastructureエージェントのサブエージェントは、これらの共有ディレクトリを指す環境変数で設定されます：
+
+   | 変数                                    | 共有ファイルシステムパス                 | 目的                |
+   | ------------------------------------- | ---------------------------- | ----------------- |
+   | `NRIA_PLUGIN_DIR`                     | `…/infra-agent-ohi-configs`  | インテグレーション設定の検出    |
+   | `NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR` | `…/infra-agent-ohi-binaries` | インテグレーションのバイナリの検出 |
+   | `NRIA_SAFE_BIN_DIR`                   | `…/infra-agent-ohi-binaries` | 許可されたバイナリの実行パス    |
+
+3. infrastructureエージェントは、次のスキャンサイクルで設定とバイナリを取得し、インテグレーションの実行を開始します。
+
+   ```
+   shared-filesystem/
+   ├── infra-agent-ohi-configs/      # Integration YAML configs (read by NRIA_PLUGIN_DIR)
+   │   ├── nri-redis.yaml
+   │   └── nri-mysql.yaml
+   └── infra-agent-ohi-binaries/     # Integration binaries (read by NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR)
+       ├── nri-redis
+       └── nri-mysql
+   ```
+
+<Callout variant="important">
+  OHIエージェントタイプは独自のプロセスを持たず、実行を完全にinfrastructureエージェントに依存しています。OHIエージェントタイプをデプロイする前に、同じAgent Controlインスタンス内で`com.newrelic.infrastructure`をサブエージェントとして構成する必要があります。
+</Callout>
+
+## サポートされているエージェントの種類
 
 ### 現在のサポート
 
 | エージェントタイプ                                                                                                                                             | Kubernetesサポート | Linuxホストのサポート | Windowsホストのサポート |
 | :---------------------------------------------------------------------------------------------------------------------------------------------------- | :------------: | :-----------: | :-------------: |
 | [**New Relicインフラストラクチャ エージェント**](https://docs.newrelic.com/docs/infrastructure/infrastructure-agent/new-relic-guided-install-overview/)               |      ✅ はい      |   一般公開プレビュー   |    一般公開プレビュー    |
+| [**Apache**](https://docs.newrelic.com/install/apache/)                                                                                               |      ✅ はい      |   一般公開プレビュー   |    一般公開プレビュー    |
+| [**Flex**](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/flex-integration-tool-build-your-own-integration/)  |      ✅ はい      |   一般公開プレビュー   |    一般公開プレビュー    |
+| [**Memcached**](https://docs.newrelic.com/install/memcached/)                                                                                         |      ✅ はい      |   一般公開プレビュー   |    一般公開プレビュー    |
+| [**MySQL**](https://docs.newrelic.com/install/mysql/)                                                                                                 |      ✅ はい      |   一般公開プレビュー   |    一般公開プレビュー    |
+| [**NGINX**](https://docs.newrelic.com/install/nginx/)                                                                                                 |      ✅ はい      |   一般公開プレビュー   |    一般公開プレビュー    |
+| [**PostgreSQL**](https://docs.newrelic.com/install/postgresql/)                                                                                       |      ✅ はい      |   一般公開プレビュー   |    一般公開プレビュー    |
+| [**Redis**](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/redis/redis-integration/)                          |      ✅ はい      |   一般公開プレビュー   |    一般公開プレビュー    |
 | [**New Relic OpenTelemetry Collector (NRDOT)**](https://docs.newrelic.com/docs/opentelemetry/nrdot/nrdot-intro/)                                      |      ✅ はい      |      ✅ はい     |      ⚠️実験的      |
 | [**Fluent Bit**](https://docs.newrelic.com/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/)                                      |      ✅ はい      |     🚫 いいえ    |      🚫 いいえ     |
 | [**New Relicプロメテウスエージェント**](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) |      ✅ はい      |     🚫 いいえ    |      🚫 いいえ     |
@@ -35,6 +108,13 @@ Agent ControlはKubernetes環境とホストベース環境の両方をサポー
 | エージェントタイプ                                        | 必要なキー権限                                                             | 環境                       |
 | :----------------------------------------------- | :------------------------------------------------------------------ | :----------------------- |
 | **New Relicインフラストラクチャ エージェント**                   | システム メトリクスへのホスト レベルのアクセスとクラスタ データへのKubernetes APIアクセス。              | Kubernetes / ホストベース      |
+| **Apache**                                       | 同じ権限を持つinfra-agentによって実行されます。                                       | Kubernetes / ホストベース      |
+| **Flex**                                         | 同じ権限を持つinfra-agentによって実行されます。                                       | Kubernetes / ホストベース      |
+| **Memcached**                                    | 同じ権限を持つinfra-agentによって実行されます。                                       | Kubernetes / ホストベース      |
+| **MySQL**                                        | 同じ権限を持つinfra-agentによって実行されます。                                       | Kubernetes / ホストベース      |
+| **NGINX**                                        | 同じ権限を持つinfra-agentによって実行されます。                                       | Kubernetes / ホストベース      |
+| **PostgreSQL**                                   | 同じ権限を持つinfra-agentによって実行されます。                                       | Kubernetes / ホストベース      |
+| **Redis**                                        | 同じ権限を持つinfra-agentによって実行されます。                                       | Kubernetes / ホストベース      |
 | **New Relic OpenTelemetry Collector (NRDOT)**    | 権限は特定の受信者とエクスポート者によって異なります。多くの場合、サービス検出には Kubernetes API アクセスが必要です。 | Kubernetes / ホストベース      |
 | **Fluent Bit**                                   | ポッドとコンテナのログへの読み取りアクセス。                                              | Kubernetes               |
 | **New Relicプロメテウスエージェント**                        | メトリクスをスクレイピングするためのクラスター内のサービス エンドポイントを検出してアクセスする権限。                 | Kubernetes               |
