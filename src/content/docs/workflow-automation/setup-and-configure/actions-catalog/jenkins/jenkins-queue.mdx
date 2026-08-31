@@ -1,0 +1,492 @@
+---
+title: "Jenkins queue actions"
+tags:
+  - workflow automation
+  - workflow
+  - workflow automation actions
+  - Jenkins actions
+  - Jenkins queue actions
+metaDescription: "Reference for Jenkins queue actions in the workflow automation actions catalog: get queue item, cancel, and list."
+freshnessValidatedDate: never
+---
+
+This page provides a reference for Jenkins queue actions available in the workflow automation actions catalog. Use these actions to inspect and manage builds waiting in the Jenkins build queue.
+
+## Prerequisites
+
+Before using Jenkins queue actions in workflow automation, you need:
+
+* A Jenkins server reachable from New Relic Workflow Automation over HTTPS. If your Jenkins instance is behind a firewall or in a private network, allow inbound access from New Relic Workflow Automation.
+* A Jenkins API token for the account the workflow runs as. Generate one from your Jenkins user profile: **Configure → API Token → Add new Token**.
+* Base64-encode `username:apiToken` and store the result as a secret in the New Relic Secrets Service. Reference it in the workflow as `${{ :secrets:<keyName> }}`.
+
+## Queue actions
+
+<CollapserGroup>
+    <Collapser
+        id="jenkins-queue-getitem"
+        title="Get a Jenkins queue item"
+    >
+  Gets queue item details, including the build number once execution starts. Use this action to poll the queue after triggering a build with [`jenkins.job.trigger`](/docs/workflow-automation/setup-and-configure/actions-catalog/jenkins/jenkins-job#jenkins-job-trigger) to retrieve the build number needed by other job actions.
+
+  The `executable.number` field in the response contains the build number once the build starts executing. It is `null` while the item is still in the queue.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="jenkins-queue-getitem-inputs">
+      Inputs
+    </TabsBarItem>
+    <TabsBarItem id="jenkins-queue-getitem-outputs">
+      Outputs
+    </TabsBarItem>
+    <TabsBarItem id="jenkins-queue-getitem-example">
+      Example
+    </TabsBarItem>
+  </TabsBar>
+  <TabsPages>
+    <TabsPageItem id="jenkins-queue-getitem-inputs">
+  <table>
+      <thead>
+          <tr>
+            <th>Input field</th>
+            <th>Optionality</th>
+            <th>Type</th>
+            <th>Notes</th>
+          </tr>
+      </thead>
+      <tbody>
+          <tr>
+              <td>**authToken**</td>
+              <td>Required</td>
+              <td>String (secret)</td>
+              <td>
+                `${{ :secrets:jenkinsAuthToken }}`
+                <p>Base64-encoded `username:apiToken` for HTTP Basic Authentication.</p>
+              </td>
+          </tr>
+          <tr>
+              <td>**url**</td>
+              <td>Required</td>
+              <td>String</td>
+              <td>
+                `https://jenkins.example.com`
+                <p>Jenkins server URL.</p>
+              </td>
+          </tr>
+          <tr>
+              <td>**queueId**</td>
+              <td>Required</td>
+              <td>Int</td>
+              <td>Queue item ID returned from `jenkins.job.trigger`. Use this to track the build and retrieve the build number once execution starts.</td>
+          </tr>
+          <tr>
+              <td>**selectors**</td>
+              <td>Optional</td>
+              <td>List</td>
+              <td>JQ selectors to extract specific fields from the HTTP response.</td>
+          </tr>
+      </tbody>
+  </table>
+  </TabsPageItem>
+
+  <TabsPageItem id="jenkins-queue-getitem-outputs">
+  <table>
+    <thead>
+        <tr>
+            <th>Output field</th>
+            <th>Type</th>
+            <th>Example</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>**response**</td>
+            <td>Object</td>
+            <td>
+```yaml
+{
+  "id": 123,
+  "blocked": false,
+  "buildable": false,
+  "cancelled": false,
+  "why": null,
+  "executable": {
+    "number": 42,
+    "url": "http://jenkins.example.com/job/my-job/42/"
+  },
+  "task": {
+    "name": "my-job",
+    "url": "http://jenkins.example.com/job/my-job/"
+  },
+  "inQueueSince": 1625234567000
+}
+```
+            </td>
+        </tr>
+        <tr>
+            <td>**success**</td>
+            <td>Boolean</td>
+            <td>`true`</td>
+        </tr>
+        <tr>
+            <td>**errorMessage**</td>
+            <td>String</td>
+            <td>Error message if the request failed.</td>
+        </tr>
+    </tbody>
+  </table>
+  </TabsPageItem>
+
+  <TabsPageItem id="jenkins-queue-getitem-example">
+  <table>
+    <thead>
+        <tr>
+            <th>Workflow example</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+```yaml
+name: poll-jenkins-queue
+description: 'Trigger a build and poll the queue until the build number is available.'
+steps:
+  - name: trigger_build
+    type: action
+    action: jenkins.job.trigger
+    version: 1
+    inputs:
+      authToken: ${{ :secrets:jenkinsAuthToken }}
+      url: "https://jenkins.example.com"
+      jobName: "my-application-build"
+      selectors:
+        - name: "queueId"
+          expression: ".queueId"
+    next: poll_queue
+
+  - name: poll_queue
+    type: loop
+    for:
+      in: ${{ [range(0; 10)] }}
+      steps:
+        - name: get_queue_item
+          type: action
+          action: jenkins.queue.getItem
+          version: 1
+          inputs:
+            authToken: ${{ :secrets:jenkinsAuthToken }}
+            url: "https://jenkins.example.com"
+            queueId: ${{ .steps.trigger_build.outputs.queueId }}
+            selectors:
+              - name: "buildNumber"
+                expression: ".responseBody | fromjson.executable.number // null"
+
+        - name: check_if_started
+          type: switch
+          switch:
+            - condition: ${{ .steps.get_queue_item.outputs.buildNumber != null }}
+              next: end
+          next: wait_and_retry
+
+        - name: wait_and_retry
+          type: wait
+          seconds: 2
+          next: continue
+```
+            </td>
+        </tr>
+    </tbody>
+  </table>
+  </TabsPageItem>
+  </TabsPages>
+</Tabs>
+    </Collapser>
+
+    <Collapser
+        id="jenkins-queue-cancel"
+        title="Cancel a queued Jenkins build"
+    >
+  Cancels a queued Jenkins build before it starts executing. Requires a `queueId` obtained from a prior `jenkins.job.trigger` call.
+
+  This action fails if the build has already started executing. To stop an already-running build, use [`jenkins.job.stop`](/docs/workflow-automation/setup-and-configure/actions-catalog/jenkins/jenkins-job#jenkins-job-stop) instead.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="jenkins-queue-cancel-inputs">
+      Inputs
+    </TabsBarItem>
+    <TabsBarItem id="jenkins-queue-cancel-outputs">
+      Outputs
+    </TabsBarItem>
+    <TabsBarItem id="jenkins-queue-cancel-example">
+      Example
+    </TabsBarItem>
+  </TabsBar>
+  <TabsPages>
+    <TabsPageItem id="jenkins-queue-cancel-inputs">
+  <table>
+      <thead>
+          <tr>
+            <th>Input field</th>
+            <th>Optionality</th>
+            <th>Type</th>
+            <th>Notes</th>
+          </tr>
+      </thead>
+      <tbody>
+          <tr>
+              <td>**authToken**</td>
+              <td>Required</td>
+              <td>String (secret)</td>
+              <td>
+                `${{ :secrets:jenkinsAuthToken }}`
+                <p>Base64-encoded `username:apiToken` for HTTP Basic Authentication.</p>
+              </td>
+          </tr>
+          <tr>
+              <td>**url**</td>
+              <td>Required</td>
+              <td>String</td>
+              <td>
+                `https://jenkins.example.com`
+                <p>Jenkins server URL.</p>
+              </td>
+          </tr>
+          <tr>
+              <td>**queueId**</td>
+              <td>Required</td>
+              <td>Int</td>
+              <td>Queue item ID to cancel. The item must still be in the queue and not yet executing.</td>
+          </tr>
+          <tr>
+              <td>**selectors**</td>
+              <td>Optional</td>
+              <td>List</td>
+              <td>JQ selectors to extract specific fields from the HTTP response.</td>
+          </tr>
+      </tbody>
+  </table>
+  </TabsPageItem>
+
+  <TabsPageItem id="jenkins-queue-cancel-outputs">
+  <table>
+    <thead>
+        <tr>
+            <th>Output field</th>
+            <th>Type</th>
+            <th>Example</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>**response**</td>
+            <td>Object</td>
+            <td>
+              `{ "statusCode": 204, "body": "" }`
+              <p>Jenkins returns HTTP 204 (No Content) on successful cancellation. Jenkins returns 404 if the queue item is not found or has already started executing.</p>
+            </td>
+        </tr>
+        <tr>
+            <td>**success**</td>
+            <td>Boolean</td>
+            <td>`true`</td>
+        </tr>
+        <tr>
+            <td>**errorMessage**</td>
+            <td>String</td>
+            <td>Error message if cancellation failed.</td>
+        </tr>
+    </tbody>
+  </table>
+  </TabsPageItem>
+
+  <TabsPageItem id="jenkins-queue-cancel-example">
+  <table>
+    <thead>
+        <tr>
+            <th>Workflow example</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+```yaml
+name: cancel-queued-jenkins-build
+description: 'Trigger a Jenkins build then cancel it before it starts executing.'
+steps:
+  - name: trigger_build
+    type: action
+    action: jenkins.job.trigger
+    version: 1
+    inputs:
+      authToken: ${{ :secrets:jenkinsAuthToken }}
+      url: "https://jenkins.example.com"
+      jobName: "my-application-build"
+      selectors:
+        - name: "queueId"
+          expression: ".queueId"
+    next: cancel_build
+
+  - name: cancel_build
+    type: action
+    action: jenkins.queue.cancel
+    version: 1
+    inputs:
+      authToken: ${{ :secrets:jenkinsAuthToken }}
+      url: "https://jenkins.example.com"
+      queueId: ${{ .steps.trigger_build.outputs.queueId }}
+    next: end
+```
+            </td>
+        </tr>
+    </tbody>
+  </table>
+  </TabsPageItem>
+  </TabsPages>
+</Tabs>
+    </Collapser>
+
+    <Collapser
+        id="jenkins-queue-list"
+        title="List all items in the Jenkins build queue"
+    >
+  Lists all items currently in the Jenkins build queue.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="jenkins-queue-list-inputs">
+      Inputs
+    </TabsBarItem>
+    <TabsBarItem id="jenkins-queue-list-outputs">
+      Outputs
+    </TabsBarItem>
+    <TabsBarItem id="jenkins-queue-list-example">
+      Example
+    </TabsBarItem>
+  </TabsBar>
+  <TabsPages>
+    <TabsPageItem id="jenkins-queue-list-inputs">
+  <table>
+      <thead>
+          <tr>
+            <th>Input field</th>
+            <th>Optionality</th>
+            <th>Type</th>
+            <th>Notes</th>
+          </tr>
+      </thead>
+      <tbody>
+          <tr>
+              <td>**authToken**</td>
+              <td>Required</td>
+              <td>String (secret)</td>
+              <td>
+                `${{ :secrets:jenkinsAuthToken }}`
+                <p>Base64-encoded `username:apiToken` for HTTP Basic Authentication.</p>
+              </td>
+          </tr>
+          <tr>
+              <td>**url**</td>
+              <td>Required</td>
+              <td>String</td>
+              <td>
+                `https://jenkins.example.com`
+                <p>Jenkins server URL.</p>
+              </td>
+          </tr>
+          <tr>
+              <td>**selectors**</td>
+              <td>Optional</td>
+              <td>List</td>
+              <td>JQ selectors to extract specific fields from the HTTP response.</td>
+          </tr>
+      </tbody>
+  </table>
+  </TabsPageItem>
+
+  <TabsPageItem id="jenkins-queue-list-outputs">
+  <table>
+    <thead>
+        <tr>
+            <th>Output field</th>
+            <th>Type</th>
+            <th>Example</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>**response**</td>
+            <td>Object</td>
+            <td>
+```yaml
+{
+  "items": [
+    {
+      "id": 123,
+      "blocked": false,
+      "buildable": true,
+      "cancelled": false,
+      "why": "Waiting for next available executor",
+      "task": {
+        "name": "job1",
+        "url": "http://jenkins.example.com/job/job1/"
+      },
+      "inQueueSince": 1625234567000
+    }
+  ]
+}
+```
+              <p>The `items` array contains all queue items. Each item includes `id`, `task` (job info), and `executable` (build info once the build starts).</p>
+            </td>
+        </tr>
+        <tr>
+            <td>**success**</td>
+            <td>Boolean</td>
+            <td>`true`</td>
+        </tr>
+        <tr>
+            <td>**errorMessage**</td>
+            <td>String</td>
+            <td>Error message if the request failed.</td>
+        </tr>
+    </tbody>
+  </table>
+  </TabsPageItem>
+
+  <TabsPageItem id="jenkins-queue-list-example">
+  <table>
+    <thead>
+        <tr>
+            <th>Workflow example</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+```yaml
+name: list-jenkins-queue
+description: 'List all items currently in the Jenkins build queue.'
+steps:
+  - name: list_queue
+    type: action
+    action: jenkins.queue.list
+    version: 1
+    inputs:
+      authToken: ${{ :secrets:jenkinsAuthToken }}
+      url: "https://jenkins.example.com"
+      selectors:
+        - name: "queueItems"
+          expression: ".responseBody | fromjson.items"
+        - name: "queueCount"
+          expression: ".responseBody | fromjson.items | length"
+    next: end
+```
+            </td>
+        </tr>
+    </tbody>
+  </table>
+  </TabsPageItem>
+  </TabsPages>
+</Tabs>
+    </Collapser>
+</CollapserGroup>
