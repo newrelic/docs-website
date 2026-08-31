@@ -7,7 +7,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/ai-monitoring/opentelemetry-ai-mo
 
 No New Relic agent required. If your app already emits OpenTelemetry traces, you can now send GenAI spans directly to AI monitoring and see every LLM call, tool call, and agent step — as part of your existing distributed traces.
 
-[Learn more](https://docs.newrelic.com/docs/ai-monitoring/opentelemetry-ai-monitoring/)
+
 
 ## What you get
 
