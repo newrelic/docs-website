@@ -1,7 +1,7 @@
 ---
 title: 'OpenTelemetry support for AI monitoring is now GA'
 summary: 'No New Relic agent required. If your app already emits OpenTelemetry traces, you can now send GenAI spans directly to AI monitoring and see every LLM call, tool call, and agent step.'
-releaseDate: '2026-08-26'
+releaseDate: '2026-08-31'
 learnMoreLink: 'https://docs.newrelic.com/docs/ai-monitoring/opentelemetry-ai-monitoring/'
 ---
 
