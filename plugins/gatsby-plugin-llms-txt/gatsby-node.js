@@ -6,6 +6,11 @@ const toString = require('mdast-util-to-string');
 const unified = require('unified');
 const stringify = require('remark-stringify');
 const { findAttribute } = require('../../codemods/utils/mdxast');
+// InlinePopover's visible text (`inlineText`) is resolved from this JSON by
+// its `type` prop at React render time - it's never a plain MDX attribute,
+// so it has to be looked up the same way here (English only, matching this
+// plugin's own English-only scope).
+const popoversEn = require('../../src/data/popovers_en.json');
 
 // remark-stringify@8.1.1 (the version installed here) only knows how to
 // render a fixed set of standard mdast node types (see
@@ -144,6 +149,78 @@ const dispatchFlow = (node) => {
     };
   }
 
+  // Raw HTML tables written directly as JSX (as opposed to markdown pipe-tables,
+  // which already arrive as proper mdast `table` nodes). Without this, table/tr/td/th
+  // fall to the generic unwrap below and lose all row/column structure - text just
+  // runs together with no indication of what's a header vs. a cell.
+  if (node.name === 'thead' || node.name === 'tbody') {
+    return node.children;
+  }
+  if (node.name === 'tr') {
+    return { type: 'tableRow', children: node.children };
+  }
+  if (node.name === 'th' || node.name === 'td') {
+    return { type: 'tableCell', children: node.children };
+  }
+  if (node.name === 'table') {
+    const rows = node.children || [];
+    const columnCount = rows[0]?.children?.length || 0;
+    return { type: 'table', align: Array(columnCount).fill(null), children: rows };
+  }
+
+  // Steps/Step render as a numbered sequence visually - without this, each
+  // step still reads fine as consecutive paragraphs, but the explicit
+  // ordering is left implicit. A real ordered list makes it explicit.
+  if (node.name === 'Step') {
+    return { type: 'listItem', spread: false, children: node.children };
+  }
+  if (node.name === 'Steps') {
+    return { type: 'list', ordered: true, start: 1, spread: false, children: node.children };
+  }
+
+  // Video is self-closing with no text content in the MDX source at all -
+  // just a platform `type` and an `id`. Without this, it vanishes entirely
+  // with no indication a video was ever there. Build the same embed URL
+  // the real component does (see Video.js's videoPlatforms map) so at
+  // least a followable link survives.
+  if (node.name === 'Video') {
+    const videoType = attributeText(findAttribute('type', node));
+    const videoId = attributeText(findAttribute('id', node));
+    const title = attributeText(findAttribute('title', node)) || 'Video';
+    const embedUrl = {
+      youtube: (id) => `https://www.youtube.com/embed/${id}`,
+      wistia: (id) => `https://fast.wistia.net/embed/iframe/${id}`,
+    }[videoType]?.(videoId);
+    return embedUrl ? { type: 'link', url: embedUrl, children: [{ type: 'text', value: title }] } : [];
+  }
+
+  // TabsBarItem holds a tab's label. Its matching content (TabsPageItem)
+  // lives under a separate sibling wrapper (TabsPages vs TabsBar), so
+  // pairing them up correctly would mean cross-referencing sibling
+  // subtrees - a bigger change than this component's volume justifies
+  // right now. Bolding the label is a cheap partial win: labels are at
+  // least visually distinct from body text, even though label-to-content
+  // ordering in the flattened output is left as a known limitation.
+  if (node.name === 'TabsBarItem') {
+    return { type: 'paragraph', children: [{ type: 'strong', children: node.children }] };
+  }
+
+  // DocTile is a navigation card: title + link (path) + a short description
+  // as children. Without this, both the title and the link vanish, leaving
+  // only the bare description with no indication it was ever a link.
+  if (node.name === 'DocTile') {
+    const title = attributeText(findAttribute('title', node));
+    const path = attributeText(findAttribute('path', node)) || '#';
+    const url = path.startsWith('/') ? `https://docs.newrelic.com${path}` : path;
+    const heading = title
+      ? [{ type: 'link', url, children: [{ type: 'strong', children: [{ type: 'text', value: title }] }] }]
+      : [];
+    return [
+      { type: 'paragraph', children: heading },
+      ...(node.children || []),
+    ];
+  }
+
   // Default: unrecognized component name - strip the wrapper but keep children
   return node.children;
 };
@@ -158,7 +235,11 @@ const dispatchText = (node) => {
   }
 
   if (node.name === 'InlinePopover') {
-    const text = attributeText(findAttribute('text', node)) || toString(node);
+    const type = attributeText(findAttribute('type', node));
+    const text =
+      popoversEn[type]?.inlineText ||
+      attributeText(findAttribute('text', node)) ||
+      toString(node);
     return { type: 'text', value: text };
   }
 
