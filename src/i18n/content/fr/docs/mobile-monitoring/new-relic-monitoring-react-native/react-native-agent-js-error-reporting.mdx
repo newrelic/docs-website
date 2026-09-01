@@ -1,0 +1,555 @@
+---
+title: Signalement des erreurs JavaScript React Native
+tags:
+  - Mobile monitoring
+  - New Relic Mobile React Native
+  - Install configure
+metaDescription: How to report and symbolicate React Native JavaScript errors in New Relic using source maps.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Par défaut, l’agent New Relic React Native capture les erreurs JavaScript et les rejets de promesses non gérés, et les signale comme des [événements`MobileJSError` ](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-errors/#react). Vous pouvez afficher ces erreurs dans l’interface utilisateur <InlinePopover type="mobile" />, effectuer des requêtes sur celles-ci avec NRQL, et les représenter graphiquement dans des dashboards.
+
+Pour rendre les traces d’appels dans les événements `MobileJSError` lisibles par un humain, l’agent a besoin du source map qui correspond au bundle JavaScript exécuté dans votre application. Lorsque vous configurez correctement votre clé API utilisateur New Relic et votre jeton d’application, l’agent téléverse le source map pour vous automatiquement après chaque build. Si vous ne pouvez pas effectuer de téléversement automatique, ou si vous publiez des mises à jour uniquement JavaScript avec CodePush ou un autre service over-the-air (OTA), vous pouvez téléverser les source maps manuellement.
+
+<Callout variant="important">
+  Le téléversement de source map utilise une [clé API utilisateur](/docs/apis/intro-apis/new-relic-api-keys/#user-key) en plus du jeton d’application. Le jeton d’application identifie votre application, mais il n’authentifie pas un utilisateur spécifique, il ne peut donc pas autoriser un téléversement en toute sécurité à lui seul. La clé API utilisateur lie la requête à un utilisateur New Relic authentifié, ce qui empêche quiconque ne possède que le jeton d’application (moins sensible) de téléverser ou d’écraser vos source maps. La clé API utilisateur et le jeton d’application doivent appartenir au même compte New Relic.
+</Callout>
+
+<Callout variant="tip">
+  Le signalement des erreurs JavaScript est activé par défaut. Définissez le [paramètre de configuration](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings/#react) `jsErrorReportingEnabled` sur `false` pour désactiver complètement l&apos;enregistrement des événements `MobileJSError`.
+</Callout>
+
+## Configurer le téléversement automatique du source map [#automatic-upload]
+
+Pour téléverser automatiquement les source maps, fournissez votre clé API utilisateur New Relic et votre jeton d&apos;application. Puisqu&apos;une application React Native est compilée séparément pour chaque plateforme, vous configurez la clé différemment sur Android et iOS. Configurez-la pour chaque plateforme que vous livrez.
+
+Avant de commencer, obtenez les éléments suivants à partir du même compte New Relic :
+
+* Une [clé API utilisateur](/docs/apis/intro-apis/new-relic-api-keys/#user-key).
+* Votre [jeton d’application](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token) mobile (le même jeton que vous passez à `NewRelic.startAgent()`).
+
+### Android [#automatic-upload-android]
+
+Ajoutez votre clé API utilisateur au fichier `newrelic.properties` de votre projet :
+
+```properties
+com.newrelic.api_key=<YOUR_USER_API_KEY>
+```
+
+Remplacez `<YOUR_USER_API_KEY>` par votre clé API utilisateur. L’agent connaît déjà le jeton d’application à partir de `NewRelic.startAgent()`. Lorsque les deux valeurs sont valides, l’agent génère et téléverse automatiquement la source map Android vers New Relic après chaque build de sortie.
+
+<Callout variant="tip">
+  Le téléversement automatique ne s’exécute par défaut que pour les builds de sortie. Pour obtenir également le téléversement automatique des source maps pour les builds de débogage, ajoutez `Debug` au paramètre `uploadMapsForVariant` dans votre [configuration du plug-in New Relic Gradle](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-new-relic-gradle-plugin), par exemple `uploadMapsForVariant("Release", "Debug")`. Sinon, [téléchargez manuellement la source map du build de débogage](#manual-upload).
+</Callout>
+
+### iOS [#automatic-upload-ios]
+
+Sur iOS, un script de phase de build (`upload-react-native-sourcemap`) inclus dans le dossier `dsym-upload-tools` — le même dossier utilisé pour les [téléversements de dSYM](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) — téléverse la source map. Vous passez la clé API utilisateur et le jeton d’application comme arguments à ce script.
+
+1. Si vous n’avez pas encore configuré les téléversements dSYM, copiez le dossier `dsym-upload-tools` dans le `SRCROOT` de votre projet (généralement votre dossier `ios`).
+
+2. Dans Xcode, sélectionnez votre cible, ouvrez l&apos;onglet <DNT>**Build Phases**</DNT> et ajoutez un <DNT>**New Run Script Build Phase**</DNT>. Faites-le glisser pour l&apos;exécuter après la phase « Bundle React Native code and images ».
+
+3. Ajoutez ce qui suit au script d’exécution, en remplaçant les espaces réservés par votre clé API utilisateur et votre jeton d’application :
+
+   ```bash
+   ARTIFACT_DIR="${BUILD_DIR%Build/*}"
+   SCRIPT=`/usr/bin/find "${SRCROOT}" "${ARTIFACT_DIR}" -type f -name upload-react-native-sourcemap | head -n 1`
+   /bin/sh "${SCRIPT}" "YOUR_USER_API_KEY" "YOUR_APP_TOKEN"
+   ```
+
+<Callout variant="tip">
+  Ne validez pas d’informations d’identification dans le contrôle de version. Stockez la clé API utilisateur et le jeton d’application dans un fichier `.xcconfig` ou dans les secrets de votre système CI/CD (intégration et livraison continues), puis référencez-les dans le script d’exécution (par exemple, `"${NR_USER_API_KEY}" "${NR_APP_TOKEN}"`). Ajoutez `--debug` comme troisième argument pour écrire une sortie détaillée dans `upload_sourcemap_results.log`.
+</Callout>
+
+Le script iOS s’exécute uniquement pour les builds <DNT>**Release**</DNT> et ignore les builds de simulateur. Si l’une des valeurs est manquante ou non valide, l’agent ne téléversera pas la source map, et les traces d’appels d’erreurs JavaScript resteront non symbolisées. Dans ce cas, [téléversez la source map manuellement](#manual-upload).
+
+## Téléchargez manuellement une carte source [#manual-upload]
+
+Vous pouvez importer une source map directement dans l’API d’ingestion de symboles New Relic. Cela est utile lorsque l’import automatique n’est pas possible, ou lors de la sortie de mises à jour uniquement JavaScript via [CodePush ou d’autres services OTA](#codepush).
+
+Utilisez le modèle <DNT>**cURL**</DNT> suivant :
+
+```bash
+curl -X POST "https://symbol-ingest-api.service.newrelic.com/v1/react-native/sourcemaps" \
+     -H "Api-Key: $NR_USER_API_KEY" \
+     -H "X-APP-LICENSE-KEY: $NR_APP_TOKEN" \
+     -F "sourcemap=@./index.android.bundle.map" \
+     -F "jsBundleId=<JS_BUNDLE_ID>" \
+     -F "appVersion=1.0.5" \
+     -F "sourcemapName=index.android.bundle.map"
+```
+
+Remplacez ce qui suit :
+
+* `$NR_USER_API_KEY` est une [clé API utilisateur](/docs/apis/intro-apis/new-relic-api-keys/#user-key) New Relic valide.
+* `$NR_APP_TOKEN` est votre [jeton d&apos;application](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token) de monitoring mobile
+* `<JS_BUNDLE_ID>` est l’identifiant de build unique signalé par l’agent pour la session JavaScript (voir [Récupérer le jsBundleId](#retrieve-bundle-id)).
+* `appVersion` est la version de l’application native que le bundle cible (par exemple, `1.0.5`).
+
+<Callout variant="tip">
+  Pour les comptes sur le data center de l’UE de New Relic, utilisez plutôt le point de terminaison de l’UE : `https://symbol-ingest-api.service.eu.newrelic.com/v1/react-native/sourcemaps`.
+
+  Pour les comptes sur le data center de New Relic au Japon, utilisez plutôt le point de terminaison du Japon : `https://symbol-ingest-api.service.jp.newrelic.com/v1/react-native/sourcemaps`.
+</Callout>
+
+### Référence de l’API de téléversement [#upload-api]
+
+#### Point de terminaison [#endpoint]
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Propriété
+      </th>
+
+      <th>
+        Valeur
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Méthode
+      </td>
+
+      <td>
+        `POST`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        URL
+      </td>
+
+      <td>
+        `https://symbol-ingest-api.service.newrelic.com/v1/react-native/sourcemaps`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Content-Type
+      </td>
+
+      <td>
+        `multipart/form-data`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+#### En-têtes [#headers]
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        En-tête
+      </th>
+
+      <th width="15%">
+        Requis
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `Api-Key`
+      </td>
+
+      <td>
+        Oui
+      </td>
+
+      <td>
+        Une 
+
+        [clé API utilisateur](/docs/apis/intro-apis/new-relic-api-keys/#user-key)
+
+         New Relic valide. Elle doit appartenir au même compte que le jeton d’application.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `X-APP-LICENSE-KEY`
+      </td>
+
+      <td>
+        Oui
+      </td>
+
+      <td>
+        Le jeton d’application pour l’application mobile.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `X-Telemetry-Data`
+      </td>
+
+      <td>
+        Non
+      </td>
+
+      <td>
+        Informations de télémétrie sur le bundler, les noms de source map, et les tailles. Lorsqu’une source map dépasse 200 Mo une fois décompressée, l’agent n’envoie pas le fichier et transmet uniquement cet en-tête à la place.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Content-Type`
+      </td>
+
+      <td>
+        Oui
+      </td>
+
+      <td>
+        Doit être 
+
+        `multipart/form-data`
+
+        .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+#### Corps de la requête (données de formulaire multipart) [#request-body]
+
+<table>
+  <thead>
+    <tr>
+      <th width="20%">
+        Champ
+      </th>
+
+      <th width="10%">
+        Type
+      </th>
+
+      <th width="12%">
+        Requis
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `sourcemap`
+      </td>
+
+      <td>
+        Déposer
+      </td>
+
+      <td>
+        Non
+      </td>
+
+      <td>
+        Le fichier source map (
+
+        `.map`
+
+         ou 
+
+        `.bundle`
+
+        ). Peut être compressé avec gzip. Maximum 200 Mo décompressé (voir 
+
+        [Limites de taille de fichier](#file-size-limitations)
+
+        ).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sourcemapName`
+      </td>
+
+      <td>
+        Chaîne
+      </td>
+
+      <td>
+        Non
+      </td>
+
+      <td>
+        Nom du fichier source map. Maximum 255 caractères.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `jsBundleId`
+      </td>
+
+      <td>
+        Chaîne
+      </td>
+
+      <td>
+        Oui
+      </td>
+
+      <td>
+        Identifiant de build unique (par exemple, un SHA ou un ID). Maximum 255 caractères.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `appVersion`
+      </td>
+
+      <td>
+        Chaîne
+      </td>
+
+      <td>
+        Oui
+      </td>
+
+      <td>
+        Version de l’application (par exemple, 
+
+        `1.5.2`
+
+        ). Maximum 255 caractères.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Si le fichier source map dépasse 200 Mo décompressé, l’agent n’enverra pas le fichier. Au lieu de cela, il transmet l’en-tête `X-Telemetry-Data` afin que New Relic puisse toujours suivre qu’un build a eu lieu. Pour plus de détails, consultez [Limites de taille de fichier](#file-size-limitations).
+</Callout>
+
+#### Réponses [#responses]
+
+Les réponses utilisent `Content-Type: application/json`.
+
+<table>
+  <thead>
+    <tr>
+      <th width="20%">
+        Statut HTTP
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `201 Created`
+      </td>
+
+      <td>
+        Le téléversement a réussi. Le corps de la réponse contient les métadonnées de la source map :
+
+        ```json
+        {
+          "sourcemapMetaData": {
+            "entityGuid": "<SOURCEMAP_ENTITY_GUID>",
+            "accountId": "<YOUR_ACCOUNT_ID>",
+            "applicationId": "<YOUR_APPLICATION_ID>",
+            "sourcemapName": "app.min.js.map",
+            "appVersion": "12424",
+            "JSBundleId": "87124712",
+            "createdAt": "2025-11-27T10:32:44.586Z"
+          }
+        }
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `400 Bad Request`
+      </td>
+
+      <td>
+        La validation a échoué, par exemple des champs manquants, un schéma JSON non valide dans le fichier, ou une requête mal formée. Exemple : 
+
+        `{"message": "Validation failed: Source map version must be 3."}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `401 Unauthorized`
+      </td>
+
+      <td>
+        La clé API est valide, mais le 
+
+        `X-APP-LICENSE-KEY`
+
+         appartient à un compte différent (protection inter-comptes). Exemple : 
+
+        `{"message": "User not authorized"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `403 Forbidden`
+      </td>
+
+      <td>
+        Le 
+
+        `Api-Key`
+
+         ne dispose pas de la capacité requise. Assurez-vous que votre clé API utilisateur appartient à un utilisateur ayant l&apos;autorisation de télécharger des symboles. Exemple : 
+
+        `{"message": "User not authorized"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `404 Not Found`
+      </td>
+
+      <td>
+        Le jeton d’application fourni dans l’en-tête n’existe pas. Exemple : 
+
+        `{"message": "applicationToken is invalid"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `413 Payload Too Large`
+      </td>
+
+      <td>
+        Le fichier source map décompressé dépasse 200 Mo. Exemple : 
+
+        `{"message": "File too large. Max size is currently 200 MiB"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `500 Internal Server Error`
+      </td>
+
+      <td>
+        Une erreur générique et irrécupérable s’est produite côté serveur. Exemple : 
+
+        `{"message": "Unexpected error occured during upload process because of {error}"}`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Importez les source maps pour les mises à jour CodePush et OTA [#codepush]
+
+Lorsque vous utilisez CodePush ou un autre service de mise à jour OTA, la version du bundle JavaScript diverge de la version binaire native. Chaque fois que vous publiez une mise à jour JavaScript, téléversez la nouvelle source map afin que les événements `MobileJSError` restent lisibles dans New Relic.
+
+Pour symboliquer une mise à jour OTA, le téléversement doit utiliser :
+
+* Un `jsBundleId` unique qui correspond à l’ID que l’agent signale pendant la session JavaScript.
+* Le `appVersion` correct, qui est la version native que le bundle cible.
+
+Vous pouvez importer la source map avec un script dans votre pipeline CI/CD ou manuellement avec cURL.
+
+### Méthode 1 : téléversement automatisé via un script [#codepush-script]
+
+New Relic fournit un script d’assistance Node.js que vous pouvez exécuter dans votre pipeline CI/CD immédiatement après la commande `appcenter codepush release-react`.
+
+```bash
+# Example integration
+appcenter codepush release-react -a <Owner>/<App>
+node upload-nr-sourcemap.js --bundle android/index.android.bundle --map android/index.android.bundle.map --bundleId <NEW_ID>
+```
+
+### Méthode 2 : téléversement manuel via cURL [#codepush-curl]
+
+Si vous préférez ne pas utiliser le script, téléversez la source map (décompressée ou compressée) vers l’API d’ingestion de symboles avec cURL :
+
+```bash
+curl -X POST "https://symbol-ingest-api.service.newrelic.com/v1/react-native/sourcemaps" \
+     -H "Api-Key: $NR_USER_API_KEY" \
+     -H "X-APP-LICENSE-KEY: $NR_APP_TOKEN" \
+     -F "sourcemap=@./index.android.bundle.map" \
+     -F "jsBundleId=CODE_PUSH_ID_HERE" \
+     -F "appVersion=1.0.5" \
+     -F "sourcemapName=index.android.bundle.map"
+```
+
+Pour obtenir la liste complète des en-têtes, des champs de corps, et des réponses, consultez la [référence de l’API d’upload](#upload-api).
+
+### Récupérer le jsBundleId [#retrieve-bundle-id]
+
+Le `jsBundleId` utilisé pour le téléversement doit correspondre à l’ID de bundle que l’agent rapporte pour la session JavaScript. Pour les sorties CodePush, utilisez le déploiement CodePush ou l’identifiant de sortie comme `jsBundleId` afin que la carte source téléversée corresponde au bundle s’exécutant dans les applications de vos utilisateurs.
+
+<Callout variant="tip">
+  Pour vérifier, auditer, ou supprimer les source maps que vous avez téléversées, consultez [Lister et supprimer les source maps React Native](/docs/mobile-monitoring/new-relic-monitoring-react-native/list-delete-react-native-source-maps).
+</Callout>
+
+## Limites de taille de fichier [#file-size-limitations]
+
+Les fichiers source map doivent faire moins de 200 Mo une fois décompressés pour être stockés pour la symbolication.
+
+Nos scripts de build compressent automatiquement le fichier `.map` au format gzip avant le téléversement pour réduire la taille du transfert, mais le build vérifie la limite de 200 Mo par rapport au fichier décompressé. Si le fichier `.map` décompressé dépasse 200 Mo, l’agent ne téléverse pas le fichier, ce qui évite les dépassements de délai de build et les erreurs d’ingestion.
+
+Dans ces cas, le script envoie la télémétrie de build (métadonnées) au lieu du fichier. Cela permet à New Relic de suivre le fait qu’un build a eu lieu, même si la symbolication n’est pas disponible pour cette version spécifique. Par conséquent, les événements `MobileJSError` pour ce build affichent des traces d’appels non symboliquées (minifiées).
+
+Si votre source map fait plus de 200 Mo décompressé, [contactez l’assistance New Relic ou soumettez une demande de fonctionnalité](#request-support). Il n’y a aucun moyen d’augmenter cette limite vous-même.
+
+## Dépanner les téléversements de source map [#troubleshoot]
+
+Si vos traces d’appels `MobileJSError` ne sont pas symbolisées, votre source map a peut-être dépassé la [limite de taille de 200 Mo décompressée](#file-size-limitations). Suivez les étapes suivantes pour confirmer la cause et demander de l’aide. Pour plus de conseils de dépannage et de questions fréquentes, consultez [Dépanner les source maps React Native et les erreurs JavaScript](/docs/mobile-monitoring/new-relic-monitoring-react-native/troubleshoot-react-native-source-maps).
+
+### Confirmez si le fichier ou la télémétrie a été téléversé [#confirm-upload]
+
+Un build réussi ne signifie pas toujours un téléversement de fichier réussi. Si votre script de build se termine par un message `Success` mais que votre source map fait plus de 200 Mo décompressé, vérifiez les logs de votre console. Vous verrez un message indiquant que l’agent a envoyé de la télémétrie au lieu du fichier source map.
+
+### Vérifiez la taille du fichier décompressé [#check-zip-size]
+
+Vérifiez la taille de votre fichier source map pour vérifier si vous êtes proche ou au-dessus de la limite :
+
+```bash
+# Check the size of the unzipped source map
+ls -lh index.android.bundle.map
+```
+
+Si le fichier est proche ou supérieur à 200 Mo, la source map ne peut pas être importée pour la symbolication.
+
+### Demander la prise en charge des source maps volumineuses [#request-support]
+
+Si votre source map décompressée dépasse la limite de 200 Mo, il n’y a aucun moyen de la réduire de votre côté ou d’augmenter la limite vous-même. Procédez comme suit pour nous faire savoir que cette limite vous affecte :
+
+* [Contactez le support New Relic](https://support.newrelic.com/).
+* Soumettez une demande de fonctionnalité pour augmenter la limite de taille de votre source map.
