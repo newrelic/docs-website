@@ -1,0 +1,154 @@
+---
+title: Configure the React Native agent for EAS Build
+tags:
+  - Mobile monitoring
+  - New Relic Mobile React Native
+  - Install configure
+metaDescription: How to configure the New Relic React Native agent's Expo config plugin to automatically upload source maps, dSYMs, and Android mapping files from EAS Build.
+freshnessValidatedDate: never
+---
+
+If you build your React Native app with [EAS Build](https://docs.expo.dev/build/introduction/), Expo's Continuous Native Generation (CNG) regenerates your `android/` and `ios/` folders from scratch on every `expo prebuild` step — both locally and on EAS's build servers. That means a manually added `newrelic.properties` file or a hand-added Xcode <DNT>**Run Script**</DNT> build phase gets wiped out on the next build.
+
+The `newrelic-react-native-agent` [config plugin](https://docs.expo.dev/guides/config-plugins/) solves this by regenerating the New Relic build configuration on every prebuild, so [Android mapping file and source map upload](#android) and [iOS dSYM and source map upload](#ios) keep working across EAS builds. Credentials are read from environment variables at build time and are never committed to your repo.
+
+<Callout variant="tip">
+  This page assumes you've already installed the React Native agent and added the config plugin to your `app.json` or `app.config.js`, as described in [Integrate with Expo](/docs/mobile-monitoring/new-relic-monitoring-react-native/monitor-your-react-native-application#optional-expo-integration). It requires a recent version of `newrelic-react-native-agent` — check the package's [GitHub releases](https://github.com/newrelic/newrelic-react-native-agent/releases) if the plugin options below aren't available yet.
+</Callout>
+
+## Before you begin [#prerequisites]
+
+Get the following from the same New Relic account:
+
+* A [User API key](/docs/apis/intro-apis/new-relic-api-keys/#user-key).
+* Your Android and/or iOS [application token](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token) (the same token you pass to `NewRelic.startAgent()`). If you ship to both platforms, you'll need one token per platform.
+
+## Set EAS environment variables [#eas-environment-variables]
+
+Register your User API key and application token(s) as [EAS environment variables](https://docs.expo.dev/eas/environment-variables/), scoped to the environments you build with:
+
+```shell
+eas env:create --environment production --name NEWRELIC_USER_API_KEY --value <YOUR_USER_API_KEY> --visibility sensitive
+eas env:create --environment production --name NEWRELIC_ANDROID_APP_TOKEN --value <YOUR_ANDROID_APP_TOKEN> --visibility sensitive
+eas env:create --environment production --name NEWRELIC_IOS_APP_TOKEN --value <YOUR_IOS_APP_TOKEN> --visibility sensitive
+```
+
+<Callout variant="important">
+  Don't use `--visibility secret`. EAS reserves secret-visibility variables for its own credential system, so they're never exposed as `process.env` to build scripts — the config plugin won't see them, and it'll silently skip writing the Android properties file or the iOS build phase credentials. Use `plaintext` or `sensitive` instead.
+
+  EAS Build resolves `plaintext`/`sensitive` variables before running `prebuild`, whether the build runs on EAS's servers or locally with `eas build --local`.
+</Callout>
+
+## Android: automatic mapping file and source map upload [#android]
+
+With no extra configuration, the plugin reads your User API key from `NEWRELIC_USER_API_KEY` and your Android application token from `NEWRELIC_ANDROID_APP_TOKEN`, and writes them into `android/app/newrelic.properties` on every prebuild:
+
+```js
+{
+  "name": "my app",
+  "plugins": ["newrelic-react-native-agent"]
+}
+```
+
+Those properties are what the agent's `newrelicMapUploadRelease` and `newrelicReactNativeSourceMapUploadRelease` Gradle tasks read to authenticate the upload of your ProGuard/R8 mapping file and React Native source map after each release build. For more on how that upload works (and how to upload manually if needed), see [React Native JavaScript error reporting](/docs/mobile-monitoring/new-relic-monitoring-react-native/react-native-agent-js-error-reporting#automatic-upload-android).
+
+If only one of the two environment variables is set, the plugin still writes that single property, and the Gradle task logs which one is missing rather than failing the build. If neither is set, the plugin leaves `newrelic.properties` untouched and both tasks skip the upload with a log message.
+
+### Use custom environment variable names (Android) [#android-custom-env-vars]
+
+To source the key and token from differently named environment variables, pass them explicitly:
+
+```js
+{
+  "name": "my app",
+  "plugins": [
+    [
+      "newrelic-react-native-agent",
+      {
+        "android": {
+          "apiKeyEnvName": "MY_NR_USER_API_KEY",
+          "appTokenEnvName": "MY_NR_ANDROID_APP_TOKEN"
+        }
+      }
+    ]
+  ]
+}
+```
+
+## iOS: automatic dSYM and source map upload [#ios]
+
+Unlike on Android, the dSYM and React Native source map upload scripts (`run-symbol-tool` and `upload-react-native-sourcemap`, from the [`dsym-upload-tools`](https://github.com/newrelic/newrelic-ios-agent-spm/tree/main/dsym-upload-tools) folder) don't ship inside the `NewRelicAgent` CocoaPod, and normally require a <DNT>**Run Script**</DNT> build phase added by hand in Xcode — which doesn't survive `expo prebuild` regenerating `ios/`. On every prebuild, the plugin instead:
+
+* Copies both scripts into `ios/dsym-upload-tools`.
+* Adds a <DNT>**Run Script**</DNT> build phase named "Upload dSYMs and Source Maps to New Relic" (after "Bundle React Native code and images") that invokes them, reading credentials from environment variables at build time — the credentials are only referenced by name in the generated script, never written to a file.
+* Makes sure the "Bundle React Native code and images" phase exports `SOURCEMAP_FILE`, since Expo's default template doesn't set it and the source map wouldn't otherwise be generated.
+
+With no extra configuration, the build phase reads your iOS application token from `NEWRELIC_IOS_APP_TOKEN` and your User API key from `NEWRELIC_USER_API_KEY` (shared with the [Android default](#android)):
+
+```js
+{
+  "name": "my app",
+  "plugins": ["newrelic-react-native-agent"]
+}
+```
+
+For background on what these scripts do and how dSYM upload works outside of Expo, see [Upload dSYMs](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps).
+
+<Callout variant="tip">
+  Both scripts only run for <DNT>**Release**</DNT> builds and skip simulator builds by default. To test the source map upload path on a simulator, set `NEWRELIC_SOURCEMAP_ALLOW_SIMULATOR=true`.
+</Callout>
+
+### Use custom environment variable names (iOS) [#ios-custom-env-vars]
+
+To source the token and key from differently named environment variables, pass them explicitly:
+
+```js
+{
+  "name": "my app",
+  "plugins": [
+    [
+      "newrelic-react-native-agent",
+      {
+        "ios": {
+          "appTokenEnvName": "MY_NR_IOS_APP_TOKEN",
+          "apiKeyEnvName": "MY_NR_USER_API_KEY"
+        }
+      }
+    ]
+  ]
+}
+```
+
+## Verify the upload [#verify-upload]
+
+After running an EAS build, check the build logs for each platform:
+
+* **Android**: look for the `newrelicMapUploadRelease` and `newrelicReactNativeSourceMapUploadRelease` Gradle tasks in the log. A successful run reports the mapping file and source map were found and uploaded, with no missing-config warnings.
+* **iOS**: look for the "Upload dSYMs and Source Maps to New Relic" run script step. If a credential is missing, it logs which one and skips that upload (for example, `NEWRELIC_IOS_APP_TOKEN not set, skipping...`) rather than failing the build. When credentials are present, it logs that it's processing the dSYMs and source map and uploading them to New Relic.
+
+Once a build succeeds, confirm the source map actually landed in New Relic by checking [List and delete React Native source maps](/docs/mobile-monitoring/new-relic-monitoring-react-native/list-delete-react-native-source-maps).
+
+## Troubleshoot [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser
+    id="eas-env-not-picked-up"
+    title="The plugin isn't picking up my environment variables"
+  >
+    Confirm the EAS environment variables are set with `--visibility plaintext` or `--visibility sensitive`, not `--visibility secret`. Secret-visibility variables are never exposed as `process.env` to build scripts, so the config plugin can't read them. Run `eas env:list --environment <your-environment>` to check.
+  </Collapser>
+
+  <Collapser
+    id="eas-changes-not-applied"
+    title="My changes to app.json / app.config.js aren't showing up in the build"
+  >
+    The config plugin only runs during `expo prebuild`. If you're testing locally, run `expo prebuild --clean` to regenerate `android/` and `ios/` with the plugin's changes. EAS Build runs `prebuild` automatically as part of the build, so this only affects local testing.
+  </Collapser>
+
+  <Collapser
+    id="eas-build-succeeds-no-upload"
+    title="The build succeeds, but I don't see uploads happening"
+  >
+    A successful build doesn't guarantee a successful upload — both the Android Gradle tasks and the iOS run script skip silently (without failing the build) when a required environment variable is missing. Check the build log for the skip messages described in [Verify the upload](#verify-upload), and double check the variable names match what you configured for [Android](#android-custom-env-vars) or [iOS](#ios-custom-env-vars).
+  </Collapser>
+</CollapserGroup>
