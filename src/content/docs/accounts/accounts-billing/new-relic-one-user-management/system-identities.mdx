@@ -1,0 +1,546 @@
+---
+title: System identities
+metaDescription: Learn what a system identity is in New Relic, where it is used, and how to create and manage one using NerdGraph.
+tags:
+  - Accounts
+  - Accounts and billing
+  - New Relic One user management
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A **system identity** is a non-human authenticated actor in New Relic. It represents a service, agent, or automated workload — not a person — and has its own credentials, access model, and lifecycle. System identities authenticate directly to New Relic without requiring a user account, and their actions are audited under the identity itself rather than attributed to a human user.
+
+<Callout variant="important">
+  Managing system identities via NerdGraph is available to all organizations. A self-service UI for creating and managing customer-owned system identities is planned for a future release.
+</Callout>
+
+## NR-owned vs. customer-owned system identities [#types]
+
+There are two types of system identities:
+
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Who creates it</th>
+      <th>Who manages credentials</th>
+      <th>Examples</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>**NR-owned**</td>
+      <td>New Relic, automatically during feature provisioning</td>
+      <td>New Relic</td>
+      <td>Autopilot</td>
+    </tr>
+    <tr>
+      <td>**Customer-owned**</td>
+      <td>The customer, via NerdGraph or the UI</td>
+      <td>The customer</td>
+      <td>Agent Control, CI/CD pipelines, Terraform automation</td>
+    </tr>
+  </tbody>
+</table>
+
+NR-owned system identities are provisioned and deleted by New Relic. Customer-owned system identities replace the previous practice of tying automation to an individual user's API key — when that person leaves or rotates their key, the automation breaks. A customer-owned system identity is scoped to the organization, fully audited, and credential rotation is owned by the customer.
+
+## Where system identities are used today [#usage]
+
+- **Autopilot** — When you set up Autopilot, the onboarding flow automatically creates an NR-owned system identity on your behalf. You do not need to create or manage it directly.
+- **Agent Control / New Relic Control** — Each Agent Control installation uses a customer-owned system identity with a non-expiring key-pair credential (created during the guided install) to authenticate with the Fleet Control backend over OpAMP. This is distinct from the 12-hour client-secret credential the UI generates for initial bootstrap — the identity that persists on the host uses a key pair and doesn't expire.
+- **Fleet Management** — Fleet Control uses system-level identities to establish trust between Agent Control instances and the Fleet Control service.
+- **Helm-based manual path** — The `newrelic-auth-rs` CLI can be used to create and manage system identities for Helm chart deployments outside the guided install flow.
+
+## Credentials and token lifetimes [#credentials]
+
+System identities support two credential types. Choose based on your use case:
+
+<table>
+  <thead>
+    <tr>
+      <th>Credential type</th>
+      <th>Expiry</th>
+      <th>Best for</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>**Key pair** (RSA-4096)</td>
+      <td>Never expires</td>
+      <td>Long-running agents, production automation</td>
+    </tr>
+    <tr>
+      <td>**Client ID + client secret**</td>
+      <td>12 hours</td>
+      <td>Short-lived installs, initial setup</td>
+    </tr>
+  </tbody>
+</table>
+
+Regardless of credential type, the **OAuth access token** returned after authentication expires in **1 hour**. There is no refresh token — your automation must re-authenticate when the token expires.
+
+For key-pair credentials, a signed JWT assertion must be constructed with a maximum validity of **30 days**.
+
+## Access model [#access]
+
+System identities use the same group-based access model as users:
+
+1. A system identity is added to one or more **system identity groups** (these are distinct from user groups and can only contain system identities).
+2. Roles are granted to the group at either organization scope or account scope.
+3. Every identity in the group inherits all roles granted to that group immediately — and loses them immediately if a grant is removed.
+
+Auth Domain Managers can create groups, modify role grants, and remove identities from groups.
+
+## End-to-end setup workflow [#workflow]
+
+The following steps walk through the full process of provisioning a customer-owned system identity with access to New Relic:
+
+1. **[Generate an RSA-4096 key pair](#generate-key-pair)** — recommended for production; skip if using a client secret
+2. **[Create the system identity](#create)** — with a key pair or client secret
+3. **[Create a system identity group](#create-group)** — a container for role assignments
+4. **[Add the identity to the group](#add-to-group)** — so it inherits the group's roles
+5. **[Grant a role to the group](#grant-role)** — org-scoped or account-scoped
+6. **[Authenticate](#authenticate)** — exchange credentials for a short-lived access token
+
+After initial setup, use the [management operations](#manage) to list, update, or delete identities and groups.
+
+## Prerequisites [#prerequisites]
+
+- A [New Relic User API Key](/docs/apis/intro-apis/new-relic-api-keys/) to authenticate NerdGraph requests
+- **Organization Manager** or **Authentication Domain Manager** role to create system identities and groups
+- Your New Relic **organization ID** (available in **[one.newrelic.com > Administration](https://one.newrelic.com/admin-portal) > Organization**) 
+
+## Generate an RSA-4096 key pair [#generate-key-pair]
+
+If you want to create a system identity with a key-pair credential (recommended for production), generate the key pair first. Skip this step if you plan to use a client secret.
+
+System identities use **RSA-4096 in PEM format**. During transport, the public key must be **Base64-encoded**.
+
+```shell
+# Generate the private key
+openssl genrsa -out private-key.pem 4096
+
+# Derive the public key from the private key
+openssl rsa -in private-key.pem -pubout -out public-key.pem
+
+# Base64-encode the public key (removing line endings) and copy to clipboard
+cat public-key.pem | base64 -b 0 | pbcopy
+```
+
+<Callout variant="important">
+  Store the private key securely (for example, in a secrets manager or password vault). You will need it later to sign JWT assertions for authentication. New Relic never stores your private key.
+</Callout>
+
+## Create a system identity [#create]
+
+### With a key pair (recommended) [#create-key-pair]
+
+```graphql
+mutation {
+  systemIdentityCreate(
+    name: "my-automation-identity",
+    organizationId: "YOUR_ORG_ID",
+    publicKey: "BASE64_ENCODED_PUBLIC_KEY"
+  ) {
+    id
+    name
+    organizationId
+    clientId
+  }
+}
+```
+
+Save the returned `clientId` — you will need it when authenticating. The key pair does not expire.
+
+### With a client secret [#create-client-secret]
+
+```graphql
+mutation {
+  systemIdentityCreate(
+    name: "my-install-identity",
+    organizationId: "YOUR_ORG_ID"
+  ) {
+    id
+    name
+    organizationId
+    clientId
+    clientSecret
+    credentialExpiration
+  }
+}
+```
+
+<Callout variant="important">
+  The `clientSecret` is returned **once only**. Copy it immediately — you cannot retrieve it again. The secret expires after 12 hours. If it expires, you must create a new system identity.
+</Callout>
+
+## Create a system identity group [#create-group]
+
+System identity groups are containers for assigning role access to a set of system identities. A new group starts empty with no members and no grants.
+
+```graphql
+mutation {
+  systemIdentityCreateGroup(
+    name: "my-automation-group",
+    organizationId: "YOUR_ORG_ID"
+  ) {
+    id
+    name
+    organizationId
+  }
+}
+```
+
+Save the returned `id` — you will use it to add identities and grants.
+
+## Add a system identity to a group [#add-to-group]
+
+```graphql
+mutation {
+  systemIdentityAddToGroups(
+    systemIdentityGroupIds: ["YOUR_GROUP_ID"],
+    systemIdentityIds: ["YOUR_SYSTEM_IDENTITY_ID"]
+  ) {
+    systemIdentityGroups {
+      id
+      name
+      organizationId
+    }
+  }
+}
+```
+
+You can add a single identity to multiple groups in one call by including additional IDs in either array.
+
+## Remove a system identity from a group [#remove-from-group]
+
+Removing an identity from a group immediately revokes all role access inherited through that group.
+
+```graphql
+mutation {
+  systemIdentityRemoveFromGroups(
+    systemIdentityGroupIds: ["YOUR_GROUP_ID"],
+    systemIdentityIds: ["YOUR_SYSTEM_IDENTITY_ID"]
+  ) {
+    systemIdentityGroups {
+      id
+      name
+      organizationId
+    }
+  }
+}
+```
+
+## Grant a role to a system identity group [#grant-role]
+
+Access is granted to a system identity group, not to individual identities. All identities in the group inherit the role immediately.
+
+### Organization-scoped grant [#grant-org-scoped]
+
+Use for roles that apply across the entire organization (for example, Organization Manager or NR Control).
+
+```graphql
+mutation {
+  authorizationManagementGrantAccess(
+    grantAccessOptions: {
+      organizationAccessGrants: {
+        roleId: YOUR_ROLE_ID
+      },
+      grantee: {
+        id: "YOUR_GROUP_ID",
+        type: SYSTEM_IDENTITY_GROUP
+      }
+    }
+  ) {
+    roles {
+      id
+      name
+    }
+  }
+}
+```
+
+### Account-scoped grant [#grant-account-scoped]
+
+Use for roles that apply to a specific account (for example, All product admin on a single account).
+
+```graphql
+mutation {
+  authorizationManagementGrantAccess(
+    grantAccessOptions: {
+      accountAccessGrants: {
+        accountId: YOUR_ACCOUNT_ID,
+        roleId: YOUR_ROLE_ID
+      },
+      grantee: {
+        id: "YOUR_GROUP_ID",
+        type: SYSTEM_IDENTITY_GROUP
+      }
+    }
+  ) {
+    roles {
+      id
+      name
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  To find the role IDs available in your organization, query `customerAdministration { roles { roles { id name } } }` in NerdGraph.
+</Callout>
+
+## Authenticate [#authenticate]
+
+After provisioning, your system identity must exchange its credentials for a short-lived access token (1 hour TTL) to make API calls.
+
+### Authenticate with a client secret [#auth-client-secret]
+
+```shell
+POST https://system-identity-oauth.service.newrelic.com/oauth2/token
+Content-Type: application/json
+
+{
+  "client_id": "YOUR_CLIENT_ID",
+  "client_secret": "YOUR_CLIENT_SECRET",
+  "grant_type": "client_credentials"
+}
+```
+
+On success, the response contains:
+
+```json
+{
+  "access_token": "eyJhbGci...",
+  "expires_in": 3600,
+  "token_type": "Bearer"
+}
+```
+
+Use the `access_token` as a `Bearer` token in the `Authorization` header for subsequent API calls.
+
+### Authenticate with a private key JWT [#auth-jwt]
+
+This flow uses the private key you generated earlier to sign a JWT assertion.
+
+1. Construct a JWT with the following claims:
+   - `iss`: your `clientId`
+   - `sub`: your `clientId`
+   - `aud`: `https://system-identity-oauth.service.newrelic.com/oauth2/token`
+   - `exp`: expiration timestamp (maximum 30 days from now)
+   - `iat`: issued-at timestamp
+
+2. Sign the JWT with your RSA-4096 private key using the `RS256` algorithm.
+
+3. Exchange the signed JWT for an access token:
+
+```shell
+POST https://system-identity-oauth.service.newrelic.com/oauth2/token
+Content-Type: application/json
+
+{
+  "client_id": "YOUR_CLIENT_ID",
+  "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+  "client_assertion": "YOUR_SIGNED_JWT",
+  "grant_type": "client_credentials"
+}
+```
+
+On success, the response is the same as the client secret flow — a `Bearer` access token with a 1-hour TTL.
+
+## EU and FedRAMP endpoints [#regional-endpoints]
+
+For EU-region organizations, use:
+- OAuth token endpoint: `https://system-identity-oauth.service.eu.newrelic.com/oauth2/token`
+
+For JP-region organizations, use:
+- OAuth token endpoint: `https://system-identity-oauth.service.jp.newrelic.com/oauth2/token`
+
+## Manage system identities [#manage]
+
+### List system identities [#list-identities]
+
+Query all system identities in your organization:
+
+```graphql
+{
+  customerAdministration {
+    systemIdentities(organizationId: "YOUR_ORG_ID") {
+      items {
+        id
+        name
+        clientId
+        type
+        createdAt
+      }
+      nextCursor
+    }
+  }
+}
+```
+
+The `type` field returns `NR_OWNED` for identities provisioned by New Relic (such as Autopilot) or `STANDARD` for customer-owned identities. Use `nextCursor` to paginate through results.
+
+### List system identity groups [#list-groups]
+
+Query all system identity groups in your organization:
+
+```graphql
+{
+  customerAdministration {
+    systemIdentityGroups(organizationId: "YOUR_ORG_ID") {
+      items {
+        id
+        name
+        organizationId
+        provisionedBy
+      }
+      nextCursor
+    }
+  }
+}
+```
+
+The `provisionedBy` field returns `"system"` for groups that New Relic manages automatically, or `null` for customer-created groups. Do not modify groups where `provisionedBy` is `"system"`.
+
+### Rename a system identity [#rename]
+
+```graphql
+mutation {
+  systemIdentityUpdate(
+    id: "YOUR_SYSTEM_IDENTITY_ID",
+    name: "new-name"
+  ) {
+    id
+    name
+  }
+}
+```
+
+### Rename a system identity group [#rename-group]
+
+```graphql
+mutation {
+  systemIdentityUpdateGroup(
+    id: "YOUR_GROUP_ID",
+    name: "new-group-name"
+  ) {
+    id
+    name
+    organizationId
+  }
+}
+```
+
+### Revoke a role from a system identity group [#revoke-role]
+
+Revoking a role from a group removes that role from all identities in the group immediately.
+
+**Organization-scoped:**
+
+```graphql
+mutation {
+  authorizationManagementRevokeAccess(
+    revokeAccessOptions: {
+      organizationAccessGrants: {
+        roleId: YOUR_ROLE_ID
+      },
+      grantee: {
+        id: "YOUR_GROUP_ID",
+        type: SYSTEM_IDENTITY_GROUP
+      }
+    }
+  ) {
+    roles {
+      id
+      name
+    }
+  }
+}
+```
+
+**Account-scoped:**
+
+```graphql
+mutation {
+  authorizationManagementRevokeAccess(
+    revokeAccessOptions: {
+      accountAccessGrants: {
+        accountId: YOUR_ACCOUNT_ID,
+        roleId: YOUR_ROLE_ID
+      },
+      grantee: {
+        id: "YOUR_GROUP_ID",
+        type: SYSTEM_IDENTITY_GROUP
+      }
+    }
+  ) {
+    roles {
+      id
+      name
+    }
+  }
+}
+```
+
+### Revoke a compromised system identity [#revoke-compromised]
+
+If a system identity's credentials are leaked or a host is compromised, revoke access immediately:
+
+1. **List all system identities** to find the compromised identity's ID using the [list query](#list-identities).
+2. **Delete the compromised identity** using the mutation below. Deletion is immediate — the identity loses all role access and any tokens it has obtained stop working at the next API call.
+3. **Create a new system identity** with fresh credentials and add it to the appropriate group.
+4. **Update your automation** to use the new identity's credentials.
+
+<Callout variant="important">
+  There is no token revocation endpoint — access tokens issued before deletion remain valid until their 1-hour TTL expires. If you need to minimize this window, remove the identity from all groups first (revoking role access) and then delete it.
+</Callout>
+
+### Delete a system identity [#delete-identity]
+
+Deleting a system identity is permanent and removes it from all groups it belongs to. The identity loses all inherited role access immediately.
+
+```graphql
+mutation {
+  systemIdentityDelete(id: "YOUR_SYSTEM_IDENTITY_ID") {
+    id
+  }
+}
+```
+
+<Callout variant="caution">
+  Deleting a system identity that is actively used by an agent (such as an Agent Control instance) will cause that agent to lose authentication and stop functioning. Ensure the identity is no longer in use before deleting.
+</Callout>
+
+### Delete a system identity group [#delete-group]
+
+Deleting a group removes all its role grants. Member identities lose all roles inherited through the group immediately, but the identities themselves are not deleted.
+
+```graphql
+mutation {
+  systemIdentityDeleteGroup(id: "YOUR_GROUP_ID") {
+    id
+  }
+}
+```
+
+<Callout variant="caution">
+  Do not delete groups where `provisionedBy` is `"system"` — these are managed by New Relic and are required for features like Autopilot to function.
+</Callout>
+
+## Current limitations [#limitations]
+
+- **No credential rotation without downtime.** There is no graceful zero-downtime credential rotation — replacing a key-pair identity's public key invalidates the old key immediately. Client secret rotation is not yet supported.
+- **Client secret TTL is fixed at 12 hours.** Configurable TTL (with longer options such as 1 year) is planned for a future release.
+- **No self-service UI yet.** Customer-owned system identity management is currently NerdGraph-only. A UI is planned.
+- **No refresh token.** Access tokens expire after 1 hour and must be re-requested — there is no token refresh flow.
+- **One credential per identity.** Dual-credential support (for zero-downtime rotation) is post-limited preview.
+
+## What's next [#whats-next]
+
+- [Set up Agent Control](/docs/new-relic-control/agent-control/setup) — uses system identities for Kubernetes, Linux, and Windows host management
+- [Set up Autopilot](/docs/agentic-ai/autopilot/setup) — system identity is created automatically during setup
+- [Terraform: Agent Control](/docs/infrastructure-as-code/terraform/agent-control) — automate Agent Control setup including system identity creation
+- [Fleet Control security](/docs/new-relic-control/fleet-control/security) — how system identities fit into the Fleet Control security model
