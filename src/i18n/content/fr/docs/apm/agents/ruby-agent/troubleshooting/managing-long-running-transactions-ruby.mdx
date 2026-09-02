@@ -1,0 +1,86 @@
+---
+title: Gestion des transactions de longue durée
+tags:
+  - Agents
+  - Ruby agent
+  - Troubleshooting
+metaDescription: Strategies for troubleshooting issues caused by long-running transactions with the New Relic Ruby agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+L’agent Ruby n’est pas conçu pour effectuer une trace des transactions qui s’exécutent pendant une très longue période, ou qui ne se terminent jamais. Ce guide explique pourquoi cela peut entraîner une augmentation de la mémoire, et fournit des stratégies pour y remédier.
+
+## Problème
+
+L’utilisation de la mémoire de votre application augmente continuellement, et elle est corrélée à une ou plusieurs transactions qui restent ouvertes pendant une longue période. C’est plus fréquent avec :
+
+* Une tâche en arrière-plan ou un worker qui reste dans une transaction pendant une longue période, comme le traitement d’un lot important ou l’émission de nombreuses requêtes de base de données ou d’appels externes
+* Un thread qui reste actif pendant toute la durée de vie du processus, que l’agent traite comme une seule transaction s’exécutant en continu
+* Toute transaction qui s’exécute beaucoup plus longtemps que d’habitude, ou qui ne se termine jamais
+
+## Pourquoi cela se produit
+
+Pour chaque unité de travail tracée dans une transaction, l’agent crée un segment afin de pouvoir construire une trace de transaction, et calculer le temps exclusif pour le parent de chaque segment. Le paramètre [`transaction_tracer.limit_segments`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#transaction_tracer-limit_segments) (par défaut `4000`) limite le nombre de ces segments ajoutés à la trace de transaction.
+
+Cependant, même une fois cette limite atteinte, l’agent continue de créer un segment pour chaque unité de travail supplémentaire et de suivre son heure de début et de fin, afin de conserver l’exactitude des calculs de temps exclusif des segments parents. Pour une transaction qui continue de s’exécuter, ces données de chronométrage continuent de s’accumuler tant que la transaction reste ouverte. Cela signifie que la mémoire liée à cette transaction ne sera pas sortie avant que la transaction ne se termine, ce qui, pour une transaction de longue durée ou sans fin, peut représenter un temps très long.
+
+## Solutions
+
+### Limitez la croissance de la mémoire avec les options de configuration
+
+Aucune des options ci-dessous ne raccourcit une transaction, mais elles peuvent limiter la quantité de données que l’agent conserve pendant qu’une transaction reste ouverte.
+
+* **Plafonnez les données de chronométrage des segments une fois la limite de trace atteinte.** Si vous prévoyez que vos transactions de longue durée créeront plus de segments que ne le permet [`transaction_tracer.limit_segments`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#transaction_tracer-limit_segments), activez [`transaction_tracer.cap_segment_artifacts`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#transaction_tracer-cap_segment_artifacts) (disponible dans la version 10.7.0 et supérieure de l’agent, désactivé par défaut).
+
+  Une fois la limite de segments atteinte, cela empêche l’agent d’enregistrer des données de temps exclusif pour tout segment supplémentaire dans cette transaction, ce qui limite la croissance de la mémoire de la transaction. Puisque nous arrêtons de collecter le chronométrage des segments, le compromis est d’obtenir des données de chronométrage des segments parents moins précises dans la transaction.
+
+* **Abaissez la limite de segments elle-même.** Si vous n’avez pas besoin de milliers de nœuds dans une seule trace de transaction, abaisser [`transaction_tracer.limit_segments`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#transaction_tracer-limit_segments) (par défaut `4000`) permet à l’agent d’arrêter plus tôt d’ajouter de nouveaux segments à la trace. Pour confirmer si une transaction atteint réellement cette limite, activez le logging au niveau de débogage et recherchez `Segment limit of [segment_limit] reached, ceasing collection.`.
+
+* **Réduisez le volume d’événements de span.** Chaque segment qui se termine crée également un événement de span, indépendamment de la trace de transaction. Pour une transaction qui crée un nombre inhabituellement élevé de segments, réduisez [`span_events.max_samples_stored`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#span_events-max_samples_stored) (par défaut `2000`), ou désactivez complètement les événements de span pour l’application avec `span_events.enabled: false` si vous n’avez pas besoin des détails du tracing distribué au niveau des spans. Cela réduit un facteur contribuant à la mémoire, mais cela n’arrête pas l’accumulation sous-jacente de segments/chronométrages décrite ci-dessus, traitez-le donc comme une atténuation partielle plutôt que comme un correctif.
+
+* **Empêchez les tâches Sidekiq de gonfler les transactions web.** Si une transaction de longue durée est en fait une transaction web qui s’exécute longtemps parce qu’elle exécute une tâche Sidekiq à l’intérieur de la requête, le travail de la tâche devient par défaut un segment imbriqué à l’intérieur de cette transaction web, de sorte qu’une tâche lente ou lourde en segments entraîne avec elle une augmentation de la durée et du nombre de segments de la transaction web. Activez [`sidekiq.separate_transactions`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#sidekiq-separate_transactions) (disponible dans la version 10.4.0 et supérieure de l’agent, désactivée par défaut) afin que l’agent termine la transaction web dès que la tâche démarre, et enregistre plutôt la tâche en tant que sa propre transaction.
+
+* **Désactivez le tracing automatique pour les threads à longue durée de vie.** Si la croissance provient d’un thread qui vit pendant toute la durée de vie du processus plutôt que d’une seule tâche, vous pouvez empêcher que les threads soient automatiquement instrumentés par l’agent en désactivant [`instrumentation.thread.tracing`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#instrumentation-thread-tracing). Si vous ne souhaitez pas désactiver le tracing de tous les threads, vous pouvez envelopper un seul thread dans [`NewRelic::Agent.disable_all_tracing`](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/Agent#disable_all_tracing-class_method) pour désactiver le tracing de ce seul thread.
+
+* **Réduisez le nombre de segments du middleware.** Pour les transactions web avec une importante stack de middleware tiers Rack ou Rails, [`disable_middleware_instrumentation`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#disable_middleware_instrumentation) empêche l’agent d’encapsuler chaque middleware dans son propre segment.
+
+### Utilisez l’instrumentation personnalisée
+
+* **Fractionnez les transactions.** Pour les transactions longues, vous pouvez envisager d’utiliser l’instrumentation personnalisée pour instrument chaque unité de travail au sein d’une transaction comme sa propre transaction courte. Les données de segment de chaque transaction sont enregistrées et sorties dès que cette transaction se termine, plutôt que de s’accumuler pendant toute la durée d’une transaction. Utilisation de [`NewRelic::Agent::Tracer.in_transaction`](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/#in-transaction):
+
+  ```ruby
+  require 'new_relic/agent/tracer'
+
+  def process_large_batch(items)
+    items.each do |item|
+      NewRelic::Agent::Tracer.in_transaction(partial_name: 'Custom/process_item', category: :task) do
+        process_item(item)
+      end
+    end
+  end
+  ```
+
+  Cela permet aux métriques, aux traces, et aux rapports d’erreurs de fonctionner comme prévu, tout en remplaçant une transaction en croissance continue par de nombreuses transactions de courte durée.
+
+* **Arrêtez complètement l’accumulation de segments pendant la durée d’une tâche.** Encapsuler le corps d’une tâche de longue durée dans [`NewRelic::Agent.disable_all_tracing`](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/Agent#disable_all_tracing-class_method) arrête complètement l’accumulation décrite ci-dessus, car le travail effectué à l’intérieur du bloc n’est jamais rattaché à la transaction :
+
+  ```ruby
+  def perform(*args)
+    NewRelic::Agent.disable_all_tracing do
+      do_the_long_running_work(*args)
+    end
+  end
+  ```
+
+  Le compromis est de perdre tous les détails d&apos;instrumentation pour tout ce qui se trouve à l&apos;intérieur du bloc. La pertinence de ce compromis dépend du niveau de visibilité dont vous avez besoin sur la tâche.
+
+### Instrumentez le travail de longue durée avec OpenTelemetry
+
+Pour le code qui ne correspond pas au modèle de transaction de l’agent, même après avoir appliqué les options ci-dessus, envisagez d’utiliser du code instrumenté pour cette portion de code avec le [SDK OpenTelemetry Ruby](https://opentelemetry.io/docs/languages/ruby/), et de l’exporter via [OTLP vers New Relic](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/). Au lieu d’avoir le même objet de transaction à longue durée de vie conservant les données pour toute la durée d’une tâche, OpenTelemetry exporte chaque span dès qu’il se termine.
+
+<Callout variant="important">
+  Cela diffère de la [prise en charge de l’API OpenTelemetry](/docs/apm/agents/manage-apm-agents/opentelemetry-api-support/) par l’agent Ruby. Cette fonctionnalité traduit les appels d’API OpenTelemetry vers le propre modèle de transaction et de segment de l’agent ; elle est donc toujours soumise au même comportement de la mémoire décrit ci-dessus. L’utilisation du SDK OpenTelemetry autonome avec son propre exportateur OTLP évite complètement le suivi de transaction/segment de l’agent.
+</Callout>
+
+Pour plus d’informations, consultez l’ [introduction à OpenTelemetry et New Relic](/docs/opentelemetry/opentelemetry-introduction/).

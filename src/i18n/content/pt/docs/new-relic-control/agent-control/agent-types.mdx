@@ -1,6 +1,6 @@
 ---
-title: Tipos de agentes suportados
-metaDescription: Types of agents that can be managed by Agent Control
+title: Tipos de agente
+metaDescription: 'What agent types are in Agent Control, how they work, and which agents are currently supported'
 freshnessValidatedDate: never
 translationType: machine
 ---
@@ -9,17 +9,90 @@ translationType: machine
   O Agent Control e o New Relic Control estão **disponíveis para o público geral** para Kubernetes. O suporte para hosts Linux e Windows está no programa de **prévia pública**, conforme nossas [políticas de pré-lançamento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
-## Visão geral
+Uma definição de tipo de agente é um arquivo YAML que descreve como o Agent Control deve identificar, baixar, configurar e executar um agente específico. Suas variáveis declaradas também formam o esquema de configuração que o Controle de Agentes expõe aos operadores ao implantar ou atualizar um subagente da frota. Toda definição consiste em três seções principais, **metadados**, **variáveis** e **implantação**, além de um campo `protocol_version` de nível superior que versiona a linguagem de esquema na qual o arquivo foi escrito.
 
-O agente Control fornece uma plataforma única e unificada para gerenciar uma ampla variedade de agentes New Relic e OpenTelemetry em suas frotas. Ao centralizar o gerenciamento, você pode implantar, configurar e atualizar sua instrumentação com facilidade.
+### Metadados
 
-Embora o Agent Control seja projetado para suportar tanto ambientes Kubernetes quanto ambientes baseados em host, o suporte para tipos específicos de agentes varia. A tabela a seguir fornece uma visão geral abrangente de quais agentes podem ser gerenciados pelo Agent Control e seu status de suporte nos ambientes.
+A seção de metadados identifica o tipo de agente: seu `name`, `namespace`, `version`, `platform` de destino (`host` ou `kubernetes`) e `operating_system` (necessário para tipos baseados em host). O Agent Control usa esses campos para endereçar de forma exclusiva a definição e enviá-la para o mecanismo de implantação correto.
+
+### Variáveis
+
+A seção de variáveis declara as entradas configuráveis que os operadores podem definir ao adicionar um subagente à sua configuração. Cada variável tem um `type` (como `string`, `bool` ou `yaml`), um `default` opcional e uma lista `variants` opcional de valores aceitos. As variáveis são referenciadas em toda a seção de implantação usando `${nr-var:variable_name}`.
+
+### Implantação
+
+A seção de implantação descreve como o Agent Control instala e executa o agente na plataforma de destino. Ela é composta por várias subseções:
+
+* **`packages`**: artefatos OCI para baixar antes que o agente inicie — normalmente o binário do agente ou o pacote de integração.
+* **`executables`**: a lista de processos que o Agent Control iniciará, monitorará e reiniciará. Um tipo de agente sem esta seção é tratado como uma integração gerenciada (OHI): o Agent Control lida com seus artefatos, mas delega a execução para outro agente.
+* **`health`**: como o Agent Control determina se o agente está íntegro — por meio da presença do processo, de uma verificação de endpoint HTTP ou de ambos.
+* **`filesystem`**: arquivos ou diretórios individuais que o Agent Control grava no host antes de iniciar o agente, como arquivos de configuração ou certificados.
+* **`shared_filesystem`**: entradas gravadas em uma zona de depósito compartilhada acessível a outros agentes gerenciados pela mesma instância do Agent Control. Usado por tipos de agente OHI para entregar sua configuração e binários ao agente de infraestrutura.
+
+Para obter a referência completa do esquema e todos os campos disponíveis, consulte a [Referência do esquema do tipo de agente](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/agent_type.md).
+
+## Tipos de agente vinculados
+
+Dois tipos de agente são **vinculados** quando um grava artefatos (configuração, binários ou outros arquivos) no sistema de arquivos compartilhado e o outro é configurado para ler desses mesmos caminhos. O gravador pode não ter uma seção `executables`, o Agent Control gerencia seus artefatos, mas nunca inicia um processo para ele. Em vez disso, o agente leitor tem a lógica integrada para descobrir e executar binários e configurações de um caminho conhecido no sistema de arquivos compartilhado, executando efetivamente o complemento em nome do gravador.
+
+A raiz do sistema de arquivos compartilhado é:
+
+| SO      | Caminho                                                             |
+| ------- | ------------------------------------------------------------------- |
+| Linux   | `/var/lib/newrelic-agent-control/shared-filesystem`                 |
+| Windows | `C:\ProgramData\New Relic\newrelic-agent-control\shared-filesystem` |
+
+Todos os agentes gerenciados pela mesma instância do Agent Control compartilham esta raiz. Os nomes dos subdiretórios são escolhidos por convenção entre os tipos de agente vinculados.
+
+### Integrações no host (OHI)
+
+As integrações no host (OHIs) são o principal exemplo de agentes vinculados no Agent Control; onde outros agentes têm um processo iniciado pelo Agent Control, os agentes OHI não têm processo próprio e nunca são iniciados pelo Agent Control. Elas permitem que o Agent Control gerencie todo o ciclo de vida das integrações do New Relic Infrastructure, baixando, configurando, atualizando e desinstalando-as enquanto delega sua execução ao agente de infraestrutura, que descobre e executa os binários de integração do sistema de arquivos compartilhado.
+
+### A relação entre o agente de infraestrutura e o agente OHI
+
+1. Quando um tipo de agente OHI é instalado, o Agent Control baixa o binário de integração via OCI e grava duas entradas no sistema de arquivos compartilhado:
+
+   * Um arquivo de configuração em `infra-agent-ohi-configs/` (por exemplo, `nri-redis.yaml`)
+   * O binário de integração em `infra-agent-ohi-binaries/` (por exemplo, `nri-redis`)
+
+2. O subagente do agente de infraestrutura é configurado com variáveis de ambiente que o apontam para esses diretórios compartilhados:
+
+   | Variável                              | Caminho do sistema de arquivos compartilhado | Propósito                                |
+   | ------------------------------------- | -------------------------------------------- | ---------------------------------------- |
+   | `NRIA_PLUGIN_DIR`                     | `…/infra-agent-ohi-configs`                  | Descoberta de configuração de integração |
+   | `NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR` | `…/infra-agent-ohi-binaries`                 | Descoberta de binário de integração      |
+   | `NRIA_SAFE_BIN_DIR`                   | `…/infra-agent-ohi-binaries`                 | Caminho de execução de binário permitido |
+
+3. O agente de infraestrutura pega a configuração e o binário em seu próximo ciclo de verificação e começa a executar a integração.
+
+   ```
+   shared-filesystem/
+   ├── infra-agent-ohi-configs/      # Integration YAML configs (read by NRIA_PLUGIN_DIR)
+   │   ├── nri-redis.yaml
+   │   └── nri-mysql.yaml
+   └── infra-agent-ohi-binaries/     # Integration binaries (read by NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR)
+       ├── nri-redis
+       └── nri-mysql
+   ```
+
+<Callout variant="important">
+  Os tipos de agente OHI não têm processo próprio e dependem inteiramente do agente de infraestrutura para serem executados. É necessário ter o `com.newrelic.infrastructure` configurado como um subagente na mesma instância do Agent Control antes de implantar qualquer tipo de agente OHI.
+</Callout>
+
+## Tipos de agentes suportados
 
 ### Suporte atual
 
 | Tipo de agente                                                                                                                                              | Suporte ao Kubernetes | Suporte a host Linux | Suporte a host Windows |
 | :---------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------: | :------------------: | :--------------------: |
 | [**Agente de infraestrutura New Relic**](https://docs.newrelic.com/docs/infrastructure/infrastructure-agent/new-relic-guided-install-overview/)             |         ✅ Sim         |    Prévia pública    |     Prévia pública     |
+| [**Apache**](https://docs.newrelic.com/install/apache/)                                                                                                     |         ✅ Sim         |    Prévia pública    |     Prévia pública     |
+| [**Flex**](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/flex-integration-tool-build-your-own-integration/)        |         ✅ Sim         |    Prévia pública    |     Prévia pública     |
+| [**Memcached**](https://docs.newrelic.com/install/memcached/)                                                                                               |         ✅ Sim         |    Prévia pública    |     Prévia pública     |
+| [**MySQL**](https://docs.newrelic.com/install/mysql/)                                                                                                       |         ✅ Sim         |    Prévia pública    |     Prévia pública     |
+| [**NGINX**](https://docs.newrelic.com/install/nginx/)                                                                                                       |         ✅ Sim         |    Prévia pública    |     Prévia pública     |
+| [**PostgreSQL**](https://docs.newrelic.com/install/postgresql/)                                                                                             |         ✅ Sim         |    Prévia pública    |     Prévia pública     |
+| [**Redis**](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/redis/redis-integration/)                                |         ✅ Sim         |    Prévia pública    |     Prévia pública     |
 | [**Collector OpenTelemetry New Relic (NRDOT)**](https://docs.newrelic.com/docs/opentelemetry/nrdot/nrdot-intro/)                                            |         ✅ Sim         |         ✅ Sim        |     ⚠️ Experimental    |
 | [**Fluent Bit**](https://docs.newrelic.com/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/)                                            |         ✅ Sim         |        🚫 Não        |         🚫 Não         |
 | [**Agente New Relic Prometheus**](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) |         ✅ Sim         |        🚫 Não        |         🚫 Não         |
@@ -35,6 +108,13 @@ Embora o Agent Control seja projetado para suportar tanto ambientes Kubernetes q
 | Tipo de agente                                  | Permissões de chave necessárias                                                                                                            | Ambiente                               |
 | :---------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------- |
 | **Agente de infraestrutura New Relic**          | Acesso em nível de host para o sistema métrica e acesso API Kubernetes para dados cluster .                                                | Kubernetes / baseado em host           |
+| **Apache**                                      | Executado pelo infra-agent com as mesmas permissões.                                                                                       | Kubernetes / baseado em host           |
+| **Flex**                                        | Executado pelo infra-agent com as mesmas permissões.                                                                                       | Kubernetes / baseado em host           |
+| **Memcached**                                   | Executado pelo infra-agent com as mesmas permissões.                                                                                       | Kubernetes / baseado em host           |
+| **MySQL**                                       | Executado pelo infra-agent com as mesmas permissões.                                                                                       | Kubernetes / baseado em host           |
+| **NGINX**                                       | Executado pelo infra-agent com as mesmas permissões.                                                                                       | Kubernetes / baseado em host           |
+| **PostgreSQL**                                  | Executado pelo infra-agent com as mesmas permissões.                                                                                       | Kubernetes / baseado em host           |
+| **Redis**                                       | Executado pelo infra-agent com as mesmas permissões.                                                                                       | Kubernetes / baseado em host           |
 | **Collector OpenTelemetry New Relic (NRDOT)**   | As permissões dependem de receptores e exportadores específicos. Geralmente requer acesso à API do Kubernetes para descoberta de serviços. | Kubernetes / baseado em host           |
 | **Fluent Bit**                                  | Acesso de leitura aos logs de pod e contêiner.                                                                                             | Kubernetes                             |
 | **Agente New Relic Prometheus**                 | Permissões para descobrir e acessar o ponto de extremidade de serviço dentro do cluster para extração de métricas.                         | Kubernetes                             |

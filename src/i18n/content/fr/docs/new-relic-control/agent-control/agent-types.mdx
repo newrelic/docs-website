@@ -1,6 +1,6 @@
 ---
-title: Types d'agents pris en charge
-metaDescription: Types of agents that can be managed by Agent Control
+title: Types d’agents
+metaDescription: 'What agent types are in Agent Control, how they work, and which agents are currently supported'
 freshnessValidatedDate: never
 translationType: machine
 ---
@@ -9,17 +9,90 @@ translationType: machine
   Agent Control et New Relic Control sont **en disponibilité générale** pour Kubernetes. La prise en charge des hôtes Linux et Windows fait partie du programme de **version préliminaire publique**, conformément à nos [politiques de version préliminaire](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
-## Présentation
+Une définition de type d’agent est un fichier YAML qui décrit comment Agent Control doit identifier, télécharger, configurer et exécuter un agent spécifique. Ses variables déclarées forment également le schéma de configuration que le contrôle de la flotte expose aux opérateurs lors du déploiement ou de la mise à jour d’un sous-agent de la flotte. Chaque définition se compose de trois sections principales, **métadonnées**, **variables** et **déploiement**, ainsi que d’un champ `protocol_version` de niveau supérieur qui indique la version du langage de schéma dans lequel le fichier est écrit.
 
-Agent Control fournit une plate-forme unique et unifiée pour gérer une grande variété d&apos;agents New Relic et OpenTelemetry dans vos flottes. En centralisant la gestion, vous pouvez déployer, configurer et mettre à jour votre instrumentation en toute simplicité.
+### Métadonnées
 
-Bien qu&apos;Agent Control soit conçu pour prendre en charge à la fois les environnements Kubernetes et les environnements basés sur des hôtes, la prise en charge de types d&apos;agents spécifiques varie. Le tableau suivant fournit une vue d&apos;ensemble complète des agents pouvant être gérés par Agent Control et de leur statut de prise en charge dans les différents environnements.
+La section des métadonnées identifie le type d’agent : ses `name`, `namespace`, `version`, sa cible `platform` (`host` ou `kubernetes`), et `operating_system` (requis pour les types basés sur l’hôte). Agent Control utilise ces champs pour adresser de manière unique la définition et l’envoyer au moteur de déploiement correct.
+
+### Variables
+
+La section des variables déclare les entrées configurables que les opérateurs peuvent définir lors de l&apos;ajout d&apos;un sous-agent à leur configuration. Chaque variable a un `type` (tel que `string`, `bool`, ou `yaml`), un `default` facultatif, et une liste `variants` facultative de valeurs acceptées. Les variables sont référencées tout au long de la section de déploiement à l&apos;aide de `${nr-var:variable_name}`.
+
+### déploierons
+
+La section de déploiement décrit comment Agent Control installe et exécute l’agent sur la plateforme cible. Elle est composée de plusieurs sous-sections :
+
+* **`packages`**: artefacts OCI à télécharger avant le démarrage de l’agent — généralement le binaire de l’agent ou le package d’intégration.
+* **`executables`**: la liste des processus qu’Agent Control va démarrer, monitorer, et redémarrer. Un type d’agent sans cette section est traité comme une intégration gérée (OHI) : Agent Control gère ses artefacts, mais délègue l’exécution à un autre agent.
+* **`health`**: comment Agent Control détermine si l’agent est sain, via la présence du processus, une vérification du point de terminaison HTTP, ou les deux.
+* **`filesystem`**: fichiers ou répertoires individuels qu’Agent Control écrit sur l’hôte avant de démarrer l’agent, tels que des fichiers de configuration ou des certificats.
+* **`shared_filesystem`**: les entrées écrites dans une zone de dépôt partagée accessible aux autres agents gérés par la même instance d’Agent Control. Utilisé par les types d’agent OHI pour transmettre leur configuration et leurs binaires à l’agent d’infrastructure.
+
+Pour la référence complète du schéma et tous les champs disponibles, consultez la [référence du schéma de type d’agent](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/agent_type.md).
+
+## Types d’agents liés
+
+Deux types d’agents sont **liés** lorsque l’un écrit des artefacts (configuration, binaires ou autres fichiers) dans le système de fichiers partagé et que l’autre est configuré pour lire à partir de ces mêmes chemins. L’agent d’écriture peut n’avoir aucune section `executables`, Agent Control gère ses artefacts mais ne démarre jamais de processus pour lui. Au lieu de cela, l’agent lecteur possède la logique intégrée pour découvrir et exécuter les binaires et la configuration à partir d’un chemin bien connu dans le système de fichiers partagé, exécutant ainsi l’extension pour le compte de l’agent d’écriture.
+
+La racine du système de fichiers partagé est :
+
+| Système d&apos;exploitation | Chemin                                                              |
+| --------------------------- | ------------------------------------------------------------------- |
+| Linux                       | `/var/lib/newrelic-agent-control/shared-filesystem`                 |
+| Windows                     | `C:\ProgramData\New Relic\newrelic-agent-control\shared-filesystem` |
+
+Tous les agents gérés par la même instance Agent Control partagent cette racine. Les noms de sous-répertoires sont choisis par convention entre les types d’agents liés.
+
+### Intégrations sur hôte (OHI)
+
+Les intégrations sur hôte (OHI) sont le principal exemple d’agents liés dans Agent Control ; alors que d’autres agents ont un processus démarré par Agent Control, les agents OHI n’ont pas de processus propre et ne sont jamais démarrés par Agent Control. Elles permettent à Agent Control de gérer le cycle de vie complet des intégrations de New Relic Infrastructure, en les téléchargeant, en les configurant, en les mettant à niveau et en les désinstallant tout en déléguant leur exécution à l’agent d’infrastructure, qui découvre et exécute les binaires d’intégration à partir du système de fichiers partagé.
+
+### La relation entre l’agent d’infrastructure et l’agent OHI
+
+1. Lorsqu&apos;un type d&apos;agent OHI est installé, Agent Control télécharge le binaire d&apos;intégration via OCI, et écrit deux entrées dans le système de fichiers partagé :
+
+   * Un fichier de configuration sous `infra-agent-ohi-configs/` (par ex. `nri-redis.yaml`)
+   * Le binaire d’intégration sous `infra-agent-ohi-binaries/` (par ex. `nri-redis`)
+
+2. Le sous-agent de l’agent d’infrastructure est configuré avec des variables d’environnement qui le pointent vers ces répertoires partagés :
+
+   | Variable                              | Chemin du système de fichiers partagé | But                                             |
+   | ------------------------------------- | ------------------------------------- | ----------------------------------------------- |
+   | `NRIA_PLUGIN_DIR`                     | `…/infra-agent-ohi-configs`           | Découverte de la configuration de l’intégration |
+   | `NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR` | `…/infra-agent-ohi-binaries`          | Découverte du binaire de l’intégration          |
+   | `NRIA_SAFE_BIN_DIR`                   | `…/infra-agent-ohi-binaries`          | Chemin d&apos;exécution de binaire autorisé     |
+
+3. L’agent d’infrastructure récupère la configuration et le binaire lors de son prochain cycle d’analyse et commence à exécuter l’intégration.
+
+   ```
+   shared-filesystem/
+   ├── infra-agent-ohi-configs/      # Integration YAML configs (read by NRIA_PLUGIN_DIR)
+   │   ├── nri-redis.yaml
+   │   └── nri-mysql.yaml
+   └── infra-agent-ohi-binaries/     # Integration binaries (read by NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR)
+       ├── nri-redis
+       └── nri-mysql
+   ```
+
+<Callout variant="important">
+  Les types d’agent OHI n’ont pas de processus propre et dépendent entièrement de l’agent d’infrastructure pour s’exécuter. Vous devez avoir configuré `com.newrelic.infrastructure` comme sous-agent dans la même instance Agent Control avant de déployer tout type d’agent OHI.
+</Callout>
+
+## Types d&apos;agents pris en charge
 
 ### Support actuel
 
 | Type d&apos;agent                                                                                                                                             | Prise en charge de Kubernetes | Prise en charge de l&apos;hôte Linux | Prise en charge des hôtes Windows |
 | :------------------------------------------------------------------------------------------------------------------------------------------------------------ | :---------------------------: | :----------------------------------: | :-------------------------------: |
 | [**Agent d&apos;infrastructure New Relic**](https://docs.newrelic.com/docs/infrastructure/infrastructure-agent/new-relic-guided-install-overview/)            |             ✅ Oui             |             Aperçu public            |           Aperçu public           |
+| [**Apache**](https://docs.newrelic.com/install/apache/)                                                                                                       |             ✅ Oui             |             Aperçu public            |           Aperçu public           |
+| [**Flex**](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/flex-integration-tool-build-your-own-integration/)          |             ✅ Oui             |             Aperçu public            |           Aperçu public           |
+| [**Memcached**](https://docs.newrelic.com/install/memcached/)                                                                                                 |             ✅ Oui             |             Aperçu public            |           Aperçu public           |
+| [**MySQL**](https://docs.newrelic.com/install/mysql/)                                                                                                         |             ✅ Oui             |             Aperçu public            |           Aperçu public           |
+| [**NGINX**](https://docs.newrelic.com/install/nginx/)                                                                                                         |             ✅ Oui             |             Aperçu public            |           Aperçu public           |
+| [**PostgreSQL**](https://docs.newrelic.com/install/postgresql/)                                                                                               |             ✅ Oui             |             Aperçu public            |           Aperçu public           |
+| [**Redis**](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/redis/redis-integration/)                                  |             ✅ Oui             |             Aperçu public            |           Aperçu public           |
 | [**Collector OpenTelemetry New Relic (NRDOT)**](https://docs.newrelic.com/docs/opentelemetry/nrdot/nrdot-intro/)                                              |             ✅ Oui             |                 ✅ Oui                |          ⚠️ Expérimental          |
 | [**Fluent Bit**](https://docs.newrelic.com/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/)                                              |             ✅ Oui             |                🚫 Non                |               🚫 Non              |
 | [**Agent Prometheus de New Relic**](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) |             ✅ Oui             |                🚫 Non                |               🚫 Non              |
@@ -35,6 +108,13 @@ Bien qu&apos;Agent Control soit conçu pour prendre en charge à la fois les env
 | Type d&apos;agent                               | Autorisations clés requises                                                                                                                                       | Environnement                          |
 | :---------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------- |
 | **Agent d&apos;infrastructure New Relic**       | Accès au niveau de l&apos;hôte pour le système métrique et accès API Kubernetes pour les données cluster .                                                        | Kubernetes / basé sur l&apos;hôte      |
+| **Apache**                                      | Exécuté par infra-agent avec les mêmes permissions.                                                                                                               | Kubernetes / basé sur l&apos;hôte      |
+| **Flex**                                        | Exécuté par infra-agent avec les mêmes permissions.                                                                                                               | Kubernetes / basé sur l&apos;hôte      |
+| **Memcached**                                   | Exécuté par infra-agent avec les mêmes permissions.                                                                                                               | Kubernetes / basé sur l&apos;hôte      |
+| **MySQL**                                       | Exécuté par infra-agent avec les mêmes permissions.                                                                                                               | Kubernetes / basé sur l&apos;hôte      |
+| **NGINX**                                       | Exécuté par infra-agent avec les mêmes permissions.                                                                                                               | Kubernetes / basé sur l&apos;hôte      |
+| **PostgreSQL**                                  | Exécuté par infra-agent avec les mêmes permissions.                                                                                                               | Kubernetes / basé sur l&apos;hôte      |
+| **Redis**                                       | Exécuté par infra-agent avec les mêmes permissions.                                                                                                               | Kubernetes / basé sur l&apos;hôte      |
 | **Collector OpenTelemetry New Relic (NRDOT)**   | Les autorisations dépendent du Récepteur et de l&apos;exportateur spécifiques. Nécessite souvent un accès à l&apos;API Kubernetes pour la découverte de services. | Kubernetes / basé sur l&apos;hôte      |
 | **Fluent Bit**                                  | Accès en lecture aux logs de pod et du conteneur.                                                                                                                 | Kubernetes                             |
 | **Agent Prometheus de New Relic**               | Autorisations pour découvrir et accéder au point de terminaison de service au sein du cluster pour récupérer les métriques.                                       | Kubernetes                             |

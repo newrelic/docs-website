@@ -1,46 +1,315 @@
 ---
-title: "Supported agent types"
-metaDescription: "Types of agents that can be managed by Agent Control"
+title: "Agent types"
+metaDescription: "What agent types are in Agent Control, how they work, and which agents are currently supported"
 freshnessValidatedDate: never
 ---
 <Callout variant="important">
   Agent Control and New Relic Control are **generally available** for Kubernetes. Support for Linux and Windows hosts is in **public preview** program, pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
-## Overview
+An agent type definition is a YAML file that describes how Agent Control should identify, download, configure, and run a specific agent. Its declared variables also form the configuration schema that Fleet Control exposes to operators when deploying or updating a sub-agent from the fleet. Every definition consists of three main sections, <DNT>**metadata**</DNT>, <DNT>**variables**</DNT>, and <DNT>**deployment**</DNT>, plus a top-level `protocol_version` field that versions the schema language the file is written against.
 
-Agent Control provides a single, unified platform for managing a wide variety of New Relic and OpenTelemetry agents across your fleets. By centralizing management, you can deploy, configure, and update your instrumentation with ease.
+## Metadata
 
-While Agent Control is designed to support both Kubernetes and host-based environments, support for specific agent types varies. The following table provides a comprehensive overview of which agents can be managed by Agent Control and their support status across environments.
+The metadata section identifies the agent type: its `name`, `namespace`, `version`, target `platform` (`host` or `kubernetes`), and `operating_system` (required for host-based types). Agent Control uses these fields to uniquely address the definition and dispatch it to the correct deployment engine.
+
+## Variables
+
+The variables section declares the configurable inputs that operators can set when adding a sub-agent to their configuration. Each variable has a `type` (such as `string`, `bool`, or `yaml`), an optional `default`, and an optional `variants` list of accepted values. Variables are referenced throughout the deployment section using `${nr-var:variable_name}`.
+
+## Deployment
+
+The deployment section describes how Agent Control installs and runs the agent on the target platform. It is composed of several sub-sections:
+
+- **`packages`**: OCI artifacts to download before the agent starts — typically the agent binary or integration package.
+- **`executables`**: the list of processes Agent Control will start, monitor, and restart. An agent type without this section is treated as a managed integration (OHI): Agent Control handles its artifacts but delegates execution to another agent.
+- **`health`**: how Agent Control determines whether the agent is healthy — via process presence, an HTTP endpoint check, or both.
+- **`filesystem`**: individual files or directories that Agent Control writes to the host before starting the agent, such as configuration files or certificates.
+- **`shared_filesystem`**: entries written into a shared drop zone accessible to other agents managed by the same Agent Control instance. Used by OHI agent types to hand their configuration and binaries to the Infrastructure Agent.
+
+For the full schema reference and all available fields, see [Agent type schema reference](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/agent_type.md).
+
+## Linked agent types
+
+Two agent types are **linked** when one writes artifacts (configuration, binaries, or other files)
+into the shared filesystem and the other is configured to read from those same paths. The writer
+may have no `executables` section, Agent Control manages its artifacts but never starts a process
+for it. Instead, the reader agent has the built-in logic to discover and execute binaries and
+configurations from a well-known path in the shared filesystem, effectively running the add-on on
+the writer's behalf.
+
+The shared filesystem root is:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "120px" }}>OS</th>
+      <th>Path</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Linux</td>
+      <td>`/var/lib/newrelic-agent-control/shared-filesystem`</td>
+    </tr>
+    <tr>
+      <td>Windows</td>
+      <td>`C:\ProgramData\New Relic\newrelic-agent-control\shared-filesystem`</td>
+    </tr>
+  </tbody>
+</table>
+
+All agents managed by the same Agent Control instance share this root. Subdirectory names are
+chosen by convention between the linked agent types.
+
+### On Host Integrations (OHI)
+
+On-Host Integrations (OHIs) are the primary example of linked agents in Agent Control; where other agents have a process
+started by Agent Control, OHI agents have no process of their own and Agent Control never starts them.
+They let Agent Control manage the full lifecycle of New Relic infrastructure integrations,
+downloading, configuring, upgrading, and uninstalling them while delegating their execution to
+the Infrastructure Agent, which discovers and runs the integration binaries from the shared filesystem.
+
+### The Infrastructure Agent and OHI agent relationship
+
+1. When an OHI agent type is installed, Agent Control downloads the integration binary via OCI and
+   writes two entries into the shared filesystem:
+   - A config file under `infra-agent-ohi-configs/` (e.g. `nri-redis.yaml`)
+   - The integration binary under `infra-agent-ohi-binaries/` (e.g. `nri-redis`)
+
+2. The Infrastructure Agent sub-agent is configured with environment variables that point it at
+   these shared directories:
+
+   <table>
+     <thead>
+       <tr>
+         <th style={{ width: "280px" }}>Variable</th>
+         <th style={{ width: "240px" }}>Shared filesystem path</th>
+         <th>Purpose</th>
+       </tr>
+     </thead>
+     <tbody>
+       <tr>
+         <td>`NRIA_PLUGIN_DIR`</td>
+         <td>`…/infra-agent-ohi-configs`</td>
+         <td>Integration config discovery</td>
+       </tr>
+       <tr>
+         <td>`NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR`</td>
+         <td>`…/infra-agent-ohi-binaries`</td>
+         <td>Integration binary discovery</td>
+       </tr>
+       <tr>
+         <td>`NRIA_SAFE_BIN_DIR`</td>
+         <td>`…/infra-agent-ohi-binaries`</td>
+         <td>Allowed binary execution path</td>
+       </tr>
+     </tbody>
+   </table>
+
+3. The Infrastructure Agent picks up the config and binary on its next scan cycle and begins
+   running the integration.
+
+   ```
+   shared-filesystem/
+   ├── infra-agent-ohi-configs/      # Integration YAML configs (read by NRIA_PLUGIN_DIR)
+   │   ├── nri-redis.yaml
+   │   └── nri-mysql.yaml
+   └── infra-agent-ohi-binaries/     # Integration binaries (read by NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR)
+       ├── nri-redis
+       └── nri-mysql
+   ```
+
+<Callout variant="important">
+  OHI agent types have no process of their own and depend entirely on the Infrastructure Agent to
+  execute. You must have `com.newrelic.infrastructure` configured as a sub-agent in the same Agent
+  Control instance before deploying any OHI agent type.
+</Callout>
+
+## Supported agent types
 
 ### Current support
 
-| Agent type | Kubernetes support | Linux host support | Windows host support |
-| :--- | :---: | :---: | :---: |
-| [**New Relic infrastructure agent**](https://docs.newrelic.com/docs/infrastructure/infrastructure-agent/new-relic-guided-install-overview/) | ✅ Yes | Public Preview | Public Preview |
-| [**New Relic OpenTelemetry Collector (NRDOT)**](https://docs.newrelic.com/docs/opentelemetry/nrdot/nrdot-intro/) | ✅ Yes | ✅ Yes | ⚠️ Experimental |
-| [**Fluent Bit**](https://docs.newrelic.com/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) | ✅ Yes | 🚫 No | 🚫 No |
-| [**New Relic Prometheus agent**](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) | ✅ Yes | 🚫 No | 🚫 No |
-| [**New Relic eBPF agent**](https://docs.newrelic.com/docs/ebpf/overview/) | ✅ Yes | ⚠️ Experimental | 🚫 No |
-| [**APM agents (.NET, Java, Node, Python, Ruby)**](https://docs.newrelic.com/docs/apm/new-relic-apm/getting-started/introduction-apm/) | 🚫 No | 🚫 No | 🚫 No |
+The following table shows which agent types Agent Control supports and their availability across environments.
+
+<table>
+  <thead>
+    <tr>
+      <th>Agent type</th>
+      <th style={{ width: "150px" }}>Kubernetes support</th>
+      <th style={{ width: "150px" }}>Linux host support</th>
+      <th style={{ width: "160px" }}>Windows host support</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>[**New Relic infrastructure agent**](https://docs.newrelic.com/docs/infrastructure/infrastructure-agent/new-relic-guided-install-overview/)</td>
+      <td>✅ Yes</td>
+      <td>Public Preview</td>
+      <td>Public Preview</td>
+    </tr>
+    <tr>
+      <td>[**Apache**](https://docs.newrelic.com/install/apache/)</td>
+      <td>✅ Yes</td>
+      <td>Public Preview</td>
+      <td>Public Preview</td>
+    </tr>
+    <tr>
+      <td>[**Flex**](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/flex-integration-tool-build-your-own-integration/)</td>
+      <td>✅ Yes</td>
+      <td>Public Preview</td>
+      <td>Public Preview</td>
+    </tr>
+    <tr>
+      <td>[**Memcached**](https://docs.newrelic.com/install/memcached/)</td>
+      <td>✅ Yes</td>
+      <td>Public Preview</td>
+      <td>Public Preview</td>
+    </tr>
+    <tr>
+      <td>[**MySQL**](https://docs.newrelic.com/install/mysql/)</td>
+      <td>✅ Yes</td>
+      <td>Public Preview</td>
+      <td>Public Preview</td>
+    </tr>
+    <tr>
+      <td>[**NGINX**](https://docs.newrelic.com/install/nginx/)</td>
+      <td>✅ Yes</td>
+      <td>Public Preview</td>
+      <td>Public Preview</td>
+    </tr>
+    <tr>
+      <td>[**PostgreSQL**](https://docs.newrelic.com/install/postgresql/)</td>
+      <td>✅ Yes</td>
+      <td>Public Preview</td>
+      <td>Public Preview</td>
+    </tr>
+    <tr>
+      <td>[**Redis**](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/redis/redis-integration/)</td>
+      <td>✅ Yes</td>
+      <td>Public Preview</td>
+      <td>Public Preview</td>
+    </tr>
+    <tr>
+      <td>[**New Relic OpenTelemetry Collector (NRDOT)**](https://docs.newrelic.com/docs/opentelemetry/nrdot/nrdot-intro/)</td>
+      <td>✅ Yes</td>
+      <td>✅ Yes</td>
+      <td>⚠️ Experimental</td>
+    </tr>
+    <tr>
+      <td>[**Fluent Bit**](https://docs.newrelic.com/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/)</td>
+      <td>✅ Yes</td>
+      <td>🚫 No</td>
+      <td>🚫 No</td>
+    </tr>
+    <tr>
+      <td>[**New Relic Prometheus agent**](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/)</td>
+      <td>✅ Yes</td>
+      <td>🚫 No</td>
+      <td>🚫 No</td>
+    </tr>
+    <tr>
+      <td>[**New Relic eBPF agent**](https://docs.newrelic.com/docs/ebpf/overview/)</td>
+      <td>✅ Yes</td>
+      <td>⚠️ Experimental</td>
+      <td>🚫 No</td>
+    </tr>
+    <tr>
+      <td>[**APM agents (.NET, Java, Node, Python, Ruby)**](https://docs.newrelic.com/docs/apm/new-relic-apm/getting-started/introduction-apm/)</td>
+      <td>🚫 No</td>
+      <td>🚫 No</td>
+      <td>🚫 No</td>
+    </tr>
+  </tbody>
+</table>
 
 <Callout variant="important">
-Agent-specific permissions: Agent Control is designed to provide you with flexible permissions management. While Agent Control itself requires a certain level of access to function, the permissions it grants to individual agents are tailored to their specific needs. Below, you can find a breakdown of the permissions required for each agent type.
+  Agent-specific permissions: Agent Control is designed to provide you with flexible permissions management. While Agent Control itself requires a certain level of access to function, the permissions it grants to individual agents are tailored to their specific needs. Below, you can find a breakdown of the permissions required for each agent type.
 </Callout>
 
-## Required Permissions per agent type
+## Required permissions per agent type
 
-| Agent Type | Key Permissions Required | Environment |
-| :--- | :--- | :--- |
-| **New Relic infrastructure agent** | Host-level access for system metrics and Kubernetes API access for cluster data. | Kubernetes / host-based |
-| **New Relic OpenTelemetry Collector (NRDOT)** | Permissions depend on specific receivers and exporters. Often requires Kubernetes API access for service discovery. | Kubernetes / host-based |
-| **Fluent Bit** | Read access to pod and container logs. | Kubernetes |
-| **New Relic Prometheus agent** | Permissions to discover and access service endpoints within the cluster for scraping metrics. | Kubernetes |
-| **New Relic eBPF agent** | Elevated privileges (for example, `CAP_SYS_ADMIN`) to load eBPF programs on the host kernel. | Kubernetes, Linux hosts (experimental) |
-| **APM agents (.NET, Java, Node, Python, Ruby)** | *Not currently supported by Agent Control.* | N/A |
+The following table lists the key permissions each agent type requires and the environments where it applies.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "220px" }}>Agent type</th>
+      <th>Key permissions required</th>
+      <th style={{ width: "180px" }}>Environment</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>**New Relic infrastructure agent**</td>
+      <td>Host-level access for system metrics and Kubernetes API access for cluster data.</td>
+      <td>Kubernetes / host-based</td>
+    </tr>
+    <tr>
+      <td>**Apache**</td>
+      <td>Executed by infra-agent with the same permissions.</td>
+      <td>Kubernetes / host-based</td>
+    </tr>
+    <tr>
+      <td>**Flex**</td>
+      <td>Executed by infra-agent with the same permissions.</td>
+      <td>Kubernetes / host-based</td>
+    </tr>
+    <tr>
+      <td>**Memcached**</td>
+      <td>Executed by infra-agent with the same permissions.</td>
+      <td>Kubernetes / host-based</td>
+    </tr>
+    <tr>
+      <td>**MySQL**</td>
+      <td>Executed by infra-agent with the same permissions.</td>
+      <td>Kubernetes / host-based</td>
+    </tr>
+    <tr>
+      <td>**NGINX**</td>
+      <td>Executed by infra-agent with the same permissions.</td>
+      <td>Kubernetes / host-based</td>
+    </tr>
+    <tr>
+      <td>**PostgreSQL**</td>
+      <td>Executed by infra-agent with the same permissions.</td>
+      <td>Kubernetes / host-based</td>
+    </tr>
+    <tr>
+      <td>**Redis**</td>
+      <td>Executed by infra-agent with the same permissions.</td>
+      <td>Kubernetes / host-based</td>
+    </tr>
+    <tr>
+      <td>**New Relic OpenTelemetry Collector (NRDOT)**</td>
+      <td>Permissions depend on specific receivers and exporters. Often requires Kubernetes API access for service discovery.</td>
+      <td>Kubernetes / host-based</td>
+    </tr>
+    <tr>
+      <td>**Fluent Bit**</td>
+      <td>Read access to pod and container logs.</td>
+      <td>Kubernetes</td>
+    </tr>
+    <tr>
+      <td>**New Relic Prometheus agent**</td>
+      <td>Permissions to discover and access service endpoints within the cluster for scraping metrics.</td>
+      <td>Kubernetes</td>
+    </tr>
+    <tr>
+      <td>**New Relic eBPF agent**</td>
+      <td>Elevated privileges (for example, `CAP_SYS_ADMIN`) to load eBPF programs on the host kernel.</td>
+      <td>Kubernetes, Linux hosts (experimental)</td>
+    </tr>
+    <tr>
+      <td>**APM agents (.NET, Java, Node, Python, Ruby)**</td>
+      <td>*Not currently supported by Agent Control.*</td>
+      <td>N/A</td>
+    </tr>
+  </tbody>
+</table>
 
 <Callout variant="caution" title="NRDOT on Windows hosts is experimental">
-  The New Relic OpenTelemetry Collector (NRDOT) on Windows is available but not officially tested or documented by the NRDOT team. The default bundled configuration is designed for Linux and may produce warnings or errors on Windows (for example, from `filelogreceiver` paths). No default configuration is bundled for Windows — you must supply your own collector configuration. Use NRDOT on Windows only in non-critical or testing environments until full Windows support is released.
+  The New Relic OpenTelemetry Collector (NRDOT) on Windows is available but not officially tested or documented by the NRDOT team. The default bundled configuration is designed for Linux and may produce warnings or errors on Windows (for example, from `filelogreceiver` paths). No default configuration is bundled for Windows — you must supply your own collector configuration. Use NRDOT on Windows only in non-critical or testing environments.
 </Callout>
 
 <Callout variant="caution" title="eBPF on Linux hosts is experimental">
