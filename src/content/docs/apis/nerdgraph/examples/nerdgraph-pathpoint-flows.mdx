@@ -34,7 +34,7 @@ Flow
             └── Signals (entity GUIDs, alert condition GUIDs, or a dynamic query)
 ```
 
-Use NerdGraph when you want to provision flows from a CI/CD pipeline, copy a flow between accounts, or read live health status into another system. If you'd rather manage flows as code, see the [`newrelic_pathpoint_flow`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs) resource in the New Relic Terraform provider.
+Use NerdGraph when you want to provision flows from a CI/CD pipeline, copy a flow between accounts, or read live health status into another system. If you'd rather manage flows as code, see the [`newrelic_pathpoint_flow`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/pathpoint) resource in the New Relic Terraform provider.
 
 ## Before you begin [#requirements]
 
@@ -46,7 +46,7 @@ You need:
 
 To run these examples interactively, open the [NerdGraph GraphiQL explorer](https://api.newrelic.com/graphiql) and search the schema for `pathPoint`.
 
-Each example below shows a GraphQL operation and the JSON variables to send with it. Using variables rather than inlining values keeps the operation readable, which matters for flows because the input nests several levels deep.
+Replace the placeholder values in each example — `YOUR_ACCOUNT_ID`, `FLOW_GUID`, `ENTITY_GUID`, `ALERT_CONDITION_GUID`, and the stage, level, and step IDs — with your own before running it.
 
 ## Flow CRUD operations [#crud-operations]
 
@@ -58,20 +58,64 @@ Pass the account scope alongside the nested stages, levels, steps, and signals t
 
 A step gets its signals in one of three ways, and you can combine them:
 
-* <DNT>**A dynamic query**</DNT> (`entitySearchQuery`) — evaluated at each refresh, attaching whatever entities match.
-* <DNT>**A pinned entity**</DNT> (`type: ENTITY`) — one specific entity, identified by its GUID.
-* <DNT>**A pinned alert condition**</DNT> (`type: ALERT`) — one alert condition, identified by its entity GUID.
+* <DNT>**A dynamic query**</DNT> (`entitySearchQuery`): Evaluated at each refresh, attaching whatever entities match.
+* <DNT>**A pinned entity**</DNT> (`type: ENTITY`): One specific entity, identified by its GUID.
+* <DNT>**A pinned alert condition**</DNT> (`type: ALERT`): One alert condition, identified by its entity GUID.
 
 The `type` field is optional — the GUID itself is enough to identify whether a signal is an entity or an alert condition.
+
+Stages also take an optional `related` block that sets how the UI draws them. `source` marks a stage as having an incoming connection from the stage before it, and `target` as having an outgoing connection to the stage after it. So the first stage in a chain is `source: false, target: true`, middle stages are `true` for both, and the last is `source: true, target: false`. Stages in an unbroken chain render as sequential arrows. This affects the shape only, not health rollup.
 
 <CollapserGroup>
   <Collapser
     id="mutation-create-flow"
-    title="Create a flow with two steps"
+    title="Create a flow with three steps"
   >
     ```graphql
-    mutation CreateFlow($scope: PathPointScopeInput!, $input: PathPointFlowInput!) {
-      pathPointCreate(pathpoint: $input, scope: $scope) {
+    mutation {
+      pathPointCreate(
+        scope: { id: YOUR_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: {
+          name: "Checkout flow"
+          description: "End-to-end checkout journey"
+          category: "E-Commerce"
+          refreshInterval: FIVE_MINUTES
+          stages: [
+            {
+              name: "Frontend"
+              healthRollup: AUTOMATIC_ROLL_UP
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Login page"
+                      entitySearchQuery: {
+                        query: "domain = 'BROWSER' AND type = 'APPLICATION' AND name = 'Login'"
+                      }
+                    }
+                    {
+                      name: "Cart service"
+                      signals: [
+                        { guid: "ENTITY_GUID", name: "Cart service", type: ENTITY }
+                      ]
+                    }
+                    {
+                      name: "Checkout errors"
+                      signals: [
+                        {
+                          guid: "ALERT_CONDITION_GUID"
+                          name: "Checkout error rate"
+                          type: ALERT
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
         guid
         name
         version
@@ -98,51 +142,6 @@ The `type` field is optional — the GUID itself is enough to identify whether a
       }
     }
     ```
-
-    And here are the variables to use with this mutation:
-
-    ```json
-    {
-      "scope": {
-        "id": YOUR_ACCOUNT_ID,
-        "type": "ACCOUNT"
-      },
-      "input": {
-        "name": "Checkout flow",
-        "description": "End-to-end checkout journey",
-        "category": "E-Commerce",
-        "refreshInterval": "FIVE_MINUTES",
-        "stages": [
-          {
-            "name": "Frontend",
-            "healthRollup": "AUTOMATIC_ROLL_UP",
-            "levels": [
-              {
-                "steps": [
-                  {
-                    "name": "Login page",
-                    "entitySearchQuery": {
-                      "query": "domain = 'BROWSER' AND type = 'APPLICATION' AND name = 'Login'"
-                    }
-                  },
-                  {
-                    "name": "Cart service",
-                    "signals": [
-                      {
-                        "guid": "ENTITY_GUID",
-                        "name": "Cart service",
-                        "type": "ENTITY"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    }
-    ```
   </Collapser>
 
   <Collapser
@@ -154,8 +153,62 @@ The `type` field is optional — the GUID itself is enough to identify whether a
     Each KPI's `timeWindow` takes either a `relativeRange` built from fixed durations or a `customRange` holding a raw NRQL time expression — not both.
 
     ```graphql
-    mutation CreateFlow($scope: PathPointScopeInput!, $input: PathPointFlowInput!) {
-      pathPointCreate(pathpoint: $input, scope: $scope) {
+    mutation {
+      pathPointCreate(
+        scope: { id: YOUR_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: {
+          name: "Checkout flow"
+          refreshInterval: FIVE_MINUTES
+          kpis: [
+            {
+              name: "Order success rate"
+              category: "Revenue"
+              description: "Orders completed successfully"
+              query: {
+                from: "Transaction"
+                where: "transactionType = 'Web' AND name = 'checkout'"
+                select: { aggregationType: COUNT, alias: "orders" }
+                timeWindow: {
+                  relativeRange: { since: TWENTY_FOUR_HOURS, compareAgainst: SEVEN_DAYS }
+                }
+              }
+            }
+          ]
+          stages: [
+            {
+              name: "Payment"
+              stageKpis: [
+                {
+                  name: "Payment errors"
+                  category: "Reliability"
+                  query: {
+                    from: "TransactionError"
+                    select: { aggregationType: COUNT, alias: "errors" }
+                    timeWindow: { customRange: "SINCE 30 minutes ago" }
+                  }
+                }
+              ]
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Payment gateway"
+                      config: {
+                        healthRollup: WORST_STATUS_WINS
+                        thresholdType: FIXED
+                        thresholdValue: 1
+                      }
+                      entitySearchQuery: {
+                        query: "domain = 'APM' AND name = 'PaymentGateway'"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
         guid
         name
         version
@@ -184,77 +237,77 @@ The `type` field is optional — the GUID itself is enough to identify whether a
       }
     }
     ```
+  </Collapser>
 
-    And here are the variables to use with this mutation:
+  <Collapser
+    id="mutation-create-flow-excluded"
+    title="Exclude items from the health calculation"
+  >
+    `isExcluded` keeps an item in the flow while leaving it out of the health calculation. It applies to a stage, a step, an individual signal, and an `entitySearchQuery` — so you can retire part of a flow without deleting it.
 
-    ```json
-    {
-      "scope": {
-        "id": YOUR_ACCOUNT_ID,
-        "type": "ACCOUNT"
-      },
-      "input": {
-        "name": "Checkout flow",
-        "refreshInterval": "FIVE_MINUTES",
-        "kpis": [
-          {
-            "name": "Order success rate",
-            "category": "Revenue",
-            "description": "Orders completed successfully",
-            "query": {
-              "from": "Transaction",
-              "where": "transactionType = 'Web' AND name = 'checkout'",
-              "select": {
-                "aggregationType": "COUNT",
-                "alias": "orders"
-              },
-              "timeWindow": {
-                "relativeRange": {
-                  "since": "TWENTY_FOUR_HOURS",
-                  "compareAgainst": "SEVEN_DAYS"
-                }
-              }
-            }
-          }
-        ],
-        "stages": [
-          {
-            "name": "Payment",
-            "stageKpis": [
-              {
-                "name": "Payment errors",
-                "category": "Reliability",
-                "query": {
-                  "from": "TransactionError",
-                  "select": {
-                    "aggregationType": "COUNT",
-                    "alias": "errors"
-                  },
-                  "timeWindow": {
-                    "customRange": "SINCE 30 minutes ago"
-                  }
-                }
-              }
-            ],
-            "levels": [
-              {
-                "steps": [
-                  {
-                    "name": "Payment gateway",
-                    "config": {
-                      "healthRollup": "WORST_STATUS_WINS",
-                      "thresholdType": "FIXED",
-                      "thresholdValue": 1
-                    },
-                    "entitySearchQuery": {
-                      "query": "domain = 'APM' AND name = 'PaymentGateway'"
+    ```graphql
+    mutation {
+      pathPointCreate(
+        scope: { id: YOUR_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: {
+          name: "Order pipeline"
+          stages: [
+            {
+              name: "Fulfilment"
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Shipping service"
+                      signals: [
+                        { guid: "ENTITY_GUID", name: "Shipping service", type: ENTITY }
+                      ]
                     }
-                  }
-                ]
-              }
-            ]
+                    {
+                      name: "Deprecated checkout"
+                      isExcluded: true
+                      signals: [
+                        {
+                          guid: "ANOTHER_ENTITY_GUID"
+                          name: "Legacy checkout"
+                          type: ENTITY
+                          isExcluded: true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+            {
+              name: "Legacy processor"
+              isExcluded: true
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Legacy API"
+                      entitySearchQuery: {
+                        query: "domain = 'APM' AND name = 'LegacyAPI'"
+                        isExcluded: true
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        guid
+        name
+        stages {
+          items {
+            id
+            name
+            isExcluded
           }
-        ]
+        }
       }
     }
     ```
@@ -272,11 +325,11 @@ Read a flow by its entity GUID to get its full configuration plus the current he
 Stages, levels, and steps return 50 items per page. When a `nextCursor` comes back non-null, pass it to fetch the next page.
 
 ```graphql
-query ReadFlow($accountId: Int!, $guid: EntityGuid!) {
+{
   actor {
-    account(id: $accountId) {
+    account(id: YOUR_ACCOUNT_ID) {
       pathPoint {
-        flow(guid: $guid) {
+        flow(guid: "FLOW_GUID") {
           guid
           name
           description
@@ -379,24 +432,15 @@ query ReadFlow($accountId: Int!, $guid: EntityGuid!) {
 }
 ```
 
-And here are the variables to use with this query:
-
-```json
-{
-  "accountId": YOUR_ACCOUNT_ID,
-  "guid": "FLOW_GUID"
-}
-```
-
 Request fewer fields if you don't need the whole tree — reading just `name` and `healthStatus`, for example, is enough to poll a flow's status.
 
 ### Update a flow [#update-flow]
 
 `pathPointUpdate` is a diff-based operation. It compares the payload you send against the flow's current state and acts on each stage, level, step, and KPI according to whether you included its ID:
 
-* <DNT>**ID included**</DNT> — updates the existing object.
-* <DNT>**ID omitted**</DNT> — creates a new object.
-* <DNT>**Object left out of the payload entirely**</DNT> — deletes it from the flow.
+* <DNT>**ID included**</DNT>: Updates the existing object.
+* <DNT>**ID omitted**</DNT>: Creates a new object.
+* <DNT>**Object left out of the payload entirely**</DNT>: Deletes it from the flow.
 
 <Callout variant="caution">
   Because omission means deletion, always [read the flow](#read-flow) first, modify the payload you get back, and send the complete intended state. Sending a partial payload deletes everything you left out.
@@ -413,11 +457,45 @@ The `version` field is required. It's the flow's last-updated timestamp in epoch
     id="mutation-update-flow"
     title="Add a step while keeping existing objects"
   >
-    In these variables, the first step carries its `id`, so it updates in place. The second has no `id`, so it's created as new.
+    The first step carries its `id`, so it updates in place. The second has no `id`, so it's created as new.
 
     ```graphql
-    mutation UpdateFlow($guid: EntityGuid!, $input: PathPointFlowUpdateInput!) {
-      pathPointUpdate(pathpoint: $input, guid: $guid) {
+    mutation {
+      pathPointUpdate(
+        guid: "FLOW_GUID"
+        pathpoint: {
+          name: "Checkout flow"
+          refreshInterval: FIVE_MINUTES
+          version: 1786624914316
+          stages: [
+            {
+              id: "STAGE_ID"
+              name: "Frontend"
+              healthRollup: AUTOMATIC_ROLL_UP
+              levels: [
+                {
+                  id: "LEVEL_ID"
+                  steps: [
+                    {
+                      id: "STEP_ID"
+                      name: "Cart service"
+                      signals: [
+                        { guid: "ENTITY_GUID", name: "Cart service", type: ENTITY }
+                      ]
+                    }
+                    {
+                      name: "Recommendation service"
+                      signals: [
+                        { guid: "ANOTHER_ENTITY_GUID", name: "Recommendation service", type: ENTITY }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
         guid
         name
         version
@@ -443,54 +521,6 @@ The `version` field is required. It's the flow's last-updated timestamp in epoch
       }
     }
     ```
-
-    And here are the variables to use with this mutation:
-
-    ```json
-    {
-      "guid": "FLOW_GUID",
-      "input": {
-        "name": "Checkout flow",
-        "refreshInterval": "FIVE_MINUTES",
-        "version": 1786624914316,
-        "stages": [
-          {
-            "id": "STAGE_ID",
-            "name": "Frontend",
-            "healthRollup": "AUTOMATIC_ROLL_UP",
-            "levels": [
-              {
-                "id": "LEVEL_ID",
-                "steps": [
-                  {
-                    "id": "STEP_ID",
-                    "name": "Cart service",
-                    "signals": [
-                      {
-                        "guid": "ENTITY_GUID",
-                        "name": "Cart service",
-                        "type": "ENTITY"
-                      }
-                    ]
-                  },
-                  {
-                    "name": "Recommendation service",
-                    "signals": [
-                      {
-                        "guid": "ANOTHER_ENTITY_GUID",
-                        "name": "Recommendation service",
-                        "type": "ENTITY"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    }
-    ```
   </Collapser>
 </CollapserGroup>
 
@@ -498,8 +528,8 @@ The `version` field is required. It's the flow's last-updated timestamp in epoch
 
 Duplicating copies either the structure alone or the whole flow:
 
-* `STRUCTURE` — copies stages, levels, and steps, without signals or KPIs.
-* `WHOLE_FLOW` — copies the entire configuration, including signals and KPIs.
+* `STRUCTURE`: Copies stages, levels, and steps only.
+* `WHOLE_FLOW`: Copies the structure along with its signals.
 
 Any property you set in the input overrides the source flow's value. Omit a property to inherit it.
 
@@ -509,24 +539,18 @@ Any property you set in the input overrides the source flow's value. Omit a prop
     title="Duplicate a flow in the same account"
   >
     ```graphql
-    mutation DuplicateFlow($sourceGuid: EntityGuid!, $pathpoint: PathPointDuplicateInput!) {
-      pathPointDuplicate(sourceGuid: $sourceGuid, pathpoint: $pathpoint) {
+    mutation {
+      pathPointDuplicate(
+        sourceGuid: "SOURCE_FLOW_GUID"
+        pathpoint: {
+          name: "Checkout flow (copy)"
+          category: "E-Commerce"
+          refreshInterval: TEN_MINUTES
+          duplicateType: WHOLE_FLOW
+        }
+      ) {
         guid
         name
-      }
-    }
-    ```
-
-    And here are the variables to use with this mutation:
-
-    ```json
-    {
-      "sourceGuid": "SOURCE_FLOW_GUID",
-      "pathpoint": {
-        "name": "Checkout flow (copy)",
-        "category": "E-Commerce",
-        "refreshInterval": "TEN_MINUTES",
-        "duplicateType": "WHOLE_FLOW"
       }
     }
     ```
@@ -539,34 +563,14 @@ Any property you set in the input overrides the source flow's value. Omit a prop
     To copy a flow into a different account, add a `scope` and set its `id` to the target account. Omit `scope` to duplicate within the source account.
 
     ```graphql
-    mutation DuplicateFlow(
-      $sourceGuid: EntityGuid!
-      $scope: PathPointScopeInput!
-      $pathpoint: PathPointDuplicateInput!
-    ) {
+    mutation {
       pathPointDuplicate(
-        sourceGuid: $sourceGuid
-        scope: $scope
-        pathpoint: $pathpoint
+        sourceGuid: "SOURCE_FLOW_GUID"
+        scope: { id: TARGET_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: { name: "Checkout flow", duplicateType: WHOLE_FLOW }
       ) {
         guid
         name
-      }
-    }
-    ```
-
-    And here are the variables to use with this mutation:
-
-    ```json
-    {
-      "sourceGuid": "SOURCE_FLOW_GUID",
-      "scope": {
-        "id": TARGET_ACCOUNT_ID,
-        "type": "ACCOUNT"
-      },
-      "pathpoint": {
-        "name": "Checkout flow",
-        "duplicateType": "WHOLE_FLOW"
       }
     }
     ```
@@ -582,19 +586,11 @@ Deleting a flow cascades: it removes the flow along with all its stages, levels,
 </Callout>
 
 ```graphql
-mutation DeleteFlow($guid: EntityGuid!) {
-  pathPointDelete(guid: $guid) {
+mutation {
+  pathPointDelete(guid: "FLOW_GUID") {
     guid
     name
   }
-}
-```
-
-And here are the variables to use with this mutation:
-
-```json
-{
-  "guid": "FLOW_GUID"
 }
 ```
 
@@ -602,8 +598,8 @@ And here are the variables to use with this mutation:
 
 A create or update can succeed overall while individual objects fail. Two fields in the response tell you when that happened:
 
-* `message` — details of any stages, levels, or steps that failed. It's `null` when everything succeeded.
-* `excludedKpis` — the names of KPIs that weren't created, most commonly because the KPI's `accountId` didn't match the flow's account.
+* `message`: Details of any stages, levels, or steps that failed. It's `null` when everything succeeded.
+* `excludedKpis`: The names of KPIs that weren't created, most commonly because the KPI's `accountId` didn't match the flow's account.
 
 Request both fields in your mutations so you don't treat a partial success as a complete one.
 
@@ -651,40 +647,40 @@ These enums appear in the operations above. Each row lists the accepted values, 
   </thead>
   <tbody>
     <tr>
-      <td>`RefreshInterval`</td>
+      <td>`PathPointRefreshInterval`</td>
       <td>`ONE_MINUTE`, `FIVE_MINUTES`, `TEN_MINUTES`, `FIFTEEN_MINUTES`, `THIRTY_MINUTES` — how often flow, stage, level, and step health refresh.</td>
     </tr>
     <tr>
-      <td>`FlowHealthRollup`, `StageHealthRollup`</td>
+      <td>`PathPointFlowHealthRollup`, `PathPointStageHealthRollup`</td>
       <td>`AUTOMATIC_ROLL_UP`, `ALERT_CONDITIONS` — whether health rolls up from child objects, or comes from the worst alert condition across the flow's or stage's KPIs.</td>
     </tr>
     <tr>
-      <td>`StepHealthRollup`</td>
+      <td>`PathPointStepHealthRollup`</td>
       <td>`WORST_STATUS_WINS`, `BEST_STATUS_WINS` — whether the step takes its least healthy signal or its healthiest.</td>
     </tr>
     <tr>
-      <td>`ThresholdType`</td>
+      <td>`PathPointThresholdType`</td>
       <td>`FIXED`, `PERCENTAGE` — whether `thresholdValue` is an absolute count or a percentage of signals.</td>
     </tr>
     <tr>
-      <td>`StatusValue`</td>
+      <td>`PathPointStatusValue`</td>
       <td>`OPERATIONAL`, `DEGRADED`, `DISRUPTED`, `UNKNOWN` — computed health, returned on reads.</td>
     </tr>
     <tr>
-      <td>`SignalType`</td>
+      <td>`PathPointSignalType`</td>
       <td>`ENTITY`, `ALERT` — whether the GUID points to a monitored entity, such as an APM service or host, or to an alert condition.</td>
     </tr>
     <tr>
-      <td>`KpiNrqlAggregations`</td>
+      <td>`PathPointKpiNrqlAggregations`</td>
       <td>`COUNT`, `SUM`, `AVERAGE`, `MAX`, `MIN`, `UNIQUE_COUNT`, `PERCENTILE`, `HISTOGRAM` — the aggregation a KPI query applies. Every function except `COUNT` needs an `attribute`.</td>
     </tr>
     <tr>
-      <td>`KpiTimeDuration`</td>
+      <td>`PathPointKpiTimeDuration`</td>
       <td>`THIRTY_MINUTES`, `SIXTY_MINUTES`, `THREE_HOURS`, `SIX_HOURS`, `TWENTY_FOUR_HOURS`, `SEVEN_DAYS`, `THIRTY_DAYS` — durations for a KPI's `since` and `compareAgainst`.</td>
     </tr>
     <tr>
-      <td>`DuplicateType`</td>
-      <td>`STRUCTURE`, `WHOLE_FLOW` — whether to copy stages, levels, and steps only, or signals and KPIs too.</td>
+      <td>`PathPointDuplicateType`</td>
+      <td>`STRUCTURE`, `WHOLE_FLOW` — whether to copy stages, levels, and steps only, or the structure along with its signals.</td>
     </tr>
   </tbody>
 </table>
