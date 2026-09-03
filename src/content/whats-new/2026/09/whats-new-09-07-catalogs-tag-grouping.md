@@ -17,7 +17,7 @@ Now, you can go further: **group entities and add columns using any tag**, wheth
 
 ## How to get started
 
-1. Navigate to your Applications, Infrastructure, or Repositories Catalog.
+1. Navigate to your [Applications, Infrastructure, or Repositories Catalog](https://one.newrelic.com/catalogs/).
 2. Open the **Group By** and **Column** picker dropdowns in the top right corner of the Catalogs table to see and search every tag available in your account, alongside the curated options you already know.
 3. Click and drag column headers to reorder your view.
 4. And remember, your layout is remembered, so it's exactly how you left it next time you come back.
