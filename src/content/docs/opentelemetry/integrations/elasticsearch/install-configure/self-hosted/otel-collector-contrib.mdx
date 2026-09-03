@@ -1,0 +1,201 @@
+---
+title: Install and configure — Elasticsearch self-hosted with OTel Collector Contrib
+metaDescription: "Install and configure the OpenTelemetry Collector Contrib to monitor self-hosted Elasticsearch clusters on servers or VMs and send data to New Relic."
+tags:
+  - OpenTelemetry
+  - Elasticsearch
+  - OTel Collector Contrib
+  - Self-hosted
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: elasticsearch
+flow:
+  prev: /docs/opentelemetry/integrations/elasticsearch/introduction
+  next: null
+stepTTFV: 10m
+---
+
+This page installs and configures the OpenTelemetry Collector Contrib to monitor a self-hosted Elasticsearch cluster running on a Linux server or VM. By the end, cluster metrics and Elasticsearch logs are flowing into New Relic.
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+- Elasticsearch 7.16 or later
+- Self-hosted Elasticsearch on Linux servers, VMs, or Linux containers
+
+### Not supported
+- Windows hosts — this page covers Linux/systemd hosts only
+- Elasticsearch versions earlier than 7.16
+
+### You need
+- A New Relic <InlinePopover type="licenseKey"/>
+- [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) installed and running as a systemd service — official `.deb`/`.rpm` packages create the service unit for you
+- Root or sudo privileges on the host
+- Elasticsearch cluster admin privileges with `monitor` or `manage` cluster privilege (see [Elasticsearch security privileges](https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html))
+- Outbound HTTPS (port 443) connectivity to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+- If your cluster requires authentication: an Elasticsearch username and password with the privileges above
+
+<Steps>
+
+<Step>
+
+## Install [#install]
+
+1. [#install-step-1] Back up the collector's default configuration, then open it for editing:
+
+    ```bash
+    sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup
+    sudo nano /etc/otelcol-contrib/config.yaml
+    ```
+
+2. [#install-step-2] Replace the file's contents with the following, then update `endpoint`, `elasticsearch.cluster.name`, and (if your cluster is secured) `username`/`password`:
+
+    ```yaml
+    receivers:
+      elasticsearch:
+        endpoint: "http://localhost:9200"
+        # username: "your_elasticsearch_username"
+        # password: "your_elasticsearch_password"
+        collection_interval: 15s
+        metrics:
+          elasticsearch.os.cpu.usage: { enabled: true }
+          elasticsearch.cluster.data_nodes: { enabled: true }
+          elasticsearch.cluster.health: { enabled: true }
+          elasticsearch.cluster.in_flight_fetch: { enabled: true }
+          elasticsearch.cluster.nodes: { enabled: true }
+          elasticsearch.cluster.pending_tasks: { enabled: true }
+          elasticsearch.cluster.shards: { enabled: true }
+          elasticsearch.cluster.state_update.time: { enabled: true }
+          elasticsearch.index.documents: { enabled: true }
+          elasticsearch.index.operations.merge.current: { enabled: true }
+          elasticsearch.index.operations.time: { enabled: true }
+          elasticsearch.index.segments.count: { enabled: true }
+          elasticsearch.index.operations.completed: { enabled: true }
+          elasticsearch.index.shards.size: { enabled: true }
+          elasticsearch.node.cache.count: { enabled: true }
+          elasticsearch.node.cache.evictions: { enabled: true }
+          elasticsearch.node.cache.memory.usage: { enabled: true }
+          elasticsearch.node.shards.size: { enabled: true }
+          elasticsearch.node.cluster.io: { enabled: true }
+          elasticsearch.node.documents: { enabled: true }
+          elasticsearch.node.disk.io.read: { enabled: true }
+          elasticsearch.node.disk.io.write: { enabled: true }
+          elasticsearch.node.fs.disk.available: { enabled: true }
+          elasticsearch.node.fs.disk.total: { enabled: true }
+          elasticsearch.node.http.connections: { enabled: true }
+          elasticsearch.node.ingest.documents.current: { enabled: true }
+          elasticsearch.node.ingest.operations.failed: { enabled: true }
+          elasticsearch.node.open_files: { enabled: true }
+          elasticsearch.node.operations.completed: { enabled: true }
+          elasticsearch.node.operations.current: { enabled: true }
+          elasticsearch.node.operations.get.completed: { enabled: true }
+          elasticsearch.node.operations.time: { enabled: true }
+          elasticsearch.node.shards.reserved.size: { enabled: true }
+          elasticsearch.os.cpu.load_avg.1m: { enabled: true }
+          elasticsearch.os.cpu.load_avg.5m: { enabled: true }
+          elasticsearch.os.cpu.load_avg.15m: { enabled: true }
+          elasticsearch.os.memory: { enabled: true }
+          jvm.gc.collections.count: { enabled: true }
+          jvm.gc.collections.elapsed: { enabled: true }
+          jvm.memory.heap.max: { enabled: true }
+          jvm.memory.heap.used: { enabled: true }
+          jvm.memory.heap.utilization: { enabled: true }
+          jvm.threads.count: { enabled: true }
+
+      filelog:
+        include:
+          - /var/log/elasticsearch/elasticsearch.log
+          - /var/log/elasticsearch/*.log
+
+    processors:
+      memory_limiter:
+        check_interval: 60s
+        limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+      cumulativetodelta: {}
+      resource/cluster_name_override:
+        attributes:
+          - key: elasticsearch.cluster.name
+            value: "<elasticsearch-cluster-name>"
+            action: upsert
+      resourcedetection:
+        detectors: [system]
+        system:
+          resource_attributes:
+            host.name: { enabled: true }
+            host.id: { enabled: true }
+            os.type: { enabled: true }
+      batch:
+        timeout: 10s
+        send_batch_size: 1024
+
+    exporters:
+      otlphttp:
+        endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEWRELIC_LICENSE_KEY}
+
+    service:
+      pipelines:
+        metrics/elasticsearch:
+          receivers: [elasticsearch]
+          processors: [memory_limiter, resourcedetection, resource/cluster_name_override, cumulativetodelta, batch]
+          exporters: [otlphttp]
+        logs:
+          receivers: [filelog]
+          processors: [resource/cluster_name_override, batch]
+          exporters: [otlphttp]
+    ```
+
+    *Ensure the account running the collector service (`otelcol-contrib`) has read access to the Elasticsearch log files, or drop the `filelog` receiver and the `logs` pipeline if you only need metrics.*
+
+3. [#install-step-3] Set the required environment variables:
+
+    ```bash
+    sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+    cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+    [Service]
+    Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+    Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE"
+    EOF
+    ```
+
+    *Replace the endpoint with your account's region if you're not on the US datacenter, and replace the license key placeholder with your own.*
+
+4. [#install-step-4] Restart the collector:
+
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl restart otelcol-contrib.service
+    ```
+
+</Step>
+
+<Step>
+
+## Verify your install [#verify]
+
+Within ~5 minutes of restarting the collector, you should see:
+
+- `otelcol-contrib.service` reporting `active (running)` (`sudo systemctl status otelcol-contrib.service`)
+- No connection errors in the logs (`sudo journalctl -u otelcol-contrib.service -f`)
+- This query returning at least one row in New Relic (replace `<elasticsearch-cluster-name>` with your cluster's name):
+
+    ```sql
+    FROM Metric SELECT count(*)
+    WHERE metricName LIKE 'elasticsearch.%'
+    AND elasticsearch.cluster.name = '<elasticsearch-cluster-name>'
+    SINCE 10 minutes ago
+    ```
+
+If you don't see data within ~5 minutes, see [Elasticsearch troubleshooting](/docs/opentelemetry/integrations/elasticsearch/troubleshooting).
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [Elasticsearch metrics reference](/docs/opentelemetry/integrations/elasticsearch/metrics-reference)
+- [Elasticsearch troubleshooting](/docs/opentelemetry/integrations/elasticsearch/troubleshooting)

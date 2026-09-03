@@ -1,0 +1,260 @@
+---
+title: Install and configure — Elasticsearch self-hosted with Prometheus Receiver
+metaDescription: "Configure the OpenTelemetry Collector's Prometheus receiver to monitor self-hosted Elasticsearch clusters using an existing Elasticsearch exporter, and send data to New Relic."
+tags:
+  - OpenTelemetry
+  - Elasticsearch
+  - Prometheus
+  - Self-hosted
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: elasticsearch
+flow:
+  prev: /docs/opentelemetry/integrations/elasticsearch/introduction
+  next: null
+stepTTFV: 15m
+---
+
+This page configures the OpenTelemetry Collector's Prometheus receiver to monitor a self-hosted Elasticsearch cluster through an existing [Prometheus Elasticsearch exporter](https://github.com/prometheus-community/elasticsearch_exporter). Use this path only if you already run that exporter, or are migrating from a Prometheus-based monitoring stack — if not, use [NRDOT](/docs/opentelemetry/integrations/elasticsearch/install-configure/self-hosted/nrdot) or [OTel Collector Contrib](/docs/opentelemetry/integrations/elasticsearch/install-configure/self-hosted/otel-collector-contrib) instead, which connect directly to the Elasticsearch API without an extra component.
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+- Elasticsearch 7.16 or later, monitored via `elasticsearch_exporter` 1.x
+- Self-hosted Elasticsearch on Linux servers, VMs, or Linux containers
+
+### Not supported
+- Windows hosts — this page covers Linux/systemd hosts only
+- Log collection — the Prometheus receiver only carries metrics; use NRDOT or OTel Collector Contrib if you also need Elasticsearch logs
+
+### You need
+- A New Relic <InlinePopover type="licenseKey"/>
+- Either NRDOT or OpenTelemetry Collector Contrib installed and running as a systemd service
+- Root or sudo privileges on the host running the exporter and the collector
+- Outbound HTTPS (port 443) connectivity to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+
+<Steps>
+
+<Step>
+
+## Install [#install]
+
+1. [#install-step-1] Download and start the Elasticsearch exporter, pointed at your Elasticsearch instance:
+
+    ```bash
+    wget https://github.com/prometheus-community/elasticsearch_exporter/releases/download/v1.8.0/elasticsearch_exporter-1.8.0.linux-amd64.tar.gz
+    tar xzf elasticsearch_exporter-*.tar.gz
+    cd elasticsearch_exporter-*
+    ./elasticsearch_exporter --es.uri=http://localhost:9200
+    ```
+
+    *For a secured cluster, use `--es.uri=https://username:password@localhost:9200 --es.ssl-skip-verify`.*
+
+2. [#install-step-2] Verify the exporter is running:
+
+    ```bash
+    curl http://localhost:9114/metrics | grep elasticsearch_cluster_health
+    ```
+
+    *You should see Prometheus-formatted metrics like `elasticsearch_cluster_health_status`. If nothing returns, the exporter isn't reachable — check its process and the `--es.uri` value before continuing.*
+
+3. [#install-step-3] Open your collector's configuration file — `/etc/nrdot-collector/config.yaml` for NRDOT, or `/etc/otelcol-contrib/config.yaml` for OTel Collector Contrib — and replace its contents with the following. This maps the exporter's Prometheus metric names to the OTel-style names that power the New Relic Elasticsearch dashboard:
+
+    <Collapser id="prometheus-full-config" title="Full Prometheus receiver configuration">
+
+    ```yaml
+    receivers:
+      prometheus/elasticsearch:
+        config:
+          scrape_configs:
+            - job_name: 'elasticsearch'
+              scrape_interval: 15s
+              static_configs:
+                - targets: ['localhost:9114']
+
+    processors:
+      memory_limiter:
+        check_interval: 60s
+        limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+      metricstransform/prom_to_otel:
+        transforms:
+          - include: ^elasticsearch_cluster_health_number_of_data_nodes$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.data_nodes
+          - include: ^elasticsearch_cluster_health_status$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.health
+            operations:
+              - action: update_label
+                label: color
+                new_label: status
+          - include: ^elasticsearch_cluster_health_number_of_nodes$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.nodes
+          - include: ^elasticsearch_cluster_health_number_of_pending_tasks$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.pending_tasks
+          - include: ^elasticsearch_cluster_health_active_shards$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.shards
+            operations:
+              - action: add_label
+                new_label: state
+                new_value: active
+          - include: ^elasticsearch_indices_docs$
+            match_type: regexp
+            action: insert
+            new_name: elasticsearch.node.documents
+            operations:
+              - action: add_label
+                new_label: state
+                new_value: active
+          - include: ^elasticsearch_filesystem_data_available_bytes$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.fs.disk.available
+          - include: ^elasticsearch_process_open_files_count$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.open_files
+          - include: ^elasticsearch_indices_indexing_index_total$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.operations.completed
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: index
+          - include: ^elasticsearch_indices_search_query_total$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.operations.completed
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: query
+          - include: ^elasticsearch_os_cpu_percent$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.os.cpu.usage
+          - include: ^elasticsearch_jvm_gc_collection_seconds_count$
+            match_type: regexp
+            action: update
+            new_name: jvm.gc.collections.count
+          - include: ^elasticsearch_jvm_memory_max_bytes$
+            match_type: regexp
+            action: update
+            new_name: jvm.memory.heap.max
+          - include: ^elasticsearch_jvm_memory_used_bytes$
+            match_type: regexp
+            action: update
+            new_name: jvm.memory.heap.used
+          - include: ^elasticsearch_thread_pool_threads_count$
+            match_type: regexp
+            action: update
+            new_name: jvm.threads.count
+            operations:
+              - action: aggregate_labels
+                label_set: [name, cluster]
+                aggregation_type: sum
+      transform/rename_node_name:
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["elasticsearch.node.name"], attributes["name"]) where attributes["name"] != nil
+              - delete_key(attributes, "name") where attributes["elasticsearch.node.name"] != nil
+      cumulativetodelta: {}
+      resource/cluster_name_override:
+        attributes:
+          - key: elasticsearch.cluster.name
+            value: "<elasticsearch-cluster-name>"
+            action: upsert
+      resourcedetection:
+        detectors: [system]
+        system:
+          resource_attributes:
+            host.name: { enabled: true }
+      batch:
+        timeout: 30s
+        send_batch_size: 2048
+
+    exporters:
+      otlphttp:
+        endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEWRELIC_LICENSE_KEY}
+        compression: gzip
+
+    service:
+      pipelines:
+        metrics/elasticsearch:
+          receivers: [prometheus/elasticsearch]
+          processors:
+            - memory_limiter
+            - metricstransform/prom_to_otel
+            - transform/rename_node_name
+            - resourcedetection
+            - resource/cluster_name_override
+            - cumulativetodelta
+            - batch
+          exporters: [otlphttp]
+    ```
+
+    </Collapser>
+
+    Replace `<elasticsearch-cluster-name>` with your cluster's name, and `localhost:9114` if the exporter runs on a different host or port.
+
+4. [#install-step-4] Set the required environment variables. Replace `<collector-service>` with `nrdot-collector` or `otelcol-contrib`, matching the collector you're using:
+
+    ```bash
+    sudo mkdir -p /etc/systemd/system/<collector-service>.service.d
+    cat <<EOF | sudo tee /etc/systemd/system/<collector-service>.service.d/environment.conf
+    [Service]
+    Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+    Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE"
+    EOF
+    ```
+
+5. [#install-step-5] Restart the collector:
+
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl restart <collector-service>
+    ```
+
+</Step>
+
+<Step>
+
+## Verify your install [#verify]
+
+Within ~5 minutes of restarting the collector, you should see:
+
+- The collector service reporting `active (running)` (`sudo systemctl status <collector-service>`)
+- No connection errors in the logs (`sudo journalctl -u <collector-service> -f`)
+- This query returning at least one row in New Relic (replace `<elasticsearch-cluster-name>` with your cluster's name):
+
+    ```sql
+    FROM Metric SELECT count(*)
+    WHERE metricName LIKE 'elasticsearch.%'
+    AND elasticsearch.cluster.name = '<elasticsearch-cluster-name>'
+    SINCE 10 minutes ago
+    ```
+
+If you don't see data within ~5 minutes, see [Elasticsearch troubleshooting](/docs/opentelemetry/integrations/elasticsearch/troubleshooting).
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [Elasticsearch metrics reference](/docs/opentelemetry/integrations/elasticsearch/metrics-reference)
+- [Elasticsearch troubleshooting](/docs/opentelemetry/integrations/elasticsearch/troubleshooting)
