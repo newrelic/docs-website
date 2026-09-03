@@ -59,8 +59,12 @@ This page installs and configures NRDOT to monitor a self-hosted Elasticsearch c
     receivers:
       elasticsearch:
         endpoint: "http://localhost:9200"
+        # For a secured cluster, use "https://localhost:9200" and uncomment:
         # username: "your_elasticsearch_username"
         # password: "your_elasticsearch_password"
+        # tls:
+        #   ca_file: "/etc/elasticsearch/certs/http_ca.crt"
+        #   insecure_skip_verify: false
         collection_interval: 15s
         metrics:
           elasticsearch.os.cpu.usage: { enabled: true }
@@ -117,6 +121,20 @@ This page installs and configures NRDOT to monitor a self-hosted Elasticsearch c
         check_interval: 60s
         limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
       cumulativetodelta: {}
+      attributes/cluster_state_aggregate:
+        include:
+          match_type: strict
+          metric_names:
+            - elasticsearch.cluster.state_update.time
+        actions:
+          - key: type
+            action: delete
+          - key: state
+            action: delete
+      filter/critical_operations:
+        metrics:
+          datapoint:
+            - 'attributes["operation"] == "query" or attributes["operation"] == "index" or attributes["operation"] == "get" or attributes["operation"] == "merge" or attributes["operation"] == nil'
       resource/cluster_name_override:
         attributes:
           - key: elasticsearch.cluster.name
@@ -133,6 +151,18 @@ This page installs and configures NRDOT to monitor a self-hosted Elasticsearch c
         timeout: 30s
         send_batch_size: 2048
         send_batch_max_size: 4096
+      attributes/cardinality_reduction:
+        actions:
+          - key: process.pid
+            action: delete
+          - key: process.parent_pid
+            action: delete
+      transform/metadata_nullify:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "")
+              - set(unit, "")
 
     exporters:
       otlphttp:
@@ -140,16 +170,22 @@ This page installs and configures NRDOT to monitor a self-hosted Elasticsearch c
         headers:
           api-key: ${env:NEWRELIC_LICENSE_KEY}
         compression: gzip
+        timeout: 30s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
 
     service:
       pipelines:
         metrics/elasticsearch:
           receivers: [elasticsearch]
-          processors: [memory_limiter, resourcedetection, resource/cluster_name_override, cumulativetodelta, batch]
+          processors: [memory_limiter, resourcedetection, resource/cluster_name_override, attributes/cardinality_reduction, filter/critical_operations, attributes/cluster_state_aggregate, cumulativetodelta, transform/metadata_nullify, batch]
           exporters: [otlphttp]
         logs:
           receivers: [filelog]
-          processors: [resource/cluster_name_override, batch]
+          processors: [resource/cluster_name_override]
           exporters: [otlphttp]
     ```
 
@@ -199,6 +235,10 @@ If you don't see data within ~5 minutes, see [Elasticsearch troubleshooting](/do
 </Step>
 
 </Steps>
+
+<Callout variant="tip">
+**Correlate APM with Elasticsearch**: To connect your APM application and Elasticsearch cluster, include the resource attribute `es.cluster.name="your-cluster-name"` in your APM metrics. This enables cross-service visibility and faster troubleshooting within New Relic.
+</Callout>
 
 ## Related articles [#related-articles]
 
