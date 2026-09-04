@@ -19,18 +19,18 @@ flow:
 stepTTFV: 15m
 ---
 
-This page deploys NRDOT to Kubernetes using a Kubernetes manifest to monitor Elasticsearch pods with automatic discovery. By the end, cluster metrics from your Elasticsearch pods are flowing into New Relic.
+This guide shows how to deploy NRDOT on Kubernetes using a manifest install to automatically discover your Elasticsearch pods, collect cluster, node, and JVM metrics, and stream them to New Relic for full visibility into your cluster's health and performance.
 
 ## Compatibility and requirements [#requirements]
 
 ### Supported
 - Elasticsearch 7.16 or later, running as pods in a Kubernetes cluster
-- Manifest install method
 
 ### You need
 - A New Relic <InlinePopover type="licenseKey"/>
 - `kubectl` access to your Kubernetes cluster
 - The base [Kubernetes OpenTelemetry manifest installation](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install) already completed
+- Elasticsearch pods labeled `app: elasticsearch`, required for automatic discovery
 - An Elasticsearch user with the `monitor` or `manage` cluster privilege (see [Elasticsearch security privileges](https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html))
 - Outbound HTTPS (port 443) connectivity to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
 - If your cluster requires authentication, that user's Elasticsearch username and password is required
@@ -39,49 +39,17 @@ This page deploys NRDOT to Kubernetes using a Kubernetes manifest to monitor Ela
 
 <Step>
 
-## Set up pod labels [#pod-labels]
-
-Each Elasticsearch pod must have the label `app: elasticsearch` for automatic discovery to work. Without this label, the collector won't detect or monitor your pods.
-
-If you're using a StatefulSet or Deployment for Elasticsearch, add the label in the pod template:
-
-```yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: elasticsearch
-spec:
-  template:
-    metadata:
-      labels:
-        app: elasticsearch  # Required for auto-discovery
-    spec:
-      containers:
-      - name: elasticsearch
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.x.x
-```
-
-For existing pods without the label, update your StatefulSet/Deployment and restart the pods:
-
-```bash
-kubectl label pods -l <your-existing-selector> app=elasticsearch -n <namespace>
-```
-
-</Step>
-
-<Step>
-
 ## Install [#install]
 
 More control over individual Kubernetes resources, using the base manifest installation you already have in place — best for customized deployments.
 
-1. Update the collector image to NRDOT in both [`deployment.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment.yaml) and [`daemonset.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/daemonset.yaml) in your local `rendered` directory:
+1. **Update collector image to NRDOT**: Update the collector image to NRDOT in both [`deployment.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment.yaml) and [`daemonset.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/daemonset.yaml) in your local `rendered` directory:
 
     ```yaml
     image: newrelic/nrdot-collector:latest
     ```
 
-2. Update [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml) for Elasticsearch monitoring: set `rule` to match your pod label, and set the cluster name in both `resource/cluster` and `resource/cluster_name_override`. Then choose one of two options:
+2. **Configure Elasticsearch monitoring**: Update [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml) for Elasticsearch monitoring: set `rule` to match your pod label, and set the cluster name in both `resource/cluster` and `resource/cluster_name_override`. Then choose one of two options:
 
     **Option 1**: Replace all existing OpenTelemetry components (recommended for Elasticsearch-only monitoring) — replace the entire file's content with:
 
@@ -273,18 +241,6 @@ More control over individual Kubernetes resources, using the base manifest insta
 
     **Option 2**: Merge with existing configuration (if monitoring multiple services) — add the Elasticsearch receiver and processors to your existing configuration, merging them with your current `deployment-configmap.yaml`.
 
-    <Callout variant="tip">
-    **Customize for your environment:**
-
-    **Required changes:**
-    - **Pod label rule** - The rule `labels["app"] == "elasticsearch"` must match your pod labels
-    - **Cluster name** - Replace `elasticsearch-cluster` in both `resource/cluster` and `resource/cluster_name_override` with your unique cluster name
-
-    **Optional changes:**
-    - **Port** - Update `9200` if Elasticsearch runs on a different port
-    - **Authentication** - Add credentials if your Elasticsearch cluster is secured (see example below)
-    </Callout>
-
     **For secured Elasticsearch clusters:** If your Elasticsearch cluster requires authentication, add credentials to the receiver configuration:
 
     ```yaml
@@ -301,17 +257,11 @@ More control over individual Kubernetes resources, using the base manifest insta
               tls:
                 insecure_skip_verify: false
     ```
-    Store credentials securely using Kubernetes secrets rather than hardcoding them in the values file. 
-3. Apply the updated manifests and restart the deployment:
+    Store credentials securely using Kubernetes secrets rather than hardcoding them in the values file.
 
-    ```bash
-    kubectl apply -n newrelic -R -f rendered
-    kubectl rollout restart deployment nr-k8s-otel-collector-deployment -n newrelic
-    ```
+#### Configuration parameters [#configuration-parameters]
 
-### Configuration parameters [#configuration-parameters]
-
-The following table describes the key configuration parameters for the `receiver_creator/elasticsearch` receiver:
+The following table describes the key configuration parameters used in the `deployment-configmap.yaml` above:
 
 | Parameter | Description |
 | --- | --- |
@@ -325,6 +275,13 @@ The following table describes the key configuration parameters for the `receiver
 | `NEWRELIC_LICENSE_KEY` | Your New Relic <InlinePopover type="licenseKey"/>. |
 | `NEWRELIC_OTLP_ENDPOINT` | The New Relic OTLP endpoint for your account's region. See [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
 
+3. Apply the updated manifests and restart the deployment:
+
+    ```bash
+    kubectl apply -n newrelic -R -f rendered
+    kubectl rollout restart deployment nr-k8s-otel-collector-deployment -n newrelic
+    ```
+
 </Step>
 
 <Step>
@@ -333,7 +290,7 @@ The following table describes the key configuration parameters for the `receiver
 
 Within ~5 minutes of installing, you should see:
 
-- The collector pod in a `Running` state (`kubectl get pods -n newrelic`), name like `nr-k8s-otel-collector-deployment-<hash>`
+- The collector pod in a `Running` state (`kubectl get pods -n newrelic --watch`), name like `nr-k8s-otel-collector-deployment-<hash>`
 - No connection errors in the pod logs: `kubectl logs -n newrelic -l app.kubernetes.io/name=nr-k8s-otel-collector -f`
 - This query returning at least one row in New Relic (replace `elasticsearch-cluster` with your cluster's name):
 
