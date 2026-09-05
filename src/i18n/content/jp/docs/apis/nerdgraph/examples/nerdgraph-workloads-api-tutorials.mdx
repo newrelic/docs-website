@@ -1,0 +1,444 @@
+---
+title: NerdGraphチュートリアル。ワークロードの表示と管理
+tags:
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: How to use New Relic NerdGraph API to query and update workloads.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic では、 [ワークロード](\(/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-alert-events-faster\))と呼ばれるグループにエンティティをまとめることができます。これにより、チームまたはプロジェクトで使用されるフルスタックをより適切に監視できるようになります。
+
+[ここでは、当社のNerdGraph API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) を使って、ワークロード関連の作業を行う方法をご紹介します。
+
+* [アカウントのワークロードの取得](#get_workloads)
+* [ワークロード内のエンティティのリストを取得](#get_entities_list)
+* [ワークロードの状態を取得](#get_status)
+* [ワークロードの作成](#create-workload)
+* [ワークロードの変更](#modify)
+* [ワークロードに静的なステータスを設定](#static)
+* [ワークロードの自動ステータスルールの変更](#automatic)
+* [ワークロードを複製する](#duplicate)
+* [ワークロードの削除](#delete)
+
+[ワークロードで表示されるチャートをカスタマイズする方法に関する記事](https://support.newrelic.com/s/hubtopic/aAX8W0000008c8P/how-to-customize-the-charts-you-see-on-a-workload)もご覧ください。
+
+<Callout variant="important">
+  [CLI](http://developer.newrelic.com/build-tools/new-relic-one-applications/cli)と[Terraform リソース](https://www.terraform.io/docs/providers/newrelic/r/workload)を使用して、これらのタスクを自動化することもできます。
+</Callout>
+
+## アカウントのワークロードの取得 [#get\_workloads][#get_workloads]
+
+アカウントのすべてのワークロードを取得するには、次の[GraphQLクエリ](https://api.newrelic.com/graphiql)を使用して、 `id`フィールドを介してアカウントIDを渡します。この例では、次の3つの基本フィールドを取得します。
+
+* `guid`：ワークロードGUID。
+* `name`：ワークロード名。
+* `permalink`：NewRelicUIの永続的なURL。
+
+```graphql
+{
+  actor {
+    entitySearch(query: "accountId = YOUR_ACCOUNT_ID and type = 'WORKLOAD'") {
+      results {
+        entities {
+          guid
+          name
+          permalink
+        }
+      }
+    }
+  }
+}
+```
+
+回答には、ワークロードごとにこのようなデータが含まれています。
+
+```json
+{
+  "data": {
+    "actor": {
+      "entitySearch": {
+        "results": {
+          "entities": [
+            {
+              "guid": "MTY...NTY",
+              "name": "Acme Telco - Fulfillment Chain",
+              "permalink": "https://one.newrelic.com/redirect/entity/MTY...NTY"
+            },
+            ...
+          ]
+        }
+      }
+    }
+  },
+  "extensions": { ... }
+}
+```
+
+## ワークロード内のエンティティのリストを取得 [#get\_entities\_list][#get_entities_list]
+
+ワークロードGUID（ `guid` ）を引数として渡すだけで、次のクエリでワークロードに属するエンティティを取得できます。この例では、いくつかのワークロードメタデータも取得します。
+
+* `accountId`：ワークロードアカウント。
+
+* `name`：ワークロード名。
+
+* `permalink`：NewRelicUIのワークロードパーマネントURL。
+
+* `alertSeverity`：ワークロードのステータス。この値には、最大10分の遅延があります。クエリ時間でワークロードステータスの計算を強制する場合は、ワークロードステータスの[取得の](#get_status)例を使用してください。
+
+* ネストされた`collection` 、 `members` 、および`results`オブジェクト。これには、エンティティの実際のリストが含まれています。
+
+  * `collection`オブジェクトの`name`引数は、値`WORKLOAD`を取ります。
+  * `count`：ワークロード内のエンティティの数。
+
+```graphql
+{
+  actor {
+    entity(guid: "YOUR_WORKLOAD_GUID") {
+      accountId
+      name
+      permalink
+      ... on AlertableEntity {
+        alertSeverity
+      }
+      ... on CollectionEntity {
+        collection(name: "WORKLOAD") {
+          members {
+            count
+            results {
+              entities {
+                accountId
+                entityType
+                name
+                guid
+                ... on AlertableEntityOutline {
+                  alertSeverity
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+このクエリは、次のようなエンティティのリストを返します。
+
+```json
+{
+  "data": {
+    "actor": {
+      "entity": {
+        "accountId": 1606862,
+        "name": "Acme Telco - Ecommerce",
+        "permalink": "https://one.newrelic.com/redirect/entity/MTYwNjg2MnxOUjF8V09SS0xPQUR8MTIyMzQ",
+        "alertSeverity": "CRITICAL",
+        "collection": {
+          "members": {
+            "count": 201,
+            "results": {
+              "entities": [
+                {
+                  "accountId": 1606862,
+                  "alertSeverity": "CRITICAL",
+                  "entityType": "APM_APPLICATION_ENTITY",
+                  "guid": "MTYwNjg2MnxBUE18QVBQTElDQVRJT058NDMxOTIwNTg",
+                  "name": "Fulfillment Service"
+                },
+                {
+                  "accountId": 1606862,
+                  "alertSeverity": "NOT_ALERTING",
+                  "entityType": "INFRASTRUCTURE_HOST_ENTITY",
+                  "guid": "MTYwNjg2MnxJTkZSQXxOQXw3MDQzMzA2NzIyMjk2NDg4Mzc",
+                  "name": "ip-172-31-16-222"
+                },
+                {
+                  "accountId": 1606862,
+                  "alertSeverity": "NOT_ALERTING",
+                  "entityType": "INFRASTRUCTURE_AWS_LAMBDA_FUNCTION_ENTITY",
+                  "guid": "MTYwNjg2MnxJTkZSQXxOQXw1MjMyNzM2ODgzNjAwNjYyMjE1",
+                  "name": "TelcoDT-purchase-log-lambda"
+                },
+                ...
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## ワークロードの状態を取得 [#get\_status][#get_status]
+
+ワークロードのステータスの計算を強制する場合は、次のクエリを使用して、アカウントID（ `id` ）を`account`フィールドの引数として渡し、ワークロードGUID（ `guid` ）を次のように渡すことができます。 `collection`フィールドの引数。
+
+```graphql
+{
+  actor {
+    entity(guid: "YOUR_WORKLOAD_GUID") {
+      ... on WorkloadEntity {
+        guid
+        workloadStatus {
+          statusValue
+        }
+      }
+    }
+  }
+}
+```
+
+そして、このような回答が返ってきます。
+
+```json
+{
+  "data": {
+    "actor": {
+      "entity": {
+        "guid": "MTYwNjg2MnxOUjF8V09SS0xPQUR8MTIyMzQ",
+        "workloadStatus": {
+          "statusValue": "OPERATIONAL"
+        }
+      }
+    }
+  }
+}
+```
+
+`DISRUPTED`ステータス値は`CRITICAL`ステータスの同義語であることに注意してください。
+
+## ワークロードの作成 [#create-workload]
+
+以下は、 `workloadCreate`[ミュー](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph#terminology)テーションクエリを使用してワークロードを作成するNerdGraph呼び出しの例です。
+
+```graphql
+mutation {
+  workloadCreate(
+    accountId: NEW_WORKLOAD_ACCOUNT_ID,
+    workload: {
+      name: "NAME_OF_WORKLOAD",
+      entityGuids: ["ENTITY_GUID_1", "ENTITY_GUID_2", ...],
+      entitySearchQueries: [
+        {
+          query: "(type = 'SERVICE') and tags.label.environment = 'production'"
+        },
+        ...
+      ],
+      scopeAccounts: {
+        accountIds: [NEW_RELIC_ACCOUNT_ID_1, NEW_RELIC_ACCOUNT_ID_2, ...]
+      }
+    }
+  )
+  {
+    guid
+  }
+}
+```
+
+この質問の一部について詳細を説明します。
+
+* `account`: [ワークロード アカウント ID](\(/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-alert-events-faster\)#workload-account) 。ワークロードはアカウント間で移動できないため、後でこの値を変更することはできません。
+
+* `name`：ワークロードのわかりやすい名前の文字列。
+
+* `scopeAccounts`: [スコープ アカウント](\(/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-alert-events-faster\)#scope-accounts)は、エンティティ データが取得されるアカウントです。スコープ アカウントは、ワークロード アカウントと同じ親アカウントまたはエンタープライズ パートナーシップの下のグループに属している必要があります。
+
+* ワークロードのエンティティを定義するには、以下のオプションのいずれかまたは両方を使用できます。
+
+  * `entitySearchQueries`: これにより[、エンティティの配列を動的に生成](\(/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-alert-events-faster\)#dynamic)できます。各クエリに名前は必要ありません。動的クエリの例を次に示します。
+
+    ```
+    (domain = 'INFRA' and type = 'HOST') and tags.label.environment = 'production'
+    ```
+
+  * `entityGuids`：これは、ワークロードに含める特定のエンティティGUIDを選択するためのものです。
+
+* `guid`：これはワークロード`guid`を返します。 NerdGraphはスキーマスティッチングを提供するため、 `permalink`などのワークロードに関するその他の詳細を取得できます。
+
+## ワークロードの変更 [#modify]
+
+ワークロードを変更するには、 `workloadUpdate`ミューテーションを使用します。ワークロードの`guid`を知っている必要があります。
+
+ワークロードのアカウントは変更できません。
+
+変更可能なフィールドについては、 [ワークロードの作成](#create-workload-fields) を参照してください。以下の追加ルールが適用されます。
+
+* `entitySearchQueries`：このフィールドには、保存されると予想されるすべてのクエリが含まれている必要があります。新しいクエリを追加する場合は、それを`query`フィールドに含め、クエリ`id`を指定しないでください。既存のクエリを変更する場合は、そのクエリを`query`フィールドに含め、既存の`id`を入力します。既存のクエリを削除する場合は、その`id`を含むクエリを追加しないでください。
+
+`workloadUpdate`クエリの例を次に示します。
+
+```graphql
+mutation {
+  workloadUpdate(
+    guid: "YOUR_WORKLOAD_GUID",
+    workload: {
+      name: "A new name for the workload",
+      entityGuids: ["ENTITY_GUID_1", "ENTITY_GUID_2", ...],
+      entitySearchQueries: [
+        {
+          query: "(domain = 'INFRA' and type = 'HOST') and tags.label.environment = 'staging'"
+        },
+        {
+          id: AN_EXISTING_QUERY_ID,
+          query: "(type = 'SERVICE') and tags.label.environment = 'staging'"
+        },
+        ...
+      ],
+      scopeAccounts: {
+        accountIds: [NEW_RELIC_ACCOUNT_ID_1, NEW_RELIC_ACCOUNT_ID_2, ...]
+      }
+    }
+  )
+  {
+    guid
+  }
+}
+```
+
+## ワークロードに静的なステータスを設定 [#static]
+
+ワークロードに静的なステータスを設定することができ、自動ステータス計算よりも優先されます。
+
+静的ステータスを設定するには、ワークロードの`guid`を知っており、次のフィールドを使用する必要があります。
+
+* `enabled`：ステータス値を伝達するには、このフィールドを`true`に設定することを忘れないでください。
+* `status`：このワークロードに設定するステータス値。サポートされている値は、 `OPERATIONAL` 、 `DEGRADED` 、または`DISRUPTED`です。
+* `description`：追加の詳細を提供するテキストフィールド。
+
+```graphql
+mutation {
+  workloadUpdate(
+    guid: "YOUR_WORKLOAD_GUID",
+    workload: {
+      statusConfig: {
+        static: {
+          enabled: true,
+          status: DEGRADED,
+          description: "Game day. Expect some turbulence today between 8 and 9am PST."
+        }
+      }
+    }
+  )
+  {
+    guid
+    updatedAt
+    status {
+      value
+    }
+  }
+}
+```
+
+## ワークロードの自動ステータスルールの変更 [#automatic]
+
+ワークロードを作成するときは、 `statusConfig`オブジェクトを使用して、ワークロードのステータスを計算するために使用する自動ルールを定義できます。 `rules`配列を空のままにすると、ワークロードにルールが設定されません。
+
+ただし、ワークロードを作成するときに`statusConfig`オブジェクトを使用しない場合は、デフォルトで次のルールが追加されます。
+
+```json
+{
+  "statusConfig": {
+    "automatic": {
+      "enabled": true,
+      "rules": [
+        {
+          "entitySearchQueries": [
+            { "query": "(domain = 'APM' and type = 'APPLICATION')" }
+          ],
+          "rollup": {
+            "strategy": "WORST_STATUS_WINS",
+            "thresholdType": null,
+            "thresholdValue": null
+          }
+        },
+        {
+          "entitySearchQueries": [
+            { "query": "(domain = 'MOBILE' and type = 'APPLICATION')" }
+          ],
+          "rollup": {
+            "strategy": "WORST_STATUS_WINS",
+            "thresholdType": null,
+            "thresholdValue": null
+          }
+        },
+        {
+          "entitySearchQueries": [
+            { "query": "(domain = 'BROWSER' and type = 'APPLICATION')" }
+          ],
+          "rollup": {
+            "strategy": "WORST_STATUS_WINS",
+            "thresholdType": null,
+            "thresholdValue": null
+          }
+        },
+        {
+          "entitySearchQueries": [
+            { "query": "(domain = 'SYNTH' and type = 'MONITOR')" }
+          ],
+          "rollup": {
+            "strategy": "WORST_STATUS_WINS",
+            "thresholdType": null,
+            "thresholdValue": null
+          }
+        }
+      ],
+      "remainingEntitiesRule": {
+        "rollup": {
+          "groupBy": "ENTITY_TYPE",
+          "strategy": "BEST_STATUS_WINS",
+          "thresholdType": null,
+          "thresholdValue": null
+        }
+      }
+    }
+  }
+}
+```
+
+このようにして設定を読み取るのです。
+
+* `enabled`：このフィールドが`true`に設定されている場合、自動ステータス計算が有効になります。
+* `rules`：ルールの配列。デフォルトの構成では、デジタルエクスペリエンスに近いエンティティタイプ（つまり、合成モニター、ブラウザーアプリケーション、モバイルアプリケーション、およびサービス）に対して4つのルールが設定されています。これらのグループのそれぞれについて、最も不健康な状態がロールアップされます。
+* `remainingEntitiesRule`：これは、他のルールで評価されていないすべてのエンティティに適用されるルールです。デフォルトの構成では、残りのエンティティはエンティティタイプごとにグループ化され、各グループのステータスを最も健全なエンティティのステータスと一致させます。
+
+これらのルールを変更する場合は、 `workloadUpdate`ミューテーションを使用し、使用する完全に新しい`statusConfig`オブジェクトを送信する必要があります。
+
+`statucConfig.automatic.enabled`を`false`に設定することにより、構成を維持したまま自動ステータス計算を無効にできます。
+
+または、空の配列を送信して、すべての自動通常ルールを削除することもできます。また、 `remainingEntitiesRule`オブジェクトを追加しないだけで、残りのエンティティのルールを削除できます。
+
+## ワークロードを複製する [#duplicate]
+
+ワークロードを複製するには、最初にその`guid`を知る必要があります。 `workloadDuplicate`ミューテーションでは、パラメーターとして渡す必要があります。
+
+* `accountId`：新しいワークロードを作成するアカウント。
+* `sourceGuid`：複製するワークロードの`guid` 。
+* `workload.name`：オプション。新しいワークロードの名前を指定できます。指定しない場合、新しいワークロードには、元のワークロードの名前に`- Copy`が追加されます。
+
+ワークロードを複製した後は、 [修正することができます](#modify) 。
+
+```graphql
+mutation {
+  workloadDuplicate(
+    accountId: NEW_WORKLOAD_ACCOUNT_ID,
+    sourceGuid: "ORIGINAL_WORKLOAD_GUID",
+    workload: {
+      name: "New workload"
+    }
+  ) {
+     guid
+  }
+}
+```
+
+## ワークロードの削除 [#delete]
+
+ワークロードを削除するには、 `workloadDelete`ミューテーションを使用し、ワークロードGUIDを指定します。
+
+ワークロードを削除すると、すべての履歴やメタデータも削除されます。

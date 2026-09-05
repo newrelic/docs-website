@@ -1,0 +1,143 @@
+---
+title: 単一のOTelエンティティの下にLambda関数をグループ化する
+metaDescription: Use OTEL_SERVICE_NAME to group multiple OpenTelemetry-instrumented Lambda functions under one New Relic entity.
+freshnessValidatedDate: never
+tags:
+  - AWS Lambda
+  - OpenTelemetry
+  - OTel
+  - OTEL_SERVICE_NAME
+  - Entity grouping
+translationType: machine
+---
+
+Lambda関数をOpenTelemetry（OTel）レイヤーで計装すると、環境変数`OTEL_SERVICE_NAME`によって、関数のテレメトリーがNew Relicのどのエンティティの属性になるかが制御されます。デフォルトでは、各関数は個別のエンティティとしてレポートします。複数の関数に同じ`OTEL_SERVICE_NAME`を設定すると、それらすべてのテレメトリーが単一のエンティティの下にグループ化されます。
+
+アプリケーションのコードを変更する必要はありません。OTel Lambdaレイヤーは計装を自動的に処理します — データの送信先を制御する環境変数を設定するだけです。
+
+## 前提条件
+
+* [APIキー](/docs/apis/intro-apis/introduction-new-relic-apis/)を持つNew Relicアカウント。
+* [New Relic OTel Lambdaレイヤー](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-java)でインストゥルメントされたLambda関数。
+
+## OTelエンティティ名を設定します。
+
+`OTEL_SERVICE_NAME`をLambda環境変数として設定します：
+
+```
+OTEL_SERVICE_NAME = my-service-name
+```
+
+その関数からのすべてのテレメトリーは、New Relicの`my-service-name`という名前のOTelエンティティの属性になります。その名前のエンティティが存在しない場合は、自動的に作成されます。
+
+<Callout variant="important">
+  `OTEL_SERVICE_NAME` 永続的ではありません。値を更新して再デプロイすると、関数はその時点から新しいエンティティ名でレポートを開始します。New Relicは以前の履歴を移行しません — 古いエンティティはデータを保持しますが、新しいテレメトリーの受信を停止します。
+</Callout>
+
+## 単一のエンティティの下にLambda関数をグループ化する
+
+2つ以上のLambda関数を単一のOTelエンティティの下にグループ化するには、すべての関数に同じ`OTEL_SERVICE_NAME`の値を指定します。必要な設定はこれだけです。
+
+```
+# Function A (us-east-1)
+OTEL_SERVICE_NAME = payment-service
+
+# Function B (eu-west-1)
+OTEL_SERVICE_NAME = payment-service
+```
+
+これで、両方の関数がNew Relicの単一の`payment-service`エンティティにレポートするようになります。
+
+## エンティティの動作
+
+同じ`OTEL_SERVICE_NAME`値とNew Relicアカウントを共有する関数は、New Relic UIで単一のOTelエンティティの下にグループ化されます。
+
+<Callout variant="important">
+  `OTEL_SERVICE_NAME`を変更すると、新しいOTelエンティティが作成されます。以前の名前に関連付けられた履歴データは、新しいエンティティには移行されません。
+</Callout>
+
+## マルチリージョンレポート
+
+異なるAWSリージョンにデプロイされた複数のLambda関数で、同じ`OTEL_SERVICE_NAME`を共有できます。これらの関数はすべて、デプロイされているリージョンに関係なく、単一のOTelエンティティにレポートします。
+
+グループ化されたエンティティ内の個々の関数やリージョン固有のデプロイメントを区別するには、NRQLで`tags.aws.arn`属性を使用してフィルタリングするか、エンティティビューのタグフィルターバーを使用します。
+
+## クロスランタイムレポート
+
+同じ`OTEL_SERVICE_NAME`を共有する異なるランタイム（たとえば、Python関数とNode.js関数）を使用するLambda関数は、**別々**のOTelエンティティを作成します — ランタイムごとに1つ。グループ化はランタイムの境界を越えません。これは想定されるOTelの動作です — エンティティのIDには、サービス名だけでなく言語タイプも含まれます。
+
+## エンティティ名の変更
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "280px" }}>
+        シナリオ
+      </th>
+
+      <th>
+        結果
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        初めて
+
+        `OTEL_SERVICE_NAME`
+
+        を設定する
+      </td>
+
+      <td>
+        新しいエンティティが作成されます；テレメトリーはすぐにそこに流れ込みます
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `OTEL_SERVICE_NAME`
+
+        を更新して再デプロイする
+      </td>
+
+      <td>
+        新しい名前で新しいエンティティが作成されます；古いエンティティは履歴を保持しますが、テレメトリーの受信を停止します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        削除 
+
+        `OTEL_SERVICE_NAME`
+      </td>
+
+      <td>
+        関数はLambda関数名（
+
+        `AWS_LAMBDA_FUNCTION_NAME`
+
+        ）でのレポートに戻ります
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## コレクタープロセッサでfaas.nameを保持します。 [#preserve-faas-name]
+
+<Callout variant="caution">
+  `faas.name` OTelレイヤーによってLambdaに自動入力されます — 破棄（削除または名前変更）しないでください。New Relicはこれを使用して、親（SERVER）スパンをLambda呼び出しとして認識します。これを破棄すると、以下の原因になります：
+
+  * 親スパンがメトリクス合成から除外される
+  * 不完全または不正確なトランザクション数
+  * エンティティがLambdaエンティティではなく`EXT|SERVICE`として解決されます — group-by機能と`cloud.resource_id`のタグおよびフィルタリングが機能しなくなります。
+</Callout>
+
+## 関連ドキュメント
+
+* [New RelicとOpenTelemetryでJava Lambda関数を追跡する](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-java)
+* [New RelicとOpenTelemetryによる.NET Lambda関数のトレース](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-dotnet)
+* [APMモードのLambda関数用NEW\_RELIC\_APP\_NAME](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/app-name-apm-lambda)
