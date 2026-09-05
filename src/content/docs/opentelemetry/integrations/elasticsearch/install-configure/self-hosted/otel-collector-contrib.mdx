@@ -17,7 +17,7 @@ flow:
 stepTTFV: 10m
 ---
 
-This page installs and configures the OpenTelemetry Collector Contrib to monitor a self-hosted Elasticsearch cluster running on a Linux server or VM. By the end, cluster metrics and Elasticsearch logs are flowing into New Relic.
+This page installs and configures the OpenTelemetry Collector Contrib to monitor a self-hosted Elasticsearch cluster running on a Linux server or VM. By the end, cluster metrics from your Elasticsearch cluster are flowing into New Relic, with host metrics, logs, and custom tags available as optional additions.
 
 ## Compatibility and requirements [#requirements]
 
@@ -27,7 +27,6 @@ This page installs and configures the OpenTelemetry Collector Contrib to monitor
 
 ### Not supported
 - Windows hosts — this page covers Linux/systemd hosts only
-- Elasticsearch versions earlier than 7.16
 
 ### You need
 - A New Relic <InlinePopover type="licenseKey"/>
@@ -41,27 +40,21 @@ This page installs and configures the OpenTelemetry Collector Contrib to monitor
 
 <Step>
 
-## Install [#install]
+## Configure the OTel Collector Contrib for Elasticsearch monitoring [#configure]
 
-1. [#install-step-1] Back up the collector's default configuration, then open it for editing:
+1. Back up the collector's default configuration, then open it for editing:
 
     ```bash
     sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup
     sudo nano /etc/otelcol-contrib/config.yaml
     ```
 
-2. [#install-step-2] Replace the file's contents with the following, then update `endpoint`, `elasticsearch.cluster.name`, and (if your cluster is secured) `username`/`password`:
+2. Delete all existing content and replace it with the following configuration for Elasticsearch monitoring. Update the `endpoint` value with your Elasticsearch cluster endpoint, and update `elasticsearch.cluster.name` in the processor block with a unique name to identify your cluster in New Relic:
 
     ```yaml
     receivers:
       elasticsearch:
-        endpoint: "http://localhost:9200"
-        # For a secured cluster, use "https://localhost:9200" and uncomment:
-        # username: "your_elasticsearch_username"
-        # password: "your_elasticsearch_password"
-        # tls:
-        #   ca_file: "/etc/elasticsearch/certs/http_ca.crt"
-        #   insecure_skip_verify: false
+        endpoint: "http://<YOUR_ELASTICSEARCH_HOST>:9200"
         collection_interval: 15s
         metrics:
           elasticsearch.os.cpu.usage: { enabled: true }
@@ -108,11 +101,6 @@ This page installs and configures the OpenTelemetry Collector Contrib to monitor
           jvm.memory.heap.utilization: { enabled: true }
           jvm.threads.count: { enabled: true }
 
-      filelog:
-        include:
-          - /var/log/elasticsearch/elasticsearch.log
-          - /var/log/elasticsearch/*.log
-
     processors:
       memory_limiter:
         check_interval: 60s
@@ -121,7 +109,7 @@ This page installs and configures the OpenTelemetry Collector Contrib to monitor
       resource/cluster_name_override:
         attributes:
           - key: elasticsearch.cluster.name
-            value: "<elasticsearch-cluster-name>"
+            value: "<YOUR_ELASTICSEARCH_CLUSTER_NAME>"
             action: upsert
       resourcedetection:
         detectors: [system]
@@ -158,50 +146,188 @@ This page installs and configures the OpenTelemetry Collector Contrib to monitor
           receivers: [elasticsearch]
           processors: [memory_limiter, resourcedetection, resource/cluster_name_override, attributes/cardinality_reduction, cumulativetodelta, transform/metadata_nullify, batch]
           exporters: [otlphttp]
+    ```
+
+#### Configuration parameters [#configuration-parameters]
+
+The following table describes the key configuration parameters used in the configuration above:
+
+| Parameter | Description |
+| --- | --- |
+| `endpoint` | Your Elasticsearch cluster's URL. Use `https://` instead of `http://` for a secured cluster. |
+| `collection_interval` | The interval between metric scrapes. Default: `15s`. |
+| `elasticsearch.cluster.name` (in `resource/cluster_name_override`) | A unique name identifying this cluster in New Relic. Replace `<YOUR_ELASTICSEARCH_CLUSTER_NAME>` with a name that's unique across your account. |
+| `username` / `password` | Credentials for a secured Elasticsearch cluster. Only required if authentication is enabled — see the secured-cluster option below. |
+| `tls.ca_file` / `tls.insecure_skip_verify` | TLS options for a secured cluster: the CA certificate path, and whether to skip certificate verification (set to `false` in production). |
+| `NEW_RELIC_MEMORY_LIMIT_MIB` | The memory limit, in MiB, for the collector's `memory_limiter` processor. Set to fit your environment. |
+| `NEWRELIC_LICENSE_KEY` | Your New Relic <InlinePopover type="licenseKey"/>. |
+| `NEWRELIC_OTLP_ENDPOINT` | The New Relic OTLP endpoint for your account's region. See [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
+
+3. *(Optional)* For secured Elasticsearch with authentication and SSL, modify the receiver configuration:
+
+    ```yaml
+    receivers:
+      elasticsearch:
+        endpoint: "https://<YOUR_ELASTICSEARCH_HOST>:9200"
+        username: "<YOUR_ELASTICSEARCH_USERNAME>"
+        password: "<YOUR_ELASTICSEARCH_PASSWORD>"
+        tls:
+          ca_file: "/etc/elasticsearch/certs/http_ca.crt"
+          insecure_skip_verify: false
+        collection_interval: 15s
+    ```
+
+4. *(Optional)* To collect host metrics, add the `hostmetrics` receiver:
+
+    ```yaml
+    receivers:
+      hostmetrics:
+        collection_interval: 60s
+        scrapers:
+          cpu:
+            metrics:
+              system.cpu.utilization: { enabled: true }
+              system.cpu.time: { enabled: true }
+          load:
+            metrics:
+              system.cpu.load_average.1m: { enabled: true }
+              system.cpu.load_average.5m: { enabled: true }
+              system.cpu.load_average.15m: { enabled: true }
+          memory:
+            metrics:
+              system.memory.usage: { enabled: true }
+              system.memory.utilization: { enabled: true }
+          disk:
+            metrics:
+              system.disk.io: { enabled: true }
+              system.disk.operations: { enabled: true }
+          filesystem:
+            metrics:
+              system.filesystem.usage: { enabled: true }
+              system.filesystem.utilization: { enabled: true }
+          network:
+            metrics:
+              system.network.io: { enabled: true }
+              system.network.packets: { enabled: true }
+          process:
+            metrics:
+              process.cpu.utilization:
+                enabled: true
+    ```
+
+    And add to the service pipelines:
+
+    ```yaml
+    service:
+      pipelines:
+        metrics/host:
+          receivers: [hostmetrics]
+          processors: [memory_limiter, resourcedetection, batch]
+          exporters: [otlphttp]
+    ```
+
+5. *(Optional)* To collect Elasticsearch logs, add the `filelog` receiver. Ensure the account running the collector service (`otelcol-contrib`) has read access to your Elasticsearch log files:
+
+    **If running Elasticsearch on Linux (host):**
+
+    ```yaml
+    receivers:
+      filelog:
+        include:
+          - /var/log/elasticsearch/elasticsearch.log
+          - /var/log/elasticsearch/*.log
+    ```
+
+    **If running Elasticsearch in Docker:**
+
+    ```yaml
+    receivers:
+      filelog:
+        include:
+          - /var/lib/docker/containers/*/*.log
+        operators:
+          - type: move
+            from: attributes.log
+            to: body
+    ```
+
+    And add to the service pipelines:
+
+    ```yaml
+    service:
+      pipelines:
         logs:
           receivers: [filelog]
           processors: [resource/cluster_name_override]
           exporters: [otlphttp]
     ```
 
-    *Ensure the account running the collector service (`otelcol-contrib`) has read access to the Elasticsearch log files, or drop the `filelog` receiver and the `logs` pipeline if you only need metrics.*
+6. *(Optional)* To add custom metadata tags to your metrics, use the `resource/static_override` processor:
 
-3. [#install-step-3] Set the required environment variables:
-
-    ```bash
-    sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
-    cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
-    [Service]
-    Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
-    Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE"
-    EOF
+    ```yaml
+    processors:
+      resource/static_override:
+        attributes:
+          - key: env
+            value: "production"
+            action: upsert
+    service:
+      pipelines:
+        metrics/elasticsearch:
+          receivers: [elasticsearch]
+          processors: [memory_limiter, resourcedetection, resource/cluster_name_override, resource/static_override, attributes/cardinality_reduction, cumulativetodelta, transform/metadata_nullify, batch]
+          exporters: [otlphttp]
     ```
 
-    *Replace the endpoint with your account's region if you're not on the US datacenter, and replace the license key placeholder with your own.*
-
-4. [#install-step-4] Restart the collector:
-
-    ```bash
-    sudo systemctl daemon-reload
-    sudo systemctl restart otelcol-contrib.service
-    ```
+7. Save the configuration file.
 
 </Step>
 
 <Step>
 
-## Verify your install [#verify]
+## Set the environment variables [#env-vars]
+
+```bash
+sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+[Service]
+Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+Environment="NEWRELIC_LICENSE_KEY=<YOUR_NEWRELIC_LICENSE_KEY>"
+Environment="NEW_RELIC_MEMORY_LIMIT_MIB=100"
+EOF
+```
+
+*Replace the endpoint with your account's region if you're not on the US datacenter, the license key placeholder with your own, and the memory limit with what fits your environment.*
+
+</Step>
+
+<Step>
+
+## Restart the OTel Collector Contrib [#restart]
+
+Restart the collector to apply your changes:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart otelcol-contrib.service
+```
+
+</Step>
+
+<Step>
+
+## Verify data collection [#verify]
 
 Within ~5 minutes of restarting the collector, you should see:
 
 - `otelcol-contrib.service` reporting `active (running)` (`sudo systemctl status otelcol-contrib.service`)
 - No connection errors in the logs (`sudo journalctl -u otelcol-contrib.service -f`)
-- This query returning at least one row in New Relic (replace `<elasticsearch-cluster-name>` with your cluster's name):
+- This query returning at least one row in New Relic (replace `<YOUR_ELASTICSEARCH_CLUSTER_NAME>` with your cluster's name):
 
     ```sql
     FROM Metric SELECT count(*)
     WHERE metricName LIKE 'elasticsearch.%'
-    AND elasticsearch.cluster.name = '<elasticsearch-cluster-name>'
+    AND elasticsearch.cluster.name = '<YOUR_ELASTICSEARCH_CLUSTER_NAME>'
     SINCE 10 minutes ago
     ```
 
