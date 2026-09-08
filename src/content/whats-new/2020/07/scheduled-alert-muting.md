@@ -2,7 +2,7 @@
 title: Scheduled alert muting
 summary: Schedule when you want to mute alerts to avoid messages during maintenance or deployments.
 releaseDate: '2020-07-30'
-learnMoreLink: 'https://discuss.newrelic.com/t/release-muting-rules-single-occurrence-scheduling/110098'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008bVN/release-muting-rules-single-occurrence-scheduling'
 getStartedLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications'
 ---
 
@@ -10,4 +10,4 @@ When you have a deployment or maintenance scheduled, the last thing you want is 
 
 ![Screenshot showing alert muting schedule.](/images/whats_up_muting_schedule.webp 'whats_up_muting_schedule.webp')
 
-Now you can schedule a window of quiet when you know important work is coming. Check out this post on the [Explorer’s Hub](https://discuss.newrelic.com/t/release-muting-rules-single-occurrence-scheduling/110098).
+Now you can schedule a window of quiet when you know important work is coming. Check out this post on the [Explorer’s Hub](https://support.newrelic.com/s/hubtopic/aAX8W0000008bVN/release-muting-rules-single-occurrence-scheduling).

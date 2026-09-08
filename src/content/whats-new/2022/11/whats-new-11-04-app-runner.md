@@ -2,7 +2,7 @@
 title: 'New Relic adds App Runner integration'
 summary: 'Monitor the health of your AWS App Runner service using New Relic to collect logs and metrics.'
 releaseDate: '2022-11-04'
-learnMoreLink: 'https://discuss.newrelic.com/t/monitor-aws-app-runner-with-new-relic/190715'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008dkG/monitor-aws-app-runner-with-new-relic'
 getStartedLink: 'https://newrelic.com/instant-observability/aws-apprunner'
 ---
 

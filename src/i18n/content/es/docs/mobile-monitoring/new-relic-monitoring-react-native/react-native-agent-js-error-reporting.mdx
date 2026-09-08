@@ -1,0 +1,555 @@
+---
+title: Reporte de errores de JavaScript de React Native
+tags:
+  - Mobile monitoring
+  - New Relic Mobile React Native
+  - Install configure
+metaDescription: How to report and symbolicate React Native JavaScript errors in New Relic using source maps.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+De forma predeterminada, el agente de New Relic React Native captura errores de JavaScript y rechazos de promesas no controlados y los reporta como [eventos`MobileJSError` ](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-errors/#react). Puede ver estos errores en la <InlinePopover type="mobile" />UI, consultarlos con NRQL y graficarlos en dashboards.
+
+Para que el rastreo del stack en los eventos de `MobileJSError` sea legible para los humanos, el agente necesita el mapa de origen que corresponde al paquete de JavaScript que se ejecuta en la aplicación. Cuando configura correctamente la clave de API de usuario de New Relic y el token de la aplicación, el agente carga el mapa de origen automáticamente después de cada compilación. Si no puede realizar la carga automáticamente, o si envía actualizaciones solo de JavaScript con CodePush u otro servicio inalámbrico (OTA), puede cargar los mapas de origen manualmente.
+
+<Callout variant="important">
+  La carga del mapa de origen utiliza una [clave de API de usuario](/docs/apis/intro-apis/new-relic-api-keys/#user-key) además del token de la aplicación. El token de la aplicación identifica su aplicación, pero no autentica a un usuario específico, por lo que no puede autorizar de forma segura una carga por sí solo. La clave de API de usuario vincula la solicitud a un usuario autenticado de New Relic, lo que evita que cualquier persona que solo tenga el token de la aplicación (menos confidencial) cargue o sobrescriba sus mapas de origen. La clave de API de usuario y el token de la aplicación deben pertenecer a la misma cuenta de New Relic.
+</Callout>
+
+<Callout variant="tip">
+  El reporte de errores de JavaScript está habilitado de forma predeterminada. Establezca la opción de [configuración](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings/#react) `jsErrorReportingEnabled` en `false` para deshabilitar por completo el registro de eventos `MobileJSError`.
+</Callout>
+
+## Configurar la carga automática de mapas de origen [#automatic-upload]
+
+Para cargar los source maps automáticamente, proporcione la clave de API de usuario de New Relic y el token de la aplicación. Debido a que una aplicación de React Native se compila por separado para cada plataforma, debe configurar la clave de manera diferente en Android e iOS. Configúrelo para cada plataforma que distribuya.
+
+Antes de comenzar, obtenga lo siguiente de la misma cuenta de New Relic:
+
+* Una [clave de API de usuario](/docs/apis/intro-apis/new-relic-api-keys/#user-key).
+* El [token de la aplicación](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token) móvil (el mismo token que pasa a `NewRelic.startAgent()`).
+
+### Android [#automatic-upload-android]
+
+Agregue su clave de API de usuario al archivo `newrelic.properties` en su proyecto:
+
+```properties
+com.newrelic.api_key=<YOUR_USER_API_KEY>
+```
+
+Reemplace `<YOUR_USER_API_KEY>` con la clave de API de usuario. El agente ya conoce el token de la aplicación de `NewRelic.startAgent()`. Cuando ambos valores son válidos, el agente genera y carga el mapa de origen de Android a New Relic automáticamente después de cada compilación de lanzamiento.
+
+<Callout variant="tip">
+  La carga automática solo se ejecuta para las compilaciones de lanzamiento de forma predeterminada. Para obtener la carga automática de mapas de origen también para las compilaciones de depuración, agregue `Debug` al ajuste `uploadMapsForVariant` en la [configuración del plug-in de New Relic Gradle](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-new-relic-gradle-plugin), por ejemplo, `uploadMapsForVariant("Release", "Debug")`. De lo contrario, [cargue el mapa de origen de la compilación de depuración manualmente](#manual-upload).
+</Callout>
+
+### iOS [#automatic-upload-ios]
+
+En iOS, un script (`upload-react-native-sourcemap`) de fase de compilación incluido en la carpeta `dsym-upload-tools` —la misma carpeta utilizada para [cargas de dSYM](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) — sube el mapa de origen. Pase la clave de API de usuario y el token de aplicación como argumentos a ese script.
+
+1. Si aún no ha configurado las cargas de dSYM, copie la carpeta `dsym-upload-tools` en el `SRCROOT` del proyecto (generalmente la carpeta `ios`).
+
+2. En Xcode, seleccione su objetivo, abra la pestaña <DNT>**Build Phases**</DNT> y agregue un <DNT>**New Run Script Build Phase**</DNT>. Arrástrelo para que se ejecute después de la fase “Bundle React Native code and images”.
+
+3. Agregue lo siguiente al script de ejecución, reemplazando los marcadores de posición con la clave de API de usuario y el token de la aplicación:
+
+   ```bash
+   ARTIFACT_DIR="${BUILD_DIR%Build/*}"
+   SCRIPT=`/usr/bin/find "${SRCROOT}" "${ARTIFACT_DIR}" -type f -name upload-react-native-sourcemap | head -n 1`
+   /bin/sh "${SCRIPT}" "YOUR_USER_API_KEY" "YOUR_APP_TOKEN"
+   ```
+
+<Callout variant="tip">
+  No confirme credenciales en el control de versiones. Almacene la clave de API del usuario y el token de la aplicación en un archivo `.xcconfig` o en los secretos del sistema CI/CD, y luego haga referencia a ellos en el script de ejecución (por ejemplo, `"${NR_USER_API_KEY}" "${NR_APP_TOKEN}"`). Agregue `--debug` como tercer argumento para escribir la salida detallada en `upload_sourcemap_results.log`.
+</Callout>
+
+El script de iOS se ejecuta solo para las compilaciones de <DNT>**Release**</DNT> y omite las compilaciones del simulador. Si falta alguno de los valores o no es válido, el agente no cargará el mapa de origen y los rastreos del stack de errores de JavaScript permanecerán sin simbolizar. En ese caso, [cargue el mapa de origen manualmente](#manual-upload).
+
+## Cargar manualmente un mapa de origen [#manual-upload]
+
+Puede cargar un source map directamente en la API de ingesta de símbolos de New Relic. Esto es útil cuando la carga automática no es posible, o cuando lanza actualizaciones solo de JavaScript a través de [CodePush u otros servicios OTA](#codepush).
+
+Utilice la siguiente plantilla de <DNT>**cURL**</DNT>:
+
+```bash
+curl -X POST "https://symbol-ingest-api.service.newrelic.com/v1/react-native/sourcemaps" \
+     -H "Api-Key: $NR_USER_API_KEY" \
+     -H "X-APP-LICENSE-KEY: $NR_APP_TOKEN" \
+     -F "sourcemap=@./index.android.bundle.map" \
+     -F "jsBundleId=<JS_BUNDLE_ID>" \
+     -F "appVersion=1.0.5" \
+     -F "sourcemapName=index.android.bundle.map"
+```
+
+Reemplace lo siguiente:
+
+* `$NR_USER_API_KEY` es una [clave de API de usuario](/docs/apis/intro-apis/new-relic-api-keys/#user-key) de New Relic válida.
+* `$NR_APP_TOKEN` es su [token de aplicación de](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token) monitoreo de móviles.
+* `<JS_BUNDLE_ID>` es el identificador de compilación único reportado por el agente para la sesión de JavaScript (consulte [Retrieve the jsBundleId](#retrieve-bundle-id)).
+* `appVersion` es la versión de la aplicación nativa que el paquete tiene como objetivo (por ejemplo, `1.0.5`).
+
+<Callout variant="tip">
+  Para las cuentas en el centro de datos de la UE de New Relic, use el extremo de la UE en su lugar: `https://symbol-ingest-api.service.eu.newrelic.com/v1/react-native/sourcemaps`.
+
+  Para las cuentas en el centro de datos de Japón de New Relic, use el extremo de Japón en su lugar: `https://symbol-ingest-api.service.jp.newrelic.com/v1/react-native/sourcemaps`.
+</Callout>
+
+### Referencia de la API de carga [#upload-api]
+
+#### Extremo [#endpoint]
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Propiedad
+      </th>
+
+      <th>
+        Valor
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Método
+      </td>
+
+      <td>
+        `POST`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        URL
+      </td>
+
+      <td>
+        `https://symbol-ingest-api.service.newrelic.com/v1/react-native/sourcemaps`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Content-Type
+      </td>
+
+      <td>
+        `multipart/form-data`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+#### Encabezados [#headers]
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Encabezamiento
+      </th>
+
+      <th width="15%">
+        Requerido
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `Api-Key`
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Una 
+
+        [clave de API de usuario](/docs/apis/intro-apis/new-relic-api-keys/#user-key)
+
+         de New Relic válida. Debe pertenecer a la misma cuenta que el token de la aplicación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `X-APP-LICENSE-KEY`
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        El token de aplicación para la aplicación móvil.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `X-Telemetry-Data`
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        Información de telemetría sobre el empaquetador, los nombres de los mapas de origen y los tamaños. Cuando un mapa de origen supera los 200 MB descomprimido, el agente no envía el archivo y, en su lugar, transmite solo este encabezado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Content-Type`
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Debe ser 
+
+        `multipart/form-data`
+
+        .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+#### Cuerpo de la solicitud (datos de formulario multiparte) [#request-body]
+
+<table>
+  <thead>
+    <tr>
+      <th width="20%">
+        Campo
+      </th>
+
+      <th width="10%">
+        Tipo
+      </th>
+
+      <th width="12%">
+        Requerido
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `sourcemap`
+      </td>
+
+      <td>
+        Archivo
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        El archivo de mapa de origen (
+
+        `.map`
+
+         o 
+
+        `.bundle`
+
+        ). Puede comprimirse con gzip. Máximo 200 MB sin comprimir (consulte 
+
+        [Limitaciones de tamaño de archivo](#file-size-limitations)
+
+        ).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sourcemapName`
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        Nombre del archivo de mapa de origen. Máximo 255 caracteres.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `jsBundleId`
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Identificador de compilación único (por ejemplo, un SHA o ID). Máximo 255 caracteres.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `appVersion`
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Versión de la aplicación (por ejemplo, 
+
+        `1.5.2`
+
+        ). Máximo 255 caracteres.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Si el archivo de mapa de origen supera los 200 MB descomprimido, el agente no enviará el archivo. En su lugar, transmite el encabezado `X-Telemetry-Data` para que New Relic aún pueda rastrear que se produjo una compilación. Para obtener más detalles, consulte [Limitaciones de tamaño de archivo](#file-size-limitations).
+</Callout>
+
+#### Respuestas [#responses]
+
+Las respuestas utilizan `Content-Type: application/json`.
+
+<table>
+  <thead>
+    <tr>
+      <th width="20%">
+        Estado HTTP
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `201 Created`
+      </td>
+
+      <td>
+        La carga se realizó correctamente. El cuerpo de la respuesta contiene los metadatos del source map:
+
+        ```json
+        {
+          "sourcemapMetaData": {
+            "entityGuid": "<SOURCEMAP_ENTITY_GUID>",
+            "accountId": "<YOUR_ACCOUNT_ID>",
+            "applicationId": "<YOUR_APPLICATION_ID>",
+            "sourcemapName": "app.min.js.map",
+            "appVersion": "12424",
+            "JSBundleId": "87124712",
+            "createdAt": "2025-11-27T10:32:44.586Z"
+          }
+        }
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `400 Bad Request`
+      </td>
+
+      <td>
+        Error de validación, por ejemplo, campos faltantes, un esquema JSON no válido en el archivo o una solicitud mal formada. Ejemplo: 
+
+        `{"message": "Validation failed: Source map version must be 3."}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `401 Unauthorized`
+      </td>
+
+      <td>
+        La clave de API es válida, pero el 
+
+        `X-APP-LICENSE-KEY`
+
+         pertenece a una cuenta diferente (protección entre cuentas). Ejemplo: 
+
+        `{"message": "User not authorized"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `403 Forbidden`
+      </td>
+
+      <td>
+        El 
+
+        `Api-Key`
+
+         no tiene la capacidad requerida. Asegúrese de que la clave de API de usuario pertenezca a un usuario con permiso para cargar símbolos. Ejemplo: 
+
+        `{"message": "User not authorized"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `404 Not Found`
+      </td>
+
+      <td>
+        El token de aplicación proporcionado en el encabezado no existe. Ejemplo: 
+
+        `{"message": "applicationToken is invalid"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `413 Payload Too Large`
+      </td>
+
+      <td>
+        El archivo de mapa de origen descomprimido supera los 200 MB. Ejemplo: 
+
+        `{"message": "File too large. Max size is currently 200 MiB"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `500 Internal Server Error`
+      </td>
+
+      <td>
+        Se produjo un error genérico e irrecuperable en el lado del servidor. Ejemplo: 
+
+        `{"message": "Unexpected error occured during upload process because of {error}"}`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Cargar mapas de origen para actualizaciones de CodePush y OTA [#codepush]
+
+Cuando utiliza CodePush u otro servicio de actualización OTA, la versión del paquete de JavaScript difiere de la versión binaria nativa. Cada vez que envíe una actualización de JavaScript, cargue el nuevo mapa de origen para que los eventos `MobileJSError` sigan siendo legibles en New Relic.
+
+Para simbolizar una actualización OTA, la carga debe utilizar:
+
+* Un `jsBundleId` único que coincide con el ID que informa el agente durante la sesión de JavaScript.
+* El `appVersion` correcto, que es la versión nativa que tiene como objetivo el paquete.
+
+Puede cargar el mapa de origen con un script en el pipeline de CI/CD o manualmente con cURL.
+
+### Método 1: carga automatizada mediante script [#codepush-script]
+
+New Relic proporciona un script auxiliar de Node.js que puede ejecutar en su pipeline de CI/CD inmediatamente después del comando `appcenter codepush release-react`.
+
+```bash
+# Example integration
+appcenter codepush release-react -a <Owner>/<App>
+node upload-nr-sourcemap.js --bundle android/index.android.bundle --map android/index.android.bundle.map --bundleId <NEW_ID>
+```
+
+### Método 2: carga manual a través de cURL [#codepush-curl]
+
+Si prefiere no usar el script, cargue el mapa de origen (descomprimido o comprimido) a la API de ingesta de símbolos con cURL:
+
+```bash
+curl -X POST "https://symbol-ingest-api.service.newrelic.com/v1/react-native/sourcemaps" \
+     -H "Api-Key: $NR_USER_API_KEY" \
+     -H "X-APP-LICENSE-KEY: $NR_APP_TOKEN" \
+     -F "sourcemap=@./index.android.bundle.map" \
+     -F "jsBundleId=CODE_PUSH_ID_HERE" \
+     -F "appVersion=1.0.5" \
+     -F "sourcemapName=index.android.bundle.map"
+```
+
+Para obtener la lista completa de encabezados, campos del cuerpo y respuestas, consulte la [referencia de la API de carga](#upload-api).
+
+### Recuperar el jsBundleId [#retrieve-bundle-id]
+
+El `jsBundleId` utilizado para la carga debe coincidir con el ID del paquete que el agente reporta para la sesión de JavaScript. Para los lanzamientos de CodePush, utilice el despliegue de CodePush o el identificador de lanzamiento como `jsBundleId` para que el mapa de origen cargado se asigne al paquete que se ejecuta en las aplicaciones de los usuarios.
+
+<Callout variant="tip">
+  Para verificar, auditar o eliminar los mapas de origen que ha cargado, consulte [Listar y eliminar mapas de origen de React Native](/docs/mobile-monitoring/new-relic-monitoring-react-native/list-delete-react-native-source-maps).
+</Callout>
+
+## Limitaciones de tamaño de archivo [#file-size-limitations]
+
+Los archivos de mapa de origen deben tener menos de 200 MB descomprimidos para almacenarse para la simbolización.
+
+Nuestros scripts de compilación comprimen automáticamente en gzip el archivo `.map` antes de la carga para reducir el tamaño de transferencia, pero la compilación verifica el límite de 200 MB con el archivo descomprimido. Si el archivo `.map` descomprimido supera los 200 MB, el agente no carga el archivo, lo que evita tiempos de espera de compilación y errores de ingesta.
+
+En estos casos, el script envía telemetría (metadatos) de compilación en lugar del archivo. Esto permite a New Relic rastrear que se produjo una compilación, aunque la simbolización no esté disponible para esa versión específica. Como resultado, los eventos `MobileJSError` para esa compilación muestran rastreos del stack no simbolizados (minificados).
+
+Si el source map supera los 200 MB una vez descomprimido, [comuníquese con el soporte de New Relic o envíe una solicitud de característica](#request-support). No hay forma de aumentar este límite por su cuenta.
+
+## Solucionar problemas de carga de mapas de origen [#troubleshoot]
+
+Si sus rastreos del stack de `MobileJSError` no están simbolizados, es posible que su source map haya superado el [límite de tamaño sin comprimir de 200 MB](#file-size-limitations). Siga los siguientes pasos para confirmar la causa y solicitar ayuda. Para obtener más consejos de resolución de problemas y preguntas frecuentes, consulte [Resolución de problemas de source maps de React Native y errores de JavaScript](/docs/mobile-monitoring/new-relic-monitoring-react-native/troubleshoot-react-native-source-maps).
+
+### Confirmar si se cargó el archivo o la telemetría [#confirm-upload]
+
+Una compilación exitosa no siempre significa una carga de archivo exitosa. Si el script de compilación se completa con un mensaje `Success` pero el mapa de origen tiene más de 200 MB sin comprimir, revise los logs de la consola. Verá un mensaje que indica que el agente envió telemetría en lugar del archivo de mapa de origen.
+
+### Compruebe el tamaño del archivo descomprimido [#check-zip-size]
+
+Compruebe el tamaño del archivo de mapa de origen para verificar si está cerca o por encima del límite:
+
+```bash
+# Check the size of the unzipped source map
+ls -lh index.android.bundle.map
+```
+
+Si el archivo se acerca o supera los 200 MB, el mapa de origen no se puede cargar para la simbolización.
+
+### Solicitar soporte para mapas de origen grandes [#request-support]
+
+Si el mapa de origen descomprimido supera el límite de 200 MB, no hay forma de reducirlo por su cuenta ni de aumentar el límite. Haga lo siguiente para informarnos que este límite le afecta:
+
+* [Contacte al Soporte de New Relic](https://support.newrelic.com/).
+* Envíe una solicitud de característica para aumentar el límite de tamaño del mapa de origen.

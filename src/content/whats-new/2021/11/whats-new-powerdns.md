@@ -2,7 +2,7 @@
 title: 'PowerDNS integration is now available'
 summary: 'Pull data from PowerDNS servers directly into New Relic without installing any third-party software.'
 releaseDate: '2021-11-02'
-learnMoreLink: 'https://discuss.newrelic.com/t/the-new-relic-infrastructure-powerdns-integration-is-now-available/165797'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008ccP/the-new-relic-infrastructure-powerdns-integration-is-now-available'
 getStartedLink: 'https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/powerdns-monitoring-integration/'
 ---
 

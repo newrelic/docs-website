@@ -1,0 +1,64 @@
+---
+subject: PHP agent
+releaseDate: '2019-08-08'
+version: 9.0.2.242
+downloadLink: 'https://download.newrelic.com/php_agent/archive/9.0.0.242/'
+translationType: machine
+---
+
+### Nouvelles fonctionnalités de la version 9.0
+
+**Des traces de transaction détaillées sont désormais disponibles lorsque le tracing distribué est activé.**
+
+Cette sortie inclut un refactoring du stockage des segments pour permettre à l’agent de trier et d’appliquer une priorisation différente des segments qui sont utilisés pour les traces de transaction au lieu du tracing distribué. La sortie de l’agent PHP 8.4 incluait une prise en charge limitée du tracing distribué, ce qui a entraîné la perte de traces de transaction détaillées pour les services PHP individuels lorsque le tracing distribué était activé.
+
+Le refactoring dans cette nouvelle sortie permet à l’agent d’envoyer les segments (spans) que vous souhaitez visualiser pour des traces distribuées qui incluent des services PHP. Il fournit également séparément autant de détails de segment que possible lors de l’exploration de la trace de transaction pour un service PHP individuel.
+
+Remarques :
+
+* Les [instructions pour activer le tracing distribué](https://docs.newrelic.com/docs/agents/php-agent/features/distributed-tracing-php-agent#enable-distributed) n’ont pas changé avec cette sortie.
+* Le comportement de `newrelic.transaction_tracer.detail` a changé lorsque le tracing distribué est activé. Dans les sorties de l’agent PHP 8.4 - 8.7, `newrelic.transaction_tracer.detail` était désactivé lorsque le tracing distribué était activé. Ce n’est plus le cas. Pour plus d’informations, consultez la documentation sur [la configuration du niveau de détail de trace lors de l’utilisation du tracing distribué](https://docs.newrelic.com/docs/agents/php-agent/features/distributed-tracing-php-agent#performance).
+* Pour activer la prise en charge améliorée du tracing distribué, la stratégie d’allocation de mémoire de l’agent PHP a changé dans la version 9.0. L’agent PHP allouera la mémoire de manière plus agressive lorsqu’une transaction démarre, et l’allocateur du système peut choisir de ne pas libérer cette mémoire au système d’exploitation immédiatement, en fonction de la configuration du noyau du système d’exploitation et de la bibliothèque C. Par conséquent, l’utilisation de la mémoire des processus PHP peut désormais être plus élevée qu’elle ne l’était avec les versions précédentes de l’agent PHP.
+
+### Notes de mise à niveau pour 9.0
+
+**Avec ces améliorations du tracing distribué, veuillez vérifier les valeurs de seuil**.
+
+* Dans les sorties 8.4 - 8.7 de l’agent PHP, nous avons recommandé aux clients de définir `newrelic.transaction_tracer.threshold = 0` afin que l’agent rapporte des traces distribuées complètes même lorsqu’un service PHP léger faisait partie de la trace. Cela n’est plus nécessaire.
+* Lors de la mise à niveau vers la sortie 9,0, nous vous recommandons de vérifier vos paramètres `newrelic.transaction_tracer.threshold`, et de remettre cette valeur à sa valeur par défaut ou à une valeur supérieure raisonnable pour l&apos;application.
+
+**Le daemon émettra désormais un avertissement s’il ne trouve pas d’ensemble de certificats racine au démarrage.**
+
+* Le daemon inclut ses propres certificats et continuera de fonctionner, mais une future version de l’agent PHP supprimera les certificats intégrés. À ce stade, l’agent PHP ne sera pas en mesure de communiquer avec les serveurs de New Relic.
+* **Recommandation :** assurez-vous qu’un bundle de certificats racine est installé sur votre hôte ou dans votre conteneur avant d’utiliser l’agent PHP. Ceci est généralement disponible sur la plupart des distributions Linux sous forme de package `ca-certificates`. Sur FreeBSD, un bundle est disponible via le package `security/ca_root_nss` dans les ports.
+
+**Le daemon ne peut plus être invoqué avec l’indicateur `--tls`.**
+
+* À partir de la version 8.0.0 de l’agent PHP, le paramètre ini newrelic.daemon.ssl avait été supprimé pour augmenter la sécurité, mais vous pouviez toujours invoquer le daemon depuis la ligne de commande avec `--tls true`. Les invocations en ligne de commande du daemon avec l’option `--tls` feront échouer l’invocation.
+* Comme pour toutes les versions de l’agent PHP depuis la 8.0.0, TLS est toujours utilisé pour la communication avec les serveurs New Relic.
+
+### Débogage
+
+* Une erreur de segmentation potentielle lors de l’utilisation de `drupal_http_request` sous PHP 7.3 a été corrigée.
+* Dans certains cas, le démarrage d’une nouvelle transaction pendant une requête (via `newrelic_start_transaction` ou `newrelic_set_appname`) pourrait entraîner un état incomplet de l’instrumentation du framework et de la fonction utilisateur.
+* Lors de l’obfuscation du code SQL, les commentaires sont supprimés sans aucune perte du code SQL lui-même.
+* Les commandes Predis 0.8 qui utilisaient le chemin de code synchrone `executeCommand()` (par exemple, `HSET`) sur une connexion en cluster ne généraient pas de métriques. Ce problème a été résolu.
+
+### Problèmes connus et solutions de contournement
+
+**Épuisement potentiel de la mémoire pour les transactions de longue durée**
+
+L’agent PHP 9.x utilise plus de mémoire que les versions précédentes, car il est moins agressif pour libérer la mémoire utilisée pour suivre les appels de fonction et les segments pendant les transactions : dans le cas normal, la mémoire n’est libérée qu’à la fin de chaque transaction.
+
+Cela a tendance à se manifester principalement pour les utilisateurs ayant des transactions de longue durée, telles que des tâches en arrière-plan pour traiter les files d’attente des messages, transformer, ou générer des rapports sur les données, ou envoyer des e-mails.
+
+Nous vous présentons nos excuses pour les désagréments causés par ce problème, et travaillons activement pour le résoudre. À court terme, nous avons quatre solutions de contournement potentielles pour atténuer ce problème.
+
+Solutions de contournement :
+
+* **1. Démarrez/arrêtez les transactions manuellement.** Si la transaction concernée est une transaction qui exécute une série de processus répétitifs, comme un consommateur de file d’attente des messages, vous pouvez instrumenter manuellement chaque itération comme une transaction distincte. Cela vous fournit des données plus précises sur le fonctionnement du processus. En faisant cela, la mémoire utilisée sera libérée après chaque transaction. Pour implémenter cela, ignorez la transaction automatique initiale avec `newrelic_end_transaction(true)`, puis utilisez `newrelic_start_transaction()`et `newrelic_end_transaction()` pour instrumenter chaque transaction à tour de rôle.
+* **2. Réduire les détails de la trace de transaction.** Si vous avez besoin de PHP 7.4 immédiatement, ou de l’une des fonctionnalités ajoutées dans les sorties de l’agent PHP 9.x, et que vous pouvez vous contenter de traces n’incluant que des informations sur le datastore et les appels externes, vous pouvez alors réduire le niveau de détail que l’agent PHP capture en modifiant ce paramètre de configuration : `newrelic.transaction_tracer.detail = 0`. Avec ce paramètre, les traces ne contiendront plus d’appels de fonction PHP. **REMARQUE : les transactions qui effectuent des centaines de milliers d’appels au datastore ou d’appels externes peuvent toujours être affectées par des problèmes de mémoire.**
+* **3. Rétrograder vers l’agent PHP 8.7.** Si vous n’avez pas l’intention d’utiliser PHP 7.4 immédiatement, c’est probablement la solution la plus simple et la plus rapide. Pour rétrograder, vous pouvez soit installer à partir des archives tar à l’adresse [https://download.newrelic.com/php\_agent/archive/8.7.0.242/](https://download.newrelic.com/php_agent/archive/8.7.0.242/), soit rétrograder vers la version 8.7.0.242 dans votre gestionnaire de paquets et épingler cette version. Notez que si le tracing distribué est activé sur l’agent PHP 8.7, le détail du traceur de transaction est automatiquement réduit (conformément à l’option suivante).
+* **4. Limitez le nombre de segments de fonction créés** (restez sur l’agent PHP 9.x). Cela est similaire à l’option « réduire les détails de la trace de transaction », mais permet également de garder une trace d’un nombre limité d’appels de fonction PHP, au prix d’une augmentation de l’utilisation de la mémoire proportionnelle au nombre de fonctions capturées. (En règle générale, chaque segment nécessite environ 320-400 octets de tas.) Pour capturer les 5000 premiers appels de fonction, vous devez ajouter ce paramètre de configuration : `newrelic.transaction_tracer.max_segments = 5000`. Avec ce paramètre, toutes les fonctions PHP au-delà du nombre d’appels de fonction configurés seront ignorées. **REMARQUE : Les transactions qui effectuent des centaines de milliers d’appels de datastore ou externes peuvent toujours être affectées par des problèmes de mémoire.**
+
+\*\**REMARQUE : une explication plus détaillée de ces options se trouve dans notre [publication sur l’Explorer’s Hub](https://support.newrelic.com/s/hubtopic/aAX8W0000008aaT/potential-memory-exhaustion-for-long-running-transactions-with-php-agent-9x).*
