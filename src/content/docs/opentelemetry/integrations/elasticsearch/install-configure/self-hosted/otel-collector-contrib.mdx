@@ -17,7 +17,7 @@ flow:
 stepTTFV: 10m
 ---
 
-This page installs and configures the OpenTelemetry Collector Contrib to monitor a self-hosted Elasticsearch cluster running on a Linux server or VM. By the end, cluster metrics from your Elasticsearch cluster are flowing into New Relic, with host metrics, logs, and custom tags available as optional additions.
+This page installs and configures the OpenTelemetry Collector Contrib to monitor a self-hosted Elasticsearch cluster running on a Linux server or VM. By the end, cluster metrics from your Elasticsearch cluster are flowing into New Relic. For host metrics, logs, and custom tags, see [Advanced configuration](/docs/opentelemetry/integrations/elasticsearch/advanced-configuration).
 
 ## Compatibility and requirements [#requirements]
 
@@ -157,129 +157,13 @@ The following table describes the key configuration parameters used in the confi
 | `endpoint` | Your Elasticsearch cluster's URL. Use `https://` instead of `http://` for a secured cluster. |
 | `collection_interval` | The interval between metric scrapes. Default: `15s`. |
 | `elasticsearch.cluster.name` (in `resource/cluster_name_override`) | A unique name identifying this cluster in New Relic. Replace `<YOUR_ELASTICSEARCH_CLUSTER_NAME>` with a name that's unique across your account. |
-| `username` / `password` | Credentials for a secured Elasticsearch cluster. Only required if authentication is enabled — see the secured-cluster option below. |
-| `tls.ca_file` / `tls.insecure_skip_verify` | TLS options for a secured cluster: the CA certificate path, and whether to skip certificate verification (set to `false` in production). |
 | `NEW_RELIC_MEMORY_LIMIT_MIB` | The memory limit, in MiB, for the collector's `memory_limiter` processor. Set to fit your environment. |
 | `NEWRELIC_LICENSE_KEY` | Your New Relic <InlinePopover type="licenseKey"/>. |
 | `NEWRELIC_OTLP_ENDPOINT` | The New Relic OTLP endpoint for your account's region. See [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
 
-3. *(Optional)* For secured Elasticsearch with authentication and SSL, modify the receiver configuration:
+*Optional:* to add secured-cluster authentication, host metrics, log collection, or custom metadata tags, see [Advanced configuration](/docs/opentelemetry/integrations/elasticsearch/advanced-configuration).
 
-    ```yaml
-    receivers:
-      elasticsearch:
-        endpoint: "https://<YOUR_ELASTICSEARCH_HOST>:9200"
-        username: "<YOUR_ELASTICSEARCH_USERNAME>"
-        password: "<YOUR_ELASTICSEARCH_PASSWORD>"
-        tls:
-          ca_file: "/etc/elasticsearch/certs/http_ca.crt"
-          insecure_skip_verify: false
-        collection_interval: 15s
-    ```
-
-4. *(Optional)* To collect host metrics, add the `hostmetrics` receiver:
-
-    ```yaml
-    receivers:
-      hostmetrics:
-        collection_interval: 60s
-        scrapers:
-          cpu:
-            metrics:
-              system.cpu.utilization: { enabled: true }
-              system.cpu.time: { enabled: true }
-          load:
-            metrics:
-              system.cpu.load_average.1m: { enabled: true }
-              system.cpu.load_average.5m: { enabled: true }
-              system.cpu.load_average.15m: { enabled: true }
-          memory:
-            metrics:
-              system.memory.usage: { enabled: true }
-              system.memory.utilization: { enabled: true }
-          disk:
-            metrics:
-              system.disk.io: { enabled: true }
-              system.disk.operations: { enabled: true }
-          filesystem:
-            metrics:
-              system.filesystem.usage: { enabled: true }
-              system.filesystem.utilization: { enabled: true }
-          network:
-            metrics:
-              system.network.io: { enabled: true }
-              system.network.packets: { enabled: true }
-          process:
-            metrics:
-              process.cpu.utilization:
-                enabled: true
-    ```
-
-    And add to the service pipelines:
-
-    ```yaml
-    service:
-      pipelines:
-        metrics/host:
-          receivers: [hostmetrics]
-          processors: [memory_limiter, resourcedetection, batch]
-          exporters: [otlphttp]
-    ```
-
-5. *(Optional)* To collect Elasticsearch logs, add the `filelog` receiver. Ensure the account running the collector service (`otelcol-contrib`) has read access to your Elasticsearch log files:
-
-    **If running Elasticsearch on Linux (host):**
-
-    ```yaml
-    receivers:
-      filelog:
-        include:
-          - /var/log/elasticsearch/elasticsearch.log
-          - /var/log/elasticsearch/*.log
-    ```
-
-    **If running Elasticsearch in Docker:**
-
-    ```yaml
-    receivers:
-      filelog:
-        include:
-          - /var/lib/docker/containers/*/*.log
-        operators:
-          - type: move
-            from: attributes.log
-            to: body
-    ```
-
-    And add to the service pipelines:
-
-    ```yaml
-    service:
-      pipelines:
-        logs:
-          receivers: [filelog]
-          processors: [resource/cluster_name_override]
-          exporters: [otlphttp]
-    ```
-
-6. *(Optional)* To add custom metadata tags to your metrics, use the `resource/static_override` processor:
-
-    ```yaml
-    processors:
-      resource/static_override:
-        attributes:
-          - key: env
-            value: "production"
-            action: upsert
-    service:
-      pipelines:
-        metrics/elasticsearch:
-          receivers: [elasticsearch]
-          processors: [memory_limiter, resourcedetection, resource/cluster_name_override, resource/static_override, attributes/cardinality_reduction, cumulativetodelta, transform/metadata_nullify, batch]
-          exporters: [otlphttp]
-    ```
-
-7. Save the configuration file.
+3. Save the configuration file.
 
 </Step>
 
@@ -318,18 +202,18 @@ sudo systemctl restart otelcol-contrib.service
 
 ## Verify data collection [#verify]
 
-Within ~5 minutes of restarting the collector, you should see:
+Within ~5 minutes of restarting the collector, run this query in New Relic to confirm data is flowing (replace `<YOUR_ELASTICSEARCH_CLUSTER_NAME>` with your cluster's name):
 
-- `otelcol-contrib.service` reporting `active (running)` (`sudo systemctl status otelcol-contrib.service`)
-- No connection errors in the logs (`sudo journalctl -u otelcol-contrib.service -f`)
-- This query returning at least one row in New Relic (replace `<YOUR_ELASTICSEARCH_CLUSTER_NAME>` with your cluster's name):
+```sql
+FROM Metric SELECT count(*)
+WHERE metricName LIKE 'elasticsearch.%'
+AND elasticsearch.cluster.name = '<YOUR_ELASTICSEARCH_CLUSTER_NAME>'
+SINCE 10 minutes ago
+```
 
-    ```sql
-    FROM Metric SELECT count(*)
-    WHERE metricName LIKE 'elasticsearch.%'
-    AND elasticsearch.cluster.name = '<YOUR_ELASTICSEARCH_CLUSTER_NAME>'
-    SINCE 10 minutes ago
-    ```
+<Callout variant="tip">
+You can also check the collector itself: `otelcol-contrib.service` should report `active (running)` (`sudo systemctl status otelcol-contrib.service`), with no connection errors in the logs (`sudo journalctl -u otelcol-contrib.service -f`).
+</Callout>
 
 If you don't see data within ~5 minutes, see [Elasticsearch troubleshooting](/docs/opentelemetry/integrations/elasticsearch/troubleshooting).
 
@@ -343,5 +227,6 @@ If you don't see data within ~5 minutes, see [Elasticsearch troubleshooting](/do
 
 ## Related articles [#related-articles]
 
+- [Advanced configuration](/docs/opentelemetry/integrations/elasticsearch/advanced-configuration)
 - [Elasticsearch metrics reference](/docs/opentelemetry/integrations/elasticsearch/metrics-reference)
 - [Elasticsearch troubleshooting](/docs/opentelemetry/integrations/elasticsearch/troubleshooting)
