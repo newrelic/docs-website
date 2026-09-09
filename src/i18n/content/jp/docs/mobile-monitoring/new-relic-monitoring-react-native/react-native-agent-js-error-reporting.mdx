@@ -1,0 +1,551 @@
+---
+title: React NativeのJavaScriptエラーレポート
+tags:
+  - Mobile monitoring
+  - New Relic Mobile React Native
+  - Install configure
+metaDescription: How to report and symbolicate React Native JavaScript errors in New Relic using source maps.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+デフォルトでは、New Relic React NativeエージェントはJavaScriptエラーと未処理のPromise拒否をキャプチャし、それらを[`MobileJSError`イベント](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-errors/#react)として報告します。これらのエラーは<InlinePopover type="mobile" />UIで表示し、NRQLでクエリを実行して、ダッシュボードにグラフ化できます。
+
+`MobileJSError`イベントのスタックトレースを人間が読める形式にするには、アプリで実行されているJavaScriptバンドルに対応するソースマップがエージェントに必要です。New RelicユーザーAPIキーとアプリケーショントークンを正しく設定すると、各ビルドの後にエージェントがソースマップを自動的にアップロードします。自動的にアップロードできない場合、またはCodePushやその他のover-the-air（OTA）サービスを使用してJavaScriptのみの更新を配信する場合は、ソースマップを手動でアップロードできます。
+
+<Callout variant="important">
+  ソースマップのアップロードでは、アプリケーショントークンに加えて[ユーザーAPIキー](/docs/apis/intro-apis/new-relic-api-keys/#user-key)を使用します。アプリケーショントークンはアプリを識別しますが、特定のユーザーを認証するものではないため、それ単独でアップロードを安全に承認することはできません。ユーザーAPIキーは、リクエストを認証済みのNew Relicユーザーに結び付けます。これにより、（機密性の低い）アプリケーショントークンしか持たない人がソースマップをアップロードしたり上書きしたりするのを防ぎます。ユーザーAPIキーとアプリケーショントークンは、同じNew Relicアカウントに属している必要があります。
+</Callout>
+
+<Callout variant="tip">
+  JavaScriptエラーレポートはデフォルトで有効になっています。`MobileJSError`イベントの記録を完全に無効にするには、`jsErrorReportingEnabled`の[設定](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings/#react)を`false`に設定します。
+</Callout>
+
+## ソースマップの自動アップロードを設定します。 [#automatic-upload]
+
+ソースマップを自動的にアップロードするには、New RelicユーザーAPIキーとアプリケーショントークンを指定してください。React Nativeアプリはプラットフォームごとに個別にビルドされるため、AndroidとiOSではキーの設定が異なります。リリースするプラットフォームごとに設定してください。
+
+始める前に、同じNew Relicアカウントから以下を取得してください：
+
+* [ユーザーAPIキー](/docs/apis/intro-apis/new-relic-api-keys/#user-key)。
+* モバイル[アプリケーショントークン](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token)（`NewRelic.startAgent()`に渡すトークンと同じもの）。
+
+### Android [#automatic-upload-android]
+
+プロジェクトの`newrelic.properties`ファイルにユーザーAPIキーを追加します：
+
+```properties
+com.newrelic.api_key=<YOUR_USER_API_KEY>
+```
+
+`<YOUR_USER_API_KEY>`をユーザーAPIキーに置き換えてください。エージェントは`NewRelic.startAgent()`からアプリケーショントークンをすでに認識しています。両方の値が有効な場合、各リリースビルドの後にエージェントがAndroidソースマップを生成し、New Relicに自動的にアップロードします。
+
+<Callout variant="tip">
+  デフォルトでは、自動アップロードはリリースビルドに対してのみ実行されます。デバッグビルドでもソースマップの自動アップロードを行うには、[New Relic Gradleプラグインの設定](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-new-relic-gradle-plugin)の`uploadMapsForVariant`設定に`Debug`を追加してください（例：`uploadMapsForVariant("Release", "Debug")`）。それ以外の場合は、[デバッグビルドのソースマップを手動でアップロードしてください](#manual-upload)。
+</Callout>
+
+### iOS [#automatic-upload-ios]
+
+iOSでは、`dsym-upload-tools`フォルダー — [dSYMのアップロード](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps)に使用されるのと同じフォルダー — に含まれるビルドフェーズ・スクリプト（`upload-react-native-sourcemap`）がソースマップをアップロードします。ユーザーAPIキーとアプリケーション・トークンを引数としてそのスクリプトに渡します。
+
+1. dSYMのアップロードをまだ設定していない場合は、`dsym-upload-tools`フォルダーをプロジェクトの`SRCROOT`（通常は`ios`フォルダー）にコピーしてください。
+
+2. Xcodeでターゲットを選択し、<DNT>**Build Phases**</DNT>タブを開いて、<DNT>**New Run Script Build Phase**</DNT>を追加します。ドラッグして、&quot;Bundle React Native code and images&quot;フェーズの後に実行されるようにします。
+
+3. プレースホルダーをユーザーAPIキーとアプリケーショントークンに置き換えて、実行スクリプトに以下を追加します：
+
+   ```bash
+   ARTIFACT_DIR="${BUILD_DIR%Build/*}"
+   SCRIPT=`/usr/bin/find "${SRCROOT}" "${ARTIFACT_DIR}" -type f -name upload-react-native-sourcemap | head -n 1`
+   /bin/sh "${SCRIPT}" "YOUR_USER_API_KEY" "YOUR_APP_TOKEN"
+   ```
+
+<Callout variant="tip">
+  資格情報をバージョン管理にコミットしないでください。ユーザーAPIキーとアプリケーショントークンを`.xcconfig`ファイルまたはCI/CDシステムのシークレットに保存し、実行スクリプト（たとえば、`"${NR_USER_API_KEY}" "${NR_APP_TOKEN}"`）でそれらを参照してください。詳細な出力を`upload_sourcemap_results.log`に書き込むには、3番目の引数として`--debug`を追加してください。
+</Callout>
+
+iOSスクリプトは<DNT>**Release**</DNT>ビルドに対してのみ実行され、シミュレータービルドはスキップされます。いずれかの値が欠落しているか無効な場合、エージェントはソースマップをアップロードせず、JavaScriptエラーのスタックトレースはシンボル化されないままになります。その場合は、[ソースマップを手動でアップロードしてください](#manual-upload)。
+
+## ソースマップを手動でアップロード [#manual-upload]
+
+ソースマップをNew Relicシンボル取り込みAPIに直接アップロードできます。これは、自動アップロードが不可能な場合や、[CodePushなどのOTAサービス](#codepush)を通じてJavaScriptのみのアップデートをリリースする場合に便利です。
+
+次の<DNT>**cURL**</DNT>テンプレートを使用します：
+
+```bash
+curl -X POST "https://symbol-ingest-api.service.newrelic.com/v1/react-native/sourcemaps" \
+     -H "Api-Key: $NR_USER_API_KEY" \
+     -H "X-APP-LICENSE-KEY: $NR_APP_TOKEN" \
+     -F "sourcemap=@./index.android.bundle.map" \
+     -F "jsBundleId=<JS_BUNDLE_ID>" \
+     -F "appVersion=1.0.5" \
+     -F "sourcemapName=index.android.bundle.map"
+```
+
+以下を置き換えます：
+
+* `$NR_USER_API_KEY` は有効なNew Relic[ユーザーAPIキー](/docs/apis/intro-apis/new-relic-api-keys/#user-key)です。
+* `$NR_APP_TOKEN` モバイル監視[アプリケーショントークン](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token)です。
+* `<JS_BUNDLE_ID>` は、JavaScriptセッションに対してエージェントによって報告される一意のビルド識別子です（[「jsBundleIdの取得」](#retrieve-bundle-id)を参照してください）。
+* `appVersion` バンドルがターゲットとするネイティブアプリケーションのバージョンです（たとえば、`1.0.5`）。
+
+<Callout variant="tip">
+  New RelicのEUデータセンターのアカウントの場合は、代わりにEUエンドポイントを使用してください：`https://symbol-ingest-api.service.eu.newrelic.com/v1/react-native/sourcemaps`。
+
+  New Relicの日本データセンターのアカウントの場合は、代わりに日本のエンドポイントを使用してください：`https://symbol-ingest-api.service.jp.newrelic.com/v1/react-native/sourcemaps`。
+</Callout>
+
+### アップロードAPIのリファレンス [#upload-api]
+
+#### 終点 [#endpoint]
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        プロパティ
+      </th>
+
+      <th>
+        価値
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        方法
+      </td>
+
+      <td>
+        `POST`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        URL
+      </td>
+
+      <td>
+        `https://symbol-ingest-api.service.newrelic.com/v1/react-native/sourcemaps`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        コンテンツタイプ
+      </td>
+
+      <td>
+        `multipart/form-data`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+#### ヘッダー [#headers]
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        ヘッダー
+      </th>
+
+      <th width="15%">
+        必須
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `Api-Key`
+      </td>
+
+      <td>
+        はい
+      </td>
+
+      <td>
+        有効なNew Relic
+
+        [ユーザーAPIキー](/docs/apis/intro-apis/new-relic-api-keys/#user-key)
+
+        。アプリケーショントークンと同じアカウントに属している必要があります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `X-APP-LICENSE-KEY`
+      </td>
+
+      <td>
+        はい
+      </td>
+
+      <td>
+        モバイルアプリのアプリケーショントークン。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `X-Telemetry-Data`
+      </td>
+
+      <td>
+        いいえ
+      </td>
+
+      <td>
+        バンドラー、ソースマップ名、およびサイズに関するテレメトリー情報です。解凍後のソースマップが200 MBを超える場合、エージェントはファイルを送信せず、代わりにこのヘッダーのみを送信します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Content-Type`
+      </td>
+
+      <td>
+        はい
+      </td>
+
+      <td>
+        `multipart/form-data`
+
+        である必要があります。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+#### リクエスト本文（マルチパートフォームデータ） [#request-body]
+
+<table>
+  <thead>
+    <tr>
+      <th width="20%">
+        フィールド
+      </th>
+
+      <th width="10%">
+        タイプ
+      </th>
+
+      <th width="12%">
+        必須
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `sourcemap`
+      </td>
+
+      <td>
+        ファイル
+      </td>
+
+      <td>
+        いいえ
+      </td>
+
+      <td>
+        ソースマップファイル（
+
+        `.map`
+
+        または
+
+        `.bundle`
+
+        ）。gzip圧縮が可能です。解凍後最大200 MB（
+
+        [ファイルサイズの制限](#file-size-limitations)
+
+        を参照してください）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sourcemapName`
+      </td>
+
+      <td>
+        弦
+      </td>
+
+      <td>
+        いいえ
+      </td>
+
+      <td>
+        ソースマップファイルの名前です。最大255文字。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `jsBundleId`
+      </td>
+
+      <td>
+        弦
+      </td>
+
+      <td>
+        はい
+      </td>
+
+      <td>
+        一意のビルド識別子（SHAやIDなど）。最大255文字。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `appVersion`
+      </td>
+
+      <td>
+        弦
+      </td>
+
+      <td>
+        はい
+      </td>
+
+      <td>
+        アプリケーションバージョン（たとえば、
+
+        `1.5.2`
+
+        ）。最大255文字。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  解凍後のソースマップファイルが200 MBを超える場合、エージェントはファイルを送信しません。代わりに`X-Telemetry-Data`ヘッダーを送信するため、New Relicはビルドが発生したことを引き続き追跡できます。詳細については、[ファイルサイズの制限](#file-size-limitations)をご覧ください。
+</Callout>
+
+#### レスポンス [#responses]
+
+応答には`Content-Type: application/json`を使用します。
+
+<table>
+  <thead>
+    <tr>
+      <th width="20%">
+        HTTPステータス
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `201 Created`
+      </td>
+
+      <td>
+        アップロードが成功しました。レスポンス本文には、ソースマップのメタデータが含まれています：
+
+        ```json
+        {
+          "sourcemapMetaData": {
+            "entityGuid": "<SOURCEMAP_ENTITY_GUID>",
+            "accountId": "<YOUR_ACCOUNT_ID>",
+            "applicationId": "<YOUR_APPLICATION_ID>",
+            "sourcemapName": "app.min.js.map",
+            "appVersion": "12424",
+            "JSBundleId": "87124712",
+            "createdAt": "2025-11-27T10:32:44.586Z"
+          }
+        }
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `400 Bad Request`
+      </td>
+
+      <td>
+        フィールドの欠落、ファイル内の無効なJSONスキーマ、不正なリクエストなどにより、検証に失敗しました。例： 
+
+        `{"message": "Validation failed: Source map version must be 3."}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `401 Unauthorized`
+      </td>
+
+      <td>
+        APIキーは有効ですが、
+
+        `X-APP-LICENSE-KEY`
+
+        は別のアカウントに属しています（クロスアカウント保護）。例： 
+
+        `{"message": "User not authorized"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `403 Forbidden`
+      </td>
+
+      <td>
+        `Api-Key`
+
+        には必要な機能がありません。ユーザーAPIキーが、シンボルをアップロードする権限を持つユーザーに属していることを確認してください。例： 
+
+        `{"message": "User not authorized"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `404 Not Found`
+      </td>
+
+      <td>
+        ヘッダーで提供されたアプリケーショントークンが存在しません。例： 
+
+        `{"message": "applicationToken is invalid"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `413 Payload Too Large`
+      </td>
+
+      <td>
+        解凍されたソースマップファイルが200 MBを超えています。例： 
+
+        `{"message": "File too large. Max size is currently 200 MiB"}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `500 Internal Server Error`
+      </td>
+
+      <td>
+        サーバー側で一般的な回復不能なエラーが発生しました。例： 
+
+        `{"message": "Unexpected error occured during upload process because of {error}"}`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## CodePushおよびOTAアップデート用のソースマップをアップロード [#codepush]
+
+CodePushまたは別のOTAアップデートサービスを使用する場合、JavaScriptバンドルのバージョンはネイティブバイナリのバージョンと異なります。JavaScriptのアップデートをプッシュするたびに、新しいソースマップをアップロードして、New Relicで`MobileJSError`イベントを引き続き読み取れるようにします。
+
+OTAアップデートをシンボリケートするには、アップロードで以下を使用する必要があります：
+
+* JavaScriptセッション中にエージェントが報告するIDと一致する一意の`jsBundleId`。
+* バンドルがターゲットとするネイティブバージョンである、正しい`appVersion`。
+
+CI/CDパイプラインのスクリプトを使用するか、cURLを使用して手動でソースマップをアップロードできます。
+
+### 方法1：スクリプトによる自動アップロード [#codepush-script]
+
+New Relicは、`appcenter codepush release-react`コマンドの直後にCI/CDパイプラインで実行できるNode.jsヘルパースクリプトを提供しています。
+
+```bash
+# Example integration
+appcenter codepush release-react -a <Owner>/<App>
+node upload-nr-sourcemap.js --bundle android/index.android.bundle --map android/index.android.bundle.map --bundleId <NEW_ID>
+```
+
+### 方法2：cURLを使用した手動アップロード [#codepush-curl]
+
+スクリプトを使用しない場合は、cURLを使用してソースマップ（解凍済みまたは圧縮済み）をシンボル取り込みAPIにアップロードします：
+
+```bash
+curl -X POST "https://symbol-ingest-api.service.newrelic.com/v1/react-native/sourcemaps" \
+     -H "Api-Key: $NR_USER_API_KEY" \
+     -H "X-APP-LICENSE-KEY: $NR_APP_TOKEN" \
+     -F "sourcemap=@./index.android.bundle.map" \
+     -F "jsBundleId=CODE_PUSH_ID_HERE" \
+     -F "appVersion=1.0.5" \
+     -F "sourcemapName=index.android.bundle.map"
+```
+
+ヘッダー、本文フィールド、およびレスポンスの完全なリストについては、[アップロードAPIリファレンス](#upload-api)を参照してください。
+
+### jsBundleIdを取得します。 [#retrieve-bundle-id]
+
+アップロードに使用される`jsBundleId`は、エージェントがJavaScriptセッションについて報告するバンドルIDと一致する必要があります。CodePushリリースの場合は、アップロードされたソースマップがユーザーのアプリで実行されているバンドルにマッピングされるように、CodePushのデプロイメントまたはリリース識別子を`jsBundleId`として使用します。
+
+<Callout variant="tip">
+  アップロードしたソースマップを検証、監査、または削除するには、「[React Nativeソースマップのリストと削除](/docs/mobile-monitoring/new-relic-monitoring-react-native/list-delete-react-native-source-maps)」を参照してください。
+</Callout>
+
+## ファイルサイズの制限 [#file-size-limitations]
+
+シンボリケーション用に保存するには、解凍後のソースマップファイルが200 MB未満である必要があります。
+
+転送サイズを縮小するために、ビルドスクリプトはアップロード前に`.map`ファイルを自動的にgzip圧縮しますが、ビルドは解凍されたファイルに対して200 MBの制限を確認します。解凍された`.map`ファイルが200 MBを超える場合、エージェントはファイルをアップロードしないため、ビルドのタイムアウトや取り込みエラーを防ぐことができます。
+
+これらの場合、スクリプトはファイルの代わりにビルドテレメトリー（メタデータ）を送信します。これにより、その特定のバージョンでシンボル化が利用できない場合でも、New Relicはビルドが発生したことを追跡できます。その結果、そのビルドの`MobileJSError`イベントには、シンボル化されていない（ミニファイされた）スタックトレースが表示されます。
+
+解凍後のソースマップが200 MBより大きい場合は、[New Relicサポートにお問い合わせいただくか、機能リクエストを送信してください](#request-support)。ご自身でこの制限を引き上げることはできません。
+
+## ソースマップのアップロードのトラブルシューティング [#troubleshoot]
+
+`MobileJSError`のスタックトレースがシンボル化されていない場合、ソースマップが[解凍後のサイズ制限である200 MB](#file-size-limitations)を超えている可能性があります。以下の手順を使用して原因を確認し、サポートをリクエストしてください。その他のトラブルシューティングのヒントやよくある質問については、[「React NativeのソースマップとJavaScriptエラーのトラブルシューティング」](/docs/mobile-monitoring/new-relic-monitoring-react-native/troubleshoot-react-native-source-maps)を参照してください。
+
+### ファイルまたはテレメトリーがアップロードされたかどうかを確認してください。 [#confirm-upload]
+
+ビルドが成功したからといって、ファイルのアップロードが成功したとは限りません。ビルドスクリプトが`Success`メッセージで完了しても、解凍後のソースマップが200 MBより大きい場合は、コンソールログを確認してください。エージェントがソースマップファイルの代わりにテレメトリーを送信したことを示すメッセージが表示されます。
+
+### 解凍後のファイルサイズを確認してください [#check-zip-size]
+
+ソースマップファイルのサイズを確認して、制限に近いか超えているかを検証してください：
+
+```bash
+# Check the size of the unzipped source map
+ls -lh index.android.bundle.map
+```
+
+ファイルが200 MBに近いかそれを超える場合、シンボル化のためにソースマップをアップロードすることはできません。
+
+### 大規模なソースマップのサポートをリクエスト [#request-support]
+
+解凍されたソースマップが200 MBの制限を超える場合、お客様側でサイズを縮小したり、ご自身で制限を引き上げたりする方法はありません。この制限の影響を受ける場合は、次の手順を実行してお知らせください：
+
+* [New Relicサポートにお問い合わせください](https://support.newrelic.com/)。
+* ソースマップのサイズ制限を引き上げるための機能リクエストを提出してください。

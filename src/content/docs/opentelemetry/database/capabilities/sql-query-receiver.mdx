@@ -1,0 +1,390 @@
+---
+title: "SQL Query Receiver with NRDOT"
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - NRDOT
+  - Database
+  - Custom metrics
+  - SQL queries
+metaDescription: Run custom SQL queries against your database and ingest results as metrics using the SQL Query Receiver with New Relic's Distribution of OpenTelemetry (NRDOT).
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+
+</Callout>
+
+The `sqlqueryreceiver` is an OpenTelemetry Collector receiver that lets you run any custom SQL query against your database and ingest the results as metrics into New Relic.
+
+Use this when you want to monitor data not covered by the built-in `nroracledbreceiver` / `nrsqlserverreceiver` metrics. Custom metrics collected via `sqlqueryreceiver` appear under the same Oracle or SQL Server entity in New Relic as the built-in receiver data, provided `host.name` is configured correctly.
+
+## Prerequisites [#prerequisites]
+
+* The database user configured in the datasource must have `SELECT` privilege on any view or table you intend to query.
+* The collector binary must include the `sqlqueryreceiver` component.
+
+## Configuration [#config]
+
+<Tabs>
+<TabsBar>
+<TabsBarItem id="oracle">Oracle</TabsBarItem>
+<TabsBarItem id="sqlserver">Microsoft SQL Server</TabsBarItem>
+</TabsBar>
+
+<TabsPages>
+<TabsPageItem id="oracle">
+
+Add the `sqlqueryreceiver` block inside the `receivers:` section of your existing `oracle-config.yaml`, alongside the existing `nroracledb` block:
+
+```yaml
+receivers:
+  nroracledb:
+
+  ...
+
+  sqlquery/oracle:
+    driver: oracle
+
+    # Approach 1: Use the `endpoint`, `username`, `password`, and `service` fields to connect to your database. The receiver will construct the datasource URL for you.
+    # host: <YOUR_DB_HOST>
+    # port: <YOUR_DB_PORT>
+    # database: <YOUR_DATABASE_NAME>
+    # username: <YOUR_DB_USERNAME>
+    # password: <YOUR_DB_PASSWORD>
+
+
+    # Approach 2: Use the `datasource` field to provide a full connection string. 
+    datasource: "oracle://<YOUR_DB_USERNAME>:<YOUR_DB_PASSWORD>@<YOUR_DB_HOST>:<YOUR_DB_PORT>/<YOUR_SERVICE_NAME>"
+
+    collection_interval: 60s
+    queries:
+      - sql: "<YOUR_CUSTOM_SQL>"
+        metrics:
+          - metric_name: oracledb.<YOUR_METRIC_NAME>
+            value_column: <RESULT_COLUMN>
+            attribute_columns: [<DIMENSION_COLUMN_1>, <DIMENSION_COLUMN_2>]
+            value_type: double
+```
+
+Set the following parameters for each metric:
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`<YOUR_DB_HOST>`</td>
+      <td>Your hostname or IP address. For example, `10.12.0.4`</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_DB_PORT>`</td>
+      <td>Your port number. The default value is set to `1433`</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_DB_USERNAME>`</td>
+      <td>Your Oracle database username. For example `newrelic`</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_DB_PASSWORD>`</td>
+      <td>Your Oracle database password.</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_SERVICE_NAME>`</td>
+      <td>Your Oracle service name. For example `master`</td>
+    </tr>
+    <tr>
+      <td>`<collection_interval>`</td>
+      <td>How often to run the queries and collect metrics. For example, `30s`, `60s`</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_CUSTOM_SQL>`</td>
+      <td>The SQL query to run.       
+        
+        <Callout variant="important">
+          Ensure that your custom queries don't collect or expose PII or sensitive data.
+        </Callout>
+      </td>
+    </tr>
+    <tr>
+      <td>`<YOUR_METRIC_NAME>`</td>
+      <td>Your metric name display in New Relic. Use `oracledb.` prefix for consistency. For example `oracledb.custom.wait_time_ms`</td>
+    </tr>
+    <tr>
+      <td>`<VALUE_COLUMN>`</td>
+      <td>The column from the query result whose value becomes the metric value. For example `wait_time_ms`</td>
+    </tr>
+    <tr>
+      <td>`<VALUE_TYPE>`</td>
+      <td>Data type of the value column. Options: `int`, `double`. Defaults to `int` if omitted. For example `int`</td>
+    </tr>
+    <tr>
+      <td>`<DATA_TYPE>`</td>
+      <td>OTLP metric type. Use `gauge` for current/snapshot values. Use `sum` for cumulative counters. Defaults to `gauge` if omitted. For example `gauge`</td>
+    </tr>
+    <tr>
+      <td>`<UNIT>`</td>
+      <td>Unit of measurement for the metric value. Used as metadata in New Relic. For example `ms`, `By`, `s`, `%`, `1`</td>
+    </tr>
+    <tr>
+      <td>`<ATTRIBUTE_COLUMNS>`</td>
+      <td>Columns from the query result that become metric labels/dimensions. Used to filter and facet in NRQL. For example `["wait_type", "database_name"]`</td>
+    </tr>
+  </tbody>
+</table>
+
+
+<Callout variant="important">
+
+For Oracle CDB users (`C##` prefix), encode `#` as `%23` in the datasource URL. For example: `c##newrelic` must be `c%23%23newrelic`
+
+</Callout>
+
+### Naming convention
+
+Metric names must start with `oracledb.` to be associated with the correct entity in New Relic. Metrics with a different prefix will be ingested but will not appear under the database entity.
+
+### Entity synthesis
+
+Add a `resource/add_host` processor to set `host.name` to the same value used by the database receiver. Without this, custom metrics will not be linked to the database entity.
+
+Add the processor in the `processors:` section:
+
+```yaml
+processors:
+  batch:
+  resource/add_event_name:
+    attributes:
+      - key: host.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+  resource/add_host:
+    attributes:
+      - key: host.name
+        value: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+        action: upsert
+```
+
+### Pipeline configuration
+
+Add a `metrics/custom` pipeline in the `service.pipelines:` section of the config, alongside the existing pipelines:
+
+```yaml
+service:
+  pipelines:
+    metrics/oracledb:
+      receivers: [nroracledb]
+      processors: [resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+    logs/oracledb:
+      receivers: [nroracledb]
+      processors: [resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+
+    metrics/custom:
+      receivers: [sqlquery/oracle]
+      processors: [resource/add_host, resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+```
+
+<Callout variant="important">
+
+Add `resource/add_host` before `batch` in the processor list.
+
+</Callout>
+
+### NRQL to validate data
+
+After restarting the collector, run the following to confirm custom metrics are arriving:
+
+```sql
+SELECT uniques(metricName) FROM Metric
+WHERE otel.library.name LIKE '%sqlqueryreceiver%'
+AND metricName LIKE 'oracledb.%'
+SINCE 1 hour ago
+```
+
+
+## Troubleshooting [#troubleshooting]
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| `ORA-00942: table or view does not exist` | Database user missing SELECT privilege | Grant `SELECT ON <VIEW_NAME>` to the user |
+| `missing port in address` | `#` in username/password not URL-encoded | Replace `#` with `%23` in the datasource URL |
+| No data in New Relic | `host.name` not set or mismatched | Add `resource/add_host` processor with the correct host value |
+| Metrics not under database entity | Metric name missing required prefix | Ensure metric names start with `oracledb.` for Oracle database or `sqlserver.` for SQL Server. |
+
+</TabsPageItem>
+
+<TabsPageItem id="sqlserver">
+
+Add the `sqlqueryreceiver` block inside the `receivers:` section of your SQL Server collector configuration, alongside the existing `nrsqlserver` block:
+
+```yaml
+receivers:
+  nrsqlserver:
+    ...
+
+  sqlquery:
+    driver: sqlserver
+
+    #Approach 1: Use the `host`, `port`, `database`, `username`, and `password` fields to connect to your database. The receiver will construct the datasource URL for you.
+    # host: <YOUR_DB_HOST>
+    # port: <YOUR_DB_PORT>
+    # database: <YOUR_DATABASE_NAME>
+    # username: <YOUR_DB_USERNAME>
+    # password: <YOUR_DB_PASSWORD>
+
+    # Approach 2: Use the `datasource` field to provide a full connection string.
+    datasource: "sqlserver://<YOUR_DB_USERNAME>:<YOUR_DB_PASSWORD>@<YOUR_DB_HOST>:<YOUR_DB_PORT>?database=<YOUR_DATABASE_NAME>"
+    collection_interval: 30s
+    queries:
+      - sql: "<YOUR_CUSTOM_SQL>"
+        metrics:
+          - metric_name: sqlserver.<YOUR_METRIC_NAME>
+            value_column: <VALUE_COLUMN>
+            value_type: <VALUE_TYPE>
+            data_type: <DATA_TYPE>
+            unit: <UNIT>
+            attribute_columns: ["<ATTRIBUTE_COLUMNS>"]
+
+      - sql: "<YOUR_CUSTOM_SQL>"
+        metrics:
+          - metric_name: sqlserver.<YOUR_METRIC_NAME>
+            value_column: <VALUE_COLUMN>
+            value_type: <VALUE_TYPE>
+            data_type: <DATA_TYPE>
+            unit: <UNIT>
+            attribute_columns: ["<ATTRIBUTE_COLUMNS>"]
+```
+
+Set the following parameters for each metric:
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`<YOUR_DB_HOST>`</td>
+      <td>Your server hostname or IP address. For example, `10.12.0.4`</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_DB_PORT>`</td>
+      <td>Your server port number. The defaults value is set to `1433`</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_DB_USERNAME>`</td>
+      <td>Your SQL Server username. Omit for Windows Domain/GMSA authentication. For example `newrelic`</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_DB_PASSWORD>`</td>
+      <td>Your SQL Server password. Omit for Windows Domain/GMSA authentication. For example `secret`</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_DATABASE_NAME>`</td>
+      <td>Your database name to use as the initial connection context. For example `master`</td>
+    </tr>
+    <tr>
+      <td>`collection_interval`</td>
+      <td>How often to run the queries and collect metrics. For example, `30s`, `60s`</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_CUSTOM_SQL>`</td>
+      <td>The SQL query to run. For example, `SELECT SUM(pages_kb) / 1024 AS size_mb, type FROM sys.dm_os_memory_clerks GROUP BY type`
+      
+        <Callout variant="important">
+          Ensure that your custom queries don't collect or expose PII or sensitive data.
+        </Callout>
+      </td>
+    </tr>
+    <tr>
+      <td>`<YOUR_METRIC_NAME>`</td>
+      <td>Your metric name display in New Relic. Use `sqlserver.` prefix for consistency. For example `sqlserver.custom.wait_time_ms`</td>
+    </tr>
+    <tr>
+      <td>`<VALUE_COLUMN>`</td>
+      <td>The column from the query result whose value becomes the metric value. For example `wait_time_ms`</td>
+    </tr>
+    <tr>
+      <td>`<VALUE_TYPE>`</td>
+      <td>Data type of the value column. Options: `int`, `double`. Defaults to `int` if omitted. For example `int`</td>
+    </tr>
+    <tr>
+      <td>`<DATA_TYPE>`</td>
+      <td>OTLP metric type. Use `gauge` for current/snapshot values. Use `sum` for cumulative counters. Defaults to `gauge` if omitted. For example `gauge`</td>
+    </tr>
+    <tr>
+      <td>`<UNIT>`</td>
+      <td>Unit of measurement for the metric value. Used as metadata in New Relic. For example `ms`, `By`, `s`, `%`, `1`</td>
+    </tr>
+    <tr>
+      <td>`<ATTRIBUTE_COLUMNS>`</td>
+      <td>Columns from the query result that become metric labels/dimensions. Used to filter and facet in NRQL. For example `["wait_type", "database_name"]`</td>
+    </tr>
+  </tbody>
+</table>
+
+### Naming convention
+
+Metric names must start with `sqlserver.` to be associated with the correct entity in New Relic. Metrics with a different prefix will be ingested but will not appear under the database entity.
+
+### Entity synthesis
+
+Add a `resource/add_host` processor to set `host.name` to the same value used by the database receiver. Without this, custom metrics will not be linked to the database entity.
+
+Add the processor in the `processors:` section:
+
+```yaml
+processors:
+  resource/add_host:
+    attributes:
+      - key: service.instance.id
+        value: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+        action: upsert
+```
+
+### Pipeline configuration
+
+Add a `metrics/custom` pipeline in the `service.pipelines:` section of the config, alongside the existing pipelines:
+
+```yaml
+service:
+  pipelines:
+    metrics/sqlquery:
+      receivers: [sqlquery]
+      processors: [resource/add_host, batch]
+      exporters: [otlphttp]
+```
+
+<Callout variant="important">
+
+Add `resource/add_host` before `batch` in the processor list.
+
+</Callout>
+
+### NRQL to validate data
+
+After restarting the collector, run the following to confirm custom metrics are arriving:
+
+```sql
+SELECT uniques(metricName) FROM Metric
+WHERE otel.library.name LIKE '%sqlqueryreceiver%'
+AND metricName LIKE 'sqlserver.%'
+SINCE 1 hour ago
+```
+
+</TabsPageItem>
+</TabsPages>
+</Tabs>

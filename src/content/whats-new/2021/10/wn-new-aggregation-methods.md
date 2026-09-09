@@ -2,7 +2,7 @@
 title: 'New aggregation methods for NRQL alert conditions'
 summary: 'Flexibility on aggregation methods provide fewer false alerts and improved incident time to detection.'
 releaseDate: '2021-10-25'
-learnMoreLink: 'https://discuss.newrelic.com/t/new-aggregation-methods-for-nrql-alert-conditions/158831'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008bdg/new-aggregation-methods-for-nrql-alert-conditions'
 ---
 
 Data latency has caused many users to have inaccurate alert incidents. Since data has the potential to come in too late to be evaluated, New Relic has added two new streaming aggregation methods for NRQL alert conditions. With this addition, users have three options to choose from for data aggregation methods:
@@ -27,4 +27,4 @@ Event Time, as its namesake, has a Timer setting that starts counting down as so
 
 Cadence is the legacy data aggregation everyone has grown to know. For this data aggregation option each evaluation window waits exactly as long as the Delay setting is set for. A limitation of this option is that a certain amount of data may be dropped, as it comes in "too late" to be evaluated. This dropped data may trigger false alerts.
 
-For further details on each use case, check out [this post](https://discuss.newrelic.com/t/relic-solution-how-can-i-figure-out-which-aggregation-method-to-use/164288).
+For further details on each use case, check out [this post](https://support.newrelic.com/s/hubtopic/aAX8W0000008cZq/relic-solution-how-can-i-figure-out-which-aggregation-method-to-use).
