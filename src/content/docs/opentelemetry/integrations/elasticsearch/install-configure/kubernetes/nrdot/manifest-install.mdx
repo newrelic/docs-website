@@ -1,5 +1,5 @@
 ---
-title: Install and configure Elasticsearch on Kubernetes with NRDOT (manifest install)
+title: Install and configure NRDOT on Kubernetes to monitor Elasticsearch (manifest install)
 metaDescription: "Deploy NRDOT on Kubernetes using a Kubernetes manifest to monitor Elasticsearch clusters with automatic pod discovery and send data to New Relic."
 tags:
   - OpenTelemetry
@@ -25,12 +25,12 @@ This guide shows how to deploy NRDOT on Kubernetes using a manifest install to a
 
 ### Supported
 - Elasticsearch 7.16 or later, running as pods in a Kubernetes cluster
+- Manifest install method
 
 ### You need
-- A New Relic <InlinePopover type="licenseKey"/>
+- A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
 - `kubectl` access to your Kubernetes cluster
 - The base [Kubernetes OpenTelemetry manifest installation](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install) already completed
-- Elasticsearch pods labeled `app: elasticsearch`, required for automatic discovery
 - An Elasticsearch user with the `monitor` or `manage` cluster privilege (see [Elasticsearch security privileges](https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html))
 - Outbound HTTPS (port 443) connectivity to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
 - If your cluster requires authentication, that user's Elasticsearch username and password is required
@@ -39,17 +39,55 @@ This guide shows how to deploy NRDOT on Kubernetes using a manifest install to a
 
 <Step>
 
-## Install [#install]
+## Set up pod labels [#pod-labels]
 
-More control over individual Kubernetes resources, using the base manifest installation you already have in place — best for customized deployments.
+Each Elasticsearch pod must have the label `app: elasticsearch` for automatic discovery to work. Without this label, the collector won't detect or monitor your pods.
 
-1. **Update collector image to NRDOT**: Update the collector image to NRDOT in both [`deployment.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment.yaml) and [`daemonset.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/daemonset.yaml) in your local `rendered` directory:
+If you're using a StatefulSet or Deployment for Elasticsearch, add the label in the pod template:
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+spec:
+  template:
+    metadata:
+      labels:
+        app: elasticsearch  # Required for auto-discovery
+    spec:
+      containers:
+      - name: elasticsearch
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.x.x
+```
+
+For existing pods without the label, update your StatefulSet/Deployment and restart the pods:
+
+```bash
+kubectl label pods -l <your-existing-selector> app=elasticsearch -n <namespace>
+```
+
+You can verify labels are set correctly:
+
+```bash
+kubectl get pods -n <namespace> --show-labels
+```
+
+</Step>
+
+<Step>
+
+## Configure the NRDOT Collector [#configure]
+
+Update the collector image, then define its Elasticsearch monitoring configuration.
+
+1. Update the collector image to NRDOT in both [`deployment.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment.yaml) and [`daemonset.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/daemonset.yaml) in your local `rendered` directory:
 
     ```yaml
     image: newrelic/nrdot-collector:latest
     ```
 
-2. **Configure Elasticsearch monitoring**: Update [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml) for Elasticsearch monitoring: set `rule` to match your pod label, and set the cluster name in both `resource/cluster` and `resource/cluster_name_override`. Then choose one of two options:
+2. Update [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml) for Elasticsearch monitoring: set `rule` to match your pod label, and set the cluster name in both `resource/cluster` and `resource/cluster_name_override`. Then choose one of two options:
 
     **Option 1**: Replace all existing OpenTelemetry components (recommended for Elasticsearch-only monitoring) — replace the entire file's content with:
 
@@ -241,23 +279,7 @@ More control over individual Kubernetes resources, using the base manifest insta
 
     **Option 2**: Merge with existing configuration (if monitoring multiple services) — add the Elasticsearch receiver and processors to your existing configuration, merging them with your current `deployment-configmap.yaml`.
 
-    **For secured Elasticsearch clusters:** If your Elasticsearch cluster requires authentication, add credentials to the receiver configuration:
-
-    ```yaml
-    receivers:
-      receiver_creator/elasticsearch:
-        watch_observers: [k8s_observer]
-        receivers:
-          elasticsearch:
-            rule: type == "pod" && labels["app"] == "elasticsearch"
-            config:
-              endpoint: 'https://`endpoint`:9200'
-              username: "your_elasticsearch_username"
-              password: "your_elasticsearch_password"
-              tls:
-                insecure_skip_verify: false
-    ```
-    Store credentials securely using Kubernetes secrets rather than hardcoding them in the values file.
+    *Optional:* for a secured Elasticsearch cluster with authentication and SSL, see [Advanced configuration](/docs/opentelemetry/integrations/elasticsearch/advanced-configuration#secured).
 
 #### Configuration parameters [#configuration-parameters]
 
@@ -269,18 +291,33 @@ The following table describes the key configuration parameters used in the `depl
 | `endpoint` | The Elasticsearch endpoint scraped on each discovered pod. Update port `9200` if Elasticsearch runs on a different port, and use `https` for a secured cluster. |
 | `collection_interval` | The interval between metric scrapes. Default: `15s`. |
 | `elasticsearch-cluster` (in `resource/cluster` / `resource/cluster_name_override`) | A unique name identifying this cluster in New Relic. Replace with a name that's unique across your account. |
-| `username` / `password` | Credentials for a secured Elasticsearch cluster. Only required if authentication is enabled — see "For secured Elasticsearch clusters." |
-| `tls.insecure_skip_verify` | Whether to skip TLS certificate verification for a secured cluster. Set to `false` in production. |
 | `NEW_RELIC_MEMORY_LIMIT_MIB` | The memory limit, in MiB, for the collector's `memory_limiter` processor. Set to fit your environment. |
-| `NEWRELIC_LICENSE_KEY` | Your New Relic <InlinePopover type="licenseKey"/>. |
+| `NEWRELIC_LICENSE_KEY` | Your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
 | `NEWRELIC_OTLP_ENDPOINT` | The New Relic OTLP endpoint for your account's region. See [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
 
-3. Apply the updated manifests and restart the deployment:
+</Step>
 
-    ```bash
-    kubectl apply -n newrelic -R -f rendered
-    kubectl rollout restart deployment nr-k8s-otel-collector-deployment -n newrelic
-    ```
+<Step>
+
+## Install via kubectl [#install-manifest]
+
+Apply the updated manifests to deploy the changes to your cluster.
+
+```bash
+kubectl apply -n newrelic -R -f rendered
+```
+
+</Step>
+
+<Step>
+
+## Restart the NRDOT Collector pods [#restart]
+
+Restart the deployment to apply your changes:
+
+```bash
+kubectl rollout restart deployment nr-k8s-otel-collector-deployment -n newrelic
+```
 
 </Step>
 
@@ -311,23 +348,23 @@ If you don't see data within ~5 minutes, see [Kubernetes troubleshooting](/docs/
 
 ## Find and use your data [#find-and-use]
 
-Once your data is being collected, you can access the Elasticsearch dashboard in New Relic.
+Once your data is being collected, you can access comprehensive Elasticsearch monitoring through New Relic UI.
 
 To find your Elasticsearch dashboard in New Relic:
 
-1. Go to **one.newrelic.com → Integrations & Agents**.
-2. Under the **All** tab, click **Dashboards**, then search for **Elasticsearch OTel** to view the dashboard.
+1. Go to <DNT>**one.newrelic.com > Integrations & Agents**</DNT>.
+2. Under the <DNT>**All**</DNT> tab, click <DNT>**Dashboards**</DNT>, then search for <DNT>**Elasticsearch (OpenTelemetry Collector)**</DNT> to view the dashboard.
 
 Or:
 
-1. From the left panel, click **Dashboards**.
-2. Search for the **Elasticsearch OTel** dashboard to view it.
+1. From the left panel, click <DNT>**Dashboards**</DNT>.
+2. Search for the <DNT>**Elasticsearch (OpenTelemetry Collector)**</DNT> dashboard to view it.
 
-After setting up Elasticsearch monitoring with NRDOT, you can:
+   After setting up Elasticsearch monitoring with NRDOT, you can:
 
-- Create custom dashboards to visualize your Elasticsearch metrics
-- Set up alerts for critical cluster health and performance thresholds
-- Explore your data using New Relic query capabilities
+   - [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your Elasticsearch metrics
+   - [Set up alerts](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) for critical cluster health and performance thresholds
+   - [Explore your data](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) using New Relic query capabilities
 
 </Step>
 
@@ -339,5 +376,6 @@ After setting up Elasticsearch monitoring with NRDOT, you can:
 
 ## Related articles [#related-articles]
 
+- [Advanced configuration](/docs/opentelemetry/integrations/elasticsearch/advanced-configuration)
 - [Elasticsearch metrics reference](/docs/opentelemetry/integrations/elasticsearch/metrics-reference)
 - [Elasticsearch troubleshooting](/docs/opentelemetry/integrations/elasticsearch/troubleshooting)
