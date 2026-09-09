@@ -1,0 +1,395 @@
+---
+title: "Automate Agent Control installation at scale"
+metaDescription: "Install Agent Control from Terraform, Ansible, or a CI/CD pipeline without a person manually re-issuing a system identity every 12 hours."
+freshnessValidatedDate: never
+---
+
+When you install Agent Control through [Guided Install](/docs/new-relic-control/agent-control/setup), it creates a system identity for you and shows you a client ID and client secret. That secret expires 12 hours after it's issued. For a single install, that's not a problem. For automating installs with Terraform, Ansible, or a CI/CD pipeline, it is: any run that happens more than 12 hours after the credential was issued fails, and someone has to go back into the UI for a new one.
+
+This page covers two ways to automate installation without that manual step. Both use the same [system identity creation capability](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) Guided Install itself uses, called directly with a New Relic [User API key](/docs/apis/intro-apis/new-relic-api-keys/).
+
+Two rules apply to both approaches below:
+
+- **Each host or install target still gets its own identity**, minted fresh for it.
+- **A private key never travels off the machine it was created on.** If you set up one durable identity that authorizes creating others (the second approach below), its private key stays on whichever machine controls your automation. Only a short-lived access token derived from it, never the key itself, is passed anywhere else.
+
+## Installing occasionally: mint a short-lived credential per run [#per-run]
+
+If you're not installing often enough to justify managing a durable identity, this is the simplest path. Your pipeline authenticates with your API key to mint a throwaway credential, uses it once to run the normal `newrelic install` command, and the installer generates the long-lived identity that Agent Control actually runs on. You never see or store that long-lived identity yourself, the installer writes it straight to the host.
+
+### Linux
+
+```bash
+#!/bin/bash
+set -e
+
+# Set these from your CI secrets store. NEW_RELIC_API_KEY should be a User API
+# key (NRAK-...). It's used once below and never written to disk.
+: "${NEW_RELIC_API_KEY:?}" "${NEW_RELIC_ACCOUNT_ID:?}" "${NEW_RELIC_ORGANIZATION:?}" \
+  "${NEW_RELIC_REGION:?}" "${NR_CLI_FLEET_ID:?}"
+
+NEWRELIC_AUTH_VERSION="0.5.0"
+
+# 1. Download the auth CLI.
+curl -sS -L \
+  "https://github.com/newrelic/newrelic-auth-rs/releases/download/${NEWRELIC_AUTH_VERSION}/newrelic-auth-cli_amd64.tar.gz" \
+  -o /tmp/newrelic-auth-cli.tar.gz
+tar -xzf /tmp/newrelic-auth-cli.tar.gz -C /tmp
+
+# 2. Mint a fresh, throwaway credential for this install only.
+BOOTSTRAP=$(/tmp/newrelic-auth-cli create-bootstrap-identity secret \
+  --name "bootstrap-$(hostname)-$(date +%s)" \
+  --organization-id "$NEW_RELIC_ORGANIZATION" \
+  --environment "$NEW_RELIC_REGION" \
+  --api-key "$NEW_RELIC_API_KEY")
+
+NEW_RELIC_AUTH_CLIENT_ID=$(echo "$BOOTSTRAP" | jq -r '.client_id')
+NEW_RELIC_AUTH_CLIENT_SECRET=$(echo "$BOOTSTRAP" | jq -r '.identity_type.L1.client_secret')
+
+# 3. Install the New Relic CLI, then Agent Control. The installer generates
+#    this host's long-lived identity itself and writes it locally.
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash
+
+sudo NEW_RELIC_CLI_SKIP_CORE=1 \
+    NEW_RELIC_REGION="${NEW_RELIC_REGION}" \
+    NEW_RELIC_ACCOUNT_ID="${NEW_RELIC_ACCOUNT_ID}" \
+    NEW_RELIC_ORGANIZATION="${NEW_RELIC_ORGANIZATION}" \
+    NEW_RELIC_API_KEY="${NEW_RELIC_API_KEY}" \
+    NEW_RELIC_AUTH_CLIENT_ID="${NEW_RELIC_AUTH_CLIENT_ID}" \
+    NEW_RELIC_AUTH_CLIENT_SECRET="${NEW_RELIC_AUTH_CLIENT_SECRET}" \
+    NR_CLI_FLEET_ID="${NR_CLI_FLEET_ID}" \
+    /usr/local/bin/newrelic install -y -n agent-control
+
+rm -f /tmp/newrelic-auth-cli.tar.gz /tmp/newrelic-auth-cli
+```
+
+Nothing here needs to run as a privileged user or a service account with standing access. The API key only ever touches this one script, for this one install.
+
+### Ansible
+
+If you're installing onto many hosts in one playbook run, mint the throwaway credential once on the Ansible controller, then hand it to every host task in that run. Each host still ends up with its own distinct, long-lived identity. Only the throwaway credential used to authorize the installs is shared across the hosts in that one run, and it's discarded when the run ends.
+
+```yaml
+# site.yml
+---
+- name: Create a throwaway bootstrap credential for this run
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Download newrelic-auth-cli
+      ansible.builtin.get_url:
+        url: "https://github.com/newrelic/newrelic-auth-rs/releases/download/{{ newrelic_auth_version }}/newrelic-auth-cli_amd64.tar.gz"
+        dest: /tmp/newrelic-auth-cli.tar.gz
+        mode: "0644"
+
+    - name: Extract newrelic-auth-cli
+      ansible.builtin.unarchive:
+        src: /tmp/newrelic-auth-cli.tar.gz
+        dest: /tmp/
+        remote_src: true
+
+    - name: Mint the bootstrap credential
+      ansible.builtin.command:
+        cmd: >
+          /tmp/newrelic-auth-cli create-bootstrap-identity secret
+          --name "ansible-bootstrap-{{ ansible_date_time.epoch }}"
+          --organization-id {{ newrelic_agent_control_organization }}
+          --environment {{ newrelic_agent_control_region }}
+          --api-key {{ newrelic_agent_control_api_key }}
+      register: bootstrap_output
+      no_log: true
+
+    - name: Save the bootstrap credential for the install plays below
+      ansible.builtin.set_fact:
+        nr_bootstrap_client_id: "{{ (bootstrap_output.stdout | from_json).client_id }}"
+        nr_bootstrap_client_secret: "{{ (bootstrap_output.stdout | from_json).identity_type.L1.client_secret }}"
+      no_log: true
+
+- name: Install Agent Control
+  hosts: all
+  become: true
+  vars:
+    newrelic_agent_control_client_id: "{{ hostvars['localhost']['nr_bootstrap_client_id'] }}"
+    newrelic_agent_control_client_secret: "{{ hostvars['localhost']['nr_bootstrap_client_secret'] }}"
+  tasks:
+    - name: Install the New Relic CLI
+      ansible.builtin.shell: curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash
+      changed_when: true
+
+    - name: Install Agent Control
+      ansible.builtin.command:
+        cmd: /usr/local/bin/newrelic install -y -n agent-control
+      environment:
+        NEW_RELIC_CLI_SKIP_CORE: "1"
+        NEW_RELIC_REGION: "{{ newrelic_agent_control_region }}"
+        NEW_RELIC_ACCOUNT_ID: "{{ newrelic_agent_control_account_id }}"
+        NEW_RELIC_ORGANIZATION: "{{ newrelic_agent_control_organization }}"
+        NEW_RELIC_API_KEY: "{{ newrelic_agent_control_api_key }}"
+        NEW_RELIC_AUTH_CLIENT_ID: "{{ newrelic_agent_control_client_id }}"
+        NEW_RELIC_AUTH_CLIENT_SECRET: "{{ newrelic_agent_control_client_secret }}"
+        NR_CLI_FLEET_ID: "{{ newrelic_agent_control_fleet_id }}"
+      changed_when: true
+      no_log: true
+```
+
+Nothing in `newrelic_agent_control_api_key` or the bootstrap credential is written to a file anywhere in this run. `no_log: true` keeps both out of Ansible's own logs too.
+
+### Windows
+
+Same shape as Linux, using the Windows build of `newrelic-auth-cli` and `install.ps1` in place of `install.sh`.
+
+## Installing at scale, or from Terraform: set up one durable identity, once [#durable-identity]
+
+A Terraform resource that manages Agent Control on a host or cluster needs something stable across `plan` and `apply` cycles, not a fresh throwaway credential every run. The same is true for any pipeline installing many hosts over time rather than one host once. For that, set up one durable "parent" identity a single time, and use it to authorize every install after that, without ever moving its private key anywhere.
+
+<Callout variant="important">
+  This section walks through calling the identity APIs directly. If you're setting this up with Terraform specifically, see [Agent Control setup with Terraform](/docs/infrastructure-as-code/terraform/agent-control) as well.
+</Callout>
+
+### Step 1: create the parent identity, once
+
+You only repeat this step if you need a second parent identity, never per install. The script below generates a key pair locally with `openssl`; only the public half is ever sent to New Relic.
+
+```bash
+#!/usr/bin/env bash
+#
+# bootstrap-system-identity.sh
+#
+# Creates your ONE durable "parent" system identity (an "L2" identity,
+# authenticated by a private key rather than a client secret) using only a
+# New Relic User API key. The key pair is generated locally with openssl;
+# only the public key is ever sent to New Relic, and the private key is
+# written straight to disk on this machine.
+#
+# Run this ONCE, not once per install. This identity is meant to be reused:
+# keep it (and its private key) on whatever machine or CI secrets store
+# controls your automation, and use it to generate a short-lived access
+# token for each individual install. Never copy the private key itself onto
+# the hosts or clusters you're provisioning -- only the short-lived token
+# goes there. See Step 2 below for adding this identity to a group with
+# permission to create other identities (required for it to work as a
+# parent), and Step 3 for the token step.
+#
+# This calls the same systemIdentityCreate NerdGraph mutation that
+# newrelic_auth_cli's `create-bootstrap-identity key` command uses, directly
+# via curl, so it has no dependency on that binary or its Docker image.
+#
+# The API key is never accepted as a CLI argument -- that would put it in
+# `ps` output and shell history for the lifetime of this process. Provide it
+# one of two ways instead:
+#   - Set NEW_RELIC_API_KEY in the environment (e.g. from your CI secrets
+#     store), or
+#   - Pipe it in on stdin: echo "$THE_KEY" | bootstrap-system-identity.sh ...
+#
+# Usage:
+#   bootstrap-system-identity.sh -o ORG_ID -n NAME [-e ENV] [-d OUTPUT_DIR] [--force]
+#
+# Outputs to stdout (and only this, so it's safe to eval or parse):
+#   CLIENT_ID=<client id>
+#   PRIVATE_KEY_PATH=<path to the private key file>
+#
+# Everything else -- progress messages, curl/openssl errors -- goes to
+# stderr.
+
+set -euo pipefail
+
+ORG_ID=""
+NAME=""
+ENVIRONMENT="us"
+OUTPUT_DIR="."
+FORCE=0
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: bootstrap-system-identity.sh -o ORG_ID -n NAME [-e ENV] [-d OUTPUT_DIR] [--force]
+
+The New Relic User API key is never a CLI flag. Provide it via:
+  - the NEW_RELIC_API_KEY environment variable, or
+  - stdin, e.g.: echo "$THE_KEY" | bootstrap-system-identity.sh -o ... -n ...
+
+  -o, --org-id       New Relic organization ID. Required.
+  -n, --name         Name for this parent identity, e.g. "terraform-parent" or your
+                     automation controller's name. Required.
+  -e, --environment  us | eu | staging (default: us)
+  -d, --output-dir   Directory to write the private key to (default: current directory)
+      --force        Overwrite an existing private key file at the target path
+  -h, --help         Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o|--org-id) ORG_ID="$2"; shift 2 ;;
+    -n|--name) NAME="$2"; shift 2 ;;
+    -e|--environment) ENVIRONMENT="$2"; shift 2 ;;
+    -d|--output-dir) OUTPUT_DIR="$2"; shift 2 ;;
+    --force) FORCE=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
+
+if [[ -z "${NEW_RELIC_API_KEY:-}" ]]; then
+  if [[ -t 0 ]]; then
+    echo "Error: no API key found. Set NEW_RELIC_API_KEY, or pipe the key in on stdin." >&2
+    usage
+    exit 1
+  fi
+  if ! IFS= read -r NEW_RELIC_API_KEY; then
+    echo "Error: no API key found on stdin. Set NEW_RELIC_API_KEY, or pipe the key in on stdin." >&2
+    usage
+    exit 1
+  fi
+fi
+API_KEY="$NEW_RELIC_API_KEY"
+# Strip a trailing newline/CR in case the key came from a file (env or stdin) that ended
+# with one -- an unstripped trailing newline would otherwise flow straight into the
+# API-Key header value.
+API_KEY="${API_KEY%$'\n'}"
+API_KEY="${API_KEY%$'\r'}"
+
+if [[ -z "$API_KEY" || -z "$ORG_ID" || -z "$NAME" ]]; then
+  echo "Error: an API key (env var or stdin), --org-id, and --name are all required." >&2
+  usage
+  exit 1
+fi
+
+for bin in openssl curl jq; do
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    echo "Error: this script needs '$bin' on PATH." >&2
+    exit 1
+  fi
+done
+
+case "$ENVIRONMENT" in
+  us) GRAPHQL_URL="https://api.newrelic.com/graphql" ;;
+  eu) GRAPHQL_URL="https://api.eu.newrelic.com/graphql" ;;
+  staging) GRAPHQL_URL="https://staging-api.newrelic.com/graphql" ;;
+  *)
+    echo "Error: --environment must be one of us, eu, staging (got '$ENVIRONMENT')." >&2
+    exit 1
+    ;;
+esac
+
+mkdir -p "$OUTPUT_DIR"
+SAFE_NAME=$(printf '%s' "$NAME" | tr -c 'A-Za-z0-9._-' '-')
+PRIVATE_KEY_PATH="$OUTPUT_DIR/${SAFE_NAME}-$(date +%Y%m%d%H%M%S).pem"
+
+if [[ -e "$PRIVATE_KEY_PATH" && "$FORCE" -ne 1 ]]; then
+  echo "Error: $PRIVATE_KEY_PATH already exists. Pass --force to overwrite." >&2
+  exit 1
+fi
+
+# From here on, a private key or a temp curl config with the API key in it may exist on
+# disk -- clean both up on ANY exit (error, signal, or falling off the end) unless the
+# identity was actually confirmed created. KEY_CONFIRMED is flipped to 1 only right before
+# the final success output, so a curl failure, a NerdGraph error, or anything else that
+# exits early always leaves no orphaned key and no leftover secret on disk.
+CURL_CONFIG=""
+KEY_CONFIRMED=0
+cleanup() {
+  [[ -n "$CURL_CONFIG" ]] && rm -f "$CURL_CONFIG"
+  [[ "$KEY_CONFIRMED" -ne 1 ]] && rm -f "$PRIVATE_KEY_PATH"
+}
+trap cleanup EXIT
+
+echo "Generating a 4096-bit RSA key pair locally (private key never leaves this machine)..." >&2
+# umask 077 inside the subshell means the file is created at mode 600 from its very first
+# write -- openssl genrsa's own default mode (644 under a typical 022 umask) would otherwise
+# leave the private key briefly world-readable in the gap before the chmod below runs.
+( umask 077 && openssl genrsa -out "$PRIVATE_KEY_PATH" 4096 2>/dev/null )
+chmod 600 "$PRIVATE_KEY_PATH"  # belt-and-suspenders; the umask above already made this the mode at creation
+PUBLIC_KEY_B64=$(openssl rsa -in "$PRIVATE_KEY_PATH" -pubout 2>/dev/null | openssl enc -base64 -A)
+
+echo "Creating the system identity via NerdGraph ($GRAPHQL_URL)..." >&2
+REQUEST_BODY=$(jq -n \
+  --arg name "$NAME" \
+  --arg orgId "$ORG_ID" \
+  --arg pubKey "$PUBLIC_KEY_B64" \
+  '{
+    query: "mutation($name: String!, $orgId: ID!, $pubKey: String!) { systemIdentityCreate(name: $name, organizationId: $orgId, publicKey: $pubKey) { clientId id name } }",
+    variables: { name: $name, orgId: $orgId, pubKey: $pubKey }
+  }')
+
+# The API key goes in a mode-600 curl config file instead of a -H/--header argument --
+# a header passed directly on the command line is visible in `ps` output (to any other
+# user on this machine) for as long as the curl process runs.
+CURL_CONFIG=$(mktemp)
+chmod 600 "$CURL_CONFIG"
+printf 'header = "API-Key: %s"\n' "$API_KEY" > "$CURL_CONFIG"
+
+RESPONSE=$(curl -sS --connect-timeout 10 --max-time 30 "$GRAPHQL_URL" \
+  -H 'Content-Type: application/json' \
+  -K "$CURL_CONFIG" \
+  --data-binary "$REQUEST_BODY")
+
+ERRORS=$(printf '%s' "$RESPONSE" | jq -r '.errors // empty')
+if [[ -n "$ERRORS" ]]; then
+  echo "NerdGraph returned an error:" >&2
+  printf '%s\n' "$ERRORS" >&2
+  exit 1
+fi
+
+CLIENT_ID=$(printf '%s' "$RESPONSE" | jq -r '.data.systemIdentityCreate.clientId // empty')
+if [[ -z "$CLIENT_ID" ]]; then
+  echo "Error: no clientId in the response. Full response:" >&2
+  printf '%s\n' "$RESPONSE" >&2
+  exit 1
+fi
+
+KEY_CONFIRMED=1
+echo "Identity created." >&2
+echo "Move $PRIVATE_KEY_PATH to your CI secrets store now -- it should not stay on this machine." >&2
+echo "CLIENT_ID=$CLIENT_ID"
+echo "PRIVATE_KEY_PATH=$PRIVATE_KEY_PATH"
+```
+
+Run it with your API key as an environment variable, never as a command-line argument:
+
+```bash
+NEW_RELIC_API_KEY="$NEW_RELIC_API_KEY" ./bootstrap-system-identity.sh -o "$NEW_RELIC_ORGANIZATION" -n "terraform-parent"
+```
+
+It prints back a client ID and the path to a private key file. Move that private key file to whatever secrets store controls your automation, and don't leave a copy on the machine that created it.
+
+### Step 2: give that identity permission to create other identities
+
+A freshly created identity can't mint other identities until it's added to the group that grants that capability, called "NR Control Group." Two calls, using the client ID from step 1 and the same API key:
+
+```bash
+# Find the group ID for "NR Control Group" in your org
+curl -sS https://api.newrelic.com/graphql \
+  -H 'Content-Type: application/json' \
+  -H "API-Key: $NEW_RELIC_API_KEY" \
+  --data-binary '{"query":"query { customerAdministration { systemIdentityGroups(filter: {organizationId: {eq: \"'"$NEW_RELIC_ORGANIZATION"'\"}}) { items { id name } } } }"}'
+
+# Add the parent identity (from step 1) to that group
+curl -sS https://api.newrelic.com/graphql \
+  -H 'Content-Type: application/json' \
+  -H "API-Key: $NEW_RELIC_API_KEY" \
+  --data-binary '{"query":"mutation { systemIdentityAddToGroups(systemIdentityIds: \"'"$PARENT_CLIENT_ID"'\", systemIdentityGroupIds: \"'"$NR_CONTROL_GROUP_ID"'\") { systemIdentityGroups { id } } }"}'
+```
+
+### Step 3: for each install, generate a short-lived token from the parent
+
+The parent's private key stays local. What goes to the target host is a bearer token that expires in about an hour:
+
+```bash
+TOKEN=$(newrelic_auth_cli authenticate \
+  --client-id "$PARENT_CLIENT_ID" \
+  --environment "$NEW_RELIC_REGION" \
+  --private-key-path "$PARENT_PRIVATE_KEY_PATH" \
+  --output-token-format PLAIN)
+```
+
+{/*
+  TODO before this page is published: confirm the exact flag / environment
+  variable name the on-host install recipe uses to accept a parent token
+  (distinct from a parent client secret), and replace the description below
+  with the real command. This is currently unconfirmed -- do not merge this
+  page with a guessed flag name.
+*/}
+
+Pass that token, not the private key, to your install step. Agent Control's install tooling accepts a parent token as an alternative to a parent client secret; check with New Relic if you need the exact flag for your install method. The install step uses that token once to mint its own child identity locally on the target host, and that's what Agent Control actually runs on. The parent identity and its private key never touch that host.
+
+**The rule that doesn't change from the previous section: each host still gets its own, freshly minted identity. What's durable and reused here is only the parent that authorizes creating those, never a runtime identity itself.**
