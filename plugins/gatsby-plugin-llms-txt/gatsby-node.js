@@ -11,6 +11,14 @@ const { findAttribute } = require('../../codemods/utils/mdxast');
 // so it has to be looked up the same way here (English only, matching this
 // plugin's own English-only scope).
 const popoversEn = require('../../src/data/popovers_en.json');
+// A `type` typo'd in the wrong case (e.g. "APM" instead of "apm") fails this
+// lookup identically in the real component (it silently renders nothing) -
+// but since a lookup key can only ever mean one popover regardless of case,
+// falling back to a case-insensitive match here costs nothing and recovers
+// real content a strict-case lookup would otherwise drop.
+const popoversEnKeyByLowerCase = Object.fromEntries(
+  Object.keys(popoversEn).map((key) => [key.toLowerCase(), key])
+);
 
 // remark-stringify@8.1.1 (the version installed here) only knows how to
 // render a fixed set of standard mdast node types (see
@@ -51,6 +59,50 @@ const attributeText = (value) => {
   return null;
 };
 
+// A raw HTML <td>/<th> can contain multiple blocks (a paragraph followed by
+// a bullet list, say) - real content in the wild does this. remark-stringify's
+// table-cell visitor is only built for phrasing/inline children: it does
+// `this.all(node).join('')` with no separator, then just swaps embedded
+// newlines for spaces afterward. That compiles each block to its own
+// markdown string and glues them directly together (a paragraph immediately
+// followed by "-   list item" text, no space) before the newline pass ever
+// runs. Flatten multi-block cell content into one inline line ourselves, with
+// a plain-text separator between blocks/items - this output is read as raw
+// text by an LLM, not rendered to HTML, so an actual `<br>` tag would just
+// mean an escaped, noisier "&lt;br>" for no benefit over a plain space.
+// A single list item can itself hold more than one paragraph - e.g. a
+// CommonMark lazy-continuation quirk (non-indented content right after a
+// blank line following list items) swallows an unrelated label paragraph
+// into the previous item instead of making it a new sibling. Recursing with
+// the same segment-collecting logic handles that nesting the same way as
+// the top level, instead of only fixing the one level that was reported.
+const collectCellSegments = (nodes) => {
+  const segments = [];
+  (nodes || []).forEach((node) => {
+    if (node.type === 'paragraph') {
+      segments.push(node.children || []);
+    } else if (node.type === 'list') {
+      (node.children || []).forEach((item) => {
+        const itemSegments = collectCellSegments(item.children);
+        const itemInline = itemSegments.flatMap((segment, i) =>
+          i === 0 ? segment : [{ type: 'text', value: ' ' }, ...segment]
+        );
+        segments.push([{ type: 'text', value: '- ' }, ...itemInline]);
+      });
+    } else {
+      segments.push([node]);
+    }
+  });
+  return segments;
+};
+
+const flattenCellContent = (children) => {
+  const segments = collectCellSegments(children);
+  return segments.flatMap((segment, i) =>
+    i === 0 ? segment : [{ type: 'text', value: ' ' }, ...segment]
+  );
+};
+
 /**
  * Dispatches a flow-level (block) custom MDX component to its markdown
  * equivalent. `node.children` is always already fully resolved by the time
@@ -74,10 +126,9 @@ const dispatchFlow = (node) => {
           type: 'paragraph',
           children: [
             { type: 'strong', children: [{ type: 'text', value: `${variantEmoji} ${variant.toUpperCase()}` }] },
-            { type: 'text', value: '\n\n' },
-            ...(node.children || []),
           ],
         },
+        ...(node.children || []),
       ],
     };
   }
@@ -160,10 +211,16 @@ const dispatchFlow = (node) => {
     return { type: 'tableRow', children: node.children };
   }
   if (node.name === 'th' || node.name === 'td') {
-    return { type: 'tableCell', children: node.children };
+    return { type: 'tableCell', children: flattenCellContent(node.children) };
   }
   if (node.name === 'table') {
-    const rows = node.children || [];
+    // Authors sometimes add a JSX expression like {' '} between <tr> rows to
+    // force whitespace that JSX would otherwise collapse. toTextOrDrop()
+    // stringifies its raw source (quotes included), which doesn't trim to
+    // empty, so it survives as a stray text node here. remark-stringify's
+    // table visitor assumes every row is a tableRow with real children, so
+    // an unfiltered stray node crashes it - drop anything that isn't one.
+    const rows = (node.children || []).filter((child) => child.type === 'tableRow');
     const columnCount = rows[0]?.children?.length || 0;
     return { type: 'table', align: Array(columnCount).fill(null), children: rows };
   }
@@ -175,7 +232,14 @@ const dispatchFlow = (node) => {
     return { type: 'listItem', spread: false, children: node.children };
   }
   if (node.name === 'Steps') {
-    return { type: 'list', ordered: true, start: 1, spread: false, children: node.children };
+    // A stray JSX comment ({/* ... */}) between <Step> siblings survives as
+    // a non-empty text node (see toTextOrDrop) rather than being dropped,
+    // the same way a {' '} spacer corrupts a raw <table>'s row list.
+    // remark-stringify's list-item visitor assumes every child is a real
+    // listItem with its own `children` array - an unfiltered stray node
+    // crashes it. Drop anything that isn't one.
+    const items = (node.children || []).filter((child) => child.type === 'listItem');
+    return { type: 'list', ordered: true, start: 1, spread: false, children: items };
   }
 
   // Video is self-closing with no text content in the MDX source at all -
@@ -194,13 +258,10 @@ const dispatchFlow = (node) => {
     return embedUrl ? { type: 'link', url: embedUrl, children: [{ type: 'text', value: title }] } : [];
   }
 
-  // TabsBarItem holds a tab's label. Its matching content (TabsPageItem)
-  // lives under a separate sibling wrapper (TabsPages vs TabsBar), so
-  // pairing them up correctly would mean cross-referencing sibling
-  // subtrees - a bigger change than this component's volume justifies
-  // right now. Bolding the label is a cheap partial win: labels are at
-  // least visually distinct from body text, even though label-to-content
-  // ordering in the flattened output is left as a known limitation.
+  // Normally intercepted and paired with its TabsPageItem by transformTabs()
+  // at the parent <Tabs> level. Only reached if a TabsBarItem/TabsBar shows
+  // up without the expected <Tabs><TabsBar/><TabsPages/></Tabs> wrapper -
+  // bolding the label is a reasonable fallback for that unexpected shape.
   if (node.name === 'TabsBarItem') {
     return { type: 'paragraph', children: [{ type: 'strong', children: node.children }] };
   }
@@ -208,15 +269,30 @@ const dispatchFlow = (node) => {
   // DocTile is a navigation card: title + link (path) + a short description
   // as children. Without this, both the title and the link vanish, leaving
   // only the bare description with no indication it was ever a link.
+  //
+  // ~27% of real usages (204 of 751) omit `title` entirely - in the real
+  // component, `children` itself becomes the tile's heading *and* its link
+  // text in that case, not a separate description under an empty heading.
+  // Treating it as body text under an empty heading (the old behavior)
+  // dropped the link/destination completely, leaving what reads as an
+  // unlinked, purposeless phrase.
   if (node.name === 'DocTile') {
     const title = attributeText(findAttribute('title', node));
     const path = attributeText(findAttribute('path', node)) || '#';
     const url = path.startsWith('/') ? `https://docs.newrelic.com${path}` : path;
-    const heading = title
-      ? [{ type: 'link', url, children: [{ type: 'strong', children: [{ type: 'text', value: title }] }] }]
-      : [];
+
+    if (!title) {
+      return {
+        type: 'paragraph',
+        children: [{ type: 'link', url, children: [{ type: 'strong', children: node.children || [] }] }],
+      };
+    }
+
     return [
-      { type: 'paragraph', children: heading },
+      {
+        type: 'paragraph',
+        children: [{ type: 'link', url, children: [{ type: 'strong', children: [{ type: 'text', value: title }] }] }],
+      },
       ...(node.children || []),
     ];
   }
@@ -236,8 +312,10 @@ const dispatchText = (node) => {
 
   if (node.name === 'InlinePopover') {
     const type = attributeText(findAttribute('type', node));
+    const canonicalType =
+      type && (popoversEn[type] ? type : popoversEnKeyByLowerCase[type.toLowerCase()]);
     const text =
-      popoversEn[type]?.inlineText ||
+      popoversEn[canonicalType]?.inlineText ||
       attributeText(findAttribute('text', node)) ||
       toString(node);
     return { type: 'text', value: text };
@@ -249,6 +327,70 @@ const dispatchText = (node) => {
 
   // Default: convert to text
   return { type: 'text', value: toString(node) };
+};
+
+// <Tabs> pairs a TabsBar (labels) with a TabsPages (content) as SIBLINGS,
+// matched only by a shared `id` attribute between each TabsBarItem and its
+// TabsPageItem - not by nesting. Generic per-node dispatch has no way to see
+// across that sibling boundary: TabsBar and TabsPages each get unwrapped
+// independently, so every label ends up bunched together up front, followed
+// by every tab's content concatenated back-to-back with no separator or
+// indication of which label it belongs to - worse than losing the label,
+// the content itself becomes unattributable. Must run on the RAW node,
+// before transformNode's generic recursion has already unwrapped TabsBar/
+// TabsPages away and lost the id attributes this needs to pair them.
+const transformChildren = (nodes) =>
+  (nodes || []).flatMap((child) => {
+    const result = transformNode(child);
+    return Array.isArray(result) ? result : [result];
+  });
+
+// A label wrapped in its own <DNT>**bold**</DNT> already transforms to a
+// paragraph (or bare node) containing a single `strong` - wrapping that in
+// another `strong` for the tab-label styling below would double the
+// asterisks (`****text****`). Unwrap that one redundant layer first; a
+// plain-text label (the common case) doesn't match either shape here and
+// passes through untouched.
+const unwrapIfAlreadyBold = (nodes) => {
+  if (nodes.length === 1 && nodes[0].type === 'strong') {
+    return nodes[0].children;
+  }
+  if (nodes.length === 1 && nodes[0].type === 'paragraph' && nodes[0].children?.length === 1 && nodes[0].children[0].type === 'strong') {
+    return nodes[0].children[0].children;
+  }
+  return nodes;
+};
+
+const transformTabs = (tabsNode) => {
+  const bar = (tabsNode.children || []).find((c) => c.name === 'TabsBar');
+  const pages = (tabsNode.children || []).find((c) => c.name === 'TabsPages');
+
+  if (!bar || !pages) {
+    // Unexpected shape - fall back to plain per-child transformation
+    // rather than guess at a pairing that isn't there.
+    return transformChildren(tabsNode.children);
+  }
+
+  const barItems = (bar.children || []).filter((c) => c.name === 'TabsBarItem');
+  const pageItems = (pages.children || []).filter((c) => c.name === 'TabsPageItem');
+
+  return barItems.flatMap((barItem, i) => {
+    const id = attributeText(findAttribute('id', barItem));
+    const pageItem =
+      pageItems.find((p) => attributeText(findAttribute('id', p)) === id) || pageItems[i];
+
+    // A label can itself hold a block-level component (e.g. <DNT>**Label**</DNT>)
+    // - it must go through the same transform as everything else, not be
+    // spliced in raw, or an unresolved mdxBlockElement crashes the stringifier.
+    const label = {
+      type: 'paragraph',
+      children: [{ type: 'strong', children: unwrapIfAlreadyBold(transformChildren(barItem.children)) }],
+    };
+
+    const content = transformChildren(pageItem?.children);
+
+    return [label, ...content];
+  });
 };
 
 /**
@@ -263,6 +405,10 @@ const dispatchText = (node) => {
  * component) - the root cause of ~30% of pages failing to convert.
  */
 const transformNode = (node) => {
+  if (node.name === 'Tabs') {
+    return transformTabs(node);
+  }
+
   if (Array.isArray(node.children)) {
     node.children = node.children.flatMap((child) => {
       const result = transformNode(child);
