@@ -25,10 +25,39 @@ Now you can drop `{{selfEntity}}` into any part of a widget's raw configuration,
 - **Facet linking on new dashboards**: `{{selfEntity}}` is used automatically — no manual step needed.
 - **Terraform or JSON-defined dashboards**: Remove any hardcoded GUIDs and replace them with `{{selfEntity}}`, for example:
 
-\`\`\`json
-"linkedEntityGuids": [
-  "{{selfEntity}}"
-],
-\`\`\`
+```json
+"widgets": [
+  {
+    "id": "XXXXXXXX",
+    "title": "Latest versions",
+    "layout": {
+      "column": 1,
+      "row": 1,
+      "width": 4,
+      "height": 5
+    },
+    "visualization": {
+      "id": "viz.table"
+    },
+    "rawConfiguration": {
+      "facet": {
+        "showOtherSeries": false
+      },
+      "linkedEntityGuids": [
+        "{{selfEntity}}"
+      ],
+      "nrqlQueries": [
+        {
+          "accountIds": [
+            XXXXXXX,
+            1
+          ],
+          "query": "YOUR_QUERY"
+        }
+      ],
+    }
+  }
+]
+```
 
 To learn more, see [Filter New Relic dashboards by facets](https://docs.newrelic.com/docs/query-your-data/rds/filter-new-relic-one-dashboards-facets/)
