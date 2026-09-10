@@ -50,7 +50,7 @@ Now you can drop `{{selfEntity}}` into any part of a widget's raw configuration,
         {
           "accountIds": [
             XXXXXXX,
-            1
+            YYYYYYY
           ],
           "query": "YOUR_QUERY"
         }
