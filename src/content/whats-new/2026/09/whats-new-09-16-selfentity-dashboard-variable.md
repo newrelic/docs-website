@@ -1,7 +1,7 @@
 ---
 title: 'Reference the current dashboard from anywhere with {{selfEntity}}'
 summary: 'A new template variable resolves to the current dashboard''s entity GUID, so widget names, NRQL queries, markdown widgets, facet links, and other raw configuration fields stay accurate even after you duplicate a dashboard.'
-releaseDate: '2026-10-16'
+releaseDate: '2026-09-16'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/filter-new-relic-one-dashboards-facets/'
 ---
 
