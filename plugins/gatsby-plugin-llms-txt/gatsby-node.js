@@ -20,6 +20,21 @@ const popoversEnKeyByLowerCase = Object.fromEntries(
   Object.keys(popoversEn).map((key) => [key.toLowerCase(), key])
 );
 
+// Icon is purely decorative - no alt/aria-label prop exists on the real
+// component, and dropping it is correct for the hundreds of usages where
+// surrounding prose already names it (e.g. "select the plus <Icon .../>
+// icon"). But a handful of icon names are used as the ONLY content in a
+// table cell to mean yes/no/warning in compatibility matrices (~410 real
+// occurrences, e.g. `<td><Icon name="fe-check" /></td>` meaning "supported"
+// with no other text in the cell) - dropping those silently turns a fully-
+// supported row into a row that reads as fully UNsupported, the opposite of
+// what the table means. Everything else stays correctly empty.
+const ICON_TEXT_EQUIVALENTS = {
+  'fe-check': '✓',
+  'fe-x': '✗',
+  'fe-alert-triangle': '⚠',
+};
+
 // remark-stringify@8.1.1 (the version installed here) only knows how to
 // render a fixed set of standard mdast node types (see
 // node_modules/remark-stringify/lib/compiler.js) - anything else throws
@@ -41,10 +56,16 @@ const NON_STANDARD_NODE_TYPES = new Set([
 ]);
 
 // Converts a text node to plain text, or drops it if empty, so the
-// stringifier never sees a node type it doesn't recognize.
+// stringifier never sees a node type it doesn't recognize. This also
+// catches expression nodes used as a JSX child (not just an attribute
+// value) - e.g. `<TabsBarItem>{ <>Find spans using the
+// <InlineCode>like</InlineCode> operator</> }</TabsBarItem>` - which is
+// the exact same "raw, never-dispatched JSX source text" shape
+// cleanJsxExpressionText() exists for, just reached through a different
+// node type than a Collapser's `title` attribute.
 const toTextOrDrop = (node) => {
   const text = toString(node).trim();
-  return text ? { type: 'text', value: text } : [];
+  return text ? cleanJsxExpressionText(text) : [];
 };
 
 // An attribute's value is usually a plain string, but when it's set via a
@@ -57,6 +78,32 @@ const attributeText = (value) => {
   if (typeof value === 'string') return value;
   if (value && typeof value.value === 'string') return value.value;
   return null;
+};
+
+// attributeText()'s JSX-expression fallback is the raw, never-dispatched
+// source text of the expression - so a title like
+// `title={<>Use <InlineCode>PREDICT</InlineCode> clause.</>}` comes back
+// as the literal string "<>Use <InlineCode>PREDICT</InlineCode>
+// clause.</>". This exact shape (a fragment wrapping prose plus one or
+// more <InlineCode> spans, occasionally a <Link>) is extremely common -
+// 100+ real Collapser titles, concentrated in nrql-syntax-clauses-
+// functions.mdx - so leaving it raw would flood titles with literal
+// "<InlineCode>" tag text. Splits into real text/inlineCode mdast nodes
+// (not a single string with literal backticks in it - remark-stringify
+// would escape those as `\``, same problem in a different disguise) and
+// strips any other remaining tag (covers the one real title that also
+// wraps a <Link> - its href is lost, but that beats literal "<Link to=...>"
+// text) rather than leave every one of these titles unreadable.
+const cleanJsxExpressionText = (raw) => {
+  const stripped = raw.replace(/^<>|<\/>$/g, '');
+  const parts = stripped.split(/<InlineCode>([\s\S]*?)<\/InlineCode>/g);
+  return parts
+    .map((part, i) =>
+      i % 2 === 1
+        ? { type: 'inlineCode', value: part }
+        : { type: 'text', value: part.replace(/<\/?[A-Za-z][A-Za-z0-9]*(?:\s+[^>]*)?>/g, '') }
+    )
+    .filter((node) => node.value !== '');
 };
 
 // A raw HTML <td>/<th> can contain multiple blocks (a paragraph followed by
@@ -89,6 +136,21 @@ const collectCellSegments = (nodes) => {
         );
         segments.push([{ type: 'text', value: '- ' }, ...itemInline]);
       });
+    } else if (node.type === 'listItem') {
+      // A bare listItem with no `list` wrapper - e.g. a <TechTileGrid>
+      // holding a single <TechTile> nested inside a <th> (used as a column-
+      // header icon/link, not a real list). remark-stringify's listItem
+      // visitor still has a registered standalone dispatch for this and
+      // would render its own "- " bullet marker even here, which reads as
+      // a stray bullet inside what's meant to be a plain cell. Unwrap its
+      // content the same way as a list *item* above, just without adding
+      // that bullet back.
+      const itemSegments = collectCellSegments(node.children);
+      segments.push(
+        itemSegments.flatMap((segment, i) =>
+          i === 0 ? segment : [{ type: 'text', value: ' ' }, ...segment]
+        )
+      );
     } else {
       segments.push([node]);
     }
@@ -148,6 +210,29 @@ const dispatchFlow = (node) => {
     return node.children;
   }
 
+  if (node.name === 'Icon') {
+    const name = attributeText(findAttribute('name', node));
+    const symbol = ICON_TEXT_EQUIVALENTS[name];
+    return symbol ? { type: 'text', value: symbol } : [];
+  }
+
+  // Raw JSX <img> (as opposed to markdown ![]() syntax, which already
+  // arrives as a proper mdast `image` node) - lowercase HTML tag names have
+  // no component-name concept, so they're not on any author's radar as
+  // something to specifically break, but they're also not the generic
+  // "unrecognized custom component" case below. Without this, a self-
+  // closing <img> has no children to fall back on and vanishes completely -
+  // both the src AND the (often descriptive) alt text - which is how the
+  // overwhelming majority of images in this docs site are actually
+  // authored: 2,364 raw <img> occurrences across 793 pages, vs. 4 pages
+  // using markdown image syntax.
+  if (node.name === 'img') {
+    const url = attributeText(findAttribute('src', node)) || '';
+    const alt = attributeText(findAttribute('alt', node)) || '';
+    const title = attributeText(findAttribute('title', node));
+    return { type: 'image', url, alt, title: title || null };
+  }
+
   // Render title + body as a bold line followed by the body content, so
   // nothing is lost. The title may arrive as a plain string attribute, or
   // (if it was originally a JSX expression) already extracted into a
@@ -160,7 +245,7 @@ const dispatchFlow = (node) => {
     let titleChildren;
 
     if (attrTitle) {
-      titleChildren = [{ type: 'text', value: attrTitle }];
+      titleChildren = cleanJsxExpressionText(attrTitle);
     } else if (bodyChildren[0] && bodyChildren[0].name === 'CollapserTitle') {
       titleChildren = bodyChildren[0].children;
       bodyChildren = bodyChildren.slice(1);
@@ -181,19 +266,26 @@ const dispatchFlow = (node) => {
   }
 
   if (node.name === 'TechTile') {
+    // `to` is optional on the real component (no `.isRequired`) - 0 real
+    // pages currently omit it, but wrapping an empty string in a link
+    // unconditionally would still produce a broken `[name]()` for the day
+    // one does, so only link when there's actually a destination.
     const name = attributeText(findAttribute('name', node)) || '';
-    const to = attributeText(findAttribute('to', node)) || '';
+    const to = attributeText(findAttribute('to', node));
+    const label = { type: 'text', value: name };
     return {
       type: 'listItem',
       children: [
         {
           type: 'paragraph',
           children: [
-            {
-              type: 'link',
-              url: to.startsWith('/') ? `https://docs.newrelic.com${to}` : to,
-              children: [{ type: 'text', value: name }],
-            },
+            to
+              ? {
+                  type: 'link',
+                  url: to.startsWith('/') ? `https://docs.newrelic.com${to}` : to,
+                  children: [label],
+                }
+              : label,
           ],
         },
       ],
@@ -323,6 +415,19 @@ const dispatchText = (node) => {
 
   if (node.name === 'DNT') {
     return node.children;
+  }
+
+  if (node.name === 'Icon') {
+    const name = attributeText(findAttribute('name', node));
+    const symbol = ICON_TEXT_EQUIVALENTS[name];
+    return { type: 'text', value: symbol || '' };
+  }
+
+  if (node.name === 'img') {
+    const url = attributeText(findAttribute('src', node)) || '';
+    const alt = attributeText(findAttribute('alt', node)) || '';
+    const title = attributeText(findAttribute('title', node));
+    return { type: 'image', url, alt, title: title || null };
   }
 
   // Default: convert to text

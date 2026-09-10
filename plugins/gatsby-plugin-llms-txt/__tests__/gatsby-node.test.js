@@ -211,6 +211,62 @@ test('handles a Collapser title set via a JSX expression instead of a plain stri
   expect(markdown).toContain('Body of the expression-titled collapser.');
 });
 
+test('renders a nested InlineCode inside a Collapser title as real backticks, not raw JSX', () => {
+  // Real usage (100+ occurrences, e.g. nrql-syntax-clauses-functions.mdx):
+  // title={<>Use <InlineCode>PREDICT</InlineCode> clause.</>}. attributeText()
+  // only has the raw, never-dispatched source text of the expression to fall
+  // back on - without cleanup this renders as literal, HTML-escaped
+  // "&lt;InlineCode>PREDICT&lt;/InlineCode>" text in the title.
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxBlockElement',
+        name: 'Collapser',
+        attributes: [
+          {
+            type: 'mdxAttribute',
+            name: 'title',
+            value: { type: 'mdxValueExpression', value: '<>Use <InlineCode>PREDICT</InlineCode> clause.</>' },
+          },
+        ],
+        children: [{ type: 'paragraph', children: [{ type: 'text', value: 'Body text.' }] }],
+      },
+    ],
+  });
+
+  expect(markdown).not.toContain('InlineCode');
+  expect(markdown).not.toContain('&lt;');
+  expect(markdown).toContain('Use `PREDICT` clause.');
+});
+
+test('cleans a nested InlineCode inside a JSX expression used as a child, not just an attribute value', () => {
+  // Real usage: <TabsBarItem>{ <>Find spans using the
+  // <InlineCode>like</InlineCode> operator</> }</TabsBarItem> - the same
+  // raw-JSX-source-text leak, reached via toTextOrDrop (a JSX expression
+  // child) rather than attributeText (a JSX expression attribute value).
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxJsxFlowElement',
+        name: 'TabsBarItem',
+        attributes: [],
+        children: [
+          {
+            type: 'mdxBlockExpression',
+            value: '<>Find spans using the <InlineCode>like</InlineCode> operator</>',
+          },
+        ],
+      },
+    ],
+  });
+
+  expect(markdown).not.toContain('InlineCode');
+  expect(markdown).not.toContain('&lt;');
+  expect(markdown).toContain('Find spans using the `like` operator');
+});
+
 test('never renders the old CollapserGroup placeholder comment', () => {
   const markdown = mdxToCleanMarkdown(fixture());
 
@@ -476,6 +532,183 @@ test('does not crash on a stray JSX comment between <Step> siblings inside <Step
   const markdown = mdxToCleanMarkdown(ast);
   expect(markdown).toMatch(/1\.\s+First step\./);
   expect(markdown).toMatch(/2\.\s+Second step\./);
+});
+
+test('renders a raw JSX <img> as a real markdown image, not an empty gap', () => {
+  // 2,364 real occurrences across 793 pages use raw JSX <img src=... alt=...
+  // title=.../> rather than markdown ![]() syntax (only 4 pages). Lowercase
+  // HTML tag names have no explicit handler, and a self-closing <img> has
+  // no children to fall back on, so without this it vanishes completely -
+  // both the URL and the (often descriptive) alt text.
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxBlockElement',
+        name: 'img',
+        attributes: [
+          { type: 'mdxAttribute', name: 'src', value: '/images/dashboard.webp' },
+          { type: 'mdxAttribute', name: 'alt', value: 'An image displaying the dashboard' },
+          { type: 'mdxAttribute', name: 'title', value: 'dashboard' },
+        ],
+        children: [],
+      },
+    ],
+  });
+
+  expect(markdown).toContain('![An image displaying the dashboard](https://docs.newrelic.com/images/dashboard.webp');
+});
+
+test('renders a TechTile with no `to` as plain text, not a broken empty link', () => {
+  // `to` is optional on the real component (no `.isRequired`) - 0 real
+  // pages currently omit it, but wrapping empty string in a link
+  // unconditionally would still produce a broken `[name]()` the day one does.
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxBlockElement',
+        name: 'TechTile',
+        attributes: [{ type: 'mdxAttribute', name: 'name', value: 'Standalone tile' }],
+        children: [],
+      },
+    ],
+  });
+
+  expect(markdown).not.toContain(']()');
+  expect(markdown).toContain('Standalone tile');
+});
+
+test('drops the stray bullet when a bare TechTile listItem ends up inside a table cell', () => {
+  // Real usage (iast/introduction.mdx): a <TechTileGrid> holding a single
+  // <TechTile> nested inside a <th>, used as a column-header icon/link, not
+  // a real list. remark-stringify's listItem visitor still renders its own
+  // "-" bullet marker even for a bare listItem with no `list` wrapper.
+  const ast = {
+    type: 'root',
+    children: [
+      {
+        type: 'mdxJsxFlowElement',
+        name: 'table',
+        attributes: [],
+        children: [
+          {
+            type: 'mdxJsxFlowElement',
+            name: 'thead',
+            attributes: [],
+            children: [
+              {
+                type: 'mdxJsxFlowElement',
+                name: 'tr',
+                attributes: [],
+                children: [
+                  {
+                    type: 'mdxJsxFlowElement',
+                    name: 'th',
+                    attributes: [],
+                    children: [
+                      {
+                        type: 'mdxBlockElement',
+                        name: 'TechTileGrid',
+                        attributes: [],
+                        children: [
+                          {
+                            type: 'mdxBlockElement',
+                            name: 'TechTile',
+                            attributes: [
+                              { type: 'mdxAttribute', name: 'name', value: 'Go agent' },
+                              { type: 'mdxAttribute', name: 'to', value: 'https://example.com/go' },
+                            ],
+                            children: [],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  const markdown = mdxToCleanMarkdown(ast);
+
+  expect(markdown).not.toContain('- [Go agent]');
+  expect(markdown).toContain('[Go agent](https://example.com/go)');
+});
+
+test('renders a bare Icon in a table cell as a text symbol, not an empty cell', () => {
+  // Real usage: <td><Icon name="fe-check" /></td> in compatibility matrices,
+  // with no other text in the cell. Icon has no alt/aria-label prop, so
+  // dropping it (correct for the hundreds of purely decorative inline
+  // usages) turns a fully-supported row into one that reads as fully
+  // unsupported - the opposite of what the table means.
+  const ast = {
+    type: 'root',
+    children: [
+      {
+        type: 'mdxJsxFlowElement',
+        name: 'table',
+        attributes: [],
+        children: [
+          {
+            type: 'mdxJsxFlowElement',
+            name: 'tbody',
+            attributes: [],
+            children: [
+              {
+                type: 'mdxJsxFlowElement',
+                name: 'tr',
+                attributes: [],
+                children: [
+                  { type: 'mdxJsxFlowElement', name: 'td', attributes: [], children: [{ type: 'text', value: 'Java' }] },
+                  {
+                    type: 'mdxJsxFlowElement',
+                    name: 'td',
+                    attributes: [],
+                    children: [
+                      { type: 'mdxBlockElement', name: 'Icon', attributes: [{ type: 'mdxJsxAttribute', name: 'name', value: 'fe-check' }], children: [] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  const markdown = mdxToCleanMarkdown(ast);
+
+  expect(markdown).toMatch(/Java\s*\|\s*✓/);
+});
+
+test('drops a purely decorative Icon (not check/x/warning) instead of leaking its name', () => {
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'paragraph',
+        children: [
+          { type: 'text', value: 'select the plus ' },
+          {
+            type: 'mdxSpanElement',
+            name: 'Icon',
+            attributes: [{ type: 'mdxJsxAttribute', name: 'name', value: 'fe-plus-circle' }],
+            children: [],
+          },
+          { type: 'text', value: ' icon.' },
+        ],
+      },
+    ],
+  });
+
+  expect(markdown).not.toContain('fe-plus-circle');
+  expect(markdown.trim()).toBe('select the plus  icon.');
 });
 
 test('converts a raw HTML <table> into a real markdown table, not flattened text', () => {
