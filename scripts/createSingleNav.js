@@ -3,7 +3,7 @@ const path = require('path');
 const yaml = require('js-yaml');
 
 const createSingleNav = () => {
-  const rootNavYaml = yaml.safeLoad(
+  const rootNavYaml = yaml.load(
     fs.readFileSync(path.join(process.cwd(), 'src/nav/root.yml'), 'utf8')
   );
 
@@ -18,7 +18,7 @@ const createSingleNav = () => {
       !page.path.includes('/')
     ) {
       const pageDirectory = page.path;
-      subNavChildren = yaml.safeLoad(
+      subNavChildren = yaml.load(
         fs.readFileSync(
           path.join(process.cwd(), `src/nav/${pageDirectory}.yml`),
           'utf8'
@@ -31,7 +31,7 @@ const createSingleNav = () => {
     return acc;
   }, []);
   const navToRuleThemAll = { ...rootNavYaml, pages: rootNavChildren };
-  const navToRuleThemAllYaml = yaml.safeDump(navToRuleThemAll, {
+  const navToRuleThemAllYaml = yaml.dump(navToRuleThemAll, {
     lineWidth: 99999,
   });
 
