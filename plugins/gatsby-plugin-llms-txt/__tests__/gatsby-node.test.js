@@ -240,6 +240,34 @@ test('renders a nested InlineCode inside a Collapser title as real backticks, no
   expect(markdown).toContain('Use `PREDICT` clause.');
 });
 
+test('fully strips a tag reassembled from leftovers after removing an inner tag (CodeQL js/incomplete-multi-character-sanitization)', () => {
+  // A single `.replace(tagRegex, '')` pass can leave a brand-new tag
+  // behind: removing the inner match from "<scri<b>pt>" leaves "<scri"
+  // and "pt>" to join back into "<script>", which a single pass never
+  // revisits. Must repeat the replacement until it stops changing anything.
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxBlockElement',
+        name: 'Collapser',
+        attributes: [
+          {
+            type: 'mdxAttribute',
+            name: 'title',
+            value: { type: 'mdxValueExpression', value: '<>Use <scri<b>pt>alert(1)</scri<b>pt></>' },
+          },
+        ],
+        children: [{ type: 'paragraph', children: [{ type: 'text', value: 'Body text.' }] }],
+      },
+    ],
+  });
+
+  expect(markdown).not.toContain('<script');
+  expect(markdown).not.toContain('<scri');
+  expect(markdown).toContain('Use alert(1)');
+});
+
 test('cleans a nested InlineCode inside a JSX expression used as a child, not just an attribute value', () => {
   // Real usage: <TabsBarItem>{ <>Find spans using the
   // <InlineCode>like</InlineCode> operator</> }</TabsBarItem> - the same

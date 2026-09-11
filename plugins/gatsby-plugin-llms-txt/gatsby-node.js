@@ -80,6 +80,22 @@ const attributeText = (value) => {
   return null;
 };
 
+// A single `.replace(tagRegex, '')` pass can leave a brand-new tag behind:
+// removing the inner match from "<scri<b>pt>" leaves "<scri" and "pt>" to
+// join back into "<script>", which the single pass never revisits (CodeQL
+// js/incomplete-multi-character-sanitization). Re-run the replacement until
+// it stops changing anything, the same fix GitHub's own docs for this rule
+// recommend.
+const stripTagsCompletely = (text) => {
+  let current = text;
+  let previous;
+  do {
+    previous = current;
+    current = current.replace(/<\/?[A-Za-z][A-Za-z0-9]*(?:\s+[^>]*)?>/g, '');
+  } while (current !== previous);
+  return current;
+};
+
 // attributeText()'s JSX-expression fallback is the raw, never-dispatched
 // source text of the expression - so a title like
 // `title={<>Use <InlineCode>PREDICT</InlineCode> clause.</>}` comes back
@@ -101,7 +117,7 @@ const cleanJsxExpressionText = (raw) => {
     .map((part, i) =>
       i % 2 === 1
         ? { type: 'inlineCode', value: part }
-        : { type: 'text', value: part.replace(/<\/?[A-Za-z][A-Za-z0-9]*(?:\s+[^>]*)?>/g, '') }
+        : { type: 'text', value: stripTagsCompletely(part) }
     )
     .filter((node) => node.value !== '');
 };
