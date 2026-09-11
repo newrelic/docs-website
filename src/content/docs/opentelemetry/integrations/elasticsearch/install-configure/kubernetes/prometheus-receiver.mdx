@@ -26,11 +26,11 @@ This page configures the OpenTelemetry Collector's Prometheus receiver, deployed
 - Helm 3.x install method for both the exporter and the collector
 
 ### Not supported
-- Elasticsearch versions earlier than 7.16
-- Log collection — the Prometheus receiver only carries metrics; use NRDOT or OTel Collector Contrib if you also need Elasticsearch logs
+- Log collection — the Prometheus receiver only carries metrics. Use NRDOT or OTel Collector Contrib if you also need Elasticsearch logs
 - Automatic pod discovery — this path scrapes a single exporter endpoint rather than discovering Elasticsearch pods directly
 
 ### You need
+Before you begin, make sure you have:
 - A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
 - `kubectl` access to your Kubernetes cluster
 - Helm 3.x installed
@@ -40,9 +40,9 @@ This page configures the OpenTelemetry Collector's Prometheus receiver, deployed
 
 <Step>
 
-## Install [#install]
+## Install and configure the Elasticsearch exporter [#install-exporter]
 
-Deploy the Elasticsearch exporter and the OpenTelemetry Collector to your cluster.
+Deploy the [Prometheus Elasticsearch exporter](https://github.com/prometheus-community/elasticsearch_exporter) to your cluster — it exposes Elasticsearch metrics in Prometheus format on port `9114`.
 
 1. Deploy the Elasticsearch exporter, if it isn't already running:
 
@@ -55,7 +55,7 @@ Deploy the Elasticsearch exporter and the OpenTelemetry Collector to your cluste
       --set es.uri=http://elasticsearch.default.svc.cluster.local:9200
     ```
 
-    *Replace `elasticsearch.default.svc.cluster.local:9200` with your Elasticsearch service address.*
+    Replace `elasticsearch.default.svc.cluster.local:9200` with your Elasticsearch service address.
 
 2. Verify the exporter is running:
 
@@ -63,374 +63,422 @@ Deploy the Elasticsearch exporter and the OpenTelemetry Collector to your cluste
     kubectl get pods -n monitoring -l app=prometheus-elasticsearch-exporter
     ```
 
-3. Create the credentials secret:
+</Step>
 
-    ```bash
-    kubectl create secret generic newrelic-credentials \
-      --namespace monitoring \
-      --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE \
-      --from-literal=NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318
-    ```
+<Step>
 
-    *Replace the license key placeholder, and the endpoint with your account's region if you're not on the US datacenter.*
+## Create the credentials secret [#create-secret]
 
-4. Create a ConfigMap with the collector configuration. This maps the exporter's Prometheus metric names to the OTel-style names that power the New Relic Elasticsearch dashboard. Save the following as `otel-collector-prometheus-es.yaml`, updating `<elasticsearch-cluster-name>` and the exporter's service address:
+Create the credentials secret the collector needs to send data to New Relic:
 
-    ```yaml
-    apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: otel-collector-prometheus-es
-      namespace: monitoring
-    data:
-      config.yaml: |
-        receivers:
-          prometheus/elasticsearch:
-            config:
-              scrape_configs:
-                - job_name: 'elasticsearch'
-                  scrape_interval: 15s
-                  static_configs:
-                    - targets: ['elasticsearch-exporter-prometheus-elasticsearch-exporter.monitoring.svc.cluster.local:9114']
+```bash
+kubectl create secret generic newrelic-credentials \
+  --namespace monitoring \
+  --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE \
+  --from-literal=NEWRELIC_OTLP_ENDPOINT=<YOUR_OTLP_ENDPOINT>
+```
 
-        processors:
-          memory_limiter: { check_interval: 60s, limit_mib: 100 }
-          metricstransform/prom_to_otel:
-            transforms:
-              - include: ^elasticsearch_cluster_health_number_of_data_nodes$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.cluster.data_nodes
-              - include: ^elasticsearch_cluster_health_status$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.cluster.health
-                operations:
-                  - action: update_label
-                    label: color
-                    new_label: status
-              - include: ^elasticsearch_cluster_health_number_of_in_flight_fetch$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.cluster.in_flight_fetch
-              - include: ^elasticsearch_cluster_health_number_of_nodes$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.cluster.nodes
-              - include: ^elasticsearch_cluster_health_number_of_pending_tasks$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.cluster.pending_tasks
-              - include: ^elasticsearch_cluster_health_active_shards$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.cluster.shards
-                operations:
-                  - action: add_label
-                    new_label: state
-                    new_value: active
-              - include: ^elasticsearch_cluster_health_unassigned_shards$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.cluster.shards
-                operations:
-                  - action: add_label
-                    new_label: state
-                    new_value: unassigned
-              - include: ^elasticsearch_indices_docs$
-                match_type: regexp
-                action: insert
-                new_name: elasticsearch.node.documents
-                operations:
-                  - action: add_label
-                    new_label: state
-                    new_value: active
-              - include: ^elasticsearch_indices_docs$
-                match_type: regexp
-                action: insert
-                new_name: elasticsearch.index.documents
-                operations:
-                  - action: add_label
-                    new_label: state
-                    new_value: active
-                  - action: add_label
-                    new_label: aggregation
-                    new_value: primary_shards
-                  - action: add_label
-                    new_label: elasticsearch.index.name
-                    new_value: _all
-              - include: ^elasticsearch_indices_fielddata_evictions$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.cache.evictions
-                operations:
-                  - action: add_label
-                    new_label: cache_name
-                    new_value: fielddata
-              - include: ^elasticsearch_indices_query_cache_evictions$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.cache.evictions
-                operations:
-                  - action: add_label
-                    new_label: cache_name
-                    new_value: query
-              - include: ^elasticsearch_transport_rx_size_bytes_total$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.cluster.io
-                operations:
-                  - action: add_label
-                    new_label: direction
-                    new_value: received
-              - include: ^elasticsearch_transport_tx_size_bytes_total$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.cluster.io
-                operations:
-                  - action: add_label
-                    new_label: direction
-                    new_value: sent
-              - include: ^elasticsearch_filesystem_data_available_bytes$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.fs.disk.available
-              - include: ^elasticsearch_filesystem_data_size_bytes$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.fs.disk.total
-              - include: ^elasticsearch_indices_indexing_index_total$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.operations.completed
-                operations:
-                  - action: add_label
-                    new_label: operation
-                    new_value: index
-              - include: ^elasticsearch_indices_search_query_total$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.operations.completed
-                operations:
-                  - action: add_label
-                    new_label: operation
-                    new_value: query
-              - include: ^elasticsearch_indices_get_total$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.operations.completed
-                operations:
-                  - action: add_label
-                    new_label: operation
-                    new_value: get
-              - include: ^elasticsearch_indices_merges_total$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.operations.completed
-                operations:
-                  - action: add_label
-                    new_label: operation
-                    new_value: merge
-              - include: ^elasticsearch_indices_indexing_index_time_seconds_total$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.operations.time
-                operations:
-                  - action: add_label
-                    new_label: operation
-                    new_value: index
-                  - action: experimental_scale_value
-                    experimental_scale: 1000
-              - include: ^elasticsearch_indices_search_query_time_seconds$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.node.operations.time
-                operations:
-                  - action: add_label
-                    new_label: operation
-                    new_value: query
-                  - action: experimental_scale_value
-                    experimental_scale: 1000
-              - include: ^elasticsearch_os_cpu_percent$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.os.cpu.usage
-              - include: ^elasticsearch_jvm_gc_collection_seconds_count$
-                match_type: regexp
-                action: update
-                new_name: jvm.gc.collections.count
-              - include: ^elasticsearch_jvm_memory_max_bytes$
-                match_type: regexp
-                action: update
-                new_name: jvm.memory.heap.max
-              - include: ^elasticsearch_jvm_memory_used_bytes$
-                match_type: regexp
-                action: update
-                new_name: jvm.memory.heap.used
-              - include: ^elasticsearch_thread_pool_threads_count$
-                match_type: regexp
-                action: update
-                new_name: jvm.threads.count
-                operations:
-                  - action: aggregate_labels
-                    label_set: [name, cluster]
-                    aggregation_type: sum
-              - include: ^elasticsearch_indices_segments_count$
-                match_type: regexp
-                action: update
-                new_name: elasticsearch.index.segments.count
+</Step>
 
-          filter/allowed_metrics:
-            metrics:
-              include:
-                match_type: strict
-                metric_names:
-                  - elasticsearch.cluster.data_nodes
-                  - elasticsearch.cluster.health
-                  - elasticsearch.cluster.in_flight_fetch
-                  - elasticsearch.cluster.nodes
-                  - elasticsearch.cluster.pending_tasks
-                  - elasticsearch.cluster.shards
-                  - elasticsearch.index.documents
-                  - elasticsearch.index.segments.count
-                  - elasticsearch.node.cache.evictions
-                  - elasticsearch.node.cluster.io
-                  - elasticsearch.node.documents
-                  - elasticsearch.node.fs.disk.available
-                  - elasticsearch.node.fs.disk.total
-                  - elasticsearch.node.operations.completed
-                  - elasticsearch.node.operations.time
-                  - elasticsearch.os.cpu.usage
-                  - jvm.gc.collections.count
-                  - jvm.memory.heap.max
-                  - jvm.memory.heap.used
-                  - jvm.threads.count
+<Step>
 
-          transform/rename_node_name:
-            metric_statements:
-              - context: datapoint
-                statements:
-                  - set(attributes["elasticsearch.node.name"], attributes["name"]) where attributes["name"] != nil
-                  - delete_key(attributes, "name") where attributes["elasticsearch.node.name"] != nil
+## Create the collector ConfigMap [#create-configmap]
 
-          groupbyattrs/node:
-            keys:
-              - elasticsearch.node.name
-              - elasticsearch.cluster.name
+Create a ConfigMap with the collector configuration. This maps the exporter's Prometheus metric names to the OTel-style names that power the New Relic Elasticsearch dashboard. Save the following as `otel-collector-prometheus-es.yaml`, updating `<elasticsearch-cluster-name>` and the exporter's service address:
 
-          cumulativetodelta: {}
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-prometheus-es
+  namespace: monitoring
+data:
+  config.yaml: |
+    receivers:
+      prometheus/elasticsearch:
+        config:
+          scrape_configs:
+            - job_name: 'elasticsearch'
+              scrape_interval: 15s
+              static_configs:
+                - targets: ['elasticsearch-exporter-prometheus-elasticsearch-exporter.monitoring.svc.cluster.local:9114']
 
-          resource/cluster_name_override:
-            attributes:
-              - key: elasticsearch.cluster.name
-                value: "<elasticsearch-cluster-name>"
-                action: upsert
+    processors:
+      memory_limiter:
+        check_interval: 60s
+        limit_mib: 100
 
-          transform/scope_override:
-            metric_statements:
-              - context: scope
-                statements:
-                  - set(name, "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/elasticsearchreceiver")
-                  - set(version, "")
+      metricstransform/prom_to_otel:
+        transforms:
+          - include: ^elasticsearch_cluster_health_number_of_data_nodes$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.data_nodes
+          - include: ^elasticsearch_cluster_health_status$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.health
+            operations:
+              - action: update_label
+                label: color
+                new_label: status
+          - include: ^elasticsearch_cluster_health_number_of_in_flight_fetch$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.in_flight_fetch
+          - include: ^elasticsearch_cluster_health_number_of_nodes$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.nodes
+          - include: ^elasticsearch_cluster_health_number_of_pending_tasks$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.pending_tasks
+          - include: ^elasticsearch_cluster_health_active_shards$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.shards
+            operations:
+              - action: add_label
+                new_label: state
+                new_value: active
+          - include: ^elasticsearch_cluster_health_unassigned_shards$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.cluster.shards
+            operations:
+              - action: add_label
+                new_label: state
+                new_value: unassigned
+          - include: ^elasticsearch_indices_docs$
+            match_type: regexp
+            action: insert
+            new_name: elasticsearch.node.documents
+            operations:
+              - action: add_label
+                new_label: state
+                new_value: active
+          - include: ^elasticsearch_indices_docs$
+            match_type: regexp
+            action: insert
+            new_name: elasticsearch.index.documents
+            operations:
+              - action: add_label
+                new_label: state
+                new_value: active
+              - action: add_label
+                new_label: aggregation
+                new_value: primary_shards
+              - action: add_label
+                new_label: elasticsearch.index.name
+                new_value: _all
+          - include: ^elasticsearch_indices_fielddata_evictions$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.cache.evictions
+            operations:
+              - action: add_label
+                new_label: cache_name
+                new_value: fielddata
+          - include: ^elasticsearch_indices_query_cache_evictions$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.cache.evictions
+            operations:
+              - action: add_label
+                new_label: cache_name
+                new_value: query
+          - include: ^elasticsearch_transport_rx_size_bytes_total$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.cluster.io
+            operations:
+              - action: add_label
+                new_label: direction
+                new_value: received
+          - include: ^elasticsearch_transport_tx_size_bytes_total$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.cluster.io
+            operations:
+              - action: add_label
+                new_label: direction
+                new_value: sent
+          - include: ^elasticsearch_filesystem_data_available_bytes$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.fs.disk.available
+          - include: ^elasticsearch_filesystem_data_size_bytes$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.fs.disk.total
+          - include: ^elasticsearch_indices_indexing_index_total$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.operations.completed
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: index
+          - include: ^elasticsearch_indices_search_query_total$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.operations.completed
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: query
+          - include: ^elasticsearch_indices_get_total$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.operations.completed
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: get
+          - include: ^elasticsearch_indices_merges_total$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.operations.completed
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: merge
+          - include: ^elasticsearch_indices_indexing_index_time_seconds_total$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.operations.time
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: index
+              - action: experimental_scale_value
+                experimental_scale: 1000
+          - include: ^elasticsearch_indices_search_query_time_seconds$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.node.operations.time
+            operations:
+              - action: add_label
+                new_label: operation
+                new_value: query
+              - action: experimental_scale_value
+                experimental_scale: 1000
+          - include: ^elasticsearch_os_cpu_percent$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.os.cpu.usage
+          - include: ^elasticsearch_jvm_gc_collection_seconds_count$
+            match_type: regexp
+            action: update
+            new_name: jvm.gc.collections.count
+          - include: ^elasticsearch_jvm_memory_max_bytes$
+            match_type: regexp
+            action: update
+            new_name: jvm.memory.heap.max
+          - include: ^elasticsearch_jvm_memory_used_bytes$
+            match_type: regexp
+            action: update
+            new_name: jvm.memory.heap.used
+          - include: ^elasticsearch_thread_pool_threads_count$
+            match_type: regexp
+            action: update
+            new_name: jvm.threads.count
+            operations:
+              - action: aggregate_labels
+                label_set: [name, cluster]
+                aggregation_type: sum
+          - include: ^elasticsearch_indices_segments_count$
+            match_type: regexp
+            action: update
+            new_name: elasticsearch.index.segments.count
 
-          resourcedetection:
-            detectors: [env]
-            env:
-              resource_attributes:
-                host.name: { enabled: true }
+      filter/allowed_metrics:
+        metrics:
+          include:
+            match_type: strict
+            metric_names:
+              - elasticsearch.cluster.data_nodes
+              - elasticsearch.cluster.health
+              - elasticsearch.cluster.in_flight_fetch
+              - elasticsearch.cluster.nodes
+              - elasticsearch.cluster.pending_tasks
+              - elasticsearch.cluster.shards
+              - elasticsearch.index.documents
+              - elasticsearch.index.segments.count
+              - elasticsearch.node.cache.evictions
+              - elasticsearch.node.cluster.io
+              - elasticsearch.node.documents
+              - elasticsearch.node.fs.disk.available
+              - elasticsearch.node.fs.disk.total
+              - elasticsearch.node.operations.completed
+              - elasticsearch.node.operations.time
+              - elasticsearch.os.cpu.usage
+              - jvm.gc.collections.count
+              - jvm.memory.heap.max
+              - jvm.memory.heap.used
+              - jvm.threads.count
 
-          batch:
-            timeout: 30s
-            send_batch_size: 2048
-            send_batch_max_size: 4096
+      transform/rename_node_name:
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["elasticsearch.node.name"], attributes["name"]) where attributes["name"] != nil
+              - delete_key(attributes, "name") where attributes["elasticsearch.node.name"] != nil
 
-          attributes/cardinality_reduction:
-            actions:
-              - key: process.pid
-                action: delete
-              - key: process.parent_pid
-                action: delete
+      groupbyattrs/node:
+        keys:
+          - elasticsearch.node.name
+          - elasticsearch.cluster.name
 
-          transform/metadata_nullify:
-            metric_statements:
-              - context: metric
-                statements:
-                  - set(description, "")
-                  - set(unit, "")
+      cumulativetodelta: {}
 
-        exporters:
-          otlphttp:
-            endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
-            headers:
-              api-key: ${env:NEWRELIC_LICENSE_KEY}
-            compression: gzip
-            timeout: 30s
-            retry_on_failure:
+      resource/cluster_name_override:
+        attributes:
+          - key: elasticsearch.cluster.name
+            value: "<elasticsearch-cluster-name>"
+            action: upsert
+
+      transform/scope_override:
+        metric_statements:
+          - context: scope
+            statements:
+              - set(name, "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/elasticsearchreceiver")
+              - set(version, "")
+
+      resourcedetection:
+        detectors: [env]
+        env:
+          resource_attributes:
+            host.name:
               enabled: true
-              initial_interval: 5s
-              max_interval: 30s
-              max_elapsed_time: 300s
 
-        service:
-          pipelines:
-            metrics/elasticsearch:
-              receivers: [prometheus/elasticsearch]
-              processors:
-                - memory_limiter
-                - metricstransform/prom_to_otel
-                - filter/allowed_metrics
-                - transform/rename_node_name
-                - groupbyattrs/node
-                - transform/scope_override
-                - resourcedetection
-                - resource/cluster_name_override
-                - attributes/cardinality_reduction
-                - cumulativetodelta
-                - transform/metadata_nullify
-                - batch
-              exporters: [otlphttp]
-    ```
+      batch:
+        timeout: 30s
+        send_batch_size: 2048
+        send_batch_max_size: 4096
 
-    Apply it:
+      attributes/cardinality_reduction:
+        actions:
+          - key: process.pid
+            action: delete
+          - key: process.parent_pid
+            action: delete
 
-    ```bash
-    kubectl apply -f otel-collector-prometheus-es.yaml
-    ```
+      transform/metadata_nullify:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "")
+              - set(unit, "")
 
-5. Deploy the collector. Update the `image` field below to `newrelic/nrdot-collector:latest` if you prefer NRDOT over OTel Collector Contrib. Save as `otel-collector-deployment.yaml` and apply with `kubectl apply -f otel-collector-deployment.yaml`:
+    exporters:
+      otlphttp:
+        endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEWRELIC_LICENSE_KEY}
+        compression: gzip
+        timeout: 30s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
 
-    ```yaml
-    apiVersion: apps/v1
-    kind: Deployment
+    service:
+      pipelines:
+        metrics/elasticsearch:
+          receivers: [prometheus/elasticsearch]
+          processors:
+            - memory_limiter
+            - metricstransform/prom_to_otel
+            - filter/allowed_metrics
+            - transform/rename_node_name
+            - groupbyattrs/node
+            - transform/scope_override
+            - resourcedetection
+            - resource/cluster_name_override
+            - attributes/cardinality_reduction
+            - cumulativetodelta
+            - transform/metadata_nullify
+            - batch
+          exporters: [otlphttp]
+```
+
+Apply it:
+
+```bash
+kubectl apply -f otel-collector-prometheus-es.yaml
+```
+
+### Configuration parameters [#configuration-parameters]
+
+The following table describes the key configuration parameters used in the ConfigMap above:
+
+| Parameter | Description |
+| --- | --- |
+| `targets` | The address of your `elasticsearch_exporter` service. Update it to match your exporter's Kubernetes service address. |
+| `elasticsearch-cluster-name` (in `resource/cluster_name_override`) | A unique name identifying this cluster in New Relic. Replace `<elasticsearch-cluster-name>` with a name that's unique across your account. |
+| `NEWRELIC_LICENSE_KEY` | Your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key), set in the credentials secret above. |
+| `NEWRELIC_OTLP_ENDPOINT` | The New Relic OTLP endpoint for your account's region, set in the credentials secret above. See [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp). |
+
+</Step>
+
+<Step>
+
+## Deploy the collector [#deploy]
+
+Deploy the collector. Update the `image` field below to `newrelic/nrdot-collector:latest` if you prefer NRDOT over OTel Collector Contrib. Save as `otel-collector-deployment.yaml` and apply with `kubectl apply -f otel-collector-deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector-elasticsearch
+  namespace: monitoring
+  labels:
+    app: otel-collector-elasticsearch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector-elasticsearch
+  template:
     metadata:
-      name: otel-collector-elasticsearch
-      namespace: monitoring
+      labels:
+        app: otel-collector-elasticsearch
     spec:
-      replicas: 1
-      selector:
-        matchLabels: { app: otel-collector-elasticsearch }
-      template:
-        metadata:
-          labels: { app: otel-collector-elasticsearch }
-        spec:
-          containers:
-            - name: otel-collector
-              image: otel/opentelemetry-collector-contrib:latest
-              args: ["--config=/etc/otel/config.yaml"]
-              env:
-                - name: NEWRELIC_LICENSE_KEY
-                  valueFrom:
-                    secretKeyRef: { name: newrelic-credentials, key: NEWRELIC_LICENSE_KEY }
-                - name: NEWRELIC_OTLP_ENDPOINT
-                  valueFrom:
-                    secretKeyRef: { name: newrelic-credentials, key: NEWRELIC_OTLP_ENDPOINT }
-              volumeMounts:
-                - name: config
-                  mountPath: /etc/otel
-          volumes:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:latest
+          args:
+            - "--config=/etc/otel/config.yaml"
+          env:
+            - name: NEWRELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-credentials
+                  key: NEWRELIC_LICENSE_KEY
+            - name: NEWRELIC_OTLP_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-credentials
+                  key: NEWRELIC_OTLP_ENDPOINT
+          volumeMounts:
             - name: config
-              configMap: { name: otel-collector-prometheus-es }
-    ```
+              mountPath: /etc/otel
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-prometheus-es
+```
 
 </Step>
 
@@ -459,14 +507,14 @@ If you don't see data within ~5 minutes, see [Kubernetes troubleshooting](/docs/
 
 ## Find and use your data [#find-and-use]
 
-Once your data is being collected, you can access comprehensive Elasticsearch monitoring through New Relic UI.
+Once New Relic collects your data, you can access Elasticsearch monitoring through the New Relic UI.
 
 To find your Elasticsearch dashboard in New Relic:
 
 1. Go to <DNT>**one.newrelic.com > Integrations & Agents**</DNT>.
 2. Under the <DNT>**All**</DNT> tab, click <DNT>**Dashboards**</DNT>, then search for <DNT>**Elasticsearch (OpenTelemetry Collector)**</DNT> to view the dashboard.
 
-Or:
+Or, from the left navigation:
 
 1. From the left panel, click <DNT>**Dashboards**</DNT>.
 2. Search for the <DNT>**Elasticsearch (OpenTelemetry Collector)**</DNT> dashboard to view it.
@@ -482,7 +530,7 @@ Or:
 </Steps>
 
 <Callout variant="tip">
-**Correlate APM with Elasticsearch**: To connect your APM application and Elasticsearch cluster, include the resource attribute `es.cluster.name="your-cluster-name"` in your APM metrics. This enables cross-service visibility and faster troubleshooting within New Relic.
+**Correlate APM with Elasticsearch**: To connect your APM application and Elasticsearch cluster, include the resource attribute `es.cluster.name="your-cluster-name"` in your APM metrics. This lets you view APM and Elasticsearch data together in New Relic.
 </Callout>
 
 ## Related articles [#related-articles]
