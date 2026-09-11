@@ -1,0 +1,1717 @@
+---
+title: "On-host Container Database (CDB) monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - CDB
+  - Container Database
+metaDescription: Set up Oracle Container Database monitoring using NRDOT collector in on-host environments
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+You can set up Oracle Database monitoring using the NRDOT Collector in on-host or multitenant environments. All Pluggable Databases (PDBs) under the configured Container Database (CDB) will be monitored. 
+
+To install the NRDOT Collector in on-host (multitenant) environments, follow these steps:
+
+
+
+<Steps>
+
+<Step>
+
+### Prerequisites [#prerequisites]
+
+Before you begin, ensure you have the following:
+
+* Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* Supported architecture: Linux with AMD64 and ARM64
+* Network connectivity to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+* Oracle Database `19c` or later
+* This integration is available as a part of New Relic public preview program. Contact your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
+
+</Step>
+
+<Step>
+
+### Installation method [#installation]
+
+Select the appropriate installation distribution method for your Linux environment:
+
+<CollapserGroup>
+
+<Collapser
+  title="For AMD64 architecture"
+  id="amd"
+>
+
+* For Debian/Ubuntu system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+* For RHEL/CentOS/OEL system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+</Collapser>
+
+<Collapser
+  title="For ARM64 architecture"
+  id="arm"
+>
+
+* For Debian/Ubuntu system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+* For RHEL/CentOS/OEL system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+</Collapser>
+
+</CollapserGroup>
+
+</Step>
+
+<Step>
+
+### Configure database user [#database-user]
+
+Create a monitoring user with necessary privileges for your multitenant Oracle Database. This requires creating a common user with the `C##` prefix.
+
+1. To set your current active container context to `CDB$ROOT`, execute the following statement as a `SYS` user:
+    ```sql
+    ALTER SESSION SET CONTAINER = CDB$ROOT;
+    ```
+
+2. For multitenant databases:
+
+    1. Log in to the root database as an administrator. 
+    
+    2. To create a new user, run the following `CREATE USER` statement:
+
+        ```sql
+        CREATE USER c##<YOUR_DB_USERNAME> IDENTIFIED BY "<USER_PASSWORD>" CONTAINER=ALL;
+        GRANT CREATE SESSION TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        ```
+
+        <Callout variant="tip">
+
+          The newly created user'll be a common user with the `C##` prefix. The `C##` prefix is required for common users by Oracle.
+
+        </Callout>
+
+3. To allow the monitoring user to see every PDB's rows in container-data views, run the following statement as `SYSDBA` on the CDB root. This is required for per-PDB metrics and events.
+    ```sql
+    ALTER USER c##<YOUR_DB_USERNAME> SET CONTAINER_DATA=ALL CONTAINER=CURRENT;
+    ```
+      <Callout variant="tip">
+
+        Ensure your `USER_PASSWORD` meets Oracle [new user password](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/dbseg/keeping-your-oracle-database-secure.html#GUID-451679EB-8676-47E6-82A6-DF025FD65156) requirements.
+
+      </Callout>
+
+</Step>
+
+<Step>
+
+### Grant monitoring privileges for multitenant database [#grant-privileges]
+
+Run the following `GRANT` statements as `SYSDBA` on the CDB root. These cover instance detection, metrics collection, per-PDB monitoring, and events collection. You can execute them together as a single script or run each statement individually.
+
+```sql
+GRANT SELECT ON V_$INSTANCE   TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$DATABASE   TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$CONTAINERS TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$DATAFILE   TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$SYSSTAT                    TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$CON_SYSSTAT                TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$SYSMETRIC                  TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$CON_SYSMETRIC              TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$SESSION                    TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$RESOURCE_LIMIT             TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$OSSTAT                     TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$SGAINFO                    TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$ROWCACHE                   TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$PARAMETER                  TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON CDB_TABLESPACE_USAGE_METRICS  TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON CDB_TABLESPACES               TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON DBA_DATA_FILES                TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON DBA_FREE_SPACE                TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON DBA_RECYCLEBIN                TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$SQL            TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$SQL_PLAN       TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$LOCK           TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON V_$SESSION_EVENT  TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON DBA_PROCEDURES    TO c##<USER_NAME> CONTAINER=ALL;
+GRANT SELECT ON DBA_OBJECTS       TO c##<USER_NAME> CONTAINER=ALL;
+```
+
+</Step>
+
+<Step>
+
+### Configure NRDOT Collector [#configure-collector]
+
+1. Create the configuration file. The filename must be `oracle-config.yaml`.
+    ```bash
+    sudo nano /etc/nrdot-collector/oracle-config.yaml
+    ```
+
+2. Add the configuration content below to the `oracle-config.yaml` file you created in the previous step.
+
+   <CollapserGroup>
+
+   <Collapser
+     id="nrdot-host-config"
+     title="NRDOT host with database configuration"
+   >
+
+   ```yaml
+    extensions:
+      health_check:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+      hostmetrics:
+        collection_interval: 60s
+        scrapers:
+          cpu:
+            metrics:
+              system.cpu.time:
+                enabled: false
+              system.cpu.utilization:
+                enabled: true
+          load:
+          memory:
+            metrics:
+              system.memory.utilization:
+                enabled: true
+          paging:
+            metrics:
+              system.paging.utilization:
+                enabled: false
+              system.paging.faults:
+                enabled: false
+          filesystem:
+            metrics:
+              system.filesystem.utilization:
+                enabled: true
+          disk:
+            metrics:
+              system.disk.merged:
+                enabled: false
+              system.disk.pending_operations:
+                enabled: false
+              system.disk.weighted_io_time:
+                enabled: false
+          network:
+            metrics:
+              system.network.connections:
+                enabled: false
+          # Uncomment to enable process metrics, which can be noisy but valuable.
+          # processes:
+          # process:
+          #   metrics:
+          #     process.cpu.utilization:
+          #       enabled: true
+          #     process.cpu.time:
+          #       enabled: false
+      filelog:
+        include:
+          - /var/log/alternatives.log
+          - /var/log/cloud-init.log
+          - /var/log/auth.log
+          - /var/log/dpkg.log
+          - /var/log/syslog
+          - /var/log/messages
+          - /var/log/secure
+          - /var/log/yum.log
+      nroracledb:
+        endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+        username: "C##<YOUR_DB_USERNAME>"
+        password: "<YOUR_DB_PASSWORD>"
+        service: "<YOUR_CDB_SERVICE_NAME>"
+        collection_interval: 10s
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.session.wait_sample:
+            enabled: true
+
+        top_query_collection:
+          max_query_sample_count: 1000
+          top_query_count: 200
+          collection_interval: 60s
+          allowed_comment_keys:
+            - nr_service_guid
+
+        query_sample_collection:
+          max_rows_per_query: 100
+          allowed_comment_keys:
+            - nr_service_guid
+
+        session_wait_event_collection:
+          max_rows_per_query: 100
+
+        # Metrics configuration - organized by category
+        metrics:
+          # === CPU & Performance Metrics ===
+          oracledb.cpu_time:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.database.cpu.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.host.cpu.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.system.cpu.load:
+            enabled: true
+
+          # === Execution & Parse Metrics ===
+          oracledb.executions:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.execution.utilization:
+            enabled: true
+            attributes:
+              - oracledb.parse.type
+              - oracle.db.pdb
+          oracledb.parse_calls:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parse.rate:
+            enabled: true
+            attributes:
+              - oracledb.parse.result
+              - oracle.db.pdb
+          oracledb.parse.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.hard_parses:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === I/O & Physical Read/Write Metrics ===
+          oracledb.logical_reads:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_reads:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_reads_direct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_writes:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_writes_direct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_read_io_requests:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_write_io_requests:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === New Physical I/O Metrics (detailed) ===
+          oracledb.physical_io.cache_writes:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_io.requests:
+            enabled: true
+            attributes:
+              - disk.io.direction
+              - disk.io.block_size
+              - oracle.db.pdb
+          oracledb.physical_io.transferred:
+            enabled: true
+            attributes:
+              - disk.io.direction
+              - disk.io.type
+              - oracle.db.pdb
+
+          # === Network I/O Metrics ===
+          oracledb.sqlnet.io.transferred:
+            enabled: true
+            attributes:
+              - network.io.direction
+              - destination.type
+              - oracle.db.pdb
+
+          # === Buffer & Cache Metrics ===
+          oracledb.consistent_gets:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.db_block_gets:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.buffer_cache.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.library_cache.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.data_dictionary.hit_ratio:
+            enabled: true
+          oracledb.shared_pool.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Memory Metrics ===
+          oracledb.pga_memory:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.sga.limit:
+            enabled: true
+          oracledb.sga.usage:
+            enabled: true
+            attributes:
+              - oracledb.sga.component.name
+
+          # === Wait & Database Time Metrics ===
+          oracledb.database.wait.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Lock & Deadlock Metrics ===
+          oracledb.dml_locks.limit:
+            enabled: true
+          oracledb.dml_locks.usage:
+            enabled: true
+          oracledb.enqueue_locks.limit:
+            enabled: true
+          oracledb.enqueue_locks.usage:
+            enabled: true
+          oracledb.enqueue_resources.limit:
+            enabled: true
+          oracledb.enqueue_resources.usage:
+            enabled: true
+          oracledb.enqueue_deadlocks:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.exchange_deadlocks:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Process & Session Metrics ===
+          oracledb.processes.limit:
+            enabled: true
+          oracledb.processes.usage:
+            enabled: true
+          oracledb.sessions.limit:
+            enabled: true
+          oracledb.sessions.usage:
+            enabled: true
+            attributes:
+              - session_type
+              - session_status
+              - oracle.db.pdb
+          oracledb.logons:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Transaction Metrics ===
+          oracledb.transactions.limit:
+            enabled: true
+          oracledb.transactions.usage:
+            enabled: true
+          oracledb.user_commits:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.user_rollbacks:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Tablespace Metrics ===
+          oracledb.tablespace_size.limit:
+            enabled: true
+            attributes:
+              - tablespace_name
+              - oracle.db.pdb
+          oracledb.tablespace_size.usage:
+            enabled: true
+            attributes:
+              - tablespace_name
+              - oracle.db.pdb
+
+          # === Storage Metrics ===
+          oracledb.storage.usage:
+            enabled: true
+          oracledb.storage.utilization:
+            enabled: true
+          oracledb.recycle_bin.limit:
+            enabled: true
+
+          # === Parallel Operations Metrics ===
+          oracledb.queries_parallelized:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.ddl_statements_parallelized:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.dml_statements_parallelized:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_not_downgraded:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_1_to_25_pct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_25_to_50_pct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_50_to_75_pct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_75_to_99_pct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_to_serial:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Redo & Sort Metrics ===
+          oracledb.redo_allocation.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.sort.ratio:
+            enabled: true
+            attributes:
+              - oracledb.sort.type
+              - oracle.db.pdb
+
+          # === Response Time Metrics ===
+          oracledb.sql_service.response.duration:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === System (OS-level) Metrics ===
+          system.cpu.physical.count:
+            enabled: true
+          system.memory.limit:
+            enabled: true
+
+        # Resource attributes attached to all metrics/logs (all enabled by default)
+        resource_attributes:
+          host.name:
+            enabled: true
+          oracle.db.hosting_type:
+            enabled: true
+          oracle.db.open_mode:
+            enabled: true
+          oracle.db.pdb:
+            enabled: true
+          oracle.db.role:
+            enabled: true
+          oracle.db.version:
+            enabled: true
+          oracledb.instance.name:
+            enabled: true
+          service.instance.id:
+            enabled: true
+
+    processors:
+      metricstransform:
+        transforms:
+          - include: system.cpu.utilization
+            action: update
+            operations:
+              - action: aggregate_labels
+                label_set: [ state ]
+                aggregation_type: mean
+          - include: system.paging.operations
+            action: update
+            operations:
+              - action: aggregate_labels
+                label_set: [ direction ]
+                aggregation_type: sum
+      filter/exclude_cpu_utilization:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+            - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+            - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+      filter/exclude_memory_utilization:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+            - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+      filter/exclude_memory_usage:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+            - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+      filter/exclude_filesystem_utilization:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+      filter/exclude_filesystem_usage:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+            - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+      filter/exclude_filesystem_inodes_usage:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+            - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+      filter/exclude_system_disk:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+            - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+            - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+            - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+            - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+      filter/exclude_system_paging:
+        metrics:
+          datapoint:
+            - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+            - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+      filter/exclude_network:
+        metrics:
+          datapoint:
+            - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+      attributes/exclude_system_paging:
+        include:
+          match_type: strict
+          metric_names:
+            - system.paging.operations
+        actions:
+          - key: type
+            action: delete
+      transform/clear_metadata:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(metric.description, "")
+              - set(metric.unit, "")
+      transform/host:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(metric.description, "")
+              - set(metric.unit, "")
+      transform:
+        trace_statements:
+          - context: span
+            statements:
+              - truncate_all(span.attributes, 4095)
+              - truncate_all(resource.attributes, 4095)
+        log_statements:
+          - context: log
+            statements:
+              - truncate_all(log.attributes, 4095)
+              - truncate_all(resource.attributes, 4095)
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
+      batch:
+      resource/add_event_name:
+        attributes:
+          - key: host.address
+            value: "<YOUR_DB_HOST>"
+            action: upsert
+      resourcedetection:
+        detectors: ["system"]
+        system:
+          hostname_sources: ["os"]
+          resource_attributes:
+            host.id:
+              enabled: true
+      resourcedetection/db_safe:
+        detectors: ["system"]
+        override: false
+        system:
+          hostname_sources: ["os"]
+          resource_attributes:
+            host.id:
+              enabled: true
+      resourcedetection/cloud:
+        detectors: ["gcp", "ec2", "azure"]
+        timeout: 2s
+        override: true
+      resourcedetection/env:
+        detectors: ["env"]
+        timeout: 2s
+        override: true
+
+    exporters:
+      otlp:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+        headers:
+          api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+        compression: gzip
+
+    service:
+      pipelines:
+        metrics/host:
+          receivers: [hostmetrics]
+          processors:
+            - memory_limiter
+            - metricstransform
+            - filter/exclude_cpu_utilization
+            - filter/exclude_memory_utilization
+            - filter/exclude_memory_usage
+            - filter/exclude_filesystem_utilization
+            - filter/exclude_filesystem_usage
+            - filter/exclude_filesystem_inodes_usage
+            - filter/exclude_system_disk
+            - filter/exclude_network
+            - attributes/exclude_system_paging
+            - transform/host
+            - resourcedetection
+            - resourcedetection/cloud
+            - resourcedetection/env
+            - batch
+          exporters: [otlp]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+          exporters: [otlp]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+          exporters: [otlp]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+          exporters: [otlp]
+        metrics/oracledb:
+          receivers: [nroracledb]
+          processors: [resource/add_event_name, batch]
+          exporters: [otlp]
+        logs/oracledb:
+          receivers: [nroracledb]
+          processors: [resource/add_event_name, batch]
+          exporters: [otlp]
+      extensions: [health_check]
+   ```
+
+   </Collapser>
+
+   <Collapser
+     id="database-config"
+     title="Database configuration"
+   >
+   
+   ```yaml
+    receivers:
+      nroracledb:
+        endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+        username: "C##<YOUR_DB_USERNAME>"
+        password: "<YOUR_DB_PASSWORD>"
+        service: "<YOUR_CDB_SERVICE_NAME>"
+        collection_interval: 10s
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.session.wait_sample:
+            enabled: true
+
+        top_query_collection:
+          max_query_sample_count: 1000
+          top_query_count: 200
+          collection_interval: 60s
+          allowed_comment_keys:
+            - nr_service_guid
+
+        query_sample_collection:
+          max_rows_per_query: 100
+          allowed_comment_keys:
+            - nr_service_guid
+
+        session_wait_event_collection:
+          max_rows_per_query: 100
+
+        # Metrics configuration - organized by category
+        metrics:
+          # === CPU & Performance Metrics ===
+          oracledb.cpu_time:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.database.cpu.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.host.cpu.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.system.cpu.load:
+            enabled: true
+
+          # === Execution & Parse Metrics ===
+          oracledb.executions:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.execution.utilization:
+            enabled: true
+            attributes:
+              - oracledb.parse.type
+              - oracle.db.pdb
+          oracledb.parse_calls:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parse.rate:
+            enabled: true
+            attributes:
+              - oracledb.parse.result
+              - oracle.db.pdb
+          oracledb.parse.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.hard_parses:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === I/O & Physical Read/Write Metrics ===
+          oracledb.logical_reads:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_reads:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_reads_direct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_writes:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_writes_direct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_read_io_requests:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_write_io_requests:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === New Physical I/O Metrics (detailed) ===
+          oracledb.physical_io.cache_writes:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.physical_io.requests:
+            enabled: true
+            attributes:
+              - disk.io.direction
+              - disk.io.block_size
+              - oracle.db.pdb
+          oracledb.physical_io.transferred:
+            enabled: true
+            attributes:
+              - disk.io.direction
+              - disk.io.type
+              - oracle.db.pdb
+
+          # === Network I/O Metrics ===
+          oracledb.sqlnet.io.transferred:
+            enabled: true
+            attributes:
+              - network.io.direction
+              - destination.type
+              - oracle.db.pdb
+
+          # === Buffer & Cache Metrics ===
+          oracledb.consistent_gets:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.db_block_gets:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.buffer_cache.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.library_cache.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.data_dictionary.hit_ratio:
+            enabled: true
+          oracledb.shared_pool.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Memory Metrics ===
+          oracledb.pga_memory:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.sga.limit:
+            enabled: true
+          oracledb.sga.usage:
+            enabled: true
+            attributes:
+              - oracledb.sga.component.name
+
+          # === Wait & Database Time Metrics ===
+          oracledb.database.wait.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Lock & Deadlock Metrics ===
+          oracledb.dml_locks.limit:
+            enabled: true
+          oracledb.dml_locks.usage:
+            enabled: true
+          oracledb.enqueue_locks.limit:
+            enabled: true
+          oracledb.enqueue_locks.usage:
+            enabled: true
+          oracledb.enqueue_resources.limit:
+            enabled: true
+          oracledb.enqueue_resources.usage:
+            enabled: true
+          oracledb.enqueue_deadlocks:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.exchange_deadlocks:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Process & Session Metrics ===
+          oracledb.processes.limit:
+            enabled: true
+          oracledb.processes.usage:
+            enabled: true
+          oracledb.sessions.limit:
+            enabled: true
+          oracledb.sessions.usage:
+            enabled: true
+            attributes:
+              - session_type
+              - session_status
+              - oracle.db.pdb
+          oracledb.logons:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Transaction Metrics ===
+          oracledb.transactions.limit:
+            enabled: true
+          oracledb.transactions.usage:
+            enabled: true
+          oracledb.user_commits:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.user_rollbacks:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Tablespace Metrics ===
+          oracledb.tablespace_size.limit:
+            enabled: true
+            attributes:
+              - tablespace_name
+              - oracle.db.pdb
+          oracledb.tablespace_size.usage:
+            enabled: true
+            attributes:
+              - tablespace_name
+              - oracle.db.pdb
+
+          # === Storage Metrics ===
+          oracledb.storage.usage:
+            enabled: true
+          oracledb.storage.utilization:
+            enabled: true
+          oracledb.recycle_bin.limit:
+            enabled: true
+
+          # === Parallel Operations Metrics ===
+          oracledb.queries_parallelized:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.ddl_statements_parallelized:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.dml_statements_parallelized:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_not_downgraded:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_1_to_25_pct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_25_to_50_pct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_50_to_75_pct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_75_to_99_pct:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.parallel_operations_downgraded_to_serial:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === Redo & Sort Metrics ===
+          oracledb.redo_allocation.utilization:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+          oracledb.sort.ratio:
+            enabled: true
+            attributes:
+              - oracledb.sort.type
+              - oracle.db.pdb
+
+          # === Response Time Metrics ===
+          oracledb.sql_service.response.duration:
+            enabled: true
+            attributes:
+              - oracle.db.pdb
+
+          # === System (OS-level) Metrics ===
+          system.cpu.physical.count:
+            enabled: true
+          system.memory.limit:
+            enabled: true
+
+        # Resource attributes attached to all metrics/logs (all enabled by default)
+        resource_attributes:
+          host.name:
+            enabled: true
+          oracle.db.hosting_type:
+            enabled: true
+          oracle.db.open_mode:
+            enabled: true
+          oracle.db.pdb:
+            enabled: true
+          oracle.db.role:
+            enabled: true
+          oracle.db.version:
+            enabled: true
+          oracledb.instance.name:
+            enabled: true
+          service.instance.id:
+            enabled: true
+            
+    processors:
+      batch:
+      resource/add_event_name:
+        attributes:
+          - key: host.address
+            value: "<YOUR_DB_HOST>"
+            action: upsert
+
+    exporters:
+      otlp/newrelic:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+        headers:
+          api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+        compression: gzip
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+    service:
+      pipelines:
+        metrics/oracledb:
+          receivers: [nroracledb]
+          processors: [resource/add_event_name, batch]
+          exporters: [otlp/newrelic]
+        logs/oracledb:
+          receivers: [nroracledb]
+          processors: [resource/add_event_name, batch]
+          exporters: [otlp/newrelic]
+   ```
+
+   </Collapser>
+
+   </CollapserGroup>
+
+3. Update the NRDOT collector configuration to use your `oracle-config.yaml` file.
+   ```bash
+   sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/oracle-config.yaml"|' /etc/nrdot-collector/nrdot-collector.conf
+   ```
+
+4. Set the following required parameters in the configuration file:
+
+  <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>`<YOUR_DB_HOST>`</td>
+        <td>Enter your Oracle Database hostname.</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_DB_PORT>`</td>
+        <td>Enter your Oracle Database port.</td>
+      </tr>
+      <tr>
+        <td>`<USERNAME>`</td>
+        <td>Enter your database username.</td>
+      </tr>
+      <tr>
+        <td>`<PASSWORD>`</td>
+        <td>Enter your database password.</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_CDB_SERVICE_NAME>`</td>
+        <td>Enter your Oracle service name.</td>
+      </tr>
+      <tr>
+        <td>`<YOUR_NEWRELIC_OTLP_ENDPOINT>`</td>
+        <td>
+        Enter the New Relic OTLP endpoint. For more information, refer to [New Relic OTLP endpoints documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/).
+        </td>
+      </tr>
+      <tr>
+        <td>`<YOUR_NEWRELIC_LICENSE_KEY>`</td>
+        <td>Enter your New Relic API key.</td>
+      </tr>
+    </tbody>
+  </table>
+
+5. Under the Events section, enable these event types to collect their metrics:
+
+  <table>
+    <thead>
+      <tr>
+        <th>Event</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>`db.server.query_sample`</td>
+        <td>Per-session active query samples capturing current SQL, wait state, and blocking details.</td>
+      </tr>
+      <tr>
+        <td>`db.server.top_query`</td>
+        <td>Top N SQL statements by CPU or elapsed time, including execution stats and query plans.</td>
+      </tr>
+      <tr>
+        <td>`db.server.session.wait_sample`</td>
+        <td>Per-session cumulative wait counts and durations from `v$session_event`.</td>
+      </tr>
+    </tbody>
+  </table>
+
+6. Configure the collection settings for each event type:
+
+  <table>
+    <thead>
+      <tr>
+        <th>Configuration Section</th>
+        <th>Parameter</th>
+        <th>Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>`top_query_collection`</td>
+        <td>`max_query_sample_count`</td>
+        <td>1000</td>
+      </tr>
+      <tr>
+        <td>`top_query_collection`</td>
+        <td>`top_query_count`</td>
+        <td>200</td>
+      </tr>
+      <tr>
+        <td>`top_query_collection`</td>
+        <td>`collection_interval`</td>
+        <td>60s</td>
+      </tr>
+      <tr>
+        <td>`query_sample_collection`</td>
+        <td>`max_rows_per_query`</td>
+        <td>100</td>
+      </tr>
+      <tr>
+        <td>`session_wait_event_collection`</td>
+        <td>`max_rows_per_query`</td>
+        <td>100</td>
+      </tr>
+    </tbody>
+  </table>
+
+<Callout variant="tip">
+
+For more detailed information about New Relic OTLP endpoint configuration and OpenTelemetry best practices, refer to the [OpenTelemetry OTLP documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/).
+</Callout>
+
+</Step>
+
+<Step>
+
+### Restart NRDOT collector [#restart-collector]
+
+After updating your configuration, restart the NRDOT collector:
+
+```bash
+sudo systemctl restart nrdot-collector.service
+sudo systemctl status nrdot-collector.service
+```
+
+<Callout variant="tip">
+
+  Always restart the NRDOT Collector after making configuration changes so the new settings take effect.
+
+</Callout>
+
+</Step>
+
+<Step>
+
+#### (Optional) Multi-receiver configuration [#multi-receiver]
+
+The `nrdot-collector` binary supports a multi-receiver configuration within a single `oracle-config.yaml` to monitor multiple Oracle Database instances using unique credentials.
+
+<CollapserGroup>
+
+<Collapser
+  id="multi-receiver-config"
+  title="Multi-receiver configuration"
+>
+
+The `config.yaml` below demonstrates how to set up multiple receivers for different on-host (multitenant) instances while sharing common processors and exporters.
+
+```yaml
+receivers:
+  # First CDB configuration (anchor — pdb1/cdb2/pdb2 inherit via merge key)
+  nroracledb/cdb1: &nroracledb-common
+    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+    username: "C##<user_name>"
+    password: "<password>"
+    service: "<YOUR_CDB1_SERVICE_NAME>"
+    collection_interval: 30s
+
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+      db.server.session.wait_sample:
+        enabled: true
+
+    top_query_collection:
+      max_query_sample_count: 1000
+      top_query_count: 200
+      collection_interval: 60s
+      allowed_comment_keys:
+        - nr_service_guid
+
+    query_sample_collection:
+      max_rows_per_query: 100
+      allowed_comment_keys:
+        - nr_service_guid
+
+    session_wait_event_collection:
+      max_rows_per_query: 100
+
+    # Metrics configuration - organized by category
+    metrics:
+      # === CPU & Performance Metrics ===
+      oracledb.cpu_time:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.database.cpu.utilization:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.host.cpu.utilization:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.system.cpu.load:
+        enabled: true
+
+      # === Execution & Parse Metrics ===
+      oracledb.executions:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.execution.utilization:
+        enabled: true
+        attributes:
+          - oracledb.parse.type
+          - oracle.db.pdb
+      oracledb.parse_calls:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.parse.rate:
+        enabled: true
+        attributes:
+          - oracledb.parse.result
+          - oracle.db.pdb
+      oracledb.parse.utilization:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.hard_parses:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+
+      # === I/O & Physical Read/Write Metrics ===
+      oracledb.logical_reads:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.physical_reads:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.physical_reads_direct:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.physical_writes:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.physical_writes_direct:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.physical_read_io_requests:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.physical_write_io_requests:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+
+      # === New Physical I/O Metrics (detailed) ===
+      oracledb.physical_io.cache_writes:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.physical_io.requests:
+        enabled: true
+        attributes:
+          - disk.io.direction
+          - disk.io.block_size
+          - oracle.db.pdb
+      oracledb.physical_io.transferred:
+        enabled: true
+        attributes:
+          - disk.io.direction
+          - disk.io.type
+          - oracle.db.pdb
+
+      # === Network I/O Metrics ===
+      oracledb.sqlnet.io.transferred:
+        enabled: true
+        attributes:
+          - network.io.direction
+          - destination.type
+          - oracle.db.pdb
+
+      # === Buffer & Cache Metrics ===
+      oracledb.consistent_gets:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.db_block_gets:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.buffer_cache.utilization:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.library_cache.utilization:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.data_dictionary.hit_ratio:
+        enabled: true
+      oracledb.shared_pool.utilization:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+
+      # === Memory Metrics ===
+      oracledb.pga_memory:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.sga.limit:
+        enabled: true
+      oracledb.sga.usage:
+        enabled: true
+        attributes:
+          - oracledb.sga.component.name
+
+      # === Wait & Database Time Metrics ===
+      oracledb.database.wait.utilization:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+
+      # === Lock & Deadlock Metrics ===
+      oracledb.dml_locks.limit:
+        enabled: true
+      oracledb.dml_locks.usage:
+        enabled: true
+      oracledb.enqueue_locks.limit:
+        enabled: true
+      oracledb.enqueue_locks.usage:
+        enabled: true
+      oracledb.enqueue_resources.limit:
+        enabled: true
+      oracledb.enqueue_resources.usage:
+        enabled: true
+      oracledb.enqueue_deadlocks:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.exchange_deadlocks:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+
+      # === Process & Session Metrics ===
+      oracledb.processes.limit:
+        enabled: true
+      oracledb.processes.usage:
+        enabled: true
+      oracledb.sessions.limit:
+        enabled: true
+      oracledb.sessions.usage:
+        enabled: true
+        attributes:
+          - session_type
+          - session_status
+          - oracle.db.pdb
+      oracledb.logons:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+
+      # === Transaction Metrics ===
+      oracledb.transactions.limit:
+        enabled: true
+      oracledb.transactions.usage:
+        enabled: true
+      oracledb.user_commits:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.user_rollbacks:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+
+      # === Tablespace Metrics ===
+      oracledb.tablespace_size.limit:
+        enabled: true
+        attributes:
+          - tablespace_name
+          - oracle.db.pdb
+      oracledb.tablespace_size.usage:
+        enabled: true
+        attributes:
+          - tablespace_name
+          - oracle.db.pdb
+
+      # === Storage Metrics ===
+      oracledb.storage.usage:
+        enabled: true
+      oracledb.storage.utilization:
+        enabled: true
+      oracledb.recycle_bin.limit:
+        enabled: true
+
+      # === Parallel Operations Metrics ===
+      oracledb.queries_parallelized:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.ddl_statements_parallelized:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.dml_statements_parallelized:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.parallel_operations_not_downgraded:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.parallel_operations_downgraded_1_to_25_pct:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.parallel_operations_downgraded_25_to_50_pct:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.parallel_operations_downgraded_50_to_75_pct:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.parallel_operations_downgraded_75_to_99_pct:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.parallel_operations_downgraded_to_serial:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+
+      # === Redo & Sort Metrics ===
+      oracledb.redo_allocation.utilization:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+      oracledb.sort.ratio:
+        enabled: true
+        attributes:
+          - oracledb.sort.type
+          - oracle.db.pdb
+
+      # === Response Time Metrics ===
+      oracledb.sql_service.response.duration:
+        enabled: true
+        attributes:
+          - oracle.db.pdb
+
+      # === System (OS-level) Metrics ===
+      system.cpu.physical.count:
+        enabled: true
+      system.memory.limit:
+        enabled: true
+
+    # Resource attributes attached to all metrics/logs
+    resource_attributes:
+      host.name:
+        enabled: true
+      oracle.db.hosting_type:
+        enabled: true
+      oracle.db.open_mode:
+        enabled: true
+      oracle.db.pdb:
+        enabled: true
+      oracle.db.role:
+        enabled: true
+      oracle.db.version:
+        enabled: true
+      oracledb.instance.name:
+        enabled: true
+      service.instance.id:
+        enabled: true
+
+  # First CDB's PDB configuration
+  nroracledb/pdb1:
+    <<: *nroracledb-common
+    service: "<YOUR_PDB1_SERVICE_NAME>"
+
+  # Second CDB configuration
+  nroracledb/cdb2:
+    <<: *nroracledb-common
+    endpoint: "<YOUR_DB2_HOST>:<YOUR_DB2_PORT>"
+    service: "<YOUR_CDB2_SERVICE_NAME>"
+
+  # Second CDB's PDB configuration
+  nroracledb/pdb2:
+    <<: *nroracledb-common
+    endpoint: "<YOUR_DB2_HOST>:<YOUR_DB2_PORT>"
+    service: "<YOUR_PDB2_SERVICE_NAME>"
+
+processors:
+  batch:
+  resource/add_event_name:
+    attributes:
+      - key: host.address
+        value: "<host_address>"
+        action: upsert
+
+exporters:
+  otlp/newrelic:
+    endpoint: "<otlp_endpoint>"
+    headers:
+      api-key: "<license_key>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  pipelines:
+    metrics/oracledb:
+      receivers: [nroracledb/cdb1, nroracledb/pdb1, nroracledb/cdb2, nroracledb/pdb2]
+      processors: [resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+    logs/oracledb:
+      receivers: [nroracledb/cdb1, nroracledb/pdb1, nroracledb/cdb2, nroracledb/pdb2]
+      processors: [resource/add_event_name, batch]
+      exporters: [otlp/newrelic]
+```
+
+</Collapser>
+
+</CollapserGroup>
+
+<Callout variant="tip">
+* This configuration allows you to monitor multiple Oracle databases instances simultaneously. Each instance gets its own receiver configuration with unique credentials, while sharing common processors and exporters. Adjust the `collection_interval` and other parameters based on your monitoring requirements.
+
+* Restart the NRDOT collector after updating the configuration to apply changes.
+
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Set up APM-database correlation [#correlation]
+
+To correlate your application performance with database operations, you can set up database service identification. This feature allows you to see exactly which applications are generating specific database workloads. For more information, refer to [set up database service identification](/docs/opentelemetry/database/database-service-identification/) to get APM-database correlation in New Relic.
+
+<Callout variant="important">
+  To view database performance data in APM, both entities must be in the same New Relic account. If the entities are in different New Relic accounts, you must have access to both accounts to view the data.
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Configure secret management [#secret-management]
+
+The secret management feature allows you to securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files. For more information, refer to [secret management](/docs/opentelemetry/database/database-service-identification/#secret-management).
+
+</Step>
+
+<Step>
+
+### Find and use your data [#find-use-data]
+
+Once your data is being collected, you can access comprehensive Oracle Database monitoring through New Relic's UI.
+
+To find your Oracle Database entity in New Relic:
+
+1. Go to <DNT>**[https://one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DNT>.
+2. Set the search criteria as <DNT>`instrumentation.provider = opentelemetry`</DNT>.
+3. Select your Oracle Database from the list of entities.
+
+</Step>
+
+</Steps>
+
+## Related documentation [#related-docs]
+
+
+<DocTiles>
+  <DocTile title="CDB instrumentation" path="/docs/opentelemetry/database/oracledb/on-host-cdb">Learn how to set up your Oracle Database for CDB monitoring in New Relic.</DocTile>
+  <DocTile title="PDB instrumentation" path="/docs/opentelemetry/database/oracledb/on-host-pdb">Learn how to set up your Oracle Database for PDB monitoring in New Relic.</DocTile>
+  <DocTile title="RDS instrumentation" path="/docs/opentelemetry/database/oracledb/rds">Learn how to set up your Oracle Database for RDS monitoring in New Relic.</DocTile>
+</DocTiles>
