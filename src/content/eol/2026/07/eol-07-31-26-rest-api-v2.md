@@ -17,7 +17,7 @@ The following API endpoints will be permanently retired on July 31, 2027:
 
 * `https://api.newrelic.com/v2/`: US datacenter (including the Alerts endpoints, `/v2/alerts*`, but excluding the retained conditions and policies namespaces listed under **Not impacted** below)
 * `https://api.eu.newrelic.com/v2/`: EU datacenter (including the Alerts endpoints, `/v2/alerts*`, but excluding the retained conditions and policies namespaces listed under **Not impacted** below)
-* `https://rpm.newrelic.com/deployments`: Legacy Deployments v0 API
+* Legacy Deployments v0 API (`deployments.xml`), which is served on both the `rpm` and `api` hosts in each region: `https://rpm.newrelic.com/deployments.xml` and `https://api.newrelic.com/deployments.xml` (US), and `https://rpm.eu.newrelic.com/deployments.xml` and `https://api.eu.newrelic.com/deployments.xml` (EU)
 
 ### Alerts
 
@@ -47,7 +47,7 @@ If you run into challenges with your migration please reach out to [Support](htt
 
 These API calls may originate from proprietary tools, reporting systems, or third-party integrations, and include any utilization of the affected Alerts endpoints (`/v2/alerts*`). To determine what action you need to take:
 
-1. **Identify your REST API v2 usage:** Search your codebase, CI/CD pipelines, and automation scripts for calls to `api.newrelic.com/v2/`, `api.eu.newrelic.com/v2/`, and `https://rpm.newrelic.com/deployments`
+1. **Identify your REST API v2 usage:** Search your codebase, CI/CD pipelines, and automation scripts for calls to `api.newrelic.com/v2/` and `api.eu.newrelic.com/v2/`, and for Deployments v0 API calls to `deployments.xml` on either the `rpm` or `api` host (for example, `rpm.newrelic.com/deployments.xml` or `api.newrelic.com/deployments.xml`, and their `.eu.` equivalents)
 
    Common integrations include:
 
@@ -59,6 +59,8 @@ These API calls may originate from proprietary tools, reporting systems, or thir
 
 3. **Review the migration guide:** For each REST API v2 call you identify, our [migration guide](https://docs.newrelic.com/docs/apis/rest-api-v2/migrate-to-nerdgraph/) provides the equivalent NerdGraph query or mutation.
 
+For **deployments** specifically, you don't have to rely on a codebase search alone. Change tracking adds a `newrelic.source` attribute to each deployment event, so you can find deployments still recorded through the Deployments v0 and v2 REST APIs across your whole estate — from the New Relic UI or with NRQL. See [how your changes are recorded across your estate](/docs/change-tracking/view-analyze-data/#recording-source). This applies to deployment endpoints only; for other REST API v2 endpoints, search your codebase as described above.
+
 ## What you need to do
 
 Migrate your integrations from REST API v2 to NerdGraph before July 31, 2027:
@@ -68,7 +70,7 @@ Migrate your integrations from REST API v2 to NerdGraph before July 31, 2027:
    * **Applications**: list, show, update, and delete via entity search and mutations
    * **Metric data**: query via NRQL, with a mapping table from REST API metric values to NRQL functions
    * **Hosts & instances**: query via NRQL with host faceting
-   * **Deployments**: record via `changeTrackingCreateDeployment` mutation, query via NRQL
+   * **Deployments**: record via the `changeTrackingCreateEvent` mutation (the recommended change tracking mutation), query via NRQL
    * **Key transactions**: query via entity search
    * **Mobile & browser applications**: query via entity search
 
