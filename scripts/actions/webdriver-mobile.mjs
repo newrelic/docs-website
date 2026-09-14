@@ -120,11 +120,25 @@ const searchTest = async () => {
   );
 };
 
+const dismissCookieBanner = async () => {
+  try {
+    const [acceptButton] = await waitForXPath(
+      '//button[contains(@class, "osano-cm-accept")]',
+      3000
+    );
+    await acceptButton.click();
+    await driver.sleep(500);
+  } catch {
+    // banner didn't show up, nothing to dismiss
+  }
+};
+
 const tileTest = async () => {
   const initialUrl = await driver.getCurrentUrl();
   const [firstDocTile] = await waitForXPath(
     '//main//section//h3[text()="Popular docs"]/following::a'
   );
+  await dismissCookieBanner();
   // sometimes the cookie banner covers the doc tile so we need to scroll
   await driver.executeScript(
     'arguments[0].scrollIntoView(false)',
