@@ -122,11 +122,11 @@ const searchTest = async () => {
 
 const dismissCookieBanner = async () => {
   try {
-    const [acceptButton] = await waitForXPath(
-      '//button[contains(@class, "osano-cm-accept")]',
+    const [closeButton] = await waitForXPath(
+      '//*[@aria-label="Close this consent banner"]',
       3000
     );
-    await acceptButton.click();
+    await closeButton.click();
     await driver.sleep(500);
   } catch {
     // banner didn't show up, nothing to dismiss
