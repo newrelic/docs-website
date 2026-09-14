@@ -102,12 +102,12 @@ export default {
       return {
         type: 'yaml',
         value: yaml
-          .safeDump({ ...data, ...frontMatterAtt }, { lineWidth: Infinity })
+          .dump({ ...data, ...frontMatterAtt }, { lineWidth: Infinity })
           .trim(),
       };
     },
     serialize: (_state, node) => {
-      const data = yaml.safeLoad(node.value);
+      const data = yaml.load(node.value);
       const serializeValue = (name) =>
         data[name] && {
           type: 'element',

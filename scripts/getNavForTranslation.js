@@ -23,7 +23,7 @@ const getNavFiles = () => {
 
   const parsedFiles = rawFiles.map((file) => {
     const fileContents = fs.readFileSync(file, 'utf8');
-    const data = yaml.safeLoad(fileContents);
+    const data = yaml.load(fileContents);
     return data;
   });
   return parsedFiles;

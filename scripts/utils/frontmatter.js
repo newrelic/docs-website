@@ -126,7 +126,7 @@ const validateFreshnessDate = (mdString) => {
   const { data } = grayMatter(mdString, {
     engines: {
       yaml: {
-        parse: (string) => yaml.safeLoad(string, { schema: yaml.JSON_SCHEMA }),
+        parse: (string) => yaml.load(string, { schema: yaml.JSON_SCHEMA }),
       },
     },
   });
@@ -190,7 +190,7 @@ const validateReleaseDate = (mdString) => {
   const { data } = grayMatter(mdString, {
     engines: {
       yaml: {
-        parse: (string) => yaml.safeLoad(string, { schema: yaml.JSON_SCHEMA }),
+        parse: (string) => yaml.load(string, { schema: yaml.JSON_SCHEMA }),
       },
     },
   });
