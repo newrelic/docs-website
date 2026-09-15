@@ -6,7 +6,7 @@ const {
   buildReleaseNotesHubs,
   buildWhatsNewHubs,
   humanizeReleaseNotesSegment,
-} = require('../gatsby-node');
+} = require('../lib/helpers');
 
 const CALLOUT = {
   type: 'mdxJsxFlowElement',
