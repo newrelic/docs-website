@@ -1,4 +1,12 @@
-const { mdxToCleanMarkdown, categorizePages, categoryForSlug } = require('../gatsby-node');
+const {
+  mdxToCleanMarkdown,
+  categorizePages,
+  categoryForSlug,
+  generateLlmsTxt,
+  buildReleaseNotesHubs,
+  buildWhatsNewHubs,
+  humanizeReleaseNotesSegment,
+} = require('../gatsby-node');
 
 const CALLOUT = {
   type: 'mdxJsxFlowElement',
@@ -1216,4 +1224,140 @@ test('categorizePages preserves the nav\'s own category order and drops empty ca
   expect(keys.indexOf('AI monitoring')).toBeLessThan(keys.indexOf('Licenses'));
   expect(keys).not.toContain('Alerts');
   expect(categorized['Other']).toHaveLength(1);
+});
+
+// buildReleaseNotesHubs/buildWhatsNewHubs split Release notes (3,967 pages,
+// 52.9% of the root llms.txt) and What's New (446 pages, 6.1%) into their
+// own nested llms.txt hubs instead of enumerating every page in the root
+// index - together they were ~59% of the entire file. Release notes nests
+// unevenly on real pages (some products flat, others one level deeper by
+// language/platform), so the same generic tree builder/renderer must handle
+// both shapes in one pass without hardcoding either.
+test('splits a mixed flat+nested release-notes tree into the right leaf and branch hubs', () => {
+  const pages = [
+    // Nested: agent-release-notes has no pages of its own, only a
+    // net-release-notes child - a BRANCH hub with no direct pages.
+    { slug: '/docs/release-notes/agent-release-notes/net-release-notes/net-agent-1000', title: '.NET Agent 10.0.0' },
+    { slug: '/docs/release-notes/agent-release-notes/net-release-notes/net-agent-990', title: '.NET Agent 9.9.0' },
+    { slug: '/docs/release-notes/agent-release-notes/java-release-notes/java-agent-800', title: 'Java Agent 8.0.0' },
+    // Flat: streaming-browser-release-notes has pages directly in it - a
+    // LEAF hub, one level shallower than the nested case above.
+    { slug: '/docs/release-notes/streaming-browser-release-notes/streaming-browser-100', title: 'Streaming Browser 1.0.0' },
+  ];
+
+  const { files, indexUrl, count } = buildReleaseNotesHubs(pages, 'https://docs.newrelic.com');
+  const byPath = Object.fromEntries(files.map((f) => [f.path, f.content]));
+
+  expect(count).toBe(4);
+  expect(indexUrl).toBe('https://docs.newrelic.com/docs/release-notes/llms.txt');
+
+  // Top hub: a branch linking to its two top-level children's hubs, not to
+  // any individual release note directly.
+  const topHub = byPath['/docs/release-notes/llms.txt'];
+  expect(topHub).toContain('/docs/release-notes/agent-release-notes/llms.txt');
+  expect(topHub).toContain('/docs/release-notes/streaming-browser-release-notes/llms.txt');
+  expect(topHub).not.toContain('net-agent-1000.md');
+  expect(topHub).not.toContain('streaming-browser-100.md');
+
+  // agent-release-notes: a branch with no pages of its own - links to its
+  // two language children's hubs, not to any individual note.
+  const agentHub = byPath['/docs/release-notes/agent-release-notes/llms.txt'];
+  expect(agentHub).toContain('/docs/release-notes/agent-release-notes/net-release-notes/llms.txt');
+  expect(agentHub).toContain('/docs/release-notes/agent-release-notes/java-release-notes/llms.txt');
+  expect(agentHub).not.toContain('net-agent-1000.md');
+
+  // net-release-notes: a genuine leaf - lists its two pages flat.
+  const netHub = byPath['/docs/release-notes/agent-release-notes/net-release-notes/llms.txt'];
+  expect(netHub).toContain('[.NET Agent 10.0.0](https://docs.newrelic.com/docs/release-notes/agent-release-notes/net-release-notes/net-agent-1000.md)');
+  expect(netHub).toContain('[.NET Agent 9.9.0](https://docs.newrelic.com/docs/release-notes/agent-release-notes/net-release-notes/net-agent-990.md)');
+
+  // streaming-browser-release-notes: a leaf at the TOP level (one level
+  // shallower than net-release-notes) - same leaf-rendering code path,
+  // reached directly instead of through an intermediate branch.
+  const streamingHub = byPath['/docs/release-notes/streaming-browser-release-notes/llms.txt'];
+  expect(streamingHub).toContain('[Streaming Browser 1.0.0](https://docs.newrelic.com/docs/release-notes/streaming-browser-release-notes/streaming-browser-100.md)');
+});
+
+test('keeps a category\'s index.mdx landing page with its own dated siblings, not one level up', () => {
+  // Real shape: every product/language directory has its own index.mdx
+  // landing page alongside dated release notes (e.g.
+  // .../agent-control-release-notes/index.mdx AND
+  // .../agent-control-release-notes/agent-control-2026-07-06.mdx). Gatsby
+  // collapses index.mdx's own slug to its containing directory's path, with
+  // no distinct filename segment left - naively dropping "the last path
+  // segment as the filename" would misplace it one level too high (as a
+  // page of release-notes/ itself), splitting it away from its own dated
+  // sibling and the category's real hub.
+  const pages = [
+    { slug: '/docs/release-notes/agent-control-release-notes', title: 'Agent Control release notes' },
+    { slug: '/docs/release-notes/agent-control-release-notes/agent-control-2026-07-06', title: 'Agent Control 2026.07.06' },
+  ];
+
+  const { files } = buildReleaseNotesHubs(pages, 'https://docs.newrelic.com');
+  const byPath = Object.fromEntries(files.map((f) => [f.path, f.content]));
+
+  // Exactly one hub file for this category - the landing page did NOT get
+  // split off into its own top-level "release-notes/llms.txt" bullet.
+  expect(byPath['/docs/release-notes/agent-control-release-notes/llms.txt']).toBeDefined();
+
+  const categoryHub = byPath['/docs/release-notes/agent-control-release-notes/llms.txt'];
+  expect(categoryHub).toContain('[Agent Control release notes](https://docs.newrelic.com/docs/release-notes/agent-control-release-notes.md)');
+  expect(categoryHub).toContain('[Agent Control 2026.07.06](https://docs.newrelic.com/docs/release-notes/agent-control-release-notes/agent-control-2026-07-06.md)');
+
+  const topHub = byPath['/docs/release-notes/llms.txt'];
+  expect(topHub).not.toContain('agent-control-release-notes.md');
+  expect(topHub).toContain('/docs/release-notes/agent-control-release-notes/llms.txt');
+});
+
+test('humanizeReleaseNotesSegment produces readable labels, including acronym fixups', () => {
+  expect(humanizeReleaseNotesSegment('net-release-notes')).toBe('.NET release notes');
+  expect(humanizeReleaseNotesSegment('nodejs-release-notes')).toBe('Node.js release notes');
+  expect(humanizeReleaseNotesSegment('c-sdk-release-notes')).toBe('C SDK release notes');
+  expect(humanizeReleaseNotesSegment('streaming-browser-release-notes')).toBe('Streaming Browser release notes');
+});
+
+test('buildWhatsNewHubs splits by year, newest first, without splitting further by month', () => {
+  const pages = [
+    { slug: '/whats-new/2025/03/some-march-post', title: 'March post' },
+    { slug: '/whats-new/2025/09/some-september-post', title: 'September post' },
+    { slug: '/whats-new/2026/01/some-january-post', title: 'January post' },
+  ];
+
+  const { files, indexUrl, count } = buildWhatsNewHubs(pages, 'https://docs.newrelic.com');
+  const byPath = Object.fromEntries(files.map((f) => [f.path, f.content]));
+
+  expect(count).toBe(3);
+  expect(indexUrl).toBe('https://docs.newrelic.com/whats-new/llms.txt');
+
+  const topHub = byPath['/whats-new/llms.txt'];
+  const year2026Index = topHub.indexOf('/whats-new/2026/llms.txt');
+  const year2025Index = topHub.indexOf('/whats-new/2025/llms.txt');
+  expect(year2026Index).toBeGreaterThanOrEqual(0);
+  expect(year2025Index).toBeGreaterThanOrEqual(0);
+  expect(year2026Index).toBeLessThan(year2025Index); // newest year first
+
+  // 2025's hub holds BOTH months' posts flat - no further split by month.
+  const year2025Hub = byPath['/whats-new/2025/llms.txt'];
+  expect(year2025Hub).toContain('March post');
+  expect(year2025Hub).toContain('September post');
+});
+
+test('generateLlmsTxt links to a hub instead of enumerating its pages, regardless of how many pages the category holds', () => {
+  const categorizedPages = {
+    'Release notes': [
+      { slug: '/docs/release-notes/agent-release-notes/net-release-notes/a', title: 'A' },
+      { slug: '/docs/release-notes/agent-release-notes/net-release-notes/b', title: 'B' },
+    ],
+    Licenses: [{ slug: '/docs/licenses/license-types', title: 'License types' }],
+  };
+
+  const content = generateLlmsTxt(categorizedPages, 'https://docs.newrelic.com', {
+    'Release notes': { url: 'https://docs.newrelic.com/docs/release-notes/llms.txt', count: 3967 },
+  });
+
+  expect(content).toContain('- [Release notes index (3967 pages)](https://docs.newrelic.com/docs/release-notes/llms.txt)');
+  expect(content).not.toContain('/net-release-notes/a.md');
+  expect(content).not.toContain('/net-release-notes/b.md');
+  // A category with no hub entry still enumerates its pages as before.
+  expect(content).toContain('[License types](https://docs.newrelic.com/docs/licenses/license-types.md)');
 });

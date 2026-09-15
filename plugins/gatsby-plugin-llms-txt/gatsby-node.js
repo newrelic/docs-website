@@ -774,27 +774,42 @@ const loadCategoryPrefixes = () => {
   );
 };
 
-const CATEGORY_PREFIXES = loadCategoryPrefixes();
+// Loaded lazily, on first actual use, rather than eagerly at module load
+// time. generatedNav.yml is a build ARTIFACT (gitignored - see .gitignore),
+// written by the root gatsby-node.js's `onPreBootstrap` hook - but Gatsby
+// requires every plugin's gatsby-node.js (running this module's top-level
+// code) while loading plugins, which happens BEFORE onPreBootstrap fires.
+// Reading the file at module load time throws ENOENT on any environment
+// that hasn't already produced it from an earlier build (a fresh Netlify
+// checkout, most CI runs) - it only reliably exists later, e.g. by the time
+// onPostBuild (categorizePages' only real caller) runs.
+let cachedCategoryPrefixes = null;
+const getCategoryPrefixes = () => {
+  if (!cachedCategoryPrefixes) {
+    cachedCategoryPrefixes = loadCategoryPrefixes();
+  }
+  return cachedCategoryPrefixes;
+};
 
 const categoryForSlug = (slug) => {
-  const match = CATEGORY_PREFIXES.find(({ prefix }) => matchesPrefix(slug, prefix));
+  const match = getCategoryPrefixes().find(({ prefix }) => matchesPrefix(slug, prefix));
   return match ? match.category : 'Other';
 };
 
 /**
  * Categorizes a page based on its slug/path, matching the site's own real
- * nav categories (see CATEGORY_PREFIXES above) instead of a hand-maintained
+ * nav categories (see getCategoryPrefixes above) instead of a hand-maintained
  * duplicate of them.
  */
 const categorizePages = (pages) => {
   const categories = {};
 
-  // Preserve CATEGORY_PREFIXES' own order (the docs team's curated nav
+  // Preserve getCategoryPrefixes()' own order (the docs team's curated nav
   // order from root.yml) so the generated index reads the same way the
   // site's own sidebar is organized, rather than an arbitrary object-key
   // order - "Other" (genuinely uncategorizable pages only, now a small
   // residual rather than ~40% of the site) always sorts last.
-  CATEGORY_PREFIXES.forEach(({ category }) => {
+  getCategoryPrefixes().forEach(({ category }) => {
     if (!categories[category]) categories[category] = [];
   });
   categories['Other'] = [];
@@ -813,10 +828,167 @@ const categorizePages = (pages) => {
   return categories;
 };
 
+// Release notes (3,967 pages, 52.9% of the root index) and What's New (446
+// pages, 6.1%) together are ~59% of the entire root llms.txt, ahead of any
+// real product documentation - an AI tool reading the root index to find,
+// say, Kubernetes docs pays for thousands of unwanted release-note links
+// just to reach it. Split both into their own nested `llms.txt` hubs (a
+// "hub of hubs" - the llms.txt convention doesn't require every link to
+// point at a content page; a section can link to another index instead),
+// so the root index costs one line per section, and a tool that actually
+// needs release-note history pays that cost only when it follows the link.
+
+// A hub link's label for a release-notes directory segment - naive
+// title-case of its hyphens, with a small fixup dictionary for names that
+// would otherwise look wrong. Not a full registry - good enough to not look
+// broken, not claimed to handle every future product name.
+const SEGMENT_ACRONYM_FIXUPS = {
+  net: '.NET',
+  php: 'PHP',
+  sap: 'SAP',
+  ios: 'iOS',
+  aws: 'AWS',
+  sre: 'SRE',
+  nrdot: 'NRDOT',
+  cli: 'CLI',
+  api: 'API',
+  sdk: 'SDK',
+  nodejs: 'Node.js',
+  tvos: 'tvOS',
+  maui: 'MAUI',
+};
+
+const humanizeReleaseNotesSegment = (segment) =>
+  `${segment
+    .replace(/-release-notes$/, '')
+    .split('-')
+    .map((word) => SEGMENT_ACRONYM_FIXUPS[word] || word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')} release notes`;
+
+// Builds a tree from a flat list of {segments, slug, title} entries -
+// `segments` is the grouping key path (not the filename itself); the caller
+// decides how many real path segments count as grouping (every directory
+// segment for release notes - which nests unevenly, some products flat,
+// others one level deeper by language/platform - vs. just [year] for
+// what's-new, folding month+slug into that year's own leaf).
+const buildHubTree = (entries) => {
+  const root = { children: new Map(), pages: [] };
+  entries.forEach(({ segments, slug, title }) => {
+    let node = root;
+    segments.forEach((segment) => {
+      if (!node.children.has(segment)) {
+        node.children.set(segment, { children: new Map(), pages: [] });
+      }
+      node = node.children.get(segment);
+    });
+    node.pages.push({ slug, title });
+  });
+  return root;
+};
+
+// Renders one hub node - and, recursively, every descendant hub - into
+// {path, content} files, post-order (children render first, so their own
+// URL/title/page-count are already known by the time this node links to
+// them). A node with only children (no direct pages) becomes a branch hub
+// linking to each child's own hub; a node with only direct pages (no
+// children) becomes a leaf hub listing them flat - both shapes fall out of
+// the same code, no directory name is special-cased.
+const renderHubTree = (node, { urlPath, title, siteUrl, humanize = (s) => s, sortChildren = 'asc' }) => {
+  const files = [];
+  const childLinks = [];
+  let count = node.pages.length;
+
+  [...node.children.keys()]
+    .sort((a, b) => (sortChildren === 'desc' ? b.localeCompare(a) : a.localeCompare(b)))
+    .forEach((segment) => {
+      const childTitle = humanize(segment);
+      const rendered = renderHubTree(node.children.get(segment), {
+        urlPath: `${urlPath}/${segment}`,
+        title: childTitle,
+        siteUrl,
+        humanize,
+        sortChildren,
+      });
+      files.push(...rendered.files);
+      childLinks.push({ title: childTitle, url: rendered.indexUrl, count: rendered.count });
+      count += rendered.count;
+    });
+
+  let content = `# ${title}\n\n`;
+  content += `> Index of ${count} page${count === 1 ? '' : 's'}.\n\n`;
+
+  childLinks.forEach(({ title: childTitle, url, count: childCount }) => {
+    content += `- [${childTitle} (${childCount} page${childCount === 1 ? '' : 's'})](${url})\n`;
+  });
+  if (childLinks.length && node.pages.length) content += '\n';
+
+  [...node.pages]
+    .sort((a, b) => a.slug.localeCompare(b.slug))
+    .forEach((page) => {
+      const pageTitle = page.title || page.slug.split('/').pop();
+      content += `- [${pageTitle}](${siteUrl}${page.slug}.md)\n`;
+    });
+
+  const indexUrl = `${siteUrl}${urlPath}/llms.txt`;
+  files.push({ path: `${urlPath}/llms.txt`, content });
+
+  return { files, indexUrl, count };
+};
+
+const buildReleaseNotesHubs = (pages, siteUrl) => {
+  const prefix = '/docs/release-notes';
+  const relevant = pages.filter((p) => p.slug === prefix || p.slug.startsWith(`${prefix}/`));
+
+  // Every real product/language directory has its own `index.mdx` landing
+  // page alongside its dated release notes (e.g. .../agent-control-release-notes/
+  // has both index.mdx and agent-control-2026-07-06.mdx). Gatsby collapses
+  // an index file's own slug to its containing directory's path, with no
+  // distinct "filename" segment left to drop - naively treating every
+  // page's last path segment as its filename would misplace that landing
+  // page one level too high (as a direct page of the PARENT), splitting it
+  // away from its own dated siblings. Detect this by checking whether a
+  // page's own full remaining path is itself a directory some OTHER page
+  // already lives under - if so, don't drop a segment for it, so it lands
+  // in the same node as its siblings instead of one level up.
+  const parts = relevant.map((p) => (p.slug === prefix ? [] : p.slug.slice(prefix.length + 1).split('/')));
+  const impliedDirs = new Set(parts.map((p) => p.slice(0, -1).join('/')));
+
+  const entries = relevant.map((p, i) => {
+    const isIndexPage = impliedDirs.has(parts[i].join('/'));
+    const segments = isIndexPage ? parts[i] : parts[i].slice(0, -1);
+    return { segments, slug: p.slug, title: p.title };
+  });
+
+  return renderHubTree(buildHubTree(entries), {
+    urlPath: prefix,
+    title: 'Release notes',
+    siteUrl,
+    humanize: humanizeReleaseNotesSegment,
+    sortChildren: 'asc',
+  });
+};
+
+const buildWhatsNewHubs = (pages, siteUrl) => {
+  const prefix = '/whats-new';
+  const entries = pages
+    .filter((p) => p.slug.startsWith(`${prefix}/`))
+    .map((p) => ({ segments: [p.slug.slice(prefix.length + 1).split('/')[0]], slug: p.slug, title: p.title }));
+
+  return renderHubTree(buildHubTree(entries), {
+    urlPath: prefix,
+    title: "What's new?",
+    siteUrl,
+    sortChildren: 'desc',
+  });
+};
+
 /**
- * Generates the llms.txt index file
+ * Generates the llms.txt index file. `hubIndexes` (built from
+ * buildReleaseNotesHubs/buildWhatsNewHubs) maps a category name to its own
+ * nested hub - when present, that category renders one link to the hub
+ * instead of enumerating every page in it.
  */
-const generateLlmsTxt = (categorizedPages, siteUrl) => {
+const generateLlmsTxt = (categorizedPages, siteUrl, hubIndexes = {}) => {
   let content = '# New Relic Documentation\n\n';
   content += '> Documentation for New Relic\'s observability platform.\n\n';
   content += 'This file provides clean markdown versions of all documentation pages for AI tools and LLM-powered assistants.\n\n';
@@ -825,16 +997,33 @@ const generateLlmsTxt = (categorizedPages, siteUrl) => {
   Object.entries(categorizedPages).forEach(([category, pages]) => {
     content += `## ${category}\n\n`;
 
-    pages.forEach(page => {
-      const title = page.title || page.slug.split('/').pop();
-      const url = `${siteUrl}${page.slug}.md`;
-      content += `- [${title}](${url})\n`;
-    });
+    const hub = hubIndexes[category];
+    if (hub) {
+      content += `- [${category} index (${hub.count} pages)](${hub.url})\n`;
+    } else {
+      pages.forEach(page => {
+        const title = page.title || page.slug.split('/').pop();
+        const url = `${siteUrl}${page.slug}.md`;
+        content += `- [${title}](${url})\n`;
+      });
+    }
 
     content += '\n';
   });
 
   return content;
+};
+
+// Shared write path for every text output this plugin produces (per-page
+// .md files, nested llms.txt hubs, the root llms.txt) - creates the
+// destination directory first since none of these paths necessarily exist
+// yet under public/.
+const writeTextFile = (filePath, content) => {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(filePath, content);
 };
 
 /**
@@ -971,14 +1160,7 @@ source: ${siteUrl}${slug}
 ${cleanMarkdown}`;
 
         // Write individual .md file
-        const mdFilePath = path.join(publicDir, `${slug}.md`);
-        const mdDir = path.dirname(mdFilePath);
-
-        if (!fs.existsSync(mdDir)) {
-          fs.mkdirSync(mdDir, { recursive: true });
-        }
-
-        fs.writeFileSync(mdFilePath, markdownWithFrontmatter);
+        writeTextFile(path.join(publicDir, `${slug}.md`), markdownWithFrontmatter);
 
         processedPages.push({
           slug,
@@ -995,13 +1177,30 @@ ${cleanMarkdown}`;
 
     reporter.info(`\tGenerated ${successCount} markdown files (${errorCount} errors)`);
 
+    // Release notes and What's New get their own nested llms.txt hubs
+    // instead of being enumerated in the root index (see buildReleaseNotesHubs/
+    // buildWhatsNewHubs above) - together they were ~59% of the root file.
+    const releaseNotesHubs = buildReleaseNotesHubs(processedPages, siteUrl);
+    const whatsNewHubs = buildWhatsNewHubs(processedPages, siteUrl);
+
+    [...releaseNotesHubs.files, ...whatsNewHubs.files].forEach(({ path: hubPath, content: hubContent }) => {
+      writeTextFile(path.join(publicDir, hubPath), hubContent);
+    });
+
+    reporter.info(
+      `\tGenerated ${releaseNotesHubs.files.length} release-notes hub files and ${whatsNewHubs.files.length} what's-new hub files`
+    );
+
     // Categorize pages for the index
     const categorizedPages = categorizePages(processedPages);
 
     // Generate llms.txt index
-    const llmsTxtContent = generateLlmsTxt(categorizedPages, siteUrl);
+    const llmsTxtContent = generateLlmsTxt(categorizedPages, siteUrl, {
+      'Release notes': { url: releaseNotesHubs.indexUrl, count: releaseNotesHubs.count },
+      "What's new?": { url: whatsNewHubs.indexUrl, count: whatsNewHubs.count },
+    });
     const llmsTxtPath = path.join(publicDir, 'llms.txt');
-    fs.writeFileSync(llmsTxtPath, llmsTxtContent);
+    writeTextFile(llmsTxtPath, llmsTxtContent);
 
     reporter.info(`\tGenerated llms.txt at ${llmsTxtPath}`);
     reporter.info('\tDone!');
@@ -1017,3 +1216,9 @@ ${cleanMarkdown}`;
 exports.mdxToCleanMarkdown = mdxToCleanMarkdown;
 exports.categorizePages = categorizePages;
 exports.categoryForSlug = categoryForSlug;
+exports.generateLlmsTxt = generateLlmsTxt;
+exports.buildHubTree = buildHubTree;
+exports.renderHubTree = renderHubTree;
+exports.buildReleaseNotesHubs = buildReleaseNotesHubs;
+exports.buildWhatsNewHubs = buildWhatsNewHubs;
+exports.humanizeReleaseNotesSegment = humanizeReleaseNotesSegment;
