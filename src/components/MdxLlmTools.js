@@ -66,7 +66,7 @@ const MdxLlmTools = ({ pathname }) => {
         {copied ? 'Copied!' : 'Copy for LLM'}
       </button>
       <span className="divider">|</span>
-      <a href={markdownPath}>
+      <a href={markdownPath} target="_blank" rel="noopener noreferrer">
         <Icon name="fe-external-link" />
         View as Markdown
       </a>
