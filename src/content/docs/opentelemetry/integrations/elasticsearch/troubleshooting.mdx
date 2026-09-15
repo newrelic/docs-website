@@ -281,3 +281,66 @@ If you have completed the [Elasticsearch OpenTelemetry integration installation]
   </Collapser>
 
 </CollapserGroup>
+
+## APM correlation and distributed tracing [#correlation-troubleshooting]
+
+These issues apply when you've set up [APM correlation with distributed tracing](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-install/#correlate-apm).
+
+<CollapserGroup>
+
+  <Collapser id="troubleshoot-no-es-spans" title="No Elasticsearch spans appear in New Relic">
+    <p><strong>How to check</strong></p>
+    ```sql
+    FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+    ```
+    <p><strong>Resolution</strong></p>
+
+    - Native OTLP trace export requires <strong>Elasticsearch 9.4 or later</strong>. Confirm your version with <InlineCode>curl http://localhost:9200</InlineCode>.
+    - Verify all three settings are present in <InlineCode>elasticsearch.yml</InlineCode>: <InlineCode>telemetry.tracing.enabled: true</InlineCode>, <InlineCode>telemetry.export.endpoint</InlineCode>, and <InlineCode>telemetry.tracing.sample_rate</InlineCode>.
+    - Confirm the JVM system property <InlineCode>-Dtelemetry.otel.traces.enabled=true</InlineCode> is set (in <InlineCode>jvm.options</InlineCode> or <InlineCode>ES_JAVA_OPTS</InlineCode>), then restart Elasticsearch.
+    - The default <InlineCode>telemetry.tracing.sample_rate</InlineCode> is <InlineCode>0.001</InlineCode> (0.1%). Raise it while validating so spans appear quickly.
+  </Collapser>
+
+  <Collapser id="troubleshoot-traces-pipeline" title="Elasticsearch is exporting spans but they never reach New Relic">
+    <p><strong>Resolution</strong></p>
+
+    - Confirm the collector has an <InlineCode>otlp</InlineCode> receiver with the gRPC protocol enabled on <InlineCode>0.0.0.0:4317</InlineCode>, and that the endpoint is reachable from the Elasticsearch nodes.
+    - Confirm a <InlineCode>traces</InlineCode> pipeline exists and includes the <InlineCode>otlp</InlineCode> receiver and the <InlineCode>otlphttp</InlineCode> exporter.
+    - Check the collector logs for OTLP receiver or export errors.
+  </Collapser>
+
+  <Collapser id="troubleshoot-cluster-self-loop" title="The cluster shows a relationship to itself (calls itself)">
+    <p><strong>Cause</strong></p>
+    <p>Elasticsearch server spans carry the node's own address (<InlineCode>http.request.headers.host</InlineCode>), which New Relic resolves back to the cluster and draws as a self-referential relationship.</p>
+    <p><strong>Resolution</strong></p>
+    <p>Add the <InlineCode>transform/strip_es_host</InlineCode> processor to the <InlineCode>traces</InlineCode> pipeline so those address attributes are removed from Elasticsearch spans, then restart the collector:</p>
+
+    ```yaml
+    processors:
+      transform/strip_es_host:
+        error_mode: ignore
+        trace_statements:
+          - context: span
+            statements:
+              - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+              - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+    ```
+    <p>Existing self-loops clear on their own once the corrected spans arrive and the previous relationship expires (this can take up to about 75 minutes).</p>
+  </Collapser>
+
+  <Collapser id="troubleshoot-app-not-linked" title="Elasticsearch spans arrive, but applications aren't linked to the cluster">
+    <p><strong>Resolution</strong></p>
+
+    - Make sure your applications are instrumented and propagate the W3C <InlineCode>traceparent</InlineCode> header on their Elasticsearch calls. Most modern Elasticsearch clients do this automatically when the application is instrumented with OpenTelemetry.
+    - Open a distributed trace that includes an Elasticsearch call and confirm the application spans and Elasticsearch spans share the same trace.
+    - Give the relationship a few minutes to build; New Relic re-evaluates entity relationships periodically.
+  </Collapser>
+
+  <Collapser id="troubleshoot-name-mismatch" title="Traces and metrics resolve to different cluster entities">
+    <p><strong>Resolution</strong></p>
+
+    - The traces path keys on <InlineCode>es.cluster.name</InlineCode> (stamped by Elasticsearch on its spans) and the metrics path on <InlineCode>elasticsearch.cluster.name</InlineCode>. By default both derive from the configured <InlineCode>cluster.name</InlineCode>, so they resolve to the same entity.
+    - If you override the cluster name for metrics in the collector (for example with a <InlineCode>resource/cluster_name_override</InlineCode> processor), make sure the override matches the actual <InlineCode>cluster.name</InlineCode> Elasticsearch reports on its spans, otherwise traces and metrics will resolve to two different entities.
+  </Collapser>
+
+</CollapserGroup>

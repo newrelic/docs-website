@@ -1835,9 +1835,80 @@ spec:
   </TabsPages>
 </Tabs>
 
-<Callout variant="tip">
-**Correlate APM with Elasticsearch**: To connect your APM application and Elasticsearch cluster, include the resource attribute `es.cluster.name="your-cluster-name"` in your APM metrics. This enables cross-service visibility and faster troubleshooting within New Relic.
-</Callout>
+## Correlate APM with Elasticsearch [#correlate-apm]
+
+Link your applications to the Elasticsearch cluster they call, so a slow transaction leads straight to the cluster that served it. Pick how deep you want the connection:
+
+| Approach | What you get | What you set up |
+| --- | --- | --- |
+| **Distributed tracing** (recommended) | End-to-end app → Elasticsearch traces **and** an automatic service → cluster relationship | Turn on Elasticsearch's built-in tracing — no per-app changes |
+| Metrics-only | The cluster shows up as a related entity | Add `es.cluster.name` to your app's telemetry (any version) |
+
+### Set up distributed tracing [#correlate-tracing]
+
+Elasticsearch emits its own OpenTelemetry spans, joins your app's trace through the `traceparent` header, and stamps `es.cluster.name` on each one — so New Relic wires up the relationship automatically. Requires **Elasticsearch 9.4+**.
+
+<Steps>
+
+<Step>
+
+#### Turn on tracing in the Elasticsearch pods [#es-enable-tracing-k8s]
+
+Add to `elasticsearch.yml` (ConfigMap, Helm values, or ECK `nodeSets`), set `-Dtelemetry.otel.traces.enabled=true` via `ES_JAVA_OPTS`, then roll out the pods.
+
+```yaml
+telemetry.tracing.enabled: true
+telemetry.export.endpoint: http://YOUR_COLLECTOR_SVC.YOUR_NAMESPACE.svc.cluster.local:4317
+telemetry.tracing.sample_rate: 1.0   # default 0.001; lower for high volume
+```
+
+</Step>
+
+<Step>
+
+#### Add a traces pipeline to your collector [#collector-traces-k8s]
+
+Enable the `otlp` receiver and a `traces` pipeline in your collector values or ConfigMap, then redeploy and make sure the collector exposes gRPC port `4317`. If you used the New Relic distribution, both ship as `null` placeholders — replace them. The `transform` strips Elasticsearch's own address from its spans — without it, the cluster appears to "call itself."
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  transform/strip_es_host:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+          - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [transform/strip_es_host, batch]
+      exporters: [otlphttp]
+```
+
+</Step>
+
+<Step>
+
+#### Verify [#verify-correlation-k8s]
+
+```sql
+FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 10 minutes ago
+```
+
+Open the cluster entity: your apps appear connected through a `CALLS` relationship, with Elasticsearch spans inline in the distributed trace.
+
+</Step>
+
+</Steps>
 
 
 
