@@ -1,0 +1,389 @@
+---
+title: 'HAProxy distributed tracing with OpenTelemetry'
+tags:
+  - Integrations
+  - OpenTelemetry
+  - HAProxy
+  - Distributed tracing
+  - Service maps
+metaDescription: 'Enable distributed tracing through HAProxy using the OpenTelemetry filter. View service relationships in New Relic service maps.'
+freshnessValidatedDate: never
+---
+
+HAProxy 3.4 and later includes an [OpenTelemetry filter](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/overview/) that adds distributed tracing support directly in the load balancer. The filter participates in distributed traces by extracting incoming [W3C Trace Context](https://www.w3.org/TR/trace-context/) headers, creating spans for the HAProxy processing stages, and injecting updated trace context into requests forwarded to backends.
+
+When you combine the HAProxy OTel filter with instrumented applications, New Relic connects the traces end-to-end and creates [service relationships](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/) between your services and the HAProxy entity. These relationships appear in [service maps](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/), giving you visibility into how traffic flows through your load balancer.
+
+## How it works [#how-it-works]
+
+In a typical setup, traffic flows like this:
+
+```
+Instrumented app (frontend) → HAProxy (with OTel filter) → Instrumented app (backend)
+```
+
+1. The frontend application sends a request with a W3C `traceparent` header.
+2. HAProxy's OTel filter extracts the trace context, creates spans covering the request lifecycle, and injects updated trace context into the request forwarded to the backend.
+3. The backend application receives the request with the propagated trace context and continues the trace.
+4. All spans (from the frontend, HAProxy, and the backend) are exported to an OpenTelemetry Collector, which forwards them to New Relic.
+
+New Relic uses these connected spans to create CALLS relationships:
+
+- **Frontend service** CALLS **HAProxy entity**
+- **HAProxy entity** CALLS **Backend service**
+
+These relationships are visible in [service maps](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/) and the [maps experience](/docs/service-architecture-intelligence/maps/advanced-maps/).
+
+## Compatibility [#compatibility]
+
+The HAProxy OTel filter works with any application that supports W3C Trace Context propagation, including:
+
+- **OpenTelemetry SDK** instrumented applications (any language)
+- **OpenTelemetry auto-instrumentation** (Java, .NET, Python, Node.js)
+- **New Relic APM agents** (Go, Java, .NET, Node.js, Python, Ruby, PHP) with [distributed tracing enabled](/docs/distributed-tracing/enable-configure/overview-enable-distributed-tracing/)
+
+You can mix instrumentation approaches. For example, an OTel SDK frontend can call through HAProxy to a New Relic APM agent backend, and the relationship chain appears correctly in New Relic.
+
+## Before you begin [#prerequisites]
+
+Ensure you have:
+
+- Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- **HAProxy 3.4 or later** with the OTel filter enabled. Refer to the [HAProxy OTel installation guide](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/installation/) for instructions on obtaining a distribution with OTel filter support.
+- **OpenTelemetry Collector** ([OTel Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest) or [NRDOT](https://github.com/newrelic/nrdot-collector-releases)) running on the same host or accessible from the HAProxy host
+- **Instrumented applications** sending requests through HAProxy, using any of the compatible instrumentation approaches listed above
+- Network access from the collector to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+<Callout variant="tip">
+  This guide sets up both metrics collection and distributed tracing in a single OTel Collector. For advanced metrics configuration or Kubernetes deployment, see [Monitor self-hosted HAProxy](/docs/opentelemetry/integrations/haproxy/self-hosted/) and [Monitor HAProxy on Kubernetes](/docs/opentelemetry/integrations/haproxy/kubernetes/).
+</Callout>
+
+## Set up distributed tracing [#setup]
+
+<Callout variant="tip">
+  The traces pipeline below is the same standard setup you would use for any service participating in distributed tracing — not a manual relationship configuration. Once tracing is active, New Relic automatically detects the connected spans and creates service relationships. There is no additional configuration needed for relationships to appear.
+</Callout>
+
+<CollapserGroup>
+
+  <Collapser id="step1-haproxy-config" title="Step 1: Configure the HAProxy OTel filter">
+
+Add the `filter opentelemetry` directive to the frontend section of your `haproxy.cfg`. This tells HAProxy to apply the OTel filter to incoming requests:
+
+```text
+frontend main
+    bind *:8080
+    default_backend app_servers
+    filter opentelemetry id otel config /etc/haproxy/otel.cfg
+
+frontend stats
+    bind *:8404
+    stats enable
+    stats uri /stats
+```
+
+The `config` parameter points to a separate OTel filter configuration file that defines spans, context propagation, and exporter settings.
+
+The `stats` frontend enables the HAProxy stats endpoint, which the OTel Collector's `haproxyreceiver` uses to collect performance metrics. Adjust the bind address and port if needed.
+
+Create the OTel filter configuration file (for example, `/etc/haproxy/otel.cfg`):
+
+```text
+[otel]
+    otel-instrumentation otel-inst
+        config /etc/haproxy/otel.yml default
+        no option disabled
+        rate-limit 100.0
+
+        scopes client_session_start
+        scopes frontend_http_request
+        scopes backend_http_request
+        scopes client_session_end
+        scopes server_session_start
+        scopes http_response
+        scopes server_session_end
+
+    otel-scope client_session_start
+        extract "-ctx" use-headers
+        span "HAProxy session" parent "-ctx" root
+        otel-event on-client-session-start
+
+    otel-scope frontend_http_request
+        span "Frontend HTTP request" parent "HAProxy session" kind server
+            attribute "http.method" method
+            attribute "http.url" url
+            attribute "http.target" path
+        otel-event on-frontend-http-request
+
+    otel-scope backend_http_request
+        span "Backend HTTP request" parent "Frontend HTTP request" kind client
+        finish "Frontend HTTP request"
+        span "HAProxy session"
+            inject "-ctx" use-headers
+        otel-event on-backend-http-request
+
+    otel-scope client_session_end
+        finish "Backend HTTP request"
+        otel-event on-client-session-end
+
+    otel-scope server_session_start
+        span "Server session" parent "HAProxy session"
+        otel-event on-server-session-start
+
+    otel-scope http_response
+        span "HTTP response" parent "Server session"
+            attribute "http.status_code" status
+        finish "Server session"
+        otel-event on-http-response
+
+    otel-scope server_session_end
+        finish *
+        otel-event on-server-session-end
+```
+
+This configuration:
+
+- **Extracts** the incoming W3C `traceparent` header (`extract "-ctx" use-headers`), linking HAProxy spans to the calling service's trace.
+- **Creates spans** for the full request lifecycle: session start, frontend request processing, backend request forwarding, response handling, and session end.
+- **Injects** updated trace context into requests sent to backends (`inject "-ctx" use-headers`), allowing downstream services to continue the trace.
+- **Traces 100%** of requests (`rate-limit 100.0`). Adjust this value to reduce trace volume in high-throughput environments.
+
+<Callout variant="important">
+  The `id` value in the `filter opentelemetry` directive in `haproxy.cfg` must match the section name in `otel.cfg` (for example, `[otel]`).
+</Callout>
+
+For the full OTel filter configuration reference, see the [HAProxy OTel traces documentation](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/traces/).
+
+  </Collapser>
+
+  <Collapser id="step2-filter-exporter" title="Step 2: Configure the filter exporter">
+
+Create the filter exporter configuration file (for example, `/etc/haproxy/otel.yml`). This tells the HAProxy OTel filter where to send its trace data:
+
+```yaml
+exporters:
+  exporter_traces:
+    type:     otlp_grpc
+    endpoint: "http://localhost:4317/v1/traces"
+
+processors:
+  processor_batch:
+    type: batch
+
+providers:
+  provider_traces:
+    resources:
+      - service.name: "YOUR_HAPROXY_SERVICE_NAME"
+
+signals:
+  traces:
+    default:
+      scope_name: "HAProxy OTel filter"
+      exporters:  exporter_traces
+      processors: processor_batch
+      providers:  provider_traces
+```
+
+Replace `YOUR_HAPROXY_SERVICE_NAME` with a name that identifies this HAProxy instance (for example, `haproxy-prod-lb`).
+
+`service.name` is the standard [OpenTelemetry resource attribute](https://opentelemetry.io/docs/specs/semconv/resource/#service) that identifies any service participating in distributed tracing — not just HAProxy. Every OTel-instrumented application sets it (via `OTEL_SERVICE_NAME`), and every New Relic APM agent has the equivalent (`app_name`). Without it, traces still flow and connect correctly, but spans appear as `unknown_service` in the UI, which makes them difficult to identify. For more details, see [OpenTelemetry resources best practices](/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/).
+
+This is a one-time configuration per HAProxy instance. When you add new backend or frontend applications, no changes to this file are needed — relationships form automatically through trace context propagation.
+
+The exporter sends traces via gRPC to `localhost:4317`, where the OTel Collector is listening. Adjust the `endpoint` if the collector runs on a different host.
+
+  </Collapser>
+
+  <Collapser id="step3-collector" title="Step 3: Configure the OTel Collector">
+
+Configure the OTel Collector to receive traces from the HAProxy OTel filter and metrics from the HAProxy stats endpoint, and to forward them to New Relic.
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+  haproxy:
+    endpoint: "http://127.0.0.1:8404/stats"
+    collection_interval: 30s
+
+processors:
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+  resource/haproxy:
+    attributes:
+      - key: haproxy.addr
+        value: "http://127.0.0.1:8404/stats"
+        action: upsert
+  batch:
+
+exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resourcedetection, resource/haproxy, batch]
+      exporters: [otlphttp]
+    metrics:
+      receivers: [haproxy]
+      processors: [resourcedetection, resource/haproxy, batch]
+      exporters: [otlphttp]
+```
+
+This collector configuration includes two pipelines:
+
+- **Traces pipeline**: Receives OTLP trace data from the HAProxy OTel filter and your instrumented applications via gRPC (port 4317) or HTTP (port 4318). This is the same standard traces pipeline you would use for any service sending OTLP data to New Relic.
+- **Metrics pipeline**: Uses the [`haproxyreceiver`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/haproxyreceiver) to collect performance metrics (sessions per second, request rates, backend health) from the HAProxy stats endpoint. These metrics create the HAProxy entity in New Relic with golden metrics.
+
+Both pipelines share these processors:
+
+- **`resourcedetection`**: Adds `host.name` and `host.id`, which are standard resource attributes used to identify hosts across the OpenTelemetry ecosystem.
+- **`resource/haproxy`**: Adds the `haproxy.addr` attribute, which identifies this HAProxy instance and links the metrics and trace data together under the same HAProxy entity in New Relic.
+
+The `http://127.0.0.1:8404/stats` value is the conventional HAProxy stats address used in HAProxy's official documentation and matches the `haproxy.cfg` from Step 1. This is a one-time, static value per HAProxy instance. When you add or remove backend and frontend applications, no changes to the collector configuration are needed — relationships form automatically through trace context propagation. Only adjust the `haproxy` receiver `endpoint` and `resource/haproxy` value if your stats endpoint uses a different address, port, or URI — both must always match.
+
+Set the required environment variables and start (or restart) the collector:
+
+```bash
+export NEW_RELIC_LICENSE_KEY="YOUR_LICENSE_KEY"
+export OTEL_EXPORTER_OTLP_ENDPOINT="YOUR_NEWRELIC_OTLP_ENDPOINT"
+
+sudo systemctl restart otelcol-contrib
+```
+
+Replace `YOUR_LICENSE_KEY` with your <InlinePopover type="licenseKey"/>. For the OTLP endpoint, refer to [New Relic OTLP endpoint configuration](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+
+  </Collapser>
+
+  <Collapser id="step4-restart" title="Step 4: Start HAProxy and verify">
+
+Restart HAProxy to load the OTel filter configuration:
+
+```bash
+sudo systemctl restart haproxy
+```
+
+<Callout variant="important">
+  The HAProxy binary must include the OTel filter. If you see errors like `unknown keyword 'filter'` or `unknown keyword 'opentelemetry'`, your HAProxy build does not include the filter. Refer to the [HAProxy OTel installation guide](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/installation/) for a compatible distribution.
+</Callout>
+
+Once HAProxy and the collector are running, generate some traffic through your instrumented applications. After a few minutes, verify data is arriving in New Relic:
+
+```sql
+-- Verify HAProxy trace spans
+FROM Span SELECT count(*)
+WHERE service.name = 'YOUR_HAPROXY_SERVICE_NAME'
+SINCE 10 minutes ago
+
+-- Verify HAProxy metrics
+FROM Metric SELECT count(*)
+WHERE metricName LIKE 'haproxy.%'
+SINCE 10 minutes ago
+```
+
+  </Collapser>
+
+  <Collapser id="step5-relationships" title="Step 5: View service relationships">
+
+After trace data is flowing, New Relic automatically creates CALLS relationships between your services and the HAProxy entity. It may take up to 10 minutes for relationships to appear.
+
+To view the relationships:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > All entities**</DNT>.
+2. Search for your HAProxy entity or one of your instrumented services.
+3. Select an entity to open its summary page.
+4. Click <DNT>**Service map**</DNT> to see the entity relationship graph.
+
+You should see your frontend services connected to HAProxy, and HAProxy connected to your backend services:
+
+```
+[Frontend app] → CALLS → [HAProxy] → CALLS → [Backend app]
+```
+
+You can also query relationships with NRQL:
+
+```sql
+FROM Relationship SELECT *
+WHERE source.entityName = 'YOUR_HAPROXY_SERVICE_NAME'
+  OR target.entityName = 'YOUR_HAPROXY_SERVICE_NAME'
+SINCE 1 day ago
+```
+
+  </Collapser>
+
+</CollapserGroup>
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+
+  <Collapser id="troubleshoot-no-spans" title="No HAProxy spans appear in New Relic">
+
+- Verify HAProxy started without errors: `sudo journalctl -u haproxy -n 50 --no-pager`
+- Check that the OTel filter is loaded. Look for errors mentioning `filter`, `opentelemetry`, or `otel` in the HAProxy logs.
+- Verify the OTel Collector is running and listening on the port specified in `otel.yml`: `sudo ss -tlnp | grep 4317`
+- Check collector logs for errors: `sudo journalctl -u otelcol-contrib -n 50 --no-pager`
+- Confirm the `otel.yml` exporter endpoint matches the collector's gRPC listener address.
+
+  </Collapser>
+
+  <Collapser id="troubleshoot-no-relationships" title="Spans appear but relationships don't form">
+
+- Allow up to 10 minutes for relationships to appear after the first spans arrive.
+- Verify that your instrumented applications are sending traces through the collector. Both the HAProxy spans and the application spans must reach New Relic for relationships to form.
+- Check that your frontend applications propagate W3C `traceparent` headers. Without trace context propagation, HAProxy spans are not connected to the calling service.
+- Confirm both the `resourcedetection` and `resource/haproxy` processors are included in the collector traces pipeline. The `host.id` and `haproxy.addr` attributes are required for HAProxy entity identification.
+- Verify the metrics pipeline is running with the `haproxy` receiver. The HAProxy entity is created from metrics data — without it, HAProxy appears as a generic service rather than a dedicated HAProxy entity.
+- Query to verify both HAProxy and application spans share trace IDs:
+  ```sql
+  FROM Span SELECT uniques(service.name)
+  WHERE trace.id IN (
+    SELECT uniques(trace.id) FROM Span
+    WHERE service.name = 'YOUR_HAPROXY_SERVICE_NAME'
+    SINCE 10 minutes ago LIMIT 5
+  )
+  SINCE 10 minutes ago
+  ```
+  You should see your HAProxy service name alongside your application service names.
+
+  </Collapser>
+
+  <Collapser id="troubleshoot-partial-relationships" title="Some relationships appear but not all">
+
+- Each instrumented application must send traces through the same OTel Collector (or directly to New Relic) so that span data for all services reaches the same account.
+- For applications using New Relic APM agents, verify that [distributed tracing](/docs/distributed-tracing/enable-configure/overview-enable-distributed-tracing/) is enabled and the agent is connected.
+- For OTel SDK applications, verify the OTLP exporter is configured to send to the collector.
+- Allow additional time. Relationships for services with lower traffic volume may take longer to appear.
+
+  </Collapser>
+
+  <Collapser id="troubleshoot-filter-errors" title="HAProxy fails to start with OTel filter errors">
+
+- `unknown keyword 'filter'` or `unknown keyword 'opentelemetry'`: Your HAProxy binary does not include the OTel filter. Refer to the [HAProxy OTel installation guide](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/installation/).
+- `unable to load OTel configuration`: Check that the `config` path in the `filter opentelemetry` directive is correct and the file exists. Paths are relative to the HAProxy working directory.
+- Shared library errors: The OTel filter requires the OpenTelemetry C++ SDK shared libraries. Ensure they are installed and discoverable (for example, via `LD_LIBRARY_PATH` or `ldconfig`).
+
+  </Collapser>
+
+</CollapserGroup>
+
+## Next steps [#next-steps]
+
+- [Service maps](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/) — learn how to explore entity relationships visually
+- [Monitor self-hosted HAProxy metrics](/docs/opentelemetry/integrations/haproxy/self-hosted/) — advanced metrics configuration and dashboard setup
+- [Find and query your HAProxy data](/docs/opentelemetry/integrations/haproxy/find-and-query-data/) — NRQL queries for both metrics and trace data
+- [HAProxy OTel filter documentation](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/traces/) — full reference for the HAProxy OpenTelemetry filter configuration
