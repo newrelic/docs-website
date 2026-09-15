@@ -311,12 +311,21 @@ These issues apply when you've set up [APM correlation with distributed tracing]
 
   <Collapser id="troubleshoot-cluster-self-loop" title="The cluster shows a relationship to itself (calls itself)">
     <p><strong>Cause</strong></p>
-    <p>Elasticsearch server spans carry the node's own address (<InlineCode>http.request.headers.host</InlineCode>), which New Relic resolves back to the cluster and draws as a self-referential relationship.</p>
+    <p>A self-loop appears when Elasticsearch spans reach New Relic that can't be attributed to a calling application. There are two common sources:</p>
+
+    - <strong>Parentless (root) Elasticsearch spans</strong> — spans with no parent application span, such as Kubernetes health probes or the Elasticsearch metrics receiver's own scrape calls (<InlineCode>_nodes/stats</InlineCode>, <InlineCode>_cluster/health</InlineCode>, and similar). Because they aren't part of an application's trace, New Relic has no calling service and draws the relationship on the cluster itself.
+    - <strong>The node's own address</strong> — Elasticsearch server spans carry <InlineCode>http.request.headers.host</InlineCode> (and <InlineCode>server.address</InlineCode>), which New Relic resolves back to the cluster.
+
     <p><strong>Resolution</strong></p>
-    <p>Add the <InlineCode>transform/strip_es_host</InlineCode> processor to the <InlineCode>traces</InlineCode> pipeline so those address attributes are removed from Elasticsearch spans, then restart the collector:</p>
+    <p>Add both processors to the <InlineCode>traces</InlineCode> pipeline, then restart the collector. <InlineCode>filter/drop_rootless_es</InlineCode> drops the parentless Elasticsearch spans (application-driven spans always have a parent, so they're kept), and <InlineCode>transform/strip_es_host</InlineCode> removes the address attributes:</p>
 
     ```yaml
     processors:
+      filter/drop_rootless_es:
+        error_mode: ignore
+        traces:
+          span:
+            - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
       transform/strip_es_host:
         error_mode: ignore
         trace_statements:
@@ -324,6 +333,7 @@ These issues apply when you've set up [APM correlation with distributed tracing]
             statements:
               - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
               - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+    # traces pipeline: processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
     ```
     <p>Existing self-loops clear on their own once the corrected spans arrive and the previous relationship expires (this can take up to about 75 minutes).</p>
   </Collapser>
@@ -339,8 +349,9 @@ These issues apply when you've set up [APM correlation with distributed tracing]
   <Collapser id="troubleshoot-name-mismatch" title="Traces and metrics resolve to different cluster entities">
     <p><strong>Resolution</strong></p>
 
-    - The traces path keys on <InlineCode>es.cluster.name</InlineCode> (stamped by Elasticsearch on its spans) and the metrics path on <InlineCode>elasticsearch.cluster.name</InlineCode>. By default both derive from the configured <InlineCode>cluster.name</InlineCode>, so they resolve to the same entity.
-    - If you override the cluster name for metrics in the collector (for example with a <InlineCode>resource/cluster_name_override</InlineCode> processor), make sure the override matches the actual <InlineCode>cluster.name</InlineCode> Elasticsearch reports on its spans, otherwise traces and metrics will resolve to two different entities.
+    - The traces path keys on <InlineCode>es.cluster.name</InlineCode> (stamped by Elasticsearch on its spans) and the metrics path on <InlineCode>elasticsearch.cluster.name</InlineCode>. The <InlineCode>elasticsearchreceiver</InlineCode> reports <InlineCode>elasticsearch.cluster.name</InlineCode> automatically from the value Elasticsearch returns, so both derive from the same <InlineCode>cluster.name</InlineCode> and resolve to one entity — no extra collector configuration needed.
+    - Don't force the metrics cluster name to a fixed value. If your collector config sets it with a <InlineCode>resource</InlineCode> processor (for example a <InlineCode>resource/cluster_name_override</InlineCode> that hardcodes the name), remove that override — otherwise metrics and traces resolve to two different entities and the correlated entity shows no metrics data.
+    - Make sure your Elasticsearch <InlineCode>cluster.name</InlineCode> is unique within your New Relic account so it maps to a single, unambiguous entity.
   </Collapser>
 
 </CollapserGroup>

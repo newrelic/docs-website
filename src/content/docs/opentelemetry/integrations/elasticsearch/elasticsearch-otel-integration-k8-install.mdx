@@ -413,11 +413,15 @@ Add the Elasticsearch receiver and processors to your existing configuration. Re
 
 **Required changes:**
 * **Pod label rule** - The rule `labels["app"] == "elasticsearch"` must match your pod labels
-* **Cluster name** - Replace `elasticsearch-cluster` in both `resource/cluster` and `resource/cluster_name_override` with your unique cluster name
+* **Cluster name** - In `resource/cluster_name_override`, replace `elasticsearch-cluster` with your Elasticsearch `cluster.name`; it **must match** the name Elasticsearch reports (see the note below). In `resource/cluster`, replace `elasticsearch-cluster` with a name that identifies your Kubernetes cluster (`k8s.cluster.name`).
 
 **Optional changes:**
 * **Port** - Update `9200` if Elasticsearch runs on a different port
 * **Authentication** - Add credentials if your Elasticsearch cluster is secured (see example below)
+</Callout>
+
+<Callout variant="important">
+The `elasticsearch.cluster.name` set in `resource/cluster_name_override` **must exactly match** the `cluster.name` configured in Elasticsearch. The metrics, logs, and traces pipelines all key on it, so if it differs they resolve to separate entities in New Relic (for example, the cluster entity shows no metrics data). Choose a `cluster.name` that is unique within your New Relic account.
 </Callout>
 
 **For secured Elasticsearch clusters:**
@@ -1734,7 +1738,7 @@ data:
 
 Replace the following values in the configuration:
 
-* `<elasticsearch-cluster-name>`: Your Elasticsearch cluster name
+* `<elasticsearch-cluster-name>`: Your Elasticsearch cluster name, used to identify the cluster in New Relic. Set this to your actual Elasticsearch `cluster.name` — it **must exactly match** the name Elasticsearch reports on its spans (`es.cluster.name`), otherwise your metrics and traces resolve to separate entities in New Relic (for example, the cluster entity shows no metrics data). Choose a `cluster.name` that is unique within your New Relic account.
 * `elasticsearch-exporter-prometheus-elasticsearch-exporter.monitoring.svc.cluster.local:9114`: Your exporter's Kubernetes service address
 
 </Step>
@@ -1846,7 +1850,7 @@ Link your applications to the Elasticsearch cluster they call, so a slow transac
 
 ### Set up distributed tracing [#correlate-tracing]
 
-Elasticsearch emits its own OpenTelemetry spans, joins your app's trace through the `traceparent` header, and stamps `es.cluster.name` on each one — so New Relic wires up the relationship automatically. Requires **Elasticsearch 9.4+**.
+Elasticsearch emits its own OpenTelemetry spans, joins your app's trace through the `traceparent` header, and stamps `es.cluster.name` on each one, so New Relic wires up the relationship automatically. Requires **Elasticsearch 9.4+**.
 
 <Steps>
 
@@ -1868,7 +1872,12 @@ telemetry.tracing.sample_rate: 1.0   # default 0.001; lower for high volume
 
 #### Add a traces pipeline to your collector [#collector-traces-k8s]
 
-Enable the `otlp` receiver and a `traces` pipeline in your collector values or ConfigMap, then redeploy and make sure the collector exposes gRPC port `4317`. If you used the New Relic distribution, both ship as `null` placeholders — replace them. The `transform` strips Elasticsearch's own address from its spans — without it, the cluster appears to "call itself."
+Enable the `otlp` receiver and a `traces` pipeline in your collector values or ConfigMap, then redeploy and make sure the collector exposes gRPC port `4317`. If you used the New Relic distribution, both ship as `null` placeholders — replace them.
+
+Two processors keep the relationship clean. Without them the cluster appears to "call itself":
+
+* `filter/drop_rootless_es` drops Elasticsearch spans that have no parent application span — for example, Kubernetes health probes and the Elasticsearch metrics receiver's own scrape calls. Because these spans aren't part of an application's trace, New Relic has no calling service to attribute them to and draws a self-referential relationship on the cluster instead.
+* `transform/strip_es_host` removes the node's own address from Elasticsearch spans, which New Relic would otherwise resolve back to the cluster.
 
 ```yaml
 receivers:
@@ -1878,6 +1887,11 @@ receivers:
         endpoint: 0.0.0.0:4317
 
 processors:
+  filter/drop_rootless_es:
+    error_mode: ignore
+    traces:
+      span:
+        - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
   transform/strip_es_host:
     error_mode: ignore
     trace_statements:
@@ -1890,7 +1904,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [transform/strip_es_host, batch]
+      processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
       exporters: [otlphttp]
 ```
 
@@ -1903,8 +1917,6 @@ service:
 ```sql
 FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 10 minutes ago
 ```
-
-Open the cluster entity: your apps appear connected through a `CALLS` relationship, with Elasticsearch spans inline in the distributed trace.
 
 </Step>
 

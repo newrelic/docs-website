@@ -85,7 +85,7 @@ To configure the collector:
 2. Delete all existing content and replace it with the following configuration for Elasticsearch monitoring:
 
 <Callout variant="important">
-Replace the `endpoint` value with your Elasticsearch cluster endpoint and update `elasticsearch.cluster.name` in the processor block with a unique name to identify your cluster in New Relic.
+Replace the `endpoint` value with your Elasticsearch cluster endpoint and update `elasticsearch.cluster.name` in the processor block with a unique name to identify your cluster in New Relic. This name **must exactly match** the `cluster.name` configured in Elasticsearch — the metrics, logs, and traces pipelines all key on it, so if it differs they resolve to separate entities in New Relic (for example, the cluster entity shows no metrics data).
 </Callout>
 
 
@@ -551,7 +551,7 @@ To configure the collector:
 2. Delete all existing content and replace it with the following configuration for Elasticsearch monitoring:
 
 <Callout variant="important">
-Replace the `endpoint` value with your Elasticsearch cluster endpoint and update `elasticsearch.cluster.name` in the processor block with a unique name to identify your cluster in New Relic.
+Replace the `endpoint` value with your Elasticsearch cluster endpoint and update `elasticsearch.cluster.name` in the processor block with a unique name to identify your cluster in New Relic. This name **must exactly match** the `cluster.name` configured in Elasticsearch — the metrics, logs, and traces pipelines all key on it, so if it differs they resolve to separate entities in New Relic (for example, the cluster entity shows no metrics data).
 </Callout>
 
 
@@ -1400,7 +1400,7 @@ service:
 
 Replace the following values in the configuration:
 
-* `<elasticsearch-cluster-name>`: Your Elasticsearch cluster name for identification in New Relic.
+* `<elasticsearch-cluster-name>`: Your Elasticsearch cluster name, used to identify the cluster in New Relic. Set this to your actual Elasticsearch `cluster.name` — it **must exactly match** the name Elasticsearch reports on its spans (`es.cluster.name`), otherwise your metrics and traces resolve to separate entities in New Relic (for example, the cluster entity shows no metrics data). Choose a `cluster.name` that is unique within your New Relic account.
 * `localhost:9114`: The address of your `elasticsearch_exporter` if running on a different host or port.
 
 </Step>
@@ -1508,7 +1508,10 @@ telemetry.tracing.sample_rate: 1.0                           # default 0.001; lo
 
 #### Add a traces pipeline to your collector [#collector-traces]
 
-Extend your install-time collector config, then restart it. The `transform` strips Elasticsearch's own address from its spans — without it, the cluster appears to "call itself."
+Extend your install-time collector config, then restart it. Two processors keep the relationship clean. Without them the cluster appears to "call itself":
+
+* `filter/drop_rootless_es` drops Elasticsearch spans that have no parent application span — for example, health checks and the Elasticsearch metrics receiver's own scrape calls. Because these spans aren't part of an application's trace, New Relic has no calling service to attribute them to and draws a self-referential relationship on the cluster instead.
+* `transform/strip_es_host` removes the node's own address from Elasticsearch spans, which New Relic would otherwise resolve back to the cluster.
 
 ```yaml
 receivers:
@@ -1518,6 +1521,11 @@ receivers:
         endpoint: 0.0.0.0:4317
 
 processors:
+  filter/drop_rootless_es:
+    error_mode: ignore
+    traces:
+      span:
+        - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
   transform/strip_es_host:
     error_mode: ignore
     trace_statements:
@@ -1530,7 +1538,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [transform/strip_es_host, batch]
+      processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
       exporters: [otlphttp]
 ```
 
