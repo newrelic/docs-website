@@ -1,4 +1,4 @@
-const { mdxToCleanMarkdown } = require('../gatsby-node');
+const { mdxToCleanMarkdown, categorizePages, categoryForSlug } = require('../gatsby-node');
 
 const CALLOUT = {
   type: 'mdxJsxFlowElement',
@@ -308,6 +308,53 @@ test('still renders Callout as a blockquote with its variant', () => {
   expect(markdown).toContain('This is important.');
 });
 
+test('renders a Callout\'s label as a real heading, not bold text', () => {
+  const markdown = mdxToCleanMarkdown(fixture());
+
+  expect(markdown).toMatch(/^> #### .*IMPORTANT$/m);
+});
+
+test('uses Callout\'s title attribute as the label instead of the generic variant name', () => {
+  // Real usage: <Callout title="preview"> - used on ~96 real pages, most
+  // commonly the standard preview-doc banner - with no `variant` at all.
+  // Without reading `title`, this rendered as a misleading "TIP" label,
+  // silently dropping the author's actual title text.
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxJsxFlowElement',
+        name: 'Callout',
+        attributes: [{ type: 'mdxJsxAttribute', name: 'title', value: 'preview' }],
+        children: [{ type: 'paragraph', children: [{ type: 'text', value: 'Still working on this.' }] }],
+      },
+    ],
+  });
+
+  expect(markdown).toContain('PREVIEW');
+  expect(markdown).not.toContain('TIP');
+});
+
+test('uses Callout\'s title attribute together with its variant\'s icon', () => {
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxJsxFlowElement',
+        name: 'Callout',
+        attributes: [
+          { type: 'mdxJsxAttribute', name: 'title', value: 'Feature Availability' },
+          { type: 'mdxJsxAttribute', name: 'variant', value: 'important' },
+        ],
+        children: [{ type: 'paragraph', children: [{ type: 'text', value: 'Not available on all accounts.' }] }],
+      },
+    ],
+  });
+
+  expect(markdown).toContain('FEATURE AVAILABILITY');
+  expect(markdown).not.toContain('IMPORTANT');
+});
+
 test('keeps a space between a multi-paragraph Callout\'s paragraphs instead of gluing them together', () => {
   const ast = {
     type: 'root',
@@ -412,7 +459,27 @@ test('wraps DocTile children in the link when there is no title (27% of real usa
     ],
   });
 
-  expect(markdown).toContain('[**View your Kubernetes events**](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-events-integration/)');
+  expect(markdown).toContain('[View your Kubernetes events](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-events-integration/)');
+});
+
+test('does not bold a DocTile\'s link text - TechTile (the same tile concept) doesn\'t either', () => {
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxJsxFlowElement',
+        name: 'DocTile',
+        attributes: [
+          { type: 'mdxJsxAttribute', name: 'title', value: 'Start ingesting data' },
+          { type: 'mdxJsxAttribute', name: 'path', value: '/docs/tutorial-dd-migration/installing-monitor/' },
+        ],
+        children: [{ type: 'text', value: 'Start by ingesting your data' }],
+      },
+    ],
+  });
+
+  expect(markdown).toContain('[Start ingesting data](https://docs.newrelic.com/docs/tutorial-dd-migration/installing-monitor/)');
+  expect(markdown).not.toContain('**Start ingesting data**');
 });
 
 test('bolds a TabsBarItem label so it reads as distinct from body text', () => {
@@ -510,6 +577,80 @@ test('does not crash or double-bold a Tabs label wrapped in its own <DNT>**bold*
   expect(markdown).toContain('**BTP runtime**');
 });
 
+test('renders each Tabs label as a real heading, not bold text', () => {
+  const markdown = mdxToCleanMarkdown(
+    tabsFixture([
+      { id: 'a', label: [{ type: 'text', value: 'Via OTel Java agent' }], content: [{ type: 'paragraph', children: [{ type: 'text', value: 'Content A.' }] }] },
+      { id: 'b', label: [{ type: 'text', value: 'Via Prometheus JMX Exporter' }], content: [{ type: 'paragraph', children: [{ type: 'text', value: 'Content B.' }] }] },
+    ])
+  );
+
+  // A top-level Tabs with nothing above it defaults to the same starting
+  // depth as the page's first real content heading (H2).
+  expect(markdown).toMatch(/^## Via OTel Java agent$/m);
+  expect(markdown).toMatch(/^## Via Prometheus JMX Exporter$/m);
+});
+
+test('nests a Tabs inside another tab\'s content one heading level deeper than that tab\'s own label', () => {
+  // Real page shape (opentelemetry/integrations/kafka/self-hosted.mdx): an
+  // outer install-method Tabs, and inside one of its tabs' Steps, a second
+  // Tabs choosing between two collector distributions - the inner tab
+  // labels must land deeper than the outer ones, not at the same level.
+  const innerTabs = {
+    type: 'mdxJsxFlowElement',
+    name: 'Tabs',
+    attributes: [],
+    children: tabsFixture([
+      { id: 'nrdot', label: [{ type: 'text', value: 'NRDOT Collector' }], content: [{ type: 'paragraph', children: [{ type: 'text', value: 'Inner content.' }] }] },
+    ]).children[0].children,
+  };
+
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      { type: 'heading', depth: 2, children: [{ type: 'text', value: 'Installation steps' }] },
+      ...tabsFixture([
+        { id: 'java-agent', label: [{ type: 'text', value: 'Via OTel Java agent' }], content: [innerTabs] },
+      ]).children,
+    ],
+  });
+
+  expect(markdown).toMatch(/^### Via OTel Java agent$/m);
+  expect(markdown).toMatch(/^#### NRDOT Collector$/m);
+});
+
+test('rescales a tab\'s own already-authored heading so it nests under the tab label, not beside it', () => {
+  // Real page shape: a <Step> inside a tab's content already has its own
+  // literal "### Before you begin" heading, written tab-agnostic (every
+  // Step heading is "###" regardless of which tab it's in, since tabs
+  // aren't part of the heading hierarchy on the live site). Left
+  // unadjusted, that literal depth-3 heading collided with the tab label's
+  // own depth-3 heading, reading as a sibling instead of nested content.
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      { type: 'heading', depth: 2, children: [{ type: 'text', value: 'Installation steps' }] },
+      ...tabsFixture([
+        {
+          id: 'java-agent',
+          label: [{ type: 'text', value: 'Via OTel Java agent' }],
+          content: [
+            { type: 'heading', depth: 3, children: [{ type: 'text', value: 'Before you begin' }] },
+            { type: 'paragraph', children: [{ type: 'text', value: 'Ensure you have an account.' }] },
+            { type: 'heading', depth: 3, children: [{ type: 'text', value: 'Create the config' }] },
+          ],
+        },
+      ]).children,
+    ],
+  });
+
+  expect(markdown).toMatch(/^### Via OTel Java agent$/m);
+  // Both Step headings nest one level under the tab label, and stay
+  // siblings of each other (neither ends up deeper than the other).
+  expect(markdown).toMatch(/^#### Before you begin$/m);
+  expect(markdown).toMatch(/^#### Create the config$/m);
+});
+
 test('renders a self-closing Video as a followable embed link, not an empty gap', () => {
   const markdown = mdxToCleanMarkdown(fixture());
 
@@ -521,6 +662,79 @@ test('renders Steps/Step as a real ordered list', () => {
 
   expect(markdown).toMatch(/1\.\s+First, do this\./);
   expect(markdown).toMatch(/2\.\s+Then, do that\./);
+});
+
+test('promotes a titled Step to a plain heading instead of nesting it under a list number', () => {
+  // Real page shape (opentelemetry/integrations/kafka/self-hosted.mdx):
+  // every <Step> opens with its own ### heading - forcing a numbered-list
+  // wrapper around that buried the heading as "1.  ### Before you begin".
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxJsxFlowElement',
+        name: 'Steps',
+        attributes: [],
+        children: [
+          {
+            type: 'mdxJsxFlowElement',
+            name: 'Step',
+            attributes: [],
+            children: [
+              { type: 'heading', depth: 3, children: [{ type: 'text', value: 'Before you begin' }] },
+              { type: 'paragraph', children: [{ type: 'text', value: 'Ensure you have an account.' }] },
+            ],
+          },
+          {
+            type: 'mdxJsxFlowElement',
+            name: 'Step',
+            attributes: [],
+            children: [
+              { type: 'heading', depth: 3, children: [{ type: 'text', value: 'Create the config' }] },
+              { type: 'paragraph', children: [{ type: 'text', value: 'Create the file.' }] },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  expect(markdown).toMatch(/^### Before you begin$/m);
+  expect(markdown).toMatch(/^### Create the config$/m);
+  expect(markdown).not.toMatch(/\d\.\s+#{1,6}/);
+});
+
+test('still numbers an untitled Step even when a sibling Step is titled', () => {
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxJsxFlowElement',
+        name: 'Steps',
+        attributes: [],
+        children: [
+          {
+            type: 'mdxJsxFlowElement',
+            name: 'Step',
+            attributes: [],
+            children: [{ type: 'paragraph', children: [{ type: 'text', value: 'Untitled first step.' }] }],
+          },
+          {
+            type: 'mdxJsxFlowElement',
+            name: 'Step',
+            attributes: [],
+            children: [
+              { type: 'heading', depth: 3, children: [{ type: 'text', value: 'Titled step' }] },
+              { type: 'paragraph', children: [{ type: 'text', value: 'Titled step body.' }] },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  expect(markdown).toMatch(/1\.\s+Untitled first step\./);
+  expect(markdown).toMatch(/^### Titled step$/m);
 });
 
 test('does not crash on a stray JSX comment between <Step> siblings inside <Steps>', () => {
@@ -925,4 +1139,81 @@ test('never leaks raw MDX node types or object references into the output', () =
   expect(markdown).not.toContain('mdxBlockElement');
   expect(markdown).not.toContain('mdxJsxFlowElement');
   expect(markdown).not.toContain('[object Object]');
+});
+
+// categoryForSlug/categorizePages read the site's real nav tree
+// (src/nav/generatedNav.yml) instead of a hand-maintained duplicate of its
+// ~40 categories - the old hardcoded list only covered ~15 of them, so
+// everything else (AI monitoring, Kubernetes, OpenTelemetry, Serverless,
+// CodeStream, Distributed Tracing, New Relic Lens, Workflow Automation,
+// Licenses, Data and APIs, and more) silently fell into "Other" instead of
+// its real category.
+test('categorizes real pages under their actual nav category instead of "Other"', () => {
+  const realSlugs = {
+    '/docs/ai-monitoring/intro-to-ai-monitoring': 'AI monitoring',
+    '/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration': 'Kubernetes monitoring',
+    '/docs/opentelemetry/get-started/introduction-opentelemetry-new-relic': 'OpenTelemetry',
+    '/docs/serverless-function-monitoring/aws-lambda-monitoring/introduction-aws-lambda-monitoring': 'Serverless monitoring',
+    '/docs/codestream/observability/performance-monitoring': 'CodeStream',
+    '/docs/distributed-tracing/infinite-tracing/introduction-infinite-tracing': 'Distributed tracing',
+    '/docs/new-relic-lens/overview': 'New Relic Lens',
+    '/docs/workflow-automation/get-workflow-definition': 'Workflow Automation',
+    '/docs/licenses/license-types': 'Licenses',
+    '/docs/data-apis/get-started/nrdb-horsepower-under-hood': 'Data and APIs',
+  };
+
+  Object.entries(realSlugs).forEach(([slug, expectedCategory]) => {
+    expect(categoryForSlug(slug)).toBe(expectedCategory);
+  });
+});
+
+test('nests /docs/apis under Data and APIs - it\'s cross-linked there, not its own top-level nav section', () => {
+  expect(categoryForSlug('/docs/apis/rest-api-v2/get-started/introduction-new-relic-rest-api-v2')).toBe('Data and APIs');
+});
+
+test('nests /docs/query-your-data under Charts, dashboards, and querying, not "Other"', () => {
+  expect(categoryForSlug('/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards')).toBe('Charts, dashboards, and querying');
+});
+
+test('categorizes the diagnostics-cli-nrdiag pages by their real section, not as EOL announcements', () => {
+  // These pages live under Guides and best practices - they were only ever
+  // in "EOL Announcements" because of a slug match that had nothing to do
+  // with actual end-of-life notices.
+  const category = categoryForSlug('/docs/new-relic-solutions/solve-common-issues/diagnostics-cli-nrdiag/generate-your-license-key-file');
+  expect(category).toBe('Guides and best practices');
+  expect(category).not.toBe('EOL Announcements');
+});
+
+test('categorizes real EOL announcements and What\'s New posts under their own sections', () => {
+  // Real EOL/What's New content lives under src/content/eol and
+  // src/content/whats-new, outside src/content/docs entirely - so their
+  // slugs have no `/docs` prefix at all.
+  expect(categoryForSlug('/eol/2025/05/metrics-and-event-explorer')).toBe('End-of-life announcements');
+  expect(categoryForSlug('/whats-new/2025/09/whats-new-30-09-new-relic-control')).toBe("What's new?");
+});
+
+test('still categorizes release notes as one section', () => {
+  expect(categoryForSlug('/docs/release-notes/agent-release-notes/net-release-notes/net-agent-1000')).toBe('Release notes');
+});
+
+test('falls back to Other only for a page with no real nav home at all', () => {
+  expect(categoryForSlug('/docs/some-genuinely-unnavved-orphan-page')).toBe('Other');
+});
+
+test('categorizePages preserves the nav\'s own category order and drops empty categories', () => {
+  const categorized = categorizePages([
+    { slug: '/docs/licenses/license-types', title: 'Licenses' },
+    { slug: '/docs/ai-monitoring/intro-to-ai-monitoring', title: 'AI monitoring intro' },
+    { slug: '/docs/some-genuinely-unnavved-orphan-page', title: 'Orphan' },
+  ]);
+
+  const keys = Object.keys(categorized);
+  expect(keys).toContain('AI monitoring');
+  expect(keys).toContain('Licenses');
+  expect(keys).toContain('Other');
+  // AI monitoring is listed before Licenses in the site's own nav order
+  // (src/nav/root.yml) - the generated index should read the same way.
+  expect(keys.indexOf('AI monitoring')).toBeLessThan(keys.indexOf('Licenses'));
+  expect(keys).not.toContain('Alerts');
+  expect(categorized['Other']).toHaveLength(1);
 });

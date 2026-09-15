@@ -5,6 +5,7 @@ const remove = require('unist-util-remove');
 const toString = require('mdast-util-to-string');
 const unified = require('unified');
 const stringify = require('remark-stringify');
+const yaml = require('js-yaml');
 const { findAttribute } = require('../../codemods/utils/mdxast');
 // InlinePopover's visible text (`inlineText`) is resolved from this JSON by
 // its `type` prop at React render time - it's never a plain MDX attribute,
@@ -197,14 +198,24 @@ const dispatchFlow = (node) => {
       warning: '⚠️',
     }[variant] || '💡';
 
+    // The real component's `title` prop overrides the variant name as the
+    // visible label (e.g. `<Callout title="preview">`, used on ~96 real
+    // pages, most commonly for the standard preview-doc banner) - and is
+    // itself uppercased on publish, same as the variant-derived default.
+    // Without reading it, every one of those callouts came out mislabeled
+    // "TIP" here, silently dropping the author's actual title text.
+    const title = attributeText(findAttribute('title', node)) || variant;
+
+    // A titled aside reads as a heading, not bold body text, in a real
+    // heading hierarchy (see Tabs above) - Stripe's own callouts follow the
+    // same `> #### Title` shape rather than bolding the label.
     return {
       type: 'blockquote',
       children: [
         {
-          type: 'paragraph',
-          children: [
-            { type: 'strong', children: [{ type: 'text', value: `${variantEmoji} ${variant.toUpperCase()}` }] },
-          ],
+          type: 'heading',
+          depth: 4,
+          children: [{ type: 'text', value: `${variantEmoji} ${title.toUpperCase()}` }],
         },
         ...(node.children || []),
       ],
@@ -333,21 +344,52 @@ const dispatchFlow = (node) => {
     return { type: 'table', align: Array(columnCount).fill(null), children: rows };
   }
 
-  // Steps/Step render as a numbered sequence visually - without this, each
-  // step still reads fine as consecutive paragraphs, but the explicit
-  // ordering is left implicit. A real ordered list makes it explicit.
+  // Steps/Step render as a numbered sequence visually - for an untitled
+  // step (no heading of its own), a real ordered list item makes that
+  // explicit ordering explicit in markdown too. A step that DOES have its
+  // own heading (the common real-page shape: `<Step>### Title...</Step>`)
+  // is a titled section in its own right, not list content - splicing it
+  // in directly instead lets it stand as a normal heading, the same way
+  // Stripe's own .md export promotes a titled step to a plain heading with
+  // no list numbering at all, rather than nesting the heading inside a
+  // `1.` marker.
   if (node.name === 'Step') {
-    return { type: 'listItem', spread: false, children: node.children };
+    const children = node.children || [];
+    if (children[0] && children[0].type === 'heading') {
+      return children;
+    }
+    return { type: 'listItem', spread: false, children };
   }
   if (node.name === 'Steps') {
     // A stray JSX comment ({/* ... */}) between <Step> siblings survives as
-    // a non-empty text node (see toTextOrDrop) rather than being dropped,
-    // the same way a {' '} spacer corrupts a raw <table>'s row list.
-    // remark-stringify's list-item visitor assumes every child is a real
-    // listItem with its own `children` array - an unfiltered stray node
-    // crashes it. Drop anything that isn't one.
-    const items = (node.children || []).filter((child) => child.type === 'listItem');
-    return { type: 'list', ordered: true, start: 1, spread: false, children: items };
+    // a non-empty bare text node (see toTextOrDrop) rather than being
+    // dropped, the same way a {' '} spacer corrupts a raw <table>'s row
+    // list - drop that specific shape. Everything else here is real
+    // content: either a listItem (untitled step) or a titled step's own
+    // spliced heading + body (see above), never a bare text node itself.
+    const kept = (node.children || []).filter((child) => child.type !== 'text');
+
+    // Consecutive untitled steps still share one numbered list; a titled
+    // step's spliced content passes through as its own section, breaking
+    // that run so the next untitled step (if any) starts a fresh list.
+    const result = [];
+    let run = [];
+    const flushRun = () => {
+      if (run.length) {
+        result.push({ type: 'list', ordered: true, start: 1, spread: false, children: run });
+        run = [];
+      }
+    };
+    kept.forEach((child) => {
+      if (child.type === 'listItem') {
+        run.push(child);
+      } else {
+        flushRun();
+        result.push(child);
+      }
+    });
+    flushRun();
+    return result;
   }
 
   // Video is self-closing with no text content in the MDX source at all -
@@ -389,17 +431,21 @@ const dispatchFlow = (node) => {
     const path = attributeText(findAttribute('path', node)) || '#';
     const url = path.startsWith('/') ? `https://docs.newrelic.com${path}` : path;
 
+    // No bold wrapper on the link text - TechTile (the same "card" concept
+    // elsewhere in this file) doesn't bold its link either, and neither
+    // does a real card-grid tile in the wild (e.g. Stripe's own `.md`
+    // export: `[Create a Stripe account](url): Create and activate...`).
     if (!title) {
       return {
         type: 'paragraph',
-        children: [{ type: 'link', url, children: [{ type: 'strong', children: node.children || [] }] }],
+        children: [{ type: 'link', url, children: node.children || [] }],
       };
     }
 
     return [
       {
         type: 'paragraph',
-        children: [{ type: 'link', url, children: [{ type: 'strong', children: [{ type: 'text', value: title }] }] }],
+        children: [{ type: 'link', url, children: [{ type: 'text', value: title }] }],
       },
       ...(node.children || []),
     ];
@@ -460,58 +506,125 @@ const dispatchText = (node) => {
 // the content itself becomes unattributable. Must run on the RAW node,
 // before transformNode's generic recursion has already unwrapped TabsBar/
 // TabsPages away and lost the id attributes this needs to pair them.
-const transformChildren = (nodes) =>
+const transformChildren = (nodes, headingCtx) =>
   (nodes || []).flatMap((child) => {
-    const result = transformNode(child);
+    const result = transformNode(child, headingCtx);
     return Array.isArray(result) ? result : [result];
   });
 
-// A label wrapped in its own <DNT>**bold**</DNT> already transforms to a
-// paragraph (or bare node) containing a single `strong` - wrapping that in
-// another `strong` for the tab-label styling below would double the
-// asterisks (`****text****`). Unwrap that one redundant layer first; a
-// plain-text label (the common case) doesn't match either shape here and
-// passes through untouched.
-const unwrapIfAlreadyBold = (nodes) => {
-  if (nodes.length === 1 && nodes[0].type === 'strong') {
+// A label can resolve to a bare paragraph (e.g. <DNT>**Label**</DNT> used as
+// a block element, rather than plain text) instead of already-inline
+// content - a heading's children must be inline, so unwrap that one
+// wrapping layer (keeping any bold/etc. inside it intact). A plain-text
+// label (the common case) doesn't match this shape and passes through
+// untouched.
+const unwrapParagraph = (nodes) => {
+  if (nodes.length === 1 && nodes[0].type === 'paragraph') {
     return nodes[0].children;
-  }
-  if (nodes.length === 1 && nodes[0].type === 'paragraph' && nodes[0].children?.length === 1 && nodes[0].children[0].type === 'strong') {
-    return nodes[0].children[0].children;
   }
   return nodes;
 };
 
-const transformTabs = (tabsNode) => {
+// A heading an author writes inside a tab's content is at a fixed depth
+// independent of which tab it happens to sit in (e.g. every real <Step>'s
+// own heading is "###", tab-agnostic - on the live site tabs are a UI
+// switcher, not part of the heading hierarchy, so there was never a reason
+// to write it any deeper). Nesting it correctly under its tab's own
+// (synthetic) label heading needs an active shift, not just reading it as
+// ambient context - otherwise a literal `### Step title` and a `### Tab
+// label` one level up collide at the same depth, reading as siblings
+// instead of parent/child. shallowestHeadingDepth() finds the shallowest
+// heading actually authored in a tab's content (the "top" of whatever
+// hierarchy the author wrote); shiftHeadings() then moves every heading in
+// that content down by the same amount, preserving their relative
+// structure (siblings stay siblings, a sub-heading stays one level under
+// its own section) while landing the shallowest one just below the tab
+// label. Both stop at a nested <Tabs> - that one computes and applies its
+// own shift independently once transformTabs reaches it.
+const shallowestHeadingDepth = (nodes) => {
+  let min = Infinity;
+  (nodes || []).forEach((node) => {
+    if (node.type === 'heading') min = Math.min(min, node.depth);
+    if (node.name !== 'Tabs' && Array.isArray(node.children)) {
+      min = Math.min(min, shallowestHeadingDepth(node.children));
+    }
+  });
+  return min;
+};
+
+const shiftHeadings = (nodes, offset) => {
+  if (!offset) return;
+  (nodes || []).forEach((node) => {
+    if (node.type === 'heading') node.depth = Math.min(6, node.depth + offset);
+    if (node.name !== 'Tabs' && Array.isArray(node.children)) {
+      shiftHeadings(node.children, offset);
+    }
+  });
+};
+
+// Tab labels render as real headings rather than bold text, so both the
+// hierarchy (this is a titled section, not an emphasized run of body text)
+// and the nesting (a <Tabs> inside another tab's content is a sub-section
+// of it) survive into the flattened markdown. Depth tracks whatever heading
+// last preceded this point in the document (headingCtx, updated as
+// transformNode walks headings in document order) so a top-level <Tabs>
+// lands one level under its enclosing section while a <Tabs> nested inside
+// another tab's content lands one level under THAT tab's own label -
+// mirroring how e.g. Stripe's own .md export nests a platform-picker tab
+// group a level deeper than the install-method tab group it sits inside.
+const transformTabs = (tabsNode, headingCtx) => {
   const bar = (tabsNode.children || []).find((c) => c.name === 'TabsBar');
   const pages = (tabsNode.children || []).find((c) => c.name === 'TabsPages');
 
   if (!bar || !pages) {
     // Unexpected shape - fall back to plain per-child transformation
     // rather than guess at a pairing that isn't there.
-    return transformChildren(tabsNode.children);
+    return transformChildren(tabsNode.children, headingCtx);
   }
 
   const barItems = (bar.children || []).filter((c) => c.name === 'TabsBarItem');
   const pageItems = (pages.children || []).filter((c) => c.name === 'TabsPageItem');
 
-  return barItems.flatMap((barItem, i) => {
+  const outerDepth = headingCtx.depth;
+  const tabDepth = Math.min(outerDepth + 1, 6);
+
+  const result = barItems.flatMap((barItem, i) => {
     const id = attributeText(findAttribute('id', barItem));
     const pageItem =
       pageItems.find((p) => attributeText(findAttribute('id', p)) === id) || pageItems[i];
+
+    // Each tab's own content is walked as if tabDepth were the ambient
+    // heading level, so a heading (or another nested <Tabs>) inside it
+    // nests one level deeper still - reset per tab, not carried over from
+    // whatever the previous tab's content last left it at.
+    headingCtx.depth = tabDepth;
 
     // A label can itself hold a block-level component (e.g. <DNT>**Label**</DNT>)
     // - it must go through the same transform as everything else, not be
     // spliced in raw, or an unresolved mdxBlockElement crashes the stringifier.
     const label = {
-      type: 'paragraph',
-      children: [{ type: 'strong', children: unwrapIfAlreadyBold(transformChildren(barItem.children)) }],
+      type: 'heading',
+      depth: tabDepth,
+      children: unwrapParagraph(transformChildren(barItem.children, headingCtx)),
     };
 
-    const content = transformChildren(pageItem?.children);
+    // Rescale this tab's own already-authored headings (see
+    // shallowestHeadingDepth/shiftHeadings above) so they land one level
+    // under the label instead of colliding with it at the same depth.
+    const shallowest = shallowestHeadingDepth(pageItem?.children);
+    if (Number.isFinite(shallowest)) {
+      shiftHeadings(pageItem?.children, tabDepth + 1 - shallowest);
+    }
+
+    const content = transformChildren(pageItem?.children, headingCtx);
 
     return [label, ...content];
   });
+
+  // Restore the ambient depth for whatever comes after </Tabs> - it must
+  // not inherit whatever a tab's own content last left headingCtx at.
+  headingCtx.depth = outerDepth;
+  return result;
 };
 
 /**
@@ -525,14 +638,18 @@ const transformTabs = (tabsNode) => {
  * wasn't exactly 1 (most commonly 0, e.g. a childless self-closing
  * component) - the root cause of ~30% of pages failing to convert.
  */
-const transformNode = (node) => {
+const transformNode = (node, headingCtx) => {
+  if (node.type === 'heading') {
+    headingCtx.depth = node.depth;
+  }
+
   if (node.name === 'Tabs') {
-    return transformTabs(node);
+    return transformTabs(node, headingCtx);
   }
 
   if (Array.isArray(node.children)) {
     node.children = node.children.flatMap((child) => {
-      const result = transformNode(child);
+      const result = transformNode(child, headingCtx);
       if (result === undefined || result === null) return [];
       return Array.isArray(result) ? result : [result];
     });
@@ -563,7 +680,10 @@ const mdxToCleanMarkdown = (mdxAST) => {
   remove(ast, { type: 'export' });
   remove(ast, { type: 'mdxjsEsm' });
 
-  transformNode(ast);
+  // Page title (frontmatter, not a literal node here) is the implicit H1,
+  // so the first real content heading is conventionally H2 - a <Tabs> with
+  // nothing above it defaults to that same starting depth.
+  transformNode(ast, { depth: 1 });
 
   // Convert relative links/images to absolute. This only mutates fields in
   // place (never array length), so it's safe under plain unist-util-visit,
@@ -592,68 +712,95 @@ const mdxToCleanMarkdown = (mdxAST) => {
   return processor.stringify(ast);
 };
 
+// The site's real top-level categories aren't hand-maintained here - a
+// second, independently-updated copy of the ~40 real categories in
+// src/nav/*.yml is exactly how "Other" ended up swallowing ~40% of all
+// pages (AI monitoring, Kubernetes, OpenTelemetry, Serverless, CodeStream,
+// Distributed Tracing, New Relic Lens, Workflow Automation, Licenses, Data
+// and APIs, and more all had no entry in the old hardcoded list of ~15).
+// generatedNav.yml is the site's own fully-resolved nav tree (root.yml plus
+// every category's own file, already merged by scripts/createSingleNav.js)
+// - read its top-level sections directly instead of re-deriving the same
+// mapping by hand a second time.
+const NAV_YAML_PATH = path.join(__dirname, '../../src/nav/generatedNav.yml');
+
+// Two real, published sections have no resolvable entry in the nav tree at
+// all - they're generated dynamically (this repo's release-notes.yml is
+// empty; there's no whats-new.yml) rather than hand-authored like every
+// other category, so generatedNav.yml leaves their `path:` unresolved
+// ("release-notes", "whats-new" - not even absolute). Their real URL
+// prefixes come from how their content is actually built (see
+// src/content/release-notes and src/content/whats-new, and the query in
+// onPostBuild below that now also reads src/content/whats-new and
+// src/content/eol directly, since neither lives under src/content/docs).
+const UNRESOLVED_NAV_PREFIXES = [
+  { prefix: '/docs/release-notes', category: 'Release notes' },
+  { prefix: '/whats-new', category: "What's new?" },
+];
+
+// A few real content directories are cross-linked INTO another category's
+// section rather than owning a top-level nav entry of their own (e.g.
+// `/docs/apis/*` pages are linked from within "Data and APIs", not listed
+// under their own top-level "APIs" section) - or, for the style guide,
+// aren't in the public nav tree at all. Confirmed against src/nav/*.yml.
+const PREFIX_OVERRIDES = [
+  { prefix: '/docs/apis', category: 'Data and APIs' },
+  { prefix: '/docs/mobile-apps', category: 'Guides and best practices' },
+  { prefix: '/docs/infrastructure-as-code', category: 'Guides and best practices' },
+  { prefix: '/docs/agile-handbook', category: 'Style guide' },
+  { prefix: '/docs/style-guide', category: 'Style guide' },
+  { prefix: '/docs/query-your-data', category: 'Charts, dashboards, and querying' },
+];
+
+// A prefix ending in `-` (e.g. nav's own `/docs/tutorial-`, from its literal
+// `/docs/tutorial-/` entry) is a shared-prefix pattern across many sibling
+// directory names (`tutorial-create-alerts`, `tutorial-improve-...`), not a
+// single parent directory - match it directly rather than requiring a `/`
+// boundary after it, which would never occur for this shape.
+const matchesPrefix = (slug, prefix) =>
+  prefix.endsWith('-') ? slug.startsWith(prefix) : slug === prefix || slug.startsWith(`${prefix}/`);
+
+const loadCategoryPrefixes = () => {
+  const nav = yaml.safeLoad(fs.readFileSync(NAV_YAML_PATH, 'utf8'));
+
+  const fromNav = (nav.pages || [])
+    .filter((entry) => typeof entry.path === 'string' && entry.path.startsWith('/'))
+    .map((entry) => ({ prefix: entry.path.trim().replace(/\/+$/, ''), category: entry.title }));
+
+  // Longest prefix first, so a more specific override (e.g. `/docs/apis`)
+  // is tried before a shorter, unrelated one that would otherwise also match.
+  return [...fromNav, ...UNRESOLVED_NAV_PREFIXES, ...PREFIX_OVERRIDES].sort(
+    (a, b) => b.prefix.length - a.prefix.length
+  );
+};
+
+const CATEGORY_PREFIXES = loadCategoryPrefixes();
+
+const categoryForSlug = (slug) => {
+  const match = CATEGORY_PREFIXES.find(({ prefix }) => matchesPrefix(slug, prefix));
+  return match ? match.category : 'Other';
+};
+
 /**
- * Categorizes a page based on its slug/path
+ * Categorizes a page based on its slug/path, matching the site's own real
+ * nav categories (see CATEGORY_PREFIXES above) instead of a hand-maintained
+ * duplicate of them.
  */
 const categorizePages = (pages) => {
-  const categories = {
-    'APM': [],
-    'Browser': [],
-    'Infrastructure': [],
-    'Mobile': [],
-    'Synthetic Monitoring': [],
-    'Logs': [],
-    'Alerts': [],
-    'APIs': [],
-    'Accounts & Settings': [],
-    'Dashboards': [],
-    'Queries & Data': [],
-    'Security': [],
-    'Integrations': [],
-    'Release Notes': [],
-    'What\'s New': [],
-    'EOL Announcements': [],
-    'Other': []
-  };
+  const categories = {};
 
-  pages.forEach(page => {
-    const { slug } = page;
+  // Preserve CATEGORY_PREFIXES' own order (the docs team's curated nav
+  // order from root.yml) so the generated index reads the same way the
+  // site's own sidebar is organized, rather than an arbitrary object-key
+  // order - "Other" (genuinely uncategorizable pages only, now a small
+  // residual rather than ~40% of the site) always sorts last.
+  CATEGORY_PREFIXES.forEach(({ category }) => {
+    if (!categories[category]) categories[category] = [];
+  });
+  categories['Other'] = [];
 
-    if (slug.includes('/release-notes/')) {
-      categories['Release Notes'].push(page);
-    } else if (slug.includes('/whats-new/')) {
-      categories['What\'s New'].push(page);
-    } else if (slug.includes('/docs/new-relic-solutions/solve-common-issues/diagnostics-cli-nrdiag/')) {
-      categories['EOL Announcements'].push(page);
-    } else if (slug.includes('/docs/apm/')) {
-      categories['APM'].push(page);
-    } else if (slug.includes('/docs/browser/')) {
-      categories['Browser'].push(page);
-    } else if (slug.includes('/docs/infrastructure/')) {
-      categories['Infrastructure'].push(page);
-    } else if (slug.includes('/docs/mobile-monitoring/')) {
-      categories['Mobile'].push(page);
-    } else if (slug.includes('/docs/synthetics/')) {
-      categories['Synthetic Monitoring'].push(page);
-    } else if (slug.includes('/docs/logs/')) {
-      categories['Logs'].push(page);
-    } else if (slug.includes('/docs/alerts/')) {
-      categories['Alerts'].push(page);
-    } else if (slug.includes('/docs/apis/')) {
-      categories['APIs'].push(page);
-    } else if (slug.includes('/docs/accounts/')) {
-      categories['Accounts & Settings'].push(page);
-    } else if (slug.includes('/docs/query-your-data/') || slug.includes('/docs/data-apis/')) {
-      categories['Queries & Data'].push(page);
-    } else if (slug.includes('/docs/security/')) {
-      categories['Security'].push(page);
-    } else if (slug.includes('/docs/new-relic-integrations/') || slug.includes('/docs/integrations/')) {
-      categories['Integrations'].push(page);
-    } else if (slug.includes('/docs/dashboards/')) {
-      categories['Dashboards'].push(page);
-    } else {
-      categories['Other'].push(page);
-    }
+  pages.forEach((page) => {
+    categories[categoryForSlug(page.slug)].push(page);
   });
 
   // Remove empty categories
@@ -700,7 +847,15 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
   try {
     reporter.info('Generating clean markdown files for LLMs (llms.txt)');
 
-    // Query all MDX content (English only, per requirements)
+    // Query all MDX content (English only, per requirements), plus What's
+    // New and EOL announcements - both real, published sections, but
+    // authored as plain MarkdownRemark under src/content/whats-new and
+    // src/content/eol rather than as Mdx under src/content/docs, so they
+    // need their own filters (and their own AST field: markdownAST, not
+    // mdxAST) rather than falling under the allMdx query above. Without
+    // this, neither section's real content was ever fetched at all - the
+    // "EOL Announcements" bucket that existed before this only ever
+    // matched an unrelated Diagnostics CLI (nrdiag) troubleshooting path.
     const query = `
       {
         site {
@@ -728,27 +883,84 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
             }
           }
         }
+        whatsNew: allMarkdownRemark(
+          filter: {
+            fileAbsolutePath: { regex: "/src/content/whats-new/.*\\\\.md$/" }
+          }
+        ) {
+          nodes {
+            id
+            markdownAST
+            frontmatter {
+              title
+            }
+            fields {
+              slug
+            }
+          }
+        }
+        eol: allMarkdownRemark(
+          filter: {
+            fileAbsolutePath: { regex: "/src/content/eol/.*\\\\.md$/" }
+          }
+        ) {
+          nodes {
+            id
+            markdownAST
+            frontmatter {
+              title
+            }
+            fields {
+              slug
+            }
+          }
+        }
       }
     `;
 
     const { data } = await graphql(query);
-    const { site, allMdx } = data;
+    const { site, allMdx, whatsNew, eol } = data;
     const siteUrl = site.siteMetadata.siteUrl || 'https://docs.newrelic.com';
 
-    reporter.info(`\tProcessing ${allMdx.nodes.length} pages...`);
+    // Mdx and MarkdownRemark nodes carry their parsed content tree under a
+    // different field name (mdxAST vs markdownAST) - normalize both into
+    // one shape so all three sources share the same processing loop below.
+    const allNodes = [
+      ...allMdx.nodes.map((node) => ({
+        slug: node.fields?.slug || node.slug,
+        title: node.frontmatter?.title,
+        type: node.frontmatter?.type,
+        ast: node.mdxAST,
+      })),
+      ...whatsNew.nodes.map((node) => ({
+        slug: node.fields?.slug,
+        title: node.frontmatter?.title,
+        ast: node.markdownAST,
+      })),
+      ...eol.nodes.map((node) => ({
+        slug: node.fields?.slug,
+        title: node.frontmatter?.title,
+        ast: node.markdownAST,
+      })),
+    ];
+
+    reporter.info(`\tProcessing ${allNodes.length} pages...`);
 
     const processedPages = [];
     let successCount = 0;
     let errorCount = 0;
 
-    // Process each MDX node
-    for (const node of allMdx.nodes) {
+    // Process each content node (MDX docs page, What's New post, or EOL
+    // announcement)
+    for (const node of allNodes) {
       try {
-        const slug = node.fields?.slug || node.slug;
-        const title = node.frontmatter?.title || slug.split('/').pop();
+        const { slug } = node;
+        const title = node.title || slug.split('/').pop();
 
-        // Convert MDX to clean markdown
-        const cleanMarkdown = mdxToCleanMarkdown(node.mdxAST);
+        // Convert the page's content tree to clean markdown - mdxToCleanMarkdown
+        // only special-cases MDX/JSX node types, so a plain MarkdownRemark
+        // tree (What's New, EOL) passes through it just as safely.
+        const cleanMarkdown = mdxToCleanMarkdown(node.ast);
 
         // Add frontmatter header to markdown
         const markdownWithFrontmatter = `---
@@ -771,7 +983,7 @@ ${cleanMarkdown}`;
         processedPages.push({
           slug,
           title,
-          type: node.frontmatter?.type
+          type: node.type
         });
 
         successCount++;
@@ -803,3 +1015,5 @@ ${cleanMarkdown}`;
 };
 
 exports.mdxToCleanMarkdown = mdxToCleanMarkdown;
+exports.categorizePages = categorizePages;
+exports.categoryForSlug = categoryForSlug;
