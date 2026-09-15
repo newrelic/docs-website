@@ -2,7 +2,7 @@
 title: 'Connect AI to trusted operational context with New Relic Ground Truth'
 summary: 'New Relic Ground Truth gives AI tools and agents secure, governed access to New Relic operational intelligence, helping them understand your systems with the context needed to deliver more relevant, reliable results.'
 releaseDate: '2026-09-15'
-learnMoreLink: 'TODO: add learn more URL'
+learnMoreLink: 'https://docs.newrelic.com/docs/agentic-ai/mcp/overview/'
 ---
 
 New Relic Ground Truth is here, giving engineering teams a trusted operational intelligence layer for enterprise AI. As organizations bring AI assistants and agents into operational workflows, the challenge is no longer simply connecting AI to more data. It is giving AI access to the right operational context, with the governance and controls enterprises require.
@@ -31,4 +31,4 @@ Ground Truth includes MCP server capabilities that provide a standards-based way
 
 Ground Truth is designed for enterprise environments where access to operational data must remain controlled. New Relic permissions and Feature Control Manager help administrators determine which MCP capabilities and connections are available to their organizations, while maintaining control over how AI systems access New Relic context.
 
-Learn more about Ground Truth, or get started today.
+Learn more about [Ground Truth](https://docs.newrelic.com/docs/agentic-ai/mcp/overview/), or get started today.
