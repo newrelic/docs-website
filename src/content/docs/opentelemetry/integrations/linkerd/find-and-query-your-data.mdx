@@ -1,0 +1,163 @@
+---
+title: 'Find and query your Linkerd data'
+metaDescription: 'Access Linkerd metrics, traces, and logs in New Relic — navigate to your Linkerd entity, explore dashboards, and run NRQL queries.'
+freshnessValidatedDate: never
+---
+
+After setting up the OpenTelemetry Collector for Linkerd, your mesh telemetry flows into New Relic as `Metric`, `Span`, and `Log` events scoped under your Linkerd entity.
+
+## Find your Linkerd entity [#find-entity]
+
+1. Go to [one.newrelic.com](https://one.newrelic.com) and select **Entity Explorer**.
+2. Search for your cluster name.
+3. Select your Linkerd entity to open the built-in dashboard.
+
+The built-in dashboard covers request rate, latency p50/p95/p99, success rate, TCP connections, mTLS certificate status, control plane health, and meshed pod inventory.
+
+## Example NRQL queries [#queries]
+
+Replace `<YOUR_CLUSTER>` with your actual cluster name in each query.
+
+### Request rate per service
+
+```sql
+SELECT rate(sum(request_total), 1 minute) AS 'Req/min'
+FROM Metric
+WHERE k8s.cluster.name = '<YOUR_CLUSTER>'
+  AND linkerd_control_plane_component IS NULL
+FACET k8s.deployment.name
+SINCE 30 minutes ago
+TIMESERIES
+```
+
+### Latency p99 per service
+
+```sql
+SELECT histogram(response_latency_ms, width: 50, slide_by: 10)
+FROM Metric
+WHERE k8s.cluster.name = '<YOUR_CLUSTER>'
+  AND linkerd_control_plane_component IS NULL
+FACET k8s.deployment.name
+SINCE 30 minutes ago
+```
+
+### HTTP success rate
+
+```sql
+SELECT
+  sum(response_total) AS 'Total responses',
+  filter(sum(response_total), WHERE classification = 'success') / sum(response_total) * 100 AS 'Success %'
+FROM Metric
+WHERE k8s.cluster.name = '<YOUR_CLUSTER>'
+FACET k8s.deployment.name
+SINCE 30 minutes ago
+```
+
+### mTLS certificate expiry
+
+```sql
+SELECT latest(identity_cert_expiration_timestamp_seconds) AS 'Cert expires (epoch)'
+FROM Metric
+WHERE k8s.cluster.name = '<YOUR_CLUSTER>'
+FACET k8s.deployment.name
+SINCE 10 minutes ago
+```
+
+### Control plane queue depth
+
+```sql
+SELECT latest(control_plane_queue_length) AS 'Queue depth'
+FROM Metric
+WHERE k8s.cluster.name = '<YOUR_CLUSTER>'
+  AND linkerd_control_plane_component IS NOT NULL
+FACET linkerd_control_plane_component
+SINCE 10 minutes ago
+```
+
+### TCP open connections
+
+```sql
+SELECT rate(sum(tcp_open_connections), 1 second) AS 'TCP connections'
+FROM Metric
+WHERE k8s.cluster.name = '<YOUR_CLUSTER>'
+FACET k8s.deployment.name
+SINCE 30 minutes ago
+TIMESERIES
+```
+
+### Distributed traces (APM path only)
+
+```sql
+SELECT count(*) FROM Span
+WHERE k8s.cluster.name = '<YOUR_CLUSTER>'
+FACET service.name
+SINCE 30 minutes ago
+```
+
+```sql
+-- Verify proxy spans are being collected with Linkerd attributes
+SELECT count(*) FROM Span
+WHERE k8s.cluster.name = '<YOUR_CLUSTER>'
+  AND linkerd_control_plane_component IS NOT NULL
+FACET service.name
+SINCE 10 minutes ago
+```
+
+If this returns 0, the `transform/linkerd_component_inject` processor is not running or `linkerd_control_plane_ns` is missing from spans. See [troubleshooting](/docs/opentelemetry/integrations/linkerd/linkerd-otel-setup/#troubleshooting) for remediation steps.
+
+## Access the Linkerd dashboard [#dashboard]
+
+Navigate to **Entity Explorer**, search for your cluster name, and select the Linkerd entity to open the built-in dashboard. It includes:
+
+| Section | Panels |
+|---|---|
+| Top-line | TCP Connections, Requests Served by Proxies |
+| Traffic | Inbound Rate, Outbound Rate |
+| Health | Success Rate, Error Rate, HTTP Status Codes |
+| Latency | Request Latency p50/p95/p99, Outbound Latency p99 |
+| Security | mTLS Certificate Expiry, Cert Refresh Rate |
+| Control Plane | Authorization Policy, Queue Depth, CP Request Rate |
+| Topology | Proxy Memory Usage, Operations by Service |
+| Inventory | Meshed Pods |
+
+## Data not appearing? [#troubleshoot-data]
+
+<CollapserGroup>
+
+  <Collapser id="no-entity" title="Linkerd entity not showing up">
+
+Verify that Linkerd proxy metrics are reaching New Relic:
+
+```sql
+SELECT count(*) FROM Metric
+WHERE linkerd_control_plane_ns IS NOT NULL
+  AND k8s.cluster.name = '<YOUR_CLUSTER>'
+SINCE 5 minutes ago
+```
+
+If this returns 0, check that the collector pods are running and the Prometheus scrape jobs in the collector config are targeting the correct namespaces.
+
+  </Collapser>
+
+  <Collapser id="no-deployment-entities" title="Workload entities missing">
+
+Workload entities require kube-state-metrics. Verify it is sending data:
+
+```sql
+SELECT uniques(k8s.deployment.name)
+FROM Metric
+WHERE metricName LIKE 'kube_deployment%'
+  AND k8s.cluster.name = '<YOUR_CLUSTER>'
+SINCE 10 minutes ago
+```
+
+If empty, confirm kube-state-metrics is running and the scrape target in the collector config points to the correct namespace and service name.
+
+  </Collapser>
+
+</CollapserGroup>
+
+## Next steps [#next-steps]
+
+- [Linkerd metrics reference](/docs/opentelemetry/integrations/linkerd/linkerd-otel-metrics-reference/) — full list of metrics and resource attributes
+- [Linkerd OpenTelemetry monitoring overview](/docs/opentelemetry/integrations/linkerd/linkerd-otel-overview/) — back to overview
