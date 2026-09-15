@@ -1,3 +1,7 @@
+const fs = require('fs');
+const path = require('path');
+const createSingleNav = require('../../../scripts/createSingleNav');
+
 const {
   mdxToCleanMarkdown,
   categorizePages,
@@ -7,6 +11,27 @@ const {
   buildWhatsNewHubs,
   humanizeReleaseNotesSegment,
 } = require('../lib/helpers');
+
+// categorizePages/categoryForSlug read src/nav/generatedNav.yml, a
+// gitignored artifact normally produced by the root gatsby-node.js's
+// onPreBootstrap hook during a real Gatsby build. CI (and any fresh
+// checkout) runs `yarn test` directly with no Gatsby build in front of
+// it, so the file never exists there - only lazy-loading it (see
+// getCategoryPrefixes in lib/helpers.js) was not enough on its own, since
+// these tests are exactly the "first real use" that triggers the read.
+// This was masked locally by a leftover copy from an earlier `gatsby
+// build`/`gatsby develop` run - generate a real, fresh copy here instead
+// of depending on one already being on disk, using the exact same
+// generator a real build uses, so these tests keep exercising real nav
+// data (the same real category names/prefixes the plugin runs against in
+// production) rather than a hand-typed fixture that could drift from it.
+beforeAll(() => {
+  createSingleNav();
+});
+
+afterAll(() => {
+  fs.rmSync(path.join(process.cwd(), 'src/nav/generatedNav.yml'), { force: true });
+});
 
 const CALLOUT = {
   type: 'mdxJsxFlowElement',
