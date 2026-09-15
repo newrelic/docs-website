@@ -2,6 +2,7 @@ const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const { createFilePath } = require('gatsby-source-filesystem');
 const createSingleNav = require('./scripts/createSingleNav');
+const { generateSnippets } = require('./scripts/generate-snippets');
 const generateTOC = require('mdast-util-toc');
 // are needed for our tableOfContents override
 const genMDX = require('gatsby-plugin-mdx/utils/gen-mdx.js');
@@ -19,6 +20,8 @@ const hasTrailingSlash = (pathname) =>
   pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
 exports.onPreBootstrap = () => {
+  // Throws and halts the build on a snippet name collision or duplicate.
+  generateSnippets();
   createSingleNav();
 };
 
@@ -245,6 +248,7 @@ exports.createSchemaCustomization = (
     features: [String]
     bugs: [String]
     security: [String]
+    pageMeta: JSON
   }
 
   `;

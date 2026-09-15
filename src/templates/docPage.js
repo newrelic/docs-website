@@ -97,6 +97,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     tags,
     translationType,
     hideTOC,
+    pageMeta,
   } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
@@ -152,7 +153,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
 
         <LoggedInProvider>
           <Layout.Content>
-            <MDXContainer body={body} />
+            <MDXContainer body={body} pageMeta={pageMeta || {}} />
             {showFeedbackModal && !isMobileScreen && (
               <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
             )}{' '}
@@ -240,6 +241,7 @@ export const pageQuery = graphql`
         tags
         translationType
         hideTOC
+        pageMeta
       }
       fields {
         fileRelativePath
