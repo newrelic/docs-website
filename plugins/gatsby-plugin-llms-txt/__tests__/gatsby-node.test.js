@@ -273,6 +273,34 @@ test('renders a nested InlineCode inside a Collapser title as real backticks, no
   expect(markdown).toContain('Use `PREDICT` clause.');
 });
 
+test('strips a self-closing tag with no space before the slash (<br/>) from a Collapser title expression', () => {
+  // stripTagsCompletely()'s tag regex required whitespace before a
+  // self-closing "/>" (matching "<br />" but not "<br/>") - a title
+  // expression using the tighter, spaceless form leaked the literal
+  // "<br/>" text into the title instead of being stripped like every
+  // other tag here.
+  const markdown = mdxToCleanMarkdown({
+    type: 'root',
+    children: [
+      {
+        type: 'mdxBlockElement',
+        name: 'Collapser',
+        attributes: [
+          {
+            type: 'mdxAttribute',
+            name: 'title',
+            value: { type: 'mdxValueExpression', value: '<>First line<br/>Second line</>' },
+          },
+        ],
+        children: [{ type: 'paragraph', children: [{ type: 'text', value: 'Body text.' }] }],
+      },
+    ],
+  });
+
+  expect(markdown).not.toContain('<br');
+  expect(markdown).toContain('First lineSecond line');
+});
+
 test('fully strips a tag reassembled from leftovers after removing an inner tag (CodeQL js/incomplete-multi-character-sanitization)', () => {
   // A single `.replace(tagRegex, '')` pass can leave a brand-new tag
   // behind: removing the inner match from "<scri<b>pt>" leaves "<scri"

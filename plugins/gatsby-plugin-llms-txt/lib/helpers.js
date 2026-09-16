@@ -93,7 +93,7 @@ const stripTagsCompletely = (text) => {
   let previous;
   do {
     previous = current;
-    current = current.replace(/<\/?[A-Za-z][A-Za-z0-9]*(?:\s+[^>]*)?>/g, '');
+    current = current.replace(/<\/?[A-Za-z][A-Za-z0-9]*(?:\s+[^>]*)?\/?>/g, '');
   } while (current !== previous);
   return current;
 };
@@ -481,9 +481,12 @@ const dispatchText = (node) => {
   }
 
   if (node.name === 'Icon') {
+    // Drop entirely rather than an empty text node, matching dispatchFlow's
+    // Icon handler - same decorative-vs-meaningful distinction applies
+    // inline as it does at block level.
     const name = attributeText(findAttribute('name', node));
     const symbol = ICON_TEXT_EQUIVALENTS[name];
-    return { type: 'text', value: symbol || '' };
+    return symbol ? { type: 'text', value: symbol } : [];
   }
 
   if (node.name === 'img') {
