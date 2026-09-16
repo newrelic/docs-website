@@ -60,4 +60,4 @@ Now you can drop `{{selfEntity}}` into any part of a widget's raw configuration,
 ]
 ```
 
-To learn more, see [Filter New Relic dashboards by facets](https://docs.newrelic.com/docs/query-your-data/rds/filter-new-relic-one-dashboards-facets/)
+To learn more, see [Filter New Relic dashboards by facets](https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/filter-new-relic-one-dashboards-facets/)
