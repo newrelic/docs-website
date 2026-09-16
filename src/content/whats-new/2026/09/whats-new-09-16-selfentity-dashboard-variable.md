@@ -13,7 +13,7 @@ Previously, making a widget reference its own dashboard — for example, to keep
 
 Now you can drop `{{selfEntity}}` into any part of a widget's raw configuration, and New Relic resolves it to whichever dashboard the widget currently lives on:
 
-- **Facet linking**: Add `{{selfEntity}}` to `linkedEntityGuids` so a widget always links back to its own dashboard, not the one it was copied from.
+- **Facet linking**: Add `{{selfEntity}}` to `linkedEntityGuids` so a widget always links back to its own dashboard, not the dashboard you copied it from.
 - **Widget names**: Reference `{{selfEntity}}` in a widget's title.
 - **NRQL queries**: Use `{{selfEntity}}` inside a query, for example to filter results to the dashboard's own entity.
 - **Markdown widgets**: Reference `{{selfEntity}}` inside markdown widget text.
@@ -21,8 +21,10 @@ Now you can drop `{{selfEntity}}` into any part of a widget's raw configuration,
 
 ## How to get started
 
+How you adopt `{{selfEntity}}` depends on how the dashboard is managed:
+
 - **Facet linking on existing dashboards**: In the UI, disable facet linking on the widget and apply the change, then re-enable it. This replaces the hardcoded dashboard GUID with `{{selfEntity}}`.
-- **Facet linking on new dashboards**: `{{selfEntity}}` is used automatically — no manual step needed.
+- **Facet linking on new dashboards**: Rely on the default behavior — New Relic applies `{{selfEntity}}` automatically, with no manual step needed.
 - **Terraform or JSON-defined dashboards**: Remove any hardcoded GUIDs and replace them with `{{selfEntity}}`, for example:
 
 ```json
