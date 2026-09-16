@@ -47,7 +47,7 @@ If you run into challenges with your migration please reach out to [Support](htt
 
 These API calls may originate from proprietary tools, reporting systems, or third-party integrations, and include any utilization of the affected Alerts endpoints (`/v2/alerts*`). To determine what action you need to take:
 
-1. **Identify your REST API v2 usage:** Search your codebase, CI/CD pipelines, and automation scripts for calls to `api.newrelic.com/v2/` and `api.eu.newrelic.com/v2/`, and for Deployments v0 API calls to `deployments.xml` on either the `rpm` or `api` host (for example, `rpm.newrelic.com/deployments.xml` or `api.newrelic.com/deployments.xml`, and their `.eu.` equivalents)
+1. **Identify your REST API v2 usage:** Search your codebase, CI/CD pipelines, and automation scripts for calls to `api.newrelic.com/v2/` and `api.eu.newrelic.com/v2/`. Also check for Deployments v0 API calls to `deployments.xml` on either the `rpm` or `api` host (for example, `rpm.newrelic.com/deployments.xml` or `api.newrelic.com/deployments.xml`, and their `.eu.` equivalents).
 
    Common integrations include:
 
@@ -59,7 +59,7 @@ These API calls may originate from proprietary tools, reporting systems, or thir
 
 3. **Review the migration guide:** For each REST API v2 call you identify, our [migration guide](https://docs.newrelic.com/docs/apis/rest-api-v2/migrate-to-nerdgraph/) provides the equivalent NerdGraph query or mutation.
 
-For **deployments** specifically, you don't have to rely on a codebase search alone. Change tracking adds a `newrelic.source` attribute to each deployment event, so you can find deployments still recorded through the Deployments v0 and v2 REST APIs across your whole estate — from the New Relic UI or with NRQL. See [how your changes are recorded across your estate](https://docs.newrelic.com/docs/change-tracking/view-analyze-data/#recording-source). This applies to deployment endpoints only; for other REST API v2 endpoints, search your codebase as described above.
+For **deployments** specifically, you don't have to rely on a codebase search alone. Change tracking adds a `newrelic.source` attribute to each deployment event. You can use this attribute in the New Relic UI or with NRQL to find deployments from the Deployments v0 and v2 REST APIs across your estate. See [how change tracking records data across your estate](https://docs.newrelic.com/docs/change-tracking/view-analyze-data/#recording-source). This applies to deployment endpoints only. For other REST API v2 endpoints, search your codebase as described above.
 
 ## What you need to do
 
