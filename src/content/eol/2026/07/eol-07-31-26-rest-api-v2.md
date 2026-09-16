@@ -59,7 +59,7 @@ These API calls may originate from proprietary tools, reporting systems, or thir
 
 3. **Review the migration guide:** For each REST API v2 call you identify, our [migration guide](https://docs.newrelic.com/docs/apis/rest-api-v2/migrate-to-nerdgraph/) provides the equivalent NerdGraph query or mutation.
 
-For **deployments** specifically, you don't have to rely on a codebase search alone. Change tracking adds a `newrelic.source` attribute to each deployment event, so you can find deployments still recorded through the Deployments v0 and v2 REST APIs across your whole estate — from the New Relic UI or with NRQL. See [how your changes are recorded across your estate](/docs/change-tracking/view-analyze-data/#recording-source). This applies to deployment endpoints only; for other REST API v2 endpoints, search your codebase as described above.
+For **deployments** specifically, you don't have to rely on a codebase search alone. Change tracking adds a `newrelic.source` attribute to each deployment event, so you can find deployments still recorded through the Deployments v0 and v2 REST APIs across your whole estate — from the New Relic UI or with NRQL. See [how your changes are recorded across your estate](https://docs.newrelic.com/docs/change-tracking/view-analyze-data/#recording-source). This applies to deployment endpoints only; for other REST API v2 endpoints, search your codebase as described above.
 
 ## What you need to do
 
