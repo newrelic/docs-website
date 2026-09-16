@@ -1,0 +1,357 @@
+---
+title: MySQL NRDOT監視のトラブルシューティング
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Troubleshooting
+metaDescription: Troubleshoot common issues with MySQL monitoring using NRDOT Collector
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/)に従ってプレビューの一部として提供されています。
+</Callout>
+
+NRDOT Collectorを使用してMySQLを監視する際に発生する可能性のある一般的な問題をトラブルシューティングします。
+
+## 接続をテストする
+
+### MySQLへのネットワーク接続をテストしてください
+
+まず、ポートに到達可能であるかを確認してください：
+
+```bash
+nc -zv <YOUR_DB_HOST> <YOUR_DB_PORT>
+```
+
+次に、監視ユーザーが実際に認証してクエリを実行できることを確認します：
+
+```bash
+mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
+```
+
+コマンドがエラーなしで完了した場合、監視ユーザー、ホスト、およびポートはすべて正しいです。
+
+### OTLPエンドポイントの接続テスト
+
+次を実行して、ホストが選択したNew Relic OTLPエンドポイントに到達できることを確認します：
+
+```shell
+ENDPOINT="<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+HOST=$(echo "$ENDPOINT" | sed 's|https://||' | cut -d: -f1)
+PORT=$(echo "$ENDPOINT" | awk -F: '{print $NF}')
+(timeout 2 bash -c "</dev/tcp/$HOST/$PORT" && echo "SUCCESS") || echo "FAILED"
+```
+
+**期待される出力:** `SUCCESS`
+
+## よくある問題
+
+<CollapserGroup>
+  <Collapser id="no-query-events" title="クエリエベントまたはサンプルが表示されない">
+    **症状:** New Relicでクエリサンプルと上位クエリのログイベントが欠落しています。
+
+    **考えられる原因：**
+
+    * `performance_schema` 無効
+    * レシーバーの設定でクエリエベントが有効になっていない
+    * データベース権限の不足
+
+    **解決策:**
+
+    1. **パフォーマンススキーマが有効になっていることを確認してください：**
+
+       ```sql
+       SHOW VARIABLES LIKE 'performance_schema';
+       ```
+
+       値は`ON`である必要があります。
+
+    2. **レシーバーの設定を確認します：**
+
+       ```yaml
+       events:
+         db.server.query_sample:
+           enabled: true
+         db.server.top_query:
+           enabled: true
+       ```
+
+    3. **データベースの権限を確認します：**
+
+       ```sql
+       SHOW GRANTS FOR '<YOUR_DB_USERNAME>'@'%';
+       ```
+
+       `performance_schema.*`に`SELECT`を含める必要があります。
+  </Collapser>
+
+  <Collapser id="missing-wait-times" title="待機時間のメトリクスが表示されない">
+    **症状:** ロック待機時間のメトリクスが常に0秒を示しています。
+
+    **原因:** `events_waits_current`パフォーマンススキーマの消費者が無効になっています。
+
+    **解決策:**
+
+    **セルフマネージドMySQLデータベースの場合:** `my.cnf`/`my.ini`に追加します：
+
+    ```ini
+    [mysqld]
+    performance-schema-consumer-events-waits-current=ON
+    ```
+
+    次に、MySQLを再起動します。
+
+    **AWS RDSの場合：**
+
+    ```sql
+    UPDATE performance_schema.setup_consumers 
+    SET ENABLED='YES' 
+    WHERE NAME='events_waits_current';
+    ```
+
+    <Callout variant="important">
+      RDSでは、この設定は再起動後に保持されません。コレクターが自動的に再有効化できるように、監視ユーザーに`performance_schema.setup_consumers`のUPDATE権限を付与してください。
+    </Callout>
+  </Collapser>
+
+  <Collapser id="missing-query-plans" title="実行時間の長いクエリのクエリプランの欠落">
+    **症状：** 一部のクエリ、特に長いクエリで`mysql.query_plan`が空になります。
+
+    **原因:** ステートメントテキストがMySQLのダイジェスト長制限によって切り捨てられたため、レシーバーは`EXPLAIN`をスキップしました。
+
+    **解決策：** MySQLサーバーのパラメーターを増やしてください：
+
+    ```sql
+    SET GLOBAL max_digest_length = 4096;
+    SET GLOBAL performance_schema_max_digest_length = 4096;
+    SET GLOBAL performance_schema_max_sql_text_length = 4096;
+    ```
+
+    永続化するには、`my.cnf`に追加します：
+
+    ```ini
+    [mysqld]
+    max_digest_length = 4096
+    performance_schema_max_digest_length = 4096
+    performance_schema_max_sql_text_length = 4096
+    ```
+  </Collapser>
+
+  <Collapser id="no-query-plans-old-versions" title="上位のクエリエベントでクエリプランが欠落している">
+    **症状:** `db.server.top_query`イベントで利用できるクエリプランがありません。
+
+    **原因:** 予想される動作 — `query_sample_text`はMySQL `5.7.x`または`8.0.0`～`8.0.2`には存在しません。
+
+    **解決策:** クエリプランをサポートするには、MySQL `8.0.3`以降にアップグレードしてください。
+  </Collapser>
+
+  <Collapser id="write-statement-plans" title="書き込みステートメントのプランが欠落している">
+    **症状:** `UPDATE`、`INSERT`、`DELETE`、または`REPLACE`ステートメントのクエリプランが欠落しています。
+
+    **原因:** 監視ユーザーにDML権限がなく、`explain_mode`が`inline`に設定されています。
+
+    **解決策:** レシーバーの設定で`procedure`モードに切り替えてください：
+
+    ```yaml
+    nrmysql:
+      explain_mode: procedure
+    ```
+
+    これは、監視ユーザーにDML権限を付与せずに書き込みステートメントを説明するために、`SQL SECURITY DEFINER`プロシージャを使用します。
+  </Collapser>
+
+  <Collapser id="empty-client-name" title="セッションのクライアント名が空です。">
+    **症状:** 一部のデータベース接続で`mysql.session.client_name`属性が空になっています。
+
+    **原因:** バグではありません — 一部のクライアントドライバーは、デフォルトで接続属性を送信しません。
+
+    **メモ：**
+
+    * これはデータに依存する動作です。
+    * 異なるMySQLクライアントライブラリでは、接続属性のサポートが異なります。
+    * すべてのアプリケーションがこの情報を送信するようにドライバーを設定しているわけではありません。
+  </Collapser>
+
+  <Collapser id="empty-comment-tags" title="コメントタグが空である">
+    **症状:** APMの相関タグがSQLコメントから抽出されていません。
+
+    **原因:** コメントタグの抽出が設定されていません。
+
+    **解決策:** 設定の両方のコレクションブロックに`allowed_comment_keys`を追加してください：
+
+    ```yaml
+    query_sample_collection:
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      allowed_comment_keys: [nr_service_guid]
+    ```
+
+    セキュリティ上の理由から、コメントタグの抽出はデフォルトで空になっています。
+  </Collapser>
+
+  <Collapser id="entity-missing" title="MySQLエンティティまたはAPMの関連付けが欠落している">
+    **症状：**
+
+    * エンティティエクスプローラーからMySQLエンティティが欠落している
+    * APMアプリケーションにデータベースの関連付けが表示されない
+
+    **原因:** エンティティの合成に必要な`server.address`および`server.port`リソース属性が欠落しています。
+
+    **解決策:** コレクターの設定にリソースプロセッサを追加します：
+
+    ```yaml
+    processors:
+      resource/mysql:
+        attributes:
+          - key: server.address
+            value: "<YOUR_DB_HOST>"
+            action: upsert
+          - key: server.port
+            value: <YOUR_DB_PORT>
+            action: upsert
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [nrmysql]
+          processors: [resource/mysql, batch]
+          exporters: [otlp/newrelic]
+        logs:
+          receivers: [nrmysql]
+          processors: [resource/mysql, batch]
+          exporters: [otlp/newrelic]
+    ```
+  </Collapser>
+
+  <Collapser id="connection-errors" title="接続拒否または認証エラー">
+    **症状：**
+
+    * &quot;接続拒否&quot;エラー
+    * &quot;アクセス拒否&quot; の認証失敗
+
+    **解決策:**
+
+    **接続拒否の場合：**
+
+    1. MySQLが実行されていることを確認します：
+       ```bash
+       systemctl status mysql
+       ```
+    2. ファイアウォールのルールでMySQLポート（デフォルトは3306）での接続が許可されていることを確認します。
+    3. MySQL設定の`bind-address`が外部接続を許可していることを確認してください。
+
+    **認証エラーの場合：**
+
+    1. ユーザーが存在し、正しい権限を持っていることを確認します：
+       ```sql
+       SELECT User, Host FROM mysql.user WHERE User='<YOUR_DB_USERNAME>';
+       SHOW GRANTS FOR '<YOUR_DB_USERNAME>'@'%';
+       ```
+    2. パスワードが正しいことを確認します。
+    3. RDSの場合は、セキュリティグループがインバウンド接続を許可していることを確認してください
+  </Collapser>
+
+  <Collapser id="rds-specific-issues" title="AWS RDS固有の問題">
+    **RDSパフォーマンススキーマの消費者リセット:** RDSの再起動/フェイルオーバー時に、`events_waits_current`消費者は自動的に無効になります。コレクターが再度有効にできるように、`performance_schema.setup_consumers`にUPDATE権限を付与してください：
+
+    ```sql
+    GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+    ```
+
+    **RDSネットワークセキュリティ:** RDSセキュリティグループが、NRDOT CollectorのIPアドレスまたはセキュリティグループからのポート3306のインバウンドトラフィックを許可していることを確認してください。
+  </Collapser>
+
+  <Collapser id="rds-tls-certificate-error" title="RDSへの接続時のTLS証明書エラー">
+    **症状:** コレクターが接続に失敗し、証明書またはTLS関連のエラーが発生します。
+
+    **原因:** RDSがTLSを強制しています。コレクターはデフォルトでAmazonのRDS CAを信頼しません。
+
+    **解決策:** `tls.ca_file`（または`tls.ca_pem`）を[Amazon RDS証明書バンドル](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem)に設定し、`tls.insecure`/`tls.insecure_skip_verify`は`false`のままにします：
+
+    ```yaml
+    nrmysql:
+      tls:
+        insecure: false
+        insecure_skip_verify: false
+        ca_file: /path/to/global-bundle.pem
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## NRQL クエリの例
+
+以下のNRQLクエリを使用して、MySQL監視のトラブルシューティングと検証を行います：
+
+### ブロックされたクエリを確認してください。
+
+```sql
+FROM Log SELECT * WHERE event.name = 'db.server.query_sample' 
+AND mysql.blocking.blocker.count > 0 
+SINCE 1 hour ago
+```
+
+<Callout variant="tip">
+  `!= 0`ではなく`mysql.blocking.blocker.count > 0`でフィルタリングします — NRQLでは、`null != 0`は`TRUE`と評価され、ブロックされていないセッションが結果に暗黙的に含まれることになります。
+</Callout>
+
+### 最も遅いクエリを検索
+
+```sql
+FROM Log SELECT db.query.text, 
+mysql.events_statements_summary_by_digest.sum_timer_wait,
+mysql.events_statements_summary_by_digest.count_star
+WHERE event.name = 'db.server.top_query'
+ORDER BY mysql.events_statements_summary_by_digest.sum_timer_wait DESC
+LIMIT 10
+```
+
+### エンティティ合成を検証してください。
+
+```sql
+FROM Metric SELECT uniqueCount(entity.guid) 
+WHERE metricName LIKE 'mysql.%' 
+FACET server.address, server.port
+SINCE 1 hour ago
+```
+
+## 助けを得る
+
+問題が引き続き発生する場合:
+
+1. NRDOT Collectorのログを確認します：
+
+   ```bash
+   journalctl -u nrdot-collector -f
+   ```
+
+2. 設定の構文を確認してください：
+
+   ```bash
+   nrdot-collector validate --config=<your-config-file>
+   ```
+
+3. [互換性要件](/docs/opentelemetry/database/mysql/compatibility)を確認してください。
+
+4. コレクターのログと設定を添えてNew Relicサポートにお問い合わせください（パスワードなどの機密情報は削除してください）。
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+  <DocTile title="セルフホスト環境での計装" path="/docs/opentelemetry/database/mysql/hosted">
+    New Relicを使用してセルフホスト環境でMySQL監視を設定する方法について説明します。
+  </DocTile>
+
+  <DocTile title="RDS環境での計装" path="/docs/opentelemetry/database/mysql/rds">
+    New Relicを使用してRDS環境でMySQL監視をセットアップする方法について説明します。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/database/mysql/metrics-reference">
+    NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+  </DocTile>
+</DocTiles>

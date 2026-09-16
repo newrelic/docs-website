@@ -1,0 +1,209 @@
+---
+title: Référence des métriques et attributs OpenTelemetry IBM MQ
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Metrics
+metaDescription: 'Reference of IBM MQ metrics collected via OpenTelemetry — queue manager, queue, and channel metrics — with resource attributes for host and Kubernetes deployments.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cette référence couvre les métriques et attributs IBM MQ collectés via OpenTelemetry : les métriques que l’exportateur [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) publie et que le collecteur transfère à New Relic. Il s’applique à la fois aux déploiements d’ [hôte Linux](/docs/opentelemetry/integrations/ibm-mq/host) et [Kubernetes](/docs/opentelemetry/integrations/ibm-mq/kubernetes) ; la forme de la métrique est identique.
+
+## Collecte des métriques [#collection]
+
+Toutes les métriques conservent la forme brute de Prometheus que l&apos;exportateur émet : les **noms avec trait de soulignement** (`ibmmq_*`) et les étiquettes brutes **`qmgr`**, **`queue`** et **`channel`**, plus l&apos;attribut d&apos;identité `target.name` et le tag `cluster.name` facultatif que le collecteur attache. La synthèse d&apos;entité IBM MQ de New Relic dépend de cette forme, le collecteur transfère donc les noms et les étiquettes sans modification.
+
+<Callout variant="important">
+  **Activez les statistiques MQI sur chaque gestionnaire de files d’attente, sinon les métriques de débit et de temps resteront vides.** La santé du gestionnaire de files d’attente, la profondeur de la file d’attente et le statut du canal sont disponibles d’emblée, mais les métriques d’activité MQI (les tables de [débit de la file d’attente](#metrics-queue-throughput) et d’ [activité MQI du gestionnaire de files d’attente](#metrics-qmgr-mqi) — `ibmmq_queue_mqput_count`, `ibmmq_queue_average_queue_time_seconds`, etc.) nécessitent que la collecte des statistiques soit **activée**, ce qui est **désactivé par défaut**. Activez-la une fois par gestionnaire de files d’attente avec MQSC — par exemple `ALTER QMGR STATMQI(ON) STATQ(ON)`, puis `ALTER QLOCAL(...) STATQ(ON)` pour toute file d’attente sur laquelle vous souhaitez des statistiques par file d’attente (ou fiez-vous à la valeur par défaut `STATQ` du gestionnaire de files d’attente). Sans cela, l’exportateur est sain et l’entité apparaît, mais ces panneaux s’affichent vides. Consultez la [documentation de mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples) pour connaître les statistiques exactes dont dépend chaque métrique.
+</Callout>
+
+<Callout variant="tip">
+  Les métriques de statut renvoient des valeurs **enum** numériques, et non `1`/`0` — consultez la [référence des codes de statut](#status-codes) ci-dessous avant de configurer des alertes à leur sujet. Les compteurs sont convertis en temporalité delta par le collecteur, utilisez donc `sum()` / `rate()` sur une fenêtre plutôt que `latest()` pour les représenter graphiquement.
+</Callout>
+
+Les tableaux ci-dessous regroupent les métriques OpenTelemetry par domaine. Pour lister chaque métrique remontant actuellement dans votre compte, exécutez :
+
+```sql
+FROM Metric SELECT uniques(metricName, 2000) WHERE metricName LIKE 'ibmmq_%' SINCE 1 day ago
+```
+
+## Métriques [#metrics]
+
+<CollapserGroup>
+  <Collapser id="metrics-qmgr-status" title="Santé et statut du gestionnaire de files d'attente">
+    | métrique                                            | Description                                                                                                                                                                     |
+    | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `ibmmq_qmgr_status`                                 | État d’exécution du gestionnaire de files d’attente (`2` = en cours d’exécution).                                                                                               |
+    | `ibmmq_qmgr_command_server_status`                  | État d&apos;exécution du serveur de commandes (`2` = en cours d&apos;exécution).                                                                                                |
+    | `ibmmq_qmgr_channel_initiator_status`               | État d&apos;exécution de l&apos;initiateur de canal (le processus du gestionnaire de files d&apos;attente qui démarre et gère les canaux MQ) (`2` = en cours d&apos;exécution). |
+    | `ibmmq_qmgr_connection_count`                       | Nombre actuel de connexions au gestionnaire de files d&apos;attente.                                                                                                            |
+    | `ibmmq_qmgr_uptime`                                 | Temps de disponibilité du gestionnaire de files d&apos;attente, en secondes.                                                                                                    |
+    | `ibmmq_qmgr_active_listeners`                       | Nombre d&apos;écouteurs actifs.                                                                                                                                                 |
+    | `ibmmq_qmgr_active_services`                        | Nombre de services actifs.                                                                                                                                                      |
+    | `ibmmq_qmgr_concurrent_connections_high_water_mark` | Pic de connexions simultanées.                                                                                                                                                  |
+  </Collapser>
+
+  <Collapser id="metrics-qmgr-resources" title="Ressources du gestionnaire de files d'attente (CPU, mémoire, log, système de fichiers)">
+    | métrique                                                     | Description                                                                                                                                                                                                                       |
+    | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `ibmmq_qmgr_cpu_load_one_minute_average_percentage`          | Moyenne de charge CPU sur 1 minute pour le gestionnaire de files d’attente (également `_five_` et `_fifteen_minute_`).                                                                                                            |
+    | `ibmmq_qmgr_user_cpu_time_percentage`                        | Temps CPU en espace utilisateur consommé par le gestionnaire de files d&apos;attente.                                                                                                                                             |
+    | `ibmmq_qmgr_system_cpu_time_percentage`                      | Temps CPU système (noyau) consommé par le gestionnaire de files d&apos;attente.                                                                                                                                                   |
+    | `ibmmq_qmgr_ram_total_bytes`                                 | RAM totale sur l’hôte.                                                                                                                                                                                                            |
+    | `ibmmq_qmgr_ram_free_percentage`                             | Pourcentage de RAM de l&apos;hôte libre.                                                                                                                                                                                          |
+    | `ibmmq_qmgr_ram_total_estimate_for_queue_manager_bytes`      | RAM estimée utilisée par ce gestionnaire de files d&apos;attente.                                                                                                                                                                 |
+    | `ibmmq_qmgr_log_in_use_bytes`                                | Espace de log de récupération actuellement utilisé.                                                                                                                                                                               |
+    | `ibmmq_qmgr_log_max_bytes`                                   | Taille maximale du log de récupération.                                                                                                                                                                                           |
+    | `ibmmq_qmgr_log_current_primary_space_in_use_percentage`     | Utilisation de l&apos;espace de log principal.                                                                                                                                                                                    |
+    | `ibmmq_qmgr_log_file_system_free_space_bytes`                | Espace libre sur le système de fichiers de log.                                                                                                                                                                                   |
+    | `ibmmq_qmgr_log_write_latency_seconds`                       | Latence d&apos;écriture du log de récupération.                                                                                                                                                                                   |
+    | `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`          | Espace utilisé sur le système de fichiers du gestionnaire de files d&apos;attente.                                                                                                                                                |
+    | `ibmmq_qmgr_queue_manager_file_system_free_space_percentage` | Espace libre sur le système de fichiers du gestionnaire de files d&apos;attente.                                                                                                                                                  |
+    | `ibmmq_qmgr_mq_fdc_file_count`                               | Nombre de fichiers de vidage de diagnostic IBM MQ (FFST/FDC — écrits lorsque le gestionnaire de files d&apos;attente enregistre une erreur interne). Un nombre croissant signale des problèmes qui méritent d&apos;être examinés. |
+  </Collapser>
+
+  <Collapser id="metrics-queue-state" title="Profondeur, âge et handles de la file d’attente">
+    | métrique                           | Description                                                                    |
+    | ---------------------------------- | ------------------------------------------------------------------------------ |
+    | `ibmmq_queue_depth`                | Nombre actuel de messages dans la file d&apos;attente.                         |
+    | `ibmmq_queue_attribute_max_depth`  | Profondeur maximale configurée de la file d&apos;attente.                      |
+    | `ibmmq_queue_oldest_message_age`   | Âge du message le plus ancien dans la file d’attente, en secondes.             |
+    | `ibmmq_queue_uncommitted_messages` | Nombre de messages non validés.                                                |
+    | `ibmmq_queue_time_since_put`       | Secondes depuis le dernier `MQPUT` vers la file d’attente.                     |
+    | `ibmmq_queue_time_since_get`       | Secondes écoulées depuis le dernier `MQGET` de la file d’attente.              |
+    | `ibmmq_queue_input_handles`        | Descripteurs d&apos;entrée ouverts (consommateurs) sur la file d&apos;attente. |
+    | `ibmmq_queue_output_handles`       | Descripteurs de sortie ouverts (producteurs) sur la file d&apos;attente.       |
+    | `ibmmq_queue_browse_handles`       | Descripteurs de navigation ouverts sur la file d&apos;attente.                 |
+    | `ibmmq_queue_publish_handles`      | Descripteurs de publication ouverts sur la file d&apos;attente.                |
+    | `ibmmq_queue_qfile_current_size`   | Taille actuelle du fichier de file d&apos;attente sur le disque.               |
+    | `ibmmq_queue_qfile_max_size`       | Taille maximale du fichier de file d&apos;attente sur le disque.               |
+  </Collapser>
+
+  <Collapser id="metrics-queue-throughputl" title="Débit et temps de la file d’attente (MQI)">
+    Ces compteurs suivent les appels d&apos;API de messages principaux d&apos;IBM MQ par file d&apos;attente : **`MQPUT`** / **`MQPUT1`** (placer un message dans une file d&apos;attente) et **`MQGET`** (obtenir un message d&apos;une file d&apos;attente). Ils nécessitent que les statistiques MQI soient activées sur le gestionnaire de files d&apos;attente (voir [Collecte de métriques](#collection)).
+
+    | métrique                                                                                        | Description                                                            |
+    | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+    | `ibmmq_queue_mqput_count`                                                                       | `MQPUT`Opérations /`MQPUT1` sur la file d&apos;attente.                |
+    | `ibmmq_queue_mqget_count`                                                                       | `MQGET` opérations sur la file d&apos;attente.                         |
+    | `ibmmq_queue_mqput_bytes` / `ibmmq_queue_mqget_bytes`                                           | Octets placés dans/récupérés de la file d’attente.                     |
+    | `ibmmq_queue_mqput_non_persistent_message_count` / `ibmmq_queue_mqput_persistent_message_count` | Messages non persistants/persistants déposés.                          |
+    | `ibmmq_queue_average_queue_time_seconds`                                                        | Temps moyen passé par les messages dans la file d&apos;attente.        |
+    | `ibmmq_queue_qtime_short` / `ibmmq_queue_qtime_long`                                            | Échantillons de temps de file d&apos;attente à intervalle court/long.  |
+    | `ibmmq_queue_avoided_puts_percentage`                                                           | Pourcentage de puts qui sont allés directement à un getter en attente. |
+    | `ibmmq_queue_expired_messages`                                                                  | Messages ayant expiré dans la file d&apos;attente.                     |
+    | `ibmmq_queue_rolled_back_mqget_count` / `ibmmq_queue_rolled_back_mqput_count`                   | Gets/puts annulés.                                                     |
+  </Collapser>
+
+  <Collapser id="metrics-channel" title="Métriques de canal">
+    | métrique                                                                 | Description                                                                                                                                                                               |
+    | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `ibmmq_channel_status`                                                   | État d&apos;exécution du canal (`3` = en cours d&apos;exécution).                                                                                                                         |
+    | `ibmmq_channel_status_squash`                                            | Statut de canal simplifié avec moins de valeurs d&apos;énumération (informatif ; pour les alertes, utilisez `ibmmq_channel_status` et la [référence des codes de statut](#status-codes)). |
+    | `ibmmq_channel_messages`                                                 | Messages envoyés sur le canal.                                                                                                                                                            |
+    | `ibmmq_channel_bytes_sent` / `ibmmq_channel_bytes_rcvd`                  | Octets envoyés/reçus.                                                                                                                                                                     |
+    | `ibmmq_channel_buffers_sent` / `ibmmq_channel_buffers_rcvd`              | Tampons de transmission envoyés/reçus.                                                                                                                                                    |
+    | `ibmmq_channel_cur_inst`                                                 | Nombre actuel d&apos;instances de canal en cours d&apos;exécution.                                                                                                                        |
+    | `ibmmq_channel_attribute_max_inst` / `ibmmq_channel_attribute_max_instc` | Nombre maximal d’instances au total/par client.                                                                                                                                           |
+    | `ibmmq_channel_time_since_msg`                                           | Secondes écoulées depuis le dernier message sur le canal.                                                                                                                                 |
+    | `ibmmq_channel_type` / `ibmmq_channel_instance_type`                     | Type de canal/type d&apos;instance.                                                                                                                                                       |
+    | `ibmmq_channel_substate`                                                 | Sous-état du canal.                                                                                                                                                                       |
+  </Collapser>
+
+  <Collapser id="metrics-qmgr-mqi" title="Activité et erreurs MQI du gestionnaire de files d’attente">
+    Ces compteurs à l&apos;échelle du gestionnaire de files d&apos;attente résument l&apos;activité de l&apos;API et les échecs sur tous les objets — utiles pour repérer les erreurs d&apos;application et le roulement des transactions. Ils nécessitent que les statistiques MQI soient activées (voir [Collecte de métriques](#collection)).
+
+    | métrique                                                           | Description                                                                    |
+    | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+    | `ibmmq_qmgr_interval_mqput_mqput1_total_count`                     | Total des appels `MQPUT` + `MQPUT1` dans l&apos;intervalle.                    |
+    | `ibmmq_qmgr_interval_destructive_get_total_count`                  | Nombre total d&apos;appels `MQGET` destructifs dans l&apos;intervalle.         |
+    | `ibmmq_qmgr_published_to_subscribers_message_count`                | Messages publiés aux abonnés (débit de publication/abonnement).                |
+    | `ibmmq_qmgr_mqopen_count` / `ibmmq_qmgr_mqclose_count`             | Nombre total d’appels `MQOPEN` / `MQCLOSE`.                                    |
+    | `ibmmq_qmgr_mqconn_mqconnx_count` / `ibmmq_qmgr_mqdisc_count`      | Appels de connexion/déconnexion.                                               |
+    | `ibmmq_qmgr_commit_count` / `ibmmq_qmgr_rollback_count`            | Validations/annulations de transaction.                                        |
+    | `ibmmq_qmgr_failed_mqput_count` / `ibmmq_qmgr_failed_mqput1_count` | Appels `MQPUT` / `MQPUT1` échoués.                                             |
+    | `ibmmq_qmgr_failed_mqget_count` / `ibmmq_qmgr_failed_mqopen_count` | Appels get/open échoués.                                                       |
+    | `ibmmq_qmgr_failed_mqconn_mqconnx_count`                           | Appels connect échoués.                                                        |
+    | `ibmmq_qmgr_expired_message_count`                                 | Messages expirés dans l&apos;ensemble du gestionnaire de files d&apos;attente. |
+    | `ibmmq_qmgr_purged_queue_count`                                    | Files d&apos;attente purgées.                                                  |
+  </Collapser>
+
+  <Collapser id="status-codes" title="Référence des codes d'état MQ">
+    Les métriques d&apos;état IBM MQ signalent des valeurs d&apos;énumération numériques, et **non** `1`/`0` — et la valeur saine (« running ») diffère selon la métrique (`2` pour l&apos;état au niveau du gestionnaire de files d&apos;attente, `3` pour l&apos;état du canal). Alertez sur l&apos;*inégalité* par rapport à la valeur d&apos;exécution (par exemple, `ibmmq_qmgr_status != 2`) :
+
+    | métrique                              | Valeur saine | Signification                                                         |
+    | ------------------------------------- | ------------ | --------------------------------------------------------------------- |
+    | `ibmmq_qmgr_status`                   | `2`          | Le gestionnaire de files d&apos;attente est en cours d&apos;exécution |
+    | `ibmmq_qmgr_command_server_status`    | `2`          | Le serveur de commandes est en cours d&apos;exécution                 |
+    | `ibmmq_qmgr_channel_initiator_status` | `2`          | L&apos;initiateur de canal est en cours d&apos;exécution              |
+    | `ibmmq_channel_status`                | `3`          | Le canal est en cours d&apos;exécution                                |
+
+    Toute autre valeur (ou un point de données manquant) signifie que le composant n&apos;est pas dans son état d&apos;exécution.
+  </Collapser>
+</CollapserGroup>
+
+## Attributs de ressource [#resource-attributes]
+
+Le collecteur attache des attributs d&apos;identité et de contexte à chaque métrique IBM MQ. Certains sont communs à tous les déploiements ; d&apos;autres dépendent du fait que le collecteur s&apos;exécute sur un hôte Linux ou dans Kubernetes.
+
+<CollapserGroup>
+  <Collapser id="common-attributes" title="Attribut commun">
+    | Attribut                   | Description                                                                                                                                                                                                      | Exemple                         |
+    | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+    | `target.name`              | Attribut d&apos;identité stable — le premier segment de chaque GUID d&apos;entité IBM MQ. Injecté en tant qu&apos;étiquette de scraping `targetName`, puis renommé en `target.name` par le collecteur.           | `prod-mq-01`, `prod-mq-cluster` |
+    | `qmgr`                     | Nom du gestionnaire de files d&apos;attente (étiquette brute de l&apos;exportateur ; la synthèse d&apos;entité se base dessus).                                                                                  | `QM1`                           |
+    | `queue`                    | Nom de la file d&apos;attente (sur les métriques à l&apos;échelle de la file d&apos;attente).                                                                                                                    | `APP.ORDERS.IN`                 |
+    | `channel`                  | Nom du canal (sur les métriques à l&apos;échelle du canal).                                                                                                                                                      | `APP.SVRCONN`                   |
+    | `cluster.name`             | Tag de regroupement facultatif pour les gestionnaires de files d’attente dans le même cluster MQ. Ne fait pas partie du GUID de l’entité ; il est sûr de le laisser non défini ou de le modifier ultérieurement. | `prod-mq`                       |
+    | `instrumentation.provider` | Toujours `opentelemetry` pour cette intégration ; utilisez-le pour restreindre les requêtes au chemin OpenTelemetry.                                                                                             | `opentelemetry`                 |
+  </Collapser>
+
+  <Collapser id="on-host-attributes" title="Attributs de déploiement sur hôte">
+    | Attribut  | Description                                                                                                                                                                                         | Exemple               |
+    | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+    | `host.id` | Identifiant de l’hôte exécutant le collecteur, à partir du processeur `resourcedetection` (détecteurs `system` / `ec2`). Relie le gestionnaire de files d’attente à son entité d’hôte sous-jacente. | `i-1234567890abcdef0` |
+  </Collapser>
+
+  <Collapser id="kubernetes-attributes" title="Attributs de déploiement Kubernetes">
+    | Attribut        | Description                                                                                                        | Exemple        |
+    | --------------- | ------------------------------------------------------------------------------------------------------------------ | -------------- |
+    | `k8s_namespace` | Espace de nommage du pod de l&apos;exportateur découvert, estampillé par les règles de réétiquetage du collecteur. | `ibmmq`        |
+    | `k8s_pod`       | Nom du pod de l&apos;exportateur découvert.                                                                        | `qm1-0`        |
+    | `host.id`       | Identifiant du nœud exécutant le pod, à partir de `resourcedetection`.                                             | `ip-10-0-1-23` |
+  </Collapser>
+</CollapserGroup>
+
+## Détails de la collecte des métriques [#collection-details]
+
+### Fréquence de collecte
+
+* **Intervalle par défaut**: 60 secondes (le `scrape_interval` du collecteur). Il doit être supérieur ou égal au `pollInterval` propre à l&apos;exportateur mq-metric-samples.
+* **Configurable**: ajustez `IBMMQ_SCRAPE_INTERVAL` (Linux) ou `scrape_interval` dans le `values.yaml` Helm (Kubernetes).
+
+### Source des données
+
+Toutes les métriques proviennent de l&apos;exportateur [mq-metric-samples](https://github.com/ibm-messaging/mq-metric-samples), qui interroge chaque gestionnaire de files d&apos;attente via PCF et republie les statistiques sous forme de métriques Prometheus sur un point de terminaison HTTP `/metrics`. Le récepteur `prometheus` du collecteur scrape ce point de terminaison.
+
+### types métriques
+
+* **Jauges** — valeurs ponctuelles telles que `ibmmq_qmgr_status`, `ibmmq_queue_depth` et `ibmmq_channel_status`. Graphique avec `latest()`.
+* **Compteurs** — totaux cumulés tels que `ibmmq_queue_mqput_count`. Le Processeur `cumulativetodelta` du collecteur les convertit en temporalité delta, donc créez des graphiques avec `sum()` ou `rate()` plutôt qu&apos;avec `latest()`.
+
+## Documentation associée [#related-docs]
+
+<DocTiles>
+  <DocTile title="Instrumentation auto-hébergée pour IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    Découvrez comment configurer votre IBM MQ pour le monitoring auto-hébergé dans New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentation Kubernetes pour IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    Découvrez comment configurer le monitoring d&apos;IBM MQ pour Kubernetes dans New Relic.
+  </DocTile>
+
+  <DocTile title="Afficher et interroger vos données" path="/docs/opentelemetry/integrations/ibm-mq/view-data">
+    Apprenez à afficher et à interroger vos données IBM MQ dans New Relic.
+  </DocTile>
+</DocTiles>

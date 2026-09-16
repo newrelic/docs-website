@@ -1,0 +1,315 @@
+---
+title: Capacités du site privé
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: 'A consolidated overview of what New Relic synthetic monitoring private locations can do: security, compliance, networking, scaling, and automation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Un site privé est un ensemble de gestionnaires de tâches Synthetics (SJM) — des conteneurs que vous exécutez dans votre propre environnement. Étant donné que SJM n&apos;effectue que des appels sortants vers le collecteur de New Relic (le point de terminaison &quot;Horde&quot;), vous pouvez monitorer des cibles internes, protégées par un pare-feu ou autrement privées sans ouvrir d&apos;accès entrant à votre réseau. Les scripts de test, les secrets et le trafic restent à l&apos;intérieur de votre infrastructure. Cela contraste avec les emplacements publics gérés par New Relic, qui s&apos;exécutent à partir d&apos;une infrastructure exploitée par New Relic dans le monde entier.
+
+Le tableau suivant résume ce que les sites privés prennent en charge. Chaque fonctionnalité est détaillée dans les sections ci-dessous.
+
+| Capacité                                                          | Ce que cela vous apporte                                                                           |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Déploiement multi-plateforme (Docker/Podman/Kubernetes/OpenShift) | Exécutez des processus pour monitorer au sein de votre propre infrastructure, derrière le pare-feu |
+| Certificats CA personnalisés                                      | Faire confiance aux points de terminaison HTTPS internes ou de PKI privée                          |
+| Certificats client mTLS                                           | Présenter les certificats client aux points de terminaison mTLS internes (`cert-map.json`)         |
+| Exécution non root                                                | Exécutez le SJM en tant qu’utilisateur non root dans des conteneurs renforcés                      |
+| Exécution de script vérifiée (VSE)                                | Contrôlez par phrase secrète qui peut exécuter des scripts sur votre site                          |
+| Identifiants sécurisés                                            | Stocker les secrets dans un coffre-fort chiffré, masqués dans les résultats et les logs            |
+| FedRAMP Modéré                                                    | Utiliser le monitoring synthétique dans les comptes autorisés par FedRAMP                          |
+| Double stack (IPv4 + IPv6)                                        | Monitorer les points de terminaison IPv4 et IPv6                                                   |
+| Proxy sortant                                                     | Accéder à New Relic via un proxy HTTP/HTTPS                                                        |
+| Modules Node personnalisés                                        | Utilisez vos propres packages npm dans les scripts                                                 |
+| Variables définies par l’utilisateur                              | Injecter une configuration non secrète dans les scripts                                            |
+| Mise à l&apos;échelle horizontale et verticale                    | Ajoutez des SJM (même clé) ou ajoutez du CPU/RAM pour le débit                                     |
+| Automatisation et infrastructure en tant que code                 | Gérez les emplacements avec <DNT>NerdGraph</DNT> et <DNT>Terraform</DNT>                           |
+| Emplacements partagés                                             | Partager un site entre tous les comptes d&apos;une organisation                                    |
+| Santé et observabilité                                            | Suivre les événements de statut avec un dashboard de gestionnaire de tâches préconçu               |
+| Noms d’hôte personnalisés (`RUNTIME_EXTRA_HOSTS`)                 | Mapper les noms d&apos;hôte internes aux adresses IP pour la résolution DNS d&apos;exécution       |
+
+## Fondation : déployer le monitoring dans votre propre infrastructure [#foundation]
+
+**Problème résolu :** vos applications internes se trouvent derrière un pare-feu où les emplacements publics de New Relic ne peuvent pas les atteindre, et l&apos;ouverture d&apos;un accès entrant pour satisfaire un outil de monitoring n&apos;est pas acceptable. Les sites privés monitorent ces systèmes depuis l&apos;intérieur de votre propre réseau, uniquement en mode sortant.
+
+<CollapserGroup>
+  <Collapser id="foundation-details" title="Vérifiez l’architecture et les exigences">
+    Les sites privés s&apos;exécutent entièrement sur l&apos;infrastructure que vous contrôlez :
+
+    * Un site privé peut contenir n&apos;importe quel nombre de SJM. Vous assignez des monitorer au site dans l&apos;interface utilisateur, et le SJM extrait les tâches et rapporte les résultats à New Relic.
+
+    * Le SJM s’exécute sur Docker, Podman, Kubernetes et OpenShift à partir d’une seule image (`newrelic/synthetics-job-manager`).
+
+    * **Sandboxing par vérification :** pour chaque vérification scriptée ou de navigateur, le SJM lance un conteneur ou un pod d&apos;exécution frais, puis le détruit, isolant ainsi les exécutions les unes des autres.
+
+    * **Runtimes que le SJM gère :**
+
+      * `synthetics-ping-runtime` — monitorer les pings (légers)
+      * `synthetics-node-api-runtime` — API scriptée, liens rompus, vérification de certificat
+      * `synthetics-node-browser-runtime` — moniteurs de navigateur simples et scriptés (<DNT>Chrome</DNT>)
+
+    * **Sortant uniquement :** le SJM doit atteindre le point de terminaison Horde (US `https://synthetics-horde.nr-data.net/`, EU `https://synthetics-horde.eu01.nr-data.net/`, JP `https://synthetics-horde.jp.nr-data.net/`). Tester la connectivité avec :
+
+      ```bash
+      curl -X GET https://synthetics-horde.nr-data.net/synthetics/api/v1/ping
+      ```
+
+    Pour la configuration, consultez [Présentation des sites privés](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/) et [Installer le gestionnaire de tâches](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/).
+
+    Vous contrôlez la version du runtime. Sur les sites privés, la version du runtime est entièrement déterminée par les images d’exécution que votre SJM déploie — définissez-les avec `DESIRED_RUNTIMES` (Docker et Podman) ou `synthetics.desiredRuntimes` (Kubernetes). Utilisez le tag `latest` pour exécuter les images d’exécution prises en charge actuelles à partir de <DNT>Docker Hub</DNT> — c’est la configuration recommandée pour les sites privés. Si vous avez besoin de valider une mise à niveau avant de l’adopter, vous pouvez épingler un tag d’image publié spécifique à la place. Dans tous les cas, les images sont extraites au démarrage du SJM, donc redémarrez-le ou redéployez-le pour appliquer une modification.
+
+    Les listes déroulantes de version **Browser** et **Runtime** dans les paramètres généraux n’ont aucun effet sur les sites privés, et `runtimeTypeVersion` dans `SyntheticCheck` n’est pas un moyen fiable d’identifier le runtime d’un job privé — effectuez une requête sur `nr.runtimeVersion` à la place. Les runtimes actuels sont <DNT>Node.js</DNT> 22 avec <DNT>Chrome</DNT> 147 ou supérieur. Les anciens runtimes <DNT>Node.js</DNT> 16 et <DNT>Chrome</DNT> 134 ont [atteint leur fin de vie](/eol/2026/05/eol-05-18-26-node-16-chrome-134-runtimes/). Consultez le [guide de transition des runtimes](/docs/synthetics/synthetic-monitoring/private-locations/runtime-transition-guide/) pour plus de détails.
+  </Collapser>
+</CollapserGroup>
+
+## Sécurité et renforcement [#security]
+
+### Certificats CA personnalisés [#custom-certs]
+
+**Problème résolu :** monitorer ne peut pas vérifier les points de terminaison HTTPS internes signés par votre propre autorité de certification, de sorte que les applications internes critiques pour l&apos;entreprise ne sont pas monitorées ou vous obligent à maintenir des images d&apos;exécution personnalisées. Le montage de vos certificats d&apos;autorité de certification rend ces points de terminaison monitorables avec la validation TLS intacte.
+
+<CollapserGroup>
+  <Collapser id="custom-certs-details" title="Configurer des certificats CA personnalisés">
+    Le SJM détecte automatiquement les certificats montés et les propage (en lecture seule) à chaque runtime qu’il génère, vous n’avez donc pas besoin d’une image de runtime personnalisée.
+
+    * **Format :** PEM, avec une extension `.pem`, lisible par l&apos;UID `2000`. Le SJM charge uniquement les certificats avec la contrainte de base `CA:TRUE` et ignore les certificats feuilles.
+    * **Docker :** montez sur `/var/lib/newrelic/synthetics/certs` en lecture seule.
+    * **Kubernetes :** créez un Secret et référencez-le avec `global.customCertificates.volume.secret.secretName`.
+  </Collapser>
+</CollapserGroup>
+
+Consultez [Configurer des certificats CA personnalisés](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#custom-ca-certificates).
+
+### Certificats client mTLS [#mtls]
+
+**Problème résolu :** les services qui exigent que l’appelant présente un certificat client rejettent purement et simplement vos requêtes pour monitorer, ce qui vous pousse généralement à créer et à maintenir un proxy par service juste pour obtenir une couverture. Les certificats clients mappés sur le nom d’hôte suppriment entièrement cette solution de contournement.
+
+<CollapserGroup>
+  <Collapser id="mtls-details" title="Configurer les certificats client mTLS">
+    Les monitorers présentent automatiquement le certificat correct par nom d’hôte, sans modification de script.
+
+    * Fournissez un `cert-map.json` pour la modélisation des noms d’hôte vers les fichiers de certificat/clé PEM (priorité de correspondance : exacte → générique `*.domain.com` → `default` → aucun certificat).
+    * **Docker :** montez votre répertoire client-cert sur `/var/lib/newrelic/synthetics/client-cert` en lecture seule.
+    * **Kubernetes :** créez un Secret (le type de ressource Kubernetes) contenant `cert-map.json` et les fichiers de certificat/clé, puis référencez-le avec `global.clientCertificates.volume.secret.secretName`.
+    * Parce que le mTLS est mutuel, l’outil pour monitorer doit également faire confiance au serveur. Si le certificat du point de terminaison est émis par une CA privée, montez cette CA en tant que [certificat de CA personnalisé](#custom-certs) (Docker : `/var/lib/newrelic/synthetics/certs`, Kubernetes : `global.customCertificates.volume.secret.secretName`).
+    * Si les noms d’hôte mTLS ne sont pas résolubles via DNS dans le runtime, mappez-les avec des [noms d’hôte personnalisés](#custom-hostnames).
+
+    <Callout variant="tip" title="Limitations de la prise en charge des certificats">
+      Les certificats CA personnalisés et mTLS s’appliquent uniquement aux API scriptées et aux moniteurs de navigateur scriptés (les moniteurs de ping ne sont pas affectés). Les certificats se chargent au démarrage du conteneur, redémarrez donc le gestionnaire de tâches (ou les pods d’exécution sur Kubernetes) après les avoir ajoutés, supprimés ou renouvelés. Pour le mTLS, chaque certificat client nécessite un Subject CN unique — <DNT>Chrome</DNT> l’utilise pour sélectionner automatiquement le certificat correct par nom d’hôte.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+Voir les [certificats clients mTLS](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#mtls-client-certificates).
+
+### Exécution non root [#non-root]
+
+**Problème résolu :** les normes de sécurité des conteneurs dans de nombreuses organisations interdisent l’exécution de workloads en tant que root, ce qui vous empêcherait autrement de déployer le gestionnaire de tâches. L’exécution non root permet au monitoring de passer l’examen de sécurité de votre plateforme.
+
+<CollapserGroup>
+  <Collapser id="non-root-details" title="Exécuter le gestionnaire de tâches en tant que non-root">
+    Le SJM s&apos;exécute en tant que root par défaut (sécurisé car l&apos;exécution est en bac à sable), mais il prend également en charge l&apos;exécution en tant qu&apos;utilisateur non root.
+
+    * **Docker :** L’utilisateur doit être dans le groupe `docker` (ou utiliser le socket TCP Docker via `DOCKER_HOST`) et avoir un accès en lecture/écriture aux volumes montés, puis l’exécuter avec `-u UID:GID`.
+    * Les conteneurs d’exécution s’exécutent toujours avec l’UID `2000`.
+    * **Kubernetes** expose une valeur `podSecurityContext` <DNT>Helm</DNT> pour `runAsUser`, `runAsNonRoot` et `fsGroup`. Podman prend en charge un modèle entièrement sans root.
+  </Collapser>
+</CollapserGroup>
+
+Voir [Sécurité, mise en bac à sable et exécution en tant que non-root](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#run-non-root).
+
+### Exécution de script vérifiée (VSE) [#vse]
+
+**Problème qu&apos;il résout :** les monitorer scriptés sont du code arbitraire, donc toute personne ayant accès au compte peut exécuter ses scripts sur votre infrastructure au sein de votre réseau. Une phrase secrète que vous seul détenez garantit que seuls les scripts de confiance s&apos;exécutent sur votre gestionnaire de tâches.
+
+<CollapserGroup>
+  <Collapser id="vse-details" title="Activer l'exécution de script vérifiée">
+    Vous devez définir une phrase secrète avant que quiconque puisse attribuer des scripts à votre site ou y ajouter des SJM. Notez que VSE s’applique uniquement aux monitorers scriptés. Les monitorers non scriptés (comme un simple ping) sont exemptés de la saisie de la phrase secrète.
+
+    * Définissez la phrase secrète avec `VSE_PASSPHRASE` (Docker/Podman) ou `synthetics.vsePassphrase` / `synthetics.vsePassphraseSecretName` (Kubernetes), puis activez VSE dans le menu **Modifier** du site et entrez la phrase secrète pour chaque monitorer.
+
+    <Callout variant="caution">
+      New Relic ne stocke jamais la phrase secrète VSE, et personne — y compris le support New Relic — ne peut la récupérer. Si elle est perdue, vous devez la réinitialiser sur le SJM et réauthentifier chaque monitorer assigné au site.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+Voir [Exécution script vérifiée pour les sites privés](/docs/synthetics/synthetic-monitoring/private-locations/verified-script-execution-private-locations/).
+
+### Emplacements partagés [#shared-locations]
+
+**Problème résolu :** un site privé créé dans un compte n&apos;est pas utilisable par d&apos;autres comptes par défaut, de sorte que chaque compte a ses gestionnaires de travaux dédiés pour le même réseau — dupliquant l&apos;infrastructure, les coûts et la maintenance. Le partage permet à un emplacement de servir plusieurs comptes.
+
+<CollapserGroup>
+  <Collapser id="shared-locations-details" title="Partager un emplacement entre les comptes">
+    Le partage est contrôlé par site, vous décidez donc quels comptes peuvent envoyer des tâches à votre infrastructure.
+
+    * Définir `shared` sur `true` rend l’emplacement utilisable par tous les comptes de votre organisation.
+    * Un site créé sur un compte parent est utilisable par ses comptes enfants. Un site créé sur un compte enfant reste privé pour ce compte.
+    * Vous ne pouvez pas annuler le partage d’un emplacement pendant qu&apos;il est encore utilisé pour monitorer dans d’autres comptes — migrez d&apos;abord ce que vous monitorez.
+  </Collapser>
+</CollapserGroup>
+
+Consultez l&apos;[aperçu des sites privés](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/).
+
+### Identifiants sécurisés [#secure-credentials]
+
+**Problème résolu :** Tester des parcours authentifiés nécessite de vrais identifiants, mais les placer dans des scripts les expose à quiconque peut lire le script ou les résultats de la vérification. Un coffre-fort chiffré garde les secrets utilisables mais illisibles, et la rotation d’une valeur met à jour tout ce que vous monitorez en même temps.
+
+<CollapserGroup>
+  <Collapser id="secure-credentials-details" title="Examiner le fonctionnement des identifiants sécurisés">
+    Référencez les secrets stockés dans vos scripts avec `$secure.MY_KEY`.
+
+    * Utilise le chiffrement AES-GCM 256 bits au repos, avec <DNT>AWS Key Management Service (KMS)</DNT> gérant les clés. Vous ne pouvez jamais relire les valeurs — vous pouvez seulement les référencer.
+    * New Relic nettoie les valeurs de tous les résultats et alertes — y compris les formes codées en pourcentage —, en les remplaçant par `_SECURECREDENTIAL_`.
+    * Disponible pour les monitorer de navigateur scripté, d&apos;API et d&apos;étape. Limite de 1 000 identifiants par compte. Les administrateurs contrôlent les autorisations de création, d&apos;affichage, de suppression et d&apos;utilisation.
+
+    <Callout variant="important">
+      Si un monitorer s’exécutant dans un site privé est compromis, effectuez une rotation de ses identifiants sécurisés et de la clé du site privé.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+Consultez [Stocker les identifiants sécurisés](/docs/synthetics/synthetic-monitoring/using-monitors/store-secure-credentials-scripted-browsers-api-tests/).
+
+## Conformité : FedRAMP [#fedramp]
+
+**Problème résolu :** Les workloads du secteur public et réglementés ne peuvent s’exécuter que sur des services qui répondent aux exigences FedRAMP, ce qui exclut autrement un outil de monitoring avant même le début de l’évaluation.
+
+<CollapserGroup>
+  <Collapser id="fedramp-details" title="Vérifier la portée et les exigences">
+    Voici comment le monitoring synthétique s&apos;intègre au programme FedRAMP :
+
+    * New Relic est autorisé FedRAMP (Modéré), et le monitoring synthétique est dans le périmètre — il ne figure pas sur la liste des services hors périmètre.
+    * Il n&apos;y a pas de point de terminaison Horde Synthetics `gov-` distinct. Selon la règle de point de terminaison de New Relic, un service dont le point de terminaison n&apos;est pas répertorié séparément et n&apos;est pas hors de portée répond aux exigences FedRAMP sur son point de terminaison standard. Les SJM de site privé dans les comptes FedRAMP utilisent le point de terminaison Horde standard.
+    * Les obligations des clients incluent un compte approuvé par New Relic, l&apos;édition Enterprise avec Data Plus (ou une alternative approuvée), des agents et des services configurés vers des points de terminaison désignés par FedRAMP, et l&apos;utilisation exclusive de fonctionnalités autorisées par FedRAMP. FedRAMP est hérité par les comptes enfants.
+  </Collapser>
+</CollapserGroup>
+
+Consultez [FedRAMP](/docs/security/security-privacy/compliance/certificates-standards-regulations/fedramp/) et les [points de terminaison conformes à FedRAMP](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints/).
+
+## Mise en réseau [#networking]
+
+### Double stack (IPv4 + IPv6) [#dual-stack]
+
+**Problème résolu :** À mesure que les réseaux adoptent l’IPv6, ce que vous monitorez qui ne peut atteindre que l’IPv4 laisse le chemin IPv6 non vérifié — une lacune où les utilisateurs rencontrent des échecs que vous ne voyez jamais. La double stack valide les deux familles d’adresses à partir d’un seul emplacement.
+
+<CollapserGroup>
+  <Collapser id="dual-stack-details" title="Vérifiez les exigences de la double stack">
+    Il n&apos;y a pas de bascule dans le produit — SJM hérite de la capacité double stack du réseau de l&apos;hôte ou du cluster, conditionnée par les versions minimales de l&apos;image :
+
+    * Gestionnaire de tâches `519` ou version ultérieure, runtime de ping `1.65.0` ou version ultérieure, et images actuelles de l’API Node et du runtime de navigateur — utilisez le tag `latest`.
+    * **Docker :** L’hôte et le daemon Docker doivent avoir l’IPv6 activé.
+    * **Kubernetes :** le cluster doit être en version 1.20+ avec le dual stack activé.
+  </Collapser>
+</CollapserGroup>
+
+Consultez les guides d&apos;installation dual stack pour [Docker](/docs/synthetics/synthetic-monitoring/private-locations/install-synthetics-dual-stack-docker/), [Kubernetes](/docs/synthetics/synthetic-monitoring/private-locations/install-synthetics-dual-stack-kubernetes/) et [Podman](/docs/synthetics/synthetic-monitoring/private-locations/install-synthetics-dual-stack-podman/).
+
+### Proxy sortant [#proxy]
+
+**Problème résolu :** les réseaux verrouillés ne permettent pas de trafic sortant direct, le gestionnaire de tâches ne peut donc pas atteindre New Relic et l’ensemble du site privé se retrouve hors ligne. La prise en charge du proxy lui permet de continuer à transmettre des données sans modifier votre politique de trafic sortant.
+
+<CollapserGroup>
+  <Collapser id="proxy-details" title="Configurer les variables de proxy">
+    Définissez ces variables sur le gestionnaire de jobs :
+
+    * **Docker/Podman :** `HORDE_API_PROXY_HOST`, `HORDE_API_PROXY_PORT`, `HORDE_API_PROXY_USERNAME`, `HORDE_API_PROXY_PW` et `HORDE_API_PROXY_ACCEPT_SELF_SIGNED_CERT`.
+    * **Kubernetes :** `synthetics.apiProxyHost`, `synthetics.apiProxyPort`, `synthetics.hordeApiProxyUsername`, `synthetics.hordeApiProxyPw` et `synthetics.hordeApiProxySelfSignedCert`.
+
+    <Callout variant="tip">
+      Ces variables régissent le trafic SJM vers New Relic. Il n’existe aucune variable de proxy à usage général documentée pour le trafic arbitraire monitorer-cible.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+Consultez [Configuration du gestionnaire de tâches](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#environment-variables).
+
+### Noms d’hôte personnalisés [#custom-hostnames]
+
+**Problème qu’il résout :** les monitorer ne peuvent pas atteindre un service interne dont le nom d’hôte se résout uniquement à l’intérieur de votre réseau — ou se résout à la mauvaise adresse à l’intérieur du conteneur d’exécution —, de sorte que la vérification échoue sur le DNS au lieu de la chose que vous vouliez tester.
+
+<CollapserGroup>
+  <Collapser id="custom-hostnames-details" title="Modélisez les noms d’hôte vers les adresses IP">
+    Sur les déploiements Docker, définissez `RUNTIME_EXTRA_HOSTS` sur le gestionnaire de tâches et il transmet les modélisations dans chaque conteneur d’exécution qu’il génère, afin que vos scripts puissent utiliser les mêmes noms d’hôte que vos applications.
+
+    * **Format :** Paires `hostname:ip` séparées par des virgules, par exemple `api.internal.example.com:10.0.0.1,svc.internal:10.0.0.2`.
+    * Utile chaque fois qu’un nom interne n’est pas résolvable à partir du runtime — y compris les cibles mTLS référencées dans `cert-map.json`.
+  </Collapser>
+</CollapserGroup>
+
+Voir les [certificats clients mTLS](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#mtls-client-certificates).
+
+## Extensibilité [#extensibility]
+
+### Modules Node personnalisés [#custom-modules]
+
+**Problème résolu :** évite les lacunes non monitorées et la profusion d&apos;outils supplémentaire en vous permettant d&apos;importer des packages tiers pour les protocoles, les SDK cloud ou les formats de données manquants dans le runtime par défaut.
+
+<CollapserGroup>
+  <Collapser id="custom-modules-details" title="Configurez des modules de nœud personnalisés">
+    Regroupez vos propres packages npm (hébergés ou locaux) pour une utilisation avec `require()` dans les monitorer d’API scriptée et de navigateur.
+
+    * Fournissez un répertoire avec une racine `package.json`, et SJM exécute `npm install` au démarrage.
+    * Monter sur `/var/lib/newrelic/synthetics/modules` (Docker/Podman, lecture/écriture). Sur Kubernetes, utilisez un <DNT>PersistentVolume</DNT> (`ReadWriteMany` s’il est partagé entre les pods) via `global.customNodeModules.customNodeModulesPath`.
+  </Collapser>
+</CollapserGroup>
+
+Consultez [Modules node personnalisés](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#custom-modules).
+
+### Variables définies par l’utilisateur [#user-defined-variables]
+
+**Problème résolu :** coder en dur des valeurs spécifiques à l&apos;environnement dans les scripts implique de maintenir un script presque identique par environnement et de modifier chacun d&apos;eux à chaque changement. L&apos;injection de la configuration permet à un seul script de s&apos;exécuter partout.
+
+<CollapserGroup>
+  <Collapser id="user-defined-variables-details" title="Configurez des variables définies par l'utilisateur">
+    Accédez aux valeurs injectées dans vos scripts avec `$env.USER_DEFINED_VARIABLES.MY_VARIABLE`. Définissez `USER_DEFINED_VARIABLES` (une chaîne JSON) ou montez un fichier `user_defined_variables.json`.
+
+    <Callout variant="caution">
+      Les variables définies par l&apos;utilisateur ne sont pas nettoyées dans les logs. Utilisez des [identifiants sécurisés](#secure-credentials) pour tout ce qui est sensible.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+Consultez les [variables définies par l&apos;utilisateur pour monitorer par script](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#user-defined-vars).
+
+## Mise à l’échelle et opérations [#scaling]
+
+**Problème résolu :** un seul gestionnaire de tâches a un plafond de débit fixe, donc à mesure que votre nombre d&apos;éléments à monitorer augmente, la file d&apos;attente s&apos;accumule et les vérifications s&apos;exécutent en retard ou pas du tout — réduisant silencieusement la couverture. L&apos;évolution horizontale ajoute de la capacité et du basculement.
+
+<CollapserGroup>
+  <Collapser id="scaling-details" title="Vérifier le dimensionnement, la mise à l'échelle et les opérations">
+    Les sites privés s’adaptent pour correspondre à votre charge de monitoring :
+
+    * **Types de tâches :** les tâches lourdes (navigateur simple et scripté, API scriptée) utilisent environ un cœur de CPU par tâche simultanée. Les tâches légères (ping) s’exécutent sur un pool de threads de travail plutôt que sur un cœur complet chacune.
+    * **Débit par SJM :** par conception, il y a une limite de 15 tâches lourdes par minute et 75 vérifications de ping par minute. Pour plus de détails sur les facteurs qui affectent les performances, consultez les [tâches lourdes](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#vm-sizing), les [tâches de ping](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#note-about-ping-monitors-and-the-pingjobs-queue)
+    * **Mise à l&apos;échelle (horizontale) :** déployez plus de SJM avec la même clé de site privé. Les tâches s&apos;équilibrent en charge entre eux, le débit est additif, et vous bénéficiez d&apos;un basculement.
+    * **Mise à l’échelle (verticale) :** ajoutez du processeur et de la mémoire à l’hôte, ou dimensionnez chaque runtime indépendamment dans le graphique <DNT>Helm</DNT> (`parallelism`/`completions` pour les runtimes d’API et de navigateur, `replicaCount` pour le ping).
+    * **Santé et observabilité :** chaque SJM affiche un indicateur de statut. Les événements NRQL `SyntheticsPrivateLocationStatus` et `SyntheticsPrivateMinion` exposent les métriques de file d&apos;attente et de ressources, et New Relic fournit un dashboard « Synthetics job manager » préconçu.
+    * **Gestion des files d’attente :** effacez une file d’attente sauvegardée dans l’interface utilisateur, ou purgez-la avec la mutation <DNT>NerdGraph</DNT> `syntheticsPurgePrivateLocationQueue`.
+    * **Rotation des clés :** les clés ne peuvent pas être soumises à une rotation sur place. Créez un nouveau site, migrez les monitorer vers celui-ci, redéployez vos SJM avec la nouvelle clé, puis supprimez l’ancien site. Effectuez une rotation de toutes les informations d’identification sécurisées que les monitorer ont utilisées.
+  </Collapser>
+</CollapserGroup>
+
+Consultez la [configuration du gestionnaire de tâches Synthetics](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/) et [Monitorer les sites privés](/docs/synthetics/synthetic-monitoring/private-locations/monitor-private-locations/).
+
+## Automatisation et infrastructure en tant que code [#automation]
+
+**Problème qu’il résout :** La création et la configuration de sites à la main ne passent pas à l’échelle des équipes et des environnements, et les configurations manuelles s’éloignent au fil du temps. Leur gestion sous forme de code rend le monitoring reproductible et révisable.
+
+<CollapserGroup>
+  <Collapser id="automation-details" title="Passez en revue les options API et Terraform">
+    Vous pouvez créer et gérer des sites privés par programmation :
+
+    * **API<DNT>NerdGraph</DNT> :** `syntheticsCreatePrivateLocation`, `syntheticsUpdatePrivateLocation`, `syntheticsPurgePrivateLocationQueue` et `syntheticsDeletePrivateLocation`, plus les mutations d&apos;identifiants sécurisés. La création d&apos;un emplacement renvoie un `guid`.
+    * **<DNT>Terraform</DNT>:** La ressource `newrelic_synthetics_private_location` (obligatoire `name` et `description`; facultatif `shared` et `verified_script_execution`). Il exporte le `key` que vous fournissez à vos SJM, afin que vous puissiez provisionner le site et connecter le runtime dans un seul pipeline.
+  </Collapser>
+</CollapserGroup>
+
+Consultez [Gérer les sites privés avec <DNT>NerdGraph</DNT>](/docs/apis/nerdgraph/examples/synthetics-api/private-locations/) et la [documentation du fournisseur<DNT>Terraform</DNT> ](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/synthetics_private_location).
+
+***

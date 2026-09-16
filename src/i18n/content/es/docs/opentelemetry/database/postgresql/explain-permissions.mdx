@@ -1,0 +1,85 @@
+---
+title: Permisos del plan EXPLAIN para el monitoreo de PostgreSQL
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Advanced configuration
+metaDescription: Collect EXPLAIN plans for write statements without granting write access to the PostgreSQL monitoring user
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta función se proporciona actualmente como parte de una vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+De forma predeterminada, `EXPLAIN` se ejecuta directamente como el usuario de monitoreo, y PostgreSQL comprueba los privilegios de tabla en el momento de la planificación — por lo que las sentencias de bloqueo de filas o de escritura fallan con `permission denied` a menos que el usuario de monitoreo tenga acceso de escritura, lo cual nunca debería tener.
+
+## Cree la función auxiliar EXPLAIN [#explain]
+
+Para recopilar planes de consulta para declaraciones de bloqueo o escritura sin otorgar acceso de escritura al usuario de monitoreo, cree la siguiente función en cada base de datos:
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+### Mecánica de recopilación de planes de ejecución
+
+* **Límite de velocidad:** `top_query_collection.max_explain_each_interval` (predeterminado `1000`) limita a `EXPLAIN`por extracción.
+* **Almacenamiento en caché:** `query_plan_cache_size` / `query_plan_cache_ttl` (predeterminado `1000` entradas/ `1h`) almacena en caché un plan una vez obtenido, identificado por ID de consulta.
+
+## Documentación relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Instrumentación en entornos autohospedados" path="/docs/opentelemetry/database/postgresql/hosted">
+    Aprenda a configurar el monitoreo de PostgreSQL en entornos autohospedados con New Relic.
+  </DocTile>
+
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/database/postgresql/metrics-reference">
+    Obtenga información sobre las métricas disponibles recopiladas por NRDOT Collector.
+  </DocTile>
+
+  <DocTile title="Guía de solución de problemas" path="/docs/opentelemetry/database/postgresql/troubleshooting">
+    Aprenda a solucionar problemas comunes con el monitoreo de PostgreSQL.
+  </DocTile>
+</DocTiles>

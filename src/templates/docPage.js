@@ -7,6 +7,7 @@ import { CSSTransition } from 'react-transition-group';
 import { useMedia } from 'react-use';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
+import MdxLlmTools from '../components/MdxLlmTools';
 import {
   ContributingGuidelines,
   ComplexFeedback,
@@ -91,7 +92,13 @@ const BasicDoc = ({ data, location, pageContext }) => {
     });
   }, [tableOfContents]);
 
-  const { title, metaDescription, tags, translationType } = frontmatter;
+  const {
+    title,
+    metaDescription,
+    tags,
+    translationType,
+    hideTOC,
+  } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
@@ -142,7 +149,14 @@ const BasicDoc = ({ data, location, pageContext }) => {
             )}
           />
         )}
-        <PageTitle>{title}</PageTitle>
+        <div
+          css={css`
+            grid-area: page-title;
+          `}
+        >
+          <PageTitle>{title}</PageTitle>
+          <MdxLlmTools pathname={location.pathname} />
+        </div>
 
         <LoggedInProvider>
           <Layout.Content>
@@ -189,7 +203,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
               }
             `}
           >
-            <TableOfContents headings={headings} />
+            {!hideTOC && <TableOfContents headings={headings} />}
             <ComplexFeedback pageTitle={title} />
             <ContributingGuidelines
               pageTitle={title}
@@ -233,6 +247,7 @@ export const pageQuery = graphql`
         metaDescription
         tags
         translationType
+        hideTOC
       }
       fields {
         fileRelativePath

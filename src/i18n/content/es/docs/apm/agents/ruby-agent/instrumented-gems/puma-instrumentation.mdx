@@ -1,0 +1,207 @@
+---
+title: Instrumentación de Puma
+tags:
+  - Agents
+  - Ruby agent
+  - Instrumented gems
+metaDescription: 'How the New Relic Ruby agent samples Puma server statistics, what it captures, and example queries.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El agente <DNT>Ruby</DNT> de New Relic puede tomar muestras de las estadísticas del servidor de todo el clúster de [Puma](https://github.com/puma/puma) desde el proceso maestro <DNT>Puma</DNT> y reportarlas como `Ruby/Puma/*` [métricas de segmento de tiempo](/docs/data-apis/understand-data/metric-data/query-apm-metric-timeslice-data-nrql/).
+
+Esta instrumentación está **deshabilitada de forma predeterminada**.
+
+## Requerimientos mínimos [#requirements]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Requisito
+      </th>
+
+      <th>
+        Detalles
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Versión del agente Ruby
+      </td>
+
+      <td>
+        10.7.0 o superior
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Versión de Puma
+      </td>
+
+      <td>
+        6.6.0 o superior
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Modo Puma
+      </td>
+
+      <td>
+        Modo único, o modo en clúster con 
+
+        `preload_app!`
+
+         habilitado.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Habilite la instrumentación [#enable]
+
+Para habilitar la instrumentación de <DNT>Puma</DNT>, establezca `disable_puma_instrumentation` en `false` en su `newrelic.yml`:
+
+```yaml
+disable_puma_instrumentation: false
+```
+
+El agente toma muestras de las estadísticas del proceso maestro <DNT>Puma</DNT>, por lo que solo recopila métricas donde el agente está cargado en el maestro:
+
+* **Modo único** (sin workers): las métricas siempre se recopilan.
+
+* **Modo en clúster** (uno o más trabajadores): las métricas se recopilan solo cuando tu aplicación está precargada, de modo que el agente se carga en el maestro en lugar de en un trabajador. Agrega `preload_app!` a tu `puma.rb`:
+
+  ```ruby
+  workers 2
+  preload_app!
+  ```
+
+  <Callout variant="important">
+    En <DNT>Puma v6.x</DNT> debe establecer `preload_app!` explícitamente. <DNT>Puma v6.x</DNT> no aplica su valor predeterminado de `preload_app` del bloque de configuración, por lo que una aplicación en clúster con `workers` establecido pero sin `preload_app!` explícito carga el agente en un hilo de trabajo y **no se recopilan métricas de Puma**. Cuando esto sucede, el agente registra una advertencia.
+  </Callout>
+
+### Ajustar la frecuencia de muestreo [#sample-rate]
+
+Por defecto, el agente muestrea las estadísticas de <DNT>Puma</DNT> cada 60 segundos. Cambie esto con la configuración `puma.sample_rate` en su `newrelic.yml`:
+
+```yaml
+puma.sample_rate: 30
+```
+
+## Qué captura [#metrics]
+
+Todas las métricas se registran bajo el namespace `Ruby/Puma/`. Los valores por worker se suman en todo el clúster.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `Ruby/Puma/backlog`
+      </td>
+
+      <td>
+        Número de requests que esperan un hilo disponible.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Ruby/Puma/running`
+      </td>
+
+      <td>
+        Número de hilos de trabajo actualmente generados en el grupo de hilos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Ruby/Puma/pool_capacity`
+      </td>
+
+      <td>
+        Capacidad de request de reserva: hilos inactivos más hilos aún no generados pero permitidos hasta 
+
+        `max_threads`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Ruby/Puma/max_threads`
+      </td>
+
+      <td>
+        Número máximo de hilos configurado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Ruby/Puma/requests_count`
+      </td>
+
+      <td>
+        Número acumulado de requests procesados desde que se iniciaron los trabajadores.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Ruby/Puma/workers`
+      </td>
+
+      <td>
+        Número de trabajadores de Puma. Reportado solo en modo clúster.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ejemplo de consulta [#queries]
+
+Consulte estas métricas con [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/) usando el tipo `Metric`. Reemplace `YOUR_APP_NAME` con el nombre de su aplicación.
+
+Para ver todas las métricas de Puma a la vez:
+
+```sql
+FROM Metric SELECT average(newrelic.timeslice.value)
+WHERE appName = 'YOUR_APP_NAME' AND metricTimesliceName LIKE 'Ruby/Puma/%'
+FACET metricTimesliceName TIMESERIES LIMIT MAX SINCE 1 hour ago
+```
+
+Para ver una sola métrica, filtre por su nombre:
+
+```sql
+FROM Metric SELECT average(newrelic.timeslice.value)
+WHERE appName = 'YOUR_APP_NAME' AND metricTimesliceName = 'Ruby/Puma/requests_count'
+TIMESERIES LIMIT MAX SINCE 1 hour ago
+```
+
+## Cómo funciona [#behavior]
+
+Cuando está habilitado, el agente inicia un hilo de informes en el proceso maestro de Puma para entregar estas métricas. Esto ejecuta una conexión de agente adicional en el maestro, junto con las conexiones de tus trabajadores de Puma.
+
+La instrumentación registra solo medidores enteros y contadores a través de `NewRelic::Agent.record_metric`. No captura ningún dato de request, consulta o usuario.
