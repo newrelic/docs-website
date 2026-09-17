@@ -1,0 +1,85 @@
+---
+title: "Advanced configuration for MySQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Advanced configuration
+metaDescription: Advanced, optional configuration options for MySQL monitoring with the NRDOT Collector
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+You can configure the following options to get deeper insights into your MySQL instances:
+
+- [Query plans for write statements](#query)
+- [Enable lock-wait duration tracking](#lock)
+
+## Query plans for write statements [#query]
+
+
+Setting `explain_mode` to `procedure` enables NRDOT Collector to collect `EXPLAIN` plans for write statements without granting DML privileges to the monitoring user. When configured, the receiver searches for a `SQL SECURITY DEFINER` procedure named `<schema>.explain_statement`. If that procedure doesn't exist or the monitoring user lacks execution privileges on it, the receiver falls back to `inline` mode. In this state, write statements fail to collect query plans, and the collector log displays the following warning: `unable to execute explain statement`.
+
+To set the `explain_mode` to `procedure`, run the following as a privileged account (for example, `root`) once per schema:
+
+```sql
+DELIMITER //
+CREATE DEFINER = 'root'@'%' PROCEDURE <YOUR_SCHEMA>.explain_statement(IN q TEXT)
+SQL SECURITY DEFINER
+BEGIN
+  SET @nr_explain_sql = CONCAT('EXPLAIN FORMAT=JSON ', q);
+  PREPARE nr_explain_stmt FROM @nr_explain_sql;
+  EXECUTE nr_explain_stmt;
+  DEALLOCATE PREPARE nr_explain_stmt;
+END//
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE <YOUR_SCHEMA>.explain_statement TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+The `GRANT EXECUTE` step is required for more than executing the `CALL` statement. Without this privilege, the monitoring user cannot view the procedure in `information_schema.ROUTINES`, which the receiver uses to verify existence. Omitting `GRANT EXECUTE` produces the same result as a missing procedure, causing the receiver to fall back to `inline` mode in both cases.
+
+<Callout variant="tip">
+This configuration is stateful per schema. Creating or restoring a database, or dropping a procedure, silently disables write-statement plan collection for that schema and triggers a fallback to `inline` mode. The `SQL SECURITY DEFINER` stored routines apply the definer's privileges to dynamic SQL executed through `PREPARE`/`EXECUTE` statements within them. This allows a `SELECT`-only monitoring user to retrieve plans for statements for which it lacks direct execution privileges.
+</Callout>
+
+## Enable lock-wait duration tracking [#lock]
+
+The `events_waits_current` consumer provides lock-wait duration information but requires platform-specific configuration:
+
+<table>
+  <thead>
+    <tr>
+      <th>Platform</th>
+      <th>Method</th>
+      <th>Persistent across restarts?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Self-managed MySQL</td>
+      <td>`performance-schema-consumer-events-waits-current=ON` in `[mysqld]` (`my.cnf`)</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>AWS RDS</td>
+      <td>`UPDATE performance_schema.setup_consumers SET ENABLED='YES' WHERE NAME='events_waits_current';`</td>
+      <td>**No**: Resets on restart/failover. Re-run after each restart, or grant the receiver user this `UPDATE` so it can re-enable the consumer automatically on reconnect.</td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+## Related documentation [#related]
+
+<DocTiles>
+  <DocTile title="Compatibility and prerequisites" path="/docs/opentelemetry/database/mysql/compatibility">Learn about supported MySQL versions, network requirements, and recommended server parameters.</DocTile>
+  <DocTile title="Instrumentation in self-hosted environments" path="/docs/opentelemetry/database/mysql/hosted">Learn how to set up MySQL monitoring in self-hosted environments with New Relic.</DocTile>
+  <DocTile title="Instrumentation in RDS environments" path="/docs/opentelemetry/database/mysql/rds">Learn how to set up MySQL monitoring in RDS environments with New Relic.</DocTile>
+</DocTiles>

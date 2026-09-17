@@ -1,0 +1,85 @@
+---
+title: PostgreSQL監視のEXPLAIN plan権限
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Advanced configuration
+metaDescription: Collect EXPLAIN plans for write statements without granting write access to the PostgreSQL monitoring user
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/)に従ってプレビューの一部として提供されています。
+</Callout>
+
+デフォルトでは、`EXPLAIN`は監視ユーザーとして直接実行され、PostgreSQLは計画時にテーブル権限を確認します — そのため、監視ユーザーに書き込みアクセス権（本来持つべきではありません）がない限り、行ロックまたは書き込みステートメントは`permission denied`で失敗します。
+
+## EXPLAINヘルパー関数を作成する [#explain]
+
+監視ユーザーに書き込みアクセス権を付与せずに行ロックまたは書き込みステートメントのクエリ計画を収集するには、各データベースに次の関数を作成します：
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+### 実行計画の収集メカニズム
+
+* **レート制限:** `top_query_collection.max_explain_each_interval`（デフォルトは`1000`）は、スクレイプあたりの`EXPLAIN`を制限します。
+* **キャッシング:** `query_plan_cache_size`/`query_plan_cache_ttl`（デフォルトは`1000`エントリ/`1h`）は、取得した計画をクエリIDをキーとしてキャッシュします。
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+  <DocTile title="セルフホスト環境での計装" path="/docs/opentelemetry/database/postgresql/hosted">
+    New Relicを使用して、セルフホスト環境でPostgreSQL監視をセットアップする方法について説明します。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/database/postgresql/metrics-reference">
+    NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+  </DocTile>
+
+  <DocTile title="トラブルシューティングガイド" path="/docs/opentelemetry/database/postgresql/troubleshooting">
+    PostgreSQL監視に関する一般的な問題のトラブルシューティング方法について説明します。
+  </DocTile>
+</DocTiles>

@@ -20,7 +20,6 @@
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
-    - [Deploy previews with Netlify](#deploy-previews-with-netlify)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Private edits](#private-edits)
@@ -105,8 +104,8 @@ If the workflows are enabled and running, you will want to disable them. You can
 2. Make your changes.
 3. Before you raise a PR, test your changes! Review the project's [contribution guide](https://github.com/newrelic/docs-website/blob/develop/CONTRIBUTING.md#getting-started) for instructions on how to build and run tests locally.
 4. Submit a `Pull Request` to this project with your changes.
-5. If you really require a preview url, reach out to one of the writers and they will generate one for you.
-6. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+5. If you want a preview for your PR, drop a comment in the PR or contact the docs team and they'll generate one for you.
+6. When your PR is approved and merged, the automation in this project will build the site and publish a new version of the code to [docs.newrelic.com](https://docs.newrelic.com).
 7. And you are done!
 
 ### Submitting a PR from a cloned repo
@@ -117,8 +116,8 @@ If the workflows are enabled and running, you will want to disable them. You can
 3. Make your changes.
 4. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
 5. Submit a `Pull Request` to this project with your changes.
-6. A preview will start building automatically when a PR is opened. To update the preview after further commits, leave a comment on the PR that says `netlify build`.
-7. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+6. If you want a preview for your PR, drop a comment in the PR or contact the docs team and they'll generate one for you.
+7. When your PR is approved and merged, the automation in this project will build the site and publish a new version of the code to [docs.newrelic.com](https://docs.newrelic.com).
 8. And you are done!
 
 ### Using the `develop` branch
@@ -129,13 +128,13 @@ current source code. The `develop` branch will be merged into the `main` branch 
 All pull requests should be made against the `develop` branch. When merging to `develop`
 all code should be considered ready to be deployed to production.
 
-### Shared Working Branches
+### Shared working branches
 
 If you plan on coordinating changes across several people, and feel your code isn't "ready to ship"
 use a shared working branch strategy.
 
-1. create a new branch to collaborate with others via GIT and push that branch up to the remote repository. `git checkout -b shared-branch`
-2. share that branch with others you are collaborating with. They'll need to run: `git pull origin shared-branch`
+1. Create a new branch to collaborate with others via GIT and push that branch up to the remote repository. `git checkout -b shared-branch`
+2. Share that branch with others you are collaborating with. They'll need to run: `git pull origin shared-branch`
 3. All contributors should keep that branch up to date by running `git pull origin develop` frequently.
 4. Push all changes to the remote repository: `git push origin shared-branch`
 5. Resolve any merge conflicts.
@@ -206,16 +205,6 @@ Feat is for major functional changes or additions to code.
 ```bash
 git commit -m "feat(errors inbox): add new documents"
 ```
-
-### Deploy previews with Netlify
-
-PRs that are opened from a branch in this repo will generate preview links on Netlify automatically.
-
-`netlify bot` will leave a comment on your PR. You can monitor the progress via the comment details which include:
-
-- The status of the preview build. (`processing`, `ready`, or `failed`)
-- The commit that is being built or has failed.
-- Once the build succeeds, the comment will update with a link to view the preview site.
 
 ## Reusable components
 
@@ -293,7 +282,7 @@ Run the experiment and pick a winner!
 This section attempts to capture some of the more common troubleshooting techniques to try
 if you face issues in contributing.
 
-### General Install, compile or build issues
+### General install, compile or build issues
 
 Many of the common errors you'll face can be resolved by the following:
 

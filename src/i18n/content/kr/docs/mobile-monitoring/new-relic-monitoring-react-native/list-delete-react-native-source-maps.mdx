@@ -1,0 +1,192 @@
+---
+title: 리액트 네이티브 소스 맵 나열 및 삭제
+tags:
+  - Mobile monitoring
+  - New Relic Mobile React Native
+  - Configuration
+metaDescription: 'How to search for, list, and delete uploaded React Native source maps in New Relic using NerdGraph or NRQL.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[리액트 네이티브 소스 맵을 업로드](/docs/mobile-monitoring/new-relic-monitoring-react-native/react-native-agent-js-error-reporting)하면 업로드 응답에 해당 소스 맵에 대한 고유 엔티티 ID(`guid`)가 포함됩니다. 이 ID를 사용하여 파일을 확인하거나 삭제할 수 있습니다.
+
+소스 맵의 `guid`에 대한 기록이 없는 경우, 아래 설명된 대로 뉴렐릭의 [NerdGraph API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) 또는 NRQL을 사용하여 업로드된 소스 맵을 검색, 나열 및 삭제하십시오.
+
+<Callout variant="important">
+  NerdGraph로 소스 맵을 쿼리하고 삭제하려면 [사용자 API 키](/docs/apis/intro-apis/new-relic-api-keys/#user-key)가 필요합니다. NerdGraph 요청의 `Api-Key` 헤더에 이를 포함하십시오.
+</Callout>
+
+## 소스 맵의 GUID 찾기 [#find-guid]
+
+삭제와 같은 관리 작업을 수행하려면 먼저 소스 맵 엔티티의 고유 식별자(`guid`)를 가져와야 합니다. NerdGraph에서 `entitySearch` 쿼리를 사용하여 검색합니다.
+
+<Callout variant="tip">
+  NerdGraph에서 소스 맵을 쿼리할 때 `name` 및 `type` 필드를 제외하고 매핑 메타데이터 속성 앞에 `tags.`을(를) 접두사로 추가하십시오.
+</Callout>
+
+```graphql
+{
+  actor {
+    entitySearch(
+      query: "type = 'REACT_NATIVE_SOURCEMAP' and tags.applicationId = '<YOUR_APPLICATION_ID>' and tags.appVersion = '12424.0392' and tags.jsBundleId = '87124712' and name = 'app.min.js.map'"
+    ) {
+      results {
+        entities {
+          name
+          guid
+          tags {
+            key
+            values
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+후속 관리 작업에 사용할 응답에서 `guid` 문자열을 찾으십시오:
+
+```json
+{
+  "data": {
+    "actor": {
+      "entitySearch": {
+        "results": {
+          "entities": [
+            {
+              "guid": "<YOUR_ENTITY_GUID>",
+              "name": "app.min.js.map"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+## 소스 맵 삭제 [#delete]
+
+엔티티 `guid`을(를) 확보하면, NerdGraph에서 `entityManagementDelete` 뮤테이션을 사용하여 소스 맵을 제거하십시오:
+
+```graphql
+mutation {
+  entityManagementDelete(id: "<YOUR_ENTITY_GUID>") {
+    id
+  }
+}
+```
+
+응답은 삭제된 엔티티의 `id`을(를) 반환합니다:
+
+```json
+{
+  "data": {
+    "entityManagementDelete": {
+      "id": "<YOUR_ENTITY_GUID>"
+    }
+  }
+}
+```
+
+<Callout variant="important">
+  변경 사항이 모든 시스템에 즉시 반영되지는 않습니다. 삭제 또는 새 업로드 후 데이터가 `entitySearch`와(과) 동기화되는 데 몇 분 정도 걸릴 수 있습니다. 이 동기화 기간 동안 삭제된 소스 맵 ID가 검색 결과에 일시적으로 계속 나타날 수 있습니다.
+</Callout>
+
+## 소스 맵 나열 [#list]
+
+NerdGraph 또는 NRQL을 사용하여 업로드된 소스 맵을 감사하고 볼 수 있습니다. 다음 매핑 속성을 사용하여 파일을 필터링하십시오:
+
+* `jsBundleId`
+* `appVersion`
+* `applicationId`
+* `name`
+* `type` (또는 `EntityType`)
+* `accountId`
+
+### 구문 차이: NerdGraph vs. NRQL [#syntax-differences]
+
+NerdGraph와 NRQL을 사용한 쿼리 간의 주요 기능적 차이는 속성 네임스페이스입니다:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        상호 작용
+      </th>
+
+      <th>
+        속성 접두사 요구 사항
+      </th>
+
+      <th>
+        범위 제약
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        너드그래프
+      </td>
+
+      <td>
+        메타데이터 필드에 `tags.` 접두사가 필요합니다(예: `tags.jsBundleId`).
+      </td>
+
+      <td>
+        필터에 `accountId`을(를) 포함하지 않는 한 액세스 가능한 엔티티 전체에서 전역 검색을 수행합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        NRDB(NRQL)
+      </td>
+
+      <td>
+        원시 속성 이름을 직접 사용합니다(예: `jsBundleId`).
+      </td>
+
+      <td>
+        타겟 계정 컨텍스트로 제한됩니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### NerdGraph로 나열 [#list-nerdgraph]
+
+특정 계정으로 검색 범위를 지정하려면 필터에 `accountId`을(를) 포함하십시오:
+
+```graphql
+{
+  actor {
+    entitySearch(
+      query: "type = 'REACT_NATIVE_SOURCEMAP' and tags.applicationId = '<YOUR_APPLICATION_ID>' and tags.appVersion = '12424.0392' and tags.jsBundleId = '87124712' and name = 'app.min.js.map' and accountId = <YOUR_ACCOUNT_ID>"
+    ) {
+      results {
+        entities {
+          name
+          guid
+          tags {
+            key
+            values
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### NRQL을 사용한 목록 [#list-nrql]
+
+초기 파일 업로드 중에 사용된 특정 계정 ID 컨텍스트를 선택한 다음, `Entity` 네임스페이스에 대해 다음 쿼리를 실행하십시오:
+
+```sql
+FROM Entity SELECT * WHERE type = 'REACT_NATIVE_SOURCEMAP' AND name = 'app.min.js.map' AND jsBundleId = '87124712' AND appVersion = '12424.0392'
+```

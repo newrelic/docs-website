@@ -2,7 +2,7 @@
 title: 'Kubernetes Horizontal Pod Autoscaler (HPA) support'
 summary: 'New Relic support for HPA'
 releaseDate: '2021-11-02'
-learnMoreLink: 'https://discuss.newrelic.com/t/horizontal-pod-autoscaling-based-on-nr-metrics-is-now-available/165851'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008ccZ/horizontal-pod-autoscaling-based-on-nr-metrics-is-now-available'
 getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/newrelic-hpa-metrics-adapter/newrelic-metrics-adapter/#installation'
 ---
 

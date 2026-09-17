@@ -92,7 +92,13 @@ const BasicDoc = ({ data, location, pageContext }) => {
     });
   }, [tableOfContents]);
 
-  const { title, metaDescription, tags, translationType } = frontmatter;
+  const {
+    title,
+    metaDescription,
+    tags,
+    translationType,
+    hideTOC,
+  } = frontmatter;
 
   // pageContext.locale is 'en' for English pages and the real locale code
   // (jp/fr/es/pt/kr) otherwise (set by the theme's addLocale page-transform,
@@ -209,7 +215,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
               }
             `}
           >
-            <TableOfContents headings={headings} />
+            {!hideTOC && <TableOfContents headings={headings} />}
             <ComplexFeedback pageTitle={title} />
             <ContributingGuidelines
               pageTitle={title}
@@ -253,6 +259,7 @@ export const pageQuery = graphql`
         metaDescription
         tags
         translationType
+        hideTOC
       }
       fields {
         fileRelativePath

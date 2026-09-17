@@ -1,0 +1,133 @@
+---
+title: NRDOT를 사용한 MySQL 모니터링 고급 설정
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Advanced configuration
+metaDescription: 'Advanced, optional configuration options for MySQL monitoring with the NRDOT Collector'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+MySQL 인스턴스에 대한 더 깊은 인사이트를 얻기 위해 다음 옵션을 구성할 수 있습니다:
+
+* [쓰기 문에 대한 쿼리 계획](#query)
+* [잠금 대기 시간 추적 활성화](#lock)
+
+## 쓰기 문에 대한 쿼리 계획 [#query]
+
+`explain_mode`을(를) `procedure` (으)로 설정하면 모니터링 사용자에게 DML 권한을 부여하지 않고도 NRDOT Collector가 쓰기 문에 대한 `EXPLAIN` 계획을 수집할 수 있습니다. 설정 시 수신기는 이름이 `<schema>.explain_statement`인 `SQL SECURITY DEFINER` 프로시저를 검색합니다. 해당 프로시저가 존재하지 않거나 모니터링 사용자에게 실행 권한이 없는 경우 수신기는 `inline` 모드로 대체됩니다. 이 상태에서는 쓰기 문이 쿼리 계획을 수집하지 못하며, 수집기 로그에 다음 경고가 표시됩니다: `unable to execute explain statement`.
+
+`explain_mode`을(를) `procedure`(으)로 설정하려면, 스키마당 한 번씩 권한이 있는 계정(예: `root`)으로 다음을 실행하십시오:
+
+```sql
+DELIMITER //
+CREATE DEFINER = 'root'@'%' PROCEDURE <YOUR_SCHEMA>.explain_statement(IN q TEXT)
+SQL SECURITY DEFINER
+BEGIN
+  SET @nr_explain_sql = CONCAT('EXPLAIN FORMAT=JSON ', q);
+  PREPARE nr_explain_stmt FROM @nr_explain_sql;
+  EXECUTE nr_explain_stmt;
+  DEALLOCATE PREPARE nr_explain_stmt;
+END//
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE <YOUR_SCHEMA>.explain_statement TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+`GRANT EXECUTE` 단계는 `CALL` 문을 실행하는 것 이상을 위해 필요합니다. 이 권한이 없으면 모니터링 사용자는 수신자가 존재 여부를 확인하는 데 사용하는 `information_schema.ROUTINES`의 프로시저를 볼 수 없습니다. `GRANT EXECUTE`을(를) 생략하면 프로시저가 누락된 것과 동일한 결과가 발생하며, 두 경우 모두 수신자가 `inline` 모드로 폴백하게 됩니다.
+
+<Callout variant="tip">
+  이 설정은 스키마별로 상태를 유지합니다. 데이터베이스를 생성 또는 복원하거나 프로시저를 삭제하면 해당 스키마에 대한 쓰기 문 계획 수집이 알림 없이 비활성화되고 `inline` 모드로의 폴백이 트리거됩니다. `SQL SECURITY DEFINER` 저장 루틴은 그 안에서 `PREPARE`/`EXECUTE` 문을 통해 실행되는 동적 SQL에 정의자의 권한을 적용합니다. 이를 통해 `SELECT`전용 모니터링 사용자는 직접 실행 권한이 없는 문에 대한 계획을 검색할 수 있습니다.
+</Callout>
+
+## 잠금 대기 시간 추적 활성화 [#lock]
+
+`events_waits_current` 소비자는 잠금 대기 시간 정보를 제공하지만 플랫폼별 설정이 필요합니다:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        플랫폼
+      </th>
+
+      <th>
+        방법
+      </th>
+
+      <th>
+        재시작 후에도 유지됩니까?
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        자체 관리형 MySQL
+      </td>
+
+      <td>
+        `performance-schema-consumer-events-waits-current=ON`
+
+         
+
+        `[mysqld]`
+
+         (
+
+        `my.cnf`
+
+        )에서
+      </td>
+
+      <td>
+        네
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AWS RDS
+      </td>
+
+      <td>
+        `UPDATE performance_schema.setup_consumers SET ENABLED='YES' WHERE NAME='events_waits_current';`
+      </td>
+
+      <td>
+        **아니요**
+
+        : 재시작/장애 조치 시 재설정됩니다. 각 재시작 후 다시 실행하거나, 재연결 시 소비자를 자동으로 다시 활성화할 수 있도록 수신 사용자에게 이 
+
+        `UPDATE`
+
+        을(를) 부여하십시오.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="호환성 및 전제 조건" path="/docs/opentelemetry/database/mysql/compatibility">
+    지원되는 MySQL 버전, 네트워크 요구 사항 및 권장 서버 파라미터에 대해 알아보십시오.
+  </DocTile>
+
+  <DocTile title="자체 호스팅 환경에서의 계측" path="/docs/opentelemetry/database/mysql/hosted">
+    뉴렐릭을 사용하여 자체 호스팅 환경에서 MySQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="RDS 환경에서의 계측" path="/docs/opentelemetry/database/mysql/rds">
+    뉴렐릭을 사용하여 RDS 환경에서 MySQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>

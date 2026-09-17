@@ -1,0 +1,104 @@
+---
+title: New Relic eBPFエージェントのマルチアカウントルーティングを構成する
+metaDescription: Route New Relic eBPF agent telemetry to different New Relic accounts per Kubernetes namespace using per-namespace license keys.
+tags:
+  - New Relic integrations with eBPF
+  - New Relic eBPF agent
+  - eBPF integration
+  - eBPF multi-account routing
+  - Kubernetes namespace routing
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  マルチアカウントルーティングには、`nr-ebpf-agent`<DNT>Helm</DNT>チャートバージョン`1.5.0`以降が必要です。この機能は、eBPFエージェントのKubernetesデプロイメントでのみ利用できます。
+</Callout>
+
+Kubernetesクラスタが複数のチームやテナントをホストしている場合、ワークロードが実行されているKubernetesのネームスペースに基づいて、テレメトリーを別のNew RelicアカウントにルーティングするようにNew Relic eBPFエージェントを構成できます。これにより、単一のeBPFエージェントのデーモンセットがクラスタ全体をカバーしながら、各チームのデータがそれぞれのアカウントに保存されるようになります。
+
+## マルチアカウントルーティングの挙動 [#how-it-works]
+
+eBPFエージェントのデーモンセットは、`NAMESPACE_LICENSE_KEY_MAP`環境変数として注入されるKubernetesシークレットから、ネームスペースからライセンスキーへのマップを読み取ります。このマップは2つの方法のいずれかで提供しますが、これらは相互に排他的です：
+
+* `namespaceLicenseKeys` — マップを`values.yaml`で直接定義します。チャートは、自動的に作成されるシークレットにそれを保存します。
+* `customSecretNamespaceLicenseKeys` — 自分で作成および管理するKubernetesシークレットを指定して、ライセンスキーが`values.yaml`やソース管理に表示されないようにします。
+
+<Callout variant="tip">
+  <DNT>`namespaceLicenseKeys`</DNT>と<DNT>`customSecretNamespaceLicenseKeys`</DNT>の両方を設定した場合、<DNT>`namespaceLicenseKeys`</DNT>が優先され、カスタムシークレットは無視されます。1つだけ設定してください。
+</Callout>
+
+特定のポッドについて、エージェントはマップ内でポッドのネームスペースを検索します：
+
+* ネームスペースがマップ内のキーである場合、そのネームスペースからのテレメトリーは対応するアカウントにルーティングされます。
+* ネームスペースがマップにない場合、テレメトリーはクラスタのグローバルな<DNT>`licenseKey`</DNT>または<DNT>`customSecretName`</DNT>にフォールバックします。
+
+## マルチアカウントルーティングの設定 [#configure]
+
+ライセンスキーを<DNT>`values.yaml`</DNT>にインラインで配置するか、個別に管理するシークレットに配置するかに応じて、以下のオプションのいずれかを選択します。
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="inline">インラインマップ</TabsBarItem> <TabsBarItem id="custom-secret">カスタムシークレット</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="inline">
+      独自のアカウントにルーティングするネームスペースごとに1つのエントリを持つ<DNT>`namespaceLicenseKeys`</DNT>マップを<DNT>`values.yaml`</DNT>に追加します：
+
+      ```yaml
+      namespaceLicenseKeys:
+        team-a: "NRAK-aaa..."
+        team-b: "NRAK-bbb..."
+      ```
+
+      次に、変更を適用します：
+
+      ```bash
+      helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
+      ```
+
+      <Callout variant="caution">
+        これにより、ライセンスキーが直接<DNT>`values.yaml`</DNT>に保存されます。このファイルをソース管理にコミットする場合は、代わりにカスタムシークレットオプションを使用してください。
+      </Callout>
+    </TabsPageItem>
+
+    <TabsPageItem id="custom-secret">
+      値がJSONエンコードされたネームスペースからライセンスキーへのマップである、正確に<DNT>`NAMESPACE_LICENSE_KEY_MAP`</DNT>という名前のデータキーを持つKubernetesシークレットを作成します。シークレットは、<DNT>eBPF agent</DNT>リリースと同じネームスペースに存在する必要があります。
+
+      ```yaml
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: my-nr-namespace-keys
+        namespace: newrelic
+      type: Opaque
+      stringData:
+        NAMESPACE_LICENSE_KEY_MAP: '{"team-a":"NRAK-aaa...","team-b":"NRAK-bbb..."}'
+      ```
+
+      次に、<DNT>`values.yaml`</DNT>でシークレットを参照し、<DNT>`namespaceLicenseKeys`</DNT>を空のままにします：
+
+      ```yaml
+      namespaceLicenseKeys: {}
+      customSecretNamespaceLicenseKeys: "my-nr-namespace-keys"
+      ```
+
+      変更を適用：
+
+      ```bash
+      helm upgrade --install nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic --values values.yaml
+      ```
+
+      <Callout variant="important">
+        シークレットのデータキーは正確に`NAMESPACE_LICENSE_KEY_MAP`である必要があります — チャートは名前を変更しません。値は、キーと値が二重引用符で囲まれた有効なJSONである必要があります；不正な形式のマップはルーティングを完全に無効にします（エージェントはそれを空として扱います）。
+      </Callout>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 知っておくべき事項 [#things-to-know]
+
+* ルーティングするワークロードのネームスペース（<DNT>`team-a`</DNT>など）ではなく、<DNT>eBPF agent</DNT>リリースと同じネームスペース（たとえば、<DNT>`newrelic`</DNT>）にカスタムシークレットを作成します。
+* `namespaceLicenseKeys`と`customSecretNamespaceLicenseKeys`の両方を設定しないでください。両方が空でない場合、インラインマップが暗黙的に優先されます。
+* マップにリストされていないネームスペースは、引き続きクラスタのグローバルな<DNT>`licenseKey`</DNT>または<DNT>`customSecretName`</DNT>を使用します。これらの設定の詳細については、[K8s設定パラメーター](/docs/ebpf/k8s-installation/#config-params)を参照してください。

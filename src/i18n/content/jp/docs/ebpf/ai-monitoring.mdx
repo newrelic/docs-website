@@ -1,0 +1,138 @@
+---
+title: eBPF AIモニタリング
+metaDescription: 'Learn how New Relic''s eBPF agent automatically detects and monitors GenAI/LLM workloads, giving you AI performance and cost visibility without code changes.'
+tags:
+  - Integrations
+  - eBPF integration
+  - eBPF AI monitoring
+  - eBPF AIM
+  - AI monitoring
+  - GenAI
+  - LLM observability
+  - eBPF
+  - Linux host
+  - Kubernetes cluster
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New RelicのeBPFエージェントは、[eBPF APM](/docs/ebpf/ebpf-apm)で使用しているのと同じゼロコードで言語に依存しないアプローチを、スタックのAIレイヤーに拡張します。エージェントがインストールされると、サービスがLLMプロバイダーに対して行うアウトバウンド呼び出しをLinuxカーネルから直接自動的に検出し、SDK、コードの変更、または専用のAI監視エージェントを必要とせずに、生成AIのパフォーマンス、コスト、および信頼性のテレメトリーを報告します。
+
+このテレメトリーは、APM、ネットワーク、およびログデータをすでに報告している自動検出された同じeBPFエンティティに表示されるため、サービスの健全性とAIの使用状況を単一の統合されたビューで確認できます。これは、存在を知らなかった生成AIワークロードを見つけるのに特に役立ちます：サードパーティのサービス、レガシーアプリケーション、またはLLMベンダーを密かに呼び出している、自身が所有していないコードなどです。
+
+## 主な特徴 [#key-features]
+
+* **ゼロコードの生成AI検出**：SDK、ラッパーライブラリ、またはコードの変更を必要とせずに、カーネルレベルでLLMプロバイダー（OpenAI、Azure OpenAI、Amazon Bedrockなど）へのアウトバウンド呼び出しを自動的に検出します。
+
+* **eBPF APMとシームレスに連携**：eBPFエージェントに付属しているため、生成AIのテレメトリーの収集を開始するために別のエージェントをデプロイまたは管理する必要はありません。eBPF AIワークロード監視を有効/無効にするオプションがあります（デフォルトではオフ）。
+
+* **自動検出とバックオフ**：言語APMエージェントがすでにインストゥルメントされ、同じサービスのAIモニタリングデータを報告している場合、自身のAIテレメトリーを抑制し、データの重複を回避します。これは、eBPFエージェントがAPM、ネットワーク、およびログデータに対してすでに使用しているのと同じパターンです。
+
+* **オプションのプロンプトとレスポンスのキャプチャ**：有効にすると、エージェントはモデル、ベンダー、トークン使用量、レイテンシ、エラーなどの生成AIメタデータのみをキャプチャします。デバッグや品質レビューのために必要な場合は、別の設定により、完全なプロンプトとコンプリーションコンテンツを追加でキャプチャできます。
+
+* **統合されたエンティティビュー**：生成AIのテレメトリーは、eBPF APM、ネットワークメトリクス、およびログデータと同じエンティティに表示されるため、サービスの動作を理解するために複数のエンティティ間で相関付ける必要はありません。
+
+## サポートされているLLMプロバイダー [#supported-providers]
+
+eBPF AIモニタリングは現在、以下のLLMプロバイダーへのアウトバウンド呼び出しを検出して報告します：
+
+* Google Gemini
+* オープンAI
+* Anthropic Claude
+* アマゾン岩盤
+
+検出は、サービスがこれらのプロバイダーのAPIに対して行うHTTP呼び出しに基づいてカーネルレベルで行われるため、ベンダーのSDKやクライアントライブラリは必要ありません。他のプロバイダーへの呼び出しは、生成AIのテレメトリーとして報告されません。
+
+## 使用事例 [#use-cases]
+
+* **プラットフォームエンジニア向け**：所有していないサービスや、AI対応であることを知らなかったサービスを含め、LLMプロバイダーを呼び出している環境内のすべてのサービスのインベントリを取得します。
+
+* **不透明なワークロードまたはサードパーティのワークロードを持つチーム向け**：直接計装できないレガシーアプリケーションやベンダーバイナリの生成AIの使用量、コスト、レイテンシをモニターします。
+
+* **AIのコストとパフォーマンスの監視向け**：より詳細なコードレベルのAIモニタリング計装に投資する場所を決定する前に、環境全体でトークンを大量に消費する、または応答が遅い生成AIの呼び出しを特定します。
+
+* **セキュリティおよびコンプライアンスの可視化**：どのサービスが外部のAIプロバイダーにデータを送信しているかを把握することで、難読化やドロップルールを適用する場所を決定できます。以下の[「機密データとeBPF AIモニタリング」](#sensitive-data)を参照してください。
+
+## eBPF AIモニタリングを有効にする [#enable]
+
+この機能はデフォルトではオフになっていますが、ガイド付きインストールフローから、またはエージェントの設定を直接編集することで簡単に有効にすることができます。また、完全なプロンプトと応答のコンテンツをキャプチャするための個別のコントロールも用意されています。
+
+### ガイド付きインストール
+
+LinuxホストとKubernetesのガイド付きインストールフローには、AIモニタリング用の2つのスイッチが含まれています：
+
+* <DNT>**Enable eBPF AI Monitoring:**</DNT> 生成AIワークロード監視をオンにします。デフォルトでは無効です。
+* <DNT>**Enable recording model inputs and outputs:**</DNT> 生成AIのインタラクションの完全なメッセージコンテンツ（プロンプトとコンプリーション）をキャプチャします。デフォルトでは無効になっており、<DNT>**Enable eBPF AI Monitoring**</DNT>がオンになっている場合にのみ使用できます。これにより実際のプロンプトと応答のテキストがNew Relicに送信されるため、注意して使用してください。
+
+<Callout variant="important" title="重要">
+  New Relicは、APMエージェント独自のAIモニタリング計装がすでに報告しているテレメトリーの重複を避けるため、言語APMエージェントを検出した場合、eBPF AIモニタリングを自動的に無効にします。
+</Callout>
+
+### 手動で設定する [#manual-config]
+
+ガイド付きインストールを使用しない場合は、エージェントの設定でこれらのパラメーターを設定してください：
+
+* `ai_monitoring.enabled`：生成AIテレメトリーのレポートを制御します。許容される値：`"true"`（常に送信）、`"false"`（送信しない）、`"auto"`（エンティティのAIモニタリングデータをすでにレポートしている言語APMまたはOTelエージェントがない場合にのみ送信）。
+* `ai_monitoring.genAICaptureMessageContent`：`true`の場合、生成AIインタラクションの完全なプロンプトとコンプリーションコンテンツをキャプチャします。`ai_monitoring.enabled`が`true`または`auto`の場合のみ有効になります。注意して使用してください。
+
+インストールスクリプトを使用するLinuxホストでは、代わりに同等の`ai_monitoring.enabled`および`ai_monitoring.genAICaptureMessageContent`環境変数を設定してください。これは、`reportApmData`、`reportNetworkMetrics`、および`reportLogs`ですでに使用されているパターンを踏襲しています。パラメーターの完全なリストについては、[Linuxインストレーション](/docs/ebpf/linux-installation/#config-params)または[Kubernetesインストレーション](/docs/ebpf/k8s-installation/#config-params)ガイドの「設定パラメーター」セクションを参照してください。
+
+## eBPF AIモニタリングデータを表示する [#view-data]
+
+New Relic APM UIでeBPF AIモニタリングデータを表示できます：
+
+1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; APM &amp; Services**</DNT>に移動します。
+2. LLMプロバイダーを呼び出しているサービスのeBPFエンティティを選択します。
+3. 左側のナビゲーションで<DNT>**AI monitoring**</DNT>をクリックし、<DNT>**AI traces**</DNT>を選択します。
+
+<Callout variant="tip">
+  eBPF エージェントは、環境に基づいてエンティティ名を自動的に生成します。
+
+  * **ホストまたはDockerの場合**: 名前は、プロセス名、ディレクトリ パスまたはコンテナ ID、およびリスニング ポートを組み合わせたものです。 例: `ruby:/home/ubuntu/app:[5678]`または `java:f4aead533895:[8080]`
+  * **Kubernetesでは**、名前はサービス名から派生します。 `mysql-database-service`
+
+  eBPFエージェントによって収集された属性のリストを表示するには、[eBPFエージェント属性リファレンス](/docs/ebpf/attributes-reference)を参照してください。
+</Callout>
+
+## 機密データとeBPF AIモニタリング [#sensitive-data]
+
+<Callout variant="important" title="重要">
+  eBPF AIモニタリングは、それ自体で機密データを難読化、マスク、またはドロップすることはありません。設計上、ネットワーク上で観察したものを正確に報告します。
+</Callout>
+
+<DNT>**Enable recording model inputs and outputs**</DNT>をオフ（デフォルト）のままにすると、エージェントはプロンプトや補完コンテンツをキャプチャすることはなく、モデル、ベンダー、トークン数、レイテンシなどのメタデータのみをキャプチャします。これにより、そもそも機密性の高いプロンプトや応答テキストがNew Relicに送信されるのを防ぎます。
+
+デバッグや品質レビューのためにそのコンテンツが必要で記録をオンにする場合、機密情報のデータ難読化とドロップは、OpenTelemetry Transformation Language（OTTL）を使用する[Pipeline Control Gateway（PCG）](/docs/new-relic-control/pipeline-control/gateway/transform-processor)を通じてのみ利用可能です。eBPFからNew Relicへの直接のデータフローには、AIモニタリングデータの組み込みの難読化は含まれていません。ご注文にPCGを追加するには、アカウント担当者にお問い合わせください。
+
+たとえば、この設定は生成AIインタラクションからキャプチャされた補完コンテンツを秘匿化します（eBPFエージェントが報告するものと一致するように属性名を調整してください。正確な属性名については、[eBPFエージェント属性リファレンス](/docs/ebpf/attributes-reference)を参照してください）：
+
+```yaml
+transform/Traces:
+  trace_statements:
+  - statements:
+    - replace_pattern(attributes["gen_ai.completion"], ".+", "***REDACTED***")
+    conditions:
+    - attributes["gen_ai.completion"] != nil
+```
+
+この例では、表示されているcompletion属性のみをマスキングします。プロンプトコンテンツ、特定のモデルベンダー、またはその他の属性に関するルールを含む、追加またはカスタマイズ可能な難読化およびドロップルールについては、PCGでサポートされている[OTTL Transform processor](/docs/new-relic-control/pipeline-control/gateway/transform-processor)を直接設定してください。その他の例については、[Redact PII](/docs/new-relic-control/pipeline-control/gateway/transform-processor#example-5-redact-pii)を参照してください。
+
+## 関連記事
+
+<DocTiles>
+  <DocTile title="eBPF APM" path="/docs/ebpf/ebpf-apm/">
+    ゼロコードで言語に依存しないアプリケーション監視を行うための、New RelicのeBPF APMの使用方法をご覧ください。
+  </DocTile>
+
+  <DocTile title="AIモニタリング入門" path="/docs/ai-monitoring/intro-to-ai-monitoring/">
+    AIモニタリングがAI搭載アプリのパフォーマンス、コスト、品質をどのように可視化するかをご覧ください。
+  </DocTile>
+
+  <DocTile title="Pipeline Control Gateway変換プロセッサ" path="/docs/new-relic-control/pipeline-control/gateway/transform-processor/">
+    機密データがNew Relicに到達する前に、OTTLを使用して難読化、リダクト、またはドロップする方法をご覧ください。
+  </DocTile>
+
+  <DocTile title="eBPFエージェントの属性リファレンス" path="/docs/ebpf/attributes-reference/">
+    eBPFエージェントがデータに追加する属性の完全なリストをご覧ください。
+  </DocTile>
+</DocTiles>

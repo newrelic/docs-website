@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import process from 'process';
 import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 import { vendorRequest, uploadFile } from './utils/vendor-request.mjs';
 import Database from './translation_workflow/database.js';
@@ -20,6 +21,77 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 const defaultTrackingMetadata = {
   projectId: PROJECT_ID,
   workflow: 'sendAndUpdateTranslationQueue',
+};
+
+const getRunLink = () => {
+  const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID } = process.env;
+  if (!GITHUB_SERVER_URL || !GITHUB_REPOSITORY || !GITHUB_RUN_ID) {
+    return null;
+  }
+  return `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
+};
+
+const truncate = (str, max = 150) => {
+  const oneLine = String(str).split('\n')[0];
+  return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine;
+};
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Formats the per-run Slack report. Exported for testing; not covered by a
+ * snapshot since exact wording isn't load-bearing, only the shape/data is.
+ * @param {{ attempted: number, succeeded: number, failures: {slug: string, locale: string, error: string}[] }} summary
+ */
+const buildReport = ({ attempted, succeeded, failures }) => {
+  const lines = [`🌐 *Translation Pipeline Report* — ${todayISO()}`, ''];
+
+  lines.push('📊 *Overview*');
+  lines.push(`• Attempted: ${attempted}`);
+  lines.push(`• ✅ Succeeded: ${succeeded}`);
+  lines.push(`• ${failures.length > 0 ? '❌' : '✅'} Failed: ${failures.length}`);
+
+  if (failures.length > 0) {
+    lines.push('');
+    lines.push(`🔍 *Failures* (${failures.length})`);
+    for (const failure of failures) {
+      lines.push(
+        `• \`${failure.slug}\` (${failure.locale}) — ${truncate(failure.error)}`
+      );
+    }
+  }
+
+  const runLink = getRunLink();
+  if (runLink) {
+    lines.push('');
+    lines.push(`🔗 <${runLink}|View full run>`);
+  }
+
+  return lines.join('\n');
+};
+
+/**
+ * Posts a message to Slack via an Incoming Webhook. No-ops (with a log
+ * line) when SLACK_WEBHOOK_URL isn't configured, so this is safe to call
+ * from local runs and tests without a webhook set up.
+ * @param {string} text
+ */
+const postToSlack = async (text) => {
+  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.log('SLACK_WEBHOOK_URL not set, skipping Slack notification.');
+    return;
+  }
+
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+  } catch (error) {
+    console.log(`Failed to post to Slack: ${error}`);
+  }
 };
 
 /**
@@ -170,10 +242,14 @@ const createBatches = async (jobRecords, translationsPerLocale) => {
  *
  * @param {[{ batchUid: string, locale: string, jobId: string }]} batches
  * @param {Object.<string, Translation[]>} translationsPerLocale
+ * @returns {Promise<{ successCount: number, failures: {slug: string, locale: string, error: string}[] }>}
  */
 const uploadFiles = async (batches, translationsPerLocale) => {
+  let successCount = 0;
+  const failures = [];
+
   for (const batch of batches) {
-    let successCount = 0;
+    let batchSuccessCount = 0;
 
     const translations = translationsPerLocale[batch.locale];
     for (const translation of translations) {
@@ -188,7 +264,7 @@ const uploadFiles = async (batches, translationsPerLocale) => {
             status: 'IN_PROGRESS',
           });
           await Database.addTranslationsJobsRecord(translation.id, batch.jobId);
-          successCount += 1;
+          batchSuccessCount += 1;
         }
       } catch (error) {
         await trackTranslationError({
@@ -206,10 +282,17 @@ const uploadFiles = async (batches, translationsPerLocale) => {
         console.log(`Error: ${error}`);
         console.log(error.stack);
         process.exitCode = 1;
+        failures.push({
+          slug: translation.slug,
+          locale: batch.locale,
+          error: error.message || String(error),
+        });
       }
     }
 
-    if (successCount > 0) {
+    successCount += batchSuccessCount;
+
+    if (batchSuccessCount > 0) {
       // if at least one file was successfully uploaded, set job to in progress
       await Database.updateJob(batch.jobId, { status: 'IN_PROGRESS' });
 
@@ -218,11 +301,13 @@ const uploadFiles = async (batches, translationsPerLocale) => {
         status: 'IN_PROGRESS',
         jobId: batch.jobId,
         locale: batch.locale,
-        successCount,
+        successCount: batchSuccessCount,
         ...defaultTrackingMetadata,
       });
     }
   }
+
+  return { successCount, failures };
 };
 
 /** Entrypoint. */
@@ -233,17 +318,28 @@ const main = async () => {
     // exit early if no translations are ready
     if (Object.keys(translationsPerLocale).length === 0) {
       console.log('No ready to go translations. Exiting early.');
+      await postToSlack(
+        `🌐 *Translation Pipeline Report* — ${todayISO()}\nNo translations pending today.`
+      );
       process.exit(0);
     }
 
     console.log(`Records to be sent: ${JSON.stringify(translationsPerLocale)}`);
+
+    const attempted = Object.values(translationsPerLocale).reduce(
+      (sum, translations) => sum + translations.length,
+      0
+    );
 
     const createdJobs = await createJobs(Object.keys(translationsPerLocale));
     const createdBatches = await createBatches(
       createdJobs,
       translationsPerLocale
     );
-    await uploadFiles(createdBatches, translationsPerLocale);
+    const { successCount, failures } = await uploadFiles(
+      createdBatches,
+      translationsPerLocale
+    );
 
     await trackTranslationEvent({
       ...defaultTrackingMetadata,
@@ -251,6 +347,10 @@ const main = async () => {
       createdJobsCount: createdJobs.length,
       createdBatchesCount: createdBatches.length,
     });
+
+    await postToSlack(
+      buildReport({ attempted, succeeded: successCount, failures })
+    );
   } catch (error) {
     await trackTranslationError({
       ...defaultTrackingMetadata,
@@ -260,6 +360,19 @@ const main = async () => {
     });
     console.log(`Error encountered: ${error}`);
     console.log(error.stack);
+
+    const runLink = getRunLink();
+    await postToSlack(
+      [
+        `🚨 *Translation Pipeline Report* — ${todayISO()}`,
+        'The workflow crashed before completing.',
+        `Error: ${truncate(error.message || String(error))}`,
+        runLink ? `🔗 <${runLink}|View full run>` : null,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+
     // eslint-disable-next-line require-atomic-updates
     process.exitCode = 1;
   }
@@ -281,4 +394,5 @@ export {
   createBatches,
   uploadFile,
   uploadFiles,
+  buildReport,
 };

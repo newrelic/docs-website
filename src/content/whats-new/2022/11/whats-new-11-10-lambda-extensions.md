@@ -2,7 +2,7 @@
 title: 'Ingest Telemetry directly from Lambda using New Relic Extensions'
 summary: 'Access your AWS Lambda telemetry directly using the New Relic extension to receive enhanced telemetry data (logs, platform traces, and new performance metrics) directly from Lambda execution environment through a single interface'
 releaseDate: '2022-11-10'
-learnMoreLink: 'https://discuss.newrelic.com/t/ingest-telemetry-directly-from-lambda-using-new-relic-extensions/190989'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008e52/ingest-telemetry-directly-from-lambda-using-new-relic-extensions'
 getStartedLink: 'https://newrelic.com/instant-observability/aws-lambda-telemetry-extension'
 ---
 
