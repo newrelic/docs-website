@@ -1,0 +1,105 @@
+---
+title: Terraform으로 워크로드를 관리하십시오.
+tags:
+  - New Relic
+  - Use New Relic
+  - Workloads
+  - Intelligent Workloads
+  - Terraform
+metaDescription: 'Learn how to create, manage, and update standard and intelligent workloads using Terraform.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Terraform을 사용하여 중요한 비즈니스 트랜잭션을 추적하기 위해 [지능형 워크로드](#intelligent-workloads)를 사용하든, 특정 팀이 소유한 엔티티를 그룹화하기 위해 [표준 워크로드](#standard-workloads)를 사용하든 관계없이 뉴렐릭 워크로드를 생성, 관리 및 업데이트할 수 있습니다. 이제 공식 `terraform-provider-newrelic` 저장소 내의 `newrelic_workload` 리소스가 두 워크로드 유형을 모두 지원합니다.
+
+## 전제 조건 [#prerequisites]
+
+시작하기 전에:
+
+* 컴퓨터에 Terraform CLI를 설치하십시오.
+* Terraform 프로젝트를 위한 로컬 작업 디렉터리를 초기화하십시오.
+* 유효한 뉴렐릭 사용자 API 키(<DNT>NerdGraph</DNT> API 액세스) 및 [계정 ID](/docs/accounts/accounts-billing/account-structure/account-id)를 확보하십시오.
+* 자격 증명을 안전하게 유지하려면 설정 파일에 하드코딩하는 대신 환경 변수(`NEW_RELIC_API_KEY`, `NEW_RELIC_ACCOUNT_ID` 및 `NEW_RELIC_REGION`)(으)로 자격 증명을 내보내십시오.
+* `terraform-provider-newrelic` v3.94.0 이상을 설치하십시오. 이는 지능형 워크로드 지원에 필요한 최소 버전입니다(`dynamic_flows`, `status_config_alert_policy`).
+
+<Callout variant="important">
+  라이선스 또는 수집 키를 사용하지 마십시오. 워크로드 리소스를 프로비저닝하려면 사용자 수준 API 권한이 필요합니다.
+</Callout>
+
+## 인증 설정 [#setup]
+
+기본 Terraform 설정 파일에서 뉴렐릭 공급자를 선언하십시오:
+
+```terraform
+terraform {
+  required_providers {
+    newrelic = {
+      source  = "newrelic/newrelic"
+      version = ">= 3.94.0"
+    }
+  }
+}
+
+provider "newrelic" {
+  # Configuration inherits NEW_RELIC_API_KEY, NEW_RELIC_ACCOUNT_ID, and NEW_RELIC_REGION from environment variables
+}
+```
+
+## 표준 워크로드 생성 [#standard-workloads]
+
+검색 쿼리, 명시적 엔티티 GUID 목록 또는 계정 범위 경계를 사용하여 `newrelic_workload` 리소스를 정의해 주십시오. 팀이 소유한 특정 인프라, 애플리케이션 또는 서비스를 수동으로 그룹화하려는 경우 이 접근 방식을 사용해 주십시오.
+
+```terraform
+resource "newrelic_workload" "team_standard_workload" {
+  name       = "Payments Team Workload"
+  account_id = 1234567 # Replace with your New Relic Account ID
+
+  # Group entities using a search query
+  entity_search_query {
+    query = "name LIKE 'payment-%' AND type = 'SERVICE'"
+  }
+}
+```
+
+## 지능형 워크로드를 생성합니다. [#intelligent-workloads]
+
+`dynamic_flows` 설정 블록을 사용하십시오. 지능형 워크로드의 주요 이점은 `dynamic_flows` 블록에서 진입점 엔티티 GUID 및 트랜잭션 이름을 지정하면, 뉴렐릭이 분산 추적(<DNT>Transaction 360</DNT>)을 통해 업스트림 및 다운스트림 엔티티 종속성을 자동으로 검색하고 매핑하여 5분마다 새로 고친다는 것입니다. 즉, 기본 서비스 아키텍처가 변경될 때 GUID를 수동으로 업데이트하거나 Terraform 설정을 다시 적용할 필요가 없습니다.
+
+<Callout variant="tip">
+  진입점 엔티티 GUID를 찾으려면 뉴렐릭 UI의 엔티티로 이동하여 엔티티의 메타데이터에서 GUID를 복사하거나 [NerdGraph 엔티티 API](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial)를 사용하여 검색합니다.
+</Callout>
+
+지능형 워크로드는 공지 조건에서 상태를 도출할 수도 있습니다: 워크로드에 `status_config_alert_policy { enabled = true }`을(를) 설정한 다음, `target_entity`을(를) 워크로드의 GUID로 설정하여 `newrelic_nrql_alert_condition` 리소스를 연결하십시오.
+
+<Callout variant="important">
+  `target_entity` `newrelic_nrql_alert_condition`에 대한 지원은 현재 공개 프리뷰 상태이며 계정별로 사용할 수 있습니다. 자세한 내용은 [Terraform 레지스트리 문서](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/nrql_alert_condition#description-1)를 참조하십시오.
+</Callout>
+
+```terraform
+resource "newrelic_workload" "checkout_intelligent_workload" {
+  name       = "Checkout Transaction Flow"
+  account_id = 1234567 # Replace with your New Relic Account ID
+
+  dynamic_flows {
+    entity_guid      = "Mzg3fEFQTX..." # Replace with your entry point entity GUID
+    transaction_name = "WebTransaction/Action/checkout"
+  }
+
+  status_config_alert_policy {
+    enabled = true
+  }
+}
+```
+
+## 설정 적용 [#apply]
+
+리소스 블록을 정의한 후 터미널에서 다음 명령을 실행하십시오:
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+Terraform이 워크로드를 성공적으로 프로비저닝한 후, <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Workloads**</DNT>&gt;로 이동하여 새 리소스를 확인하십시오. 트랜잭션 흐름에서 자동으로 검색된 엔티티를 검사하고, 공지 정책 바인딩을 검토하며, 상태 롤업이 올바른 워크로드 상태를 반영하는지 확인할 수 있습니다.
