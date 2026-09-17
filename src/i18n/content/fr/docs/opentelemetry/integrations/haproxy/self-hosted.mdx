@@ -1,0 +1,1164 @@
+---
+title: Monitorer HAProxy auto-hébergé avec OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - HAProxy
+  - On-host integrations
+  - OTEL
+metaDescription: 'Complete step-by-step guide to configure HAProxy monitoring with OpenTelemetry. Includes prerequisites, configuration, environment setup, and troubleshooting.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Monitorez vos équilibreurs de charge HAProxy auto-hébergés avec OpenTelemetry pour envoyer des métriques de performance et des données télémétriques à New Relic.
+
+Vous pouvez choisir entre trois options de collecteur :
+
+* **NRDOT :** Distribution New Relic d’OpenTelemetry (recommandée — automatisée via l’installation guidée)
+* **OTel Collector Contrib :** Collector OpenTelemetry standard avec le [haproxyreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/haproxyreceiver)
+* **Récepteur Prometheus :** pour les environnements utilisant déjà le point de terminaison Prometheus intégré de HAProxy (HAProxy 2.0+)
+
+<Callout variant="tip">
+  Si vous utilisez actuellement `nri-haproxy` et souhaitez passer à OpenTelemetry, désactivez l’intégration legacy et suivez les étapes de configuration ci-dessous. L’approche basée sur OTel fournit des métriques dimensionnelles avec des métadonnées plus riches (`haproxy.proxy_name`, `haproxy.service_name` par frontend/backend/serveur).
+</Callout>
+
+## Avant de commencer [#prerequisites]
+
+Assurez-vous d&apos;avoir :
+
+* [Clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)New Relic valide
+
+* HAProxy version 2.0 ou ultérieure avec le [point de terminaison de statistiques](https://www.haproxy.com/blog/exploring-the-haproxy-stats-page) activé (toute version prenant en charge les statistiques ; le chemin Prometheus nécessite la version 2.0+)
+
+* L&apos;un des collecteurs suivants installés sur un hôte Linux :
+
+  * [collecteur NRDOT](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation), ou
+  * [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest)
+
+* Accès réseau de l&apos;hôte Linux vers :
+
+  * Point de terminaison des statistiques HAProxy (généralement `http://localhost:8404/stats`)
+  * Le [point de terminaison OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)de New Relic
+
+## Configurer le monitoring HAProxy [#setup]
+
+Choisissez votre collecteur préféré et suivez les étapes :
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot">
+      Collecteur NRDOT
+    </TabsBarItem>
+
+    <TabsBarItem id="otelcol-contrib">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+
+    <TabsBarItem id="prometheus">
+      Récepteur Prometheus
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot">
+      Le collecteur NRDOT est une distribution préconfigurée qui inclut le haproxyreceiver et des composants spécifiques à New Relic.
+
+      Pour installer et configurer le collecteur NRDOT, suivez ces étapes :
+
+      <Callout variant="tip">
+        Si une étape de vérification échoue, installez les composants manquants avant de poursuivre. Besoin d&apos;aide pour installer le collecteur NRDOT ? Consultez la [section d&apos;installation](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation) du référentiel nrdot-collector-releases.
+
+        Lors de l&apos;installation, utilisez `export collector_distro="nrdot-collector"`
+      </Callout>
+
+      <CollapserGroup>
+        <Collapser id="nrdot-step1" title="Étape 1 : activer le point de terminaison des statistiques HAProxy">
+          Si vous n’avez pas encore activé le point de terminaison de statistiques HAProxy, ajoutez ce qui suit à votre `haproxy.cfg`:
+
+          ```text
+          frontend stats
+              bind *:8404
+              stats enable
+              stats uri /stats
+              stats refresh 10s
+          ```
+
+          Rechargez HAProxy pour appliquer la configuration :
+
+          ```bash
+          sudo systemctl reload haproxy
+          ```
+
+          Vérifiez que le point de terminaison des statistiques est accessible :
+
+          ```bash
+          curl -s http://localhost:8404/stats
+          ```
+
+          Vous devriez voir une sortie HTML avec les statistiques HAProxy.
+        </Collapser>
+
+        <Collapser id="nrdot-step2" title="Étape 2 : configurer le collecteur NRDOT">
+          Configurez le collecteur NRDOT pour collecter les métriques de votre point de terminaison de statistiques HAProxy et les envoyer à New Relic.
+
+          <Callout variant="important">
+            **Choisissez votre approche de monitoring**:
+
+            * Monitoring HAProxy uniquement (ce guide) : monitore juste les performances et les métriques de votre équilibreur de charge HAProxy
+            * Monitoring complet du serveur : monitore HAProxy ainsi que tout votre serveur (utilisation du CPU, mémoire, espace disque, logs système)
+
+            Si vous souhaitez monitorer l’ensemble de votre serveur, et pas seulement HAProxy, utilisez plutôt la [configuration par défaut](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/config.yaml) du collecteur NRDOT et ajoutez-y la configuration du récepteur HAProxy.
+          </Callout>
+
+          Créez le fichier de configuration `/etc/nrdot-collector/haproxy-config.yaml`:
+
+          ```yaml
+          receivers:
+            haproxy:
+              endpoint: http://localhost:8404/stats
+              collection_interval: 15s
+
+          processors:
+            resourcedetection:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+
+            batch:
+
+          exporters:
+            otlphttp:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          service:
+            pipelines:
+              metrics:
+                receivers: [haproxy]
+                processors: [resourcedetection, batch]
+                exporters: [otlphttp]
+          ```
+
+          Cette configuration collecte les 17 métriques par défaut à un intervalle de 15 secondes. Le haproxyreceiver attache automatiquement les attributs `haproxy.proxy_name`, `haproxy.service_name` et `haproxy.addr` à chaque métrique.
+
+          Pour activer des métriques supplémentaires pour une visibilité plus approfondie (27 au total : 17 par défaut + 10 facultatives), ajoutez des métriques facultatives :
+
+          ```yaml
+          receivers:
+            haproxy:
+              endpoint: http://localhost:8404/stats
+              collection_interval: 15s
+              metrics:
+                haproxy.connections.average_time:
+                  enabled: true
+                haproxy.requests.average_time:
+                  enabled: true
+                haproxy.responses.average_time:
+                  enabled: true
+                haproxy.active:
+                  enabled: true
+                haproxy.backup:
+                  enabled: true
+                haproxy.downtime:
+                  enabled: true
+                haproxy.failed_checks:
+                  enabled: true
+                haproxy.weight:
+                  enabled: true
+                haproxy.sessions.total:
+                  enabled: true
+                haproxy.connections.total:
+                  enabled: true
+          ```
+
+          <Callout variant="tip">
+            La configuration optimisée ci-dessous réduit l’ingestion de données d’environ 85 % par rapport au mode complet. Tous les dashboards et métriques dorées restent entièrement fonctionnels.
+          </Callout>
+
+          Pour réduire le volume d’ingestion de données, utilisez un intervalle de 60 secondes et ajoutez des processeurs d’optimisation :
+
+          ```yaml
+          receivers:
+            haproxy:
+              endpoint: http://localhost:8404/stats
+              collection_interval: 60s
+
+          processors:
+            resourcedetection:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "") where description != ""
+                    - set(unit, "") where unit != ""
+
+            resource/remove_attributes:
+              attributes:
+                - key: os.description
+                  action: delete
+                - key: telemetry.sdk.version
+                  action: delete
+                - key: telemetry.sdk.language
+                  action: delete
+                - key: telemetry.sdk.name
+                  action: delete
+                - key: host.arch
+                  action: delete
+
+            batch:
+              send_batch_size: 2048
+              timeout: 30s
+
+          exporters:
+            otlphttp:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          service:
+            pipelines:
+              metrics:
+                receivers: [haproxy]
+                processors: [resourcedetection, transform/metadata_nullify, resource/remove_attributes, batch]
+                exporters: [otlphttp]
+          ```
+
+          ### Paramètres de configuration
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  paramètres
+                </th>
+
+                <th>
+                  Description
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `endpoint`
+                </td>
+
+                <td>
+                  Remplacez par l’URL de votre point de terminaison de statistiques HAProxy (par exemple 
+
+                  `http://localhost:8404/stats`
+
+                  )
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `collection_interval`
+                </td>
+
+                <td>
+                  Intervalle entre les collectes de métriques. 
+
+                  `15s`
+
+                   pour tous les détails, 
+
+                  `60s`
+
+                   pour un volume d’ingestion plus faible
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Collapser>
+
+        <Collapser id="nrdot-step3" title="Étape 3 : configurer l’environnement et mettre à jour le chemin de configuration">
+          Mettez à jour la configuration du collecteur NRDOT pour utiliser votre fichier de configuration HAProxy et définissez le point de terminaison OTLP.
+
+          Pour plus d’informations sur votre point de terminaison OTLP, consultez le [point de terminaison OTLP New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp).
+
+          <Callout variant="important">
+            Votre clé de licence est déjà configurée dans `/etc/nrdot-collector/nrdot-collector.conf` lors de l&apos;installation. Il vous suffit de mettre à jour le chemin du fichier de configuration et le point de terminaison OTLP.
+          </Callout>
+
+          Mettez à jour le fichier de configuration du collecteur :
+
+          ```bash
+          export collector_distro="nrdot-collector"
+          export otlp_endpoint="<YOUR_NEWRELIC_OTLP_ENDPOINT>"  # Replace with your region's endpoint
+
+          # Update the config file path to point to haproxy-config.yaml
+          sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/haproxy-config.yaml"|' /etc/${collector_distro}/${collector_distro}.conf
+
+          # Add the OTLP endpoint
+          echo "OTEL_EXPORTER_OTLP_ENDPOINT=${otlp_endpoint}" | sudo tee -a /etc/${collector_distro}/${collector_distro}.conf > /dev/null
+          ```
+        </Collapser>
+
+        <Collapser id="nrdot-step4" title="Étape 4 : démarrer le collecteur NRDOT">
+          Démarrez (ou redémarrez) le service du collecteur NRDOT :
+
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl restart nrdot-collector
+          ```
+
+          Vérifiez l&apos;état du service :
+
+          ```bash
+          sudo systemctl status nrdot-collector
+          ```
+
+          Examinez les logs pour détecter d’éventuelles erreurs de configuration :
+
+          ```bash
+          sudo journalctl -u nrdot-collector -n 50 --no-pager
+          ```
+        </Collapser>
+
+        <Collapser id="nrdot-step5" title="Étape 5 : vérifiez les données dans New Relic">
+          Patientez 2 à 3 minutes pour que les données affluent, puis vérifiez dans New Relic :
+
+          ```sql
+          FROM Metric SELECT uniques(metricName)
+          WHERE metricName LIKE 'haproxy.%'
+          SINCE 10 minutes ago
+          ```
+
+          Vous devriez voir 17 (par défaut) ou 27 (toutes les métriques activées) noms de métrique HAProxy uniques. Vérifiez les attributs dimensionnels :
+
+          ```sql
+          FROM Metric SELECT latest(haproxy.sessions.count)
+          FACET haproxy.proxy_name, haproxy.service_name
+          SINCE 5 minutes ago
+          ```
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-contrib">
+      Vous pouvez utiliser la distribution OpenTelemetry Collector Contrib avec le [haproxyreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/haproxyreceiver) pour monitorer votre serveur HAProxy. Le haproxyreceiver récupère le point de terminaison de statistiques CSV de HAProxy et produit des métriques dimensionnelles avec une granularité par frontend, par backend, et par serveur.
+
+      <CollapserGroup>
+        <Collapser id="otelcol-step1" title="Étape 1 : activer le point de terminaison des statistiques HAProxy">
+          Si vous n’avez pas encore activé le point de terminaison de statistiques HAProxy, ajoutez ce qui suit à votre `haproxy.cfg`:
+
+          ```text
+          frontend stats
+              bind *:8404
+              stats enable
+              stats uri /stats
+              stats refresh 10s
+          ```
+
+          Rechargez HAProxy pour appliquer la configuration :
+
+          ```bash
+          sudo systemctl reload haproxy
+          ```
+
+          Vérifiez que le point de terminaison des statistiques est accessible :
+
+          ```bash
+          curl -s http://localhost:8404/stats
+          ```
+        </Collapser>
+
+        <Collapser id="otelcol-step2" title="Étape 2 : installer le Collecteur Otel">
+          Si vous n&apos;avez pas encore installé OpenTelemetry Collector Contrib, téléchargez et installez la dernière sortie à partir des [sorties d&apos;OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest):
+
+          Pour Debian/Ubuntu :
+
+          ```bash
+          wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_<VERSION>_linux_amd64.deb
+          sudo dpkg -i otelcol-contrib_<VERSION>_linux_amd64.deb
+          ```
+
+          Pour RHEL/Amazon Linux :
+
+          ```bash
+          wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_<VERSION>_linux_amd64.rpm
+          sudo rpm -U otelcol-contrib_<VERSION>_linux_amd64.rpm
+          ```
+        </Collapser>
+
+        <Collapser id="otelcol-step3" title="Étape 3 : configurer le collecteur">
+          <Callout variant="important">
+            Avant de modifier : sauvegardez votre configuration existante : `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
+          </Callout>
+
+          Remplacez le contenu de votre fichier de configuration du collecteur (`/etc/otelcol-contrib/config.yaml`) par :
+
+          ```yaml
+          receivers:
+            haproxy:
+              endpoint: http://localhost:8404/stats
+              collection_interval: 15s
+
+          processors:
+            resourcedetection:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+
+            batch:
+
+          exporters:
+            otlphttp:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          service:
+            pipelines:
+              metrics:
+                receivers: [haproxy]
+                processors: [resourcedetection, batch]
+                exporters: [otlphttp]
+          ```
+
+          Cette configuration minimale collecte les 17 métriques par défaut. Le haproxyreceiver attache automatiquement les attributs `haproxy.proxy_name`, `haproxy.service_name` et `haproxy.addr` à chaque métrique.
+
+          Pour activer des métriques supplémentaires pour une visibilité plus approfondie (27 au total : 17 par défaut + 10 facultatives), ajoutez une section `metrics` :
+
+          ```yaml
+          receivers:
+            haproxy:
+              endpoint: http://localhost:8404/stats
+              collection_interval: 15s
+              metrics:
+                haproxy.connections.average_time:
+                  enabled: true
+                haproxy.requests.average_time:
+                  enabled: true
+                haproxy.responses.average_time:
+                  enabled: true
+                haproxy.active:
+                  enabled: true
+                haproxy.backup:
+                  enabled: true
+                haproxy.downtime:
+                  enabled: true
+                haproxy.failed_checks:
+                  enabled: true
+                haproxy.weight:
+                  enabled: true
+                haproxy.sessions.total:
+                  enabled: true
+                haproxy.connections.total:
+                  enabled: true
+          ```
+
+          ### Paramètres de configuration
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  paramètres
+                </th>
+
+                <th>
+                  Description
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `endpoint`
+                </td>
+
+                <td>
+                  L&apos;URL de votre point de terminaison de statistiques HAProxy (par exemple 
+
+                  `http://localhost:8404/stats`
+
+                  )
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `collection_interval`
+                </td>
+
+                <td>
+                  Intervalle entre les collectes de métriques. Recommandé : 
+
+                  `15s`
+
+                   pour tous les détails ou 
+
+                  `60s`
+
+                   pour un volume d’ingestion inférieur
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Collapser>
+
+        <Collapser id="otelcol-step4" title="Étape 4 : configurer l'authentification">
+          Définissez les variables d&apos;environnement requises :
+
+          ```bash
+          # Set your New Relic license key
+          export NEW_RELIC_LICENSE_KEY="<YOUR_LICENSE_KEY>"
+
+          # Set the OTLP endpoint. For more information, refer to New Relic OTLP endpoint: https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
+          export OTEL_EXPORTER_OTLP_ENDPOINT="<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+          ```
+
+          Pour un service systemd, ajoutez-les au fichier d’environnement du service :
+
+          ```bash
+          echo "NEW_RELIC_LICENSE_KEY=<YOUR_LICENSE_KEY>" | sudo tee -a /etc/otelcol-contrib/otelcol-contrib.conf
+          echo "OTEL_EXPORTER_OTLP_ENDPOINT=<YOUR_NEWRELIC_OTLP_ENDPOINT>" | sudo tee -a /etc/otelcol-contrib/otelcol-contrib.conf
+          ```
+
+          Remplacez `<YOUR_LICENSE_KEY>` par votre <InlinePopover type="licenseKey" />.
+        </Collapser>
+
+        <Collapser id="otelcol-step5" title="Étape 5 : démarrer le collecteur">
+          Démarrez (ou redémarrez) le service du collecteur :
+
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl restart otelcol-contrib
+          ```
+
+          Vérifiez l&apos;état du service :
+
+          ```bash
+          sudo systemctl status otelcol-contrib
+          ```
+
+          Examinez les logs pour détecter d’éventuelles erreurs de configuration :
+
+          ```bash
+          sudo journalctl -u otelcol-contrib -n 50 --no-pager
+          ```
+        </Collapser>
+
+        <Collapser id="otelcol-step6" title="Étape 6 : vérifiez les données dans New Relic">
+          Patientez 2 à 3 minutes pour que les données affluent, puis vérifiez dans New Relic :
+
+          ```sql
+          FROM Metric SELECT uniques(metricName)
+          WHERE metricName LIKE 'haproxy.%'
+          SINCE 10 minutes ago
+          ```
+
+          Vous devriez voir apparaître des métriques HAProxy. Vérifiez les attributs dimensionnels :
+
+          ```sql
+          FROM Metric SELECT latest(haproxy.sessions.count)
+          WHERE metricName = 'haproxy.sessions.count'
+          FACET haproxy.proxy_name, haproxy.service_name
+          SINCE 5 minutes ago
+          ```
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="prometheus">
+      Utilisez cette approche si le [point de terminaison Prometheus](https://www.haproxy.com/blog/haproxy-exposes-a-prometheus-metrics-endpoint) intégré de HAProxy est déjà activé dans votre environnement, ou si vous migrez depuis une stack de monitoring basée sur Prometheus.
+
+      <Callout variant="tip">
+        **Recommandé :** si vous n’avez pas déjà activé le point de terminaison Prometheus HAProxy, utilisez plutôt les onglets **collecteur NRDOT** ou **OpenTelemetry Collector Contrib**. Ils se connectent directement au point de terminaison de statistiques HAProxy sans nécessiter le module exportateur Prometheus.
+      </Callout>
+
+      <CollapserGroup>
+        <Collapser id="prom-step1" title="Étape 1 : activer le point de terminaison Prometheus HAProxy">
+          Ajoutez l’exportateur Prometheus à votre frontend de statistiques dans `haproxy.cfg`:
+
+          ```text
+          frontend stats
+              bind *:8404
+              http-request use-service prometheus-exporter if { path /metrics }
+              stats enable
+              stats uri /stats
+              stats refresh 10s
+          ```
+
+          La ligne clé est `http-request use-service prometheus-exporter if { path /metrics }` : cela intercepte les requests vers `/metrics` et sert des métriques au format Prometheus via le module `promex` intégré d’HAProxy.
+
+          <Callout variant="tip">
+            Si vous exécutez HAProxy 2.0–2.3, vous devez également ajouter `option http-use-htx` au frontend. Cette option est devenue la valeur par défaut dans HAProxy 2.4+ et n&apos;est plus nécessaire.
+          </Callout>
+
+          Rechargez HAProxy :
+
+          ```bash
+          sudo systemctl reload haproxy
+          ```
+
+          Vérifiez le point de terminaison Prometheus :
+
+          ```bash
+          curl -s http://localhost:8404/metrics | head -20
+          ```
+
+          Vous devriez voir des métriques au format Prometheus telles que `haproxy_frontend_current_sessions` et `haproxy_backend_http_responses_total`. HAProxy expose environ 204 métriques via ce point de terminaison.
+
+          <Callout variant="important">
+            Le point de terminaison Prometheus nécessite HAProxy 2.0 ou une version ultérieure. Si vous exécutez une version plus ancienne, utilisez plutôt l&apos;onglet **Collecteur Otel Contrib** avec le haproxyreceiver, qui utilise le point de terminaison de statistiques CSV et fonctionne avec toutes les versions de HAProxy.
+          </Callout>
+        </Collapser>
+
+        <Collapser id="prom-step2" title="Étape 2 : installer le Collecteur Otel">
+          Si vous n&apos;avez pas encore installé OpenTelemetry Collector Contrib, téléchargez et installez la dernière sortie à partir des [sorties d&apos;OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest):
+
+          Pour Debian/Ubuntu :
+
+          ```bash
+          wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_<VERSION>_linux_amd64.deb
+          sudo dpkg -i otelcol-contrib_<VERSION>_linux_amd64.deb
+          ```
+
+          Pour RHEL/Amazon Linux :
+
+          ```bash
+          wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_<VERSION>_linux_amd64.rpm
+          sudo rpm -U otelcol-contrib_<VERSION>_linux_amd64.rpm
+          ```
+        </Collapser>
+
+        <Collapser id="prom-step3" title="Étape 3 : configurer le collecteur">
+          Cette configuration récupère les données du point de terminaison Prometheus de HAProxy, filtre les métriques pertinentes, transforme les étiquettes pour correspondre au schéma d&apos;attribut de haproxyreceiver (`haproxy.proxy_name`, `haproxy.service_name`), et renomme les métriques selon la convention de nommage OTel `haproxy.*`.
+
+          Cette configuration fonctionne à la fois avec NRDOT et OTel Collector Contrib. Placez-le dans l’emplacement de configuration approprié :
+
+          * **NRDOT :** `/etc/nrdot-collector/config.yaml`
+          * **Collecteur OTel Contrib :** `/etc/otelcol-contrib/config.yaml`
+
+          <Callout variant="important">
+            Avant de modifier : sauvegardez votre configuration existante :
+
+            ```bash
+            # NRDOT
+            sudo cp /etc/nrdot-collector/config.yaml /etc/nrdot-collector/config.yaml.backup
+            # OTel Collector Contrib
+            sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup
+            ```
+          </Callout>
+
+          Remplacez le contenu de votre fichier de configuration du collecteur par :
+
+          ```yaml
+          receivers:
+            prometheus/haproxy_transform:
+              config:
+                scrape_configs:
+                  - job_name: haproxy_transform
+                    scrape_interval: 30s
+                    static_configs:
+                      - targets: ["localhost:8404"]
+                    metrics_path: /metrics
+
+          processors:
+            # Filter to keep only the metrics we need to transform
+            filter/haproxy:
+              metrics:
+                include:
+                  match_type: regexp
+                  metric_names:
+                    - "haproxy_frontend_bytes_in_total"
+                    - "haproxy_frontend_bytes_out_total"
+                    - "haproxy_frontend_requests_denied_total"
+                    - "haproxy_frontend_request_errors_total"
+                    - "haproxy_frontend_responses_denied_total"
+                    - "haproxy_frontend_http_requests_total"
+                    - "haproxy_frontend_connections_rate_max"
+                    - "haproxy_frontend_http_requests_rate_max"
+                    - "haproxy_frontend_current_sessions"
+                    - "haproxy_frontend_max_session_rate"
+                    - "haproxy_backend_bytes_in_total"
+                    - "haproxy_backend_bytes_out_total"
+                    - "haproxy_backend_connection_errors_total"
+                    - "haproxy_backend_retry_warnings_total"
+                    - "haproxy_backend_requests_denied_total"
+                    - "haproxy_backend_responses_denied_total"
+                    - "haproxy_backend_redispatch_warnings_total"
+                    - "haproxy_backend_http_requests_total"
+                    - "haproxy_backend_response_errors_total"
+                    - "haproxy_backend_loadbalanced_total"
+                    - "haproxy_backend_current_queue"
+                    - "haproxy_backend_total_time_average_seconds"
+                    - "haproxy_backend_current_sessions"
+                    - "haproxy_backend_max_session_rate"
+                    - "haproxy_server_bytes_in_total"
+                    - "haproxy_server_bytes_out_total"
+                    - "haproxy_server_connection_errors_total"
+                    - "haproxy_server_retry_warnings_total"
+                    - "haproxy_server_responses_denied_total"
+                    - "haproxy_server_redispatch_warnings_total"
+                    - "haproxy_server_response_errors_total"
+                    - "haproxy_server_loadbalanced_total"
+                    - "haproxy_server_current_queue"
+                    - "haproxy_server_total_time_average_seconds"
+                    - "haproxy_server_current_sessions"
+                    - "haproxy_server_max_session_rate"
+
+            # Add haproxy.service_name and haproxy.proxy_name attributes using OTTL
+            transform/add_labels:
+              metric_statements:
+                - context: datapoint
+                  statements:
+                    # Frontend metrics: haproxy.service_name = "FRONTEND"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_bytes_in_total"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_bytes_out_total"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_requests_denied_total"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_request_errors_total"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_responses_denied_total"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_http_requests_total"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_connections_rate_max"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_http_requests_rate_max"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_current_sessions"
+                    - set(attributes["haproxy.service_name"], "FRONTEND") where metric.name == "haproxy_frontend_max_session_rate"
+                    # Backend metrics: haproxy.service_name = "BACKEND"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_bytes_in_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_bytes_out_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_connection_errors_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_retry_warnings_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_requests_denied_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_responses_denied_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_redispatch_warnings_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_http_requests_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_response_errors_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_loadbalanced_total"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_current_queue"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_total_time_average_seconds"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_current_sessions"
+                    - set(attributes["haproxy.service_name"], "BACKEND") where metric.name == "haproxy_backend_max_session_rate"
+                    # Server metrics: haproxy.service_name = server label value
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_bytes_in_total"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_bytes_out_total"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_connection_errors_total"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_retry_warnings_total"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_responses_denied_total"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_redispatch_warnings_total"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_response_errors_total"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_loadbalanced_total"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_current_queue"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_total_time_average_seconds"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_current_sessions"
+                    - set(attributes["haproxy.service_name"], attributes["server"]) where metric.name == "haproxy_server_max_session_rate"
+                    # Rename proxy label to haproxy.proxy_name for ALL metrics
+                    - set(attributes["haproxy.proxy_name"], attributes["proxy"]) where attributes["proxy"] != nil
+                    # Remove old Prometheus labels
+                    - delete_key(attributes, "proxy") where attributes["proxy"] != nil
+                    - delete_key(attributes, "server") where attributes["server"] != nil
+
+            # Rename metrics to match haproxyreceiver naming convention
+            metricstransform/rename:
+              transforms:
+                # haproxy.bytes.input
+                - include: haproxy_frontend_bytes_in_total
+                  action: update
+                  new_name: haproxy.bytes.input
+                - include: haproxy_backend_bytes_in_total
+                  action: update
+                  new_name: haproxy.bytes.input
+                - include: haproxy_server_bytes_in_total
+                  action: update
+                  new_name: haproxy.bytes.input
+                # haproxy.bytes.output
+                - include: haproxy_frontend_bytes_out_total
+                  action: update
+                  new_name: haproxy.bytes.output
+                - include: haproxy_backend_bytes_out_total
+                  action: update
+                  new_name: haproxy.bytes.output
+                - include: haproxy_server_bytes_out_total
+                  action: update
+                  new_name: haproxy.bytes.output
+                # haproxy.connections.errors
+                - include: haproxy_backend_connection_errors_total
+                  action: update
+                  new_name: haproxy.connections.errors
+                - include: haproxy_server_connection_errors_total
+                  action: update
+                  new_name: haproxy.connections.errors
+                # haproxy.connections.retries
+                - include: haproxy_backend_retry_warnings_total
+                  action: update
+                  new_name: haproxy.connections.retries
+                - include: haproxy_server_retry_warnings_total
+                  action: update
+                  new_name: haproxy.connections.retries
+                # haproxy.requests.denied
+                - include: haproxy_frontend_requests_denied_total
+                  action: update
+                  new_name: haproxy.requests.denied
+                - include: haproxy_backend_requests_denied_total
+                  action: update
+                  new_name: haproxy.requests.denied
+                # haproxy.requests.errors
+                - include: haproxy_frontend_request_errors_total
+                  action: update
+                  new_name: haproxy.requests.errors
+                # haproxy.requests.redispatched
+                - include: haproxy_backend_redispatch_warnings_total
+                  action: update
+                  new_name: haproxy.requests.redispatched
+                - include: haproxy_server_redispatch_warnings_total
+                  action: update
+                  new_name: haproxy.requests.redispatched
+                # haproxy.requests.total
+                - include: haproxy_frontend_http_requests_total
+                  action: update
+                  new_name: haproxy.requests.total
+                - include: haproxy_backend_http_requests_total
+                  action: update
+                  new_name: haproxy.requests.total
+                # haproxy.responses.denied
+                - include: haproxy_frontend_responses_denied_total
+                  action: update
+                  new_name: haproxy.responses.denied
+                - include: haproxy_backend_responses_denied_total
+                  action: update
+                  new_name: haproxy.responses.denied
+                - include: haproxy_server_responses_denied_total
+                  action: update
+                  new_name: haproxy.responses.denied
+                # haproxy.responses.errors
+                - include: haproxy_backend_response_errors_total
+                  action: update
+                  new_name: haproxy.responses.errors
+                - include: haproxy_server_response_errors_total
+                  action: update
+                  new_name: haproxy.responses.errors
+                # haproxy.server_selected.total
+                - include: haproxy_backend_loadbalanced_total
+                  action: update
+                  new_name: haproxy.server_selected.total
+                - include: haproxy_server_loadbalanced_total
+                  action: update
+                  new_name: haproxy.server_selected.total
+                # haproxy.connections.rate
+                - include: haproxy_frontend_connections_rate_max
+                  action: update
+                  new_name: haproxy.connections.rate
+                # haproxy.requests.queued
+                - include: haproxy_backend_current_queue
+                  action: update
+                  new_name: haproxy.requests.queued
+                - include: haproxy_server_current_queue
+                  action: update
+                  new_name: haproxy.requests.queued
+                # haproxy.requests.rate
+                - include: haproxy_frontend_http_requests_rate_max
+                  action: update
+                  new_name: haproxy.requests.rate
+                # haproxy.sessions.average
+                - include: haproxy_backend_total_time_average_seconds
+                  action: update
+                  new_name: haproxy.sessions.average
+                - include: haproxy_server_total_time_average_seconds
+                  action: update
+                  new_name: haproxy.sessions.average
+                # haproxy.sessions.count
+                - include: haproxy_frontend_current_sessions
+                  action: update
+                  new_name: haproxy.sessions.count
+                - include: haproxy_backend_current_sessions
+                  action: update
+                  new_name: haproxy.sessions.count
+                - include: haproxy_server_current_sessions
+                  action: update
+                  new_name: haproxy.sessions.count
+                # haproxy.sessions.rate
+                - include: haproxy_frontend_max_session_rate
+                  action: update
+                  new_name: haproxy.sessions.rate
+                - include: haproxy_backend_max_session_rate
+                  action: update
+                  new_name: haproxy.sessions.rate
+                - include: haproxy_server_max_session_rate
+                  action: update
+                  new_name: haproxy.sessions.rate
+
+            # Add resource attributes and strip Prometheus auto-labels
+            resource/haproxy_transform:
+              attributes:
+                - key: haproxy.addr
+                  value: "http://localhost:8404/stats"
+                  action: upsert
+                - key: service.name
+                  action: delete
+                - key: service.instance.id
+                  action: delete
+                - key: net.host.name
+                  action: delete
+                - key: net.host.port
+                  action: delete
+                - key: server.port
+                  action: delete
+                - key: url.scheme
+                  action: delete
+
+            resourcedetection:
+              detectors: [system]
+              system:
+                resource_attributes:
+                  host.name:
+                    enabled: true
+                  host.id:
+                    enabled: true
+                  os.type:
+                    enabled: true
+
+            transform/metadata_nullify:
+              metric_statements:
+                - context: metric
+                  statements:
+                    - set(description, "")
+                    - set(unit, "")
+
+            batch:
+
+          exporters:
+            otlphttp:
+              endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+              headers:
+                api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+          service:
+            pipelines:
+              metrics/haproxy_transform:
+                receivers:
+                  - prometheus/haproxy_transform
+                processors:
+                  - filter/haproxy
+                  - transform/add_labels
+                  - metricstransform/rename
+                  - resourcedetection
+                  - resource/haproxy_transform
+                  - transform/metadata_nullify
+                  - batch
+                exporters:
+                  - otlphttp
+          ```
+
+          <Callout variant="important">
+            Cette configuration effectue trois transformations clés :
+
+            1. **Filtres** pour ne conserver que les 36 métriques Prometheus qui correspondent aux 17 métriques OTel par défaut (sur les niveaux frontend/backend/serveur)
+            2. **Ajoute des attributs dimensionnels** (`haproxy.proxy_name`, `haproxy.service_name`) correspondant au schéma d&apos;attribut de haproxyreceiver
+            3. **Renomme les métriques** de la nomenclature Prometheus (`haproxy_frontend_*`) vers la nomenclature OTel (`haproxy.*`) pour des dashboards et des alertes cohérents
+          </Callout>
+
+          ### Paramètres de configuration
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  paramètres
+                </th>
+
+                <th>
+                  Description
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `targets`
+                </td>
+
+                <td>
+                  Adresse du point de terminaison Prometheus HAProxy (par défaut 
+
+                  `localhost:8404`
+
+                  )
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `haproxy.addr`
+
+                   valeur
+                </td>
+
+                <td>
+                  Remplacez par l&apos;URL de votre point de terminaison des statistiques HAProxy
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  `scrape_interval`
+                </td>
+
+                <td>
+                  À quelle fréquence scraper le point de terminaison Prometheus. Par défaut : 
+
+                  `30s`
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Collapser>
+
+        <Collapser id="prom-step4" title="Étape 4 : définir les variables d’environnement">
+          Créez un fichier de surcharge systemd avec vos identifiants New Relic :
+
+          ```bash
+          sudo mkdir -p /etc/systemd/system/<collector-service>.service.d
+          ```
+
+          ```bash
+          cat <<EOF | sudo tee /etc/systemd/system/<collector-service>.service.d/environment.conf
+          [Service]
+          Environment="NEW_RELIC_LICENSE_KEY=<YOUR_LICENSE_KEY>"
+          Environment="OTEL_EXPORTER_OTLP_ENDPOINT=<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+          EOF
+          ```
+
+          Remplacez `<YOUR_LICENSE_KEY>` par votre <InlinePopover type="licenseKey" />et `<collector-service>` par le nom de votre service de collecteur (par exemple `otelcol-contrib` ou `nrdot-collector`).
+        </Collapser>
+
+        <Collapser id="prom-step5" title="Étape 5 : démarrer le collecteur">
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl restart <collector-service>
+          ```
+
+          Vérifiez l’état du service et les logs :
+
+          ```bash
+          sudo systemctl status <collector-service>
+          sudo journalctl -u <collector-service> -n 20
+          ```
+
+          Vous devriez voir `Active: active (running)` sans erreurs.
+        </Collapser>
+
+        <Collapser id="prom-step6" title="Étape 6 : vérifiez les données dans New Relic">
+          Après quelques minutes, exécutez cette requête NRQL dans le [générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder):
+
+          ```sql
+          FROM Metric SELECT *
+          WHERE metricName LIKE 'haproxy.%'
+          SINCE 10 minutes ago
+          ```
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Affichez vos données dans New Relic [#find-data]
+
+Une fois que les données circulent, trouvez vos métriques HAProxy dans New Relic :
+
+1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; All entities**</DNT>.
+2. Recherchez vos entités HAProxy par nom ou filtrez par type d&apos;entité `HAPROXYINSTANCE`.
+3. Sélectionnez une entité pour afficher la page de résumé avec les métriques dorées (sessions par seconde, requests par seconde, erreurs de connexion).
+
+Pour d’autres façons d’explorer vos données, consultez [Trouver et interroger vos données HAProxy](/docs/opentelemetry/integrations/haproxy/find-and-query-data/).
+
+## Dépannage [#troubleshooting]
+
+Si vous rencontrez des problèmes lors de l&apos;installation, utilisez ce guide de dépannage pour diagnostiquer et résoudre les problèmes courants.
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-stats-endpoint" title="Le point de terminaison des statistiques HAProxy ne répond pas">
+    Vérifiez que le frontend de statistiques est configuré dans `haproxy.cfg`:
+
+    ```bash
+    sudo haproxy -c -f /etc/haproxy/haproxy.cfg
+    grep -A 4 "frontend stats" /etc/haproxy/haproxy.cfg
+    ```
+
+    Solutions :
+
+    * Assurez-vous que le port `bind` (8404 par défaut) n’est pas utilisé par un autre processus : `sudo ss -tlnp | grep 8404`
+    * Vérifiez que HAProxy est en cours d&apos;exécution : `sudo systemctl status haproxy`
+    * Rechargez la configuration après les modifications : `sudo systemctl reload haproxy`
+  </Collapser>
+
+  <Collapser id="troubleshoot-collector-start" title="Le service Collector ne démarrera pas">
+    Vérifiez les logs du collecteur pour les erreurs de configuration :
+
+    ```bash
+    sudo journalctl -u otelcol-contrib -n 100 --no-pager
+    # or for NRDOT:
+    sudo journalctl -u nrdot-collector -n 100 --no-pager
+    ```
+
+    Causes courantes :
+
+    * Syntaxe YAML non valide dans le fichier de configuration
+    * Variables d&apos;environnement manquantes (`NEW_RELIC_LICENSE_KEY`, `OTEL_EXPORTER_OTLP_ENDPOINT`)
+    * Conflits de ports sur le port de télémétrie du collecteur
+  </Collapser>
+
+  <Collapser id="troubleshoot-no-data" title="Aucune donnée n'apparaît dans New Relic">
+    * Prévoyez 2 à 3 minutes pour l’ingestion initiale des données
+    * Vérifiez que le collecteur est en cours d&apos;exécution : `sudo systemctl status otelcol-contrib`
+    * Vérifiez que le point de terminaison des statistiques est accessible depuis l&apos;hôte du collecteur : `curl -s http://localhost:8404/stats`
+    * Vérifiez que votre clé de licence est correcte et que le point de terminaison OTLP est configuré correctement. Pour plus d’informations, consultez le [point de terminaison OTLP New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp).
+    * Requête pour toutes les métriques HAProxy :
+      ```sql
+      FROM Metric SELECT count(*) WHERE metricName LIKE 'haproxy.%' SINCE 30 minutes ago
+      ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-auth-errors" title="Erreurs d’authentification">
+    Si vous voyez `401 Unauthorized` ou `403 Forbidden` dans les logs du collecteur :
+
+    * Vérifiez votre clé de licence : assurez-vous qu’il s’agit d’une clé d’ **ingestion** (INGEST - LICENSE), et non d’une clé utilisateur
+    * Vérifiez que le point de terminaison est défini correctement. Pour plus d’informations, consultez le [point de terminaison OTLP New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp).
+    * Assurez-vous que la variable d&apos;environnement est correctement définie : `echo $NEW_RELIC_LICENSE_KEY`
+  </Collapser>
+
+  <Collapser id="troubleshoot-prom-endpoint" title="Point de terminaison Prometheus non disponible">
+    L&apos;exportateur Prometheus intégré de HAProxy (`promex`) nécessite la version 2.0 ou ultérieure.
+
+    Vérifiez votre version de HAProxy :
+
+    ```bash
+    haproxy -v
+    ```
+
+    Si vous exécutez une version antérieure à 2.0, utilisez plutôt l’onglet **OTel Collector Contrib** avec le haproxyreceiver, qui utilise le point de terminaison de statistiques CSV et fonctionne avec toutes les versions de HAProxy qui prennent en charge les statistiques.
+
+    Si vous exécutez HAProxy 2.0-2.3, vérifiez que `option http-use-htx` est présent dans la configuration frontend des statistiques. Cette option est devenue la valeur par défaut dans HAProxy 2.4+ et n’est pas nécessaire pour les versions plus récentes.
+  </Collapser>
+</CollapserGroup>
+
+## Prochaines étapes [#next-steps]
+
+* [Monitorer HAProxy sur Kubernetes](/docs/opentelemetry/integrations/haproxy/kubernetes/) — découverte automatique des pods pour les environnements conteneurisés
+* [Trouver et interroger vos données HAProxy](/docs/opentelemetry/integrations/haproxy/find-and-query-data/) — dashboards, requêtes NRQL et navigation dans les données
+* [Référence des métriques OTel HAProxy](/docs/opentelemetry/integrations/haproxy/metrics-reference/) : liste complète des métriques collectées
+* [Bonnes pratiques OpenTelemetry](/docs/opentelemetry/best-practices/opentelemetry-best-practices-overview/) - conseils généraux pour OTel avec New Relic
