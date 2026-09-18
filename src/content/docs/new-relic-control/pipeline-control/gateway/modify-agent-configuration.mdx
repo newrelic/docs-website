@@ -6,7 +6,13 @@ redirects:
 freshnessValidatedDate: never
 ---
 
-For the gateway to process your agents' telemetry data, you have to reconfigure your agents to route their data to your gateway cluster(s) instead of directly to New Relic. To do that, change the endpoint details to point to the gateway using the `NEW_RELIC_HOST` setting, as shown in the sample New Relic NodeJS agent configuration:
+For the gateway to process your agents' telemetry data, reconfigure them to route data to your gateway cluster instead of directly to New Relic. How you do that depends on the agent type: New Relic APM agents use `NEW_RELIC_HOST`, OpenTelemetry sources use OTLP exporter settings, and log forwarders use their own output plugin configuration. The sections below cover each agent type. All examples use the cluster-local gateway endpoint. Replace it with your actual endpoint if agents run outside the cluster.
+
+## New Relic APM agents
+
+`NEW_RELIC_HOST` is APM-only and has no effect on OpenTelemetry sources, the Infrastructure agent, or log forwarders. The gateway endpoint must be reachable over HTTPS, so APM agents connect through the in-cluster reverse proxy (NGINX or Kong) or the out-of-cluster ALB, not directly to the gateway pod.
+
+The following example shows a Node.js agent configuration file:
 
 ```js
 'use strict'
@@ -67,6 +73,212 @@ exports.config = {
   }
 }
 ```
+
+{/* [NEW SECTION START] */}
+## OpenTelemetry Collector
+
+**Minimum version:** opentelemetry-collector-contrib v0.104.0
+
+Use the `otlphttp` exporter pointed at the gateway's OTLP HTTP port. Deploy this configuration as a Kubernetes ConfigMap:
+
+```yaml
+exporters:
+  otlphttp:
+    endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local:4318
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      exporters: [otlphttp]
+    metrics:
+      exporters: [otlphttp]
+    logs:
+      exporters: [otlphttp]
+```
+
+<Callout variant="important">
+Use the `otlphttp` exporter, not `otlp`. The Helm chart renames `otlp` to `otlp_grpc` internally, which is invalid for this collector version.
+</Callout>
+
+{/* [NEW - NEEDS eBPF TEAM SIGN-OFF BEFORE PUBLISH: config matches OpenFinance PoC but generic applicability across eBPF setups not confirmed] */}
+## eBPF auto-attach agent
+
+Configure the eBPF APM auto-attach agent to send telemetry via OTLP gRPC by setting `customOtlpEndpoint` in your values file:
+
+```yaml
+customOtlpEndpoint: "pipeline-control-gateway.newrelic.svc.cluster.local:4317"
+customOtlpEndpointTlsEnabled: false
+reportLogs: "true"
+```
+
+This routes both metrics and logs through the gateway's OTLP gRPC receiver on port 4317. TLS is disabled because the connection stays within the cluster.
+
+{/* [NEW - NEEDS INFRA AGENT TEAM SIGN-OFF BEFORE PUBLISH] */}
+## Infrastructure agent
+
+**Minimum version:** v1.62.0
+
+The Infrastructure agent has two separate configuration paths depending on what you want to route through the gateway:
+
+- **All telemetry (metrics, events, inventory, and logs):** Use `collector_url` and `metric_url` in your Helm values. This routes everything the agent collects through the gateway.
+- **Logs only:** Use `logging_endpoint` in `newrelic-infra.yml`. This routes only log forwarding through the gateway while other telemetry continues to go directly to New Relic.
+
+### Route all telemetry through the gateway
+
+Set `collector_url` and `metric_url` in your Helm values:
+
+```yaml
+newrelic-infrastructure:
+  common:
+    agentConfig:
+      collector_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+      metric_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+```
+
+### Route logs only through the gateway
+
+Set `logging_endpoint` in `/etc/newrelic-infra.yml` and enable log forwarding:
+
+```yaml
+license_key: YOUR_LICENSE_KEY
+logging_endpoint: https://YOUR_GATEWAY_ENDPOINT/log/v1
+log:
+  forward: true
+```
+
+Then define which log files to forward in `/etc/newrelic-infra/logging.d/logging.yml`:
+
+```yaml
+logs:
+  - name: my-app-logs
+    file: /var/log/my-app.log
+```
+
+Restart the Infrastructure agent to apply the changes.
+
+## Fluent Bit
+
+**Minimum version:** v2.3.0 (OTLP output plugin is built-in)
+
+Add the following output block to your Fluent Bit Helm values:
+
+```yaml
+config:
+  outputs: |
+    [OUTPUT]
+        Name            opentelemetry
+        Match           *
+        Host            pipeline-control-gateway.newrelic.svc.cluster.local
+        Port            4318
+        Logs_Uri        /v1/logs
+        Tls             Off
+```
+
+<Callout variant="important">
+Use OTLP HTTP on port 4318, not gRPC. The `Grpc On` option is not supported in the Fluent Bit v3.x OpenTelemetry output plugin.
+</Callout>
+
+## Fluentd
+
+Fluentd has two validated approaches depending on your use case.
+
+### Approach A: Tail container logs (fluent-plugin-newrelic)
+
+Use this approach when Fluentd is tailing (watching log files on disk for new entries) raw container logs. This requires a custom Docker image because `fluent-plugin-newrelic` hardcodes port 443 and must be patched for plain HTTP.
+
+**Dockerfile:**
+
+```dockerfile
+FROM fluent/fluentd:v1.16-debian-1
+USER root
+RUN apt-get update && apt-get install -y build-essential ruby-dev && \
+    gem install fluent-plugin-newrelic --no-document && \
+    PLUGIN_FILE=$(find /usr/local/bundle/gems -name "out_newrelic.rb" 2>/dev/null | head -1) && \
+    sed -i 's/Net::HTTP.new(@end_point.host, 443)/Net::HTTP.new(@end_point.host, @end_point.port == 443 ? 443 : @end_point.port)/' "$PLUGIN_FILE" && \
+    sed -i 's/http.use_ssl = true/http.use_ssl = (@end_point.scheme == "https")/' "$PLUGIN_FILE" && \
+    apt-get clean
+USER fluent
+```
+
+**fluent.conf:**
+
+```
+<source>
+  @type tail
+  path /var/log/pods/*/*/*.log
+  pos_file /tmp/fluentd-containers.log.pos
+  tag kubernetes.*
+  read_from_head true
+  <parse>
+    @type json
+    time_key time
+    time_format %Y-%m-%dT%H:%M:%S.%NZ
+  </parse>
+</source>
+
+<filter kubernetes.**>
+  @type record_transformer
+  enable_ruby true
+  <record>
+    message ${record["log"]}
+  </record>
+  remove_keys log
+</filter>
+
+<match kubernetes.**>
+  @type newrelic
+  api_key "YOUR_LICENSE_KEY"
+  base_uri http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1
+  <buffer>
+    flush_interval 5s
+  </buffer>
+</match>
+```
+
+### Approach B: OTLP relay (fluent-plugin-opentelemetry)
+
+Use this approach when your source already produces OTLP-formatted data. Fluentd acts as an OTLP receiver and forwards to the gateway. This does **not** convert raw logs.
+
+This requires a custom Docker image with both plugins:
+
+```dockerfile
+FROM fluent/fluentd:v1.16-debian-1
+USER root
+RUN apt-get update && apt-get install -y build-essential ruby-dev && \
+    gem install fluent-plugin-newrelic fluent-plugin-opentelemetry --no-document && \
+    apt-get clean
+USER fluent
+```
+
+**fluent.conf:**
+
+```
+<source>
+  @type opentelemetry
+  tag otlp
+  <http>
+    port 4318
+    bind 0.0.0.0
+  </http>
+</source>
+
+<match otlp.**>
+  @type opentelemetry
+  <http>
+    endpoint http://pipeline-control-gateway.newrelic.svc.cluster.local:4318
+  </http>
+  <buffer>
+    flush_interval 2s
+  </buffer>
+</match>
+```
+
+<Callout variant="important">
+gRPC requires the `grpc` gem, which fails to compile on arm64. Use the HTTP approach shown above.
+</Callout>
+{/* [NEW SECTION END] */}
 
 ## Compatibility matrix: Supported agents and versions
 The following table lists the New Relic APM agents, Infrastructure agents, and log collectors supported for use with the gateway. Note that support for the Gateway feature doesn't override the general [New Relic end-of-life (EOL) policies](/docs/licenses/end-of-life/notification-changes-new-relic-saas-features-distributed-software/) or any applicable [agent-specific EOL policies.](/docs/licenses/end-of-life/notification-changes-new-relic-saas-features-distributed-software/#eol-agents).
