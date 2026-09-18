@@ -28,7 +28,7 @@ set -e
 : "${NEW_RELIC_API_KEY:?}" "${NEW_RELIC_ACCOUNT_ID:?}" "${NEW_RELIC_ORGANIZATION:?}" \
   "${NEW_RELIC_REGION:?}" "${NR_CLI_FLEET_ID:?}"
 
-NEWRELIC_AUTH_VERSION="0.5.0"
+NEWRELIC_AUTH_VERSION="0.5.3"
 
 # 1. Download the auth CLI.
 curl -sS -L \
@@ -210,7 +210,7 @@ The New Relic User API key is never a CLI flag. Provide it via:
   -o, --org-id       New Relic organization ID. Required.
   -n, --name         Name for this parent identity, e.g. "terraform-parent" or your
                      automation controller's name. Required.
-  -e, --environment  us | eu | staging (default: us)
+  -e, --environment  us | eu | jp | staging (default: us)
   -d, --output-dir   Directory to write the private key to (default: current directory)
       --force        Overwrite an existing private key file at the target path
   -h, --help         Show this help
@@ -235,8 +235,14 @@ if [[ -z "${NEW_RELIC_API_KEY:-}" ]]; then
     usage
     exit 1
   fi
-  if ! IFS= read -r NEW_RELIC_API_KEY; then
-    echo "Error: no API key found on stdin. Set NEW_RELIC_API_KEY, or pipe the key in on stdin." >&2
+  # stdin isn't a tty here, but that alone doesn't mean data is actually
+  # coming: a caller that forgot to redirect stdin (a cron job, a systemd
+  # service, a script invoked without `< /dev/null` or a real pipe) leaves
+  # stdin open with nothing arriving, and a plain `read` would then block
+  # forever. -t 10 turns that into a clear, bounded failure instead of a
+  # silent hang.
+  if ! IFS= read -r -t 10 NEW_RELIC_API_KEY; then
+    echo "Error: no API key found on stdin (or none arrived within 10s). Set NEW_RELIC_API_KEY, or pipe the key in on stdin." >&2
     usage
     exit 1
   fi
@@ -264,9 +270,10 @@ done
 case "$ENVIRONMENT" in
   us) GRAPHQL_URL="https://api.newrelic.com/graphql" ;;
   eu) GRAPHQL_URL="https://api.eu.newrelic.com/graphql" ;;
+  jp) GRAPHQL_URL="https://api.jp.newrelic.com/graphql" ;;
   staging) GRAPHQL_URL="https://staging-api.newrelic.com/graphql" ;;
   *)
-    echo "Error: --environment must be one of us, eu, staging (got '$ENVIRONMENT')." >&2
+    echo "Error: --environment must be one of us, eu, jp, staging (got '$ENVIRONMENT')." >&2
     exit 1
     ;;
 esac
@@ -288,8 +295,15 @@ fi
 CURL_CONFIG=""
 KEY_CONFIRMED=0
 cleanup() {
+  # Capture the real exit code FIRST -- an EXIT trap's own last command
+  # otherwise becomes the process's reported exit status, which would turn a
+  # fully successful run (KEY_CONFIRMED=1, so the rm below is correctly
+  # skipped, and `[[ ... ]]` being false returns 1) into a script that prints
+  # success but reports failure to anything checking $? or using `&&`.
+  local exit_code=$?
   [[ -n "$CURL_CONFIG" ]] && rm -f "$CURL_CONFIG"
   [[ "$KEY_CONFIRMED" -ne 1 ]] && rm -f "$PRIVATE_KEY_PATH"
+  exit "$exit_code"
 }
 trap cleanup EXIT
 
@@ -361,7 +375,7 @@ A freshly created identity can't mint other identities until it's added to the g
 curl -sS https://api.newrelic.com/graphql \
   -H 'Content-Type: application/json' \
   -H "API-Key: $NEW_RELIC_API_KEY" \
-  --data-binary '{"query":"query { customerAdministration { systemIdentityGroups(filter: {organizationId: {eq: \"'"$NEW_RELIC_ORGANIZATION"'\"}}) { items { id name } } } }"}'
+  --data-binary '{"query":"query { customerAdministration { systemIdentityGroups(filter: {organizationId: {eq: \"'"$NEW_RELIC_ORGANIZATION"'\"}, name: {eq: \"NR Control Group\"}}) { items { id } } } }"}'
 
 # Add the parent identity (from step 1) to that group
 curl -sS https://api.newrelic.com/graphql \
@@ -382,14 +396,18 @@ TOKEN=$(newrelic_auth_cli authenticate \
   --output-token-format PLAIN)
 ```
 
-{/*
-  TODO before this page is published: confirm the exact flag / environment
-  variable name the on-host install recipe uses to accept a parent token
-  (distinct from a parent client secret), and replace the description below
-  with the real command. This is currently unconfirmed -- do not merge this
-  page with a guessed flag name.
-*/}
+Pass that token, not the private key, to your install step by setting `NEW_RELIC_AUTH_TOKEN`:
 
-Pass that token, not the private key, to your install step. Agent Control's install tooling accepts a parent token as an alternative to a parent client secret; check with New Relic if you need the exact flag for your install method. The install step uses that token once to mint its own child identity locally on the target host, and that's what Agent Control actually runs on. The parent identity and its private key never touch that host.
+```bash
+sudo NEW_RELIC_CLI_SKIP_CORE=1 \
+    NEW_RELIC_REGION="${NEW_RELIC_REGION}" \
+    NEW_RELIC_ACCOUNT_ID="${NEW_RELIC_ACCOUNT_ID}" \
+    NEW_RELIC_ORGANIZATION="${NEW_RELIC_ORGANIZATION}" \
+    NEW_RELIC_AUTH_TOKEN="${TOKEN}" \
+    NR_CLI_FLEET_ID="${NR_CLI_FLEET_ID}" \
+    /usr/local/bin/newrelic install -y -n agent-control
+```
+
+On Windows, `install.ps1` takes the same value as `-AuthParentToken`. The install step uses that token once to mint its own child identity locally on the target host, and that's what Agent Control actually runs on. The parent identity and its private key never touch that host.
 
 **The rule that doesn't change from the previous section: each host still gets its own, freshly minted identity. What's durable and reused here is only the parent that authorizes creating those, never a runtime identity itself.**
