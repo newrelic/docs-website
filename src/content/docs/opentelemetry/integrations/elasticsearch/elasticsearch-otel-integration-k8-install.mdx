@@ -413,11 +413,15 @@ Add the Elasticsearch receiver and processors to your existing configuration. Re
 
 **Required changes:**
 * **Pod label rule** - The rule `labels["app"] == "elasticsearch"` must match your pod labels
-* **Cluster name** - Replace `elasticsearch-cluster` in both `resource/cluster` and `resource/cluster_name_override` with your unique cluster name
+* **Cluster name** - In `resource/cluster_name_override`, replace `elasticsearch-cluster` with your Elasticsearch `cluster.name`; it **must match** the name Elasticsearch reports (see the note below). In `resource/cluster`, replace `elasticsearch-cluster` with a name that identifies your Kubernetes cluster (`k8s.cluster.name`).
 
 **Optional changes:**
 * **Port** - Update `9200` if Elasticsearch runs on a different port
 * **Authentication** - Add credentials if your Elasticsearch cluster is secured (see example below)
+</Callout>
+
+<Callout variant="important">
+Make sure the `elasticsearch.cluster.name` set in `resource/cluster_name_override` matches the `cluster.name` configured in Elasticsearch, and that it's unique within your New Relic account.
 </Callout>
 
 **For secured Elasticsearch clusters:**
@@ -1734,7 +1738,7 @@ data:
 
 Replace the following values in the configuration:
 
-* `<elasticsearch-cluster-name>`: Your Elasticsearch cluster name
+* `<elasticsearch-cluster-name>`: Your Elasticsearch cluster name, used to identify the cluster in New Relic. Set this to the `cluster.name` configured in Elasticsearch, and make sure it's unique within your New Relic account.
 * `elasticsearch-exporter-prometheus-elasticsearch-exporter.monitoring.svc.cluster.local:9114`: Your exporter's Kubernetes service address
 
 </Step>
@@ -1835,9 +1839,85 @@ spec:
   </TabsPages>
 </Tabs>
 
-<Callout variant="tip">
-**Correlate APM with Elasticsearch**: To connect your APM application and Elasticsearch cluster, include the resource attribute `es.cluster.name="your-cluster-name"` in your APM metrics. This enables cross-service visibility and faster troubleshooting within New Relic.
-</Callout>
+## Correlate APM with Elasticsearch [#correlate-apm]
+
+Link your applications to the Elasticsearch cluster they call, so a slow transaction leads straight to the cluster that served it. Pick how deep you want the connection:
+
+| Approach | What you get | What you set up |
+| --- | --- | --- |
+| **Distributed tracing** (recommended) | End-to-end app-to-Elasticsearch traces **and** an automatic service-to-cluster relationship | Turn on Elasticsearch's built-in tracing, with no per-app changes |
+| Metrics-only | The cluster shows up as a related entity | Add `es.cluster.name` to your app's telemetry (any version) |
+
+### Set up distributed tracing [#correlate-tracing]
+
+Elasticsearch emits its own OpenTelemetry spans, joins your app's trace through the `traceparent` header, and stamps `es.cluster.name` on each one, so New Relic wires up the relationship automatically. Requires **Elasticsearch 9.4+**.
+
+<Steps>
+
+<Step>
+
+#### Turn on tracing in the Elasticsearch pods [#es-enable-tracing-k8s]
+
+Add to `elasticsearch.yml` (ConfigMap, Helm values, or ECK `nodeSets`), set `-Dtelemetry.otel.traces.enabled=true` via `ES_JAVA_OPTS`, then roll out the pods.
+
+```yaml
+telemetry.tracing.enabled: true
+telemetry.export.endpoint: http://YOUR_COLLECTOR_SVC.YOUR_NAMESPACE.svc.cluster.local:4317
+telemetry.tracing.sample_rate: 1.0   # default 0.001; lower for high volume
+```
+
+</Step>
+
+<Step>
+
+#### Add a traces pipeline to your collector [#collector-traces-k8s]
+
+Add the `otlp` receiver and these two processors to a `traces` pipeline in your collector config, then redeploy. Make sure the collector exposes gRPC port `4317`:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  # Drop Elasticsearch's own parentless spans (health probes, metrics-scrape calls) so the cluster isn't linked to itself
+  filter/drop_rootless_es:
+    error_mode: ignore
+    traces:
+      span:
+        - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+  # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+  transform/strip_es_host:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+          - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+      exporters: [otlphttp]
+```
+
+</Step>
+
+<Step>
+
+#### Verify [#verify-correlation-k8s]
+
+```sql
+FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 10 minutes ago
+```
+
+</Step>
+
+</Steps>
 
 
 
