@@ -1,0 +1,105 @@
+---
+title: Gerencie seus workloads com o Terraform
+tags:
+  - New Relic
+  - Use New Relic
+  - Workloads
+  - Intelligent Workloads
+  - Terraform
+metaDescription: 'Learn how to create, manage, and update standard and intelligent workloads using Terraform.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Você pode usar o Terraform para criar, gerenciar e atualizar seus workloads do New Relic, seja usando [workloads inteligentes](#intelligent-workloads) para rastrear transações de negócios importantes ou um [workload padrão](#standard-workloads) para agrupar entidades pertencentes a uma equipe específica. O recurso `newrelic_workload` dentro do repositório oficial `terraform-provider-newrelic` agora suporta ambos os tipos de workload.
+
+## Pré-requisitos [#prerequisites]
+
+Antes de começar:
+
+* Instale a CLI do Terraform na sua máquina.
+* Inicialize um diretório de trabalho local para o seu projeto Terraform.
+* Obtenha uma chave de API de usuário do New Relic válida (acesso à API <DNT>NerdGraph</DNT>) e o seu [ID da conta](/docs/accounts/accounts-billing/account-structure/account-id).
+* Exporte suas credenciais como variáveis de ambiente (`NEW_RELIC_API_KEY`, `NEW_RELIC_ACCOUNT_ID` e `NEW_RELIC_REGION`) em vez de codificá-las em seus arquivos de configuração para manter suas credenciais seguras.
+* Instale o `terraform-provider-newrelic` v3.94.0 ou posterior. Esta é a versão mínima necessária para o suporte ao Intelligent Workload (`dynamic_flows`, `status_config_alert_policy`).
+
+<Callout variant="important">
+  Não use uma chave de licença ou de ingestão. O provisionamento de recursos de workload requer permissões de API no nível do usuário.
+</Callout>
+
+## Configurar autenticação [#setup]
+
+Declare o provedor da New Relic em seu arquivo de configuração principal do Terraform:
+
+```terraform
+terraform {
+  required_providers {
+    newrelic = {
+      source  = "newrelic/newrelic"
+      version = ">= 3.94.0"
+    }
+  }
+}
+
+provider "newrelic" {
+  # Configuration inherits NEW_RELIC_API_KEY, NEW_RELIC_ACCOUNT_ID, and NEW_RELIC_REGION from environment variables
+}
+```
+
+## Criar workloads padrão [#standard-workloads]
+
+Defina o recurso `newrelic_workload` usando consultas de pesquisa, listas explícitas de GUID de entidade ou limites de escopo de conta. Use essa abordagem quando quiser agrupar manualmente infraestrutura, aplicativos ou serviços específicos de propriedade de uma equipe.
+
+```terraform
+resource "newrelic_workload" "team_standard_workload" {
+  name       = "Payments Team Workload"
+  account_id = 1234567 # Replace with your New Relic Account ID
+
+  # Group entities using a search query
+  entity_search_query {
+    query = "name LIKE 'payment-%' AND type = 'SERVICE'"
+  }
+}
+```
+
+## Crie cargas de trabalho inteligentes [#intelligent-workloads]
+
+Use o bloco de configuração `dynamic_flows`. O principal benefício do workload inteligente é que, uma vez que você designa um GUID de entidade de ponto de entrada e um nome de transação no bloco `dynamic_flows`, o New Relic descobre e mapeia automaticamente as dependências de entidade upstream e downstream via distributed tracing (<DNT>Transaction 360</DNT>), atualizando-as a cada 5 minutos. Isso significa que você não precisa atualizar manualmente os GUIDs ou reaplicar as configurações do Terraform quando a arquitetura do serviço subjacente mudar.
+
+<Callout variant="tip">
+  Para encontrar o GUID da entidade de ponto de entrada, navegue até a entidade na interface da New Relic e copie o GUID dos metadados da entidade, ou recupere-o usando a [API de entidades do NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial).
+</Callout>
+
+O Workload inteligente também pode derivar seu status de saúde das condições do alerta: defina `status_config_alert_policy { enabled = true }` no workload e, em seguida, anexe os recursos `newrelic_nrql_alert_condition` definindo seu `target_entity` para o guid do workload.
+
+<Callout variant="important">
+  `target_entity` o suporte em `newrelic_nrql_alert_condition` está atualmente em visualização pública e disponível por conta. Para obter mais informações, consulte a [documentação do registro do Terraform](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/nrql_alert_condition#description-1).
+</Callout>
+
+```terraform
+resource "newrelic_workload" "checkout_intelligent_workload" {
+  name       = "Checkout Transaction Flow"
+  account_id = 1234567 # Replace with your New Relic Account ID
+
+  dynamic_flows {
+    entity_guid      = "Mzg3fEFQTX..." # Replace with your entry point entity GUID
+    transaction_name = "WebTransaction/Action/checkout"
+  }
+
+  status_config_alert_policy {
+    enabled = true
+  }
+}
+```
+
+## Aplique sua configuração [#apply]
+
+Depois de definir o bloco de recursos, execute os seguintes comandos no seu terminal:
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+Após o Terraform provisionar o workload com sucesso, navegue até <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Workloads**</DNT>&gt; para verificar o novo recurso. Você pode inspecionar as entidades descobertas automaticamente no fluxo de transação, revisar as vinculações da política de alertas e verificar se os acúmulos de status refletem a integridade correta do workload.
