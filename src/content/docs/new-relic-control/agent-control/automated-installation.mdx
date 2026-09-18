@@ -1,0 +1,318 @@
+---
+title: "Automate Agent Control installation at scale"
+metaDescription: "Install Agent Control from Terraform, Ansible, Chef, Puppet, or a CI/CD pipeline without a person manually re-issuing a system identity every 12 hours."
+freshnessValidatedDate: never
+---
+
+When you install Agent Control through [Guided Install](/docs/new-relic-control/agent-control/setup), it creates a system identity for you and shows you a client ID and client secret. That secret expires 12 hours after it's issued. For a single install, that's not a problem. For automating installs with Terraform, Ansible, Chef, Puppet, or a CI/CD pipeline, it is: any run that happens more than 12 hours after the credential was issued fails, and someone has to go back into the UI for a new one.
+
+This page covers two ways to automate installation without that manual step. Both use [`newrelic-auth-cli`](https://github.com/newrelic/newrelic-auth-rs), the same tool [Guided Install](/docs/new-relic-control/agent-control/setup) itself relies on, authenticated with a New Relic [User API key](/docs/apis/intro-apis/new-relic-api-keys/).
+
+Two rules apply to both approaches below:
+
+- **Each host or install target still gets its own identity**, minted fresh for it.
+- **A private key never travels off the machine it was created on.** If you set up one durable identity that authorizes creating others (the second approach below), its private key stays on whichever machine controls your automation. Only a short-lived access token derived from it, never the key itself, is passed anywhere else.
+
+## Installing occasionally: mint a short-lived credential per run [#per-run]
+
+If you're not installing often enough to justify managing a durable identity, this is the simplest path. Your pipeline authenticates with your API key to mint a throwaway credential, uses it once to run the normal `newrelic install` command, and the installer generates the long-lived identity that Agent Control actually runs on. You never see or store that long-lived identity yourself, the installer writes it straight to the host.
+
+Ansible, Chef, and Puppet all reach the same install command through their own official New Relic-maintained role, cookbook, or module, all of which pass arbitrary environment variables straight through to it. That's what makes this pattern work identically across all three: mint the credential first, then hand it to the install task as environment variables the same way you'd hand it your license key.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux">
+      Linux
+    </TabsBarItem>
+
+    <TabsBarItem id="ansible">
+      Ansible
+    </TabsBarItem>
+
+    <TabsBarItem id="chef">
+      Chef
+    </TabsBarItem>
+
+    <TabsBarItem id="puppet">
+      Puppet
+    </TabsBarItem>
+
+    <TabsBarItem id="windows">
+      Windows
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux">
+
+```bash
+#!/bin/bash
+set -e
+
+# Set these from your CI secrets store. NEW_RELIC_API_KEY should be a User API
+# key (NRAK-...). It's used once below and never written to disk.
+: "${NEW_RELIC_API_KEY:?}" "${NEW_RELIC_ACCOUNT_ID:?}" "${NEW_RELIC_ORGANIZATION:?}" \
+  "${NEW_RELIC_REGION:?}" "${NR_CLI_FLEET_ID:?}"
+
+# 1. Download the latest auth CLI. GitHub's /releases/latest/download/ redirect
+#    always resolves to the newest release, so there's no version to bump here.
+curl -sS -L \
+  "https://github.com/newrelic/newrelic-auth-rs/releases/latest/download/newrelic-auth-cli_amd64.tar.gz" \
+  -o /tmp/newrelic-auth-cli.tar.gz
+tar -xzf /tmp/newrelic-auth-cli.tar.gz -C /tmp
+/tmp/newrelic-auth-cli --version >&2
+
+# 2. Mint a fresh, throwaway credential for this install only.
+BOOTSTRAP=$(/tmp/newrelic-auth-cli create-bootstrap-identity secret \
+  --name "bootstrap-$(hostname)-$(date +%s)" \
+  --organization-id "$NEW_RELIC_ORGANIZATION" \
+  --environment "$NEW_RELIC_REGION" \
+  --api-key "$NEW_RELIC_API_KEY")
+
+NEW_RELIC_AUTH_CLIENT_ID=$(echo "$BOOTSTRAP" | jq -r '.client_id')
+NEW_RELIC_AUTH_CLIENT_SECRET=$(echo "$BOOTSTRAP" | jq -r '.identity_type.L1.client_secret')
+
+# 3. Install the New Relic CLI, then Agent Control. The installer generates
+#    this host's long-lived identity itself and writes it locally.
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash
+
+sudo NEW_RELIC_CLI_SKIP_CORE=1 \
+    NEW_RELIC_REGION="${NEW_RELIC_REGION}" \
+    NEW_RELIC_ACCOUNT_ID="${NEW_RELIC_ACCOUNT_ID}" \
+    NEW_RELIC_ORGANIZATION="${NEW_RELIC_ORGANIZATION}" \
+    NEW_RELIC_API_KEY="${NEW_RELIC_API_KEY}" \
+    NEW_RELIC_AUTH_CLIENT_ID="${NEW_RELIC_AUTH_CLIENT_ID}" \
+    NEW_RELIC_AUTH_CLIENT_SECRET="${NEW_RELIC_AUTH_CLIENT_SECRET}" \
+    NR_CLI_FLEET_ID="${NR_CLI_FLEET_ID}" \
+    /usr/local/bin/newrelic install -y -n agent-control
+
+rm -f /tmp/newrelic-auth-cli.tar.gz /tmp/newrelic-auth-cli
+```
+
+Nothing here needs to run as a privileged user or a service account with standing access. The API key only ever touches this one script, for this one install.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="ansible">
+
+If you're installing onto many hosts in one playbook run, mint the throwaway credential once on the Ansible controller, then hand it to every host task in that run through the [`newrelic.newrelic_install`](https://galaxy.ansible.com/ui/standalone/roles/newrelic/newrelic_install/) role. Each host still ends up with its own distinct, long-lived identity. Only the throwaway credential used to authorize the installs is shared across the hosts in that one run, and it's discarded when the run ends.
+
+```yaml
+# site.yml
+---
+- name: Create a throwaway bootstrap credential for this run
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Download the latest newrelic-auth-cli
+      ansible.builtin.get_url:
+        # GitHub's /releases/latest/download/ redirect always resolves to the
+        # newest release, so there's no version variable to keep in sync here.
+        url: "https://github.com/newrelic/newrelic-auth-rs/releases/latest/download/newrelic-auth-cli_amd64.tar.gz"
+        dest: /tmp/newrelic-auth-cli.tar.gz
+        mode: "0644"
+
+    - name: Extract newrelic-auth-cli
+      ansible.builtin.unarchive:
+        src: /tmp/newrelic-auth-cli.tar.gz
+        dest: /tmp/
+        remote_src: true
+
+    - name: Record the newrelic-auth-cli version used for this run
+      ansible.builtin.command:
+        cmd: /tmp/newrelic-auth-cli --version
+      register: nr_auth_cli_version
+      changed_when: false
+
+    - name: Show the newrelic-auth-cli version used for this run
+      ansible.builtin.debug:
+        msg: "{{ nr_auth_cli_version.stdout }}"
+
+    - name: Mint the bootstrap credential
+      ansible.builtin.command:
+        cmd: >
+          /tmp/newrelic-auth-cli create-bootstrap-identity secret
+          --name "ansible-bootstrap-{{ ansible_date_time.epoch }}"
+          --organization-id {{ newrelic_organization }}
+          --environment {{ newrelic_region }}
+          --api-key {{ newrelic_api_key }}
+      register: bootstrap_output
+      no_log: true
+
+    - name: Save the bootstrap credential for the install play below
+      ansible.builtin.set_fact:
+        nr_bootstrap_client_id: "{{ (bootstrap_output.stdout | from_json).client_id }}"
+        nr_bootstrap_client_secret: "{{ (bootstrap_output.stdout | from_json).identity_type.L1.client_secret }}"
+      no_log: true
+
+- name: Install Agent Control
+  hosts: all
+  become: true
+  roles:
+    - role: newrelic.newrelic_install
+      vars:
+        targets:
+          - agent-control
+  environment:
+    NEW_RELIC_API_KEY: "{{ newrelic_api_key }}"
+    NEW_RELIC_ACCOUNT_ID: "{{ newrelic_account_id }}"
+    NEW_RELIC_REGION: "{{ newrelic_region }}"
+    NEW_RELIC_ORGANIZATION: "{{ newrelic_organization }}"
+    NEW_RELIC_AUTH_CLIENT_ID: "{{ hostvars['localhost']['nr_bootstrap_client_id'] }}"
+    NEW_RELIC_AUTH_CLIENT_SECRET: "{{ hostvars['localhost']['nr_bootstrap_client_secret'] }}"
+    NR_CLI_FLEET_ID: "{{ newrelic_fleet_id }}"
+```
+
+The role validates that `NEW_RELIC_API_KEY` and `NEW_RELIC_ACCOUNT_ID` are set in the play's `environment:` block and fails clearly if they're missing, but it also passes every other variable in that same block straight through to the install command, which is what carries the bootstrap credential and your organization ID through to it. Nothing in `newrelic_api_key` or the bootstrap credential is written to a file anywhere in this run, and `no_log: true` keeps both out of Ansible's own logs.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="chef">
+
+The [`chef-install`](https://github.com/newrelic/chef-install) cookbook's `newrelic_install` resource accepts an `env` hash that's passed straight through to the underlying install command, the same mechanism the Linux and Ansible examples use. Mint the bootstrap credential in your recipe before declaring the resource, then pass its output through `env`:
+
+```ruby
+require 'json'
+
+# GitHub's /releases/latest/download/ redirect always resolves to the newest
+# release, so there's no version to keep in sync with this recipe.
+newrelic_auth_cli_url = 'https://github.com/newrelic/newrelic-auth-rs/releases/latest/download/newrelic-auth-cli_amd64.tar.gz'
+system("curl -sS -L '#{newrelic_auth_cli_url}' -o /tmp/newrelic-auth-cli.tar.gz && tar -xzf /tmp/newrelic-auth-cli.tar.gz -C /tmp")
+Chef::Log.info("newrelic-auth-cli version: #{`/tmp/newrelic-auth-cli --version`.strip}")
+
+bootstrap = JSON.parse(`NEW_RELIC_API_KEY=#{node['newrelic']['api_key']} /tmp/newrelic-auth-cli create-bootstrap-identity secret \
+  --name "chef-bootstrap-#{node.name}-#{Time.now.to_i}" \
+  --organization-id #{node['newrelic']['organization']} \
+  --environment #{node['newrelic']['region']}`)
+
+newrelic_install 'agent-control' do
+  action                 :install
+  new_relic_api_key      node['newrelic']['api_key']
+  new_relic_account_id   node['newrelic']['account_id']
+  new_relic_region       node['newrelic']['region']
+  targets                ['agent-control']
+  env(
+    'NEW_RELIC_ORGANIZATION' => node['newrelic']['organization'],
+    'NEW_RELIC_AUTH_CLIENT_ID' => bootstrap['client_id'],
+    'NEW_RELIC_AUTH_CLIENT_SECRET' => bootstrap.dig('identity_type', 'L1', 'client_secret'),
+    'NR_CLI_FLEET_ID' => node['newrelic']['fleet_id']
+  )
+end
+```
+
+This works because a Chef recipe is evaluated top to bottom as plain Ruby: by the time `newrelic_install` is declared, `bootstrap` already holds the real values, not something computed later.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="puppet">
+
+The [`puppet-install`](https://github.com/newrelic/puppet-install) module's `newrelic_installer::install` class passes its `environment_variables` hash straight through to the install command too, but Puppet compiles a catalog's resource parameters before applying any of them, so a class parameter can't hold a value minted by an earlier resource in the same run the way Chef's plain-Ruby recipe can. For this specific case, wrap the same mint-then-install sequence from the Linux tab in one script, ship it as a module file, and run it with your known values passed through as environment variables:
+
+```puppet
+# Save the Linux tab's script as files/agent-control-automated-install.sh
+# in this module, then:
+
+class profile::agent_control_install (
+  String $newrelic_api_key,
+  String $newrelic_account_id,
+  String $newrelic_organization,
+  String $newrelic_region      = 'US',
+  String $newrelic_fleet_id    = '',
+) {
+  file { '/opt/newrelic-agent-control-install.sh':
+    ensure => file,
+    mode   => '0700',
+    source => 'puppet:///modules/profile/agent-control-automated-install.sh',
+  }
+  -> exec { 'run newrelic-agent-control-install':
+    command     => '/opt/newrelic-agent-control-install.sh',
+    path        => ['/usr/bin', '/bin', '/usr/local/bin'],
+    environment => [
+      "NEW_RELIC_API_KEY=${newrelic_api_key}",
+      "NEW_RELIC_ACCOUNT_ID=${newrelic_account_id}",
+      "NEW_RELIC_ORGANIZATION=${newrelic_organization}",
+      "NEW_RELIC_REGION=${newrelic_region}",
+      "NR_CLI_FLEET_ID=${newrelic_fleet_id}",
+      'NEW_RELIC_CLI_SKIP_CORE=1',
+    ],
+    unless      => 'test -f /etc/newrelic-agent-control/keys/agent-control-identity.key',
+    logoutput   => true,
+  }
+}
+```
+
+If you're managing a fleet of hosts that each need their own durable identity instead of a fresh one per run, the second approach on this page (a token passed through the same `environment_variables` hash) fits Puppet's model more directly than a per-run bootstrap credential does, since a token, unlike a freshly minted credential, can come from Hiera as a known value at compile time.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="windows">
+
+Same shape as Linux, using the Windows build of `newrelic-auth-cli` and `install.ps1` in place of `install.sh`.
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Installing at scale, or from Terraform: set up one durable identity, once [#durable-identity]
+
+A Terraform resource that manages Agent Control on a host or cluster needs something stable across `plan` and `apply` cycles, not a fresh throwaway credential every run. The same is true for any pipeline installing many hosts over time rather than one host once. For that, set up one durable "parent" identity a single time, and use it to authorize every install after that, without ever moving its private key anywhere.
+
+<Callout variant="important">
+  This section walks through calling `newrelic-auth-cli` directly. If you're setting this up with Terraform specifically, see [Agent Control setup with Terraform](/docs/infrastructure-as-code/terraform/agent-control) as well.
+</Callout>
+
+### Step 1: create the parent identity, once
+
+You only repeat this step if you need a second parent identity, never per install. `create-bootstrap-identity key` generates a key pair locally, sends only the public half to New Relic, and automatically grants the new identity permission to create other identities, so there's no separate step for that.
+
+```bash
+# GitHub's /releases/latest/download/ redirect always resolves to the newest
+# release, so there's no version to bump here. This step still needs a
+# newrelic-auth-cli release that includes NEW_RELIC_API_KEY support for
+# create-bootstrap-identity (newrelic-auth-rs#254); until that ships, "latest"
+# won't have it yet, and the command below will fail asking for --api-key.
+curl -sS -L \
+  "https://github.com/newrelic/newrelic-auth-rs/releases/latest/download/newrelic-auth-cli_amd64.tar.gz" \
+  -o /tmp/newrelic-auth-cli.tar.gz
+tar -xzf /tmp/newrelic-auth-cli.tar.gz -C /tmp
+/tmp/newrelic-auth-cli --version >&2
+
+NEW_RELIC_API_KEY="$NEW_RELIC_API_KEY" /tmp/newrelic-auth-cli create-bootstrap-identity key \
+  --name "terraform-parent" \
+  --organization-id "$NEW_RELIC_ORGANIZATION" \
+  --environment "$NEW_RELIC_REGION" \
+  --output-platform local-file \
+  --output-local-filepath /path/to/store/parent-private-key.pem
+```
+
+`newrelic-auth-cli` reads the API key from `NEW_RELIC_API_KEY` here rather than a `--api-key` flag, for the same reason called out earlier on this page: a value passed directly on the command line is visible in `ps` output and shell history for as long as the process runs, and this key doesn't expire.
+
+It prints back the identity's `client_id` (the private key is written straight to the path you gave it, not printed). Move that private key file to whatever secrets store controls your automation, and don't leave a copy on the machine that created it.
+
+### Step 2: for each install, generate a short-lived token from the parent
+
+The parent's private key stays local. What goes to the target host is a bearer token that expires in about an hour:
+
+```bash
+TOKEN=$(/tmp/newrelic-auth-cli authenticate \
+  --client-id "$PARENT_CLIENT_ID" \
+  --environment "$NEW_RELIC_REGION" \
+  --private-key-path "$PARENT_PRIVATE_KEY_PATH" \
+  --output-token-format PLAIN)
+```
+
+Pass that token, not the private key, to your install step by setting `NEW_RELIC_AUTH_TOKEN`. This works the same way regardless of which tool from the section above is driving the install, Ansible's `environment:`, Chef's `env`, and Puppet's `environment_variables` all carry it through exactly like they carry a client secret today:
+
+```bash
+sudo NEW_RELIC_CLI_SKIP_CORE=1 \
+    NEW_RELIC_REGION="${NEW_RELIC_REGION}" \
+    NEW_RELIC_ACCOUNT_ID="${NEW_RELIC_ACCOUNT_ID}" \
+    NEW_RELIC_ORGANIZATION="${NEW_RELIC_ORGANIZATION}" \
+    NEW_RELIC_AUTH_TOKEN="${TOKEN}" \
+    NR_CLI_FLEET_ID="${NR_CLI_FLEET_ID}" \
+    /usr/local/bin/newrelic install -y -n agent-control
+```
+
+On Windows, `install.ps1` takes the same value as `-AuthParentToken`. The install step uses that token once to mint its own child identity locally on the target host, and that's what Agent Control actually runs on. The parent identity and its private key never touch that host.
+
+**The rule that doesn't change from the section above: each host still gets its own, freshly minted identity. What's durable and reused here is only the parent that authorizes creating those, never a runtime identity itself.**
