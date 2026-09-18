@@ -7,12 +7,12 @@ tags:
   - slack
   - RCA
   - incident response
-metaDescription: Trigger Autopilot to investigate a New Relic alert and post the root cause analysis findings to a Slack channel.
-freshnessValidatedDate: never
+metaDescription: Use Autopilot to run a root cause analysis on a New Relic alert and post findings to Slack. Includes the canonical selector pattern for handling Autopilot's variable finalAnswer response shape.
+freshnessValidatedDate: '2026-09-09T00:00:00.000Z'
 translationType: machine
 ---
 
-공지가 발생하면 [Autopilot](/docs/agentic-ai/autopilot/overview)을 트리거하여 근본 원인 분석을 실행하고 결과를 Slack 채널에 직접 게시하십시오. Autopilot이 사용 가능한 응답을 반환하지 않으면 워크플로우가 대신 오류 알림을 보내 팀이 수동으로 조사해야 함을 알 수 있도록 합니다.
+When an alert fires, trigger <DNT>[Autopilot](/docs/agentic-ai/autopilot/overview)</DNT> to run a root cause analysis and post the findings directly to a Slack channel. If Autopilot returns no usable response, the workflow sends an error notice instead so the team knows to investigate manually.
 
 이 워크플로우를 사용하기 전에 다음 사항을 확인하십시오:
 
@@ -21,18 +21,26 @@ translationType: machine
 * 대상의 UUID 및 타겟 Slack 채널 이름
 
 <Callout variant="tip">
-  공지 워크플로우에서 이 워크플로우를 트리거할 때 `issueId` 입력 값으로 `{{ issueId }}`을(를) 사용하십시오. 이 변수는 트리거하는 공지의 이슈 ID를 워크플로우로 자동으로 전달합니다.
+  When triggering this workflow from <DNT>**Alert Workflows**</DNT>, use `{{ issueId }}` as the value for the `issueId` input. This variable automatically passes the triggering alert&apos;s issue ID to the workflow.
 </Callout>
 
 이 워크플로우는 다음 단계를 완료합니다:
 
 1. 공지를 확인하고 팀에 RCA가 진행 중임을 알리는 초기 Slack 메시지를 보냅니다
-2. 공지 문제 ID로 범위가 지정된 근본 원인 분석 프롬프트와 함께 Autopilot을 실행합니다.
-3. Autopilot이 사용 가능한 응답을 반환했는지 확인합니다.
-4. 성공 시: Autopilot이 성공하면 응답을 Slack Block Kit 블록으로 다시 포맷하고 결과를 Slack에 게시합니다.
-5. 실패 시: Autopilot이 실패하면 문제 ID가 포함된 오류 메시지를 게시합니다.
+2. Runs <DNT>Autopilot</DNT> with a root cause analysis prompt scoped to the alert issue ID
+3. Checks whether <DNT>Autopilot</DNT> returned a usable response
+4. If <DNT>Autopilot</DNT> succeeds, reformats the response as Slack Block Kit blocks and posts findings to Slack
+5. If <DNT>Autopilot</DNT> fails, posts an error message with the issue ID
 
-이 워크플로우는 `newrelic.autopilot.run`을(를) 사용하며 `newrelic.notification.sendSlack`
+This workflow uses `newrelic.autopilot.run` and `newrelic.notification.sendSlack`.
+
+<Callout variant="important">
+  Selector `expression` values must be written on a single line. Multi-line YAML block scalars (`|` or `|-`) aren&apos;t evaluated for selector expressions and silently produce no output.
+</Callout>
+
+<Callout variant="tip">
+  Autopilot&apos;s `finalAnswer` field can return as either a plain string or a JSON-encoded object depending on prompt context. The `analysisText` selector in this workflow handles both shapes automatically.
+</Callout>
 
 ```yaml
 name: autopilotSlackRCA
@@ -78,21 +86,23 @@ steps:
         Issue ID: ${{ .workflowInputs.issueId }}
         Provide your comprehensive analysis including Summary, Root Cause, and Remediation Actions.
       selectors:
-        - name: agentResponse
+        - name: analysisRaw
           expression: .response.finalAnswer
+        - name: analysisText
+          expression: '(.response.finalAnswer | if type=="string" then fromjson else . end).card.body | map(.value) | join("\n\n")'
     ignoreErrors: true
 
   - name: checkAgentResponse
     type: switch
     switch:
-      - condition: ${{ (.steps.runAutopilot.outputs.agentResponse // "") != "" }}
+      - condition: ${{ (.steps.runAutopilot.outputs.analysisRaw // "") != "" }}
         next: buildSlackBlocks
     next: sendAutopilotError
 
   - name: buildSlackBlocks
     type: assign
     inputs:
-      blocks: '${{ (.steps.runAutopilot.outputs.agentResponse // "") as $r | (if ($r|type)=="string" then ($r | try fromjson catch null) else $r end) as $json | (if ($json|type)=="array" then ($json[0].text // ($json | tostring)) elif ($json|type)=="object" and ($json.card.body|type)=="array" then [ $json.card.body[] | if .type=="Text" then (.value // "") else "" end ] | join("\n\n") elif ($json|type)=="object" and ($json.text|type)=="string" then $json.text else ($r | tostring) end) | gsub("\\*\\*"; "*") | gsub("### "; "*") | gsub("## "; "*") as $text | ([ $text / "\n" ]) as $lines | [ { "type": "header", "text": { "type": "plain_text", "text": "✅ Autopilot RCA Complete" } }, { "type": "divider" } ] + [ $lines[][] | select(. != "") | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ] }}'
+      blocks: '${{ (.steps.runAutopilot.outputs.analysisText // "") | gsub("\\*\\*"; "*") | gsub("### "; "*") | gsub("## "; "*") as $text | ([ $text / "\n" ]) as $lines | [ { "type": "header", "text": { "type": "plain_text", "text": "✅ Autopilot RCA Complete" } }, { "type": "divider" } ] + [ $lines[][] | select(. != "") | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ] }}'
     next: sendRcaFindings
 
   - name: sendRcaFindings
@@ -120,6 +130,15 @@ steps:
     next: end
 ```
 
+## 작동 원리 [#how-it-works]
+
+The `runAutopilot` step uses two selectors to handle `finalAnswer` shape variability at the data-extraction layer:
+
+* **`analysisRaw`** captures the raw `finalAnswer` value. The `checkAgentResponse` step uses this to determine whether <DNT>Autopilot</DNT> returned anything.
+* **`analysisText`** normalizes the value — if `finalAnswer` is a JSON-encoded string, it parses it first, then extracts text content from `.card.body`. The `buildSlackBlocks` step uses `analysisText` directly, which keeps the formatting logic simple.
+
+`buildSlackBlocks` converts `**bold**` and `###`/`##` heading markers to Slack mrkdwn format, splits the result on newlines, and wraps each non-empty line in a Block Kit `section` block.
+
 ## 관련 주제 [#related-topics]
 
 <DocTiles>
@@ -137,5 +156,9 @@ steps:
 
   <DocTile title="목적지를 생성하세요" path="/docs/workflow-automation/setup-and-configure/create-destinations">
     이 워크플로우에 필요한 Slack 대상을 구성하십시오.
+  </DocTile>
+
+  <DocTile title="흐름 흐름 자동화 문제 해결" path="/docs/workflow-automation/troubleshooting">
+    Solutions for common Autopilot and Slack integration issues
   </DocTile>
 </DocTiles>
