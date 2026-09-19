@@ -8,27 +8,244 @@ tags:
 freshnessValidatedDate: 2026-08-27
 ---
 
-If you don't see OCI data in New Relic after completing setup, or you hit an error during setup, start here.
+If you're having trouble with the OCI integration, start here.
 
-## Not seeing data [#no-data]
+## Troubleshoot logs [#logs]
 
-- Verify the OCI permissions and policies granted to the dynamic group used by the integration.
-- Check network connectivity between OCI and New Relic — the functions and service connectors need outbound access to reach New Relic's ingest endpoints.
+If your OCI logs aren't appearing, stopped unexpectedly, show up as duplicates, or display resource names incorrectly, start with the health check below, then find your specific issue in the sections that follow.
 
-## Resolving a 409 conflict on Trust Configuration [#trust-conflict]
+### Health check [#logs-health-check]
 
-A 409 conflict when creating an identity propagation trust means a trust configuration with that name already exists. Delete the older configuration, then re-create it.
+These two checks tell you whether the problem is upstream in OCI (nothing to check in New Relic yet) or logs have actually reached New Relic:
 
-Using the OCI cloud shell:
+1. **Check your connector in OCI.** In the OCI Console, go to <DNT>**Connector Hub**</DNT> and open the compartment where your New Relic integration was deployed. Look for a connector named `newrelic-logs-<region>-audit` (for example, `newrelic-logs-us-ashburn-1-audit`) and confirm its status is <DNT>**Active**</DNT>. If you see an error status, open the connector for error details.
+2. **Check that logs are arriving in New Relic.** Run this query in [Query your data](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder):
 
-1. List the identity domain (skip this if you already know the ID):
+   ```sql
+   SELECT count(*) FROM Log WHERE oracle.loggroupid = '_Audit' SINCE 30 minutes ago
    ```
-   oci identity-domains identity-propagation-trusts list --all --endpoint $DOMAIN_URL
-   ```
-2. Delete the conflicting trust configuration — be cautious with this command:
-   ```
-   oci identity-domains identity-propagation-trust delete --endpoint $DOMAIN_URL --identity-propagation-trust-id $TRUST_CONFIGURATION_ID
-   ```
+
+   A count greater than zero means audit logs are flowing. If you're troubleshooting a different log type, confirm you see recent results for the relevant time window instead.
+
+If both checks look healthy, your issue is likely one of the specific scenarios below rather than a total outage.
+
+### No logs appear at all [#no-logs]
+
+Match what you're seeing to the likely cause:
+
+<table>
+  <thead>
+    <tr>
+      <th>If you see this</th>
+      <th>Try this</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>You just finished setup and nothing has appeared yet</td>
+      <td>Give it some time. When a connector is created for the first time, OCI can take a while to backfill recent activity — for audit logs, this can be up to 24 hours for historical events, though new events typically appear within minutes.</td>
+    </tr>
+
+    <tr>
+      <td>No connector shows up in <DNT>**Connector Hub**</DNT> at all</td>
+      <td>Re-open your setup: if you used the guided setup wizard, confirm the relevant toggle is turned on and re-run it. If you used Terraform, confirm your configuration includes the log connector and re-apply it.</td>
+    </tr>
+
+    <tr>
+      <td>You have resources in more than one OCI region</td>
+      <td>Confirm each region has its own connector, that you're checking the region you expect, and repeat setup for any additional regions.</td>
+    </tr>
+
+    <tr>
+      <td>The New Relic UI shows an access/permission error when loading compartments or log groups</td>
+      <td>See [Missing permissions](#logs-permissions) below.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Logs stopped after working [#logs-stopped]
+
+Match what you're seeing to the likely cause:
+
+<table>
+  <thead>
+    <tr>
+      <th>If you see this</th>
+      <th>Try this</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>The connector in OCI is no longer <DNT>**Active**</DNT></td>
+      <td>Open the connector in <DNT>**Connector Hub**</DNT> and check its error details. This is usually caused by a permissions change (see [Missing permissions](#logs-permissions)) or because someone redeployed or replaced the underlying integration.</td>
+    </tr>
+
+    <tr>
+      <td>The connector is <DNT>**Active**</DNT>, but no new logs are showing up</td>
+      <td>In the OCI Console, go to <DNT>**Functions**</DNT> and confirm the New Relic integration function is deployed and not showing an error state. If it looks unhealthy and you can't resolve it from OCI alone, contact support.</td>
+    </tr>
+
+    <tr>
+      <td>Someone recently changed your setup (re-ran the wizard, changed a Terraform config, turned a toggle off)</td>
+      <td>Re-run setup with the correct option enabled to restore the connector — that change likely removed or altered it.</td>
+    </tr>
+  </tbody>
+</table>
+
+### Duplicate log entries [#duplicate-logs]
+
+More than one connector is sending the same log event to New Relic. This usually means more than one connector in OCI is covering the same logs — most often, a broader "all compartments" connector was added without removing an older connector that only covered a single compartment.
+
+In <DNT>**Connector Hub**</DNT>, list all connectors related to your New Relic integration and check what each one covers. Remove any that overlap, keeping only the one connector that covers the scope you actually want.
+
+### Missing compartments or resources [#missing-compartments]
+
+Your connector's scope doesn't cover everything you expected.
+
+<table>
+  <thead>
+    <tr>
+      <th>Setup covers</th>
+      <th>What's included</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>The entire tenancy (all compartments, including future ones)</td>
+      <td>Everything, automatically — no action needed as you add new compartments.</td>
+    </tr>
+
+    <tr>
+      <td>A specific compartment and everything under it</td>
+      <td>That compartment and its sub-compartments, including new sub-compartments added later.</td>
+    </tr>
+
+    <tr>
+      <td>A single specific compartment only</td>
+      <td>Just that compartment — it doesn't automatically include new sub-compartments.</td>
+    </tr>
+  </tbody>
+</table>
+
+If you set up through the guided wizard, your connector already covers the entire tenancy — if compartments are still missing, this points to a connector problem (see [No logs appear at all](#no-logs)) rather than a scope problem. If you set up manually or via Terraform, check which scope your connector was configured with, and recreate it with a broader scope if needed.
+
+### Missing permissions [#logs-permissions]
+
+New Relic doesn't have the OCI permissions it needs — this can block connector creation entirely, or cause it to run without full functionality.
+
+Ask your OCI tenancy administrator to confirm the following policy statements exist for the dynamic group created during setup:
+
+<table>
+  <thead>
+    <tr>
+      <th>Policy</th>
+      <th>What it's for</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>`Allow dynamic-group your_dynamic_group_name to read log-content in tenancy`</td>
+      <td>Reading your log data</td>
+    </tr>
+
+    <tr>
+      <td>`Allow dynamic-group your_dynamic_group_name to use fn-function in tenancy`</td>
+      <td>Running the New Relic integration</td>
+    </tr>
+
+    <tr>
+      <td>`Allow dynamic-group your_dynamic_group_name to use fn-invocation in tenancy`</td>
+      <td>Running the New Relic integration</td>
+    </tr>
+
+    <tr>
+      <td>`Allow dynamic-group your_dynamic_group_name to read secret-bundles in tenancy`</td>
+      <td>Securely accessing your New Relic license key</td>
+    </tr>
+  </tbody>
+</table>
+
+If you re-run the guided wizard or the Terraform policy module, it reapplies these automatically. After restoring permissions, if the connector still isn't <DNT>**Active**</DNT>, delete it and create it again.
+
+### Resource names show as ID strings [#resource-names]
+
+For some OCI resource types, New Relic automatically looks up a human-readable name (like a VCN or firewall name) shortly after the log first arrives, rather than showing the raw resource identifier. This lookup can take a few minutes the first time a given resource is seen.
+
+<table>
+  <thead>
+    <tr>
+      <th>If you see this</th>
+      <th>What it means</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>A resource shows its ID at first, then a friendly name shortly after</td>
+      <td>Normal — this is expected the first time a new resource shows up.</td>
+    </tr>
+
+    <tr>
+      <td>A resource never gets a friendly name, even after a while</td>
+      <td>This is usually a permissions issue — see below.</td>
+    </tr>
+
+    <tr>
+      <td>A specific resource type never shows a friendly name for any resource</td>
+      <td>Some resource types don't have name lookup enabled and will always show their ID. This is expected behavior, not an error.</td>
+    </tr>
+  </tbody>
+</table>
+
+If names never resolve, ask your OCI tenancy administrator to confirm New Relic's integration has "inspect" permission on the relevant resource type(s) in your tenancy (for example, network firewalls, DNS resolvers, or integration instances) via a dynamic-group policy. If permissions look correct and names still don't resolve after a reasonable wait, contact support with an example of the affected resource and log timestamp.
+
+### Dashboard shows errors, gaps, or unexpected values [#dashboard-issues]
+
+If you've enabled the OCI Log Forwarder monitoring dashboard, use it as your first stop for anything beyond "are logs arriving":
+
+<table>
+  <thead>
+    <tr>
+      <th>If you see this</th>
+      <th>What to do</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>Every widget on the dashboard is empty</td>
+      <td>Confirm the integration's metrics option is turned on (it's a setting you choose during setup) and that the underlying function is running in OCI.</td>
+    </tr>
+
+    <tr>
+      <td>The error rate is climbing on the dashboard</td>
+      <td>Check whether this started right after a recent change to your setup. If nothing changed and it's ongoing, check your OCI network/firewall rules allow outbound access to New Relic, and confirm your New Relic license key is still valid.</td>
+    </tr>
+
+    <tr>
+      <td>A "records dropped" or similar metric shows non-zero and stays that way</td>
+      <td>Contact support with the time range — some log data isn't reaching New Relic.</td>
+    </tr>
+
+    <tr>
+      <td>A tile shows a dash or no value instead of a number or percentage</td>
+      <td>Check a wider time range before assuming something's broken — this is often just a "not enough data yet in this time window" state, not an error.</td>
+    </tr>
+  </tbody>
+</table>
+
+## Get more help [#get-help]
+
+If you've worked through the checks above and the issue isn't resolved, contact New Relic Support with:
+
+- Which setup method you used (guided wizard, manual setup, or Terraform)
+- The OCI region and, if relevant, the affected compartment(s)
+- The approximate time range the issue started
+- Which of the checks above you've already tried
 
 ## Related articles [#related-articles]
 
@@ -38,5 +255,8 @@ Using the OCI cloud shell:
   </DocTile>
   <DocTile title="OCI metrics reference" path="/docs/infrastructure/oracle-cloud/metrics-reference">
     The OCI namespaces New Relic collects from, the service each belongs to, and the entity type it reports on.
+  </DocTile>
+  <DocTile title="Uninstall the OCI integration" path="/docs/infrastructure/oracle-cloud/uninstall-oci-integration">
+    Remove the resources created by the integration and unlink your account.
   </DocTile>
 </DocTiles>
