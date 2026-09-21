@@ -169,20 +169,50 @@ You can install and configure the NRDOT Collector for Oracle Database monitoring
   title="Self-hosted Oracle Database"
 >
 
+This recipe monitors one or more Oracle Database instances (each reachable via SSH) from a single collector. Instead of prompting for a single host/container/credential set, it reads an **instances file** (YAML) listing every instance to monitor, and optionally a **secrets file** to pin specific monitoring-user passwords instead of auto-generating them.
+
 Before you run this command, have ready:
 
-* Container type (CDB for all PDBs, or a single PDB name)
-* Oracle Database host and listener port
-* SSH user used to create the monitoring user
-* Monitoring username and password (leave the password blank to auto-generate one)
-* CDB or PDB service name for the collector connection
+* SSH access (with agent forwarding) to every Oracle Database host listed, where each `ssh_user` can run `sudo su - oracle` without a password prompt
+* Container type per instance (CDB for all PDBs, or a single PDB name)
+* CDB or PDB service name per instance
 * Whether you want database-only or host + database metrics
 
-Run:
+1. Create the instances file. Add one entry per Oracle Database instance you want this collector to monitor — still just one entry if you're only monitoring a single instance:
 
-```bash
-curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle
-```
+    ```bash
+    cat > ~/oracle-instances.yml << 'EOF'
+    instances:
+      - host: dbhost1.example.com
+        port: 1521
+        ssh_user: opc
+        container_type: 1
+        pdb_name:
+        service: ORCLCDB
+        login_name: newrelic
+    EOF
+    ```
+
+    `container_type` is `1` for CDB (monitors all PDBs, creates a common `c##<login_name>` user) or `2` for a single PDB (`pdb_name` required only then). Enter `login_name` without the `c##` prefix — the recipe adds it for you in CDB mode.
+
+2. (Optional) Create a secrets file to pin a fixed monitoring-user password per instance instead of letting the recipe auto-generate one. Self-hosted Oracle needs no admin credentials here — the monitoring user is created via SSH and OS-authenticated SYSDBA access:
+
+    ```bash
+    umask 077
+    cat > ~/oracle-secrets.env << 'EOF'
+    NR_CLI_ORACLE_LOGIN_PASSWORD_1=SomeFixedPassword1
+    EOF
+    chmod 600 ~/oracle-secrets.env
+    ```
+
+    Leave the secrets file path blank (or point it at a file that doesn't exist) to auto-generate a random password for every instance instead.
+
+3. Establish SSH agent forwarding to your Oracle Database host(s), then run:
+
+    ```bash
+    ssh -A <ssh-user>@<control-host>
+    curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle
+    ```
 
 The CLI prompts interactively for the following variables. You can also set them ahead of time as environment variables to run non-interactively.
 
@@ -196,43 +226,13 @@ The CLI prompts interactively for the following variables. You can also set them
   </thead>
   <tbody>
     <tr>
-      <td>`NR_CLI_ORACLE_HOST`</td>
-      <td>Oracle Database host.</td>
-      <td>`localhost`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_PORT`</td>
-      <td>Oracle listener port.</td>
-      <td>`1521`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_SSH_USER`</td>
-      <td>SSH user for the Oracle Database host, used once to create the monitoring user and grant privileges via OS-authenticated SYSDBA access.</td>
-      <td>`opc`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_CONTAINER_TYPE`</td>
-      <td>Oracle container type: `1` for CDB (monitor all PDBs) or `2` for a single PDB.</td>
-      <td>`1`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_PDB_NAME`</td>
-      <td>PDB name. Required only when `NR_CLI_ORACLE_CONTAINER_TYPE` is `2`.</td>
+      <td>`NR_CLI_ORACLE_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file.</td>
       <td>None</td>
     </tr>
     <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_NAME`</td>
-      <td>Monitoring username (created as `c##&lt;name&gt;` in CDB mode).</td>
-      <td>`newrelic`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_PASSWORD`</td>
-      <td>**Required.** Password for the monitoring login. Leave blank in an interactive install to auto-generate a random password.</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_SERVICE_NAME`</td>
-      <td>**Required.** CDB or PDB service name for the collector connection.</td>
+      <td>`NR_CLI_ORACLE_SECRETS_FILE`</td>
+      <td>Optional. Path to a secrets file (`KEY=VALUE`) pinning `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>` per instance. Leave unset to auto-generate a random password for every instance.</td>
       <td>None</td>
     </tr>
     <tr>
@@ -243,6 +243,10 @@ The CLI prompts interactively for the following variables. You can also set them
   </tbody>
 </table>
 
+<Callout variant="tip">
+  To monitor more than one Oracle Database instance from this collector, add more entries to the instances file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install. Re-running against an instance that already has a monitoring user prompts interactively to reuse it or create a new one — this one step isn't fully scriptable.
+</Callout>
+
 </Collapser>
 
 <Collapser
@@ -250,13 +254,36 @@ The CLI prompts interactively for the following variables. You can also set them
   title="Oracle Database on AWS RDS"
 >
 
+This recipe monitors one or more RDS Oracle endpoints from a single collector, using an instances file plus a secrets file.
+
 Before you run this command, have ready:
 
-* RDS Oracle endpoint and listener port
-* RDS master username and password
-* Monitoring username and password (leave the password blank to auto-generate one)
-* RDS DB service name for the collector connection
+* RDS Oracle endpoint, listener port, and DB service name for every instance
+* RDS master username and password for every instance
 * Whether you want database-only or host + database metrics
+
+1. Create the instances file — one entry per RDS Oracle endpoint you want this collector to monitor, still just one entry if you're only monitoring a single instance:
+
+    ```bash
+    cat > ~/oracle-instances.yml << 'EOF'
+    instances:
+      - host: rds-orders.abcdef123.us-east-1.rds.amazonaws.com
+        port: 1521
+        service: ORDERSDB
+        login_name: newrelic
+    EOF
+    ```
+
+2. Create the secrets file with the RDS master username and password for each instance, indexed to match the instances file's order. You can optionally pin a fixed monitoring-user password per instance too — leave it out to auto-generate one:
+
+    ```bash
+    umask 077
+    cat > ~/oracle-secrets.env << 'EOF'
+    NR_CLI_ORACLE_ADMIN_USER_1=admin
+    NR_CLI_ORACLE_ADMIN_PASSWORD_1=YourMasterPassword1
+    EOF
+    chmod 600 ~/oracle-secrets.env
+    ```
 
 Run:
 
@@ -276,38 +303,13 @@ The CLI prompts interactively for the following variables. You can also set them
   </thead>
   <tbody>
     <tr>
-      <td>`NR_CLI_ORACLE_HOST`</td>
-      <td>**Required.** The RDS Oracle endpoint.</td>
+      <td>`NR_CLI_ORACLE_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file.</td>
       <td>None</td>
     </tr>
     <tr>
-      <td>`NR_CLI_ORACLE_PORT`</td>
-      <td>Oracle listener port.</td>
-      <td>`1521`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_ADMIN_USER`</td>
-      <td>**Required.** RDS master username, used once to create the monitoring user and grant privileges.</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_ADMIN_PASSWORD`</td>
-      <td>**Required.** RDS master password.</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_NAME`</td>
-      <td>Monitoring username.</td>
-      <td>`newrelic`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_PASSWORD`</td>
-      <td>**Required.** Password for the monitoring login.</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_SERVICE_NAME`</td>
-      <td>**Required.** The RDS DB service name for the collector connection.</td>
+      <td>`NR_CLI_ORACLE_SECRETS_FILE`</td>
+      <td>**Required.** Path to the secrets file (`KEY=VALUE`, one RDS master username/password pair per instance; optionally `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>` to pin a monitoring password instead of auto-generating one).</td>
       <td>None</td>
     </tr>
     <tr>
@@ -317,6 +319,10 @@ The CLI prompts interactively for the following variables. You can also set them
     </tr>
   </tbody>
 </table>
+
+<Callout variant="tip">
+  To monitor more than one RDS Oracle endpoint from this collector, add more entries to the instances file and matching numbered credentials to the secrets file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install.
+</Callout>
 
 </Collapser>
 
@@ -369,6 +375,8 @@ ansible-galaxy install newrelic.newrelic_install
   title="Self-hosted Oracle Database"
 >
 
+This role monitors one or more Oracle Database instances (each reachable via SSH) from a single collector. Instead of a single host/container/credential set, it reads an **instances file** (YAML) that must already exist on the target host, listing every instance to monitor, and optionally a **secrets file** to pin monitoring-user passwords instead of auto-generating them. See the [CLI install](/docs/opentelemetry/database/otel-oracledb/#cli-install) section above for the exact file formats.
+
 Create a file named `playbook.yml` and copy the following content into it. Set `targets` to `oracle-otel` and replace the placeholder values with your own:
 
 ```yaml
@@ -383,14 +391,8 @@ Create a file named `playbook.yml` and copy the following content into it. Set `
     NEW_RELIC_API_KEY: <API key>
     NEW_RELIC_ACCOUNT_ID: <Account ID>
     NEW_RELIC_REGION: <Region>
-    NR_CLI_ORACLE_HOST: <Oracle Database host, default localhost>
-    NR_CLI_ORACLE_PORT: <Oracle listener port, default 1521>
-    NR_CLI_ORACLE_SSH_USER: <SSH user, default opc>
-    NR_CLI_ORACLE_CONTAINER_TYPE: <1 for CDB, 2 for PDB, default 1>
-    NR_CLI_ORACLE_PDB_NAME: <PDB name, only if container type is 2>
-    NR_CLI_ORACLE_LOGIN_NAME: <monitoring username, default newrelic>
-    NR_CLI_ORACLE_LOGIN_PASSWORD: <monitoring user password>
-    NR_CLI_ORACLE_SERVICE_NAME: <CDB or PDB service name>
+    NR_CLI_ORACLE_INSTANCES_FILE: <path to the instances YAML file on the target host>
+    NR_CLI_ORACLE_SECRETS_FILE: <optional path to a secrets file pinning monitoring passwords, on the target host>
     NR_CLI_ORACLE_CONFIG_PRESET: <1 for database only, 2 for host and database, default 1>
 ```
 
@@ -410,43 +412,13 @@ To enable debug logging, add `verbosity: "debug"` under `vars` in the playbook.
   </thead>
   <tbody>
     <tr>
-      <td>`NR_CLI_ORACLE_HOST`</td>
-      <td>Oracle Database host.</td>
-      <td>`localhost`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_PORT`</td>
-      <td>Oracle listener port.</td>
-      <td>`1521`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_SSH_USER`</td>
-      <td>SSH user for the Oracle Database host, used once to create the monitoring user and grant privileges via OS-authenticated SYSDBA access.</td>
-      <td>`opc`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_CONTAINER_TYPE`</td>
-      <td>Oracle container type: `1` for CDB (monitor all PDBs) or `2` for a single PDB.</td>
-      <td>`1`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_PDB_NAME`</td>
-      <td>PDB name. Required only when `NR_CLI_ORACLE_CONTAINER_TYPE` is `2`.</td>
+      <td>`NR_CLI_ORACLE_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file, already present on the target host.</td>
       <td>None</td>
     </tr>
     <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_NAME`</td>
-      <td>Monitoring username (created as `c##&lt;name&gt;` in CDB mode).</td>
-      <td>`newrelic`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_PASSWORD`</td>
-      <td>**Required.** The role installs non-interactively, so a real value must be supplied.</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_SERVICE_NAME`</td>
-      <td>**Required.** CDB or PDB service name for the collector connection.</td>
+      <td>`NR_CLI_ORACLE_SECRETS_FILE`</td>
+      <td>Optional. Path to a secrets file (`KEY=VALUE`) pinning `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>` per instance, already present on the target host. Leave unset to auto-generate a random password for every instance.</td>
       <td>None</td>
     </tr>
     <tr>
@@ -457,6 +429,10 @@ To enable debug logging, add `verbosity: "debug"` under `vars` in the playbook.
   </tbody>
 </table>
 
+<Callout variant="tip">
+  To monitor more than one Oracle Database instance from this collector, add more entries to the instances file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install.
+</Callout>
+
 </Collapser>
 
 <Collapser
@@ -464,7 +440,7 @@ To enable debug logging, add `verbosity: "debug"` under `vars` in the playbook.
   title="Oracle Database on AWS RDS"
 >
 
-Create a file named `playbook.yml` and copy the following content into it. Set `targets` to `oracle-otel-rds` and replace the placeholder values with your own:
+This role monitors one or more RDS Oracle endpoints from a single collector, using the same instances file / secrets file pattern as self-hosted (both files must already exist on the target host). Create a file named `playbook.yml` and copy the following content into it. Set `targets` to `oracle-otel-rds` and replace the placeholder values with your own:
 
 ```yaml
 - name: Install New Relic NRDOT for Oracle Database on RDS
@@ -478,13 +454,8 @@ Create a file named `playbook.yml` and copy the following content into it. Set `
     NEW_RELIC_API_KEY: <API key>
     NEW_RELIC_ACCOUNT_ID: <Account ID>
     NEW_RELIC_REGION: <Region>
-    NR_CLI_ORACLE_HOST: <RDS Oracle endpoint>
-    NR_CLI_ORACLE_PORT: <Oracle listener port, default 1521>
-    NR_CLI_ORACLE_ADMIN_USER: <RDS master username>
-    NR_CLI_ORACLE_ADMIN_PASSWORD: <RDS master password>
-    NR_CLI_ORACLE_LOGIN_NAME: <monitoring username, default newrelic>
-    NR_CLI_ORACLE_LOGIN_PASSWORD: <monitoring user password>
-    NR_CLI_ORACLE_SERVICE_NAME: <RDS DB service name>
+    NR_CLI_ORACLE_INSTANCES_FILE: <path to the instances YAML file on the target host>
+    NR_CLI_ORACLE_SECRETS_FILE: <path to the secrets file (KEY=VALUE per instance) on the target host>
     NR_CLI_ORACLE_CONFIG_PRESET: <1 for database only, 2 for host and database, default 1>
 ```
 
@@ -504,38 +475,13 @@ To enable debug logging, add `verbosity: "debug"` under `vars` in the playbook.
   </thead>
   <tbody>
     <tr>
-      <td>`NR_CLI_ORACLE_HOST`</td>
-      <td>**Required.** The RDS Oracle endpoint.</td>
+      <td>`NR_CLI_ORACLE_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file, already present on the target host.</td>
       <td>None</td>
     </tr>
     <tr>
-      <td>`NR_CLI_ORACLE_PORT`</td>
-      <td>Oracle listener port.</td>
-      <td>`1521`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_ADMIN_USER`</td>
-      <td>**Required.** RDS master username, used once to create the monitoring user and grant privileges.</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_ADMIN_PASSWORD`</td>
-      <td>**Required.** RDS master password.</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_NAME`</td>
-      <td>Monitoring username.</td>
-      <td>`newrelic`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_PASSWORD`</td>
-      <td>**Required.**</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_SERVICE_NAME`</td>
-      <td>**Required.** The RDS DB service name for the collector connection.</td>
+      <td>`NR_CLI_ORACLE_SECRETS_FILE`</td>
+      <td>**Required.** Path to the secrets file (`KEY=VALUE`, one RDS master username/password pair per instance; optionally `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>` to pin a monitoring password), already present on the target host.</td>
       <td>None</td>
     </tr>
     <tr>
@@ -545,6 +491,10 @@ To enable debug logging, add `verbosity: "debug"` under `vars` in the playbook.
     </tr>
   </tbody>
 </table>
+
+<Callout variant="tip">
+  To monitor more than one RDS Oracle endpoint from this collector, add more entries to the instances file and matching numbered credentials to the secrets file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install.
+</Callout>
 
 </Collapser>
 
@@ -611,6 +561,8 @@ Replace the default attributes in `attributes/default.rb` with your account deta
   title="Self-hosted Oracle Database"
 >
 
+This cookbook monitors one or more Oracle Database instances (each reachable via SSH) from a single collector. Instead of a single host/container/credential set, it reads an **instances file** (YAML) that must already exist on the node, listing every instance to monitor, and optionally a **secrets file** to pin monitoring-user passwords instead of auto-generating them. See the [CLI install](/docs/opentelemetry/database/otel-oracledb/#cli-install) section above for the exact file formats.
+
 ```ruby
 default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
 default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
@@ -618,14 +570,8 @@ default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
 default['newrelic_install']['targets'] = [
   'nrdot-collector-oracle'
 ]
-default['newrelic_install']['env']['NR_CLI_ORACLE_HOST']           = <Oracle Database host, default localhost>
-default['newrelic_install']['env']['NR_CLI_ORACLE_PORT']           = <Oracle listener port, default 1521>
-default['newrelic_install']['env']['NR_CLI_ORACLE_SSH_USER']       = <SSH user, default opc>
-default['newrelic_install']['env']['NR_CLI_ORACLE_CONTAINER_TYPE'] = <1 for CDB, 2 for PDB, default 1>
-default['newrelic_install']['env']['NR_CLI_ORACLE_PDB_NAME']       = <PDB name, only if container type is 2>
-default['newrelic_install']['env']['NR_CLI_ORACLE_LOGIN_NAME']     = <monitoring username, default newrelic>
-default['newrelic_install']['env']['NR_CLI_ORACLE_LOGIN_PASSWORD'] = <monitoring user password>
-default['newrelic_install']['env']['NR_CLI_ORACLE_SERVICE_NAME']   = <CDB or PDB service name>
+default['newrelic_install']['env']['NR_CLI_ORACLE_INSTANCES_FILE'] = <path to the instances YAML file on the node>
+default['newrelic_install']['env']['NR_CLI_ORACLE_SECRETS_FILE']   = <optional path to a secrets file pinning monitoring passwords, on the node>
 default['newrelic_install']['env']['NR_CLI_ORACLE_CONFIG_PRESET']  = <1 for database only, 2 for host and database, default 1>
 # See all available targets at: https://github.com/newrelic/chef-install
 ```
@@ -640,43 +586,13 @@ default['newrelic_install']['env']['NR_CLI_ORACLE_CONFIG_PRESET']  = <1 for data
   </thead>
   <tbody>
     <tr>
-      <td>`NR_CLI_ORACLE_HOST`</td>
-      <td>Oracle Database host.</td>
-      <td>`localhost`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_PORT`</td>
-      <td>Oracle listener port.</td>
-      <td>`1521`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_SSH_USER`</td>
-      <td>SSH user for the Oracle Database host, used once to create the monitoring user and grant privileges via OS-authenticated SYSDBA access.</td>
-      <td>`opc`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_CONTAINER_TYPE`</td>
-      <td>Oracle container type: `1` for CDB (monitor all PDBs) or `2` for a single PDB.</td>
-      <td>`1`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_PDB_NAME`</td>
-      <td>PDB name. Required only when `NR_CLI_ORACLE_CONTAINER_TYPE` is `2`.</td>
+      <td>`NR_CLI_ORACLE_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file, already present on the node.</td>
       <td>None</td>
     </tr>
     <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_NAME`</td>
-      <td>Monitoring username (created as `c##&lt;name&gt;` in CDB mode).</td>
-      <td>`newrelic`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_PASSWORD`</td>
-      <td>**Required.**</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_SERVICE_NAME`</td>
-      <td>**Required.** CDB or PDB service name for the collector connection.</td>
+      <td>`NR_CLI_ORACLE_SECRETS_FILE`</td>
+      <td>Optional. Path to a secrets file (`KEY=VALUE`) pinning `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>` per instance, already present on the node. Leave unset to auto-generate a random password for every instance.</td>
       <td>None</td>
     </tr>
     <tr>
@@ -693,12 +609,18 @@ No default attribute values are shipped for these variables — set the ones rel
 
 </Callout>
 
+<Callout variant="tip">
+  To monitor more than one Oracle Database instance from this collector, add more entries to the instances file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install.
+</Callout>
+
 </Collapser>
 
 <Collapser
   id="chef-rds"
   title="Oracle Database on AWS RDS"
 >
+
+This cookbook monitors one or more RDS Oracle endpoints from a single collector, using the same instances file / secrets file pattern as self-hosted (both files must already exist on the node).
 
 ```ruby
 default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
@@ -707,13 +629,8 @@ default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
 default['newrelic_install']['targets'] = [
   'nrdot-collector-oracle-rds'
 ]
-default['newrelic_install']['env']['NR_CLI_ORACLE_HOST']           = <RDS Oracle endpoint>
-default['newrelic_install']['env']['NR_CLI_ORACLE_PORT']           = <Oracle listener port, default 1521>
-default['newrelic_install']['env']['NR_CLI_ORACLE_ADMIN_USER']     = <RDS master username>
-default['newrelic_install']['env']['NR_CLI_ORACLE_ADMIN_PASSWORD'] = <RDS master password>
-default['newrelic_install']['env']['NR_CLI_ORACLE_LOGIN_NAME']     = <monitoring username, default newrelic>
-default['newrelic_install']['env']['NR_CLI_ORACLE_LOGIN_PASSWORD'] = <monitoring user password>
-default['newrelic_install']['env']['NR_CLI_ORACLE_SERVICE_NAME']   = <RDS DB service name>
+default['newrelic_install']['env']['NR_CLI_ORACLE_INSTANCES_FILE'] = <path to the instances YAML file on the node>
+default['newrelic_install']['env']['NR_CLI_ORACLE_SECRETS_FILE']   = <path to the secrets file (KEY=VALUE per instance) on the node>
 default['newrelic_install']['env']['NR_CLI_ORACLE_CONFIG_PRESET']  = <1 for database only, 2 for host and database, default 1>
 # See all available targets at: https://github.com/newrelic/chef-install
 ```
@@ -728,38 +645,13 @@ default['newrelic_install']['env']['NR_CLI_ORACLE_CONFIG_PRESET']  = <1 for data
   </thead>
   <tbody>
     <tr>
-      <td>`NR_CLI_ORACLE_HOST`</td>
-      <td>**Required.** The RDS Oracle endpoint.</td>
+      <td>`NR_CLI_ORACLE_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file, already present on the node.</td>
       <td>None</td>
     </tr>
     <tr>
-      <td>`NR_CLI_ORACLE_PORT`</td>
-      <td>Oracle listener port.</td>
-      <td>`1521`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_ADMIN_USER`</td>
-      <td>**Required.** RDS master username, used once to create the monitoring user and grant privileges.</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_ADMIN_PASSWORD`</td>
-      <td>**Required.** RDS master password.</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_NAME`</td>
-      <td>Monitoring username.</td>
-      <td>`newrelic`</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_LOGIN_PASSWORD`</td>
-      <td>**Required.**</td>
-      <td>None</td>
-    </tr>
-    <tr>
-      <td>`NR_CLI_ORACLE_SERVICE_NAME`</td>
-      <td>**Required.** The RDS DB service name for the collector connection.</td>
+      <td>`NR_CLI_ORACLE_SECRETS_FILE`</td>
+      <td>**Required.** Path to the secrets file (`KEY=VALUE`, one RDS master username/password pair per instance; optionally `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>` to pin a monitoring password), already present on the node.</td>
       <td>None</td>
     </tr>
     <tr>
@@ -769,6 +661,16 @@ default['newrelic_install']['env']['NR_CLI_ORACLE_CONFIG_PRESET']  = <1 for data
     </tr>
   </tbody>
 </table>
+
+<Callout variant="tip">
+
+No default attribute values are shipped for these variables — set the ones relevant to your target explicitly via `default['newrelic_install']['env'][...]`.
+
+</Callout>
+
+<Callout variant="tip">
+  To monitor more than one RDS Oracle endpoint from this collector, add more entries to the instances file and matching numbered credentials to the secrets file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install.
+</Callout>
 
 </Collapser>
 
@@ -1027,6 +929,90 @@ setupJob:
 
   See the chart's [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/oracle-otel/values.yaml) for all available configuration options.
 
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Monitor multiple instances from one release [#helm-multi]
+
+Instead of `oracle.*`, set `oracleMulti.enabled: true` to monitor several Oracle Database instances from a single collector pod in one release. The two modes are mutually exclusive: don't set `oracle.endpoint` and `oracleMulti.enabled: true` in the same release. Every instance in a release must share the same `oracleMulti.topology` (`cdb`, `pdb`, `rds`, or `adb`) — mixing topologies, for example an RDS instance and a self-hosted CDB, isn't supported in one release; use a separate release for each topology instead.
+
+Multi-instance mode has no plain-username/password path — every instance needs its own Kubernetes secret with monitoring credentials, and, if you want the setup job to create each monitoring user for you, its own admin-credentials secret too:
+
+```bash
+kubectl create secret generic db1-monitor-creds \
+  --from-literal=username=<MONITORING_USERNAME> \
+  --from-literal=password='<MONITORING_PASSWORD>' \
+  -n newrelic
+kubectl create secret generic db1-admin-creds \
+  --from-literal=username=<ADMIN_USERNAME> \
+  --from-literal=password='<ADMIN_PASSWORD>' \
+  -n newrelic
+# Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+```
+
+```yaml
+licenseKey: <YOUR_LICENSE_KEY>
+otlpEndpoint: otlp.nr-data.net:4317
+
+oracleMulti:
+  enabled: true
+  topology: <cdb|pdb|rds|adb>
+  collectionInterval: 10s
+  databases:
+    - name: db1
+      endpoint: <YOUR_DB_1_HOST>:<YOUR_DB_1_PORT>
+      service: <YOUR_DB_1_SERVICE_NAME>
+      existingSecret: db1-monitor-creds
+      oracleAdmin:
+        existingSecret: db1-admin-creds
+    - name: db2
+      endpoint: <YOUR_DB_2_HOST>:<YOUR_DB_2_PORT>
+      service: <YOUR_DB_2_SERVICE_NAME>
+      existingSecret: db2-monitor-creds
+      oracleAdmin:
+        existingSecret: db2-admin-creds
+
+setupJob:
+  enabled: true
+  image:
+    repository: ""
+    tag: ""
+```
+
+Omit each entry's `oracleAdmin.existingSecret` and set `setupJob.enabled: false` if you've already created the monitoring users yourself.
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`oracleMulti.enabled`</td>
+      <td>Set to `true` to monitor multiple instances from one release instead of `oracle.*`. Defaults to `false`.</td>
+    </tr>
+    <tr>
+      <td>`oracleMulti.topology`</td>
+      <td>`cdb`, `pdb`, `rds`, or `adb` — same meaning as `oracle.topology`, shared by every instance in this release.</td>
+    </tr>
+    <tr>
+      <td>`oracleMulti.collectionInterval`</td>
+      <td>Default scrape interval for every entry. Override it for a specific instance with that entry's own `collectionInterval`.</td>
+    </tr>
+    <tr>
+      <td>`oracleMulti.databases`</td>
+      <td>List of instances to monitor. Each entry requires a unique `name`, `endpoint` (`host:port`), `service`, and `existingSecret`; add `oracleAdmin.existingSecret` per entry only when `setupJob.enabled` is `true`.</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  Unlike the other NRDOT Helm charts, Oracle lets you override `collectionInterval` per instance. Every other scrape setting still applies identically to every instance — use `additionalReceiverConfig` for anything else that needs to differ. The setup job runs once per instance (`<release>-setup-<name>`) rather than once per release.
 </Callout>
 
 </Step>

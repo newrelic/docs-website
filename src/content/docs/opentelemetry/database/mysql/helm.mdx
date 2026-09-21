@@ -20,7 +20,7 @@ freshnessValidatedDate: never
 You can install and configure MySQL monitoring on Kubernetes using the `mysql-otel` Helm chart. Depending on how you provide credentials, the chart can also run a setup job that creates the monitoring user for you.
 
 <Callout variant="important">
-  The chart deploys the collector as a Kubernetes Deployment that reaches MySQL remotely over the network. As a result it always connects over TCP (Unix-socket monitoring isn't supported), and it reports MySQL metrics only — no host or infrastructure metrics for the machine MySQL runs on. It also monitors one MySQL instance per release, so install the chart once per database.
+  The chart deploys the collector as a Kubernetes Deployment that reaches MySQL remotely over the network. As a result it always connects over TCP (Unix-socket monitoring isn't supported), and it reports MySQL metrics only — no host or infrastructure metrics for the machine MySQL runs on. Using `mysql.*`, it monitors one MySQL instance per release; to monitor several instances from a single release, use `mysqlMulti.*` instead (see [Monitor multiple instances from one release](#helm-multi) below).
 </Callout>
 
 <Steps>
@@ -245,6 +245,80 @@ setupJob:
 
   See the chart's [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/mysql-otel/values.yaml) for all available configuration options, including `mysql.collectionInterval`, `mysql.explainMode`, the `statementEvents`/`querySampleCollection`/`topQueryCollection` blocks, and the `additionalReceiverConfig` escape hatch.
 
+</Callout>
+
+</Step>
+
+<Step>
+
+### (Optional) Monitor multiple instances from one release [#helm-multi]
+
+Instead of `mysql.*`, set `mysqlMulti.enabled: true` to monitor several MySQL instances — self-hosted or RDS — from a single collector pod in one release. The two modes are mutually exclusive: don't set `mysql.server` and `mysqlMulti.enabled: true` in the same release.
+
+Multi-instance mode has no plain-username/password path — every instance needs its own Kubernetes secret with monitoring credentials, and, if you want the setup job to create each monitoring user for you, its own admin-credentials secret too:
+
+```bash
+kubectl create secret generic db1-monitor-creds \
+  --from-literal=username=<MONITORING_USERNAME> \
+  --from-literal=password='<MONITORING_PASSWORD>' \
+  -n newrelic
+kubectl create secret generic db1-admin-creds \
+  --from-literal=username=<ADMIN_USERNAME> \
+  --from-literal=password='<ADMIN_PASSWORD>' \
+  -n newrelic
+# Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+```
+
+```yaml
+licenseKey: <YOUR_LICENSE_KEY>
+otlpEndpoint: otlp.nr-data.net:4317
+
+mysqlMulti:
+  enabled: true
+  topology: <self-hosted|rds>
+  databases:
+    - name: db1
+      server: <YOUR_DB_1_HOST>
+      existingSecret: db1-monitor-creds
+      mysqlAdmin:
+        existingSecret: db1-admin-creds
+    - name: db2
+      server: <YOUR_DB_2_HOST>
+      existingSecret: db2-monitor-creds
+      mysqlAdmin:
+        existingSecret: db2-admin-creds
+
+setupJob:
+  enabled: true
+```
+
+Omit each entry's `mysqlAdmin.existingSecret` and set `setupJob.enabled: false` if you've already created the monitoring users yourself.
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`mysqlMulti.enabled`</td>
+      <td>Set to `true` to monitor multiple instances from one release instead of `mysql.*`. Defaults to `false`.</td>
+    </tr>
+    <tr>
+      <td>`mysqlMulti.topology`</td>
+      <td>`self-hosted` or `rds`, same meaning as `mysql.topology`, shared by every instance in this release.</td>
+    </tr>
+    <tr>
+      <td>`mysqlMulti.databases`</td>
+      <td>List of instances to monitor. Each entry requires a unique `name`, `server` (`port` defaults to `3306`), and `existingSecret`; `database` optionally restricts monitoring to one database (same meaning as `mysql.database`); add `mysqlAdmin.existingSecret` per entry only when `setupJob.enabled` is `true`.</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  Scrape settings (collection interval, TLS, statement events, query sample collection, top query collection) apply identically to every instance in `mysqlMulti.databases` — there's no per-instance override. Use `additionalReceiverConfig` for anything that needs to differ. The setup job runs once per instance (`<release>-setup-<name>`) rather than once per release.
 </Callout>
 
 </Step>

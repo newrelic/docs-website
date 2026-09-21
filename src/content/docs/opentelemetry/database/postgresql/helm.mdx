@@ -331,6 +331,93 @@ setupJob:
 
 <Step>
 
+### (Optional) Monitor multiple instances from one release [#helm-multi]
+
+Instead of `postgresql.*`, set `postgresqlMulti.enabled: true` to monitor several PostgreSQL instances — self-hosted or RDS — from a single collector pod in one release. The two modes are mutually exclusive: don't set `postgresql.server` and `postgresqlMulti.enabled: true` in the same release.
+
+Entries are called `instances`, not `databases` — each instance is a separate PostgreSQL server, and each one carries its own nested `databases` list (the individual databases to monitor on that instance), the same way `postgresql.databases` works in single-instance mode.
+
+Multi-instance mode has no plain-username/password path — every instance needs its own Kubernetes secret with monitoring credentials, and, if you want the setup job to create each monitoring role for you, its own admin-credentials secret too:
+
+```bash
+kubectl create secret generic db1-monitor-creds \
+  --from-literal=username=<MONITORING_USERNAME> \
+  --from-literal=password='<MONITORING_PASSWORD>' \
+  -n newrelic
+kubectl create secret generic db1-admin-creds \
+  --from-literal=username=<ADMIN_USERNAME> \
+  --from-literal=password='<ADMIN_PASSWORD>' \
+  -n newrelic
+# Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+```
+
+```yaml
+licenseKey: <YOUR_LICENSE_KEY>
+otlpEndpoint: otlp.nr-data.net:4317
+
+postgresqlMulti:
+  enabled: true
+  topology: <self-hosted|rds>
+  instances:
+    - name: db1
+      server: <YOUR_DB_1_HOST>
+      port: 5432
+      existingSecret: db1-monitor-creds
+      databases:
+        - appdb1
+      postgresAdmin:
+        existingSecret: db1-admin-creds
+    - name: db2
+      server: <YOUR_DB_2_HOST>
+      port: 5432
+      existingSecret: db2-monitor-creds
+      databases:
+        - appdb2
+      postgresAdmin:
+        existingSecret: db2-admin-creds
+
+setupJob:
+  enabled: true
+  image:
+    # -- psql-capable image. No default: the official postgres
+    # image bundles psql and is a reasonable choice.
+    repository: postgres
+    tag: "16"
+```
+
+Omit each entry's `postgresAdmin.existingSecret` and set `setupJob.enabled: false` if you've already created the monitoring roles and their per-database grants yourself.
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`postgresqlMulti.enabled`</td>
+      <td>Set to `true` to monitor multiple instances from one release instead of `postgresql.*`. Defaults to `false`.</td>
+    </tr>
+    <tr>
+      <td>`postgresqlMulti.topology`</td>
+      <td>`self-hosted` or `rds`, same meaning as `postgresql.topology`, shared by every instance in this release.</td>
+    </tr>
+    <tr>
+      <td>`postgresqlMulti.instances`</td>
+      <td>List of instances to monitor. Each entry requires a unique `name`, `server` (`port` defaults to `5432`), `existingSecret`, and a **required, non-empty** `databases` list of database names on that instance; add `postgresAdmin.existingSecret` per entry only when `setupJob.enabled` is `true`.</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  `setupJob.enableExplainPermissions` and `setupJob.enablePgvector` are single toggles shared across every database in every instance — they can't be set per-instance. Scrape settings (collection interval, metrics, `topQueryCollection`/`querySampleCollection`) likewise apply identically to every instance in `postgresqlMulti.instances` — there's no per-instance override. Use `additionalReceiverConfig` for anything that needs to differ. The setup job runs once per instance (`<release>-setup-<name>`) rather than once per release.
+</Callout>
+
+</Step>
+
+<Step>
+
 ### Install the Helm chart [#helm-install]
 
 1. Add the New Relic Helm repository:
