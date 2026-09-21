@@ -1,0 +1,146 @@
+---
+title: EAS Build用にReact Nativeエージェントを設定します。
+tags:
+  - Mobile monitoring
+  - New Relic Mobile React Native
+  - Install configure
+metaDescription: 'How to configure the New Relic React Native agent''s Expo config plugin to automatically upload source maps, dSYMs, and Android mapping files from EAS Build.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[EAS Build](https://docs.expo.dev/build/introduction/)を使用してReact Nativeアプリをビルドする場合、ExpoのContinuous Native Generation（CNG）は、ローカルとEASのビルドサーバーの両方で、`expo prebuild`ステップごとに`android/`および`ios/`フォルダーをゼロから再生成します。つまり、手動で追加した`newrelic.properties`ファイルや、手作業で追加したXcodeの<DNT>**Run Script**</DNT>ビルドフェーズは、次のビルドで消去されます。
+
+`newrelic-react-native-agent`の[設定プラグイン](https://docs.expo.dev/guides/config-plugins/)は、プレビルドのたびにNew Relicのビルド設定を再生成することでこの問題を解決します。これにより、[Androidのマッピングファイルとソースマップのアップロード](#android)、および[iOSのdSYMとソースマップのアップロード](#ios)が、EASビルド全体で引き続き機能するようになります。プラグインはビルド時に環境変数から認証情報を読み取り、リポジトリにコミットすることはありません。
+
+<Callout variant="tip">
+  このページでは、「[Expoとの統合](/docs/mobile-monitoring/new-relic-monitoring-react-native/monitor-your-react-native-application#optional-expo-integration)」で説明されているように、React Nativeエージェントをすでにインストールし、`app.json`または`app.config.js`に設定プラグインを追加していることを前提としています。これには最新バージョンの`newrelic-react-native-agent`が必要です — 以下のプラグインオプションがまだ利用できない場合は、パッケージの[GitHubリリース](https://github.com/newrelic/newrelic-react-native-agent/releases)を確認してください。
+</Callout>
+
+## あなたが始める前に [#prerequisites]
+
+同じNew Relicアカウントから以下を取得します：
+
+* [ユーザーAPIキー](/docs/apis/intro-apis/new-relic-api-keys/#user-key)。
+* Androidおよび/またはiOSの[アプリケーション・トークン](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token)（`NewRelic.startAgent()`に渡すトークンと同じものです）。両方のプラットフォームにリリースする場合は、プラットフォームごとに1つのトークンが必要です。
+
+## EAS環境変数を設定します [#eas-environment-variables]
+
+ユーザーAPIキーとアプリケーショントークンを、ビルドする環境をスコープとして、[EAS環境変数](https://docs.expo.dev/eas/environment-variables/)として登録します：
+
+```shell
+eas env:create --environment production --name NEWRELIC_USER_API_KEY --value <YOUR_USER_API_KEY> --visibility sensitive
+eas env:create --environment production --name NEWRELIC_ANDROID_APP_TOKEN --value <YOUR_ANDROID_APP_TOKEN> --visibility sensitive
+eas env:create --environment production --name NEWRELIC_IOS_APP_TOKEN --value <YOUR_IOS_APP_TOKEN> --visibility sensitive
+```
+
+<Callout variant="important">
+  `--visibility secret`は使用しないでください。EASは独自の認証情報システム用にシークレット可視性変数を予約しているため、EASがそれらを`process.env`としてビルドスクリプトに公開することはありません — 設定プラグインはそれらを認識せず、AndroidプロパティファイルやiOSビルドフェーズの認証情報の書き込みを暗黙のうちにスキップします。代わりに、`plaintext`または`sensitive`を使用してください。
+
+  EAS Buildは、ビルドがEASのサーバーで実行されるか、`eas build --local`を使用してローカルで実行されるかにかかわらず、`prebuild`を実行する前に`plaintext`/`sensitive`変数を解決します。
+</Callout>
+
+## Android：マッピングファイルとソースマップの自動アップロード [#android]
+
+追加の設定を行わない場合、プラグインは`NEWRELIC_USER_API_KEY`からユーザーAPIキーを、`NEWRELIC_ANDROID_APP_TOKEN`からAndroidアプリケーショントークンを読み取り、プレビルドのたびにそれらを`android/app/newrelic.properties`に書き込みます：
+
+```js
+{
+  "name": "my app",
+  "plugins": ["newrelic-react-native-agent"]
+}
+```
+
+これらのプロパティは、各リリースビルド後にProGuard/R8マッピングファイルとReact Nativeソースマップのアップロードを認証するために、エージェントの`newrelicMapUploadRelease`および`newrelicReactNativeSourceMapUploadRelease` Gradleタスクが読み取るものです。このアップロードの仕組み（および必要に応じて手動でアップロードする方法）の詳細については、[React Native JavaScriptエラーレポート](/docs/mobile-monitoring/new-relic-monitoring-react-native/react-native-agent-js-error-reporting#automatic-upload-android)をご覧ください。
+
+2つの環境変数のうち1つだけが設定されている場合、プラグインは引き続きその単一のプロパティを書き込み、Gradleタスクはビルドを失敗させるのではなく、どちらが欠落しているかをログに記録します。どちらも設定されていない場合、プラグインは`newrelic.properties`を変更せず、両方のタスクはログメッセージを出力してアップロードをスキップします。
+
+### カスタム環境変数名の使用（Android） [#android-custom-env-vars]
+
+異なる名前の環境変数からキーとトークンを取得するには、それらを明示的に渡します：
+
+```js
+{
+  "name": "my app",
+  "plugins": [
+    [
+      "newrelic-react-native-agent",
+      {
+        "android": {
+          "apiKeyEnvName": "MY_NR_USER_API_KEY",
+          "appTokenEnvName": "MY_NR_ANDROID_APP_TOKEN"
+        }
+      }
+    ]
+  ]
+}
+```
+
+## iOS：dSYMとソースマップの自動アップロード [#ios]
+
+Androidとは異なり、dSYMおよびReact Nativeのソースマップ・アップロード・スクリプト（[`dsym-upload-tools`](https://github.com/newrelic/newrelic-ios-agent-spm/tree/main/dsym-upload-tools)フォルダーの`run-symbol-tool`および`upload-react-native-sourcemap`）は`NewRelicAgent` CocoaPod内に同梱されておらず、通常はXcodeで手動で追加された<DNT>**Run Script**</DNT>ビルド・フェーズを必要とします — これは`expo prebuild`が`ios/`を再生成する際には保持されません。代わりに、プレビルドのたびにプラグインは以下を行います：
+
+* 両方のスクリプトを`ios/dsym-upload-tools`にコピーします。
+* ビルド時に環境変数から認証情報を読み取り、それらを呼び出す「Upload dSYMs and Source Maps to New Relic」という名前の<DNT>**Run Script**</DNT>ビルドフェーズを（「Bundle React Native code and images」の後に）追加します — 生成されたスクリプトは名前で認証情報を参照するだけで、ファイルに書き込むことはありません。
+* Expoのデフォルトテンプレートでは設定されておらず、そうしないとExpoがソースマップを生成しないため、「Bundle React Native code and images」フェーズが`SOURCEMAP_FILE`をエクスポートするようにします。
+
+追加の設定を行わない場合、ビルドフェーズはiOSアプリケーショントークンを`NEWRELIC_IOS_APP_TOKEN`から、ユーザーAPIキーを`NEWRELIC_USER_API_KEY`から読み取ります（[Androidのデフォルト](#android)と共有）：
+
+```js
+{
+  "name": "my app",
+  "plugins": ["newrelic-react-native-agent"]
+}
+```
+
+これらのスクリプトの機能や、Expo外でのdSYMアップロードの仕組みに関する背景情報については、[dSYMのアップロード](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps)をご覧ください。
+
+<Callout variant="tip">
+  両方のスクリプトは<DNT>**Release**</DNT>ビルドに対してのみ実行され、デフォルトではシミュレータービルドをスキップします。シミュレーターでソースマップのアップロードパスをテストするには、`NEWRELIC_SOURCEMAP_ALLOW_SIMULATOR=true`を設定します。
+</Callout>
+
+### カスタム環境変数名の使用（iOS） [#ios-custom-env-vars]
+
+異なる名前の環境変数からトークンとキーを取得するには、それらを明示的に渡します：
+
+```js
+{
+  "name": "my app",
+  "plugins": [
+    [
+      "newrelic-react-native-agent",
+      {
+        "ios": {
+          "appTokenEnvName": "MY_NR_IOS_APP_TOKEN",
+          "apiKeyEnvName": "MY_NR_USER_API_KEY"
+        }
+      }
+    ]
+  ]
+}
+```
+
+## アップロードの検証 [#verify-upload]
+
+EASビルドを実行した後、各プラットフォームのビルドログを確認してください：
+
+* **Android**：ログ内の`newrelicMapUploadRelease`および`newrelicReactNativeSourceMapUploadRelease` Gradleタスクを探します。正常に実行されると、マッピングファイルとソースマップが検出およびアップロードされたことが報告され、missing-config警告は表示されません。
+* **iOS**：「Upload dSYMs and Source Maps to New Relic」の実行スクリプトステップを探します。認証情報が欠落している場合、ビルドを失敗させるのではなく、どの認証情報が欠落しているかをログに記録し、そのアップロードをスキップします（例：`NEWRELIC_IOS_APP_TOKEN not set, skipping...`）。認証情報が存在する場合、dSYMとソースマップを処理し、それらをNew Relicにアップロードしていることをログに記録します。
+
+ビルドが成功したら、[「React Nativeソースマップの一覧表示と削除」](/docs/mobile-monitoring/new-relic-monitoring-react-native/list-delete-react-native-source-maps)を参照して、ソースマップが実際にNew Relicに送信されたことを確認してください。
+
+## トラブルシューティング [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="eas-env-not-picked-up" title="プラグインが環境変数を読み込んでいません。">
+    EAS環境変数が`--visibility secret`ではなく、`--visibility plaintext`または`--visibility sensitive`で設定されていることを確認してください。EASは可視性がシークレットの変数を`process.env`としてビルド・スクリプトに公開することはないため、設定プラグインはそれらを読み取ることができません。確認するには、`eas env:list --environment <your-environment>`を実行してください。
+  </Collapser>
+
+  <Collapser id="eas-changes-not-applied" title="app.json/app.config.jsへの変更がビルドに反映されません">
+    configプラグインは`expo prebuild`の間にのみ実行されます。ローカルでテストしている場合は、`expo prebuild --clean`を実行して、プラグインの変更を反映した`android/`と`ios/`を再生成してください。EAS Buildはビルドの一部として`prebuild`を自動的に実行するため、これはローカルでのテストにのみ影響します。
+  </Collapser>
+
+  <Collapser id="eas-build-succeeds-no-upload" title="ビルドは成功しますが、アップロードが行われていることを確認できません">
+    ビルドが成功しても、アップロードが成功したとは限りません — 必要な環境変数が欠落している場合、Android GradleタスクとiOS実行スクリプトの両方が（ビルドを失敗させることなく）暗黙のうちにスキップします。[アップロードの確認](#verify-upload)で説明されているスキップメッセージがビルドログにあるか確認し、変数名が[Android](#android-custom-env-vars)または[iOS](#ios-custom-env-vars)用に設定したものと一致しているかを再確認してください。
+  </Collapser>
+</CollapserGroup>
