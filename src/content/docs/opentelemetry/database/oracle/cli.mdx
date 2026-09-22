@@ -1,0 +1,214 @@
+---
+title: "CLI install for Oracle Database monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - CLI
+metaDescription: Install and configure the NRDOT Collector for Oracle Database monitoring using the New Relic CLI
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: Oracle-Database-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/database/oracle/introduction
+  next: null
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+You can install and configure the NRDOT Collector for Oracle Database monitoring using the New Relic CLI. The CLI installs the collector, creates the monitoring database user, and configures the collector in a single command.
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+* Valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key), `NEW_RELIC_API_KEY`, and `NEW_RELIC_ACCOUNT_ID`.
+* Oracle Database 19c or later.
+* For self-hosted Oracle: Oracle Linux 7, 8, or 9, with `curl` and `systemd` installed, and SSH access (with agent forwarding) to the Oracle Database host where the SSH user can run `sudo su - oracle` without a password prompt.
+* For Oracle on AWS RDS: a collector host running Debian/Ubuntu or CentOS/RHEL/OEL, with `curl` and `systemd` installed, and network connectivity from the collector host to the RDS Oracle endpoint.
+
+</Step>
+
+<Step>
+
+## Install and configure the NRDOT Collector [#install]
+
+<CollapserGroup>
+
+<Collapser
+  id="cli-host"
+  title="Self-hosted Oracle Database"
+>
+
+This recipe monitors one or more Oracle Database instances (each reachable via SSH) from a single collector. Instead of prompting for a single host/container/credential set, it reads an **instances file** (YAML) listing every instance to monitor, and optionally a **secrets file** to pin specific monitoring-user passwords instead of auto-generating them.
+
+Before you run this command, have ready:
+
+* SSH access (with agent forwarding) to every Oracle Database host listed, where each `ssh_user` can run `sudo su - oracle` without a password prompt
+* Container type per instance (CDB for all PDBs, or a single PDB name)
+* CDB or PDB service name per instance
+* Whether you want database-only or host + database metrics
+
+1. Create the instances file. Add one entry per Oracle Database instance you want this collector to monitor — still just one entry if you're only monitoring a single instance:
+
+    ```bash
+    cat > ~/oracle-instances.yml << 'EOF'
+    instances:
+      - host: dbhost1.example.com
+        port: 1521
+        ssh_user: opc
+        container_type: 1
+        pdb_name:
+        service: ORCLCDB
+        login_name: newrelic
+    EOF
+    ```
+
+    `container_type` is `1` for CDB (monitors all PDBs, creates a common `c##<login_name>` user) or `2` for a single PDB (`pdb_name` required only then). Enter `login_name` without the `c##` prefix — the recipe adds it for you in CDB mode.
+
+2. (Optional) Create a secrets file to pin a fixed monitoring-user password per instance instead of letting the recipe auto-generate one. Self-hosted Oracle needs no admin credentials here — the monitoring user is created via SSH and OS-authenticated SYSDBA access:
+
+    ```bash
+    umask 077
+    cat > ~/oracle-secrets.env << 'EOF'
+    NR_CLI_ORACLE_LOGIN_PASSWORD_1=SomeFixedPassword1
+    EOF
+    chmod 600 ~/oracle-secrets.env
+    ```
+
+    Leave the secrets file path blank (or point it at a file that doesn't exist) to auto-generate a random password for every instance instead.
+
+Run this from a host with SSH access (with agent forwarding) to every Oracle Database host listed in your instances file:
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle
+```
+
+The CLI prompts interactively for the following variables. You can also set them ahead of time as environment variables to run non-interactively.
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`NR_CLI_ORACLE_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_ORACLE_SECRETS_FILE`</td>
+      <td>Optional. Path to a secrets file (`KEY=VALUE`) pinning `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>` per instance. Leave unset to auto-generate a random password for every instance.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_ORACLE_CONFIG_PRESET`</td>
+      <td>`1` for database metrics only, `2` for host and database metrics.</td>
+      <td>`1`</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  To monitor more than one Oracle Database instance from this collector, add more entries to the instances file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install. Re-running against an instance that already has a monitoring user prompts interactively to reuse it or create a new one — this one step isn't fully scriptable.
+</Callout>
+
+</Collapser>
+
+<Collapser
+  id="cli-rds"
+  title="Oracle Database on AWS RDS"
+>
+
+This recipe monitors one or more RDS Oracle endpoints from a single collector, using an instances file plus a secrets file.
+
+Before you run this command, have ready:
+
+* RDS Oracle endpoint, listener port, and DB service name for every instance
+* RDS master username and password for every instance
+* Whether you want database-only or host + database metrics
+
+1. Create the instances file — one entry per RDS Oracle endpoint you want this collector to monitor, still just one entry if you're only monitoring a single instance:
+
+    ```bash
+    cat > ~/oracle-instances.yml << 'EOF'
+    instances:
+      - host: rds-orders.abcdef123.us-east-1.rds.amazonaws.com
+        port: 1521
+        service: ORDERSDB
+        login_name: newrelic
+    EOF
+    ```
+
+2. Create the secrets file with the RDS master username and password for each instance, indexed to match the instances file's order. You can optionally pin a fixed monitoring-user password per instance too — leave it out to auto-generate one:
+
+    ```bash
+    umask 077
+    cat > ~/oracle-secrets.env << 'EOF'
+    NR_CLI_ORACLE_ADMIN_USER_1=admin
+    NR_CLI_ORACLE_ADMIN_PASSWORD_1=YourMasterPassword1
+    EOF
+    chmod 600 ~/oracle-secrets.env
+    ```
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle-rds
+```
+
+The CLI prompts interactively for the following variables. You can also set them ahead of time as environment variables to run non-interactively.
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`NR_CLI_ORACLE_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_ORACLE_SECRETS_FILE`</td>
+      <td>**Required.** Path to the secrets file (`KEY=VALUE`, one RDS master username/password pair per instance; optionally `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>` to pin a monitoring password instead of auto-generating one).</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_ORACLE_CONFIG_PRESET`</td>
+      <td>`1` for database metrics only, `2` for host and database metrics.</td>
+      <td>`1`</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  To monitor more than one RDS Oracle endpoint from this collector, add more entries to the instances file and matching numbered credentials to the secrets file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install.
+</Callout>
+
+</Collapser>
+
+</CollapserGroup>
+
+</Step>
+
+</Steps>
+
+To find your Oracle Database entity in New Relic, see [Find and use your data](/docs/opentelemetry/database/oracle/introduction/#find).
