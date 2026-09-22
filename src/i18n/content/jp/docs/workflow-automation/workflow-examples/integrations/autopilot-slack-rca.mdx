@@ -7,12 +7,12 @@ tags:
   - slack
   - RCA
   - incident response
-metaDescription: Trigger Autopilot to investigate a New Relic alert and post the root cause analysis findings to a Slack channel.
-freshnessValidatedDate: never
+metaDescription: Use Autopilot to run a root cause analysis on a New Relic alert and post findings to Slack. Includes the canonical selector pattern for handling Autopilot's variable finalAnswer response shape.
+freshnessValidatedDate: '2026-09-09T00:00:00.000Z'
 translationType: machine
 ---
 
-集計が発生したときに、[Autopilot](/docs/agentic-ai/autopilot/overview)をトリガーして根本原因分析を実行し、その結果を直接Slackチャンネルに投稿します。Autopilotが使用可能な応答を返さない場合、チームが手動で調査する必要があることを把握できるように、ワークフローは代わりにエラー通知を送信します。
+集計が発生した場合、<DNT>[Autopilot](/docs/agentic-ai/autopilot/overview)</DNT>をトリガーして根本原因分析を実行し、調査結果を直接Slackチャンネルに投稿します。Autopilotが使用可能な応答を返さない場合、チームが手動で調査する必要があることを把握できるように、ワークフローは代わりにエラー通知を送信します。
 
 このワークフローを使用する前に、以下のことを確認してください：
 
@@ -21,18 +21,26 @@ translationType: machine
 * 宛先のUUIDとターゲットのSlackチャンネル名
 
 <Callout variant="tip">
-  集計ワークフローからこのワークフローをトリガーする場合は、`issueId`入力の値として`{{ issueId }}`を使用してください。この変数は、トリガーとなった集計の問題IDをワークフローに自動的に渡します。
+  <DNT>**Alert Workflows**</DNT> からこのワークフローをトリガーする場合は、`issueId` 入力の値として `{{ issueId }}` を使用してください。この変数は、トリガーとなった集計の問題IDをワークフローに自動的に渡します。
 </Callout>
 
 このワークフローでは、次の手順を完了します：
 
 1. 集計を認識し、RCAが進行中であることをチームに知らせるための最初のSlackメッセージを送信します
-2. 集計課題IDをスコープとした根本原因分析プロンプトを使用してAutopilotを実行します
-3. Autopilotが使用可能な応答を返したかどうかを確認します。
-4. 成功時: Autopilotが成功した場合、応答をSlack Block Kitブロックとして再フォーマットし、結果をSlackに投稿します。
-5. 失敗時：Autopilotが失敗した場合、問題IDを含むエラーメッセージを投稿します。
+2. 集計の課題IDにスコープされた根本原因分析プロンプトを使用して、<DNT>Autopilot</DNT>を実行します
+3. <DNT>Autopilot</DNT> が使用可能なレスポンスを返したかどうかを確認します
+4. <DNT>Autopilot</DNT> が成功した場合、レスポンスを Slack Block Kit ブロックとして再フォーマットし、結果を Slack に投稿します
+5. <DNT>Autopilot</DNT>が失敗した場合、課題IDを含むエラーメッセージを投稿します。
 
-このワークフローは`newrelic.autopilot.run`を使用し、 `newrelic.notification.sendSlack`
+このワークフローは`newrelic.autopilot.run`と`newrelic.notification.sendSlack`を使用します。
+
+<Callout variant="important">
+  セレクター `expression` の値は1行で記述する必要があります。複数行のYAMLブロックスカラー（`|` または `|-`）はセレクター式に対して評価されず、エラーを出さずに何も出力されません。
+</Callout>
+
+<Callout variant="tip">
+  プロンプトのコンテキストに応じて、Autopilotの`finalAnswer`フィールドはプレーン文字列またはJSONエンコードされたオブジェクトのいずれかとして返される場合があります。このワークフローの`analysisText`セレクターは、両方の形式を自動的に処理します。
+</Callout>
 
 ```yaml
 name: autopilotSlackRCA
@@ -78,21 +86,23 @@ steps:
         Issue ID: ${{ .workflowInputs.issueId }}
         Provide your comprehensive analysis including Summary, Root Cause, and Remediation Actions.
       selectors:
-        - name: agentResponse
+        - name: analysisRaw
           expression: .response.finalAnswer
+        - name: analysisText
+          expression: '(.response.finalAnswer | if type=="string" then fromjson else . end).card.body | map(.value) | join("\n\n")'
     ignoreErrors: true
 
   - name: checkAgentResponse
     type: switch
     switch:
-      - condition: ${{ (.steps.runAutopilot.outputs.agentResponse // "") != "" }}
+      - condition: ${{ (.steps.runAutopilot.outputs.analysisRaw // "") != "" }}
         next: buildSlackBlocks
     next: sendAutopilotError
 
   - name: buildSlackBlocks
     type: assign
     inputs:
-      blocks: '${{ (.steps.runAutopilot.outputs.agentResponse // "") as $r | (if ($r|type)=="string" then ($r | try fromjson catch null) else $r end) as $json | (if ($json|type)=="array" then ($json[0].text // ($json | tostring)) elif ($json|type)=="object" and ($json.card.body|type)=="array" then [ $json.card.body[] | if .type=="Text" then (.value // "") else "" end ] | join("\n\n") elif ($json|type)=="object" and ($json.text|type)=="string" then $json.text else ($r | tostring) end) | gsub("\\*\\*"; "*") | gsub("### "; "*") | gsub("## "; "*") as $text | ([ $text / "\n" ]) as $lines | [ { "type": "header", "text": { "type": "plain_text", "text": "✅ Autopilot RCA Complete" } }, { "type": "divider" } ] + [ $lines[][] | select(. != "") | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ] }}'
+      blocks: '${{ (.steps.runAutopilot.outputs.analysisText // "") | gsub("\\*\\*"; "*") | gsub("### "; "*") | gsub("## "; "*") as $text | ([ $text / "\n" ]) as $lines | [ { "type": "header", "text": { "type": "plain_text", "text": "✅ Autopilot RCA Complete" } }, { "type": "divider" } ] + [ $lines[][] | select(. != "") | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ] }}'
     next: sendRcaFindings
 
   - name: sendRcaFindings
@@ -120,6 +130,15 @@ steps:
     next: end
 ```
 
+## 使い方 [#how-it-works]
+
+`runAutopilot`ステップでは、データ抽出レイヤーにおける`finalAnswer`のシェイプのばらつきに対応するために、2つのセレクターを使用します：
+
+* **`analysisRaw`**は生の`finalAnswer`値をキャプチャします。`checkAgentResponse`ステップでは、これを使用して<DNT>Autopilot</DNT>が何かを返したかどうかを判断します。
+* **`analysisText`**は値を正規化します — `finalAnswer`がJSONエンコードされた文字列の場合、最初にそれを解析し、次に`.card.body`からテキストコンテンツを抽出します。`buildSlackBlocks`ステップでは`analysisText`を直接使用するため、フォーマットロジックをシンプルに保つことができます。
+
+`buildSlackBlocks` `**bold**` および `###`/`##` の見出しマーカーを Slack mrkdwn 形式に変換し、結果を改行で分割して、空ではない各行を Block Kit の `section` ブロックでラップします。
+
 ## 関連トピック [#related-topics]
 
 <DocTiles>
@@ -137,5 +156,9 @@ steps:
 
   <DocTile title="目的地を作成する" path="/docs/workflow-automation/setup-and-configure/create-destinations">
     このワークフローで必要なSlackの送信先を設定します。
+  </DocTile>
+
+  <DocTile title="ワークフロー自動化のトラブルシューティング" path="/docs/workflow-automation/troubleshooting">
+    一般的なAutopilotとSlackのインテグレーションに関する問題の解決策
   </DocTile>
 </DocTiles>
