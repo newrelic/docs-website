@@ -13,4 +13,4 @@ As you grow your applications, more accounts are sometimes required to segment y
 
 Learn how to query multiple accounts in the link below:
 
-Link to API - multi-account formatting is [https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-dashboards/#cross-account-dashboard](https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-dashboards/#cross-account-dashboard)
+[API - multi-account formatting](https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-dashboards/#cross-account-dashboard)
