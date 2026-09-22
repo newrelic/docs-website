@@ -7,12 +7,12 @@ tags:
   - slack
   - RCA
   - incident response
-metaDescription: Trigger Autopilot to investigate a New Relic alert and post the root cause analysis findings to a Slack channel.
-freshnessValidatedDate: never
+metaDescription: Use Autopilot to run a root cause analysis on a New Relic alert and post findings to Slack. Includes the canonical selector pattern for handling Autopilot's variable finalAnswer response shape.
+freshnessValidatedDate: '2026-09-09T00:00:00.000Z'
 translationType: machine
 ---
 
-Cuando se activa una alerta, active [Autopilot](/docs/agentic-ai/autopilot/overview) para ejecutar un análisis de causa raíz y publicar los hallazgos directamente en un canal de Slack. Si Autopilot no devuelve una respuesta utilizable, el flujo de trabajo envía un aviso de error en su lugar para que el equipo sepa que debe investigar manualmente.
+Cuando se activa una alerta, active <DNT>[Autopilot](/docs/agentic-ai/autopilot/overview)</DNT> para ejecutar un análisis de causa raíz y publicar los resultados directamente en un canal de Slack. Si Autopilot no devuelve una respuesta utilizable, el flujo de trabajo envía un aviso de error en su lugar para que el equipo sepa que debe investigar manualmente.
 
 Antes de usar este flujo de trabajo, asegúrese de tener:
 
@@ -20,15 +20,27 @@ Antes de usar este flujo de trabajo, asegúrese de tener:
 * Un destino de Slack configurado en New Relic — consulte [Crear destinos](/docs/workflow-automation/setup-and-configure/create-destinations)
 * El UUID del destino y el nombre del canal de Slack objetivo
 
+<Callout variant="tip">
+  Al activar este flujo de trabajo desde <DNT>**Alert Workflows**</DNT>, use `{{ issueId }}` como valor para la entrada `issueId`. Esta variable pasa automáticamente el ID del problema de la alerta desencadenante al flujo de trabajo.
+</Callout>
+
 Este flujo de trabajo completa los siguientes pasos:
 
 1. Envía un mensaje inicial de Slack para confirmar la alerta y avisar al equipo que el RCA está en marcha
-2. Ejecuta Autopilot con un símbolo de análisis de causa raíz limitado al ID del problema de la alerta
-3. Comprueba si Autopilot devolvió una respuesta utilizable
-4. En caso de éxito: reformatea la respuesta como bloques de Slack Block Kit y publica los hallazgos en Slack si Autopilot tiene éxito.
-5. En caso de falla: publica un mensaje de error con el ID del problema si Autopilot falla.
+2. Ejecuta <DNT>Autopilot</DNT> con un símbolo de análisis de causa raíz limitado al ID del problema de la alerta
+3. Comprueba si <DNT>Autopilot</DNT> devolvió una respuesta utilizable
+4. Si <DNT>Autopilot</DNT> se ejecuta correctamente, reformatea la respuesta como bloques de Slack Block Kit y publica los resultados en Slack
+5. Si <DNT>Autopilot</DNT> falla, publica un mensaje de error con el ID del problema
 
-Este flujo de trabajo usa `newrelic.autopilot.run` y `newrelic.notification.sendSlack`
+Este flujo de trabajo usa `newrelic.autopilot.run` y `newrelic.notification.sendSlack`.
+
+<Callout variant="important">
+  Los valores del selector `expression` deben escribirse en una sola línea. Los escalares de bloque YAML de varias líneas (`|` o `|-`) no se evalúan para las expresiones de selector y no producen ninguna salida de forma silenciosa.
+</Callout>
+
+<Callout variant="tip">
+  El campo `finalAnswer` de Autopilot puede devolverse como una cadena de texto sin formato o como un objeto codificado en JSON, según el contexto del símbolo. El selector `analysisText` en este flujo de trabajo maneja ambas formas automáticamente.
+</Callout>
 
 ```yaml
 name: autopilotSlackRCA
@@ -74,21 +86,23 @@ steps:
         Issue ID: ${{ .workflowInputs.issueId }}
         Provide your comprehensive analysis including Summary, Root Cause, and Remediation Actions.
       selectors:
-        - name: agentResponse
+        - name: analysisRaw
           expression: .response.finalAnswer
+        - name: analysisText
+          expression: '(.response.finalAnswer | if type=="string" then fromjson else . end).card.body | map(.value) | join("\n\n")'
     ignoreErrors: true
 
   - name: checkAgentResponse
     type: switch
     switch:
-      - condition: ${{ (.steps.runAutopilot.outputs.agentResponse // "") != "" }}
+      - condition: ${{ (.steps.runAutopilot.outputs.analysisRaw // "") != "" }}
         next: buildSlackBlocks
     next: sendAutopilotError
 
   - name: buildSlackBlocks
     type: assign
     inputs:
-      blocks: '${{ (.steps.runAutopilot.outputs.agentResponse // "") as $r | (if ($r|type)=="string" then ($r | try fromjson catch null) else $r end) as $json | (if ($json|type)=="array" then ($json[0].text // ($json | tostring)) elif ($json|type)=="object" and ($json.card.body|type)=="array" then [ $json.card.body[] | if .type=="Text" then (.value // "") else "" end ] | join("\n\n") elif ($json|type)=="object" and ($json.text|type)=="string" then $json.text else ($r | tostring) end) | gsub("\\*\\*"; "*") | gsub("### "; "*") | gsub("## "; "*") as $text | ([ $text / "\n" ]) as $lines | [ { "type": "header", "text": { "type": "plain_text", "text": "✅ Autopilot RCA Complete" } }, { "type": "divider" } ] + [ $lines[][] | select(. != "") | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ] }}'
+      blocks: '${{ (.steps.runAutopilot.outputs.analysisText // "") | gsub("\\*\\*"; "*") | gsub("### "; "*") | gsub("## "; "*") as $text | ([ $text / "\n" ]) as $lines | [ { "type": "header", "text": { "type": "plain_text", "text": "✅ Autopilot RCA Complete" } }, { "type": "divider" } ] + [ $lines[][] | select(. != "") | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ] }}'
     next: sendRcaFindings
 
   - name: sendRcaFindings
@@ -116,6 +130,15 @@ steps:
     next: end
 ```
 
+## Cómo funciona [#how-it-works]
+
+El paso `runAutopilot` usa dos selectores para manejar la variabilidad de forma de `finalAnswer` en la capa de extracción de datos:
+
+* **`analysisRaw`** captura el valor `finalAnswer` sin procesar. El paso `checkAgentResponse` usa esto para determinar si <DNT>Autopilot</DNT> devolvió algo.
+* **`analysisText`** normaliza el valor —si `finalAnswer` es una cadena codificada en JSON, la analiza primero y luego extrae el contenido de texto de `.card.body`. El paso `buildSlackBlocks` usa `analysisText` directamente, lo que mantiene simple la lógica de formato.
+
+`buildSlackBlocks` convierte los marcadores de encabezado `**bold**` y `###`/`##` al formato mrkdwn de Slack, divide el resultado en saltos de línea y envuelve cada línea no vacía en un bloque `section` de Block Kit.
+
 ## Temas relacionados [#related-topics]
 
 <DocTiles>
@@ -133,5 +156,9 @@ steps:
 
   <DocTile title="Crear destinos" path="/docs/workflow-automation/setup-and-configure/create-destinations">
     Configure el destino de Slack requerido por este flujo de trabajo
+  </DocTile>
+
+  <DocTile title="Solucionar problemas de automatización de flujo de trabajo" path="/docs/workflow-automation/troubleshooting">
+    Soluciones para problemas comunes de integración de Autopilot y Slack
   </DocTile>
 </DocTiles>
