@@ -2,10 +2,12 @@
 
 This folder contains MDX snippets that can be reused across documentation pages without needing to import them.
 
+Every snippet is compiled with the site's real MDX compiler (the same one that compiles every doc page) — so a snippet supports everything a normal `.mdx` page does: headings, lists, bold/italic, links, inline code, **tables, images, code fences, blockquotes**, and any component available on doc pages (`<Callout>`, `<Tabs>`, `<CollapserGroup>`, etc.).
+
 ## How to Create a Snippet (Writer Workflow)
 
 1. Create a new `.mdx` file in the appropriate subfolder (see folder structure below)
-2. Write your content using Markdown and/or MDX components
+2. Write your content using normal Markdown/MDX
 3. Run `yarn generate:snippets` (or it runs automatically whenever `yarn start`/`yarn build` starts Gatsby)
 4. Use `<YourComponentName />` in any doc page — no other steps needed
 
@@ -58,21 +60,19 @@ src/components/snippets/
 
 ## Parameterized/Dynamic Content
 
-Snippets can accept props to customize content per use case.
-
-### String props
+Snippets can accept props to customize content per use case. Reference a prop directly as `{props.name}` — this is plain MDX, the same way you'd reference any variable in a `.mdx` file.
 
 ```mdx
 {/* PROPS: agentName="APM Agent", minVersion="X.X" */}
-## Prerequisites for {{agentName}}
+## Prerequisites for {props.agentName}
 
-Before installing the {{agentName}} agent:
+Before installing the {props.agentName} agent:
 
-* **{{agentName}} Version:** {{minVersion}} or higher
+* **{props.agentName} Version:** {props.minVersion} or higher
 * **Memory:** 512MB minimum
 ```
 
-> **Note:** Use `{/* */}` (JSX comment syntax), not `<!-- -->`. The `{/* */}` format is required for valid MDX.
+The `{/* PROPS: ... */}` comment only declares **default values** — it doesn't change how you reference the prop in the body.
 
 ### Usage
 
@@ -84,46 +84,43 @@ Before installing the {{agentName}} agent:
 
 ### Boolean props and conditional content
 
-Use boolean props to show or hide entire sections:
+Write a real conditional expression — same as any other JS-backed `.mdx` content:
 
 ```mdx
-{/* PROPS: agentName="APM Agent", showAdvanced=false */}
+{/* PROPS: showAdvanced=false */}
 
 ## Basic setup
 
 Install the agent with `npm install newrelic`.
 
-{/* IF: showAdvanced */}
+{props.showAdvanced ? (
+  <>
+    ## Advanced configuration
 
-## Advanced configuration
-
-* **Custom attributes:** Use `newrelic.addCustomAttribute()`
-* **Distributed tracing:** Enabled by default in version [14.x](/docs/example)
-
-{/* ELSE */}
-
-For advanced configuration options, see the [configuration reference](/docs/agents/nodejs-agent/configuration/nodejs-agent-configuration/).
-
-{/* ENDIF */}
+    * **Custom attributes:** Use `newrelic.addCustomAttribute()`
+    * **Distributed tracing:** Enabled by default in version [14.x](/docs/example)
+  </>
+) : (
+  <>For advanced configuration options, see the [configuration reference](/docs/agents/nodejs-agent/configuration/nodejs-agent-configuration/).</>
+)}
 ```
 
 Usage:
 
 ```mdx
-<ApmSetup />                        {/* showAdvanced defaults to false — shows ELSE content */}
-<ApmSetup showAdvanced={true} />    {/* shows IF content */}
+<ApmSetup />                        {/* showAdvanced defaults to false */}
+<ApmSetup showAdvanced={true} />    {/* shows the advanced branch */}
 ```
 
-`{/* ELSE */}` is optional. IF/ENDIF without ELSE simply shows nothing when the condition is false.
+> **Note:** Markdown formatting (`**bold**`, `` `code` ``, `[links](url)`) only auto-renders in plain prose, not inside a JSX expression's children — write real JSX (`<strong>`, `<code>`, `<a href="...">`) for formatting inside a conditional branch like the one above.
 
 ### How props work
 
-1. Declare props in a JSX comment: `{/* PROPS: propName="defaultValue", flag=false */}`
+1. Declare defaults in a JSX comment: `{/* PROPS: propName="defaultValue", flag=false */}`
    - String props: `name="value"` (quoted)
    - Boolean props: `name=true` or `name=false` (unquoted)
-2. Use `{{propName}}` or `{{ propName }}` as placeholders in text
-3. Wrap optional sections with `{/* IF: propName */}` ... `{/* ENDIF */}`
-4. Pass values when using the component: `<Component propName="value" flag={true} />`
+2. Reference a prop anywhere in the body as `{props.propName}`
+3. Pass values when using the component: `<Component propName="value" flag={true} />`
 
 ---
 
@@ -141,47 +138,23 @@ pageMeta:
 ---
 ```
 
-```yaml
----
-title: Go Agent Installation
-pageMeta:
-  prodName: ApmGo
----
-```
-
-```yaml
----
-title: Kubernetes Integration
-pageMeta:
-  prodName: K8s
----
-```
-
 `pageMeta` is a free-form block — add any key-value pairs your snippets need. No schema changes required.
 
 ### Snippet syntax
 
-```mdx
-{/* META: prodName */}
+Call `usePageMeta()` directly wherever you need it — **you don't need to import it**, the generator handles that automatically:
 
+```mdx
 ## Installation steps
 
 1. Download the agent package
 2. Add the license key to your config file
 
-{/* IF: prodName === "ApmNodejs" */}
-3. Add `require('newrelic')` as the first line of your app's main file
-{/* ELSE */}
-3. Follow the [language-specific setup guide](/docs/apm/agents/) for your agent
-{/* ENDIF */}
-
-{/* IF: prodName === "ApmGo" */}
-4. Call `newrelic.Init()` at the start of `main()`
-{/* ENDIF */}
-
-{/* IF: prodName !== "K8s" */}
-5. Restart your application
-{/* ENDIF */}
+{usePageMeta().prodName === "ApmNodejs" ? (
+  <>Add <code>require('newrelic')</code> as the first line of your app's main file.</>
+) : (
+  <>Follow the <a href="/docs/apm/agents/">language-specific setup guide</a> for your agent.</>
+)}
 ```
 
 Usage on any page — **nothing to pass**:
@@ -190,23 +163,11 @@ Usage on any page — **nothing to pass**:
 <ApmSharedInstallation />
 ```
 
-The snippet automatically reads `prodName` from the page it appears on.
-
-### Syntax reference
-
-| Directive | Description |
-|-----------|-------------|
-| `{/* META: prodName */}` | Declare that this snippet reads `prodName` from the page's `pageMeta` |
-| `{/* META: prodName, agentVersion */}` | Declare multiple fields |
-| `{/* IF: prodName === "ApmNodejs" */}` | Show content only when `prodName` equals `"ApmNodejs"` |
-| `{/* IF: prodName !== "K8s" */}` | Show content when `prodName` does NOT equal `"K8s"` |
-| `{/* IF: showAdvanced */}` | Show content when boolean prop `showAdvanced` is truthy |
-| `{/* ELSE */}` | Show alternate content when the IF condition is false (optional) |
-| `{/* ENDIF */}` | Close an IF or IF/ELSE block |
+The snippet automatically reads `prodName` from the page it appears on. If a field is called more than once in the same snippet, calling `usePageMeta()` again each time is fine — it's just reading page context, not doing any work.
 
 ### Using `usePageMeta()` in custom components
 
-The same data is available to any component on the page — not just auto-generated snippets. Import the hook directly:
+The same data is available to any hand-written component on the page too — import the hook directly there (this is the one place an import is needed, since it's not generated content):
 
 ```jsx
 import { usePageMeta } from '../PageMetaContext';
@@ -221,13 +182,13 @@ const MyComponent = () => {
 
 ## Using MDX Components Inside Snippets
 
-Snippets fully support MDX components available on any docs page — `<Callout>`, `<Collapser>`, `<CollapserGroup>`, `<Steps>`, `<Step>`, `<Tabs>`, `<Table>`, `<InlineCode>`, and more.
+Snippets fully support MDX components available on any docs page — `<Callout>`, `<Collapser>`, `<CollapserGroup>`, `<Steps>`, `<Step>`, `<Tabs>`, `<Table>`, `<InlineCode>`, and more. No imports needed — they resolve the same way they do on any other doc page.
 
 ```mdx
 {/* PROPS: capabilityName="" */}
 
 <Callout variant="important" title="Feature availability and support">
-  <DNT>**{{ capabilityName }}**</DNT> isn't available in the Japan data center/region.
+  <DNT>**{props.capabilityName}**</DNT> isn't available in the Japan data center/region.
 </Callout>
 ```
 
@@ -239,42 +200,13 @@ Snippets fully support MDX components available on any docs page — `<Callout>`
 </CollapserGroup>
 ```
 
-All components are resolved from the MDX context at render time — no imports needed in the snippet file itself.
-
 ---
 
 ## Supported Content Features
 
-| Feature | Syntax | Notes |
-|---------|--------|-------|
-| Headings | `# H1`, `## H2`, `### H3`, `#### H4` | renders as `<h1>`–`<h4>` |
-| Paragraphs | plain text | renders as `<p>` |
-| Bulleted list | `* item` | renders as `<ul><li>` |
-| Numbered list | `1. item` | renders as `<ol><li>` |
-| Bold | `**text**` | renders as `<strong>` |
-| Italic | `*text*` | renders as `<em>` |
-| Inline code | `` `code` `` | renders as `<code>` |
-| Links | `[text](url)` | renders as `<a href="url">` |
-| Bold list item | `* **Label:** value` | renders as `<li><strong>Label:</strong> value` |
-| String props | `{{propName}}` | replaced with prop value at render time |
-| Boolean props | `{/* PROPS: flag=false */}` | used to toggle conditional sections |
-| Conditional blocks | `{/* IF: flag */}` … `{/* ENDIF */}` | renders content only when condition is true |
-| Conditional with else | `{/* IF */}` … `{/* ELSE */}` … `{/* ENDIF */}` | renders alternate content when condition is false |
-| String conditionals | `{/* IF: field === "value" */}` or `!==` | string equality/inequality check |
-| Page meta declaration | `{/* META: fieldName */}` | reads field from page `pageMeta` frontmatter |
-| MDX components | `<Callout>`, `<Collapser>`, etc. | passed through as JSX |
-| Literal `{` / `}` in prose | e.g. describing a JSON payload | escaped automatically so it doesn't break JSX compilation |
+Snippets go through the real MDX compiler, so **everything a normal doc page supports, a snippet supports** — including markdown tables, images, fenced code blocks, and blockquotes, none of which need any special syntax.
 
-### Unsupported syntax (warns at build time)
-
-The generator will print a warning if it detects patterns it cannot convert — output may look wrong without an error.
-
-| Pattern | Workaround |
-|---------|------------|
-| Fenced code blocks ` ``` ` | Use `<InlineCode>` or a raw `<code>` JSX element |
-| Markdown tables `\| col \|` | Use a JSX `<table>` element directly |
-| Markdown images `![alt](src)` | Use a JSX `<img>` element directly |
-| Blockquotes `> text` | Use a `<Callout>` component instead |
+The one real MDX rule to know: a literal `{` or `}` in plain prose is treated as the start of a JS expression, same as on every other page on this site. Write `` `{ like this in code }` `` (backticks) or escape it (`\{`) if you need a literal brace in prose.
 
 ---
 
@@ -292,14 +224,14 @@ yarn watch:snippets
 
 | Command | Description |
 |---------|-------------|
-| `yarn generate:snippets` | Manually regenerate `Snippets.js` |
+| `yarn generate:snippets` | Manually regenerate `Snippets.js` and `snippets/.generated/` |
 | `yarn watch:snippets` | Watch snippets folder and regenerate on changes |
 | `yarn start` | Standard dev server (snippets generated automatically on startup) |
 | `yarn build` | Production build (snippets generated automatically on startup) |
 
-### Generated file
+### Generated files
 
-`src/components/Snippets.js` is auto-generated — do not edit it manually. It is committed to the repo so the build doesn't require a generation step to succeed from a clean clone before first run.
+`src/components/Snippets.js` and everything under `src/components/snippets/.generated/` are auto-generated — do not edit them manually. They're committed to the repo so the build doesn't require a generation step to succeed from a clean clone before first run.
 
 ---
 

@@ -19,9 +19,11 @@ const hasOwnProperty = (obj, key) =>
 const hasTrailingSlash = (pathname) =>
   pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
-exports.onPreBootstrap = () => {
-  // Throws and halts the build on a snippet name collision or duplicate.
-  generateSnippets();
+exports.onPreBootstrap = async () => {
+  // Throws (rejects) and halts the build on a snippet name collision or
+  // duplicate - must be awaited, or a rejection here would just be an
+  // unhandled promise rejection instead of stopping the build.
+  await generateSnippets();
   createSingleNav();
 };
 

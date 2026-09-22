@@ -2,9 +2,11 @@ const fs = require('fs');
 const path = require('path');
 
 const snippetsDir = path.join(__dirname, '../src/components/snippets');
-const outputFile = path.join(__dirname, '../src/components/Snippets.js');
+const generatedDir = path.join(snippetsDir, '.generated');
+const indexFile = path.join(__dirname, '../src/components/Snippets.js');
+const pageMetaContextPath = path.join(__dirname, '../src/components/PageMetaContext.js');
 
-function generateSnippets() {
+async function generateSnippets() {
   if (!fs.existsSync(snippetsDir)) {
     fs.mkdirSync(snippetsDir, { recursive: true });
   }
@@ -16,14 +18,19 @@ function generateSnippets() {
     return;
   }
 
-  let components = {};
-  const reserved = getReservedComponentNames();
+  // @mdx-js/mdx is ESM-only; this script is CommonJS (required from gatsby-node.js
+  // and run directly as a CLI script), so it has to load the compiler dynamically.
+  const { default: compile } = await import('@mdx-js/mdx');
 
-  mdxFiles.forEach(({ filePath, relativePath }) => {
+  const reserved = getReservedComponentNames();
+  const componentNames = new Set();
+  const generatedFiles = [];
+
+  for (const { filePath, relativePath } of mdxFiles) {
     const componentName = pathToComponentName(relativePath);
 
     // Guard: duplicate name within the snippets folder
-    if (components[componentName]) {
+    if (componentNames.has(componentName)) {
       throw new Error(
         `Duplicate snippet name: "${componentName}"\n` +
           `   Conflicts with an existing snippet file.\n` +
@@ -38,275 +45,125 @@ function generateSnippets() {
           `   Rename the snippet file: ${relativePath}`
       );
     }
+    componentNames.add(componentName);
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const rawContent = fs.readFileSync(filePath, 'utf-8');
+    const props = extractProps(rawContent);
 
-    // Warn about unsupported markdown patterns before converting
-    validateSnippet(content, relativePath);
+    // Snippets read page frontmatter via usePageMeta() (see PageMetaContext.js).
+    // Writers call it directly (e.g. `{usePageMeta().prodName === "X" ? ... : ...}`)
+    // without importing it themselves - inject the import here, using the real
+    // path from THIS snippet's own location, so it's always correct regardless
+    // of how deeply nested the snippet is.
+    const usesPageMeta = /\busePageMeta\s*\(/.test(rawContent);
+    const pageMetaImport = usesPageMeta
+      ? `import { usePageMeta } from '${relativeImportPath(filePath, pageMetaContextPath)}';\n\n`
+      : '';
 
-    components[componentName] = {
-      jsx: convertMdxToJsx(content),
-      props: extractProps(content),
-      jsxComponents: detectJsxComponents(content),
-      metaFields: extractMeta(content),
-    };
-  });
+    const compiled = await compile(pageMetaImport + rawContent, { jsx: true });
 
-  // Determine which imports the generated file needs
-  const anyJsxComponents = Object.values(components).some(c => c.jsxComponents.length > 0);
-  const anyMetaFields = Object.values(components).some(c => c.metaFields.length > 0);
+    // Matches the exact preamble gatsby-plugin-mdx generates for every real page
+    // (node_modules/gatsby-plugin-mdx/utils/gen-mdx.js) - `mdx` is the pragma
+    // function that resolves <Callout>-style tags against the ambient
+    // MDXProvider, exactly like any hand-written .mdx page already does.
+    // React is needed too: JSX fragment shorthand (<>...</>) compiles to
+    // React.Fragment regardless of the @jsx pragma override.
+    const defaultsEntries = Object.entries(props)
+      .map(([name, { default: def, type }]) =>
+        type === 'boolean' ? `${name}: ${def}` : `${name}: '${def}'`
+      )
+      .join(', ');
 
-  // Generate component exports with React import for SSR
-  const output = `// AUTO-GENERATED - DO NOT EDIT
-// Run: yarn generate:snippets
+    // compile()'s output already starts with its own `/* @jsx mdx */` line -
+    // insert the imports right after it instead of prepending a second copy.
+    // Every occurrence of the compiled module's default component name
+    // (the function declaration AND the trailing `X.isMDXComponent = true`
+    // assignment) needs renaming, not just the declaration - otherwise the
+    // assignment references an identifier that no longer exists, which
+    // throws a ReferenceError the moment this file is loaded.
+    const renamed = compiled.replace(/\bMDXContent\b/g, 'RawContent');
+    const withImports = renamed.replace(
+      '/* @jsx mdx */\n',
+      "/* @jsx mdx */\nimport React from 'react';\nimport { mdx } from '@mdx-js/react';\n"
+    );
 
-import React from 'react';
-${anyJsxComponents ? "import { useMDXComponents } from '@mdx-js/react';\n" : ''}${anyMetaFields ? "import { usePageMeta } from './PageMetaContext';\n" : ''}
-${Object.entries(components).map(([name, { jsx, props, jsxComponents, metaFields }]) => {
-  const propsSignature = props.length > 0
-    ? `({ ${props.map(p => p.type === 'boolean'
-        ? `${p.name} = ${p.default}`
-        : `${p.name} = '${p.default}'`).join(', ')} })`
-    : '()';
+    const fileContent = `${withImports}
 
-  // Snippets that use MDX components or page meta need a function body for hook calls
-  if (jsxComponents.length > 0 || metaFields.length > 0) {
-    const hookLines = [];
-    if (jsxComponents.length > 0) {
-      hookLines.push(`  const { ${jsxComponents.join(', ')} } = useMDXComponents();`);
-    }
-    if (metaFields.length > 0) {
-      hookLines.push(`  const { ${metaFields.join(', ')} } = usePageMeta();`);
-    }
-    return `export const ${name} = ${propsSignature} => {
-${hookLines.join('\n')}
-  return (${jsx});
-};`;
-  }
-
-  return `export const ${name} = ${propsSignature} => (${jsx});`;
-}).join('\n\n')}
+export const ${componentName} = (props) => (
+  <RawContent {...{ ${defaultsEntries} }} {...props} />
+);
 `;
 
-  const existing = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, 'utf-8') : '';
-  if (output === existing) {
+    generatedFiles.push({ componentName, fileContent });
+  }
+
+  if (!fs.existsSync(generatedDir)) {
+    fs.mkdirSync(generatedDir, { recursive: true });
+  }
+
+  // Remove stale generated files (e.g. a snippet that was renamed or deleted)
+  // so the .generated/ folder never drifts from the current snippets/ folder.
+  const currentFiles = new Set(generatedFiles.map(({ componentName }) => `${componentName}.js`));
+  fs.readdirSync(generatedDir).forEach((file) => {
+    if (!currentFiles.has(file)) fs.unlinkSync(path.join(generatedDir, file));
+  });
+
+  let changed = false;
+  generatedFiles.forEach(({ componentName, fileContent }) => {
+    const outputPath = path.join(generatedDir, `${componentName}.js`);
+    const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
+    if (fileContent !== existing) {
+      fs.writeFileSync(outputPath, fileContent);
+      changed = true;
+    }
+  });
+
+  const index = `// AUTO-GENERATED - DO NOT EDIT
+// Run: yarn generate:snippets
+
+${generatedFiles
+  .map(({ componentName }) => `export { ${componentName} } from './snippets/.generated/${componentName}';`)
+  .join('\n')}
+`;
+
+  const existingIndex = fs.existsSync(indexFile) ? fs.readFileSync(indexFile, 'utf-8') : '';
+  if (index !== existingIndex) {
+    fs.writeFileSync(indexFile, index);
+    changed = true;
+  }
+
+  if (!changed) {
     console.log(`⏭️  No changes — Snippets.js is already up to date`);
     return;
   }
 
-  fs.writeFileSync(outputFile, output);
-  console.log(`✅ Generated ${mdxFiles.length} snippet(s): ${Object.keys(components).join(', ')}`);
+  console.log(`✅ Generated ${mdxFiles.length} snippet(s): ${[...componentNames].join(', ')}`);
 }
 
-function convertMdxToJsx(mdx) {
-  let lines = mdx.trim().split('\n');
-  let jsx = [];
-
-  // Stack tracking whether each open IF block has a matching ELSE.
-  // Used to decide whether to emit a null else-arm on ENDIF.
-  let ifStack = [];
-
-  for (let line of lines) {
-    line = line.trim();
-    if (!line) continue;
-
-    // Skip generator directive comments
-    if (line.startsWith('{/* PROPS:') || line.startsWith('<!-- PROPS:')) continue;
-    if (line.startsWith('{/* META:')) continue;
-
-    // Conditional block — boolean: {/* IF: propName */}
-    const ifBoolMatch = line.match(/^\{\/\*\s*IF:\s*(\w+)\s*\*\/\}$/);
-    if (ifBoolMatch) {
-      ifStack.push({ hasElse: false });
-      jsx.push(`    {${ifBoolMatch[1]} ? (<>`);
-      continue;
-    }
-
-    // Conditional block — string comparison: {/* IF: field === "value" */} or {/* IF: field !== "value" */}
-    const ifEqMatch = line.match(/^\{\/\*\s*IF:\s*(\w+)\s*(===|!==)\s*"([^"]+)"\s*\*\/\}$/);
-    if (ifEqMatch) {
-      ifStack.push({ hasElse: false });
-      jsx.push(`    {${ifEqMatch[1]} ${ifEqMatch[2]} '${ifEqMatch[3]}' ? (<>`);
-      continue;
-    }
-
-    // Else block: {/* ELSE */} — closes true branch, opens false branch
-    if (/^\{\/\*\s*ELSE\s*\*\/\}$/.test(line)) {
-      if (ifStack.length > 0) ifStack[ifStack.length - 1].hasElse = true;
-      jsx.push(`    </>) : (<>`);
-      continue;
-    }
-
-    // End conditional: {/* ENDIF */}
-    // If no ELSE was seen, emit a null false-arm so the ternary is valid JSX.
-    if (/^\{\/\*\s*ENDIF\s*\*\/\}$/.test(line)) {
-      const block = ifStack.pop();
-      jsx.push(block && block.hasElse ? `    </>)}` : `    </>) : null}`);
-      continue;
-    }
-
-    // Pass through lines that are raw JSX (component tags, closing tags, JSX expressions)
-    if (line.startsWith('<') || (line.startsWith('{') && !line.startsWith('{{'))) {
-      jsx.push(`    ${escapeJsxWithProps(line)}`);
-      continue;
-    }
-
-    if (line.startsWith('# ')) {
-      jsx.push(`    <h1>${textToJsx(line.substring(2))}</h1>`);
-    } else if (line.startsWith('## ')) {
-      jsx.push(`    <h2>${textToJsx(line.substring(3))}</h2>`);
-    } else if (line.startsWith('### ')) {
-      jsx.push(`    <h3>${textToJsx(line.substring(4))}</h3>`);
-    } else if (line.startsWith('#### ')) {
-      jsx.push(`    <h4>${textToJsx(line.substring(5))}</h4>`);
-    } else if (line.startsWith('* **')) {
-      const match = line.match(/\* \*\*(.+?):\*\* (.+)/);
-      if (match) {
-        jsx.push(`      <li><strong>${textToJsx(match[1])}:</strong> ${textToJsx(match[2])}</li>`);
-      } else {
-        jsx.push(`      <li>${textToJsx(line.substring(2))}</li>`);
-      }
-    } else if (line.startsWith('* ')) {
-      jsx.push(`      <li>${textToJsx(line.substring(2))}</li>`);
-    } else if (/^\d+\. /.test(line)) {
-      jsx.push(`      <li data-ol>${textToJsx(line.replace(/^\d+\. /, ''))}</li>`);
-    } else {
-      jsx.push(`    <p>${textToJsx(line)}</p>`);
-    }
-  }
-
-  // Wrap list items in <ul> or <ol>, handling transitions between list types
-  let result = [];
-  let currentList = null; // null | 'ul' | 'ol'
-
-  for (let line of jsx) {
-    const isOl = line.includes('<li data-ol>');
-    const isUl = !isOl && (line.includes('<li>') || line.includes('<li><strong>'));
-
-    if (isOl || isUl) {
-      const listType = isOl ? 'ol' : 'ul';
-      if (currentList !== listType) {
-        if (currentList) result.push(`    </${currentList}>`);
-        result.push(`    <${listType}>`);
-        currentList = listType;
-      }
-      result.push(line.replace(' data-ol', ''));
-    } else {
-      if (currentList) {
-        result.push(`    </${currentList}>`);
-        currentList = null;
-      }
-      result.push(line);
-    }
-  }
-
-  if (currentList) {
-    result.push(`    </${currentList}>`);
-  }
-
-  return `\n  <>\n${result.join('\n')}\n  </>\n`;
-}
-
-// Escape JSX and convert markdown formatting to JSX. Used for raw JSX passthrough
-// lines, where braces are meaningful JS syntax and must NOT be escaped.
-function escapeJsxWithProps(text) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')                        // inline code
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')     // markdown links
-    .replace(/\{\{\s*(\w+)\s*\}\}/g, '{$1}');                       // {{propName}} -> {propName}
-}
-
-// Same as escapeJsxWithProps, but for plain-markdown text (headings, paragraphs,
-// list items) where a writer's prose may contain a literal "{" or "}" (e.g.
-// documenting a JSON payload). Unlike a raw JSX line, that brace isn't meant as
-// JS syntax — left alone it breaks JSX compilation, so it's escaped to a JSX-safe
-// text node. {{propName}} placeholders are protected first so real prop
-// interpolations aren't touched by the brace escaping.
-function textToJsx(text) {
-  const propNames = [];
-  let working = text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, name) => {
-    propNames.push(name);
-    return ` ${propNames.length - 1} `;
-  });
-
-  working = working.replace(/[{}]/g, (brace) => (brace === '{' ? "{'{'}" : "{'}'}"));
-
-  working = working
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-
-  return working.replace(/ (\d+) /g, (_, i) => `{${propNames[Number(i)]}}`);
-}
-
-// Extract prop definitions from MDX comments.
-// Supports string props:  {/* PROPS: name="default" */}
-// Supports boolean props: {/* PROPS: showSection=false */}
-// Also supports HTML comment syntax: <!-- PROPS: ... -->
+// Extract default prop values from an MDX comment, e.g.
+// {/* PROPS: agentName="APM Agent", minVersion="X.X" */} or {/* PROPS: showAdvanced=false */}.
+// The snippet body references these as real MDX expressions (`{props.agentName}`),
+// not a custom placeholder syntax - this just supplies the defaults a plain
+// function call wouldn't otherwise have.
 function extractProps(mdx) {
-  const propsMatch = mdx.match(/\{\/\*\s*PROPS:\s*(.+?)\s*\*\/\}/) ||
-                     mdx.match(/<!--\s*PROPS:\s*(.+?)\s*-->/);
-  if (!propsMatch) return [];
+  const propsMatch = mdx.match(/\{\/\*\s*PROPS:\s*(.+?)\s*\*\/\}/);
+  if (!propsMatch) return {};
 
   const propsString = propsMatch[1];
-  const props = [];
+  const props = {};
 
-  // String props: name="default"
   const stringRegex = /(\w+)="([^"]*)"/g;
   let match;
   while ((match = stringRegex.exec(propsString)) !== null) {
-    props.push({ name: match[1], default: match[2], type: 'string' });
+    props[match[1]] = { default: match[2], type: 'string' };
   }
 
-  // Boolean props: name=true or name=false (no quotes)
   const boolRegex = /(\w+)=(true|false)/g;
   while ((match = boolRegex.exec(propsString)) !== null) {
-    props.push({ name: match[1], default: match[2] === 'true', type: 'boolean' });
+    props[match[1]] = { default: match[2], type: 'boolean' };
   }
 
   return props;
-}
-
-// Extract page metadata field names declared in a snippet.
-// {/* META: prodName, agentVersion */} → ['prodName', 'agentVersion']
-// These fields are read from PageMetaContext at render time (populated from page frontmatter.pageMeta).
-function extractMeta(content) {
-  const match = content.match(/\{\/\*\s*META:\s*(.+?)\s*\*\/\}/);
-  if (!match) return [];
-  return match[1].split(/\s*,\s*/).map((s) => s.trim()).filter(Boolean);
-}
-
-// Warn about markdown patterns the converter cannot handle.
-// These would produce broken or literal-text output without an error — fail loudly instead.
-function validateSnippet(content, relativePath) {
-  const lines = content.split('\n');
-  const warnings = [];
-
-  lines.forEach((line, i) => {
-    const trimmed = line.trim();
-    const lineNum = i + 1;
-
-    // Skip comment lines
-    if (trimmed.startsWith('{/*') || trimmed.startsWith('<!--')) return;
-
-    if (/^```/.test(trimmed)) {
-      warnings.push(`   Line ${lineNum}: Fenced code block (\`\`\`). Use a JSX <code> block or <InlineCode> component instead.`);
-    } else if (/^\|/.test(trimmed)) {
-      warnings.push(`   Line ${lineNum}: Markdown table (|). Use a JSX <table> element instead.`);
-    } else if (/^!\[/.test(trimmed)) {
-      warnings.push(`   Line ${lineNum}: Markdown image (![). Use a JSX <img> element instead.`);
-    } else if (/^> /.test(trimmed)) {
-      warnings.push(`   Line ${lineNum}: Blockquote (>). Use a <Callout> component instead.`);
-    }
-  });
-
-  if (warnings.length > 0) {
-    console.warn(`⚠️  Unsupported syntax in ${relativePath} — output may be incorrect:`);
-    warnings.forEach(w => console.warn(w));
-  }
 }
 
 // Component names provided by @newrelic/gatsby-theme-newrelic via its own MDXProvider.
@@ -341,18 +198,6 @@ function getReservedComponentNames() {
   return reserved;
 }
 
-// Scan snippet content for PascalCase JSX component names (e.g. <Callout>, <DNT>)
-// These will be resolved via useMDXComponents() at render time
-function detectJsxComponents(content) {
-  const tagPattern = /<([A-Z][a-zA-Z0-9]*)/g;
-  const found = new Set();
-  let match;
-  while ((match = tagPattern.exec(content)) !== null) {
-    found.add(match[1]);
-  }
-  return [...found];
-}
-
 // Recursively find all .mdx files
 function findMdxFiles(dir, baseDir = dir) {
   let results = [];
@@ -362,8 +207,8 @@ function findMdxFiles(dir, baseDir = dir) {
     const fullPath = path.join(dir, entry.name);
 
     if (entry.isDirectory()) {
-      // Skip README and common non-snippet directories
-      if (entry.name === 'node_modules' || entry.name === '.git') continue;
+      // Skip README, generated output, and common non-snippet directories
+      if (['node_modules', '.git', '.generated'].includes(entry.name)) continue;
       results = results.concat(findMdxFiles(fullPath, baseDir));
     } else if (entry.name.endsWith('.mdx')) {
       // Skip README files
@@ -395,14 +240,23 @@ function pathToComponentName(relativePath) {
     .join('');
 }
 
+// POSIX-style relative import path (no file extension), for the import line
+// injected ahead of a snippet's own content.
+function relativeImportPath(fromFile, toFile) {
+  const rel = path
+    .relative(path.dirname(fromFile), toFile)
+    .replace(/\.js$/, '')
+    .split(path.sep)
+    .join('/');
+  return rel.startsWith('.') ? rel : `./${rel}`;
+}
+
 module.exports = { generateSnippets, pathToComponentName };
 
 // Run directly (CLI / npm script), as opposed to being required by gatsby-node.js
 if (require.main === module) {
-  try {
-    generateSnippets();
-  } catch (error) {
+  generateSnippets().catch((error) => {
     console.error('❌', error.message);
     process.exit(1);
-  }
+  });
 }
