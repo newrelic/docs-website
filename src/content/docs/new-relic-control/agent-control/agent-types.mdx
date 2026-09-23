@@ -3,11 +3,27 @@ title: "Agent types"
 metaDescription: "What agent types are in Agent Control, how they work, and which agents are currently supported"
 freshnessValidatedDate: never
 ---
-<Callout variant="important">
-  Agent Control and New Relic Control are **generally available** for Kubernetes. Support for Linux and Windows hosts is in **public preview** program, pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
-</Callout>
 
-An agent type definition is a YAML file that describes how Agent Control should identify, download, configure, and run a specific agent. Its declared variables also form the configuration schema that Fleet Control exposes to operators when deploying or updating a sub-agent from the fleet. Every definition consists of three main sections, <DNT>**metadata**</DNT>, <DNT>**variables**</DNT>, and <DNT>**deployment**</DNT>, plus a top-level `protocol_version` field that versions the schema language the file is written against.
+## What's an agent type?
+
+Agent Control itself has no built-in knowledge of any particular agent. It doesn't know how to start the Infrastructure Agent, render an OpenTelemetry Collector config, or discover a Redis integration binary. An **agent type definition** is what teaches it. It's a YAML file that describes how Agent Control should identify, download, configure, and run one kind of agent, on one platform. This is what lets it manage a growing catalog of agents without a code change every time a new one is added.
+
+The **sub-agent** is a named instance of that definition, for example `nr-infra-agent` referencing `newrelic/com.newrelic.infrastructure:0.1.0`. That's what you actually add, remove, or reconfigure. Agent Control turns that into the runtime artifacts the definition describes, for example a process and its files on a host or Kubernetes objects on a cluster, and keeps them in sync whenever the sub-agent's configuration changes.
+
+Every agent type definition consists of three main sections: <DNT>**metadata**</DNT>, <DNT>**variables**</DNT>, and <DNT>**deployment**</DNT>, plus a top-level `protocol_version` field that versions the schema language the file is written against.
+
+## Protocol version
+
+`protocol_version` is a top-level field that declares the version of the agent-type. It is decoupled from both the agent type `version` (the definition's semver) and the Agent Control release version.
+
+It is a quoted `MAJOR.MINOR` string (e.g. `"1.0"`).
+
+It is parsed and validated on its own, *before* the rest of the document is interpreted, so it can gate files whose metadata or other sections use a shape this Agent Control would not otherwise understand. Each Agent Control release understands a single maximum protocol version, and the `protocol_version` is treated as a single ordered `MAJOR.MINOR` value. The compatibility rules are:
+
+* Newer than supported (higher `major`, or same `major` with a higher `minor`): rejected — the file is newer than this Agent Control understands.
+* Equal to or older than supported: accepted — Agent Control understands every protocol version up to and including the supported one.
+
+For example, an Agent Control supporting `1.6` accepts everything up to `1.6` (including `0.9` and `1.0`..=`1.6`) and rejects anything newer (`1.7`, `2.0`, ...).
 
 ## Metadata
 
@@ -15,40 +31,118 @@ The metadata section identifies the agent type: its `name`, `namespace`, `versio
 
 ## Variables
 
-The variables section declares the configurable inputs that operators can set when adding a sub-agent to their configuration. Each variable has a `type` (such as `string`, `bool`, or `yaml`), an optional `default`, and an optional `variants` list of accepted values. Variables are referenced throughout the deployment section using `${nr-var:variable_name}`.
+The variables section declares the configurable inputs that operators can set when adding a sub-agent to their configuration. Each variable has these fields:
+
+- **`description`**: a human-readable explanation of the variable.
+- **`type`**: the data type this variable accepts, such as `string`, `bool`, `number`, `yaml`, or `string_map`.
+- **`required`**: whether operators must set the variable (when set to false, Agent Control fallbacks to the value in `default`).
+- **`default`** (optional): the value used when `required` is `false` and the operator doesn't set one.
+- **`classification`** (optional): a label describing the kind of value the variable holds, such as `config` or `multi-config`. Agent Control accepts and ignores this field; it's read by Fleet Control to drive how the variable is presented to operators.
+- **`deprecated`** (optional): marks the variable as deprecated (`deprecated: true`). Agent Control accepts and ignores this field too — it carries no runtime behavior and doesn't affect resolution, validation, or defaults.
+
+Variables are referenced throughout the deployment section using `${nr-var:variable_name}`.
 
 ## Deployment
 
-The deployment section describes how Agent Control installs and runs the agent on the target platform. It is composed of several sub-sections:
-
-- **`packages`**: OCI artifacts to download before the agent starts — typically the agent binary or integration package.
-- **`executables`**: the list of processes Agent Control will start, monitor, and restart. An agent type without this section is treated as a managed integration (OHI): Agent Control handles its artifacts but delegates execution to another agent.
-- **`health`**: how Agent Control determines whether the agent is healthy — via process presence, an HTTP endpoint check, or both.
-- **`filesystem`**: individual files or directories that Agent Control writes to the host before starting the agent, such as configuration files or certificates.
-- **`shared_filesystem`**: entries written into a shared drop zone accessible to other agents managed by the same Agent Control instance. Used by OHI agent types to hand their configuration and binaries to the Infrastructure Agent.
+The deployment section describes how Agent Control installs and runs the agent. Its shape is entirely different depending on the target `platform` declared in the agent type's metadata.
 
 For the full schema reference and all available fields, see [Agent type schema reference](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/agent_type.md).
 
-## Fetch agent type definitions
+### Deployment on Kubernetes
 
-Agent Control fetches agent type definitions from a remote OCI registry, identified by the `namespace`, `name`, and `version` declared in the definition's metadata section.
+On Kubernetes, Agent Control manages Kubernetes objects. The deployment section is composed of:
 
-By default, Agent Control pulls from `docker.io`, using the `newrelic/agent-control-agent-types` repository.
+- **`objects`**: the Kubernetes objects Agent Control creates and keeps up to date.
+- **`health`**: an explicit list of checks, each targeting one Kubernetes resource by `name`, `namespace`, and `kind`.
 
-Agent Control signature-verifies each definition against the New Relic public key before pulling it.
+How Agent Control renders `objects` depends on whether Flux is enabled:
 
-You can mirror this registry the same way as agent packages.
+- **With Flux (default, or with an existing Flux installation):** agent types declare a `HelmRelease` object. Agent Control renders your configuration variables into that `HelmRelease`'s Helm chart values and creates or updates the resource. Flux then reconciles the chart and creates the underlying `Deployment`, `ConfigMap`, `Secret`, and other resources.
+- **Without Flux:** agent types declare plain Kubernetes objects directly (for example a `ConfigMap`, `Secret`, or `Deployment`) instead of a `HelmRelease`. Agent Control applies those objects to the cluster itself. There's no Helm chart or Flux reconciliation involved. The user has to manage the agent lifecycle in that case.
 
-## Linked agent types
+<Callout variant="important">
+  Without Flux, a configuration change from Fleet Control only updates the `ConfigMap`/`Secret` object it manages. Agent Control doesn't restart or redeploy the agent for you.
+</Callout>
 
-Two agent types are **linked** when one writes artifacts (configuration, binaries, or other files)
-into the shared filesystem and the other is configured to read from those same paths. The writer
-may have no `executables` section, Agent Control manages its artifacts but never starts a process
-for it. Instead, the reader agent has the built-in logic to discover and execute binaries and
-configurations from a well-known path in the shared filesystem, effectively running the add-on on
-the writer's behalf.
+### Deployment on-host (Linux and Windows)
 
-The shared filesystem root is:
+On hosts, Agent Control installs and runs the agent directly on the machine's operating system. The deployment section is composed of several sub-sections:
+
+- **`executables`**: the list of processes Agent Control will start, monitor, and restart. An agent type without this section is treated as a managed integration (OHI): Agent Control handles its artifacts but delegates execution to another agent.
+- **`enable_file_logging`**: whether file logging is enabled.
+- **`health`**: how Agent Control determines whether the agent is healthy — via process presence, an HTTP endpoint check, or both.
+- **`filesystem`**: individual files or directories that Agent Control writes to the host before starting the agent, such as configuration files or certificates.
+- **`shared_filesystem`**: entries written into a shared drop zone accessible to other agents managed by the same Agent Control instance. Used by OHI agent types to hand their configuration and binaries to the Infrastructure Agent.
+- **`packages`**: OCI artifacts to download before the agent starts — typically the agent binary or integration package.
+
+
+## Where does Agent Control store the agent state?
+
+### On Kubernetes
+
+State lives as Kubernetes objects, but what those objects are depends on whether Flux is enabled.
+
+With Flux (default, or with an existing Flux installation), the agent type typically declares Flux custom resources like a `HelmRepository` pointing at the chart, and a `HelmRelease` holding your rendered configuration as Helm chart values. Agent Control doesn't create the agent's `Deployment`, `ConfigMap`, or `Secret` objects directly. It hands the `HelmRelease` to Flux, and Flux installs the chart and keeps those generated resources in sync with it.
+
+- **A configuration update patches the `HelmRelease` in place.** Agent Control only re-applies the object if its content changed. Flux then reconciles the chart to match.
+- **Removing a sub-agent deletes every object labeled as owned by it** — its `HelmRelease`, `HelmRepository`, and any `Secret` or `ConfigMap` created for it, and Flux/Helm finalizes cleanup of the workloads that chart had installed.
+
+Without Flux, there's no `HelmRelease` or `HelmRepository`. The agent type declares plain Kubernetes objects directly, and Agent Control creates and updates them itself. There's no Helm chart or Flux reconciliation. In this mode, the user is responsible for the agent lifecycle. Agent Control doesn't install or upgrade the agent's `Deployment`, it only keeps the configuration objects it manages in sync.
+
+- **A configuration update patches the managed object (`ConfigMap`/`Secret`) in place.** Agent Control only re-applies it if its content changed. Since there's no Flux reconciliation, nothing automatically restarts the agent to pick up the change unless the agent itself watches for it.
+- **Removing a sub-agent deletes every object labeled as owned by it** — just its `ConfigMap`/`Secret` objects, since there's no `HelmRelease`, `HelmRepository`, or chart-installed workload to clean up.
+
+### On-host
+
+#### On-Host filesystem
+
+Every sub-agent gets a dedicated directory on disk where Agent Control writes the files declared by its agent type's `filesystem` section.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "120px" }}>OS</th>
+      <th>Path</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Linux</td>
+      <td>`/var/lib/newrelic-agent-control/filesystem/<agent-id>`</td>
+    </tr>
+    <tr>
+      <td>Windows</td>
+      <td>`C:\ProgramData\New Relic\newrelic-agent-control\filesystem\<agent-id>`</td>
+    </tr>
+  </tbody>
+</table>
+
+Agent Control get's the content to create a file from variables of type `yaml`, and the content for multiple files inside a directory from variables of type `string_map`.
+
+Example
+
+```
+/var/lib/newrelic-agent-control/filesystem/nr-infra-agent/
+├── newrelic-infra.yaml     # content from variable of type `yaml`
+└── logging.d/              # content from variable of type `string_map`
+    ├── file1.yaml
+    └── file2.yaml
+```
+
+How this directory behaves depends on the lifecycle event and on the variable type behind each path:
+
+- **A restart doesn't touch the directory.** Agent Control doesn't rewrite anything unless the restart was triggered by a configuration update from Fleet Control.
+- **A configuration update rewrites `yaml` files in place, but fully regenerates `string_map` directories.** For a `yaml` content, Agent Control only rewrites the file's contents. For a `string_map` content, Agent Control deletes the whole directory (like `logging.d` above) and recreates it from scratch, so any file you (or the sub-agent) added or edited inside it disappears on the next write.
+- **Files Agent Control doesn't manage are left alone.** It only ever overwrites the exact paths the agent type declares; anything else the running agent creates on its own inside its directory (cache files, local state) is not touched.
+- **Removing a sub-agent removes its whole directory**, including any files created by the sub-agent itself or by a user.
+
+#### On-Host shared filesystem
+
+Most agent types are self-contained: Agent Control writes their configuration into a directory that belongs to them alone, and starts a process that reads from it. But some integrations have no execution model of their own. There is no process for Agent Control to start. They depend entirely on another already-running agent (for example, the Infrastructure Agent) to pick up their files and execute them. That dependency is why a second, **shared** location exists. It's a common drop zone that any sub-agent on the same host can write into and any other sub-agent can read from, used specifically to hand off artifacts between agents rather than to store an agent's own private state.
+
+Use `filesystem` for anything an agent type's own process needs, and rely on `shared_filesystem` only when one agent type is deliberately handing files to another, like the on-host integrations described further below.
+
+All sub-agents get a shared directory on disk where Agent Control writes the files declared by its agent type's `shared_filesystem`.
 
 <table>
   <thead>
@@ -69,16 +163,34 @@ The shared filesystem root is:
   </tbody>
 </table>
 
-All agents managed by the same Agent Control instance share this root. Subdirectory names are
-chosen by convention between the linked agent types.
+Notice that since all sub-agents have access to that shared directory, they can see each other's files.
 
-### On Host Integrations (OHI)
+Example
 
-On-Host Integrations (OHIs) are the primary example of linked agents in Agent Control; where other agents have a process
-started by Agent Control, OHI agents have no process of their own and Agent Control never starts them.
-They let Agent Control manage the full lifecycle of New Relic infrastructure integrations,
-downloading, configuring, upgrading, and uninstalling them while delegating their execution to
-the Infrastructure Agent, which discovers and runs the integration binaries from the shared filesystem.
+```
+/var/lib/newrelic-agent-control/shared_filesystem/
+├── data/                  # All sub-agents can see `data` and `other-data` folders
+│   └── file.yaml
+└── other-data/
+    └── file2.yaml
+```
+
+The shared directory follows the same rules as the per-agent filesystem directory on restarts, configuration updates, and unmanaged files. The behavior only changes when removing a sub-agent: its files are always removed, since each file is unequivocally owned by the sub-agent that wrote it, but folders are only removed once no other sub-agent is using them.
+
+## On-Host linked agent types
+
+Two agent types are **linked** when one writes artifacts (configuration, binaries, or other files)
+into the shared filesystem and the other is configured to read from those same paths. The writer
+may have no `executables` section, Agent Control manages its artifacts but never starts a process
+for it. Instead, the reader agent has the built-in logic to discover and execute binaries and
+configurations from a well-known path in the shared filesystem, effectively running the add-on on
+the writer's behalf.
+
+Subdirectory names are chosen by convention between the linked agent types.
+
+### On-Host Integrations (OHI)
+
+On-Host Integrations (OHIs) are the primary example of linked agent types. Where a regular sub-agent has a process that Agent Control starts and monitors, an OHI has none. Agent Control only manages its lifecycle (downloading, configuring, upgrading, and uninstalling it), while the Infrastructure Agent discovers and runs its binaries from the shared filesystem on its behalf.
 
 ### The Infrastructure Agent and OHI agent relationship
 
@@ -135,6 +247,14 @@ the Infrastructure Agent, which discovers and runs the integration binaries from
   execute. You must have `com.newrelic.infrastructure` configured as a sub-agent in the same Agent
   Control instance before deploying any OHI agent type.
 </Callout>
+
+## How does Agent Control fetch agent type definitions?
+
+Agent Control fetches agent type definitions from a remote OCI registry, identified by the `namespace`, `name`, and `version` declared in the definition's metadata section. Taking into account the environment where it's running (i.e. kubernetes, linux or windows).
+
+By default, Agent Control pulls from `docker.io` using the `newrelic/agent-control-agent-types` repository, once it could verify the signature against New Relic's public key.
+
+Agent type definitions can be pulled from a mirror, as explained in [Configure an OCI registry mirror for Agent Control](/docs/new-relic-control/agent-control/mirror-setup).
 
 ## Supported agent types
 
