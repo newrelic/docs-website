@@ -1,0 +1,175 @@
+---
+title: 'Install and configure Linkerd monitoring: NRDOT with Helm'
+metaDescription: 'Install and configure the NRDOT Collector using Helm to monitor your Linkerd service mesh with OpenTelemetry.'
+tags:
+  - Linkerd
+  - OpenTelemetry
+  - NRDOT
+  - Helm
+  - Kubernetes
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: linkerd
+flow:
+  prev: /docs/opentelemetry/integrations/linkerd/introduction
+  next: null
+---
+
+This page installs the NRDOT Collector using Helm, configures it to scrape Linkerd proxy and control plane metrics, and verifies that data is flowing to New Relic. Expect this to take about 15 minutes.
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+
+- Kubernetes cluster (EKS, GKE, AKS, or self-managed) with `kubectl` configured against it
+- Linkerd installed and healthy (`linkerd check` passes)
+- Helm-managed cluster configuration
+
+### You need
+
+- A New Relic [ingest license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- The base [Kubernetes OpenTelemetry Helm installation](/docs/kubernetes-pixie/k8s-otel/install/#helm-install) completed
+- Network connectivity to [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+- Injection enabled on the namespaces you want to observe. If it isn't, annotate and restart them:
+
+  ```bash
+  kubectl annotate namespace <YOUR_NAMESPACE> linkerd.io/inject=enabled
+  kubectl rollout restart deployment -n <YOUR_NAMESPACE>
+  ```
+
+<Callout variant="tip">
+  The NRDOT Helm chart bundles `kube-state-metrics` and enables it by default, so your Kubernetes workload entities are already correlated with Linkerd metrics. No extra setup needed.
+</Callout>
+
+<Steps>
+
+<Step>
+
+## Install [#install]
+
+1. Set your cluster name in your `values.yaml`.
+
+  ```yaml
+  deployment:
+    envs:
+      - name: OTEL_RESOURCE_ATTRIBUTES
+        value: "k8s.cluster.name=<YOUR_CLUSTER_NAME>"
+  ```
+
+2. Add the Linkerd scrape config and processors to [`deployment.configMap.extraConfig`](https://github.com/newrelic/helm-charts/blob/c6dbb791072d4f11cbd712e84d13cf997d78eddc/charts/nr-k8s-otel-collector/values.yaml#L259) in your [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/values.yaml).
+
+  ```yaml
+  receivers:
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: 'linkerd-controller'
+            kubernetes_sd_configs:
+              - role: pod
+                namespaces: { names: ['linkerd', 'linkerd-viz'] }
+            relabel_configs:
+              - { source_labels: [__meta_kubernetes_pod_container_port_name], action: keep, regex: admin-http }
+              - { source_labels: [__meta_kubernetes_pod_container_name], target_label: component }
+              - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+              - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+          - job_name: 'linkerd-proxy'
+            kubernetes_sd_configs: [{ role: pod }]
+            relabel_configs:
+              - { source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_label_linkerd_io_control_plane_ns], action: keep, regex: ^linkerd-proxy;linkerd-admin;linkerd$$ }
+              - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+              - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+              - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_ns], target_label: linkerd_control_plane_ns }
+              - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_component], target_label: linkerd_control_plane_component }
+
+  processors:
+    resource/strip_service:
+      attributes:
+        - { key: service.name, action: delete }
+        - { key: service.instance.id, action: delete }
+    transform/k8s:
+      metric_statements:
+        - context: datapoint
+          statements:
+            - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+            - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+            - delete_key(attributes, "instance")
+    transform/deployment:
+      metric_statements:
+        - context: datapoint
+          statements:
+            - set(attributes["k8s.deployment.name"], attributes["k8s.pod.name"]) where attributes["k8s.deployment.name"] == nil and attributes["k8s.pod.name"] != nil
+            - replace_pattern(attributes["k8s.deployment.name"], "-[a-z0-9]+-[a-z0-9]+$", "") where attributes["k8s.deployment.name"] == attributes["k8s.pod.name"]
+    transform/metadata_nullify:
+      metric_statements:
+        - context: metric
+          statements:
+            - set(description, "")
+            - set(unit, "")
+    filter/drop_unused:
+      error_mode: ignore
+      metrics:
+        metric:
+          - 'name == "rustls_info" or name == "proxy_build_info"'
+          - 'name == "scrape_series_added"'
+          - 'IsMatch(name, "stack_(poll|create|drop)_total") or name == "stack_poll_total_ms"'
+          - 'IsMatch(name, "tokio_rt_.*")'
+          - 'IsMatch(name, "(inbound|outbound)_http_.*_frame_size_bytes")'
+          - 'IsMatch(name, "(inbound|outbound)_tcp_detect_http_duration_seconds")'
+          - 'IsMatch(name, "outbound_tcp_balancer_queue_.*")'
+          - 'name == "scrape_duration_seconds" or name == "scrape_samples_scraped" or name == "scrape_samples_post_metric_relabeling"'
+
+  pipelines:
+    metrics/linkerd:
+      receivers: [prometheus]
+      processors: [memory_limiter, resource/strip_service, transform/k8s, transform/deployment, transform/metadata_nullify, filter/drop_unused, resource/newrelic, batch]
+      exporters: [otlp_http/newrelic]
+  ```
+
+   *`pipelines:` must be defined at the root of `extraConfig`, not nested under `service:`. The Helm chart template maps `extraConfig.pipelines` into `service.pipelines`.*
+
+</Step>
+
+<Step>
+
+## Configure [#configure]
+
+1. Update the `values.yaml` file as per the following table:
+
+  | Parameter | Description |
+  |---|---|
+  | `OTEL_RESOURCE_ATTRIBUTES` | Set `k8s.cluster.name` to your Kubernetes cluster name for identification in New Relic |
+  | `filter/drop_unused` | Drops low-value Linkerd proxy metrics by default. Remove entries from this list to re-enable them |
+
+2. Apply the updated values to your running Helm release.
+
+  ```bash
+  helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector \
+    --namespace newrelic --reuse-values -f values.yaml
+  ```
+
+</Step>
+
+<Step>
+
+## Find your data [#find]
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities)** > **All entities**</DNT>.
+2. Search for your cluster name.
+3. Select your Linkerd entity to open the built-in dashboard.
+
+The built-in dashboard covers request rate, latency p50/p95/p99, success rate, TCP connections, mTLS certificate status, control plane health, and meshed pod inventory. For detailed information, refer to [Find Linkerd data](/docs/opentelemetry/integrations/linkerd/find-data) documentation.
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+<DocTiles>
+  <DocTile title="Linkerd distributed tracing with OpenTelemetry" path="/docs/opentelemetry/integrations/linkerd/distributed-tracing">Enable proxy trace export and instrument your application pods to correlate mesh spans with APM traces.</DocTile>
+  <DocTile title="Collect Linkerd proxy logs" path="/docs/opentelemetry/integrations/linkerd/proxy-logs">Optionally collect `linkerd-proxy` sidecar container logs.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">Full list of Linkerd metrics and resource attributes collected by the OTel Collector.</DocTile>
+  <DocTile title="Find and query your data" path="/docs/opentelemetry/integrations/linkerd/find-data">Dashboard walkthrough, NRQL queries, and troubleshooting steps.</DocTile>
+</DocTiles>
