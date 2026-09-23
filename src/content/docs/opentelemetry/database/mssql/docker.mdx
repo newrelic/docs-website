@@ -1,0 +1,294 @@
+---
+title: "Docker install for MSSQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Docker
+metaDescription: Set up Microsoft SQL Server monitoring with the NRDOT Collector when SQL Server runs in a Docker container
+freshnessValidatedDate: never
+contentType: onboarding-intro
+audience: [human, ai]
+surface: [concept]
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+
+  prev: /docs/opentelemetry/database/mssql/introduction
+
+  next: null
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Set up SQL Server monitoring using the NRDOT Collector as a sibling container to a SQL Server instance that's already running in Docker.
+
+<Callout variant="tip">
+  Looking to automate this at scale, or run on Kubernetes instead? Refer to [Ansible install](/docs/opentelemetry/database/mssql/ansible), [Chef install](/docs/opentelemetry/database/mssql/chef), or [Helm chart install](/docs/opentelemetry/database/mssql/helm).
+</Callout>
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+* Docker installed on the host.
+* A SQL Server container already running (SQL Server 2017 or later), with the `sqlcmd` utility available inside it. Microsoft's `mssql-server` images bundle it under `/opt/mssql-tools18/bin` or `/opt/mssql-tools/bin`.
+* The `sa` login enabled and its password on hand (any `sysadmin`-role login works).
+* A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+* Network connectivity from the collector container to [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/).
+* This integration is available as a part of New Relic public preview program. Check with your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
+
+</Step>
+
+<Step>
+
+## Create the monitoring user and grant permissions [#user]
+
+Run the grant script inside your SQL Server container with `docker exec`. Replace `<YOUR_MSSQL_CONTAINER_NAME>`, `<YOUR_SA_PASSWORD>`, `<YOUR_DB_USERNAME>`, and `<YOUR_DB_PASSWORD>` with your own values. Adjust the `sqlcmd` path (`/opt/mssql-tools18/bin/sqlcmd` or `/opt/mssql-tools/bin/sqlcmd`) to match your image.
+
+```bash
+docker exec -i <YOUR_MSSQL_CONTAINER_NAME> /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P '<YOUR_SA_PASSWORD>' -C \
+  -Q "
+USE [master];
+GO
+CREATE LOGIN [<YOUR_DB_USERNAME>] WITH PASSWORD = '<YOUR_DB_PASSWORD>';
+GO
+-- Instance-level permissions
+GRANT VIEW SERVER STATE TO [<YOUR_DB_USERNAME>];
+GRANT VIEW ANY DEFINITION TO [<YOUR_DB_USERNAME>];
+GRANT VIEW ANY DATABASE TO [<YOUR_DB_USERNAME>];
+GO
+-- Grant read access privileges to all user databases
+DECLARE @name SYSNAME;
+DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+SELECT [name]
+FROM [master].[sys].[databases]
+WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+AND [state] = 0;
+OPEN db_cursor;
+FETCH NEXT FROM db_cursor INTO @name;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+  BEGIN TRY
+    EXEC('USE [' + @name + '];
+      IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<YOUR_DB_USERNAME>'')
+      BEGIN
+        CREATE USER [<YOUR_DB_USERNAME>] FOR LOGIN [<YOUR_DB_USERNAME>];
+      END;
+      GRANT VIEW DATABASE STATE TO [<YOUR_DB_USERNAME>];');
+  END TRY
+  BEGIN CATCH
+    PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+  END CATCH
+  FETCH NEXT FROM db_cursor INTO @name;
+END
+CLOSE db_cursor;
+DEALLOCATE db_cursor;
+GO
+"
+```
+
+<Callout variant="tip">
+  This script only creates database-level users and grants for databases that are `ONLINE` at the time it runs, excluding `master`, `msdb`, `model`, `rdsadmin`, and `distribution`. Re-run it whenever you add a new database you want monitored.
+</Callout>
+
+(Optional) Verify the login and its server-level permissions:
+
+```bash
+docker exec -i <YOUR_MSSQL_CONTAINER_NAME> /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P '<YOUR_SA_PASSWORD>' -C \
+  -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = '<YOUR_DB_USERNAME>';"
+```
+
+(Optional) Verify the monitoring user can authenticate and see every database:
+
+```bash
+docker exec -i <YOUR_MSSQL_CONTAINER_NAME> /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U <YOUR_DB_USERNAME> -P '<YOUR_DB_PASSWORD>' -C \
+  -Q "SELECT name FROM sys.databases;"
+```
+
+</Step>
+
+<Step>
+
+## Ensure Docker network connectivity [#network]
+
+Create a shared user-defined network (if you don't already have one) and connect your SQL Server container to it, so the collector container can resolve it by name:
+
+```bash
+docker network create <YOUR_DOCKER_NETWORK> 2>/dev/null || true
+docker network connect <YOUR_DOCKER_NETWORK> <YOUR_MSSQL_CONTAINER_NAME> 2>/dev/null || true
+```
+
+<Callout variant="tip">
+  Both commands are safe to re-run — `|| true` swallows the "already exists" or "already connected" errors from a prior run.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Create the NRDOT Collector configuration [#configure]
+
+This configuration focuses on essential SQL Server monitoring with the `nrsqlserver` receiver. Run the following on the Docker host to generate `mssql-config.yaml` in your current directory:
+
+```bash
+cat << 'EOF' > mssql-config.yaml
+receivers:
+  nrsqlserver:
+    collection_interval: 15s
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    server: "<YOUR_MSSQL_CONTAINER_NAME>"
+    port: 1433
+
+    metrics:
+      sqlserver.database.count: {enabled: true}
+      sqlserver.database.io: {enabled: true}
+      sqlserver.database.latency: {enabled: true}
+      sqlserver.database.operations: {enabled: true}
+      sqlserver.database.tempdb.space: {enabled: true}
+      sqlserver.database.tempdb.version_store.size: {enabled: true}
+      sqlserver.deadlock.rate: {enabled: true}
+      sqlserver.os.wait.duration: {enabled: true}
+      sqlserver.processes.blocked: {enabled: true}
+      sqlserver.memory.grants.pending.count: {enabled: true}
+      sqlserver.database.file.size: {enabled: true}
+      sqlserver.memory.area: {enabled: true}
+
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+    top_query_collection:
+      lookback_time: 60s
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
+
+    collect_full_query_text: true
+    allowed_comment_keys:
+      - nr_service_guid
+
+    query_sample_collection:
+      max_rows_per_query: 100
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 200
+    spike_limit_mib: 50
+  batch:
+
+exporters:
+  otlp:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>:4318"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    tls:
+      insecure: false
+    compression: gzip
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [nrsqlserver]
+      processors: [memory_limiter, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [nrsqlserver]
+      processors: [memory_limiter, batch]
+      exporters: [otlp]
+EOF
+```
+
+### Configuration parameters
+
+| Parameter | Description |
+| --- | --- |
+| `<YOUR_MSSQL_CONTAINER_NAME>` | The name (or Docker DNS-resolvable hostname) of your running SQL Server container. |
+| `<YOUR_DB_USERNAME>` | The monitoring login you created in [Create the monitoring user and grant permissions](#user). |
+| `<YOUR_DB_PASSWORD>` | The password of the monitoring login you created in [Create the monitoring user and grant permissions](#user). |
+| `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Your New Relic OTLP endpoint (host only, no scheme or port — `:4318` is appended for you). For more information, see [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
+| `<YOUR_NEWRELIC_LICENSE_KEY>` | Your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+
+<Callout variant="tip" title="full configuration">
+  This configuration focuses only on database monitoring without host infrastructure metrics. To enable full-feature monitoring, refer to the [configuration reference](/docs/opentelemetry/database/mssql/config-reference/#hosted-full).
+</Callout>
+
+</Step>
+
+<Step>
+
+## Start the NRDOT Collector container [#start]
+
+Run the collector on the same Docker network as your SQL Server container:
+
+```bash
+docker run -d \
+  --name nrdot-collector \
+  --network <YOUR_DOCKER_NETWORK> \
+  -v "$PWD/mssql-config.yaml:/etc/nrdot-collector/mssql-config.yaml" \
+  newrelic/nrdot-collector:latest \
+  --config /etc/nrdot-collector/mssql-config.yaml
+```
+
+Confirm the collector container is running:
+
+```bash
+docker ps --filter name=nrdot-collector
+```
+
+If it's not running, check its logs for errors — the most common causes are YAML indentation issues in `mssql-config.yaml` or an unreachable SQL Server container:
+
+```bash
+docker logs nrdot-collector
+```
+
+<Callout variant="tip">
+  After changing `mssql-config.yaml`, restart the container to apply your changes:
+
+  ```bash
+  docker restart nrdot-collector
+  ```
+</Callout>
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find]
+
+Once your data is being collected, you can access comprehensive SQL Server database monitoring through the New Relic UI.
+
+To find your SQL Server database entity in New Relic:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MSSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your SQL Server database from the list of entities.
+
+</Step>
+
+</Steps>
+
+## Related documentation [#related-docs]
+
+<DocTiles>
+  <DocTile title="Introduction to MSSQL monitoring with NRDOT" path="/docs/opentelemetry/database/mssql/introduction">Learn about all the available installation methods for MSSQL monitoring with New Relic.</DocTile>
+  <DocTile title="Linux self-hosted install" path="/docs/opentelemetry/database/mssql/linux-hosted">Learn how to set up SQL Server monitoring on Linux physical servers, virtual machines, and standalone installations.</DocTile>
+  <DocTile title="Ansible install" path="/docs/opentelemetry/database/mssql/ansible">Learn how to install and configure SQL Server monitoring at scale with the newrelic.newrelic_install Ansible role.</DocTile>
+  <DocTile title="Chef install" path="/docs/opentelemetry/database/mssql/chef">Learn how to install and configure SQL Server monitoring at scale with the newrelic-install Chef cookbook.</DocTile>
+  <DocTile title="Helm chart install" path="/docs/opentelemetry/database/mssql/helm">Learn how to install and configure SQL Server monitoring on Kubernetes with the mssql-otel Helm chart.</DocTile>
+</DocTiles>
