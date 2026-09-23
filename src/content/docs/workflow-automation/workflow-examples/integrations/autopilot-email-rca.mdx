@@ -1,0 +1,131 @@
+
+---
+title: Alert RCA with Autopilot and Email
+tags:
+  - workflow automation
+  - workflow
+  - autopilot
+  - email
+  - RCA
+  - incident response
+metaDescription: "Use Autopilot to run a root cause analysis on a New Relic alert and send a formatted HTML report by email. Includes the selector pattern for handling Autopilot's variable finalAnswer response shape."
+freshnessValidatedDate: 2026-09-23
+---
+
+When an alert fires, trigger <DNT>[Autopilot](/docs/agentic-ai/autopilot/overview)</DNT> to run a root cause analysis and receive a formatted HTML incident report by email. If Autopilot returns no usable response, the workflow sends an error notice instead so the team knows to investigate manually.
+
+Before using this workflow, ensure you have:
+  - A New Relic alert issue ID in UUID format
+  - An Email destination configured in New Relic — see [Create destinations](/docs/workflow-automation/setup-and-configure/create-destinations)
+  - The destination's UUID
+
+<Callout variant="tip">
+  When triggering this workflow from <DNT>**Alert Workflows**</DNT>, use `{{ issueId }}` as the value for the `issueId` input. This variable automatically passes the triggering alert's issue ID to the workflow.
+</Callout>
+
+This workflow completes the following steps:
+  1. Runs <DNT>Autopilot</DNT> with a root cause analysis prompt scoped to the alert issue ID
+  2. Checks whether <DNT>Autopilot</DNT> returned a usable response
+  3. If <DNT>Autopilot</DNT> succeeds, formats the response as HTML and sends it to the email destination
+  4. If <DNT>Autopilot</DNT> fails, sends an error email with the issue ID
+
+This workflow uses `newrelic.autopilot.run` and `newrelic.notification.sendEmail`.
+
+<Callout variant="important">
+  Selector `expression` values must be written on a single line. Multi-line YAML block scalars (`|` or `|-`) aren't evaluated for selector expressions and silently produce no output.
+</Callout>
+
+<Callout variant="tip">
+  Autopilot's `finalAnswer` field can return as either a plain string or a JSON-encoded object depending on prompt context. The `agentResponseBlocks` selector in this workflow handles both shapes automatically.
+</Callout>
+
+```yaml
+name: autopilotEmailRCA
+description: Automatically analyze New Relic alerts with Autopilot and send a formatted incident analysis report via email
+workflowInputs:
+  issueId:
+    type: String
+    required: true
+    validations:
+      - errorMessage: Must be a valid New Relic issue ID in UUID format
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        type: regex
+  emailDestinationId:
+    type: String
+    required: true
+    validations:
+      - pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+        errorMessage: "Invalid format. Please provide a valid UUID."
+        type: regex
+steps:
+  - name: runAutopilot
+    type: action
+    action: newrelic.autopilot.run
+    version: 1
+    inputs:
+      prompt: >-
+        Investigate New Relic issue ${{ .workflowInputs.issueId }}.
+        Produce an incident analysis report covering: what triggered the alert, likely root cause, affected entities, supporting evidence, and recommended next steps.
+        IMPORTANT: Output your final answer DIRECTLY as clean, basic HTML. Use <h2> for section headers, <b> for bold text, <p> for paragraphs, <code> for logs/IDs, and standard <table>/<tr>/<td> tags with simple borders for tabular data. Do NOT use markdown.
+      selectors:
+        - name: agentResponse
+          expression: .response.finalAnswer
+        - name: agentResponseBlocks
+          expression: '(.response.finalAnswer // "") as $r | (if ($r|type)=="string" then ($r | try fromjson catch null) else $r end) as $json | if ($json|type)=="object" and ($json.card.body|type)=="array" then $json.card.body elif ($json|type)=="array" then $json elif ($json|type)=="object" and ($json.text|type)=="string" then [{"type":"Text","value":$json.text}] else [{"type":"Text","value":($r|tostring)}] end'
+    ignoreErrors: true
+
+  - name: checkAutopilotResponse
+    type: switch
+    switch:
+      - condition: ${{ (.steps.runAutopilot.outputs.agentResponse // "") != "" }}
+        next: sendRcaEmail
+    next: sendAutopilotError
+
+  - name: sendRcaEmail
+    type: action
+    action: newrelic.notification.sendEmail
+    version: 1
+    inputs:
+      destinationId: ${{ .workflowInputs.emailDestinationId }}
+      subject: Autopilot RCA Report - Issue ${{ .workflowInputs.issueId }}
+      message: '${{ def sanitizeHtml: gsub("(?i)<script\\b[^>]*>[\\s\\S]*?</\\s*script\\s*>"; "") | gsub("(?i)<\\s*script\\b[^>]*/?\\s*>"; "") | gsub("(?i)<style\\b[^>]*>[\\s\\S]*?</\\s*style\\s*>"; "") | gsub("(?i)<\\s*(iframe|object|embed|link|meta|form|svg)\\b[^>]*/?\\s*>"; "") | gsub("(?i)</\\s*(iframe|object|embed|form|svg)\\s*>"; "") | gsub("(?i)\\son\\w+\\s*=\\s*[^\\s>]+"; "") | gsub("(?i)javascript\\s*:"; ""); (.steps.runAutopilot.outputs.agentResponseBlocks // []) as $blocks | [ $blocks[] | if .type == "CodeBlock" then "<pre><code>" + ((.code // "") | gsub("&";"&amp;") | gsub("<";"&lt;") | gsub(">";"&gt;")) + "</code></pre>" else ((.value // "") | gsub("\\*\\*";"") | sanitizeHtml) as $clean | [ $clean / "\n" | .[] | select((. | gsub("^\\s+|\\s+$";"")) != "") ] as $lines | (reduce $lines[] as $line ([]; ($line | test("^\\s*\\|?\\s*:?-+:?\\s*(\\|\\s*:?-+:?\\s*)+\\|?\\s*$")) as $isSep | ($line | contains("|")) as $isPipe | if $isSep then . elif $isPipe then if (length > 0 and .[-1].type == "table") then .[0:-1] + [ .[-1] + {rows: (.[-1].rows + [$line])} ] else . + [ {type:"table", rows: [$line]} ] end else . + [ {type:"line", value: $line} ] end )) as $rawSegments | [ $rawSegments[] | if .type == "table" and (.rows | length) < 2 then {type:"line", value: .rows[0]} else . end ] as $segments | [ $segments[] | if .type == "table" then "<table style=\"width:100%;border-collapse:collapse;font-family:Arial,sans-serif;\">" + ([ .rows | to_entries[] | . as {key: $i, value: $row} | ($row | sub("^\\s*\\|";"") | sub("\\|\\s*$";"")) as $trimmed | [ $trimmed / "|" | .[] | gsub("^\\s+|\\s+$";"") ] as $cells | (if $i == 0 then "th" else "td" end) as $tag | (if $i == 0 then "text-align:left;padding:8px;border-bottom:2px solid #ccc;" else "padding:8px;border-bottom:1px solid #eee;" end) as $style | "<tr>" + ([ $cells[] | "<" + $tag + " style=\"" + $style + "\">" + . + "</" + $tag + ">" ] | join("")) + "</tr>" ] | join("")) + "</table>" else .value as $line | ($line | sub("^\\s+";"")) as $t | if ($t | startswith("<")) then $line elif ($line | startswith("### ")) then "<h3>" + ($line | ltrimstr("### ")) + "</h3>" elif ($line | startswith("## ")) then "<h2>" + ($line | ltrimstr("## ")) + "</h2>" elif ($line | startswith("# ")) then "<h2>" + ($line | ltrimstr("# ")) + "</h2>" elif ($line | startswith("- ")) then "<p>&#8226; " + ($line | ltrimstr("- ")) + "</p>" else "<p>" + $line + "</p>" end end ] | join("\n") end ] | join("\n") }}'
+    next: end
+
+  - name: sendAutopilotError
+    type: action
+    action: newrelic.notification.sendEmail
+    version: 1
+    inputs:
+      destinationId: ${{ .workflowInputs.emailDestinationId }}
+      subject: Autopilot RCA Failed - Issue ${{ .workflowInputs.issueId }}
+      message: >-
+        Autopilot could not produce findings for issue ${{ .workflowInputs.issueId }}. Please investigate manually.
+    next: end
+```
+
+## How it works [#how-it-works]
+
+The `runAutopilot` step uses two selectors to handle `finalAnswer` shape variability at the data-extraction layer:
+
+- **`agentResponse`** captures the raw `finalAnswer` value. The `checkAutopilotResponse` step uses this to determine whether <DNT>Autopilot</DNT> returned anything.
+- **`agentResponseBlocks`** normalizes the value into an array of typed block objects, handling three possible `finalAnswer` shapes: a plain string, a JSON-encoded object with a `.card.body` array, and a bare array. This gives the `sendRcaEmail` step a consistent structure to iterate over regardless of how <DNT>Autopilot</DNT> formatted its response.
+
+`sendRcaEmail` processes the blocks inline:
+- `CodeBlock` items are rendered as `<pre><code>` with HTML entities escaped.
+- Other blocks pass through `sanitizeHtml`, which strips `<script>`, `<style>`, inline event handlers, and other potentially unsafe markup.
+- Markdown-style pipe tables are detected and converted to `<table>` elements with basic inline styles.
+- Heading prefixes (`# `, `## `, `### `) and bullet markers (`- `) are converted to the corresponding HTML tags.
+- All remaining lines are wrapped in `<p>` tags.
+
+Unlike the [Alert RCA with Autopilot and Slack](/docs/workflow-automation/workflow-examples/integrations/autopilot-slack-rca) template, HTML formatting is handled entirely within the `sendRcaEmail` step — no separate `assign` step is needed.
+
+## Related topics [#related-topics]
+
+<DocTiles>
+  <DocTile title='Autopilot overview' path="/docs/agentic-ai/autopilot/overview">Learn how Autopilot investigates alerts and incidents</DocTile>
+  <DocTile title='Conditional logic' path="/docs/workflow-automation/workflow-examples/basic-patterns/conditional-logic">Use switch statements to branch on success or failure</DocTile>
+  <DocTile title='Send email notifications' path="/docs/workflow-automation/setup-and-configure/actions-catalog/newrelic/notification/newrelic-notification-sendemail">Full reference for the sendEmail action</DocTile>
+  <DocTile title='Create destinations' path="/docs/workflow-automation/setup-and-configure/create-destinations">Configure the Email destination required by this workflow</DocTile>
+  <DocTile title='Alert RCA with Autopilot and Slack' path="/docs/workflow-automation/workflow-examples/integrations/autopilot-slack-rca">Post RCA findings to Slack instead of email</DocTile>
+  <DocTile title='Troubleshoot Workflow Automation' path="/docs/workflow-automation/troubleshooting">Solutions for common Autopilot and workflow integration issues</DocTile>
+</DocTiles>
