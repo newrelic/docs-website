@@ -17,7 +17,7 @@ freshnessValidatedDate: never
   This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
 </Callout>
 
-You can install and configure MySQL monitoring on Kubernetes using the `mysql-otel` Helm chart. Depending on how you provide credentials, the chart can also run a setup job that creates the monitoring user for you.
+You can install and configure MySQL monitoring on Kubernetes using the `mysql-otel` Helm chart. Optionally, the chart can also run a setup job that creates the monitoring user for you.
 
 <Callout variant="important">
   The chart deploys the collector as a Kubernetes Deployment that reaches MySQL remotely over the network. As a result it always connects over TCP (Unix-socket monitoring isn't supported), and it reports MySQL metrics only — no host or infrastructure metrics for the machine MySQL runs on. Using `mysql.*`, it monitors one MySQL instance per release; to monitor several instances from a single release, use `mysqlMulti.*` instead (see [Monitor multiple instances from one release](#helm-multi) below).
@@ -65,13 +65,13 @@ kubectl create namespace newrelic
 
 ### Configure monitoring credentials [#helm-credentials]
 
-Choose how the chart should get the MySQL monitoring user's credentials:
+Decide whether you want the chart's setup job to create the MySQL monitoring user for you, and if not, how you'll supply its credentials:
 
 <CollapserGroup>
 
 <Collapser
   id="helm-creds-inline"
-  title="Plain username and password"
+  title="No setup job — plain username and password"
 >
 
 With this method there's no setup job, so nothing here creates the monitoring user for you. Before installing the chart, create it yourself using the **Configure database user** step from [self-hosted MySQL](/docs/opentelemetry/database/mysql/hosted/#user) or [MySQL on RDS](/docs/opentelemetry/database/mysql/rds/#user), or run the equivalent SQL as an admin user:
@@ -87,11 +87,27 @@ You'll set the monitoring username and password directly in `values.yaml` in the
 </Collapser>
 
 <Collapser
-  id="helm-creds-secret"
-  title="Secret-based credentials"
+  id="helm-creds-secret-nojob"
+  title="No setup job — secret-based credentials"
 >
 
-With this method, the chart's setup job creates the monitoring user for you using MySQL admin credentials.
+With this method there's also no setup job — create the monitoring user yourself first, exactly as in the plain-credentials method above. The only difference is where its credentials live: instead of plaintext in `values.yaml`, store them in a Kubernetes secret:
+
+```bash
+kubectl create secret generic mysql-monitor-creds \
+  --from-literal=username=<MONITORING_USERNAME> \
+  --from-literal=password='<MONITORING_PASSWORD>' \
+  -n newrelic
+```
+
+</Collapser>
+
+<Collapser
+  id="helm-creds-setupjob"
+  title="Automated setup job"
+>
+
+With this method, the chart's setup job creates the monitoring user for you using MySQL admin credentials. Both the monitoring and admin credentials must be provided as Kubernetes secrets — the setup job never accepts plaintext admin credentials, and enabling it requires secret-based monitoring credentials too.
 
 1. Create a secret with the monitoring username and password. This is the identity the setup job creates and the collector connects with:
 
@@ -148,7 +164,7 @@ Use the `values.yaml` that matches the credential method you chose in the previo
 
 <Collapser
   id="helm-values-inline"
-  title="Plain username and password"
+  title="No setup job — plain username and password"
 >
 
 ```yaml
@@ -162,12 +178,8 @@ mysql:
   username: <YOUR_MONITORING_USERNAME>
   password: <YOUR_MONITORING_PASSWORD>
 
-# setupJob.mysqlAdmin only ever accepts existingSecret (no
-# plaintext username/password), and since this credential
-# can create users and grant broad performance_schema
-# access, the setup job is only ever enabled for
-# Secret-based credentials. Create the monitoring user
-# yourself before installing the chart.
+# No setup job runs, so create the monitoring user yourself
+# before installing the chart.
 setupJob:
   enabled: false
 ```
@@ -175,8 +187,32 @@ setupJob:
 </Collapser>
 
 <Collapser
-  id="helm-values-secret"
-  title="Secret-based credentials"
+  id="helm-values-secret-nojob"
+  title="No setup job — secret-based credentials"
+>
+
+```yaml
+licenseKey: <YOUR_LICENSE_KEY>
+otlpEndpoint: otlp.nr-data.net:4317
+
+mysql:
+  topology: <self-hosted|rds>
+  server: <YOUR_DB_HOST>
+  port: <YOUR_DB_PORT>
+  existingSecret: mysql-monitor-creds
+
+# No setup job runs, so the monitoring user referenced by
+# this secret must already exist - create it yourself
+# before installing the chart.
+setupJob:
+  enabled: false
+```
+
+</Collapser>
+
+<Collapser
+  id="helm-values-setupjob"
+  title="Automated setup job"
 >
 
 ```yaml
@@ -255,7 +291,58 @@ setupJob:
 
 Instead of `mysql.*`, set `mysqlMulti.enabled: true` to monitor several MySQL instances — self-hosted or RDS — from a single collector pod in one release. The two modes are mutually exclusive: don't set `mysql.server` and `mysqlMulti.enabled: true` in the same release.
 
-Multi-instance mode has no plain-username/password path — every instance needs its own Kubernetes secret with monitoring credentials, and, if you want the setup job to create each monitoring user for you, its own admin-credentials secret too:
+Multi-instance mode has no plain-username/password path — every instance needs its own Kubernetes secret with monitoring credentials. Decide whether you also want the setup job to create each monitoring user for you:
+
+<CollapserGroup>
+
+<Collapser
+  id="helm-multi-nojob"
+  title="No setup job"
+>
+
+Create each instance's monitoring-user secret yourself before installing (repeat per instance, matching the `name` you give it in `values.yaml`):
+
+```bash
+kubectl create secret generic db1-monitor-creds \
+  --from-literal=username=<MONITORING_USERNAME> \
+  --from-literal=password='<MONITORING_PASSWORD>' \
+  -n newrelic
+# Repeat for every instance (db2-monitor-creds, ...)
+```
+
+```yaml
+licenseKey: <YOUR_LICENSE_KEY>
+otlpEndpoint: otlp.nr-data.net:4317
+
+# EDIT the two example entries below (or add more) to match
+# your real instances - each `name` must be unique within
+# this release and match the Secret you created for it.
+mysqlMulti:
+  enabled: true
+  topology: <self-hosted|rds>
+  databases:
+    - name: db1
+      server: <YOUR_DB_1_HOST>
+      existingSecret: db1-monitor-creds
+    - name: db2
+      server: <YOUR_DB_2_HOST>
+      existingSecret: db2-monitor-creds
+
+# No admin credential is configured here since the setup
+# job is disabled - create each instance's monitoring user
+# yourself first.
+setupJob:
+  enabled: false
+```
+
+</Collapser>
+
+<Collapser
+  id="helm-multi-setupjob"
+  title="Automated setup job"
+>
+
+Each instance needs both its own monitoring-user secret and its own admin-credentials secret (repeat per instance):
 
 ```bash
 kubectl create secret generic db1-monitor-creds \
@@ -273,6 +360,9 @@ kubectl create secret generic db1-admin-creds \
 licenseKey: <YOUR_LICENSE_KEY>
 otlpEndpoint: otlp.nr-data.net:4317
 
+# EDIT the two example entries below (or add more) to match
+# your real instances - each `name` must be unique within
+# this release and match the Secrets you created for it.
 mysqlMulti:
   enabled: true
   topology: <self-hosted|rds>
@@ -292,7 +382,9 @@ setupJob:
   enabled: true
 ```
 
-Omit each entry's `mysqlAdmin.existingSecret` and set `setupJob.enabled: false` if you've already created the monitoring users yourself.
+</Collapser>
+
+</CollapserGroup>
 
 <table>
   <thead>

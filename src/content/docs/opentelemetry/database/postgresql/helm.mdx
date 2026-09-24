@@ -16,7 +16,7 @@ freshnessValidatedDate: never
   This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
 </Callout>
 
-You can install and configure PostgreSQL monitoring on Kubernetes using the `postgresql-otel` Helm chart. Depending on how you provide credentials, the chart can also run a setup job that creates the monitoring role, its grants, and the `pg_stat_statements` extension for you.
+You can install and configure PostgreSQL monitoring on Kubernetes using the `postgresql-otel` Helm chart. Optionally, the chart can also run a setup job that creates the monitoring role, its grants, and the `pg_stat_statements` extension for you.
 
 <Callout variant="important">
   The chart deploys the collector as a Kubernetes Deployment that reaches PostgreSQL remotely over the network, so it reports PostgreSQL metrics only — no host or infrastructure metrics for the machine PostgreSQL runs on. It monitors one PostgreSQL *instance* per release (multiple *databases* on that instance are supported), and it doesn't configure TLS or `db_auth` credential providers such as AWS IAM authentication.
@@ -109,13 +109,13 @@ kubectl create namespace newrelic
 
 ### Configure monitoring credentials [#helm-credentials]
 
-Choose how the chart should get the PostgreSQL monitoring role's credentials:
+Decide whether you want the chart's setup job to create the PostgreSQL monitoring role for you, and if not, how you'll supply its credentials:
 
 <CollapserGroup>
 
 <Collapser
   id="helm-creds-inline"
-  title="Plain username and password"
+  title="No setup job — plain username and password"
 >
 
 With this method there's no setup job, so nothing here creates the monitoring role for you. Before installing the chart, create it yourself as a superuser. Run this once at the cluster level:
@@ -143,11 +143,27 @@ You'll set the monitoring username and password directly in `values.yaml` in the
 </Collapser>
 
 <Collapser
-  id="helm-creds-secret"
-  title="Secret-based credentials"
+  id="helm-creds-secret-nojob"
+  title="No setup job — secret-based credentials"
 >
 
-With this method, the chart's setup job creates the monitoring role for you and, for every database in `postgresql.databases`, creates the `otel` schema, grants `USAGE`/`SELECT`/`pg_monitor`, and creates the `pg_stat_statements` extension.
+With this method there's also no setup job — create the monitoring role and its per-database grants yourself first, exactly as in the plain-credentials method above. The only difference is where its credentials live: instead of plaintext in `values.yaml`, store them in a Kubernetes secret:
+
+```bash
+kubectl create secret generic postgres-monitor-creds \
+  --from-literal=username=<MONITORING_USERNAME> \
+  --from-literal=password='<MONITORING_PASSWORD>' \
+  -n newrelic
+```
+
+</Collapser>
+
+<Collapser
+  id="helm-creds-setupjob"
+  title="Automated setup job"
+>
+
+With this method, the chart's setup job creates the monitoring role for you and, for every database in `postgresql.databases`, creates the `otel` schema, grants `USAGE`/`SELECT`/`pg_monitor`, and creates the `pg_stat_statements` extension. Both the monitoring and admin credentials must be provided as Kubernetes secrets — the setup job never accepts plaintext admin credentials, and enabling it requires secret-based monitoring credentials too.
 
 1. Create a secret with the monitoring username and password. This is the identity the setup job creates and the collector connects with:
 
@@ -206,7 +222,7 @@ Use the `values.yaml` that matches the credential method you chose in the previo
 
 <Collapser
   id="helm-values-inline"
-  title="Plain username and password"
+  title="No setup job — plain username and password"
 >
 
 ```yaml
@@ -223,12 +239,8 @@ postgresql:
     - <YOUR_DATABASE>
     - <ANOTHER_DATABASE>
 
-# setupJob.postgresAdmin only ever accepts existingSecret
-# (no plaintext username/password), and since this
-# credential needs CREATE USER, CREATE SCHEMA, and CREATE
-# EXTENSION, the setup job is only ever enabled for
-# Secret-based credentials. Create the monitoring role and
-# its per-database grants yourself before installing.
+# No setup job runs, so create the monitoring role and its
+# per-database grants yourself before installing the chart.
 setupJob:
   enabled: false
 ```
@@ -236,8 +248,35 @@ setupJob:
 </Collapser>
 
 <Collapser
-  id="helm-values-secret"
-  title="Secret-based credentials"
+  id="helm-values-secret-nojob"
+  title="No setup job — secret-based credentials"
+>
+
+```yaml
+licenseKey: <YOUR_LICENSE_KEY>
+otlpEndpoint: otlp.nr-data.net:4317
+
+postgresql:
+  topology: <self-hosted|rds>
+  server: <YOUR_DB_HOST>
+  port: <YOUR_DB_PORT>
+  existingSecret: postgres-monitor-creds
+  databases:
+    - <YOUR_DATABASE>
+    - <ANOTHER_DATABASE>
+
+# No setup job runs, so the monitoring role referenced by
+# this secret must already exist - create it yourself
+# before installing the chart.
+setupJob:
+  enabled: false
+```
+
+</Collapser>
+
+<Collapser
+  id="helm-values-setupjob"
+  title="Automated setup job"
 >
 
 ```yaml
@@ -337,7 +376,64 @@ Instead of `postgresql.*`, set `postgresqlMulti.enabled: true` to monitor severa
 
 Entries are called `instances`, not `databases` — each instance is a separate PostgreSQL server, and each one carries its own nested `databases` list (the individual databases to monitor on that instance), the same way `postgresql.databases` works in single-instance mode.
 
-Multi-instance mode has no plain-username/password path — every instance needs its own Kubernetes secret with monitoring credentials, and, if you want the setup job to create each monitoring role for you, its own admin-credentials secret too:
+Multi-instance mode has no plain-username/password path — every instance needs its own Kubernetes secret with monitoring credentials. Decide whether you also want the setup job to create each monitoring role for you:
+
+<CollapserGroup>
+
+<Collapser
+  id="helm-multi-nojob"
+  title="No setup job"
+>
+
+Create each instance's monitoring-role secret yourself before installing (repeat per instance, matching the `name` you give it in `values.yaml`):
+
+```bash
+kubectl create secret generic db1-monitor-creds \
+  --from-literal=username=<MONITORING_USERNAME> \
+  --from-literal=password='<MONITORING_PASSWORD>' \
+  -n newrelic
+# Repeat for every instance (db2-monitor-creds, ...)
+```
+
+```yaml
+licenseKey: <YOUR_LICENSE_KEY>
+otlpEndpoint: otlp.nr-data.net:4317
+
+# EDIT the two example entries below (or add more) to match
+# your real instances - each `name` must be unique within
+# this release and match the Secret you created for it.
+postgresqlMulti:
+  enabled: true
+  topology: <self-hosted|rds>
+  instances:
+    - name: db1
+      server: <YOUR_DB_1_HOST>
+      port: 5432
+      existingSecret: db1-monitor-creds
+      databases:
+        - appdb1
+    - name: db2
+      server: <YOUR_DB_2_HOST>
+      port: 5432
+      existingSecret: db2-monitor-creds
+      databases:
+        - appdb2
+
+# No admin credential is configured here since the setup
+# job is disabled - create each instance's monitoring role
+# yourself first.
+setupJob:
+  enabled: false
+```
+
+</Collapser>
+
+<Collapser
+  id="helm-multi-setupjob"
+  title="Automated setup job"
+>
+
+Each instance needs both its own monitoring-role secret and its own admin-credentials secret (repeat per instance):
 
 ```bash
 kubectl create secret generic db1-monitor-creds \
@@ -355,6 +451,9 @@ kubectl create secret generic db1-admin-creds \
 licenseKey: <YOUR_LICENSE_KEY>
 otlpEndpoint: otlp.nr-data.net:4317
 
+# EDIT the two example entries below (or add more) to match
+# your real instances - each `name` must be unique within
+# this release and match the Secrets you created for it.
 postgresqlMulti:
   enabled: true
   topology: <self-hosted|rds>
@@ -385,7 +484,9 @@ setupJob:
     tag: "16"
 ```
 
-Omit each entry's `postgresAdmin.existingSecret` and set `setupJob.enabled: false` if you've already created the monitoring roles and their per-database grants yourself.
+</Collapser>
+
+</CollapserGroup>
 
 <table>
   <thead>
