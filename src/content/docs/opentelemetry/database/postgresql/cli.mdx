@@ -1,0 +1,290 @@
+---
+title: "CLI install for PostgreSQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - CLI
+metaDescription: Install and configure the NRDOT Collector for PostgreSQL monitoring using the New Relic CLI
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+You can install and configure the NRDOT Collector for PostgreSQL monitoring using the New Relic CLI. The CLI installs the collector, creates the monitoring role and its grants, and configures the collector in a single command.
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+* New Relic account with a valid [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key), `NEW_RELIC_API_KEY`, and `NEW_RELIC_ACCOUNT_ID`.
+* PostgreSQL 14 or later.
+* A Linux collector host running Debian/Ubuntu or RHEL/CentOS, with `curl` and `systemd` installed, and the `psql` client available.
+* This integration is available as a part of New Relic public preview program. Check with your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
+* `pg_stat_statements` must be loaded via `shared_preload_libraries`. The installer checks this and fails if it isn't — see [Server-level prerequisites](#server-prereqs) below.
+* For self-hosted PostgreSQL: administrative access to your PostgreSQL server (the `postgres` superuser or equivalent).
+* For PostgreSQL or Aurora on AWS RDS: network connectivity from the collector host to the RDS endpoint (inbound access on the PostgreSQL port in the RDS security group), and the RDS master username and password.
+* Network connectivity to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp) for your region.
+
+For detailed requirements, refer to [Compatibility](/docs/opentelemetry/database/postgresql/compatibility).
+
+</Step>
+
+<Step>
+
+## Server-level prerequisites [#server-prereqs]
+
+`pg_stat_statements` can't be created without `shared_preload_libraries`, and that parameter requires a database **restart** — so the CLI can't configure it for you. Put these parameters in place before running the install:
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`shared_preload_libraries`</td>
+      <td>`pg_stat_statements`</td>
+    </tr>
+    <tr>
+      <td>`pg_stat_statements.track`</td>
+      <td>`ALL`</td>
+    </tr>
+    <tr>
+      <td>`pg_stat_statements.max`</td>
+      <td>`10000`</td>
+    </tr>
+    <tr>
+      <td>`pg_stat_statements.save`</td>
+      <td>`on`</td>
+    </tr>
+    <tr>
+      <td>`track_activity_query_size`</td>
+      <td>`4096`</td>
+    </tr>
+    <tr>
+      <td>`track_functions`</td>
+      <td>`all`</td>
+    </tr>
+  </tbody>
+</table>
+
+* **Self-hosted**: set these in `postgresql.conf`, then restart PostgreSQL. Some distributions need the `postgresql-contrib` package installed for `pg_stat_statements` to be available.
+* **AWS RDS or Aurora**: set these in the DB **parameter group**, not a config file. `track_activity_query_size` and `pg_stat_statements.max` are static parameters — apply them with `apply_method: pending-reboot`, then reboot the instance. For Aurora, the parameter-group family name must match your engine's major version exactly, for example `aurora-postgresql16`.
+
+</Step>
+
+<Step>
+
+## Install and configure the NRDOT Collector [#cli-install]
+
+<CollapserGroup>
+
+<Collapser
+  id="cli-host"
+  title="Self-hosted PostgreSQL"
+>
+
+This recipe monitors one or more PostgreSQL instances from a single collector. Instead of prompting for a single host/port/credential set, it reads two files you create ahead of time: an **instances file** (YAML) listing every instance to monitor and the databases to monitor on each, and a **secrets file** (`KEY=VALUE`) with a superuser login and password for each, indexed to match.
+
+1. Create the instances file. Add one entry per PostgreSQL instance you want this collector to monitor — still just one entry if you're only running a single instance. Each instance requires at least one database — PostgreSQL has no monitor-all-databases mode:
+
+    ```bash
+    cat > ~/postgresql-instances.yml << 'EOF'
+    instances:
+      - host: localhost
+        port: 5432
+        login_name: newrelic
+        databases: [app1, app2]
+    EOF
+    ```
+
+2. Create the secrets file with a superuser role (any superuser role works — it doesn't have to be `postgres`) and password for each instance, indexed to match the instances file's order:
+
+    ```bash
+    umask 077
+    cat > ~/postgresql-secrets.env << 'EOF'
+    NR_CLI_POSTGRES_SUPERUSER_USER_1=postgres
+    NR_CLI_POSTGRES_SUPERUSER_PASSWORD_1=YourSuperuserPassword1
+    EOF
+    chmod 600 ~/postgresql-secrets.env
+    ```
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-postgresql
+```
+
+<Callout variant="important">
+  This installer connects to PostgreSQL over TCP using a password, so each instance's superuser must have a password set and `pg_hba.conf` must permit password-based host authentication (`md5` or `scram-sha-256`) for TCP connections. A fresh install has no password set on `postgres` by default — set one first:
+
+  ```bash
+  sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '<password>';"
+  ```
+
+  On RHEL/CentOS, the default `pg_hba.conf` often doesn't permit password-based host authentication at all — verify and update it, then reload PostgreSQL before running the install.
+</Callout>
+
+The CLI prompts interactively for the following variables. You can also set them ahead of time as environment variables to run non-interactively.
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`NR_CLI_POSTGRES_CONFIG_PRESET`</td>
+      <td>NRDOT configuration: `1` for Standard, `2` for Full-feature.</td>
+      <td>`1`</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_POSTGRES_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_POSTGRES_SECRETS_FILE`</td>
+      <td>**Required.** Path to the secrets file (`KEY=VALUE`, one superuser login/password pair per instance).</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`</td>
+      <td>Collect query plans for locking/write statements too. Creates a `SECURITY DEFINER` helper function (`otel.explain_statement`) in each monitored database, granting the monitoring user `EXPLAIN` execution without granting DML access. This is a PREVIEW feature. `y`/`N`.</td>
+      <td>`n`</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  To monitor more than one PostgreSQL instance from this collector, add more entries to the instances file and matching numbered credentials (`_2`, `_3`, ...) to the secrets file. An instance that fails its checks — or has no databases listed — is skipped with a logged reason rather than aborting the whole install; the install only fails outright if none of the instances pass.
+</Callout>
+
+</Collapser>
+
+<Collapser
+  id="cli-rds"
+  title="PostgreSQL or Aurora on AWS RDS"
+>
+
+This recipe monitors one or more RDS PostgreSQL or Aurora endpoints from a single collector, using the same instances file / secrets file pattern as self-hosted.
+
+1. Create the instances file, using the RDS or Aurora endpoint as `host` — still just one entry if you're only monitoring a single instance. Each instance requires at least one database — PostgreSQL has no monitor-all-databases mode:
+
+    ```bash
+    cat > ~/postgresql-instances.yml << 'EOF'
+    instances:
+      - host: mydb1.abcdefg12345.us-east-1.rds.amazonaws.com
+        port: 5432
+        login_name: newrelic
+        databases: [app1, app2]
+    EOF
+    ```
+
+2. Create the secrets file with the RDS master username and password for each instance, indexed to match the instances file's order:
+
+    ```bash
+    umask 077
+    cat > ~/postgresql-secrets.env << 'EOF'
+    NR_CLI_POSTGRES_ADMIN_USER_1=postgres
+    NR_CLI_POSTGRES_ADMIN_PASSWORD_1=YourMasterPassword1
+    EOF
+    chmod 600 ~/postgresql-secrets.env
+    ```
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-postgresql-rds
+```
+
+The CLI prompts interactively for the following variables. You can also set them ahead of time as environment variables to run non-interactively.
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`NR_CLI_POSTGRES_CONFIG_PRESET`</td>
+      <td>NRDOT configuration: `1` for Standard, `2` for Full-feature.</td>
+      <td>`1`</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_POSTGRES_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file, using RDS or Aurora endpoints as `host`.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_POSTGRES_SECRETS_FILE`</td>
+      <td>**Required.** Path to the secrets file (`KEY=VALUE`, one RDS master username/password pair per instance).</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`</td>
+      <td>Collect query plans for locking/write statements too. Creates a `SECURITY DEFINER` helper function (`otel.explain_statement`) in each monitored database, granting the monitoring user `EXPLAIN` execution without granting DML access. This is a PREVIEW feature. `y`/`N`.</td>
+      <td>`n`</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  To monitor more than one RDS PostgreSQL or Aurora endpoint from this collector, add more entries to the instances file and matching numbered credentials to the secrets file. An instance that fails its checks — or has no databases listed — is skipped with a logged reason rather than aborting the whole install.
+</Callout>
+
+</Collapser>
+
+</CollapserGroup>
+
+<Callout variant="tip">
+  To securely manage sensitive information, such as database credentials, store them in [secret management](/docs/opentelemetry/database/capabilities/db-apm/#secret-management) tools.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find]
+
+Once your data is being collected, you can access comprehensive PostgreSQL database monitoring through the New Relic UI.
+
+To find your PostgreSQL database entity in New Relic:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**PostgreSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your PostgreSQL database from the list of entities.
+
+To confirm data is arriving, run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+```sql
+SELECT count(*) FROM Metric
+WHERE metricName LIKE 'postgresql.%'
+AND instrumentation.provider = 'opentelemetry'
+SINCE 10 minutes ago
+```
+
+</Step>
+
+</Steps>
+
+## Related documentation [#related]
+
+<DocTiles>
+  <DocTile title="Introduction to PostgreSQL monitoring with NRDOT" path="/docs/opentelemetry/database/postgresql/introduction">Learn about all the available installation methods for PostgreSQL monitoring with New Relic.</DocTile>
+  <DocTile title="Ansible install" path="/docs/opentelemetry/database/postgresql/ansible">Learn how to install and configure PostgreSQL monitoring at scale with the newrelic.newrelic_install Ansible role.</DocTile>
+  <DocTile title="Chef install" path="/docs/opentelemetry/database/postgresql/chef">Learn how to install and configure PostgreSQL monitoring at scale with the newrelic-install Chef cookbook.</DocTile>
+  <DocTile title="Helm chart install" path="/docs/opentelemetry/database/postgresql/helm">Learn how to install and configure PostgreSQL monitoring on Kubernetes with the postgresql-otel Helm chart.</DocTile>
+  <DocTile title="Docker install" path="/docs/opentelemetry/database/postgresql/docker">Learn how to run the NRDOT Collector as a sibling container to a PostgreSQL instance already running in Docker.</DocTile>
+</DocTiles>

@@ -1,0 +1,248 @@
+---
+title: "Docker install for MySQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Docker
+metaDescription: Set up MySQL and MariaDB monitoring with the NRDOT Collector when MySQL runs in a Docker container
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Set up MySQL monitoring using the NRDOT Collector as a sibling container to a MySQL instance that's already running in Docker.
+
+<Callout variant="tip">
+  Looking to automate this at scale, or run on Kubernetes instead? Refer to [Ansible install](/docs/opentelemetry/database/mysql/ansible), [Chef install](/docs/opentelemetry/database/mysql/chef), or [Helm chart install](/docs/opentelemetry/database/mysql/helm).
+</Callout>
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+Before you install, make sure you have:
+
+* Docker installed on the host.
+* A MySQL container already running (MySQL 5.7 or later).
+* A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+* Network connectivity from the collector container to [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/).
+* This integration is available as a part of New Relic public preview program. Check with your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
+
+For supported MySQL versions, required grants, and `performance_schema` requirements, see [Compatibility and prerequisites](/docs/opentelemetry/database/mysql/compatibility).
+
+</Step>
+
+<Step>
+
+## Configure database user [#user]
+
+Create a monitoring user with the necessary privileges by running SQL against your MySQL container with `docker exec`. Replace `<YOUR_MYSQL_CONTAINER_NAME>`, `<YOUR_MYSQL_ROOT_PASSWORD>`, `<YOUR_DB_USERNAME>`, and `<YOUR_DB_PASSWORD>` with your own values.
+
+* To create a monitoring user with the minimum privileges needed for metrics collection, run:
+
+  ```bash
+  docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u root -p'<YOUR_MYSQL_ROOT_PASSWORD>' -e "CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>'; GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%'; FLUSH PRIVILEGES;"
+  ```
+
+* To also collect query samples and top queries, grant the full set of privileges instead:
+
+  ```bash
+  docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u root -p'<YOUR_MYSQL_ROOT_PASSWORD>' -e "CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>'; GRANT SELECT, PROCESS, REPLICATION CLIENT ON *.* TO '<YOUR_DB_USERNAME>'@'%'; GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%'; FLUSH PRIVILEGES;"
+  ```
+
+* (Optional) To view wait-time data in the New Relic platform, grant the following privilege to the monitoring user:
+
+  ```bash
+  docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u root -p'<YOUR_MYSQL_ROOT_PASSWORD>' -e "GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%'; FLUSH PRIVILEGES;"
+  ```
+
+* (Optional) To verify the connection and grants, run:
+
+  ```bash
+  docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u '<YOUR_DB_USERNAME>' -p'<YOUR_DB_PASSWORD>' -e "SELECT 1;"
+  ```
+
+  If the command completes without an error, the monitoring user and password are correct.
+
+</Step>
+
+<Step>
+
+## Create the NRDOT Collector configuration [#configure]
+
+This configuration focuses on essential MySQL monitoring with the `nrmysql` receiver. Run the following on the Docker host to generate `mysql-config.yaml` in your current directory:
+
+```bash
+cat << 'EOF' > mysql-config.yaml
+receivers:
+  nrmysql:
+    endpoint: "<YOUR_MYSQL_CONTAINER_NAME>:3306"
+    transport: tcp
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    database: ""
+    allow_native_passwords: true
+    collection_interval: 10s
+    initial_delay: 1s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+    explain_mode: procedure
+    statement_events:
+      digest_text_limit: 4096
+      time_limit: 24h
+      limit: 500
+    query_sample_collection:
+      max_rows_per_query: 100
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      lookback_time: 120
+      max_query_sample_count: 5000
+      top_query_count: 200
+      collection_interval: 60s
+      query_plan_cache_size: 1000
+      query_plan_cache_ttl: 1h
+      allowed_comment_keys: [nr_service_guid]
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+processors:
+  batch:
+  resource/mysql:
+    attributes:
+      - key: server.address
+        value: "<YOUR_MYSQL_CONTAINER_NAME>"
+        action: upsert
+      - key: server.port
+        value: 3306
+        action: upsert
+
+exporters:
+  otlp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  pipelines:
+    metrics:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlp/newrelic]
+    logs:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlp/newrelic]
+EOF
+```
+
+### Configuration parameters
+
+| Parameter | Description |
+| --- | --- |
+| `<YOUR_MYSQL_CONTAINER_NAME>` | The name (or Docker DNS-resolvable hostname) of your running MySQL container. |
+| `<YOUR_DB_USERNAME>` | The monitoring user you created in [Configure database user](#user). |
+| `<YOUR_DB_PASSWORD>` | The password of the monitoring user you created in [Configure database user](#user). |
+| `database` | Set to a specific database name to restrict monitoring to it. Leave blank (`""`) to monitor every database the monitoring user can access. |
+| `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Your New Relic OTLP endpoint. For more information, see [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
+| `<YOUR_NEWRELIC_LICENSE_KEY>` | Your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+
+</Step>
+
+<Step>
+
+## Start the NRDOT Collector container [#start]
+
+Run the collector on the same Docker network as your MySQL container so it can resolve `<YOUR_MYSQL_CONTAINER_NAME>` by its container name:
+
+```bash
+docker run -d \
+  --name nrdot-collector \
+  --network <YOUR_DOCKER_NETWORK> \
+  -v "$PWD/mysql-config.yaml:/etc/nrdot-collector/mysql-config.yaml" \
+  newrelic/nrdot-collector:latest \
+  --config /etc/nrdot-collector/mysql-config.yaml
+```
+
+<Callout variant="tip">
+  Find your MySQL container's network with `docker inspect <YOUR_MYSQL_CONTAINER_NAME> --format '{{json .NetworkSettings.Networks}}'`. If it isn't on a shared user-defined network yet, create one and connect both containers to it:
+
+  ```bash
+  docker network create <YOUR_DOCKER_NETWORK>
+  docker network connect <YOUR_DOCKER_NETWORK> <YOUR_MYSQL_CONTAINER_NAME>
+  ```
+</Callout>
+
+Confirm the collector container is running:
+
+```bash
+docker ps --filter name=nrdot-collector
+```
+
+If it's not running, check its logs for errors — the most common causes are YAML indentation issues in `mysql-config.yaml` or an unreachable MySQL container:
+
+```bash
+docker logs nrdot-collector
+```
+
+<Callout variant="tip">
+  After changing `mysql-config.yaml`, restart the container to apply your changes:
+
+  ```bash
+  docker restart nrdot-collector
+  ```
+</Callout>
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find]
+
+Once your data is being collected, you can access comprehensive MySQL database monitoring through the New Relic UI.
+
+To find your MySQL database entity in New Relic:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MySQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your MySQL database from the list of entities.
+
+To confirm data is arriving, run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+```sql
+SELECT count(*) FROM Metric
+WHERE metricName LIKE 'mysql.%'
+AND instrumentation.provider = 'opentelemetry'
+SINCE 10 minutes ago
+```
+
+</Step>
+
+</Steps>
+
+## Related documentation [#related]
+
+<DocTiles>
+  <DocTile title="Introduction to MySQL monitoring with NRDOT" path="/docs/opentelemetry/database/mysql/introduction">Learn about all the available installation methods for MySQL monitoring with New Relic.</DocTile>
+  <DocTile title="Self-hosted install" path="/docs/opentelemetry/database/mysql/hosted">Learn how to set up MySQL monitoring on physical servers, virtual machines, and standalone installations.</DocTile>
+  <DocTile title="Ansible install" path="/docs/opentelemetry/database/mysql/ansible">Learn how to install and configure MySQL monitoring at scale with the newrelic.newrelic_install Ansible role.</DocTile>
+  <DocTile title="Chef install" path="/docs/opentelemetry/database/mysql/chef">Learn how to install and configure MySQL monitoring at scale with the newrelic-install Chef cookbook.</DocTile>
+  <DocTile title="Helm chart install" path="/docs/opentelemetry/database/mysql/helm">Learn how to install and configure MySQL monitoring on Kubernetes with the mysql-otel Helm chart.</DocTile>
+</DocTiles>

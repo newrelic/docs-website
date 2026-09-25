@@ -1,0 +1,453 @@
+---
+title: "Chef install for MSSQL monitoring with NRDOT"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Chef
+metaDescription: Install and configure the NRDOT Collector for Microsoft SQL Server monitoring using the newrelic-install Chef cookbook
+freshnessValidatedDate: never
+contentType: onboarding-intro
+audience: [human, ai]
+surface: [concept]
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+
+  prev: /docs/opentelemetry/database/mssql/introduction
+
+  next: null
+---
+
+<Callout title="Preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+You can install and configure the NRDOT Collector for SQL Server monitoring using the `newrelic-install` Chef cookbook. The cookbook installs the collector, creates or authorizes the monitoring identity, and configures the collector when you run the `newrelic-install::default` recipe.
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+* New Relic account with a valid [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key), `NEW_RELIC_API_KEY`, and `NEW_RELIC_ACCOUNT_ID`.
+* SQL Server 2017 or later.
+* Chef 15 or later.
+* This integration is available as a part of New Relic public preview program. Check with your Organization Manager to opt in from the [Previews & Trials](https://one.newrelic.com/admin-portal/promotion-management/home) page.
+* For self-hosted SQL Server, SQL Server Authentication: a Windows, Ubuntu, or RHEL/CentOS collector host, with the `sa` login enabled and its password on hand.
+* For self-hosted SQL Server, Windows Domain Authentication or gMSA: a Windows collector host, and the Windows domain account (or gMSA) to grant permissions to.
+* For SQL Server on AWS RDS: a Windows, Ubuntu, or RHEL/CentOS collector host with network connectivity to the RDS endpoint (inbound access on the SQL Server port in the RDS security group), and the RDS master username and password.
+* For SQL Server on AWS RDS with Windows Domain Authentication or gMSA: a Windows collector host, and an RDS instance already joined to an AWS Managed Microsoft AD domain.
+* Network connectivity to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp) for your region.
+
+</Step>
+
+<Step>
+
+## Download the Chef cookbook [#chef-download-cookbook]
+
+Download the `newrelic-install` [Chef cookbook](https://supermarket.chef.io/cookbooks/newrelic-install) from the Chef Supermarket to your chef-repo directory:
+
+```bash
+knife supermarket install newrelic-install
+```
+
+</Step>
+
+<Step>
+
+## Replace the default attributes [#chef-configure]
+
+Replace the default attributes in `attributes/default.rb` with your account details:
+
+<CollapserGroup>
+
+<Collapser
+  id="chef-host-sql"
+  title="Self-hosted - SQL Server Authentication"
+>
+
+This cookbook monitors one or more SQL Server instances from a single collector. Instead of a single host/port/credential set, it reads two files that must already exist on the node: an **instances file** (YAML) listing every instance to monitor, and a **secrets file** (`KEY=VALUE`) with an admin login and password for each, indexed to match.
+
+1. Create the instances file on the node. Add one entry per SQL Server instance you want this collector to monitor — still just one entry if you're only running a single instance:
+
+    ```yaml
+    instances:
+      - host: localhost
+        port: 1433
+        login_name: newrelic
+    ```
+
+2. Create the secrets file on the node with an admin login (any `sysadmin`-role login works — it doesn't have to be `sa`) and password for each instance, indexed to match the instances file's order:
+
+    ```bash
+    NR_CLI_MSSQL_ADMIN_USER_1=sa
+    NR_CLI_MSSQL_ADMIN_PASSWORD_1=YourAdminPassword1
+    ```
+
+```ruby
+default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+default['newrelic_install']['targets'] = [
+  'nrdot-collector-mssql'
+]
+default['newrelic_install']['env']['NR_CLI_MSSQL_CONFIG_PRESET']   = <1 for Standard, 2 for Full-feature, default 1>
+default['newrelic_install']['env']['NR_CLI_MSSQL_INSTANCES_FILE']  = <path to the instances YAML file on the node>
+default['newrelic_install']['env']['NR_CLI_MSSQL_SECRETS_FILE']    = <path to the secrets file (KEY=VALUE per instance) on the node>
+# See all available targets at: https://github.com/newrelic/chef-install
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Attribute (under `env`)</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`NR_CLI_MSSQL_CONFIG_PRESET`</td>
+      <td>NRDOT configuration: `1` for Standard, `2` for Full-feature.</td>
+      <td>`1`</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file, already present on the node.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_SECRETS_FILE`</td>
+      <td>**Required.** Path to the secrets file (`KEY=VALUE`, one admin login/password pair per instance), already present on the node.</td>
+      <td>None</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+
+No default attribute values are shipped for these variables — set the ones relevant to your target explicitly via `default['newrelic_install']['env'][...]`.
+
+</Callout>
+
+<Callout variant="tip">
+  To monitor more than one SQL Server instance from this collector, add more entries to the instances file and matching numbered credentials (`_2`, `_3`, ...) to the secrets file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install.
+</Callout>
+
+</Collapser>
+
+<Collapser
+  id="chef-host-winauth"
+  title="Self-hosted - Windows Authentication or gMSA"
+>
+
+This target is only supported on a Windows collector host. It uses Windows authentication (`integrated security=true`) instead of SQL logins, and monitors one or more SQL Server instances from a single collector using an **instances file** (YAML, `host`/`port` per instance, no secrets file — one Windows identity monitors every instance).
+
+This file must already exist on the node — still just one entry if you're only running a single instance. Only `host` and `port` are needed (no `login_name`):
+
+```yaml
+instances:
+  - host: sql01.contoso.com
+    port: 1433
+  - host: sql02.contoso.com
+    port: 1433
+```
+
+For a named instance, use `host` plus its static TCP port rather than `host\INSTANCE`.
+
+```ruby
+default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+default['newrelic_install']['targets'] = [
+  'nrdot-collector-mssql-winauth'
+]
+default['newrelic_install']['env']['NR_CLI_MSSQL_CONFIG_PRESET']    = <1 for Standard, 2 for Full-feature, default 1>
+default['newrelic_install']['env']['NR_CLI_MSSQL_AUTH_MODE']        = <1 for Windows Domain Auth, 2 for gMSA, default 1>
+default['newrelic_install']['env']['NR_CLI_MSSQL_WINAUTH_LOCATION'] = <1 for same host as SQL Server, 2 for a different host, default 1; Windows Domain Auth only>
+default['newrelic_install']['env']['NR_CLI_MSSQL_INSTANCES_FILE']   = <path to the instances YAML file on the node>
+default['newrelic_install']['env']['NR_CLI_MSSQL_WIN_ACCOUNT']      = <Windows domain account, DOMAIN\username; required only for Windows Domain Auth on a different host>
+default['newrelic_install']['env']['NR_CLI_MSSQL_WIN_PASSWORD']     = <password for that account; required only for Windows Domain Auth on a different host>
+default['newrelic_install']['env']['NR_CLI_MSSQL_GMSA_ACCOUNT']     = <gMSA account, DOMAIN\gMSAName$; gMSA only>
+# See all available targets at: https://github.com/newrelic/chef-install
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Attribute (under `env`)</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`NR_CLI_MSSQL_CONFIG_PRESET`</td>
+      <td>NRDOT configuration: `1` for Standard, `2` for Full-feature.</td>
+      <td>`1`</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_AUTH_MODE`</td>
+      <td>SQL Server authentication: `1` for Windows Domain Auth, `2` for gMSA.</td>
+      <td>`1`</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_WINAUTH_LOCATION`</td>
+      <td>Windows Domain Auth only. `1` if the collector runs on the same host as SQL Server (the installing user's identity is used and the service stays `LocalSystem` — no domain account needed), `2` if it runs on a different host.</td>
+      <td>`1`</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file (`host`/`port` per instance), already present on the node.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_WIN_ACCOUNT` / `NR_CLI_MSSQL_WIN_PASSWORD`</td>
+      <td>**Required only when `NR_CLI_MSSQL_AUTH_MODE` is `1` and `NR_CLI_MSSQL_WINAUTH_LOCATION` is `2`.** Windows domain account (`DOMAIN\username`) and password to grant permissions to and run the collector service as. Not needed for the same-host flow or for gMSA.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_GMSA_ACCOUNT`</td>
+      <td>**Required if `NR_CLI_MSSQL_AUTH_MODE` is `2`.** gMSA account (`DOMAIN\gMSAName$`) to grant permissions to.</td>
+      <td>None</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+
+No default attribute values are shipped for these variables — set the ones relevant to your target explicitly via `default['newrelic_install']['env'][...]`.
+
+</Callout>
+
+<Callout variant="tip">
+  To monitor more than one SQL Server instance from this collector, add more entries to the instances file. One auth mode and one Windows identity is used for **every** instance in the file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install. The same-host flow (`NR_CLI_MSSQL_WINAUTH_LOCATION` `1`) only works for instances on the node itself — use the different-host flow or gMSA for remote or clustered instances.
+</Callout>
+
+</Collapser>
+
+<Collapser
+  id="chef-rds-sql"
+  title="AWS RDS - SQL Server Authentication"
+>
+
+This cookbook monitors one or more RDS SQL Server endpoints from a single collector, using the same instances file / secrets file pattern as self-hosted (both files must already exist on the node).
+
+1. Create the instances file on the node, using the RDS endpoint as `host` — still just one entry if you're only monitoring a single RDS instance:
+
+    ```yaml
+    instances:
+      - host: mydb1.abcdefg12345.us-east-1.rds.amazonaws.com
+        port: 1433
+        login_name: newrelic
+    ```
+
+2. Create the secrets file on the node with the RDS master username and password for each instance, indexed to match the instances file's order:
+
+    ```bash
+    NR_CLI_MSSQL_ADMIN_USER_1=admin
+    NR_CLI_MSSQL_ADMIN_PASSWORD_1=YourMasterPassword1
+    ```
+
+```ruby
+default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+default['newrelic_install']['targets'] = [
+  'nrdot-collector-mssql-rds'
+]
+default['newrelic_install']['env']['NR_CLI_MSSQL_CONFIG_PRESET']  = <1 for Standard, 2 for Full-feature, default 1>
+default['newrelic_install']['env']['NR_CLI_MSSQL_INSTANCES_FILE'] = <path to the instances YAML file on the node, using RDS endpoints as host>
+default['newrelic_install']['env']['NR_CLI_MSSQL_SECRETS_FILE']   = <path to the secrets file (KEY=VALUE per instance) on the node>
+# See all available targets at: https://github.com/newrelic/chef-install
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Attribute (under `env`)</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`NR_CLI_MSSQL_CONFIG_PRESET`</td>
+      <td>NRDOT configuration: `1` for Standard, `2` for Full-feature.</td>
+      <td>`1`</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file, using RDS endpoints as `host`, already present on the node.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_SECRETS_FILE`</td>
+      <td>**Required.** Path to the secrets file (`KEY=VALUE`, one RDS master username/password pair per instance), already present on the node.</td>
+      <td>None</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+
+No default attribute values are shipped for these variables — set the ones relevant to your target explicitly via `default['newrelic_install']['env'][...]`.
+
+</Callout>
+
+<Callout variant="tip">
+  To monitor more than one RDS SQL Server endpoint from this collector, add more entries to the instances file and matching numbered credentials to the secrets file. An instance that fails its checks is skipped with a logged reason rather than aborting the whole install.
+</Callout>
+
+</Collapser>
+
+<Collapser
+  id="chef-rds-winauth"
+  title="AWS RDS - Windows Domain Authentication or gMSA"
+>
+
+This target is only supported on a Windows collector host, and requires your RDS instances to already be joined to an AWS Managed Microsoft AD domain. It monitors one or more RDS SQL Server endpoints from a single collector using an **instances file** (YAML, `host`/`port` per instance, using RDS endpoints as `host`). Unlike the self-hosted target above, there's no "same host" option here — a domain account (or gMSA) is always required.
+
+This file must already exist on the node, using each RDS endpoint as `host` — still just one entry if you're only monitoring a single RDS instance:
+
+```yaml
+instances:
+  - host: mydb1.xxxxxxxxxx.us-east-1.rds.amazonaws.com
+    port: 1433
+  - host: mydb2.xxxxxxxxxx.us-east-1.rds.amazonaws.com
+    port: 1433
+```
+
+```ruby
+default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+default['newrelic_install']['targets'] = [
+  'nrdot-collector-mssql-rds-winauth'
+]
+default['newrelic_install']['env']['NR_CLI_MSSQL_CONFIG_PRESET']   = <1 for Standard, 2 for Full-feature, default 1>
+default['newrelic_install']['env']['NR_CLI_MSSQL_AUTH_MODE']       = <1 for Windows Domain Auth, 2 for gMSA, default 1>
+default['newrelic_install']['env']['NR_CLI_MSSQL_INSTANCES_FILE']  = <path to the instances YAML file on the node, using RDS endpoints as host>
+default['newrelic_install']['env']['NR_CLI_MSSQL_WIN_ACCOUNT']     = <Windows domain account, DOMAIN\username; Windows Domain Auth only>
+default['newrelic_install']['env']['NR_CLI_MSSQL_WIN_PASSWORD']    = <password for that account; Windows Domain Auth only>
+default['newrelic_install']['env']['NR_CLI_MSSQL_GMSA_ACCOUNT']    = <gMSA account, DOMAIN\gMSAName$; gMSA only>
+# See all available targets at: https://github.com/newrelic/chef-install
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Attribute (under `env`)</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`NR_CLI_MSSQL_CONFIG_PRESET`</td>
+      <td>NRDOT configuration: `1` for Standard, `2` for Full-feature.</td>
+      <td>`1`</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_AUTH_MODE`</td>
+      <td>SQL Server authentication: `1` for Windows Domain Auth, `2` for gMSA.</td>
+      <td>`1`</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_INSTANCES_FILE`</td>
+      <td>**Required.** Path to the instances YAML file, using RDS endpoints as `host`, already present on the node.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_WIN_ACCOUNT` / `NR_CLI_MSSQL_WIN_PASSWORD`</td>
+      <td>**Required if `NR_CLI_MSSQL_AUTH_MODE` is `1`.** Windows domain account (`DOMAIN\username`) and password to grant permissions to and run the collector service as.</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>`NR_CLI_MSSQL_GMSA_ACCOUNT`</td>
+      <td>**Required if `NR_CLI_MSSQL_AUTH_MODE` is `2`.** gMSA account (`DOMAIN\gMSAName$`) to grant permissions to.</td>
+      <td>None</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+
+No default attribute values are shipped for these variables — set the ones relevant to your target explicitly via `default['newrelic_install']['env'][...]`.
+
+</Callout>
+
+<Callout variant="tip">
+  To monitor more than one RDS SQL Server endpoint from this collector, add more entries to the instances file. One auth mode and one Windows identity is used for **every** endpoint in the file. An endpoint that fails its checks is skipped with a logged reason rather than aborting the whole install.
+</Callout>
+
+</Collapser>
+
+</CollapserGroup>
+
+<Callout variant="tip">
+  To securely manage sensitive information, such as database credentials, store them in [secret management](/docs/opentelemetry/database/capabilities/db-apm/#secret-management) tools, for example with [Chef encrypted data bags](https://docs.chef.io/data_bags/#encrypt-a-data-bag-item).
+</Callout>
+
+</Step>
+
+<Step>
+
+## Upload the Chef cookbook [#chef-upload-cookbook]
+
+Upload the `newrelic-install` Chef cookbook to your Chef server:
+
+```bash
+knife cookbook upload newrelic-install
+```
+
+</Step>
+
+<Step>
+
+## Update the run list [#chef-run-list]
+
+Add the `newrelic-install` recipe to the run list of a node:
+
+```json
+"run_list": [
+  "recipe[newrelic-install]"
+]
+```
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find]
+
+Once your data is being collected, you can access comprehensive SQL Server database monitoring through the New Relic UI.
+
+To find your SQL Server database entity in New Relic:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MSSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your SQL Server database from the list of entities.
+
+    After setting up SQL Server monitoring with NRDOT, you can:
+
+    * [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your database metrics
+    * [Set up alerts](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) for critical database performance thresholds
+    * [Explore your data](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) using New Relic query capabilities
+
+</Step>
+
+</Steps>
+
+## Related documentation [#related-docs]
+
+<DocTiles>
+  <DocTile title="Introduction to MSSQL monitoring with NRDOT" path="/docs/opentelemetry/database/mssql/introduction">Learn about all the available installation methods for MSSQL monitoring with New Relic.</DocTile>
+  <DocTile title="Ansible install" path="/docs/opentelemetry/database/mssql/ansible">Learn how to install and configure MSSQL monitoring at scale with the newrelic.newrelic_install Ansible role.</DocTile>
+  <DocTile title="Helm chart install" path="/docs/opentelemetry/database/mssql/helm">Learn how to install and configure MSSQL monitoring on Kubernetes with the mssql-otel Helm chart.</DocTile>
+  <DocTile title="Configuration reference" path="/docs/opentelemetry/database/mssql/config-reference">Learn about the full set of NRDOT Collector configuration options for MSSQL monitoring.</DocTile>
+  <DocTile title="Troubleshooting" path="/docs/opentelemetry/database/mssql/troubleshooting">Learn how to troubleshoot your MSSQL monitoring setup in New Relic.</DocTile>
+</DocTiles>
