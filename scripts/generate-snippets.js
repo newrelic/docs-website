@@ -251,7 +251,23 @@ function relativeImportPath(fromFile, toFile) {
   return rel.startsWith('.') ? rel : `./${rel}`;
 }
 
-module.exports = { generateSnippets, pathToComponentName };
+// The current set of valid snippet component names, e.g. "ApmSharedPrerequisites".
+// Used by the translation serializer/deserializer (scripts/actions/serialize-mdx.mjs,
+// deserialize-html.mjs) to recognize a snippet tag as translatable content without
+// requiring a hand-written entry in handlers.mjs for every snippet - unlike that
+// generation pipeline, this is a cheap, synchronous filesystem scan (no MDX
+// compilation), so it's fine to memoize and call from a hot path.
+let cachedSnippetComponentNames = null;
+function listSnippetComponentNames() {
+  if (!cachedSnippetComponentNames) {
+    cachedSnippetComponentNames = fs.existsSync(snippetsDir)
+      ? findMdxFiles(snippetsDir).map(({ relativePath }) => pathToComponentName(relativePath))
+      : [];
+  }
+  return cachedSnippetComponentNames;
+}
+
+module.exports = { generateSnippets, pathToComponentName, listSnippetComponentNames };
 
 // Run directly (CLI / npm script), as opposed to being required by gatsby-node.js
 if (require.main === module) {
