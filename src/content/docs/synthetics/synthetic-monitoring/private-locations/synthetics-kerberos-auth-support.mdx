@@ -1,0 +1,202 @@
+---
+title: Kerberos (SPNEGO) authentication support for private locations
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+  - Kerberos
+  - Security
+metaDescription: Configure a Kerberos KDC, a SPNEGO-protected web server, and the New Relic synthetics job manager to support Kerberos authentication.
+freshnessValidatedDate: never
+---
+
+This doc describes how to set up a Kerberos Key Distribution Center (KDC) and a SPNEGO/Kerberos-authenticated web application on an Amazon Linux 2023 EC2 instance, and how to configure the [synthetics job manager](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager) (SJM) to run monitors with Kerberos authentication support.
+
+## Placeholder values [#variables]
+
+Before you begin, identify the following values for your environment. Replace each placeholder with your own value wherever it appears in this doc.
+
+| Placeholder | Description | Example |
+|---|---|---|
+| `<REALM_NAME>` | Kerberos realm (must be uppercase) | `KERBTEST.LOCAL` |
+| `<EC2_PRIVATE_IP>` | Private IPv4 address of the EC2 instance | `10.8.9.172` |
+| `<EC2_INTERNAL_HOSTNAME>` | Fully qualified domain name (FQDN) of the web app | `ip-X-X-X-X.ec2.internal` |
+| `<CLIENT_PRINCIPAL>` | Kerberos identity assigned to synthetics workers | `synthetics-test` |
+| `<CLIENT_KEYTAB_PATH>` | Full path on the host where the client keytab is stored | `/home/ec2-user/kerb-test/synthetics-test.keytab` |
+| `<PRIVATE_LOCATION_KEY>` | New Relic private location key | `NRSP-us...` |
+
+## Part 1: Set up the host environment [#host-setup]
+
+### Step 1: Install Kerberos packages [#install-packages]
+
+Install the Kerberos KDC server and administration tools on the host EC2 instance:
+
+```bash
+sudo dnf install -y krb5-server krb5-workstation
+```
+
+### Step 2: Configure system Kerberos (`/etc/krb5.conf`) [#system-config]
+
+Configure `/etc/krb5.conf` to direct realm requests to your KDC:
+
+```bash
+sudo tee /etc/krb5.conf > /dev/null <<'EOF'
+[libdefaults]
+    default_realm = <REALM_NAME>
+    dns_lookup_realm = false
+    dns_lookup_kdc = false
+    rdns = false
+
+[realms]
+    <REALM_NAME> = {
+        kdc = <EC2_PRIVATE_IP>
+        admin_server = <EC2_PRIVATE_IP>
+    }
+
+[domain_realm]
+    <EC2_INTERNAL_HOSTNAME> = <REALM_NAME>
+EOF
+```
+
+### Step 3: Configure the KDC daemon (`kdc.conf`) [#kdc-config]
+
+Define the port and encryption rules for the KDC service:
+
+```bash
+sudo tee /var/kerberos/krb5kdc/kdc.conf > /dev/null <<'EOF'
+[kdcdefaults]
+    kdc_ports = 88
+    kdc_tcp_ports = 88
+
+[realms]
+    <REALM_NAME> = {
+        acl_file = /var/kerberos/krb5kdc/kadm5.acl
+        dict_file = /usr/share/dict/words
+        admin_keytab = /var/kerberos/krb5kdc/kadm5.keytab
+        supported_enctypes = aes256-cts-hmac-sha1-96:normal aes128-cts-hmac-sha1-96:normal
+    }
+EOF
+```
+
+### Step 4: Initialize the master database and KDC daemons [#init-db]
+
+Create the database and start the KDC background services:
+
+```bash
+# Create the Kerberos database (assign a master password when prompted)
+sudo kdb5_util create -r <REALM_NAME> -s
+
+# Grant admin permissions and enable KDC services on system boot
+echo "*/admin@<REALM_NAME> *" | sudo tee /var/kerberos/krb5kdc/kadm5.acl
+sudo systemctl enable --now krb5kdc kadmin
+```
+
+### Step 5: Generate client and server keytabs [#keytab-generation]
+
+Generate keytab files holding non-interactive credentials for both the client (synthetics worker) and the target web server service principal name (SPN):
+
+```bash
+mkdir -p /home/ec2-user/kerb-test
+
+# 1. Create client principal & keytab for synthetics runners
+sudo kadmin.local -q "addprinc -randkey <CLIENT_PRINCIPAL>@<REALM_NAME>"
+sudo kadmin.local -q "ktadd -k <CLIENT_KEYTAB_PATH> <CLIENT_PRINCIPAL>@<REALM_NAME>"
+sudo chmod 644 <CLIENT_KEYTAB_PATH>
+
+# 2. Create HTTP service principal name (SPN) keytab for the web server
+sudo kadmin.local -q "addprinc -randkey HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
+sudo kadmin.local -q "ktadd -k /home/ec2-user/kerb-test/http.keytab HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
+sudo chmod 644 /home/ec2-user/kerb-test/http.keytab
+```
+
+### Step 6: Deploy a test web container (optional) [#deploy-test-container]
+
+<Callout variant="tip">
+  This step is only needed if you want to run a test web server on the same host to validate the setup. It's optional and not required to configure the SJM.
+</Callout>
+
+Deploy an Apache container configured with `mod_auth_gssapi`:
+
+```bash
+mkdir -p ~/kerb-test/httpd-image && cd ~/kerb-test/httpd-image
+
+cat > kerb-test.conf <<'EOF'
+<Location /kerb-test>
+    AuthType GSSAPI
+    AuthName "Kerberos Login"
+    GssapiCredStore keytab:/etc/krb5-http.keytab
+    Require valid-user
+</Location>
+EOF
+
+cat > Dockerfile <<'EOF'
+FROM debian:bookworm-slim
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends apache2 libapache2-mod-auth-gssapi krb5-user && \
+    a2enmod auth_gssapi && \
+    mkdir -p /var/www/html/kerb-test && \
+    echo '<h1>Kerberos SSO worked</h1>' > /var/www/html/kerb-test/index.html && \
+    rm -rf /var/lib/apt/lists/*
+COPY kerb-test.conf /etc/apache2/conf-enabled/kerb-test.conf
+EXPOSE 80
+CMD ["apache2ctl", "-D", "FOREGROUND"]
+EOF
+
+docker build -t kerb-test-httpd .
+
+docker run -d --name kerb-test-httpd \
+  -p 8080:80 \
+  -v /etc/krb5.conf:/etc/krb5.conf:ro \
+  -v /home/ec2-user/kerb-test/http.keytab:/etc/krb5-http.keytab:ro \
+  kerb-test-httpd
+```
+
+### Step 7: Verify local DNS and the Kerberos handshake [#verify-handshake]
+
+Ensure the internal domain resolves locally on the host, and verify that Kerberos authentication completes successfully:
+
+```bash
+# 1. Map internal hostname in /etc/hosts
+echo "<EC2_PRIVATE_IP> <EC2_INTERNAL_HOSTNAME>" | sudo tee -a /etc/hosts
+
+# 2. Verify unauthenticated challenge returns 401 Unauthorized
+curl -i http://<EC2_INTERNAL_HOSTNAME>:8080/kerb-test/
+
+# 3. Test ticket acquisition and end-to-end Kerberos SSO
+kinit -kt <CLIENT_KEYTAB_PATH> <CLIENT_PRINCIPAL>@<REALM_NAME>
+curl --negotiate -u : -i http://<EC2_INTERNAL_HOSTNAME>:8080/kerb-test/
+```
+
+A successful test responds with `HTTP/1.1 200 OK` and displays the protected web page content.
+
+## Part 2: Configure the synthetics job manager for Kerberos [#sjm-configuration]
+
+To allow synthetics browser runner containers to automatically resolve the KDC, acquire Kerberos tickets, and authenticate against protected endpoints, add the following Kerberos environment variables and volume mounts to your standard SJM `docker run` command.
+
+### Standard command (without Kerberos) [#standard-sjm-command]
+
+```bash
+docker run -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+  -d --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock:rw \
+  newrelic/synthetics-job-manager
+```
+
+### Required command (with Kerberos support enabled) [#kerberos-sjm-command]
+
+Add the following environment variables (`-e`) and keytab volume mount (`-v`) to your `docker run` command:
+
+```bash
+docker run -d \
+  --name sjm-container \
+  --restart unless-stopped \
+  -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+  -e KERBEROS_REALM=<REALM_NAME> \
+  -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+  -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+  -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+  -e RUNTIME_EXTRA_HOSTS=<EC2_INTERNAL_HOSTNAME>:<EC2_PRIVATE_IP> \
+  -v /var/run/docker.sock:/var/run/docker.sock:rw \
+  -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro \
+  newrelic/synthetics-job-manager
+```
