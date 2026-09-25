@@ -8,16 +8,16 @@ When you install Agent Control through [Guided Install](/docs/new-relic-control/
 
 This page covers two ways to automate installation without that manual step. Both use [`newrelic-auth-cli`](https://github.com/newrelic/newrelic-auth-rs), the same tool [Guided Install](/docs/new-relic-control/agent-control/setup) itself relies on, authenticated with a New Relic [User API key](/docs/apis/intro-apis/new-relic-api-keys/).
 
-Two rules apply to both approaches below:
+Two rules apply to the following approaches:
 
 - **Each host or install target still gets its own identity**, minted fresh for it.
-- **A private key never travels off the machine it was created on.** If you set up one durable identity that authorizes creating others (the second approach below), its private key stays on whichever machine controls your automation. Only a short-lived access token derived from it, never the key itself, is passed anywhere else.
+- **A private key never travels off the machine it was created on.** If you set up one durable identity that authorizes creating others (the [durable-identity approach](#durable-identity) described later in this guide), its private key stays on whichever machine controls your automation. Only a short-lived access token derived from it, never the key itself, is passed anywhere else.
 
-## Installing occasionally: mint a short-lived credential per run [#per-run]
+## Installing occasionally: Mint a short-lived credential per run [#per-run]
 
-If you're not installing often enough to justify managing a durable identity, this is the simplest path. Your pipeline authenticates with your API key to mint a throwaway credential, uses it once to run the normal `newrelic install` command, and the installer generates the long-lived identity that Agent Control actually runs on. You never see or store that long-lived identity yourself, the installer writes it straight to the host.
+If you're not installing often enough to justify managing a durable identity, this is the simplest path. Your pipeline authenticates with your API key to mint a throwaway credential, uses it once to run the normal `newrelic install` command, and the installer generates the long-lived identity that Agent Control actually runs on. You never see or store that long-lived identity yourself. The installer writes it straight to the host.
 
-Ansible, Chef, and Puppet all reach the same install command through their own official New Relic-maintained role, cookbook, or module, all of which pass arbitrary environment variables straight through to it. That's what makes this pattern work identically across all three: mint the credential first, then hand it to the install task as environment variables the same way you'd hand it your license key.
+Ansible, Chef, and Puppet all reach the same install command through their own official New Relic-maintained role, cookbook, or module. Each one passes arbitrary environment variables straight through to it. That's what makes this pattern work identically across all three: mint the credential first, then hand it to the install task as environment variables the same way you'd hand it your license key.
 
 <Tabs>
   <TabsBar>
@@ -165,7 +165,7 @@ If you're installing onto many hosts in one playbook run, mint the throwaway cre
     NR_CLI_FLEET_ID: "{{ newrelic_fleet_id }}"
 ```
 
-The role validates that `NEW_RELIC_API_KEY` and `NEW_RELIC_ACCOUNT_ID` are set in the play's `environment:` block and fails clearly if they're missing, but it also passes every other variable in that same block straight through to the install command, which is what carries the bootstrap credential and your organization ID through to it. Nothing in `newrelic_api_key` or the bootstrap credential is written to a file anywhere in this run, and `no_log: true` keeps both out of Ansible's own logs.
+The role validates that `NEW_RELIC_API_KEY` and `NEW_RELIC_ACCOUNT_ID` are set in the play's `environment:` block and fails if they're missing, but it also passes every other variable in that same block straight through to the install command, which is what carries the bootstrap credential and your organization ID through to it. Nothing in `newrelic_api_key` or the bootstrap credential is written to a file anywhere in this run, and `no_log: true` keeps both out of Ansible's own logs.
 
     </TabsPageItem>
 
@@ -255,7 +255,7 @@ Same shape as Linux, using the Windows build of `newrelic-auth-cli` and `install
   </TabsPages>
 </Tabs>
 
-## Installing at scale, or from Terraform: set up one durable identity, once [#durable-identity]
+## Installing at scale, or from Terraform: Set up one durable identity, once [#durable-identity]
 
 A Terraform resource that manages Agent Control on a host or cluster needs something stable across `plan` and `apply` cycles, not a fresh throwaway credential every run. The same is true for any pipeline installing many hosts over time rather than one host once. For that, set up one durable "parent" identity a single time, and use it to authorize every install after that, without ever moving its private key anywhere.
 
@@ -263,7 +263,7 @@ A Terraform resource that manages Agent Control on a host or cluster needs somet
   This section walks through calling `newrelic-auth-cli` directly. If you're setting this up with Terraform specifically, see [Agent Control setup with Terraform](/docs/infrastructure-as-code/terraform/agent-control) as well.
 </Callout>
 
-### Step 1: create the parent identity, once
+### Step 1: Create the parent identity, once
 
 You only repeat this step if you need a second parent identity, never per install. `create-bootstrap-identity key` generates a key pair locally, sends only the public half to New Relic, and automatically grants the new identity permission to create other identities, so there's no separate step for that.
 
@@ -288,7 +288,7 @@ NR_AUTH_API_KEY="$NEW_RELIC_API_KEY" /tmp/newrelic-auth-cli create-bootstrap-ide
 
 It prints back the identity's `client_id` (the private key is written straight to the path you gave it, not printed). Move that private key file to whatever secrets store controls your automation, and don't leave a copy on the machine that created it.
 
-### Step 2: for each install, generate a short-lived token from the parent
+### Step 2: For each install, generate a short-lived token from the parent
 
 The parent's private key stays local. What goes to the target host is a bearer token that expires in about an hour:
 
@@ -300,7 +300,7 @@ TOKEN=$(/tmp/newrelic-auth-cli authenticate \
   --output-token-format PLAIN)
 ```
 
-Pass that token, not the private key, to your install step by setting `NEW_RELIC_AUTH_TOKEN`. This works the same way regardless of which tool from the section above is driving the install, Ansible's `environment:`, Chef's `env`, and Puppet's `environment_variables` all carry it through exactly like they carry a client secret today:
+Pass that token, not the private key, to your install step by setting `NEW_RELIC_AUTH_TOKEN`. This works the same way regardless of which tool from the [Installing occasionally](#per-run) section described earlier in this guide is driving the install, Ansible's `environment:`, Chef's `env`, and Puppet's `environment_variables` all carry it through exactly like they carry a client secret today:
 
 ```bash
 sudo NEW_RELIC_CLI_SKIP_CORE=1 \
@@ -314,4 +314,4 @@ sudo NEW_RELIC_CLI_SKIP_CORE=1 \
 
 On Windows, `install.ps1` takes the same value as `-AuthParentToken`. The install step uses that token once to mint its own child identity locally on the target host, and that's what Agent Control actually runs on. The parent identity and its private key never touch that host.
 
-**The rule that doesn't change from the section above: each host still gets its own, freshly minted identity. What's durable and reused here is only the parent that authorizes creating those, never a runtime identity itself.**
+**The rule that doesn't change: each host still gets its own, freshly minted identity. What's durable and reused here is only the parent that authorizes creating those, never a runtime identity itself.**
