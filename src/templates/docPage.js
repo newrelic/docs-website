@@ -98,6 +98,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     tags,
     translationType,
     hideTOC,
+    pageMeta,
   } = frontmatter;
 
   // pageContext.locale is 'en' for English pages and the real locale code
@@ -172,7 +173,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
 
         <LoggedInProvider>
           <Layout.Content>
-            <MDXContainer body={body} />
+            <MDXContainer body={body} pageMeta={pageMeta || {}} />
             {showFeedbackModal && !isMobileScreen && (
               <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
             )}{' '}
@@ -260,6 +261,7 @@ export const pageQuery = graphql`
         tags
         translationType
         hideTOC
+        pageMeta
       }
       fields {
         fileRelativePath

@@ -1,4 +1,6 @@
 import handlers from './utils/handlers.mjs';
+import { serializeComponent } from './utils/serialization-helpers.mjs';
+import { listSnippetComponentNames } from '../generate-snippets.js';
 import fencedCodeBlock from './utils/fencedCodeBlock.js';
 import { unified } from 'unified11';
 import toMDAST from 'remark-parse10';
@@ -14,13 +16,24 @@ import customHeadingIds from '../../plugins/gatsby-remark-custom-heading-ids/uti
 const mdxElement = (state, node) => {
   const handler = handlers[node.name];
 
-  if (!handler || !handler.serialize) {
-    throw new Error(
-      `Unable to serialize component: '${node.name}'. You need to specify a serializer in 'scripts/actions/utils/handlers.js'`
-    );
+  if (handler && handler.serialize) {
+    return handler.serialize(state, node);
   }
 
-  return handler.serialize(state, node);
+  // Auto-generated snippet components (src/components/snippets/) don't have
+  // - and can't practically get - a hand-written entry here, since their
+  // names come from whatever writers name their snippet files. They need no
+  // special serialization (no text attributes, no custom classes), so the
+  // same generic handler most plain components already use is correct for
+  // them too - only fall back to it for names that are REAL, current
+  // snippets, so a genuinely unknown/mistyped component name still throws.
+  if (listSnippetComponentNames().includes(node.name)) {
+    return serializeComponent(state, node);
+  }
+
+  throw new Error(
+    `Unable to serialize component: '${node.name}'. You need to specify a serializer in 'scripts/actions/utils/handlers.js'`
+  );
 };
 
 // this ensures we keep brackets around MDX expressions inside attributes
