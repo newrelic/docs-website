@@ -1,0 +1,118 @@
+---
+title: "Optimize session replay data volume"
+metaDescription: "Learn how DOM complexity and mutation patterns affect session replay payload size, and how to reduce it."
+freshnessValidatedDate: 2026-09-23
+---
+
+Session replay payload size doesn't just depend on how many sessions you record — it also depends on the complexity of your site's DOM and how often that DOM changes. This guide explains why, and gives you concrete ways to reduce the amount of data a replay generates. For the pricing formula and average bytes-per-replay estimate, see [Data consumption](/docs/browser/browser-monitoring/browser-pro-features/session-replay/additional-information/#data-consumption).
+
+## Why DOM complexity drives payload size [#dom-complexity]
+
+Session replay doesn't record video or screenshots. It captures your page's DOM structure, then tracks and reports the changes (mutations) made to it as compressed payloads, as described in [Session replay and your app's performance](/docs/browser/browser-monitoring/browser-pro-features/session-replay/additional-information/#app-performance).
+
+There are two independent cost drivers behind that payload size:
+
+* **Snapshot size**: how many DOM nodes exist, and how deeply they're nested, at the moment a full snapshot is captured.
+* **Mutation volume**: how often those nodes' attributes, classes, or text change afterward.
+
+[Adjusting your sampling rate](/docs/browser/browser-monitoring/browser-pro-features/session-replay/configuration/setup-session-replay/#configure-sampling-rates) controls *how many* sessions get recorded. The techniques in this guide control *how expensive* each recorded session is, regardless of your sampling rate.
+
+## Common patterns that inflate payload size [#common-patterns]
+
+The following patterns are common on content-heavy pages, such as a product page with a star-rating widget built from inline icons and an auto-rotating image carousel.
+
+### Inline SVGs and icon-heavy widgets [#inline-svgs]
+
+Repeated inline SVG markup — for example, a rating widget that draws each star as its own `<svg>`, with nested `<path>`, `<defs>`, and gradient elements — multiplies your DOM node count quickly. Five stars drawn this way can easily add dozens of nodes; a page full of rating widgets can add thousands.
+
+```html
+<!-- Avoid: each star repeats a full, independent SVG definition -->
+<div class="rating">
+  <svg viewBox="0 0 20 20">
+    <defs><linearGradient id="star-fill-1">...</linearGradient></defs>
+    <path d="..." />
+  </svg>
+  <svg viewBox="0 0 20 20">
+    <defs><linearGradient id="star-fill-2">...</linearGradient></defs>
+    <path d="..." />
+  </svg>
+  <!-- repeated for every star, on every rating widget on the page -->
+</div>
+```
+
+To reduce this:
+
+* **Use a CSS background-image or sprite** for simple, static icons instead of inline SVG. This removes the icon's markup from the DOM entirely.
+* **If inline SVG is required, define the shape once and reuse it**: put the shape in a hidden `<symbol>`, then reference it with `<use>` everywhere you need it.
+
+  ```html
+  <svg style="display:none">
+    <symbol id="star-icon" viewBox="0 0 20 20"><path d="..." /></symbol>
+  </svg>
+  <div class="rating">
+    <svg><use href="#star-icon"></use></svg>
+    <svg><use href="#star-icon"></use></svg>
+  </div>
+  ```
+
+* **If the widget doesn't need visual fidelity in replay, exclude it from capture** using either the `nr-block` CSS class (or `data-nr-block` attribute) on the widget's container, or the <DNT>**Block selectors**</DNT> field in <DNT>**Application settings**</DNT> if you'd rather not touch your markup (useful for third-party widgets you can't edit). See [Block site content](/docs/browser/browser-monitoring/browser-pro-features/session-replay/configuration/customize-privacy-settings/#block-content).
+
+  <Callout variant="important">
+    Don't apply `nr-block`, `nr-ignore`, or a block selector to the container that holds your shared `<symbol>` definitions, even though that container is usually hidden and looks safe to exclude. Blocking a container removes its children from the captured DOM entirely — which would break every `<use>` reference to those symbols anywhere else on the page. Only block or ignore the individual visual instances (the `<use>` elements), never the shared definitions.
+  </Callout>
+
+### Bloated initial snapshot [#initial-snapshot]
+
+The first full snapshot of your page captures everything present in the DOM at that moment, including content that isn't visible or isn't needed for replay:
+
+* A large, minified `<style>` block inlined directly in the page is captured as text in the snapshot.
+* Elements that are immediately hidden (`display: none` or `visibility: hidden`) are still captured, even though they contribute nothing to what a viewer sees in the replay.
+
+To reduce this:
+
+* **Externalize CSS** using `<link rel="stylesheet">` instead of a large inline `<style>` block. Session replay captures the link, not the file's contents, which keeps the snapshot small. If your CSS is hosted on a different domain, you'll need the `crossorigin="anonymous"` attribute for it to be captured correctly — see [Manage cross-origin CSS for session replays](/docs/browser/browser-monitoring/browser-pro-features/session-replay/configuration/customize-privacy-settings/#cross-origin-css).
+* **Lazy-load below-the-fold content**, such as modals or secondary sections, instead of rendering everything at page load.
+* **Block or ignore elements that are immediately hidden** and only appear after a user action, using `nr-block`/`nr-ignore` or <DNT>**Block selectors**</DNT> as described above.
+
+### High-frequency attribute and class mutations [#frequent-mutations]
+
+Some UI patterns generate a steady stream of mutation events for as long as a session lasts. A common example is an auto-rotating image carousel that swaps a CSS class every few seconds to change the visible image — each swap is a mutation event, repeated for the entire length of the session.
+
+To reduce this:
+
+* **Throttle or debounce DOM updates** that are driven by animation, scrolling, or auto-rotation, where your UX allows it.
+* **Prefer a single class toggle driven by a CSS transition or animation** over JavaScript that repeatedly writes to `style` or `class` attributes.
+* **Block purely decorative, high-churn elements** — spinners, auto-rotating carousels, marquee-style banners — with `nr-block` or <DNT>**Block selectors**</DNT> if you don't need them reflected in replay.
+
+## Audit your site for size-inflating patterns [#audit-your-site]
+
+Before making changes, it helps to confirm where your own payload size is actually coming from.
+
+1. Open your browser's DevTools and inspect the DOM node count and nesting depth on a representative page. The Elements panel, or a quick `document.querySelectorAll('*').length` in the console, gives you a rough count.
+2. Look for repeated or deeply nested inline SVG markup, and large inline `<style>` blocks in the page source.
+3. Watch the Elements panel while interacting with the page normally, and note any elements whose class or attributes change every few seconds — these are your highest-volume mutation sources.
+4. Cross-reference what you find against candidates for `nr-block`, `nr-ignore`, or <DNT>**Block selectors**</DNT>.
+
+You can also compare snapshot-size bytes against mutation-volume bytes directly with a NRQL query:
+
+```sql
+SELECT sum(newrelic.timeslice.value)
+FROM Metric
+WHERE (metricTimesliceName LIKE 'Browser/Supportability/rrweb/node/%/bytes') AND (`entity.guid` = 'YOUR_ENTITY_GUID')
+FACET metricTimesliceName
+SINCE 30 minutes ago UNTIL now
+TIMESERIES
+```
+
+Replace `YOUR_ENTITY_GUID` with your browser app's entity GUID. The `.../node/2/bytes` series reflects full-snapshot (DOM complexity) cost, and the `.../node/3/bytes` series reflects mutation (DOM churn) cost. Run this before and after applying a fix to confirm it actually reduced your payload size.
+
+## Best practices checklist [#best-practices]
+
+* Use CSS sprites, background images, or a `<symbol>`/`<use>` pattern instead of duplicating inline SVG markup.
+* Externalize large inline CSS blocks.
+* Lazy-load below-the-fold content instead of rendering everything up front.
+* Block decorative or high-churn elements with `nr-block` or <DNT>**Block selectors**</DNT> — but never the container holding shared `<symbol>` definitions.
+* Ignore high-frequency input fields where the value itself doesn't matter for replay, using `nr-ignore`.
+* Throttle or debounce animation- and scroll-driven DOM updates.
+* Measure before and after any change with a short test period, comparing snapshot-size and mutation-volume bytes.
+* Treat sampling rate as a complementary lever, not a substitute — it controls how many sessions are recorded, not how much each one costs.
