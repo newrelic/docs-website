@@ -5,6 +5,7 @@
 import ReuseableWarning_content from './snippets/.generated/ReuseableWarning.en';
 import ApmNodejsPrerequisites_content from './snippets/.generated/ApmNodejsPrerequisites.en';
 import ApmSharedPrerequisites_content from './snippets/.generated/ApmSharedPrerequisites.en';
+import CanaryTranslationTest_content from './snippets/.generated/CanaryTranslationTest.en';
 import PpCalloutPublicPreview_content from './snippets/.generated/PpCalloutPublicPreview.en';
 
 export const ReuseableWarning = (props) => (
@@ -17,6 +18,10 @@ export const ApmNodejsPrerequisites = (props) => (
 
 export const ApmSharedPrerequisites = (props) => (
   <ApmSharedPrerequisites_content {...{ agentName: 'APM Agent', minVersion: 'X.X' }} {...props} />
+);
+
+export const CanaryTranslationTest = (props) => (
+  <CanaryTranslationTest_content {...{  }} {...props} />
 );
 
 export const PpCalloutPublicPreview = (props) => (
