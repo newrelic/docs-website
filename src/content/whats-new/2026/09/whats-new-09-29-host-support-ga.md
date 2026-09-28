@@ -1,11 +1,19 @@
 ---
 title: 'Linux and Windows host support for New Relic Agent Control and Fleet Control is now generally available'
-summary: 'Bring Linux and Windows hosts into the same fleet model as Kubernetes, with self-upgrade, seven new on-host integrations, and unified fleet management.'
+summary: 'Bring Linux and Windows hosts into the same fleet model as Kubernetes, with configurable approval workflows, self-upgrade, and seven new on-host integrations.'
 releaseDate: '2026-09-29'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-control/getting-started/'
 ---
 
 Linux and Windows host support for Agent Control and Fleet Control reaches General Availability today, matching the Kubernetes GA that shipped in September 2025. Kubernetes, Linux, and Windows now run on the same control plane, with a growing shared set of on-host integrations and the same self-upgrade capability. If you're already managing Kubernetes fleets with Agent Control, you can bring your Linux and Windows hosts into the same fleet model without adopting a different tool.
+
+## New: configuration approval workflows keep every fleet change under control
+
+Fleet Control now includes a configurable approval workflow for configuration changes. Before a new configuration goes live, decide exactly how many approvals it needs, and set different rules for different agent types, so nothing reaches your fleet without the review your team requires. This applies across Kubernetes, Linux, and Windows fleets alike.
+
+- **Review before rollout:** A new configuration goes out for sign-off before it reaches production, the same review discipline your team already applies to code.
+- **Per-agent-type control:** Require a stricter approval chain for your most sensitive agent types, and lighter-weight rules everywhere else.
+- **No more accidental pushes:** A misconfigured or unreviewed change can't reach your fleet without the approvals you've defined for it.
 
 ## Agent Control self-upgrade now available on hosts
 
@@ -22,8 +30,6 @@ Agent Control now pulls configuration values from an even wider range of sources
 ## Unified fleet management across Kubernetes, Linux, and Windows
 
 Fleet Control groups hosts into fleets by environment, application, or business unit, the same way it already groups Kubernetes clusters. Apply consistent RBAC, configuration templates, and deployment strategies regardless of operating system, and roll out a change to thousands of Linux and Windows hosts as easily as to a single cluster.
-
-Improved security also comes through configurable governance workflows: similar to familiar review-and-approval patterns from source control, you can set how many approvals a new configuration needs before it goes out, configurable per agent type, for full control over how changes reach your fleet.
 
 ## More agent detail right on the deployment page
 
