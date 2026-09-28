@@ -55,7 +55,3 @@ export default function RawContent({
 }
 ;
 RawContent.isMDXComponent = true;
-
-export const ApmSharedPrerequisites = (props) => (
-  <RawContent {...{ agentName: 'APM Agent', minVersion: 'X.X' }} {...props} />
-);

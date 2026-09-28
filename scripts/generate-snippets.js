@@ -1,12 +1,40 @@
 const fs = require('fs');
 const path = require('path');
+const { LOCALES } = require('./actions/utils/constants');
 
 const snippetsDir = path.join(__dirname, '../src/components/snippets');
 const generatedDir = path.join(snippetsDir, '.generated');
 const indexFile = path.join(__dirname, '../src/components/Snippets.js');
-const pageMetaContextPath = path.join(__dirname, '../src/components/PageMetaContext.js');
+const pageMetaContextPath = path.join(
+  __dirname,
+  '../src/components/PageMetaContext.js'
+);
+
+// Each locale (docs-website-jp, docs-website-es, ...) is a SEPARATE Netlify
+// site/build, not one build serving every locale - gatsby-config.js's
+// ignoreI18nFolders() already excludes every i18n locale except BUILD_LANG
+// from being sourced at all. So there is at most one non-English locale in
+// play for any given build - resolve it here at generate time, the same
+// BUILD_LANG convention env.js and the RSS plugins already use, rather than
+// bundling every locale's content into every build and picking at render
+// time (which would ship, say, French and Korean snippet text to the
+// Japanese site for nothing).
+// Read fresh on each call (not cached at module load) - a real build only
+// ever runs this once in a fresh process, but tests exercise multiple
+// BUILD_LANG values within one process.
+const getTargetLocale = () =>
+  LOCALES.includes(process.env.BUILD_LANG) ? process.env.BUILD_LANG : null;
+
+// Translated snippet content mirrors the same convention every other
+// translated page already uses: src/content/docs/X <-> src/i18n/content/<locale>/docs/X.
+// A snippet's translation lives at the identical relative path, just under
+// src/i18n/content/<locale>/components/snippets/ instead of src/components/snippets/.
+const i18nSnippetsDir = (locale) =>
+  path.join(__dirname, `../src/i18n/content/${locale}/components/snippets`);
 
 async function generateSnippets() {
+  const targetLocale = getTargetLocale();
+
   if (!fs.existsSync(snippetsDir)) {
     fs.mkdirSync(snippetsDir, { recursive: true });
   }
@@ -24,7 +52,10 @@ async function generateSnippets() {
 
   const reserved = getReservedComponentNames();
   const componentNames = new Set();
-  const generatedFiles = [];
+  const snippets = [];
+  // { `${componentName}.${locale}.js` => fileContent } across every snippet,
+  // for stale-file cleanup and writing below.
+  const perLocaleFiles = new Map();
 
   for (const { filePath, relativePath } of mdxFiles) {
     const componentName = pathToComponentName(relativePath);
@@ -47,71 +78,66 @@ async function generateSnippets() {
     }
     componentNames.add(componentName);
 
-    const rawContent = fs.readFileSync(filePath, 'utf-8');
-    const props = extractProps(rawContent);
+    // Props/defaults are a structural contract of the snippet, not localized
+    // content - always taken from the English source, regardless of whether
+    // a translated variant exists for this build's locale.
+    const englishContent = fs.readFileSync(filePath, 'utf-8');
+    const props = extractProps(englishContent);
 
-    // Snippets read page frontmatter via usePageMeta() (see PageMetaContext.js).
-    // Writers call it directly (e.g. `{usePageMeta().prodName === "X" ? ... : ...}`)
-    // without importing it themselves - inject the import here, using the real
-    // path from THIS snippet's own location, so it's always correct regardless
-    // of how deeply nested the snippet is.
-    const usesPageMeta = /\busePageMeta\s*\(/.test(rawContent);
-    const pageMetaImport = usesPageMeta
-      ? `import { usePageMeta } from '${relativeImportPath(filePath, pageMetaContextPath)}';\n\n`
-      : '';
-
-    const compiled = await compile(pageMetaImport + rawContent, { jsx: true });
-
-    // Matches the exact preamble gatsby-plugin-mdx generates for every real page
-    // (node_modules/gatsby-plugin-mdx/utils/gen-mdx.js) - `mdx` is the pragma
-    // function that resolves <Callout>-style tags against the ambient
-    // MDXProvider, exactly like any hand-written .mdx page already does.
-    // React is needed too: JSX fragment shorthand (<>...</>) compiles to
-    // React.Fragment regardless of the @jsx pragma override.
-    const defaultsEntries = Object.entries(props)
-      .map(([name, { default: def, type }]) =>
-        type === 'boolean' ? `${name}: ${def}` : `${name}: '${def}'`
-      )
-      .join(', ');
-
-    // compile()'s output already starts with its own `/* @jsx mdx */` line -
-    // insert the imports right after it instead of prepending a second copy.
-    // Every occurrence of the compiled module's default component name
-    // (the function declaration AND the trailing `X.isMDXComponent = true`
-    // assignment) needs renaming, not just the declaration - otherwise the
-    // assignment references an identifier that no longer exists, which
-    // throws a ReferenceError the moment this file is loaded.
-    const renamed = compiled.replace(/\bMDXContent\b/g, 'RawContent');
-    const withImports = renamed.replace(
-      '/* @jsx mdx */\n',
-      "/* @jsx mdx */\nimport React from 'react';\nimport { mdx } from '@mdx-js/react';\n"
+    const englishFile = await compileSnippetSource(
+      englishContent,
+      filePath,
+      compile
     );
+    perLocaleFiles.set(`${componentName}.en.js`, englishFile);
 
-    const fileContent = `${withImports}
+    // A locale variant lives at the identical relative path under the same
+    // parallel-tree convention every other translated page already uses -
+    // see i18nSnippetsDir above. Only compiled when this build actually
+    // targets that locale (see targetLocale above) and a translation exists;
+    // falls back to the English file otherwise.
+    let usesTranslation = false;
+    if (targetLocale) {
+      const localeFilePath = path.join(
+        i18nSnippetsDir(targetLocale),
+        relativePath
+      );
+      if (fs.existsSync(localeFilePath)) {
+        const localeContent = fs.readFileSync(localeFilePath, 'utf-8');
+        const localeFile = await compileSnippetSource(
+          localeContent,
+          localeFilePath,
+          compile
+        );
+        perLocaleFiles.set(`${componentName}.${targetLocale}.js`, localeFile);
+        usesTranslation = true;
+      }
+    }
 
-export const ${componentName} = (props) => (
-  <RawContent {...{ ${defaultsEntries} }} {...props} />
-);
-`;
-
-    generatedFiles.push({ componentName, fileContent });
+    snippets.push({
+      componentName,
+      props,
+      locale: usesTranslation ? targetLocale : 'en',
+    });
   }
 
   if (!fs.existsSync(generatedDir)) {
     fs.mkdirSync(generatedDir, { recursive: true });
   }
 
-  // Remove stale generated files (e.g. a snippet that was renamed or deleted)
-  // so the .generated/ folder never drifts from the current snippets/ folder.
-  const currentFiles = new Set(generatedFiles.map(({ componentName }) => `${componentName}.js`));
+  // Remove stale generated files (e.g. a snippet that was renamed/deleted, or
+  // a locale translation that was removed) so .generated/ never drifts from
+  // the current state of snippets/ and its i18n mirrors.
   fs.readdirSync(generatedDir).forEach((file) => {
-    if (!currentFiles.has(file)) fs.unlinkSync(path.join(generatedDir, file));
+    if (!perLocaleFiles.has(file)) fs.unlinkSync(path.join(generatedDir, file));
   });
 
   let changed = false;
-  generatedFiles.forEach(({ componentName, fileContent }) => {
-    const outputPath = path.join(generatedDir, `${componentName}.js`);
-    const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
+  perLocaleFiles.forEach((fileContent, filename) => {
+    const outputPath = path.join(generatedDir, filename);
+    const existing = fs.existsSync(outputPath)
+      ? fs.readFileSync(outputPath, 'utf-8')
+      : '';
     if (fileContent !== existing) {
       fs.writeFileSync(outputPath, fileContent);
       changed = true;
@@ -120,13 +146,37 @@ export const ${componentName} = (props) => (
 
   const index = `// AUTO-GENERATED - DO NOT EDIT
 // Run: yarn generate:snippets
+${
+  targetLocale
+    ? `// Built for BUILD_LANG=${targetLocale} - snippets below use their ${targetLocale} translation where one exists, English otherwise.`
+    : ''
+}
 
-${generatedFiles
-  .map(({ componentName }) => `export { ${componentName} } from './snippets/.generated/${componentName}';`)
+${snippets
+  .map(
+    ({ componentName, locale }) =>
+      `import ${componentName}_content from './snippets/.generated/${componentName}.${locale}';`
+  )
   .join('\n')}
+
+${snippets
+  .map(({ componentName, props }) => {
+    const defaultsEntries = Object.entries(props)
+      .map(([name, { default: def, type }]) =>
+        type === 'boolean' ? `${name}: ${def}` : `${name}: '${def}'`
+      )
+      .join(', ');
+
+    return `export const ${componentName} = (props) => (
+  <${componentName}_content {...{ ${defaultsEntries} }} {...props} />
+);`;
+  })
+  .join('\n\n')}
 `;
 
-  const existingIndex = fs.existsSync(indexFile) ? fs.readFileSync(indexFile, 'utf-8') : '';
+  const existingIndex = fs.existsSync(indexFile)
+    ? fs.readFileSync(indexFile, 'utf-8')
+    : '';
   if (index !== existingIndex) {
     fs.writeFileSync(indexFile, index);
     changed = true;
@@ -137,7 +187,62 @@ ${generatedFiles
     return;
   }
 
-  console.log(`✅ Generated ${mdxFiles.length} snippet(s): ${[...componentNames].join(', ')}`);
+  const translated = snippets.filter(({ locale }) => locale !== 'en');
+  console.log(
+    `✅ Generated ${mdxFiles.length} snippet(s) for locale "${
+      targetLocale || 'en'
+    }": ${[...componentNames].join(', ')}${
+      translated.length
+        ? ` (${
+            translated.length
+          } using a ${targetLocale} translation: ${translated
+            .map(({ componentName }) => componentName)
+            .join(', ')})`
+        : ''
+    }`
+  );
+}
+
+// Compiles one snippet source file (English or a locale variant) into a
+// self-contained module exporting the compiled component as its default
+// export. Each locale variant gets its own file/module for the same reason
+// the English one already did: compile() emits its own makeShortcode/
+// MDXLayout consts, so two compiled snippets can never share one file.
+async function compileSnippetSource(content, sourceFilePath, compile) {
+  // Snippets read page frontmatter via usePageMeta() (see PageMetaContext.js).
+  // Writers call it directly (e.g. `{usePageMeta().prodName === "X" ? ... : ...}`)
+  // without importing it themselves - inject the import here, using the real
+  // path from THIS source file's own location, so it's always correct
+  // regardless of how deeply nested the snippet (or its locale mirror) is.
+  const usesPageMeta = /\busePageMeta\s*\(/.test(content);
+  const pageMetaImport = usesPageMeta
+    ? `import { usePageMeta } from '${relativeImportPath(
+        sourceFilePath,
+        pageMetaContextPath
+      )}';\n\n`
+    : '';
+
+  const compiled = await compile(pageMetaImport + content, { jsx: true });
+
+  // Matches the exact preamble gatsby-plugin-mdx generates for every real page
+  // (node_modules/gatsby-plugin-mdx/utils/gen-mdx.js) - `mdx` is the pragma
+  // function that resolves <Callout>-style tags against the ambient
+  // MDXProvider, exactly like any hand-written .mdx page already does.
+  // React is needed too: JSX fragment shorthand (<>...</>) compiles to
+  // React.Fragment regardless of the @jsx pragma override.
+  //
+  // compile()'s output already starts with its own `/* @jsx mdx */` line -
+  // insert the imports right after it instead of prepending a second copy.
+  // Every occurrence of the compiled module's default component name (the
+  // function declaration AND the trailing `X.isMDXComponent = true`
+  // assignment) needs renaming, not just the declaration - otherwise the
+  // assignment references an identifier that no longer exists, which throws
+  // a ReferenceError the moment this file is loaded.
+  const renamed = compiled.replace(/\bMDXContent\b/g, 'RawContent');
+  return renamed.replace(
+    '/* @jsx mdx */\n',
+    "/* @jsx mdx */\nimport React from 'react';\nimport { mdx } from '@mdx-js/react';\n"
+  );
 }
 
 // Extract default prop values from an MDX comment, e.g.
@@ -170,14 +275,26 @@ function extractProps(mdx) {
 // These don't appear in MDXContainer.js defaultComponents but are still available in
 // all MDX pages, so snippets must not reuse these names.
 const THEME_COMPONENT_NAMES = new Set([
-  'Callout', 'Code', 'CollapserGroup', 'Collapser', 'InlineCode',
-  'Steps', 'Step', 'Tabs', 'Table', 'Video', 'Icon',
+  'Callout',
+  'Code',
+  'CollapserGroup',
+  'Collapser',
+  'InlineCode',
+  'Steps',
+  'Step',
+  'Tabs',
+  'Table',
+  'Video',
+  'Icon',
 ]);
 
 // Parse MDXContainer.js and extract all component names registered in defaultComponents.
 // Combined with THEME_COMPONENT_NAMES, these form the full reserved names set.
 function getReservedComponentNames() {
-  const mdxContainerPath = path.join(__dirname, '../src/components/MDXContainer.js');
+  const mdxContainerPath = path.join(
+    __dirname,
+    '../src/components/MDXContainer.js'
+  );
   const content = fs.readFileSync(mdxContainerPath, 'utf-8');
 
   const start = content.indexOf('const defaultComponents = {');
@@ -189,7 +306,7 @@ function getReservedComponentNames() {
 
   // Match only top-level keys (exactly 2-space indent) to avoid false positives
   // from nested style objects inside component definitions
-  const pattern = /^  ([A-Za-z][A-Za-z0-9]*)\s*[:,]/gm;
+  const pattern = /^ {2}([A-Za-z][A-Za-z0-9]*)\s*[:,]/gm;
   let m;
   while ((m = pattern.exec(block)) !== null) {
     reserved.add(m[1]);
@@ -236,7 +353,7 @@ function pathToComponentName(relativePath) {
 
   // Convert each part to PascalCase and join
   return parts
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join('');
 }
 
@@ -261,13 +378,19 @@ let cachedSnippetComponentNames = null;
 function listSnippetComponentNames() {
   if (!cachedSnippetComponentNames) {
     cachedSnippetComponentNames = fs.existsSync(snippetsDir)
-      ? findMdxFiles(snippetsDir).map(({ relativePath }) => pathToComponentName(relativePath))
+      ? findMdxFiles(snippetsDir).map(({ relativePath }) =>
+          pathToComponentName(relativePath)
+        )
       : [];
   }
   return cachedSnippetComponentNames;
 }
 
-module.exports = { generateSnippets, pathToComponentName, listSnippetComponentNames };
+module.exports = {
+  generateSnippets,
+  pathToComponentName,
+  listSnippetComponentNames,
+};
 
 // Run directly (CLI / npm script), as opposed to being required by gatsby-node.js
 if (require.main === module) {

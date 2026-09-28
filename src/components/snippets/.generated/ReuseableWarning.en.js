@@ -41,7 +41,3 @@ This content is being reused from a central file. If you see this, the test is s
 }
 ;
 RawContent.isMDXComponent = true;
-
-export const ReuseableWarning = (props) => (
-  <RawContent {...{  }} {...props} />
-);

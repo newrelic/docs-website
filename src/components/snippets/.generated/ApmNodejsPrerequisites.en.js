@@ -50,7 +50,3 @@ export default function RawContent({
 }
 ;
 RawContent.isMDXComponent = true;
-
-export const ApmNodejsPrerequisites = (props) => (
-  <RawContent {...{ agentName: 'Node.js' }} {...props} />
-);

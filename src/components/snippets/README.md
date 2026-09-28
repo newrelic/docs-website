@@ -180,6 +180,23 @@ const MyComponent = () => {
 
 ---
 
+## Translated Snippets
+
+Snippet translations follow the exact same convention every other translated page on this site already uses: a parallel tree under `src/i18n/content/<locale>/`, mirroring the same relative path.
+
+```
+src/components/snippets/apm/nodejs/prerequisites.mdx           (English, the source of truth)
+src/i18n/content/jp/components/snippets/apm/nodejs/prerequisites.mdx  (Japanese translation)
+```
+
+Nothing special to do to get a snippet queued for translation — any `.mdx` file changed in a merged PR already goes through the normal translation pipeline, snippets included. Once a translation comes back, it lands at the mirrored path above automatically.
+
+**Each locale is a separate build** (`docs-website-jp`, `docs-website-es`, etc. are each their own Netlify site, not one build serving every locale — see `gatsby-config.js`'s `ignoreI18nFolders`). So a given build only ever has at most one translated variant in play, resolved from `BUILD_LANG` at generate time: `yarn generate:snippets` (no `BUILD_LANG` set, or `BUILD_LANG=en`) always uses the English source; `BUILD_LANG=jp yarn generate:snippets` uses the Japanese translation for any snippet that has one, and falls back to English for any snippet that doesn't yet.
+
+Props/defaults (the `{/* PROPS: ... */}` comment) are read from the English source only — they're a structural contract of the component, not translated content. A translated `.mdx` file should reference the same `{props.name}` placeholders as the English original; only the surrounding prose changes.
+
+---
+
 ## Using MDX Components Inside Snippets
 
 Snippets fully support MDX components available on any docs page — `<Callout>`, `<Collapser>`, `<CollapserGroup>`, `<Steps>`, `<Step>`, `<Tabs>`, `<Table>`, `<InlineCode>`, and more. No imports needed — they resolve the same way they do on any other doc page.

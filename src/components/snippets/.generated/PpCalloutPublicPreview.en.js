@@ -27,7 +27,3 @@ export default function RawContent({
 }
 ;
 RawContent.isMDXComponent = true;
-
-export const PpCalloutPublicPreview = (props) => (
-  <RawContent {...{  }} {...props} />
-);
