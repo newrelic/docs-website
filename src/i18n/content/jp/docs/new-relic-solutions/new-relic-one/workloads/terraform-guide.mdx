@@ -1,0 +1,105 @@
+---
+title: Terraformでワークロードを管理します。
+tags:
+  - New Relic
+  - Use New Relic
+  - Workloads
+  - Intelligent Workloads
+  - Terraform
+metaDescription: 'Learn how to create, manage, and update standard and intelligent workloads using Terraform.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Terraformを使用して、重要なビジネストランザクションを追跡するための[インテリジェントなワークロード](#intelligent-workloads)を使用する場合でも、特定のチームが所有するエンティティをグループ化するための[標準のワークロード](#standard-workloads)を使用する場合でも、New Relicのワークロードを作成、管理、および更新できます。公式の`terraform-provider-newrelic`リポジトリ内の`newrelic_workload`リソースは、両方のワークロードタイプをサポートするようになりました。
+
+## 前提条件 [#prerequisites]
+
+開始する前に：
+
+* マシンにTerraform CLIをインストールします。
+* Terraformプロジェクト用のローカル作業ディレクトリを初期化します。
+* 有効なNew RelicユーザーAPIキー（<DNT>NerdGraph</DNT> APIアクセス）と[アカウントID](/docs/accounts/accounts-billing/account-structure/account-id)を取得します。
+* 認証情報を安全に保つために、設定ファイルにハードコーディングするのではなく、環境変数（`NEW_RELIC_API_KEY`、`NEW_RELIC_ACCOUNT_ID`、および`NEW_RELIC_REGION`）として認証情報をエクスポートします。
+* `terraform-provider-newrelic` v3.94.0以降をインストールします。これは、Intelligent ワークロードのサポートに必要な最小バージョンです（`dynamic_flows`、`status_config_alert_policy`）。
+
+<Callout variant="important">
+  ライセンスキーまたはIngestキーを使用しないでください。ワークロードリソースのプロビジョニングには、ユーザーレベルのAPI権限が必要です。
+</Callout>
+
+## 認証を設定する [#setup]
+
+プライマリTerraform設定ファイルでNew Relicプロバイダーを宣言します：
+
+```terraform
+terraform {
+  required_providers {
+    newrelic = {
+      source  = "newrelic/newrelic"
+      version = ">= 3.94.0"
+    }
+  }
+}
+
+provider "newrelic" {
+  # Configuration inherits NEW_RELIC_API_KEY, NEW_RELIC_ACCOUNT_ID, and NEW_RELIC_REGION from environment variables
+}
+```
+
+## 標準ワークロードを作成する [#standard-workloads]
+
+検索クエリ、明示的なエンティティGUIDリスト、またはアカウントスコープの境界を使用して、`newrelic_workload`リソースを定義してください。チームが所有する特定のインフラストラクチャ、アプリケーション、またはサービスを手動でグループ化する場合は、このアプローチを使用してください。
+
+```terraform
+resource "newrelic_workload" "team_standard_workload" {
+  name       = "Payments Team Workload"
+  account_id = 1234567 # Replace with your New Relic Account ID
+
+  # Group entities using a search query
+  entity_search_query {
+    query = "name LIKE 'payment-%' AND type = 'SERVICE'"
+  }
+}
+```
+
+## インテリジェントなワークロードを作成する [#intelligent-workloads]
+
+`dynamic_flows`設定ブロックを使用してください。インテリジェントなワークロードの主な利点は、`dynamic_flows`ブロックでエントリポイントのエンティティGUIDとトランザクション名を指定すると、New Relicがディストリビューティッド（分散）トレーシング（<DNT>Transaction 360</DNT>）を介して上流および下流のエンティティの依存関係を自動的に検出し、マッピングして、5分ごとに更新することです。つまり、基盤となるサービスのアーキテクチャーが変更されたときに、手動でGUIDを更新したり、Terraformの設定を再適用したりする必要はありません。
+
+<Callout variant="tip">
+  エントリポイントのエンティティGUIDを見つけるには、New Relic UIでエンティティに移動し、エンティティのメタデータからGUIDをコピーするか、[NerdGraphエンティティAPI](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial)を使用して取得してください。
+</Callout>
+
+インテリジェントなワークロードは、アラート条件から稼働ステータスを導き出すこともできます：ワークロードに`status_config_alert_policy { enabled = true }`を設定し、その`target_entity`をワークロードのGUIDに設定して`newrelic_nrql_alert_condition`リソースをアタッチします。
+
+<Callout variant="important">
+  `target_entity` `newrelic_nrql_alert_condition`のサポートは現在パブリックプレビュー中であり、アカウントごとに利用可能です。詳しくは、[Terraformレジストリのドキュメント](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/nrql_alert_condition#description-1)を参照してください。
+</Callout>
+
+```terraform
+resource "newrelic_workload" "checkout_intelligent_workload" {
+  name       = "Checkout Transaction Flow"
+  account_id = 1234567 # Replace with your New Relic Account ID
+
+  dynamic_flows {
+    entity_guid      = "Mzg3fEFQTX..." # Replace with your entry point entity GUID
+    transaction_name = "WebTransaction/Action/checkout"
+  }
+
+  status_config_alert_policy {
+    enabled = true
+  }
+}
+```
+
+## 設定を適用してください [#apply]
+
+リソースブロックを定義した後、ターミナルから以下のコマンドを実行します：
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+Terraformがワークロードのプロビジョニングを正常に完了したら、<DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Workloads**</DNT>&gt;に移動して新しいリソースを確認してください。トランザクションフローで自動的に検出されたエンティティを検査し、アラートポリシーのバインディングを確認して、ステータスロールアップが正しいワークロードの正常性を反映していることを確認できます。

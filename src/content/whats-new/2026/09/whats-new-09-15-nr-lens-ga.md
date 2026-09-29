@@ -14,4 +14,4 @@ Whether you are a DevOps engineer wanting to combine data from different databas
 **Find out more**:
 
 * [Learn more](https://docs.newrelic.com/docs/new-relic-lens/overview/)
-* [Blog](https://newrelic.com/blog/news/streamline-data-discovery-and-analysis)
+* [Blog](https://newrelic.com/blog/observability/general-availability-new-relic-lens)

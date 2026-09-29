@@ -1,0 +1,190 @@
+---
+title: IBM MQ OpenTelemetry監視のトラブルシューティング
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Troubleshooting
+metaDescription: Troubleshoot common issues when monitoring IBM MQ with OpenTelemetry collectors on Linux hosts and Kubernetes.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+OpenTelemetryコレクターを使用してIBM MQを監視する場合、コレクターの起動、データフロー、またはエンティティの合成に関する問題が発生する可能性があります。このガイドは、LinuxホストとKubernetesデプロイメントの両方における一般的な問題を診断して修正するのに役立ちます。
+
+## Collectorが起動しない、または実行状態を維持できない [#not-start]
+
+<CollapserGroup>
+  <Collapser id="linux-1" title="自己ホスト型環境の場合">
+    コレクターのステータスを検証し、ログを確認して問題を特定します：
+
+    ```bash
+    sudo systemctl status nrdot-collector.service --no-pager
+    sudo journalctl -u nrdot-collector.service -n 200 --no-pager
+    ```
+
+    **設定の問題：**
+
+    * YAML構文エラー：コレクター設定ファイルのインデントと構文を確認します
+    * 環境ファイルがありません：`/etc/nrdot-collector/ibmmq-env`が存在することを確認してください
+    * 無効なライセンスキー：`401`または`403`のエラーが表示されます。New Relicライセンスキーを確認してください。
+  </Collapser>
+
+  <Collapser id="k8s-1" title="Kubernetes環境の場合">
+    コレクターのステータスを検証し、ログを確認して問題を特定します：
+
+    ```bash
+    kubectl -n ibmmq logs deploy/ibmmq-collector-opentelemetry-collector
+    ```
+
+    ### 一般的な原因と解決策
+
+    ログで次のエラーパターンを確認します：
+
+    **設定の問題：**
+
+    * YAML構文エラー：コレクター設定ファイルのインデントと構文を確認します
+    * 環境ファイルがありません：`ibmmq`ネームスペースに`newrelic-otlp-secret`シークレットが存在することを確認してください。
+    * 無効なライセンスキー：`401`または`403`のエラーが表示されます。New Relicライセンスキーを確認してください。
+
+    **Kubernetes固有の問題：**
+
+    * `CreateContainerConfigError`：`newrelic-otlp-secret`シークレットがありません。[New Relic認証情報シークレットの作成](/docs/opentelemetry/integrations/ibm-mq/kubernetes#create-secret)ステップを再実行します
+    * `spec.ports: Required value`：`service.enabled: false`が次から欠落しています `values.yaml`
+    * `cannot list resource "pods" … forbidden`：RBACの欠落。Helmのvaluesに`clusterRole.create: true`が設定されていることを確認してください。
+  </Collapser>
+</CollapserGroup>
+
+## New RelicにIBM MQメトリクスが表示されない [#no-data]
+
+コレクターが実行されているにもかかわらず、IBM MQのメトリクスがNew Relicに到達しない場合は、体系的にトラブルシューティングを行ってください：
+
+<CollapserGroup>
+  <Collapser id="linux-2" title="自己ホスト型環境の場合">
+    1. IBM MQエクスポーターが機能していることを確認します：
+
+    ```bash
+    curl -s http://<exporter-host>:9157/metrics | grep '^ibmmq_qmgr_status'
+    ```
+
+    キューマネージャーごとに1行表示されます。出力が表示されない場合、エクスポーターは正常に機能していません。
+
+    2. コレクターが正常であり、ターゲットを検出していることを確認します。
+
+    ```bash
+    curl http://127.0.0.1:13133
+    # Expected: {"status":"Server available", ...}
+    ```
+
+    `otelcol_receiver_accepted_metric_points` 0より大きい場合、コレクターがターゲットを見つけたことが確認できます。`otelcol_exporter_send_failed_metric_points`は`0`のままである必要があります。
+
+    3. ターゲット検出の問題を確認してください。
+
+    * `IBMMQ_QMN_ENDPOINT`変数が機能しているエクスポーターを指していることを確認してください。
+    * コレクターが各エクスポーターのエンドポイントに到達できることを確認してください
+    * 静的ターゲット設定が正しいことを確認します
+
+    4. メトリクスが収集されているにもかかわらず、New Relicに表示されないかどうかを確認します：
+
+    * **OTLPエンドポイントのリージョン**：エンドポイントがNew Relicアカウントのリージョン（USまたはEU）と一致していることを確認してください。
+    * **ライセンスキー**：ライセンスキーが有効であり、正しい権限を持っていることを確認してください。
+    * **ネットワーク接続**：コレクターがNew Relic OTLPエンドポイントに到達できることを確認してください。
+
+    リージョンが間違っていると、コレクター側のエラーなしにデータがサイレントにドロップされます。
+  </Collapser>
+
+  <Collapser id="k8s-2" title="Kubernetes環境の場合">
+    1. IBM MQエクスポーターが機能していることを確認します：
+
+    ```bash
+    curl -s http://<exporter-host>:9157/metrics | grep '^ibmmq_qmgr_status'
+    ```
+
+    キューマネージャーごとに1行表示されます。出力が表示されない場合、エクスポーターは正常に機能していません。
+
+    2. コレクターが正常であり、ターゲットを検出していることを確認します。
+
+    ```bash
+    kubectl -n ibmmq port-forward deploy/ibmmq-collector-opentelemetry-collector 8888:8888 &
+    curl -s http://localhost:8888/metrics | \
+      grep -E 'otelcol_(receiver_accepted|exporter_sent|exporter_send_failed)_metric_points'
+    kill %1 2>/dev/null
+    ```
+
+    `otelcol_receiver_accepted_metric_points` 0より大きい場合、コレクターがターゲットを見つけたことが確認できます。`otelcol_exporter_send_failed_metric_points`は`0`のままである必要があります。
+
+    3. `otelcol_receiver_accepted_metric_points`が0のままであるかどうかを確認してください：
+
+    * キューマネージャーのポッドは、 を正確に設定した状態で、 **ポッドテンプレート** に[ 必須のアノテーション を保持する必要があります。](/docs/opentelemetry/integrations/ibm-mq/kubernetes#pod-annotation-contract)`prometheus.io/scrape` `"true"`
+    * ポッドは`ibmmq`ネームスペースで実行する必要があります
+    * `clusterRole.create: true`が適用されていることを確認してください — これがないと、`kubernetes_sd`が返されます。 `403 Forbidden`
+
+    4. メトリクスが収集されているにもかかわらず、New Relicに表示されないかどうかを確認します：
+
+    * **OTLPエンドポイントのリージョン**：エンドポイントがNew Relicアカウントのリージョン（USまたはEU）と一致していることを確認してください。
+    * **ライセンスキー**：ライセンスキーが有効であり、正しい権限を持っていることを確認してください。
+    * **ネットワーク接続**：コレクターがNew Relic OTLPエンドポイントに到達できることを確認してください。
+
+    リージョンが間違っていると、コレクター側のエラーなしにデータがサイレントにドロップされます。
+  </Collapser>
+</CollapserGroup>
+
+## New RelicにIBM MQエンティティが表示されません。 [#no-entities]
+
+New RelicにIBM MQのメトリクスは表示されるが、`IBMMQ_MANAGER`または`IBMMQ_QUEUE`エンティティが表示されない場合：
+
+1. プロセッサの順序を確認してください：`transform/ibmmq-cleanup`プロセッサは`resourcedetection`の**後に実行する必要があります**。この順序が逆の場合、メトリクスはIBM MQエンティティではなくコレクター自身のエンティティに到達し、ダッシュボードが空白になります。
+
+2. 必須ラベルを確認してください：メトリクスには以下のラベルを含める必要があります：
+
+* **`qmgr`ラベル**：mq-metric-samplesエクスポーターは、これをキューマネージャー名（例：`qmgr="QM1"`）とともに発行する必要があります
+* **`queue`ラベル**：キューレベルのメトリクスの場合は、キュー名を含める必要があります
+* **`target.name`属性**：`TARGET_NAME`環境変数から取得され、エンティティGUIDを形成します
+
+3. `TARGET_NAME`の一貫性を確認してください：初期デプロイメント後に`TARGET_NAME`の値を変更しないでください。この値はすべてのエンティティGUID（`target.name:qmgr`）の一部になり、これを変更すると新しいエンティティが作成され、既存のエンティティが孤立して、ダッシュボードとアラートが機能しなくなります。
+
+## データの可視性 [#data-visibility]
+
+<CollapserGroup>
+  <Collapser id="metrics-but-no-entity" title="メトリクスはNRDBに表示されますが、IBMMQ_MANAGERエンティティは表示されません">
+    これはほぼ常に、エンティティに不可欠なメトリクスの形状を変更したことが原因です。エンティティの合成は、生のアンダースコアメトリクス（`ibmmq_*`）、生の`qmgr`ラベル、および`target.name`属性をキーとします。以下を確認してください：
+
+    * メトリクス名がドット区切りではありません。`ibmmq.queue.depth`ではなく、`ibmmq_queue_depth`が表示されるはずです。
+
+    * `qmgr`ラベルが存在し、名前が変更されていません。`ibmmq.queue_manager.name`として表示されていないことを確認しました。
+
+    * メトリクスに`target.name`が設定されていること、およびキャメルケースの`targetName`として表示されていないことを確認してください。`targetName`がまだ存在し、`transform/ibmmq-cleanup`が実行されていないか順序が間違っている場合：
+
+      ```sql
+      FROM Metric SELECT uniques(target.name), uniques(qmgr) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+      ```
+
+    コレクター設定におけるプロセッサーの順序は重要です — `resourcedetection → transform/ibmmq-cleanup`。`transform/ibmmq-cleanup`を並べ替えたり削除したりした場合、IBM MQメトリクスは`IBMMQ_MANAGER`エンティティではなくコレクター自身のエンティティにルーティングされます。ドキュメントに記載されているパイプラインの順序を復元してください。
+  </Collapser>
+
+  <Collapser id="counters-flat" title="カウンターメトリクスが平坦な線として表示されます">
+    New Relicはカウンターに対してデルタテンポラリティを想定しています；Prometheusは累積値を出力します。`cumulativetodelta/ibmmq`プロセッサーはそれらをインプレースで変換します。カウンターがフラットに見える場合は、各メトリクスパイプラインにプロセッサーが存在することを確認してください。
+  </Collapser>
+
+  <Collapser id="new-stale-entities" title="再デプロイ後に古いエンティティが古くなった">
+    `target.name`の値（Linuxでは`TARGET_NAME`環境変数、Kubernetesでは`targetName`リラベルを介して設定されます）は、すべての`IBMMQ_MANAGER`および`IBMMQ_QUEUE`のGUIDの最初のセグメントです。デプロイメント後にこれを変更すると、まったく新しいエンティティが作成されて古いエンティティは古くなり、古いGUIDを指すダッシュボードやアラートが機能しなくなります。安定した値を一度選択したら、決して変更しないでください。
+
+    すでに変更している場合は、元の`TARGET_NAME`値を復元し、コレクターを再起動します。正しい名前のエンティティは報告を再開します；間違った名前で作成された重複はデータの受信を停止し、New Relicのエンティティ報告ウィンドウの後にUIからエージアウトします。
+  </Collapser>
+</CollapserGroup>
+
+## 関連ドキュメント [#related-docs]
+
+<DocTiles>
+  <DocTile title="IBM MQのセルフホスト型計装" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    New Relicでセルフホスト型監視のためにIBM MQを設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="IBM MQのKubernetes計装" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    New RelicでIBM MQ for Kubernetes監視を設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    New Relicが収集するIBM MQメトリクスについて説明します。
+  </DocTile>
+</DocTiles>

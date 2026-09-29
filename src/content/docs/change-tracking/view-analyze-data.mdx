@@ -70,6 +70,118 @@ The <DNT>Change Tracking</DNT> across all entities page displays the change even
   src="/images/globalView.webp"
 />
 
+#### See how your changes are recorded across your estate [#recording-source]
+
+<Callout title="Preparing for the REST API end of life?" variant="tip">
+  The New Relic [Deployments v0 and v2 REST APIs reach end of life on July 31, 2027](/eol/2026/07/eol-07-31-26-rest-api-v2). If you record deployments through either of those REST APIs, use the approach below to find which of your existing changes came in through them (filter on `newrelic.source LIKE 'api.rest%'`), so you know what to migrate to NerdGraph before that date.
+</Callout>
+
+Every change tracking event records how it was created, so you can review the recording method and the calling client for all of your changes in one place — across every account and entity you have access to.
+
+Every event records a `newrelic.source` attribute, which identifies which change tracking API was used to create the event:
+
+<table>
+  <thead>
+    <tr>
+      <th>`newrelic.source`</th>
+      <th>How the change was recorded</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`api.graphql.changeTrackingCreateEvent`</td>
+      <td>NerdGraph `changeTrackingCreateEvent` mutation (recommended)</td>
+    </tr>
+    <tr>
+      <td>`api.graphql.changeTrackingCreateDeployment`</td>
+      <td>NerdGraph `changeTrackingCreateDeployment` mutation</td>
+    </tr>
+    <tr>
+      <td>`api.rest.deployments.v2`</td>
+      <td>REST API v2 deployments endpoint (`/v2/applications/{app_id}/deployments.json`) — reaching [end of life July 31, 2027](/eol/2026/07/eol-07-31-26-rest-api-v2)</td>
+    </tr>
+    <tr>
+      <td>`api.rest.deployments.v0`</td>
+      <td>Legacy Deployments v0 API (`deployments.xml`, served on the `rpm.newrelic.com` and `api.newrelic.com` hosts, and their `.eu.` equivalents) — reaching [end of life July 31, 2027](/eol/2026/07/eol-07-31-26-rest-api-v2)</td>
+    </tr>
+  </tbody>
+</table>
+
+Alongside `newrelic.source`, change tracking records details about the client that made the call:
+
+<table>
+  <thead>
+    <tr>
+      <th>Attribute</th>
+      <th>Description</th>
+      <th>Example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`instrumentation.provider`</td>
+      <td>A normalized value describing the code or tool that was detected to have sent the change event to New Relic. When the tool can't be determined, this is `unknown`.</td>
+      <td>`nerdgraph`, `newrelic-cli`, `axios`, `unknown`</td>
+    </tr>
+    <tr>
+      <td>`instrumentation.name`</td>
+      <td>A description of the telemetry that was used to determine `instrumentation.provider`: `newrelic` for change events sent through the NerdGraph mutations, or `user-agent` for change events sent through the REST APIs.</td>
+      <td>`newrelic`, `user-agent`</td>
+    </tr>
+    <tr>
+      <td>`instrumentation.source`</td>
+      <td>The underlying telemetry that `instrumentation.provider` was determined from. For `user-agent` data (REST APIs), this is the raw user agent string; for `newrelic` data (NerdGraph mutations), this is a normalized New Relic tool identifier.</td>
+      <td>`axios/1.18.1`, `newrelic-cli`</td>
+    </tr>
+    <tr>
+      <td>`instrumentation.language`</td>
+      <td>A normalized value describing the language of the tool that sent the change event, derived from `instrumentation.source` when one can be determined.</td>
+      <td>`Go`, `Java`, `Python`</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  The `instrumentation.provider` and `instrumentation.source` values are your best signal for identifying the calling integration, but they aren't definitive — many tools share a generic value (for example, `curl` or a popular HTTP library). Treat them as a hint that narrows down where to look in your own systems, not a guaranteed identification.
+</Callout>
+
+**What you can use this for:**
+
+* **Audit how changes are recorded:** See which changes use NerdGraph (`changeTrackingCreateEvent` or `changeTrackingCreateDeployment`) versus the REST APIs across all your entities and accounts — for example, to standardize on a single method.
+* **Identify the tools recording changes:** Use `instrumentation.provider` and `instrumentation.source` to see which CI/CD systems, scripts, or libraries are recording changes across your estate.
+* **Check consistency across teams:** Facet by `newrelic.source` to see which recording method each entity or team uses — for example, to spot teams still recording through the REST APIs while others have moved to NerdGraph.
+* **Verify a migration:** After moving off the REST APIs, confirm no new changes are still arriving with an `api.rest.*` source.
+
+**In the UI:**
+
+1. Open the global view at <DNT>**[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Change Tracking**</DNT>.
+2. Add columns such as entity name, `newrelic.source`, `user`, `instrumentation.provider`, `instrumentation.name`, `instrumentation.source`, and `instrumentation.language` so you can review each entry without opening it.
+3. Use the filter bar to narrow the change events table — for example, filter on `newrelic.source LIKE 'api.rest%'` to see only changes recorded through the REST APIs reaching end of life.
+
+**With NRQL:**
+
+Run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/) or through NerdGraph to see how changes are recorded across your estate, grouped by API and client:
+
+```sql
+FROM Deployment, ChangeTrackingEvent
+SELECT count(*)
+FACET newrelic.source, instrumentation.provider, instrumentation.name
+SINCE 3 months ago LIMIT MAX
+```
+
+To list the individual changes recorded through the REST APIs reaching end of life — with the caller's user agent, detected tool, and language — add the `api.rest%` filter:
+
+```sql
+FROM Deployment, ChangeTrackingEvent
+SELECT entity.name, version, user, newrelic.source, instrumentation.name, instrumentation.provider, instrumentation.source, instrumentation.language
+WHERE newrelic.source LIKE 'api.rest%'
+SINCE 3 months ago LIMIT MAX
+```
+
+<Callout variant="important">
+  This discovery method finds usage of the **deployment** REST APIs only. Other REST API v2 endpoints (for example, metric data, hosts, or alerts) don't record a `newrelic.source` attribute, and New Relic can't audit which of your tools call them. To find that usage, search your codebase, CI/CD pipelines, and automation scripts for calls to `api.newrelic.com/v2/` and `api.eu.newrelic.com/v2/`, as described in the [end-of-life announcement](/eol/2026/07/eol-07-31-26-rest-api-v2/#how-do-i-know-if-im-affected).
+</Callout>
+
 ### Entity-specific view [#entity-view]
 
 The entity-scoped Change Tracking view displays change events for a specific entity, such as APM, browser, or mobile. It also offers additional information related to golden signals for each change event. You can also use provided filters to view specific change events for that entity.

@@ -1,0 +1,190 @@
+---
+title: Dépanner le monitoring IBM MQ OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Troubleshooting
+metaDescription: Troubleshoot common issues when monitoring IBM MQ with OpenTelemetry collectors on Linux hosts and Kubernetes.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Lors du monitoring d’IBM MQ avec les collecteurs OpenTelemetry, vous pourriez rencontrer des problèmes de démarrage du collecteur, de flux de données ou de synthèse d’entité. Ce guide vous aide à diagnostiquer et à résoudre les problèmes courants pour les déploiements d’hôte Linux et Kubernetes.
+
+## Collector ne démarre pas ou ne reste pas en cours d’exécution [#not-start]
+
+<CollapserGroup>
+  <Collapser id="linux-1" title="Pour les environnements auto-hébergés">
+    Validez le statut de votre collecteur, et vérifiez les logs pour identifier le problème :
+
+    ```bash
+    sudo systemctl status nrdot-collector.service --no-pager
+    sudo journalctl -u nrdot-collector.service -n 200 --no-pager
+    ```
+
+    **Problèmes de configuration :**
+
+    * Erreurs de syntaxe YAML : vérifiez l’indentation et la syntaxe du fichier de configuration de votre collecteur
+    * Fichier d’environnement manquant : assurez-vous que `/etc/nrdot-collector/ibmmq-env` existe
+    * Clé de licence invalide : vous verrez des erreurs `401` ou `403`. Vérifiez votre clé de licence New Relic
+  </Collapser>
+
+  <Collapser id="k8s-1" title="Pour les environnements Kubernetes">
+    Validez le statut de votre collecteur, et vérifiez les logs pour identifier le problème :
+
+    ```bash
+    kubectl -n ibmmq logs deploy/ibmmq-collector-opentelemetry-collector
+    ```
+
+    ### Causes et solutions courantes
+
+    Recherchez ces modèles d’erreurs dans vos logs :
+
+    **Problèmes de configuration :**
+
+    * Erreurs de syntaxe YAML : vérifiez l’indentation et la syntaxe du fichier de configuration de votre collecteur
+    * Fichier d’environnement manquant : assurez-vous que le Secret `newrelic-otlp-secret` existe dans l’espace de nommage `ibmmq`
+    * Clé de licence invalide : vous verrez des erreurs `401` ou `403`. Vérifiez votre clé de licence New Relic
+
+    **Problèmes spécifiques à Kubernetes :**
+
+    * `CreateContainerConfigError`: secret `newrelic-otlp-secret` manquant. Réexécutez l’étape [Créer un secret d’identifiants New Relic](/docs/opentelemetry/integrations/ibm-mq/kubernetes#create-secret)
+    * `spec.ports: Required value`: `service.enabled: false` est manquant dans `values.yaml`
+    * `cannot list resource "pods" … forbidden`: RBAC manquant. Assurez-vous que `clusterRole.create: true` est défini dans vos valeurs Helm
+  </Collapser>
+</CollapserGroup>
+
+## Aucune métrique IBM MQ n’apparaît dans New Relic [#no-data]
+
+Lorsque votre collecteur est en cours d’exécution, mais qu’aucune métrique IBM MQ n’atteint New Relic, procédez à un dépannage systématique :
+
+<CollapserGroup>
+  <Collapser id="linux-2" title="Pour les environnements auto-hébergés">
+    1. Vérifiez que vos exportateurs IBM MQ fonctionnent :
+
+    ```bash
+    curl -s http://<exporter-host>:9157/metrics | grep '^ibmmq_qmgr_status'
+    ```
+
+    Vous devriez voir une ligne par gestionnaire de files d’attente. Si vous ne voyez aucune sortie, l’exportateur ne fonctionne pas correctement.
+
+    2. Vérifiez que votre collecteur est sain et découvre les cibles.
+
+    ```bash
+    curl http://127.0.0.1:13133
+    # Expected: {"status":"Server available", ...}
+    ```
+
+    `otelcol_receiver_accepted_metric_points` supérieur à 0 confirme que le collecteur a trouvé des cibles. `otelcol_exporter_send_failed_metric_points` doit rester à `0`.
+
+    3. Vérifier les problèmes de découverte de cibles
+
+    * Vérifiez que vos variables `IBMMQ_QMN_ENDPOINT` pointent vers des exportateurs fonctionnels
+    * Assurez-vous que le collecteur peut atteindre chaque point de terminaison d’exportateur
+    * Vérifiez que votre configuration de cible statique est correcte
+
+    4. Vérifiez si des métriques sont collectées mais n’apparaissent pas dans New Relic :
+
+    * **Région du point de terminaison OTLP**: confirmez que votre point de terminaison correspond à la région de votre compte New Relic (US ou EU)
+    * **Clé de licence**: vérifiez que votre clé de licence est valide et dispose des autorisations appropriées
+    * **Connectivité réseau**: assurez-vous que le collecteur peut atteindre le point de terminaison OTLP de New Relic
+
+    Une région incorrecte supprime silencieusement les données sans erreur côté collecteur.
+  </Collapser>
+
+  <Collapser id="k8s-2" title="Pour les environnements Kubernetes">
+    1. Vérifiez que vos exportateurs IBM MQ fonctionnent :
+
+    ```bash
+    curl -s http://<exporter-host>:9157/metrics | grep '^ibmmq_qmgr_status'
+    ```
+
+    Vous devriez voir une ligne par gestionnaire de files d’attente. Si vous ne voyez aucune sortie, l’exportateur ne fonctionne pas correctement.
+
+    2. Vérifiez que votre collecteur est sain et découvre les cibles.
+
+    ```bash
+    kubectl -n ibmmq port-forward deploy/ibmmq-collector-opentelemetry-collector 8888:8888 &
+    curl -s http://localhost:8888/metrics | \
+      grep -E 'otelcol_(receiver_accepted|exporter_sent|exporter_send_failed)_metric_points'
+    kill %1 2>/dev/null
+    ```
+
+    `otelcol_receiver_accepted_metric_points` supérieur à 0 confirme que le collecteur a trouvé des cibles. `otelcol_exporter_send_failed_metric_points` doit rester à `0`.
+
+    3. Vérifiez si `otelcol_receiver_accepted_metric_points` reste à 0 :
+
+    * Vos pods de gestionnaire de files d’attente doivent porter les [annotations requises](/docs/opentelemetry/integrations/ibm-mq/kubernetes#pod-annotation-contract) sur le **modèle de pod**, avec `prometheus.io/scrape` défini exactement sur `"true"`
+    * Les pods doivent s’exécuter dans l’espace de nommage `ibmmq`
+    * Assurez-vous que `clusterRole.create: true` est appliqué ; sans cela, `kubernetes_sd` renvoie `403 Forbidden`
+
+    4. Vérifiez si des métriques sont collectées mais n’apparaissent pas dans New Relic :
+
+    * **Région du point de terminaison OTLP**: confirmez que votre point de terminaison correspond à la région de votre compte New Relic (US ou EU)
+    * **Clé de licence**: vérifiez que votre clé de licence est valide et dispose des autorisations appropriées
+    * **Connectivité réseau**: assurez-vous que le collecteur peut atteindre le point de terminaison OTLP de New Relic
+
+    Une région incorrecte supprime silencieusement les données sans erreur côté collecteur.
+  </Collapser>
+</CollapserGroup>
+
+## Aucune entité IBM MQ n’apparaît dans New Relic [#no-entities]
+
+Si vous voyez des métriques IBM MQ dans New Relic, mais qu’aucune entité `IBMMQ_MANAGER`, ou `IBMMQ_QUEUE` n’apparaît :
+
+1. Vérifiez l’ordre des Processeurs : le Processeur `transform/ibmmq-cleanup` **doit s’exécuter après** `resourcedetection`. Si cet ordre est inversé, les métriques atterrissent sur la propre entité du collecteur au lieu des entités IBM MQ, et les dashboards deviennent vides.
+
+2. Vérifiez les étiquettes requises : vos métriques doivent inclure ces étiquettes :
+
+* **Label`qmgr` **: l’exportateur mq-metric-samples doit émettre ceci avec le nom du gestionnaire de files d’attente (par ex., `qmgr="QM1"`)
+* **Label`queue` **: pour les métriques au niveau de la file d’attente, doit contenir le nom de la file d’attente
+* **Attribut`target.name` **: provient de votre variable d’environnement `TARGET_NAME` et forme le GUID de l’entité
+
+3. Vérifiez la cohérence de `TARGET_NAME` : ne modifiez jamais la valeur `TARGET_NAME` après le déploiement initial. Cette valeur fait partie du GUID de chaque entité (`target.name:qmgr`), et sa modification crée de nouvelles entités et rend orphelines celles existantes, cassant les dashboards et les alertes.
+
+## Visibilité des données [#data-visibility]
+
+<CollapserGroup>
+  <Collapser id="metrics-but-no-entity" title="Les métriques s'affichent dans NRDB, mais aucune entité IBMMQ_MANAGER n'apparaît">
+    Cela est presque toujours causé par la modification de la forme de la métrique critique de l’entité. La synthèse de l’entité se base sur les métriques brutes avec trait de soulignement (`ibmmq_*`), l’étiquette brute `qmgr` et un attribut `target.name`. Vérifiez que :
+
+    * Les noms des métriques ne comportent pas de points. Vous devriez voir `ibmmq_queue_depth`, et non `ibmmq.queue.depth`.
+
+    * L’étiquette `qmgr` est présente et n’est pas renommée. Vérifié qu’elle ne s’affiche pas comme `ibmmq.queue_manager.name`.
+
+    * Le `target.name` est défini sur les métriques et assurez-vous qu’il n’est pas affiché en camelCase `targetName`. Si `targetName` est toujours présent et que `transform/ibmmq-cleanup` n’est pas en cours d’exécution ou est mal ordonné :
+
+      ```sql
+      FROM Metric SELECT uniques(target.name), uniques(qmgr) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+      ```
+
+    L&apos;ordre du Processeur dans la configuration du collecteur est déterminant — `resourcedetection → transform/ibmmq-cleanup`. Si vous avez réorganisé ou supprimé `transform/ibmmq-cleanup`, les métriques IBM MQ sont acheminées vers la propre entité du collecteur au lieu d&apos;une entité `IBMMQ_MANAGER`. Restaurez l&apos;ordre documenté du pipeline.
+  </Collapser>
+
+  <Collapser id="counters-flat" title="Les métriques de compteur apparaissent sous forme de lignes plates">
+    New Relic attend une temporalité delta pour les compteurs ; Prometheus émet des valeurs cumulées. Le processeur `cumulativetodelta/ibmmq` les convertit sur place. Si les compteurs semblent plats, confirmez que le processeur est présent dans chaque pipeline de métriques.
+  </Collapser>
+
+  <Collapser id="new-stale-entities" title="Les anciennes entités sont devenues obsolètes après un redéploiement">
+    La valeur `target.name` (définie via la variable d’environnement `TARGET_NAME` sur Linux, ou le relabel `targetName` sur Kubernetes) est le premier segment de chaque GUID `IBMMQ_MANAGER` et `IBMMQ_QUEUE`. La modifier après le déploiement crée de toutes nouvelles entités et les anciennes deviennent obsolètes, cassant les dashboards et les alertes qui pointent vers les anciens GUID. Choisissez une valeur stable une fois pour toutes et ne la modifiez jamais.
+
+    Si vous l&apos;avez déjà modifié, restaurez la valeur `TARGET_NAME` d&apos;origine et redémarrez le collecteur. Les entités correctement nommées reprennent le reporting ; les doublons créés sous le mauvais nom cessent de recevoir des données et disparaissent de l’interface utilisateur après la fenêtre de reporting d’entité de New Relic.
+  </Collapser>
+</CollapserGroup>
+
+## Documentation associée [#related-docs]
+
+<DocTiles>
+  <DocTile title="Instrumentation auto-hébergée pour IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    Découvrez comment configurer votre IBM MQ pour le monitoring auto-hébergé dans New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentation Kubernetes pour IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    Découvrez comment configurer le monitoring d&apos;IBM MQ pour Kubernetes dans New Relic.
+  </DocTile>
+
+  <DocTile title="Référence des métriques" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    Découvrez les métriques IBM MQ collectées par New Relic.
+  </DocTile>
+</DocTiles>

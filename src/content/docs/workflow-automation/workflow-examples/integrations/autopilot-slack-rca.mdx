@@ -7,29 +7,26 @@ tags:
   - slack
   - RCA
   - incident response
-metaDescription: "Trigger Autopilot to investigate a New Relic alert and post the root cause analysis findings to a Slack channel."
-freshnessValidatedDate: never
+metaDescription: "Use Autopilot to run a root cause analysis on a New Relic alert and post findings to Slack."
+redirects:
+  - /docs/workflow-automation/workflow-examples/integrations/autopilot-slack-rca
+freshnessValidatedDate: 2026-09-23
 ---
 
-When an alert fires, trigger [Autopilot](/docs/agentic-ai/autopilot/overview) to run a root cause analysis and post the findings directly to a Slack channel. If Autopilot returns no usable response, the workflow sends an error notice instead so the team knows to investigate manually.
+This template runs <DNT>[Autopilot](/docs/agentic-ai/autopilot/overview)</DNT> on a New Relic alert and posts the root cause analysis to a Slack channel. If <DNT>Autopilot</DNT> returns no usable response, the workflow sends an error notice instead. For shared prerequisites and configuration notes, see [Autopilot RCA workflow templates](/docs/workflow-automation/workflow-examples/integrations/autopilot-rca).
 
 Before using this workflow, ensure you have:
-  - A New Relic alert issue ID in UUID format
   - A Slack destination configured in New Relic — see [Create destinations](/docs/workflow-automation/setup-and-configure/create-destinations)
   - The destination's UUID and the target Slack channel name
 
-<Callout variant="tip">
-  When triggering this workflow from Alert Workflows, use `{{ issueId }}` as the value for the `issueId` input. This variable automatically passes the triggering alert's issue ID to the workflow.
-</Callout>
-
 This workflow completes the following steps:
   1. Sends an initial Slack message to acknowledge the alert and let the team know RCA is underway
-  2. Runs Autopilot with a root cause analysis prompt scoped to the alert issue ID
-  3. Checks whether Autopilot returned a usable response
-  4. On success: Reformats the response as Slack Block Kit blocks and posts findings to Slack if Autopilot succeeds.
-  5. On failure: Posts an error message with the issue ID if Autopilot fails.
+  2. Runs <DNT>Autopilot</DNT> with a root cause analysis prompt scoped to the alert issue ID
+  3. Checks whether <DNT>Autopilot</DNT> returned a usable response
+  4. Reformats the response as Slack Block Kit blocks and posts findings to Slack (if <DNT>Autopilot</DNT> returns a response)
+  5. Posts an error message with the issue ID (if <DNT>Autopilot</DNT> returns no response)
 
-This workflow uses `newrelic.autopilot.run` and `newrelic.notification.sendSlack`
+This workflow uses `newrelic.autopilot.run` and `newrelic.notification.sendSlack`.
 
 ```yaml
 name: autopilotSlackRCA
@@ -75,21 +72,23 @@ steps:
         Issue ID: ${{ .workflowInputs.issueId }}
         Provide your comprehensive analysis including Summary, Root Cause, and Remediation Actions.
       selectors:
-        - name: agentResponse
+        - name: analysisRaw
           expression: .response.finalAnswer
+        - name: analysisText
+          expression: '(.response.finalAnswer | if type=="string" then fromjson else . end).card.body | map(.value) | join("\n\n")'
     ignoreErrors: true
 
   - name: checkAgentResponse
     type: switch
     switch:
-      - condition: ${{ (.steps.runAutopilot.outputs.agentResponse // "") != "" }}
+      - condition: ${{ (.steps.runAutopilot.outputs.analysisRaw // "") != "" }}
         next: buildSlackBlocks
     next: sendAutopilotError
 
   - name: buildSlackBlocks
     type: assign
     inputs:
-      blocks: '${{ (.steps.runAutopilot.outputs.agentResponse // "") as $r | (if ($r|type)=="string" then ($r | try fromjson catch null) else $r end) as $json | (if ($json|type)=="array" then ($json[0].text // ($json | tostring)) elif ($json|type)=="object" and ($json.card.body|type)=="array" then [ $json.card.body[] | if .type=="Text" then (.value // "") else "" end ] | join("\n\n") elif ($json|type)=="object" and ($json.text|type)=="string" then $json.text else ($r | tostring) end) | gsub("\\*\\*"; "*") | gsub("### "; "*") | gsub("## "; "*") as $text | ([ $text / "\n" ]) as $lines | [ { "type": "header", "text": { "type": "plain_text", "text": "✅ Autopilot RCA Complete" } }, { "type": "divider" } ] + [ $lines[][] | select(. != "") | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ] }}'
+      blocks: '${{ (.steps.runAutopilot.outputs.analysisText // "") | gsub("\\*\\*"; "*") | gsub("### "; "*") | gsub("## "; "*") as $text | ([ $text / "\n" ]) as $lines | [ { "type": "header", "text": { "type": "plain_text", "text": "✅ Autopilot RCA Complete" } }, { "type": "divider" } ] + [ $lines[][] | select(. != "") | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ] }}'
     next: sendRcaFindings
 
   - name: sendRcaFindings
@@ -117,11 +116,23 @@ steps:
     next: end
 ```
 
+## How it works [#how-it-works]
+
+The `runAutopilot` step uses two selectors to handle `finalAnswer` shape variability at the data-extraction layer:
+
+- **`analysisRaw`** captures the raw `finalAnswer` value. The `checkAgentResponse` step uses this to determine whether <DNT>Autopilot</DNT> returned anything.
+- **`analysisText`** normalizes the value — if `finalAnswer` is a JSON-encoded string, it parses it first, then extracts text content from `.card.body`. The `buildSlackBlocks` step uses `analysisText` directly, without any additional parsing.
+
+`buildSlackBlocks` converts `**bold**` and `###`/`##` heading markers to Slack mrkdwn format, splits the result on newlines, and wraps each non-empty line in a Block Kit `section` block.
+
 ## Related topics [#related-topics]
 
 <DocTiles>
+  <DocTile title='Autopilot RCA workflow templates' path="/docs/workflow-automation/workflow-examples/integrations/autopilot-rca">Shared prerequisites and configuration notes for all Autopilot RCA templates</DocTile>
   <DocTile title='Autopilot overview' path="/docs/agentic-ai/autopilot/overview">Learn how Autopilot investigates alerts and incidents</DocTile>
   <DocTile title='Conditional logic' path="/docs/workflow-automation/workflow-examples/basic-patterns/conditional-logic">Use switch statements to branch on success or failure</DocTile>
-  <DocTile title='Send Slack notifications' path="/docs/workflow-automation/setup-and-configure/actions-catalog/newrelic/newrelic-notification#newrelic.notification.sendSlack">Full reference for the sendSlack action</DocTile>
+  <DocTile title='Send Slack notifications' path="/docs/workflow-automation/setup-and-configure/actions-catalog/newrelic/notification/newrelic-notification#newrelic.notification.sendSlack">Full reference for the sendSlack action</DocTile>
   <DocTile title='Create destinations' path="/docs/workflow-automation/setup-and-configure/create-destinations">Configure the Slack destination required by this workflow</DocTile>
+  <DocTile title='Alert RCA with Autopilot and Email' path="/docs/workflow-automation/workflow-examples/integrations/autopilot-email-rca">Send RCA findings by email instead of Slack</DocTile>
+  <DocTile title='Troubleshoot Workflow Automation' path="/docs/workflow-automation/troubleshooting">Solutions for common Autopilot and Slack integration issues</DocTile>
 </DocTiles>

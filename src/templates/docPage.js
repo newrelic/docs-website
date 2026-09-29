@@ -7,6 +7,7 @@ import { CSSTransition } from 'react-transition-group';
 import { useMedia } from 'react-use';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
+import MdxLlmTools from '../components/MdxLlmTools';
 import {
   ContributingGuidelines,
   ComplexFeedback,
@@ -99,6 +100,20 @@ const BasicDoc = ({ data, location, pageContext }) => {
     hideTOC,
   } = frontmatter;
 
+  // pageContext.locale is 'en' for English pages and the real locale code
+  // (jp/fr/es/pt/kr) otherwise (set by the theme's addLocale page-transform,
+  // derived from the URL's own locale prefix - see
+  // node_modules/@newrelic/gatsby-theme-newrelic/gatsby/page-transforms.js).
+  // Only English pages get a generated .md file (the llms-txt plugin's
+  // query explicitly excludes i18n content), so MdxLlmTools needs the
+  // English-equivalent path on a translated page or its "Copy for LLM"/
+  // "View as Markdown" links 404 - same englishHref MachineTranslationCallout
+  // already computes below, just needed in a second place now.
+  const isEnglish = pageContext.locale === 'en';
+  const englishPathname = isEnglish
+    ? location.pathname
+    : location.pathname.replace(`/${pageContext.locale}`, '');
+
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
   }
@@ -141,14 +156,19 @@ const BasicDoc = ({ data, location, pageContext }) => {
         `}
       >
         {translationType === 'machine' && (
-          <MachineTranslationCallout
-            englishHref={location.pathname.replace(
-              `/${pageContext.locale}`,
-              ''
-            )}
-          />
+          <MachineTranslationCallout englishHref={englishPathname} />
         )}
-        <PageTitle>{title}</PageTitle>
+        <div
+          css={css`
+            grid-area: page-title;
+          `}
+        >
+          <PageTitle>{title}</PageTitle>
+          <MdxLlmTools
+            pathname={isEnglish ? location.pathname : englishPathname}
+            isEnglishFallback={!isEnglish}
+          />
+        </div>
 
         <LoggedInProvider>
           <Layout.Content>
