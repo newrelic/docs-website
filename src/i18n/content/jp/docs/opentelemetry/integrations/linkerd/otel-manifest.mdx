@@ -1,0 +1,248 @@
+---
+title: Linkerd監視のインストールと設定：マニフェストを使用したOTel Collector Contrib
+metaDescription: Install and configure the OpenTelemetry Collector Contrib using Kubernetes manifests to monitor your Linkerd service mesh with OpenTelemetry.
+tags:
+  - Linkerd
+  - OpenTelemetry
+  - OpenTelemetry Collector Contrib
+  - Kubernetes
+  - Manifest
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: linkerd
+flow:
+  prev: /docs/opentelemetry/integrations/linkerd/introduction
+  next: null
+translationType: machine
+---
+
+このページでは、Kubernetesマニフェストを使用してコミュニティのOpenTelemetry Collector Contribをインストールし、Linkerdプロキシとコントロールプレーンのメトリクスをスクレイプするように設定し、データがNew Relicに送信されていることを確認します。この作業には約15分かかります。
+
+## 互換性と要件 [#requirements]
+
+### サポート対象
+
+* `kubectl`が設定されたKubernetesクラスタ（EKS、GKE、AKS、または自己管理型）
+* Linkerdがインストールされ、正常に動作していること（`linkerd check`がパスすること）
+* マニフェストで管理されるクラスタ設定（Helmなし）
+
+### 必要なこと
+
+* New Relicの[Ingestライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+
+* [New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)へのネットワーク接続
+
+* 監視対象のネームスペースでインジェクションが有効になっていること。有効になっていない場合は、アノテーションを追加して再起動してください：
+
+  ```bash
+  kubectl annotate namespace <YOUR_NAMESPACE> linkerd.io/inject=enabled
+  kubectl rollout restart deployment -n <YOUR_NAMESPACE>
+  ```
+
+* （オプション）KubernetesワークロードエンティティをLinkerdメトリクスと関連付ける場合は、クラスタで実行されている[kube-state-metrics](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-state-metrics)。すでに[New Relic Kubernetesインテグレーション](/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration/)がインストールされている場合、これはすでに対応済みです。
+
+<Steps>
+  <Step>
+    ## インストール [#install]
+
+    1. 以下のマニフェストを`otel-collector.yaml`という名前のファイルにコピーしてください。
+
+```yaml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata: { name: my-opentelemetry-collector, namespace: newrelic }
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata: { name: my-opentelemetry-collector }
+    rules:
+      - apiGroups: [""]
+        resources: [pods, nodes, nodes/proxy, endpoints, services, namespaces]
+        verbs: [get, list, watch]
+      - apiGroups: ["apps"]
+        resources: [replicasets, deployments, daemonsets, statefulsets]
+        verbs: [get, list, watch]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata: { name: my-opentelemetry-collector }
+    roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: my-opentelemetry-collector }
+    subjects:
+      - { kind: ServiceAccount, name: my-opentelemetry-collector, namespace: newrelic }
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata: { name: my-opentelemetry-collector-config, namespace: newrelic }
+    data:
+      config: |
+        receivers:
+          prometheus:
+            config:
+              scrape_configs:
+                - job_name: 'linkerd-controller'
+                  kubernetes_sd_configs:
+                    - role: pod
+                      namespaces: { names: ['linkerd', 'linkerd-viz'] }
+                  relabel_configs:
+                    - { source_labels: [__meta_kubernetes_pod_container_port_name], action: keep, regex: admin-http }
+                    - { source_labels: [__meta_kubernetes_pod_container_name], target_label: component }
+                    - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+                    - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+                - job_name: 'linkerd-proxy'
+                  kubernetes_sd_configs: [{ role: pod }]
+                  relabel_configs:
+                    - { source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_label_linkerd_io_control_plane_ns], action: keep, regex: ^linkerd-proxy;linkerd-admin;linkerd$ }
+                    - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+                    - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+                    - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_ns], target_label: linkerd_control_plane_ns }
+                    - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_component], target_label: linkerd_control_plane_component }
+
+        processors:
+          memory_limiter:
+            check_interval: 1s
+            limit_percentage: <MEMORY_LIMIT_PERCENTAGE>
+            spike_limit_percentage: <MEMORY_SPIKE_LIMIT_PERCENTAGE>
+          resource/strip_service:
+            attributes:
+              - { key: service.name, action: delete }
+              - { key: service.instance.id, action: delete }
+          resource/cluster:
+            attributes:
+              - key: k8s.cluster.name
+                value: "<YOUR_CLUSTER_NAME>"
+                action: insert
+          transform/k8s:
+            metric_statements:
+              - context: datapoint
+                statements:
+                  - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+                  - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+                  - delete_key(attributes, "instance")
+          transform/deployment:
+            metric_statements:
+              - context: datapoint
+                statements:
+                  - set(attributes["k8s.deployment.name"], attributes["k8s.pod.name"]) where attributes["k8s.deployment.name"] == nil and attributes["k8s.pod.name"] != nil
+                  - replace_pattern(attributes["k8s.deployment.name"], "-[a-z0-9]+-[a-z0-9]+$", "") where attributes["k8s.deployment.name"] == attributes["k8s.pod.name"]
+          transform/metadata_nullify:
+            metric_statements:
+              - context: metric
+                statements:
+                  - set(description, "")
+                  - set(unit, "")
+          batch: {}
+
+        exporters:
+          otlp_http/newrelic:
+            endpoint: "https://otlp.nr-data.net:4318"
+            headers:
+              api-key: "<YOUR_NR_INGEST_LICENSE_KEY>"
+
+        service:
+          pipelines:
+            metrics:
+              receivers: [prometheus]
+              processors: [memory_limiter, resource/strip_service, resource/cluster, transform/k8s, transform/deployment, transform/metadata_nullify, batch]
+              exporters: [otlp_http/newrelic]
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata: { name: my-opentelemetry-collector, namespace: newrelic }
+    spec:
+      replicas: 1
+      selector: { matchLabels: { app: my-opentelemetry-collector } }
+      template:
+        metadata:
+          labels: { app: my-opentelemetry-collector }
+        spec:
+          serviceAccountName: my-opentelemetry-collector
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+          containers:
+            - name: opentelemetry-collector
+              image: otel/opentelemetry-collector-contrib:0.160.0
+              args: ["--config=/conf/config.yaml"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+              resources:
+                limits: { cpu: <CPU_LIMIT>, memory: <MEMORY_LIMIT> }
+              volumeMounts:
+                - { name: config, mountPath: /conf }
+          volumes:
+            - name: config
+              configMap:
+                name: my-opentelemetry-collector-config
+                items:
+                  - { key: config, path: config.yaml }
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata: { name: my-opentelemetry-collector, namespace: newrelic }
+    spec:
+      selector: { app: my-opentelemetry-collector }
+      ports:
+        - { name: otlp, port: 4317, targetPort: 4317, protocol: TCP, appProtocol: grpc }
+        - { name: otlp-http, port: 4318, targetPort: 4318, protocol: TCP }
+```
+
+    <Callout variant="tip">
+      このマニフェストは、デフォルトでは価値の低いプロキシメトリクスをフィルタリングしません。NRDOTが適用するのと同じフィルタリングが必要な場合は、`filter/drop_unused`プロセッサを追加してください。フィルタのリストについては、[Helmを使用したNRDOT](/docs/opentelemetry/integrations/linkerd/nrdot-helm#install)ページをご覧ください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## 設定 [#configure]
+
+    1. 適用する前に、`otel-collector.yaml`のプレースホルダーに入力してください：
+
+    | フィールド                | 場所          | 設定する内容                            |
+    | -------------------- | ----------- | --------------------------------- |
+    | `resource/cluster`   | プロセッサ       | Kubernetesクラスター名                  |
+    | `otlp_http/newrelic` | エクスポーター     | New Relicがライセンスキーを取り込む            |
+    | `memory_limiter`     | プロセッサ       | メモリ制限とスパイクのパーセンテージ、たとえば`80`や `25` |
+    | `resources.limits`   | デプロイメントコンテナ | コレクターポッドのCPUとメモリの制限               |
+
+    2. マニフェストを適用してください。
+
+    ```bash
+    kubectl apply -f otel-collector.yaml
+    kubectl rollout status deployment/my-opentelemetry-collector -n newrelic
+    ```
+  </Step>
+
+  <Step>
+    ## データを検索する [#find]
+
+    1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities)** &gt; **All entities**</DNT>に移動します。
+    2. クラスタ名を検索します。
+    3. Linkerdエンティティを選択して、組み込みダッシュボードを開きます。
+
+    組み込みダッシュボードは、リクエスト率、レイテンシp50/p95/p99、成功率、TCP接続、mTLS証明書ステータス、コントロールプレーンのヘルス、およびメッシュ化されたポッドのインベントリをカバーします。詳細については、[Linkerdデータの検索](/docs/opentelemetry/integrations/linkerd/find-data)ドキュメントを参照してください。
+  </Step>
+</Steps>
+
+## 関連記事 [#related-articles]
+
+<DocTiles>
+  <DocTile title="OpenTelemetryを使用したLinkerdディストリビューティッド（分散）トレーシング" path="/docs/opentelemetry/integrations/linkerd/distributed-tracing">
+    メッシュスパンをAPMのトレースと関連付けるには、プロキシのトレースエクスポートを有効にし、アプリケーションのポッドを計装してください。
+  </DocTile>
+
+  <DocTile title="Linkerdプロキシログを収集する" path="/docs/opentelemetry/integrations/linkerd/proxy-logs">
+    `linkerd-proxy`
+
+    サイドカーのログを収集するために、2番目のコレクターリリースを追加します。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">
+    OTel Collectorによって収集されるLinkerdメトリクスとリソース属性の完全なリスト。
+  </DocTile>
+</DocTiles>
