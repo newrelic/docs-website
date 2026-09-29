@@ -9,7 +9,24 @@ translationType: machine
   Agent Control 및 뉴렐릭 Control은 **일반적으로** Kubernetes 에서 사용할 수 있습니다. Linux 및 Windows 호스트 지원은 **공개 미리 보기** 프로그램에 포함되어 있습니다, [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)에 따라.
 </Callout>
 
-에이전트 유형 정의는 에이전트 컨트롤이 특정 에이전트를 식별, 다운로드, 설정 및 실행하는 방법을 설명하는 YAML 파일입니다. 선언된 변수는 플릿 컨트롤이 플릿에서 하위 에이전트를 배포하거나 업데이트할 때 운영자에게 노출하는 설정 스키마를 형성하기도 합니다. 모든 정의는 세 가지 주요 섹션인 <DNT>**metadata**</DNT>, <DNT>**variables**</DNT>, <DNT>**deployment**</DNT>와 파일이 작성된 스키마 언어의 버전을 지정하는 최상위 `protocol_version` 필드로 구성됩니다.
+Agent Control itself has no built-in knowledge of any particular agent. It doesn&apos;t know how to start the Infrastructure Agent, render an OpenTelemetry Collector config, or discover a Redis integration binary. An **agent type definition** is what teaches it. It&apos;s a YAML file that describes how Agent Control should identify, download, configure, and run one kind of agent, on one platform. This is what lets it manage a growing catalog of agents without a code change every time a new one is added.
+
+The **sub-agent** is a named instance of that definition, for example `nr-infra-agent` referencing `newrelic/com.newrelic.infrastructure:0.1.0`. That&apos;s what you actually add, remove, or reconfigure. Agent Control turns that into the runtime artifacts the definition describes, for example a process and its files on a host or Kubernetes objects on a cluster, and keeps them in sync whenever the sub-agent&apos;s configuration changes.
+
+Every agent type definition consists of three main sections: <DNT>**metadata**</DNT>, <DNT>**variables**</DNT>, and <DNT>**deployment**</DNT>, plus a top-level `protocol_version` field that versions the schema language the file is written against.
+
+## Protocol version
+
+`protocol_version` is a top-level field that declares the version of the agent-type. It is decoupled from both the agent type `version` (the definition&apos;s semver) and the Agent Control release version.
+
+It is a quoted `MAJOR.MINOR` string (e.g. `"1.0"`).
+
+It is parsed and validated on its own, *before* the rest of the document is interpreted, so it can gate files whose metadata or other sections use a shape this Agent Control would not otherwise understand. Each Agent Control release understands a single maximum protocol version, and the `protocol_version` is treated as a single ordered `MAJOR.MINOR` value. The compatibility rules are:
+
+* Newer than supported (higher `major`, or same `major` with a higher `minor`): rejected — the file is newer than this Agent Control understands.
+* Equal to or older than supported: accepted — Agent Control understands every protocol version up to and including the supported one.
+
+For example, an Agent Control supporting `1.6` accepts everything up to `1.6` (including `0.9` and `1.0`..=`1.6`) and rejects anything newer (`1.7`, `2.0`, ...).
 
 ## 메타데이터
 
@@ -17,35 +34,134 @@ translationType: machine
 
 ## 변수
 
-변수 섹션은 운영자가 설정에 하위 에이전트를 추가할 때 설정할 수 있는 구성 가능한 입력을 선언합니다. 각 변수에는 `type` (예: `string`, `bool` 또는 `yaml`), 선택적 `default` 및 허용되는 값의 선택적 `variants` 목록이 있습니다. 변수는 `${nr-var:variable_name}`을(를) 사용하여 배포 섹션 전체에서 참조됩니다.
+The variables section declares the configurable inputs that operators can set when adding a sub-agent to their configuration. Each variable has these fields:
+
+* **`description`**: a human-readable explanation of the variable.
+* **`type`**: the data type this variable accepts, such as `string`, `bool`, `number`, `yaml`, or `string_map`.
+* **`required`**: whether operators must set the variable (when set to false, Agent Control fallbacks to the value in `default`).
+* **`default`** (optional): the value used when `required` is `false` and the operator doesn&apos;t set one.
+* **`classification`** (optional): a label describing the kind of value the variable holds, such as `config` or `multi-config`. Agent Control accepts and ignores this field; it&apos;s read by Fleet Control to drive how the variable is presented to operators.
+* **`deprecated`** (optional): marks the variable as deprecated (`deprecated: true`). Agent Control accepts and ignores this field too — it carries no runtime behavior and doesn&apos;t affect resolution, validation, or defaults.
+
+Variables are referenced throughout the deployment section using `${nr-var:variable_name}`.
 
 ## 전개
 
-배포 섹션에서는 에이전트 컨트롤이 타겟 플랫폼에 에이전트를 설치하고 실행하는 방법을 설명합니다. 이 섹션은 여러 하위 섹션으로 구성됩니다.
-
-* **`packages`**: 에이전트가 시작되기 전에 다운로드할 OCI 아티팩트 ― 일반적으로 에이전트 바이너리 또는 통합 패키지입니다.
-* **`executables`**: 에이전트 컨트롤이 시작, 모니터 및 다시 시작할 프로세스 목록입니다. 이 섹션이 없는 에이전트 유형은 관리형 통합(OHI)으로 처리되며, 에이전트 컨트롤은 해당 아티팩트를 처리하지만 실행은 다른 에이전트에 위임합니다.
-* **`health`**: 에이전트 컨트롤이 에이전트의 정상 여부를 결정하는 방법 ― 프로세스 존재 여부, HTTP 엔드포인트 확인 또는 둘 다를 통해 결정합니다.
-* **`filesystem`**: 설정 파일이나 인증서와 같이 에이전트를 시작하기 전에 에이전트 제어가 호스트에 쓰는 개별 파일 또는 디렉터리입니다.
-* **`shared_filesystem`**: 동일한 에이전트 컨트롤 인스턴스에서 관리하는 다른 에이전트가 액세스할 수 있는 공유 드롭 존에 기록된 항목입니다. OHI 에이전트 유형이 설정 및 바이너리를 인프라 에이전트에 전달하는 데 사용됩니다.
+The deployment section describes how Agent Control installs and runs the agent. Its shape is entirely different depending on the target `platform` declared in the agent type&apos;s metadata.
 
 전체 스키마 참조 및 사용 가능한 모든 필드는 [에이전트 유형 스키마 참조](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/agent_type.md)를 확인해 주십시오.
 
-## 에이전트 유형 정의를 가져옵니다.
+### Deployment on Kubernetes
 
-에이전트 컨트롤은 정의의 메타데이터 섹션에 선언된 `namespace`, `name` 및 `version`로 식별되는 원격 OCI 레지스트리에서 에이전트 유형 정의를 가져옵니다.
+On Kubernetes, Agent Control manages Kubernetes objects. The deployment section is composed of:
 
-기본적으로 에이전트 컨트롤은 `newrelic/agent-control-agent-types` 저장소를 사용하여 `docker.io`에서 가져옵니다.
+* **`objects`**: the Kubernetes objects Agent Control creates and keeps up to date.
+* **`health`**: an explicit list of checks, each targeting one Kubernetes resource by `name`, `namespace`, and `kind`.
 
-에이전트 컨트롤은 각 정의를 가져오기 전에 뉴렐릭 공개 키로 서명을 검증합니다.
+How Agent Control renders `objects` depends on whether Flux is enabled:
 
-에이전트 패키지와 동일한 방식으로 이 레지스트리를 미러링할 수 있습니다.
+* **With Flux (default, or with an existing Flux installation):** agent types declare a `HelmRelease` object. Agent Control renders your configuration variables into that `HelmRelease`&apos;s Helm chart values and creates or updates the resource. Flux then reconciles the chart and creates the underlying `Deployment`, `ConfigMap`, `Secret`, and other resources.
+* **Without Flux:** agent types declare plain Kubernetes objects directly (for example a `ConfigMap`, `Secret`, or `Deployment`) instead of a `HelmRelease`. Agent Control applies those objects to the cluster itself. There&apos;s no Helm chart or Flux reconciliation involved. The user has to manage the agent lifecycle in that case.
 
-## 연결된 에이전트 유형
+<Callout variant="important">
+  Without Flux, a configuration change from Fleet Control only updates the `ConfigMap`/`Secret` object it manages. Agent Control doesn&apos;t restart or redeploy the agent for you.
+</Callout>
 
-한 에이전트 유형이 공유 파일 시스템에 아티팩트(설정, 바이너리 또는 기타 파일)를 쓰고 다른 에이전트 유형이 동일한 경로에서 읽도록 설정된 경우 두 에이전트 유형이 **연결** 됩니다. 작성자에게는 `executables` 섹션이 없을 수 있으며, 에이전트 컨트롤은 아티팩트를 관리하지만 이를 위한 프로세스를 시작하지는 않습니다. 대신, 리더 에이전트에는 공유 파일 시스템의 잘 알려진 경로에서 바이너리 및 설정을 검색하고 실행하는 기본 제공 로직이 있어 작성자를 대신하여 애드온을 효과적으로 실행합니다.
+### Deployment on-host (Linux and Windows)
 
-공유 파일 시스템 루트는 다음과 같습니다.
+On hosts, Agent Control installs and runs the agent directly on the machine&apos;s operating system. The deployment section is composed of several sub-sections:
+
+* **`executables`**: 에이전트 컨트롤이 시작, 모니터 및 다시 시작할 프로세스 목록입니다. 이 섹션이 없는 에이전트 유형은 관리형 통합(OHI)으로 처리되며, 에이전트 컨트롤은 해당 아티팩트를 처리하지만 실행은 다른 에이전트에 위임합니다.
+* **`enable_file_logging`**: whether file logging is enabled.
+* **`health`**: 에이전트 컨트롤이 에이전트의 정상 여부를 결정하는 방법 ― 프로세스 존재 여부, HTTP 엔드포인트 확인 또는 둘 다를 통해 결정합니다.
+* **`filesystem`**: 설정 파일이나 인증서와 같이 에이전트를 시작하기 전에 에이전트 제어가 호스트에 쓰는 개별 파일 또는 디렉터리입니다.
+* **`shared_filesystem`**: 동일한 에이전트 컨트롤 인스턴스에서 관리하는 다른 에이전트가 액세스할 수 있는 공유 드롭 존에 기록된 항목입니다. OHI 에이전트 유형이 설정 및 바이너리를 인프라 에이전트에 전달하는 데 사용됩니다.
+* **`packages`**: 에이전트가 시작되기 전에 다운로드할 OCI 아티팩트 ― 일반적으로 에이전트 바이너리 또는 통합 패키지입니다.
+
+## Agent state storage
+
+### On Kubernetes
+
+State lives as Kubernetes objects, but what those objects are depends on whether Flux is enabled.
+
+With Flux (default, or with an existing Flux installation), the agent type typically declares Flux custom resources like a `HelmRepository` pointing at the chart, and a `HelmRelease` holding your rendered configuration as Helm chart values. Agent Control doesn&apos;t create the agent&apos;s `Deployment`, `ConfigMap`, or `Secret` objects directly. It hands the `HelmRelease` to Flux, and Flux installs the chart and keeps those generated resources in sync with it.
+
+* **A configuration update patches the `HelmRelease` in place.** Agent Control only re-applies the object if its content changed. Flux then reconciles the chart to match.
+* **Removing a sub-agent deletes every object labeled as owned by it** — its `HelmRelease`, `HelmRepository`, and any `Secret` or `ConfigMap` created for it, and Flux/Helm finalizes cleanup of the workloads that chart had installed.
+
+Without Flux, there&apos;s no `HelmRelease` or `HelmRepository`. The agent type declares plain Kubernetes objects directly, and Agent Control creates and updates them itself. There&apos;s no Helm chart or Flux reconciliation. In this mode, the user is responsible for the agent lifecycle. Agent Control doesn&apos;t install or upgrade the agent&apos;s `Deployment`, it only keeps the configuration objects it manages in sync.
+
+* **A configuration update patches the managed object (`ConfigMap`/`Secret`) in place.** Agent Control only re-applies it if its content changed. Since there&apos;s no Flux reconciliation, nothing automatically restarts the agent to pick up the change unless the agent itself watches for it.
+* **Removing a sub-agent deletes every object labeled as owned by it** — just its `ConfigMap`/`Secret` objects, since there&apos;s no `HelmRelease`, `HelmRepository`, or chart-installed workload to clean up.
+
+### 온호스트
+
+#### On-host filesystem
+
+Every sub-agent gets a dedicated directory on disk where Agent Control writes the files declared by its agent type&apos;s `filesystem` section.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "120px" }}>
+        운영 체제
+      </th>
+
+      <th>
+        길
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Linux
+      </td>
+
+      <td>
+        `/var/lib/newrelic-agent-control/filesystem/<agent-id>`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        윈도우
+      </td>
+
+      <td>
+        `C:\ProgramData\New Relic\newrelic-agent-control\filesystem\<agent-id>`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Agent Control gets the content to create a file from variables of type `yaml`, and the content for multiple files inside a directory from variables of type `string_map`.
+
+예시
+
+```
+/var/lib/newrelic-agent-control/filesystem/nr-infra-agent/
+├── newrelic-infra.yaml     # content from variable of type `yaml`
+└── logging.d/              # content from variable of type `string_map`
+    ├── file1.yaml
+    └── file2.yaml
+```
+
+How this directory behaves depends on the lifecycle event and on the variable type behind each path:
+
+* **A restart doesn&apos;t touch the directory.** Agent Control doesn&apos;t rewrite anything unless the restart was triggered by a configuration update from Fleet Control.
+* **A configuration update rewrites `yaml` files in place, but fully regenerates `string_map` directories.** For a `yaml` content, Agent Control only rewrites the file&apos;s contents. For a `string_map` content, Agent Control deletes the whole directory (like `logging.d` above) and recreates it from scratch, so any file you (or the sub-agent) added or edited inside it disappears on the next write.
+* **Files Agent Control doesn&apos;t manage are left alone.** It only ever overwrites the exact paths the agent type declares; anything else the running agent creates on its own inside its directory (cache files, local state) is not touched.
+* **Removing a sub-agent removes its whole directory**, including any files created by the sub-agent itself or by a user.
+
+#### On-host shared filesystem
+
+Most agent types are self-contained: Agent Control writes their configuration into a directory that belongs to them alone, and starts a process that reads from it. But some integrations have no execution model of their own. There is no process for Agent Control to start. They depend entirely on another already-running agent (for example, the Infrastructure Agent) to pick up their files and execute them. That dependency is why a second, **shared** location exists. It&apos;s a common drop zone that any sub-agent on the same host can write into and any other sub-agent can read from, used specifically to hand off artifacts between agents rather than to store an agent&apos;s own private state.
+
+Use `filesystem` for anything an agent type&apos;s own process needs, and rely on `shared_filesystem` only when one agent type is deliberately handing files to another, like the on-host integrations described further below.
+
+All sub-agents get a shared directory on disk where Agent Control writes the files declared by its agent type&apos;s `shared_filesystem`.
 
 <table>
   <thead>
@@ -83,11 +199,29 @@ translationType: machine
   </tbody>
 </table>
 
-동일한 Agent Control 인스턴스에서 관리하는 모든 에이전트는 이 루트를 공유합니다. 하위 디렉터리 이름은 연결된 에이전트 유형 간의 규칙에 따라 선택됩니다.
+Since all sub-agents have access to that shared directory, they can see each other&apos;s files.
 
-### 온-호스트 통합(OHI)
+예시
 
-온-호스트 통합(OHI)은 에이전트 제어에서 연결된 에이전트의 주요 예이며, 다른 에이전트는 에이전트 제어에 의해 시작되는 프로세스를 가지고 있지만, OHI 에이전트는 자체 프로세스가 없으며 에이전트 제어가 이를 시작하지 않습니다. 이를 통해 Agent Control은 뉴렐릭 Infrastructure 통합의 전체 수명 주기를 관리하여 다운로드, 구성, 업그레이드 및 제거를 수행하는 동시에, 공유 파일 시스템에서 통합 바이너리를 검색하고 실행하는 인프라 에이전트에 실행을 위임할 수 있습니다.
+```
+/var/lib/newrelic-agent-control/shared_filesystem/
+├── data/                  # All sub-agents can see `data` and `other-data` folders
+│   └── file.yaml
+└── other-data/
+    └── file2.yaml
+```
+
+The shared directory follows the same rules as the per-agent filesystem directory on restarts, configuration updates, and unmanaged files. The behavior only changes when removing a sub-agent: its files are always removed, since each file is unequivocally owned by the sub-agent that wrote it, but folders are only removed once no other sub-agent is using them.
+
+## On-host linked agent types
+
+한 에이전트 유형이 공유 파일 시스템에 아티팩트(설정, 바이너리 또는 기타 파일)를 쓰고 다른 에이전트 유형이 동일한 경로에서 읽도록 설정된 경우 두 에이전트 유형이 **연결** 됩니다. 작성자에게는 `executables` 섹션이 없을 수 있으며, 에이전트 컨트롤은 아티팩트를 관리하지만 이를 위한 프로세스를 시작하지는 않습니다. 대신, 리더 에이전트에는 공유 파일 시스템의 잘 알려진 경로에서 바이너리 및 설정을 검색하고 실행하는 기본 제공 로직이 있어 작성자를 대신하여 애드온을 효과적으로 실행합니다.
+
+Subdirectory names are chosen by convention between the linked agent types.
+
+### On-host integrations (OHI)
+
+On-host integrations (OHIs) are the primary example of linked agent types. Where a regular sub-agent has a process that Agent Control starts and monitors, an OHI has none. Agent Control only manages its lifecycle (downloading, configuring, upgrading, and uninstalling it), while the Infrastructure Agent discovers and runs its binaries from the shared filesystem on its behalf.
 
 ### 인프라 에이전트 및 OHI 에이전트 관계
 
@@ -175,6 +309,14 @@ translationType: machine
 <Callout variant="important">
   OHI 에이전트 유형은 자체 프로세스가 없으며 실행을 위해 전적으로 인프라 에이전트에 의존합니다. OHI 에이전트 유형을 배포하기 전에 동일한 Agent Control 인스턴스에 `com.newrelic.infrastructure`을(를) 하위 에이전트로 구성해야 합니다.
 </Callout>
+
+## Fetching agent type definitions
+
+Agent Control fetches agent type definitions from a remote OCI registry, identified by the `namespace`, `name`, and `version` declared in the definition&apos;s metadata section, taking into account the environment it&apos;s running in (Kubernetes, Linux, or Windows).
+
+By default, Agent Control pulls from `docker.io` using the `newrelic/agent-control-agent-types` repository, after verifying the signature against New Relic&apos;s public key.
+
+Agent type definitions can be pulled from a mirror, as explained in [Configure an OCI registry mirror for Agent Control](/docs/new-relic-control/agent-control/mirror-setup).
 
 ## 지원되는 에이전트 유형
 
