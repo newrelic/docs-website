@@ -114,7 +114,6 @@ reportLogs: "true"
 
 This routes both metrics and logs through the gateway's OTLP gRPC receiver on port 4317. TLS is disabled because the connection stays within the cluster.
 
-{/* [NEW - NEEDS INFRA AGENT TEAM SIGN-OFF BEFORE PUBLISH] */}
 ## Infrastructure agent
 
 **Minimum version:** v1.62.0
@@ -142,10 +141,12 @@ Set `logging_endpoint` in `/etc/newrelic-infra.yml` and enable log forwarding:
 
 ```yaml
 license_key: YOUR_LICENSE_KEY
-logging_endpoint: https://YOUR_GATEWAY_ENDPOINT/log/v1
+logging_endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1
 log:
   forward: true
 ```
+
+Use `http://` for the cluster-local endpoint. Use `https://` only when routing through an in-cluster reverse proxy (NGINX or Kong) with cert-manager deployed.
 
 Then define which log files to forward in `/etc/newrelic-infra/logging.d/logging.yml`:
 
@@ -181,102 +182,35 @@ Use OTLP HTTP on port 4318, not gRPC. The `Grpc On` option is not supported in t
 
 ## Fluentd
 
-Fluentd has two validated approaches depending on your use case.
+In your `fluent.conf` file, change the `base_uri` parameter to your gateway endpoint:
 
-### Approach A: Tail container logs (fluent-plugin-newrelic)
-
-Use this approach when Fluentd is tailing (watching log files on disk for new entries) raw container logs. This requires a custom Docker image because `fluent-plugin-newrelic` hardcodes port 443 and must be patched for plain HTTP.
-
-**Dockerfile:**
-
-```dockerfile
-FROM fluent/fluentd:v1.16-debian-1
-USER root
-RUN apt-get update && apt-get install -y build-essential ruby-dev && \
-    gem install fluent-plugin-newrelic --no-document && \
-    PLUGIN_FILE=$(find /usr/local/bundle/gems -name "out_newrelic.rb" 2>/dev/null | head -1) && \
-    sed -i 's/Net::HTTP.new(@end_point.host, 443)/Net::HTTP.new(@end_point.host, @end_point.port == 443 ? 443 : @end_point.port)/' "$PLUGIN_FILE" && \
-    sed -i 's/http.use_ssl = true/http.use_ssl = (@end_point.scheme == "https")/' "$PLUGIN_FILE" && \
-    apt-get clean
-USER fluent
-```
-
-**fluent.conf:**
-
-```
+```apacheconf
+#Tail one or more log files
 <source>
   @type tail
-  path /var/log/pods/*/*/*.log
-  pos_file /tmp/fluentd-containers.log.pos
-  tag kubernetes.*
-  read_from_head true
   <parse>
-    @type json
-    time_key time
-    time_format %Y-%m-%dT%H:%M:%S.%NZ
+    @type none
   </parse>
+  path /path/to/file
+  tag example.service
 </source>
 
-<filter kubernetes.**>
+#Add hostname and service_name to all events with "example.service" tag
+<filter example.service>
   @type record_transformer
-  enable_ruby true
   <record>
-    message ${record["log"]}
+    service_name ${tag}
+    hostname "#{Socket.gethostname}"
   </record>
-  remove_keys log
 </filter>
 
-<match kubernetes.**>
+#Forward all events to gateway
+<match **>
   @type newrelic
-  api_key "YOUR_LICENSE_KEY"
+  license_key YOUR_LICENSE_KEY
   base_uri http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1
-  <buffer>
-    flush_interval 5s
-  </buffer>
 </match>
 ```
-
-### Approach B: OTLP relay (fluent-plugin-opentelemetry)
-
-Use this approach when your source already produces OTLP-formatted data. Fluentd acts as an OTLP receiver and forwards to the gateway. This does **not** convert raw logs.
-
-This requires a custom Docker image with both plugins:
-
-```dockerfile
-FROM fluent/fluentd:v1.16-debian-1
-USER root
-RUN apt-get update && apt-get install -y build-essential ruby-dev && \
-    gem install fluent-plugin-newrelic fluent-plugin-opentelemetry --no-document && \
-    apt-get clean
-USER fluent
-```
-
-**fluent.conf:**
-
-```
-<source>
-  @type opentelemetry
-  tag otlp
-  <http>
-    port 4318
-    bind 0.0.0.0
-  </http>
-</source>
-
-<match otlp.**>
-  @type opentelemetry
-  <http>
-    endpoint http://pipeline-control-gateway.newrelic.svc.cluster.local:4318
-  </http>
-  <buffer>
-    flush_interval 2s
-  </buffer>
-</match>
-```
-
-<Callout variant="important">
-gRPC requires the `grpc` gem, which fails to compile on arm64. Use the HTTP approach shown above.
-</Callout>
 {/* [NEW SECTION END] */}
 
 ## Compatibility matrix: Supported agents and versions
@@ -333,6 +267,10 @@ The following table lists the New Relic APM agents, Infrastructure agents, and l
 <tr>
 <td>[Fluent Bit agent](/docs/logs/forward-logs/fluent-bit-plugin-log-forwarding)</td>
 <td>2.3.0 and later</td>
+</tr>
+<tr>
+<td>[OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)</td>
+<td>opentelemetry-collector-contrib v0.104.0 and later</td>
 </tr>
 <tr>
 <td>[MELT APIs](/docs/apis/intro-apis/introduction-new-relic-apis/#data-type-apis)</td>
