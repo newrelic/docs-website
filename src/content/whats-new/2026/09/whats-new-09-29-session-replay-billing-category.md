@@ -1,7 +1,7 @@
 ---
 title: 'Session replay now has its own billing category'
 summary: 'Browser and Mobile Session Replay data is reported under new billing categories, separate from browser and mobile events. This is a reporting change only.'
-releaseDate: '2026-09-29'
+releaseDate: '2026-09-28'
 learnMoreLink: 'https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-coming-new-relic/#sources-list'
 ---
 
