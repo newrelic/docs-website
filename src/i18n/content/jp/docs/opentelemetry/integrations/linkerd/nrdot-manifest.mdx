@@ -1,0 +1,159 @@
+---
+title: Linkerd監視のインストールと設定：マニフェストを使用したNRDOT
+metaDescription: Install and configure the NRDOT Collector using Kubernetes manifests to monitor your Linkerd service mesh with OpenTelemetry.
+tags:
+  - Linkerd
+  - OpenTelemetry
+  - NRDOT
+  - Kubernetes
+  - Manifest
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: linkerd
+flow:
+  prev: /docs/opentelemetry/integrations/linkerd/introduction
+  next: null
+translationType: machine
+---
+
+このページでは、Kubernetesマニフェストを使用してNRDOT Collectorをインストールし、Linkerdプロキシとコントロールプレーンのメトリクスをスクレイプするように設定し、データがNew Relicに送信されていることを確認します。これには約15分かかります。
+
+## 互換性と要件 [#requirements]
+
+### サポート対象
+
+* `kubectl`が設定されたKubernetesクラスタ（EKS、GKE、AKS、または自己管理型）
+* Linkerdがインストールされ、正常に動作していること（`linkerd check`がパスすること）
+* マニフェストで管理されるクラスタの設定
+
+### 必要なこと
+
+* New Relicの[Ingestライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+
+* ベースの[Kubernetes OpenTelemetryマニフェストのインストレーション](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install)が完了していること
+
+* [New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)へのネットワーク接続
+
+* 監視対象のネームスペースでインジェクションが有効になっていること。有効になっていない場合は、アノテーションを追加して再起動してください：
+
+  ```bash
+    kubectl annotate namespace <YOUR_NAMESPACE> linkerd.io/inject=enabled
+    kubectl rollout restart deployment -n <YOUR_NAMESPACE>
+  ```
+
+<Steps>
+  <Step>
+    ## インストール [#install]
+
+    1. ローカルの[`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml)の`receivers.prometheus.config.scrape_configs`リストにLinkerdのスクレイプ設定を追加します。
+
+       ```yaml
+       - job_name: 'linkerd-controller'
+         kubernetes_sd_configs:
+           - role: pod
+             namespaces: { names: ['linkerd', 'linkerd-viz'] }
+         relabel_configs:
+           - { source_labels: [__meta_kubernetes_pod_container_port_name], action: keep, regex: admin-http }
+           - { source_labels: [__meta_kubernetes_pod_container_name], target_label: component }
+           - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+           - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+       - job_name: 'linkerd-proxy'
+         kubernetes_sd_configs: [{ role: pod }]
+         relabel_configs:
+           - { source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_label_linkerd_io_control_plane_ns], action: keep, regex: ^linkerd-proxy;linkerd-admin;linkerd$ }
+           - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+           - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+           - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_ns], target_label: linkerd_control_plane_ns }
+           - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_component], target_label: linkerd_control_plane_component }
+       ```
+
+    2. プロセッサと`metrics/linkerd`パイプラインを同じ[`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml)に追加します。
+
+    ```yaml
+    processors:
+      resource/strip_service:
+        attributes:
+          - { key: service.name, action: delete }
+          - { key: service.instance.id, action: delete }
+      transform/k8s:
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+              - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+              - delete_key(attributes, "instance")
+      transform/deployment:
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["k8s.deployment.name"], attributes["k8s.pod.name"]) where attributes["k8s.deployment.name"] == nil and attributes["k8s.pod.name"] != nil
+              - replace_pattern(attributes["k8s.deployment.name"], "-[a-z0-9]+-[a-z0-9]+$", "") where attributes["k8s.deployment.name"] == attributes["k8s.pod.name"]
+      transform/metadata_nullify:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "")
+              - set(unit, "")
+      filter/drop_unused:
+        error_mode: ignore
+        metrics:
+          metric:
+            - 'name == "rustls_info" or name == "proxy_build_info"'
+            - 'name == "scrape_series_added"'
+            - 'IsMatch(name, "stack_(poll|create|drop)_total") or name == "stack_poll_total_ms"'
+            - 'IsMatch(name, "tokio_rt_.*")'
+            - 'IsMatch(name, "(inbound|outbound)_http_.*_frame_size_bytes")'
+            - 'IsMatch(name, "(inbound|outbound)_tcp_detect_http_duration_seconds")'
+            - 'IsMatch(name, "outbound_tcp_balancer_queue_.*")'
+            - 'name == "scrape_duration_seconds" or name == "scrape_samples_scraped" or name == "scrape_samples_post_metric_relabeling"'
+
+    pipelines:
+      metrics/linkerd:
+        receivers: [prometheus]
+        processors: [memory_limiter, resource/strip_service, transform/k8s, transform/deployment, transform/metadata_nullify, filter/drop_unused, resource/newrelic, batch]
+        exporters: [otlp_http/newrelic]
+    ```
+
+    3. ConfigMapを再適用し、コレクターのデプロイメントを再起動します。
+
+    ```bash
+    kubectl apply -f rendered/deployment-configmap.yaml -n newrelic
+    kubectl rollout restart deployment -n newrelic
+    ```
+  </Step>
+
+  <Step>
+    ## データを検索する [#find]
+
+    1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities)** &gt; **All entities**</DNT>に移動します。
+    2. クラスタ名を検索します。
+    3. Linkerdエンティティを選択して、組み込みダッシュボードを開きます。
+
+    組み込みダッシュボードは、リクエスト率、レイテンシp50/p95/p99、成功率、TCP接続、mTLS証明書ステータス、コントロールプレーンのヘルス、およびメッシュ化されたポッドのインベントリをカバーします。詳細については、[Linkerdデータの検索](/docs/opentelemetry/integrations/linkerd/find-data)ドキュメントを参照してください。
+  </Step>
+</Steps>
+
+## 関連記事 [#related-articles]
+
+<DocTiles>
+  <DocTile title="OpenTelemetryを使用したLinkerdディストリビューティッド（分散）トレーシング" path="/docs/opentelemetry/integrations/linkerd/distributed-tracing">
+    メッシュスパンをAPMのトレースと関連付けるには、プロキシのトレースエクスポートを有効にし、アプリケーションのポッドを計装してください。
+  </DocTile>
+
+  <DocTile title="Linkerdプロキシログを収集する" path="/docs/opentelemetry/integrations/linkerd/proxy-logs">
+    オプションで
+
+    `linkerd-proxy`
+
+    サイドカーコンテナのログを収集します。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">
+    OTel Collectorによって収集されるLinkerdメトリクスとリソース属性の完全なリスト。
+  </DocTile>
+</DocTiles>

@@ -1,0 +1,159 @@
+---
+title: 'Instale y configure el monitoreo de Linkerd: NRDOT con manifiesto'
+metaDescription: Install and configure the NRDOT Collector using Kubernetes manifests to monitor your Linkerd service mesh with OpenTelemetry.
+tags:
+  - Linkerd
+  - OpenTelemetry
+  - NRDOT
+  - Kubernetes
+  - Manifest
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: linkerd
+flow:
+  prev: /docs/opentelemetry/integrations/linkerd/introduction
+  next: null
+translationType: machine
+---
+
+Esta página instala el Collector de NRDOT mediante manifiestos de Kubernetes, lo configura para recopilar las métricas del proxy y del plano de control de Linkerd, y verifica que los datos fluyan hacia New Relic. Se espera que esto tome unos 15 minutos.
+
+## Compatibilidad y requisitos [#requirements]
+
+### Soportado
+
+* Clúster de Kubernetes (EKS, GKE, AKS o autogestionado) con `kubectl` configurado en él
+* Linkerd instalado y en buen estado (`linkerd check` superados)
+* Configuración de clúster administrada por manifiesto
+
+### Necesita
+
+* Una [clave de licencia de ingesta](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)de New Relic
+
+* Se completó la [instalación base del manifiesto de OpenTelemetry para Kubernetes](/docs/kubernetes-pixie/k8s-otel/install/#manifest-install)
+
+* Conectividad de red a los [extremos OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+* Inyección habilitada en los namespaces que desea observar. Si no lo está, anótelos y reinícielos:
+
+  ```bash
+    kubectl annotate namespace <YOUR_NAMESPACE> linkerd.io/inject=enabled
+    kubectl rollout restart deployment -n <YOUR_NAMESPACE>
+  ```
+
+<Steps>
+  <Step>
+    ## Instalar [#install]
+
+    1. Agregue la configuración de recopilación de Linkerd a la lista `receivers.prometheus.config.scrape_configs` en el [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml) local.
+
+       ```yaml
+       - job_name: 'linkerd-controller'
+         kubernetes_sd_configs:
+           - role: pod
+             namespaces: { names: ['linkerd', 'linkerd-viz'] }
+         relabel_configs:
+           - { source_labels: [__meta_kubernetes_pod_container_port_name], action: keep, regex: admin-http }
+           - { source_labels: [__meta_kubernetes_pod_container_name], target_label: component }
+           - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+           - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+       - job_name: 'linkerd-proxy'
+         kubernetes_sd_configs: [{ role: pod }]
+         relabel_configs:
+           - { source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_label_linkerd_io_control_plane_ns], action: keep, regex: ^linkerd-proxy;linkerd-admin;linkerd$ }
+           - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+           - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+           - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_ns], target_label: linkerd_control_plane_ns }
+           - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_component], target_label: linkerd_control_plane_component }
+       ```
+
+    2. Agregue los procesadores y el pipeline `metrics/linkerd` al mismo [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml).
+
+    ```yaml
+    processors:
+      resource/strip_service:
+        attributes:
+          - { key: service.name, action: delete }
+          - { key: service.instance.id, action: delete }
+      transform/k8s:
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+              - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+              - delete_key(attributes, "instance")
+      transform/deployment:
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["k8s.deployment.name"], attributes["k8s.pod.name"]) where attributes["k8s.deployment.name"] == nil and attributes["k8s.pod.name"] != nil
+              - replace_pattern(attributes["k8s.deployment.name"], "-[a-z0-9]+-[a-z0-9]+$", "") where attributes["k8s.deployment.name"] == attributes["k8s.pod.name"]
+      transform/metadata_nullify:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "")
+              - set(unit, "")
+      filter/drop_unused:
+        error_mode: ignore
+        metrics:
+          metric:
+            - 'name == "rustls_info" or name == "proxy_build_info"'
+            - 'name == "scrape_series_added"'
+            - 'IsMatch(name, "stack_(poll|create|drop)_total") or name == "stack_poll_total_ms"'
+            - 'IsMatch(name, "tokio_rt_.*")'
+            - 'IsMatch(name, "(inbound|outbound)_http_.*_frame_size_bytes")'
+            - 'IsMatch(name, "(inbound|outbound)_tcp_detect_http_duration_seconds")'
+            - 'IsMatch(name, "outbound_tcp_balancer_queue_.*")'
+            - 'name == "scrape_duration_seconds" or name == "scrape_samples_scraped" or name == "scrape_samples_post_metric_relabeling"'
+
+    pipelines:
+      metrics/linkerd:
+        receivers: [prometheus]
+        processors: [memory_limiter, resource/strip_service, transform/k8s, transform/deployment, transform/metadata_nullify, filter/drop_unused, resource/newrelic, batch]
+        exporters: [otlp_http/newrelic]
+    ```
+
+    3. Vuelva a aplicar el ConfigMap y reinicie el despliegue del recolector.
+
+    ```bash
+    kubectl apply -f rendered/deployment-configmap.yaml -n newrelic
+    kubectl rollout restart deployment -n newrelic
+    ```
+  </Step>
+
+  <Step>
+    ## Encuentra tus datos [#find]
+
+    1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities)** &gt; **All entities**</DNT>.
+    2. Busque el nombre del clúster.
+    3. Seleccione la entidad de Linkerd para abrir el dashboard integrado.
+
+    El dashboard integrado cubre la tasa de solicitudes, la latencia p50/p95/p99, la tasa de éxito, las conexiones TCP, el estado del certificado mTLS, el estado del plano de control y el inventario de pods en malla. Para obtener información detallada, consulte la documentación de [Buscar datos de Linkerd](/docs/opentelemetry/integrations/linkerd/find-data).
+  </Step>
+</Steps>
+
+## Artículos relacionados [#related-articles]
+
+<DocTiles>
+  <DocTile title="Rastreo distribuido de Linkerd con OpenTelemetry" path="/docs/opentelemetry/integrations/linkerd/distributed-tracing">
+    Habilite la exportación de traza del proxy e instrumente los pods de la aplicación para correlacionar los spans de la malla con las trazas de APM.
+  </DocTile>
+
+  <DocTile title="Recopilar los logs del proxy de Linkerd" path="/docs/opentelemetry/integrations/linkerd/proxy-logs">
+    Opcionalmente, recopile los logs del contenedor sidecar 
+
+    `linkerd-proxy`
+
+    .
+  </DocTile>
+
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">
+    Lista completa de métricas y atributos de recursos de Linkerd recopilados por el OTel Collector.
+  </DocTile>
+</DocTiles>
