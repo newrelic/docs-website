@@ -5,8 +5,6 @@ releaseDate: '2026-09-30'
 getStartedLink: 'https://docs.newrelic.com/docs/infrastructure/oci/introduction/'
 ---
 
-Oracle Cloud Infrastructure (OCI) metrics and logs are available today, giving you visibility into Oracle Cloud services alongside AWS, Azure, and GCP in a single platform.
-
 Today, we're thrilled to announce the general availability of our new OCI monitoring integration. This expansion of our infrastructure monitoring portfolio introduces out-of-the-box telemetry ingestion for OCI metrics and logs, bringing complete Oracle Cloud observability directly into New Relic for the first time.
 
 With this release, multi-cloud enterprises no longer have to manage OCI in a silo. By bringing OCI metrics and logs into a single platform alongside AWS, Azure, and GCP, you can break down operational silos, eliminate multi-cloud blind spots, and accelerate root-cause analysis across your entire cloud footprint.
