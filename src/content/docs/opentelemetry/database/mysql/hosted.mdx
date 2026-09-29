@@ -119,426 +119,93 @@ Create a monitoring user with the necessary privileges for your MySQL database i
 
 ## Configure NRDOT Collector [#configure]
 
-Configure the NRDOT Collector with your MySQL-specific settings. Select your configuration type based on your monitoring needs:
-
-<CollapserGroup>
-
-<Collapser
-  id="standard"
-  title="Standard configuration"
->
+Configure the NRDOT Collector with your MySQL-specific settings.
 
 This configuration focuses on essential MySQL monitoring with the `nrmysql` receiver only.
 
-1. Create a configuration file named as `mysql-config.yaml`:
-
-  ```bash
-    sudo nano /etc/nrdot-collector/mysql-config.yaml
-  ```
-
-2. Add the following configuration to the `mysql-config.yaml` file you created in the previous step.
-
-```yaml
-receivers:
-  nrmysql:
-    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
-    transport: tcp
-    username: "<YOUR_DB_USERNAME>"
-    password: "<YOUR_DB_PASSWORD>"
-    database: "<YOUR_DATABASE_NAME>"
-    allow_native_passwords: true
-    collection_interval: 10s
-    initial_delay: 1s
-    tls:
-      insecure: false
-      insecure_skip_verify: false
-      # ca_file: /path/to/global-bundle.pem
-    explain_mode: procedure
-    statement_events:
-      digest_text_limit: 4096
-      time_limit: 24h
-      limit: 500
-    query_sample_collection:
-      max_rows_per_query: 100
-      allowed_comment_keys: [nr_service_guid]
-    top_query_collection:
-      lookback_time: 120
-      max_query_sample_count: 5000
-      top_query_count: 200
-      collection_interval: 60s
-      query_plan_cache_size: 1000
-      query_plan_cache_ttl: 1h
-      allowed_comment_keys: [nr_service_guid]
-    events:
-      db.server.query_sample:
-        enabled: true
-      db.server.top_query:
-        enabled: true
-
-processors:
-  batch:
-  resource/mysql:
-    attributes:
-      - key: server.address
-        value: "<YOUR_DB_HOST>"
-        action: upsert
-      - key: server.port
-        value: <YOUR_DB_PORT>
-        action: upsert
-
-exporters:
-  otlp/newrelic:
-    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
-    headers:
-      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
-    compression: gzip
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-
-service:
-  pipelines:
-    metrics:
-      receivers: [nrmysql]
-      processors: [resource/mysql, batch]
-      exporters: [otlp/newrelic]
-    logs:
-      receivers: [nrmysql]
-      processors: [resource/mysql, batch]
-      exporters: [otlp/newrelic]
-```
-
-</Collapser>
-
-<Collapser
-  id="full"
-  title="Full-feature configuration"
->
-
-This configuration adds host-level metrics (CPU, memory, disk, network) alongside MySQL database monitoring.
-
-1. Create a configuration file named as `mysql-config.yaml`:
-
-  ```bash
-    sudo nano /etc/nrdot-collector/mysql-config.yaml
-  ```
-
-2. Add the following configuration to the `mysql-config.yaml` file you created in the previous step.
-
-```yaml
-extensions:
-  health_check:
-
-receivers:
-  otlp:
-    protocols:
-      grpc:
-      http:
-
-  host_metrics:
-    collection_interval: 30s
-    scrapers:
-      cpu:
-        metrics:
-          system.cpu.time:
-            enabled: false
-          system.cpu.utilization:
-            enabled: true
-      load:
-      memory:
-        metrics:
-          system.memory.utilization:
-            enabled: true
-      paging:
-        metrics:
-          system.paging.utilization:
-            enabled: false
-          system.paging.faults:
-            enabled: false
-      filesystem:
-        metrics:
-          system.filesystem.utilization:
-            enabled: true
-      disk:
-        metrics:
-          system.disk.merged:
-            enabled: false
-          system.disk.pending_operations:
-            enabled: false
-          system.disk.weighted_io_time:
-            enabled: false
-      network:
-        metrics:
-          system.network.connections:
-            enabled: false
-      # Uncomment to enable process metrics, which can be noisy but valuable.
-      # processes:
-      # process:
-      #  metrics:
-      #    process.cpu.utilization:
-      #      enabled: true
-      #    process.cpu.time:
-      #      enabled: false
-
-  nrmysql:
-    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
-    transport: tcp
-    username: "<YOUR_DB_USERNAME>"
-    password: "<YOUR_DB_PASSWORD>"
-    database: "<YOUR_DATABASE_NAME>"
-    allow_native_passwords: true
-    collection_interval: 10s
-    initial_delay: 1s
-    tls:
-      insecure: false
-      insecure_skip_verify: false
-      # Required for Amazon RDS/Aurora with SSL/TLS enforcement -- see
-      # Prerequisites -> Network access -> Amazon RDS / Aurora for MySQL.
-      # ca_file: /path/to/global-bundle.pem
-    # "procedure" collects EXPLAIN plans for write statements (UPDATE/DELETE/INSERT/REPLACE)
-    # without granting DML to the monitoring user, via a SQL SECURITY DEFINER procedure.
-    # Falls back to "inline" (default) automatically if the procedure is absent for a schema.
-    # Requires one-time setup per schema -- see Prerequisites -> DML query plan collection.
-    explain_mode: procedure
-    statement_events:
-      digest_text_limit: 4096
-      time_limit: 24h
-      limit: 500
-    query_sample_collection:
-      max_rows_per_query: 100
-      # APM-DB correlation: surfaces the nr_service_guid SQL comment tag (e.g. injected by
-      # transaction_tracer.sql_metadata_comments in the Java agent) as db.query.comment_tags /
-      # db.query.comment_tags.nr_service_guid. Empty list by default -- nothing is extracted
-      # unless the key is explicitly allow-listed here.
-      allowed_comment_keys: [nr_service_guid]
-    top_query_collection:
-      lookback_time: 120
-      max_query_sample_count: 5000
-      top_query_count: 200
-      collection_interval: 60s
-      query_plan_cache_size: 1000
-      query_plan_cache_ttl: 1h
-      allowed_comment_keys: [nr_service_guid]
-    events:
-      db.server.query_sample:
-        enabled: true
-      db.server.top_query:
-        enabled: true
-
-processors:
-  metrics_transform:
-    transforms:
-      - include: system.cpu.utilization
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [state]
-            aggregation_type: mean
-      - include: system.paging.operations
-        action: update
-        operations:
-          - action: aggregate_labels
-            label_set: [direction]
-            aggregation_type: sum
-
-  filter/exclude_cpu_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
-        - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
-
-  filter/exclude_memory_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
-        - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
-
-  filter/exclude_memory_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
-        - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
-
-  filter/exclude_filesystem_utilization:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
-
-  filter/exclude_filesystem_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_filesystem_inodes_usage:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
-        - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
-
-  filter/exclude_system_disk:
-    metrics:
-      datapoint:
-        - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
-        - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
-
-  filter/exclude_network:
-    metrics:
-      datapoint:
-        - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
-
-  attributes/exclude_system_paging:
-    include:
-      match_type: strict
-      metric_names:
-        - system.paging.operations
-    actions:
-      - key: type
-        action: delete
-
-  cumulative_to_delta:
-
-  transform:
-    trace_statements:
-      - context: span
-        statements:
-          - truncate_all(span.attributes, 4095)
-          - truncate_all(resource.attributes, 4095)
-
-  transform/host:
-    metric_statements:
-      - context: metric
-        statements:
-          - set(metric.description, "")
-          - set(metric.unit, "")
-
-  # Static server.address/server.port, reusing the same <YOUR_DB_HOST>/<YOUR_DB_PORT>
-  # values already set on the receiver's own `endpoint` field above -- nrmysqlreceiver
-  # itself emits no server.address/server.port, only its own mysql.instance.endpoint
-  # (a combined "host:port" string). Applies uniformly to both metrics and logs
-  # pipelines since neither depends on how that string is derived.
-  resource/mysql:
-    attributes:
-      - key: server.address
-        value: "<YOUR_DB_HOST>"
-        action: upsert
-      - key: server.port
-        value: <YOUR_DB_PORT>
-        action: upsert
-
-  batch:
-
-  resource_detection:
-    detectors: ["system"]
-    system:
-      hostname_sources: ["os"]
-      resource_attributes:
-        host.id:
-          enabled: true
-
-  resource_detection/cloud:
-    detectors: ["gcp", "ec2", "azure"]
-    timeout: 2s
-    override: true
-
-  resource_detection/env:
-    detectors: ["env"]
-    timeout: 2s
-    override: true
-
-exporters:
-  otlp/newrelic:
-    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
-    headers:
-      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
-    compression: gzip
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-
-service:
-  telemetry:
-    metrics:
-      level: none
-
-  extensions: [health_check]
-
-  pipelines:
-    metrics/host:
-      receivers: [host_metrics]
-      processors:
-        - metrics_transform
-        - filter/exclude_cpu_utilization
-        - filter/exclude_memory_utilization
-        - filter/exclude_memory_usage
-        - filter/exclude_filesystem_utilization
-        - filter/exclude_filesystem_usage
-        - filter/exclude_filesystem_inodes_usage
-        - filter/exclude_system_disk
-        - filter/exclude_network
-        - attributes/exclude_system_paging
-        - transform/host
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - cumulative_to_delta
-        - batch
-      exporters: [otlp/newrelic]
-
-    metrics/mysql:
-      receivers: [nrmysql]
-      processors:
-        - resource/mysql
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - batch
-      exporters: [otlp/newrelic]
-
-    logs/mysql:
-      receivers: [nrmysql]
-      processors:
-        - resource/mysql
-        - resource_detection
-        - resource_detection/cloud
-        - resource_detection/env
-        - batch
-      exporters: [otlp/newrelic]
-
-    traces:
-      receivers: [otlp]
-      processors: [transform, resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlp/newrelic]
-
-    metrics:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlp/newrelic]
-
-    logs:
-      receivers: [otlp]
-      processors: [resource_detection, resource_detection/cloud, resource_detection/env, batch]
-      exporters: [otlp/newrelic]
-```
-
-<Callout variant="important">
-MySQL integration via NRDOT Collector follows standard [data ingest pricing](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data). Note that full feature configuration ingests more data than a standard setup, which may increase your overall bill.
+<Callout variant="tip" title="full configuration">
+  This baseline configuration captures essential metrics. To see the complete metric catalog, refer to the [configuration reference](/docs/opentelemetry/database/mysql/config-reference/#hosted-full).
 </Callout>
 
-</Collapser>
+1. Create a configuration file named as `mysql-config.yaml`:
 
-</CollapserGroup>
+  ```bash
+    sudo nano /etc/nrdot-collector/mysql-config.yaml
+  ```
+
+2. Add the following configuration to the `mysql-config.yaml` file you created in the previous step.
+
+```yaml
+receivers:
+  nrmysql:
+    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+    transport: tcp
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    database: "<YOUR_DATABASE_NAME>"
+    allow_native_passwords: true
+    collection_interval: 10s
+    initial_delay: 1s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+      # ca_file: /path/to/global-bundle.pem
+    explain_mode: procedure
+    statement_events:
+      digest_text_limit: 4096
+      time_limit: 24h
+      limit: 500
+    query_sample_collection:
+      max_rows_per_query: 100
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      lookback_time: 120
+      max_query_sample_count: 5000
+      top_query_count: 200
+      collection_interval: 60s
+      query_plan_cache_size: 1000
+      query_plan_cache_ttl: 1h
+      allowed_comment_keys: [nr_service_guid]
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+processors:
+  batch:
+  resource/mysql:
+    attributes:
+      - key: server.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+      - key: server.port
+        value: <YOUR_DB_PORT>
+        action: upsert
+
+exporters:
+  otlp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  pipelines:
+    metrics:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlp/newrelic]
+    logs:
+      receivers: [nrmysql]
+      processors: [resource/mysql, batch]
+      exporters: [otlp/newrelic]
+```
 
 ### Configuration parameters
 
