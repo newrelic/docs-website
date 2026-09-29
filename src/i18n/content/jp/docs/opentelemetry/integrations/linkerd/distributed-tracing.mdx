@@ -1,0 +1,509 @@
+---
+title: OpenTelemetryを使用したLinkerdディストリビューティッド（分散）トレーシング
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Linkerd
+  - Distributed tracing
+  - Service maps
+metaDescription: Enable distributed tracing for Linkerd service mesh proxies (2.19+) and instrument your application pods to see end-to-end traces in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Linkerd 2.19以降では、追加のトレーシングバックエンドやcert-managerのセットアップを必要とせずに、メッシュサイドカーから直接、プロキシされたすべてのリクエストのスパンをエクスポートできます。インストゥルメントされたアプリケーションポッドと組み合わせることで、これらのプロキシスパンはエンドツーエンドのトレースに接続され、リクエストがメッシュ内をどのように移動したかを正確に示します。
+
+## 使い方 [#how-it-works]
+
+トレーシングの有効化には2つの部分があります：
+
+1. **メッシュレベルのトレースエクスポート**：Linkerdプロキシは、リクエストごとにスパンをOTel Collectorにエクスポートします。これだけで、アプリケーションに触れることなく、プロキシレベルのトレース（再試行、mTLSハンドシェイク、ホップごとのレイテンシ）を取得できます。
+2. **アプリケーションの計装**：アプリのポッドは、プロキシが使用するのと同じW3Cトレースコンテキストを伝播し、独自のスパンをエクスポートします。両方を組み合わせることで、クライアントアプリからLinkerdプロキシを経由してバックエンドアプリに至るまで、同じトレース内に完全なウォーターフォールが表示されます。
+
+## あなたが始める前に [#prerequisites]
+
+以下のものを用意してください:
+
+* **Linkerd edge-26.7.0以降**（2.19以降）。以前のリリースでのプロキシトレーシングには、個別のコレクターサービスとcert-managerのインテグレーションが必要でしたが、このガイドでは説明していません。アップグレードが必要な場合は、[Linkerdのスタートガイド](https://linkerd.io/2/getting-started/)を参照してください。
+
+* LinkerdインスタンスでNRDOTまたはOTel Collector Contribが稼働していること：
+
+  * NRDOTの場合は、[Helmチャート](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector)または[マニフェスト](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml)のいずれかを使用します。
+  * OTel Collector Contribの場合は、[Helmチャート](https://github.com/open-telemetry/opentelemetry-helm-charts/tree/main/charts/opentelemetry-collector)または[マニフェスト](https://github.com/open-telemetry/opentelemetry-collector/blob/main/examples/k8s/deployment.yaml)のいずれかを使用します。
+
+* トレースするネームスペースでインジェクションが有効になっていること。
+
+## ディストリビューティッド（分散）トレーシングの設定 [#setup]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-tracing">
+      NRDOTコレクター
+    </TabsBarItem>
+
+    <TabsBarItem id="otelcol-tracing">
+      OpenTelemetry Collector貢献
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-tracing">
+      <CollapserGroup>
+        <Collapser id="nrdot-tracing-helm" title="Helm インストール">
+          `traces`[`deployment.configMap.extraConfig`](https://github.com/newrelic/helm-charts/blob/c6dbb791072d4f11cbd712e84d13cf997d78eddc/charts/nr-k8s-otel-collector/values.yaml#L259)の に[`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/values.yaml) パイプラインを追加します。`otlp`レシーバーを再定義しないでください。チャートにはデフォルトですでに1つ含まれています：
+
+          追加するプロセッサ:
+
+          ```yaml
+          k8sattributes/traces:
+            auth_type: serviceAccount
+            passthrough: false
+            extract:
+              metadata: [ k8s.deployment.name, k8s.node.name, k8s.namespace.name, k8s.pod.name ]
+              labels:
+                - { tag_name: linkerd_control_plane_ns, key: linkerd.io/control-plane-ns, from: pod }
+                - { tag_name: linkerd_control_plane_component, key: linkerd.io/control-plane-component, from: pod }
+            pod_association:
+              - sources: [{ from: resource_attribute, name: k8s.pod.ip }]
+              - sources: [{ from: connection }]
+
+          # Must run before transform/linkerd_service_name below.
+          transform/linkerd_component_inject:
+            trace_statements:
+              - context: span
+                statements:
+                  - set(attributes["linkerd_control_plane_component"], "linkerd-proxy")
+                    where resource.attributes["service.name"] == "linkerd-proxy"
+                    and resource.attributes["linkerd_control_plane_ns"] != nil
+
+          # Renames service.name=linkerd-proxy to the correlated deployment name.
+          transform/linkerd_service_name:
+            trace_statements:
+              - context: resource
+                statements:
+                  - set(attributes["service.name"], attributes["k8s.deployment.name"])
+                    where attributes["service.name"] == "linkerd-proxy"
+                    and attributes["k8s.deployment.name"] != nil
+
+          resourcedetection:
+            detectors: [env]
+            override: false
+          ```
+
+          追加するパイプライン：
+
+          ```yaml
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [memory_limiter, k8sattributes/traces, transform/linkerd_component_inject, transform/linkerd_service_name, resourcedetection, batch]
+              exporters: [otlp_http/newrelic]
+          ```
+
+          <Callout variant="important">
+            `transform/linkerd_service_name` 各メッシュ化されたデプロイメントの名前をそのAPM `service.name`にします。同じアカウントにレポートするすべてのクラスタで、一意のデプロイメント名を使用してください。別のクラスタにも存在する名前は、そこにある同じエンティティに解決されるため、データは2つの別々のサービスとして表示されるのではなく、マージされます。
+          </Callout>
+
+          更新された`values.yaml`を使用して、[「OpenTelemetryを使用したKubernetes上のLinkerdのモニター」](/docs/opentelemetry/integrations/linkerd/nrdot-helm)から`helm upgrade`コマンドを再実行し、次の1回限りの手順を完了します：
+
+          **1. コレクターをメッシュ化します。**Linkerdプロキシは、それ自体がメッシュ内にあるコレクターにのみトレースをエクスポートできます：
+
+          ```bash
+          kubectl annotate namespace newrelic linkerd.io/inject=enabled
+          kubectl rollout restart deployment/nr-k8s-otel-collector-deployment -n newrelic
+          kubectl rollout restart daemonset/nr-k8s-otel-collector-daemonset -n newrelic
+          ```
+
+          **2. コレクターのOTLPポートをgRPCとしてマークします。**チャートの[`nr-k8s-otel-collector-gateway`](https://github.com/newrelic/helm-charts/blob/8ea5a59c345301f9b84db55c2bc4494f87d4b58b/charts/nr-k8s-otel-collector/templates/service.yaml)サービスは、そのgRPCポートで`appProtocol`を宣言していません。これがないと、Linkerd独自のプロトコル検出がコレクターへのトラフィックを誤認し、プロキシのトレースエクスポートを暗黙のうちにドロップする可能性があります：
+
+          ```bash
+          kubectl patch svc nr-k8s-otel-collector-gateway -n newrelic --type=json \
+            -p='[{"op":"add","path":"/spec/ports/1/appProtocol","value":"grpc"}]'
+          ```
+
+          **3. Linkerdプロキシでトレースを有効にします：**
+
+          <CollapserGroup>
+            <Collapser id="nrdot-helm-tracing-proxy-values" title="Helm経由">
+              ```yaml
+              # linkerd-values.yaml
+              proxy:
+                tracing:
+                  enabled: true
+                  collector:
+                    endpoint: nr-k8s-otel-collector-gateway.newrelic.svc.cluster.local:4317
+                    meshIdentity:
+                      serviceAccountName: nr-k8s-otel-collector
+                      namespace: newrelic
+              ```
+
+              ```bash
+              linkerd upgrade -f linkerd-values.yaml | kubectl apply -f -
+              ```
+            </Collapser>
+
+            <Collapser id="nrdot-helm-tracing-proxy-cli" title="代替方法：Linkerd CLI">
+              ```bash
+              linkerd upgrade \
+                --set proxy.tracing.enabled=true \
+                --set proxy.tracing.collector.endpoint=nr-k8s-otel-collector-gateway.newrelic.svc.cluster.local:4317 \
+                --set proxy.tracing.collector.meshIdentity.serviceAccountName=nr-k8s-otel-collector \
+                --set proxy.tracing.collector.meshIdentity.namespace=newrelic \
+                | kubectl apply -f -
+              ```
+            </Collapser>
+          </CollapserGroup>
+
+          ```bash
+          kubectl rollout restart deployment -n <YOUR_NAMESPACE>
+          ```
+
+          次に、以下の[「アプリケーションポッドの計装」](#instrument-your-application-pods)に進みます。
+        </Collapser>
+
+        <Collapser id="nrdot-tracing-manifest" title="マニフェストのインストール">
+          同じ[`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml)に以下を追加します。`otlp`レシーバーを再定義しないでください。ベースマニフェストにはデフォルトですでに1つ含まれています：
+
+          追加するプロセッサ:
+
+          ```yaml
+          processors:
+            k8sattributes/traces:
+              auth_type: serviceAccount
+              passthrough: false
+              extract:
+                metadata: [ k8s.deployment.name, k8s.node.name, k8s.namespace.name, k8s.pod.name ]
+                labels:
+                  - { tag_name: linkerd_control_plane_ns, key: linkerd.io/control-plane-ns, from: pod }
+                  - { tag_name: linkerd_control_plane_component, key: linkerd.io/control-plane-component, from: pod }
+              pod_association:
+                - sources: [{ from: resource_attribute, name: k8s.pod.ip }]
+                - sources: [{ from: connection }]
+
+            # Must run before transform/linkerd_service_name below.
+            transform/linkerd_component_inject:
+              trace_statements:
+                - context: span
+                  statements:
+                    - set(attributes["linkerd_control_plane_component"], "linkerd-proxy")
+                      where resource.attributes["service.name"] == "linkerd-proxy"
+                      and resource.attributes["linkerd_control_plane_ns"] != nil
+
+            # Renames service.name=linkerd-proxy to the correlated deployment name.
+            transform/linkerd_service_name:
+              trace_statements:
+                - context: resource
+                  statements:
+                    - set(attributes["service.name"], attributes["k8s.deployment.name"])
+                      where attributes["service.name"] == "linkerd-proxy"
+                      and attributes["k8s.deployment.name"] != nil
+
+            resourcedetection:
+              detectors: [env]
+              override: false
+          ```
+
+          追加するパイプライン：
+
+          ```yaml
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [memory_limiter, k8sattributes/traces, transform/linkerd_component_inject, transform/linkerd_service_name, resourcedetection, batch]
+              exporters: [otlp_http/newrelic]
+          ```
+
+          <Callout variant="important">
+            `transform/linkerd_service_name` 各メッシュ化されたデプロイメントの名前をそのAPM `service.name`にします。同じアカウントにレポートするすべてのクラスタで、一意のデプロイメント名を使用してください。別のクラスタにも存在する名前は、そこにある同じエンティティに解決されるため、データは2つの別々のサービスとして表示されるのではなく、マージされます。
+          </Callout>
+
+          上記のConfigMapを再適用し、次の1回限りの手順を完了します：
+
+          **1. コレクターをメッシュ化します。**Linkerdプロキシは、それ自体がメッシュ内にあるコレクターにのみトレースをエクスポートできます：
+
+          ```bash
+          kubectl annotate namespace newrelic linkerd.io/inject=enabled
+          kubectl rollout restart deployment/nr-k8s-otel-collector-deployment -n newrelic
+          kubectl rollout restart daemonset/nr-k8s-otel-collector-daemonset -n newrelic
+          ```
+
+          **2. コレクターのOTLPポートをgRPCとしてマークします。**レンダリングされた[`nr-k8s-otel-collector-gateway`](https://github.com/newrelic/helm-charts/blob/8ea5a59c345301f9b84db55c2bc4494f87d4b58b/charts/nr-k8s-otel-collector/templates/service.yaml) Serviceは、そのgRPCポートで`appProtocol`を宣言していません。これがないと、Linkerd独自のプロトコル検出がコレクターへのトラフィックを誤認し、プロキシのトレースエクスポートを暗黙のうちにドロップする可能性があります：
+
+          ```bash
+          kubectl patch svc nr-k8s-otel-collector-gateway -n newrelic --type=json \
+            -p='[{"op":"add","path":"/spec/ports/1/appProtocol","value":"grpc"}]'
+          ```
+
+          **3. Linkerdプロキシでトレースを有効にします：**
+
+          <CollapserGroup>
+            <Collapser id="nrdot-manifest-tracing-proxy-values" title="Helm経由">
+              ```yaml
+              # linkerd-values.yaml
+              proxy:
+                tracing:
+                  enabled: true
+                  collector:
+                    endpoint: nr-k8s-otel-collector-gateway.newrelic.svc.cluster.local:4317
+                    meshIdentity:
+                      serviceAccountName: nr-k8s-otel-collector
+                      namespace: newrelic
+              ```
+
+              ```bash
+              linkerd upgrade -f linkerd-values.yaml | kubectl apply -f -
+              ```
+            </Collapser>
+
+            <Collapser id="nrdot-manifest-tracing-proxy-cli" title="代替方法：Linkerd CLI">
+              ```bash
+              linkerd upgrade \
+                --set proxy.tracing.enabled=true \
+                --set proxy.tracing.collector.endpoint=nr-k8s-otel-collector-gateway.newrelic.svc.cluster.local:4317 \
+                --set proxy.tracing.collector.meshIdentity.serviceAccountName=nr-k8s-otel-collector \
+                --set proxy.tracing.collector.meshIdentity.namespace=newrelic \
+                | kubectl apply -f -
+              ```
+            </Collapser>
+          </CollapserGroup>
+
+          ```bash
+          kubectl rollout restart deployment -n <YOUR_NAMESPACE>
+          ```
+
+          次に、以下の[「アプリケーションポッドの計装」](#instrument-your-application-pods)に進みます。
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-tracing">
+      Linkerd 2.19以降、プロキシトレースのエクスポートはコントロールプレーンで直接構成され、cert-managerや個別のポートは必要ありません。2つの手順が必要です：コレクターがトレースを受信できるようにしてから、プロキシからのトレースのエクスポートをオンにします。
+
+      ### 手順1：コレクターにトレースの取り込みを追加する
+
+      NRDOTチャートとは異なり、コミュニティの`open-telemetry/opentelemetry-collector`チャートにはデフォルトで`otlp`レシーバーが含まれていません。NRDOTタブで使用されているのと同じプロセッサとともに、これを明示的に追加します。
+
+      <CollapserGroup>
+        <Collapser id="otelcol-tracing-collector-helm" title="兜">
+          [Helmを使用したOTel Collector Contrib](/docs/opentelemetry/integrations/linkerd/otel-helm#install)の`values.yaml`の同じ`config`セクションに以下を追加します：
+
+          追加予定のレシーバー：
+
+          ```yaml
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+          ```
+
+          追加するプロセッサ:
+
+          ```yaml
+          k8sattributes/traces:
+            auth_type: serviceAccount
+            passthrough: false
+            extract:
+              metadata: [ k8s.deployment.name, k8s.node.name, k8s.namespace.name, k8s.pod.name ]
+              labels:
+                - { tag_name: linkerd_control_plane_ns, key: linkerd.io/control-plane-ns, from: pod }
+                - { tag_name: linkerd_control_plane_component, key: linkerd.io/control-plane-component, from: pod }
+            pod_association:
+              - sources: [{ from: resource_attribute, name: k8s.pod.ip }]
+              - sources: [{ from: connection }]
+
+          # Must run before transform/linkerd_service_name below.
+          transform/linkerd_component_inject:
+            trace_statements:
+              - context: span
+                statements:
+                  - set(attributes["linkerd_control_plane_component"], "linkerd-proxy")
+                    where resource.attributes["service.name"] == "linkerd-proxy"
+                    and resource.attributes["linkerd_control_plane_ns"] != nil
+
+          # Renames service.name=linkerd-proxy to the correlated deployment name.
+          transform/linkerd_service_name:
+            trace_statements:
+              - context: resource
+                statements:
+                  - set(attributes["service.name"], attributes["k8s.deployment.name"])
+                    where attributes["service.name"] == "linkerd-proxy"
+                    and attributes["k8s.deployment.name"] != nil
+
+          resourcedetection:
+            detectors: [env]
+            override: false
+          ```
+
+          追加するパイプライン：
+
+          ```yaml
+          traces:
+            receivers: [otlp]
+            processors: [memory_limiter, k8sattributes/traces, transform/linkerd_component_inject, transform/linkerd_service_name, resourcedetection, batch]
+            exporters: [otlp_http/newrelic]
+          ```
+
+          再適用：
+
+          ```bash
+          helm upgrade my-opentelemetry-collector open-telemetry/opentelemetry-collector -f values.yaml -n newrelic --create-namespace --install
+          ```
+        </Collapser>
+
+        <Collapser id="otelcol-tracing-collector-manifest" title="マニフェスト">
+          [マニフェストを使用したOTel Collector Contrib](/docs/opentelemetry/integrations/linkerd/otel-manifest#install)の`otel-collector.yaml`にあるConfigMapの`config`キーに、上記の同じ3つのブロック（Receivers、Processors、Pipelines）を追加します。そのマニフェストのServiceはすでにポート`4317`（grpc）と`4318`（http）を公開しているため、ポートの変更は必要ありません。再適用して再起動します。ConfigMapを再適用するだけでは実行中のコレクターポッドは再起動されないため、2番目のコマンドを実行しないと新しい構成は取得されません：
+
+          ```bash
+          kubectl apply -f otel-collector.yaml
+          kubectl rollout restart deployment/my-opentelemetry-collector -n newrelic
+          ```
+        </Collapser>
+      </CollapserGroup>
+
+      ### 手順2：プロキシトレースのエクスポートを有効にする
+
+      **1. コレクターをメッシュ化します。**Linkerdプロキシは、それ自体がメッシュ内にあるコレクターにのみトレースをエクスポートできます。NRDOTチャートの`nr-k8s-otel-collector-gateway`とは異なり、[OTel Collector ContribマニフェストまたはHelmチャート](/docs/opentelemetry/integrations/linkerd/otel-helm#install)には、デフォルトでコレクターポッドをメッシュに挿入するものは何もありません：
+
+      ```bash
+      kubectl annotate namespace newrelic linkerd.io/inject=enabled
+      kubectl rollout restart deployment/my-opentelemetry-collector -n newrelic
+      ```
+
+      <Callout variant="important">
+        以下の`meshIdentity`スタンザは**必須**です。Linkerdはメッシュ内にあるコレクターにのみトレースをエクスポートできます。これは、上記のコマンドが実行したことです。
+      </Callout>
+
+      **2. Linkerdプロキシでトレースを有効にします：**
+
+      <CollapserGroup>
+        <Collapser id="otelcol-tracing-helm" title="Helm経由">
+          ```yaml
+          # values.yaml
+          proxy:
+            tracing:
+              enabled: true
+              collector:
+                endpoint: my-opentelemetry-collector.newrelic.svc.cluster.local:4317
+                meshIdentity:
+                  serviceAccountName: my-opentelemetry-collector
+                  namespace: newrelic
+          ```
+
+          ```bash
+          helm upgrade linkerd-control-plane linkerd/linkerd-control-plane \
+            --namespace linkerd --reuse-values -f values.yaml
+          ```
+        </Collapser>
+
+        <Collapser id="otelcol-tracing-cli" title="代替方法：Linkerd CLI">
+          ```bash
+          linkerd upgrade \
+            --set proxy.tracing.enabled=true \
+            --set proxy.tracing.collector.endpoint=my-opentelemetry-collector.newrelic.svc.cluster.local:4317 \
+            --set proxy.tracing.collector.meshIdentity.serviceAccountName=my-opentelemetry-collector \
+            --set proxy.tracing.collector.meshIdentity.namespace=newrelic \
+            | kubectl apply -f -
+          ```
+        </Collapser>
+      </CollapserGroup>
+
+      ### 手順3：アプリケーションのメッシュ化されたポッドを再起動する
+
+      これは手順2のコレクターの再起動とは異なります — 実際にトレースしているポッドに新しいプロキシトレース構成を適用します：
+
+      ```bash
+      kubectl rollout restart deployment -n <YOUR_NAMESPACE>
+      ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## アプリケーションポッドの計装 [#instrument-your-application-pods]
+
+トレースコンテキストヘッダーを伝播するために、OTel Javaエージェント（または使用する言語のエージェント）を追加します。Linkerdは、W3CトレースコンテキストとB3フォーマットの両方をサポートしています。OTelエージェントはこれを自動的に処理します。
+
+<Callout variant="tip">
+  `spec.exporter.endpoint` 以下は、[マニフェストを使用したOTel Collector Contrib](/docs/opentelemetry/integrations/linkerd/otel-manifest#install)ページのServiceを指しています。NRDOTコレクターをデプロイした場合は、代わりに`http://nr-k8s-otel-collector-gateway.newrelic.svc.cluster.local:4317`を使用します。
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="apm-operator" title="OTel Operator（推奨）">
+    ```bash
+    kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/latest/download/opentelemetry-operator.yaml
+
+    kubectl apply -f - <<'EOF'
+    apiVersion: opentelemetry.io/v1alpha1
+    kind: Instrumentation
+    metadata:
+      name: nr-instrumentation
+      namespace: <YOUR_NAMESPACE>
+    spec:
+      exporter:
+        endpoint: http://my-opentelemetry-collector.newrelic.svc.cluster.local:4317
+      propagators: [tracecontext, baggage]
+      java:
+        image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:latest
+    EOF
+
+    kubectl annotate deployment <YOUR_DEPLOYMENT> \
+      instrumentation.opentelemetry.io/inject-java="true" \
+      -n <YOUR_NAMESPACE>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+その他の言語（Python、.NET、Node.js、Go）および、サイドカーとinit-コンテナのインジェクション、リソース制限、マルチコンテナポッドなどの高度なOperator設定については、[OpenTelemetry Operatorの自動計装に関するドキュメント](https://opentelemetry.io/docs/platforms/kubernetes/operator/automatic/)をご覧ください。
+
+## アプリのメトリクスをAPMと関連付ける（オプション） [#apm-metrics]
+
+アプリが（トレースだけでなく）OTel SDKメトリクスもコレクターにエクスポートする場合は、以下を追加してAPM互換のメトリクスパイプラインにルーティングしてください。
+
+追加するプロセッサ:
+
+```yaml
+metricstransform/apm_compat:
+  transforms:
+    - include: http.server.request.duration
+      action: insert
+      new_name: apm.service.transaction.duration
+```
+
+追加するパイプライン：
+
+```yaml
+metrics/otlp:
+  receivers: [otlp]
+  processors: [memory_limiter, resourcedetection, transform/metadata_nullify, metricstransform/apm_compat, batch]
+  exporters: [otlp_http/newrelic]
+```
+
+デプロイしたコレクター設定に両方を追加し、再適用してください：
+
+| デプロイした場合                        | 追加先                                                                                                                                                                                      | 再適用方法                                                                                                                                    |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| NRDOT - Helm                    | の[`deployment.configMap.extraConfig`](https://github.com/newrelic/helm-charts/blob/c6dbb791072d4f11cbd712e84d13cf997d78eddc/charts/nr-k8s-otel-collector/values.yaml#L259) `values.yaml` | `helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector --namespace newrelic --reuse-values -f values.yaml`                   |
+| NRDOT - マニフェスト                  | [`deployment-configmap.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/examples/k8s/rendered/deployment-configmap.yaml)                          | `kubectl apply -f rendered/deployment-configmap.yaml -n newrelic && kubectl rollout restart deployment -n newrelic`                      |
+| OTel Collector Contrib - Helm   | の`config`セクション `values.yaml`                                                                                                                                                             | `helm upgrade my-opentelemetry-collector open-telemetry/opentelemetry-collector -f values.yaml -n newrelic --create-namespace --install` |
+| OTel Collector Contrib - マニフェスト | のConfigMapの`config`キー `otel-collector.yaml`                                                                                                                                              | `kubectl apply -f otel-collector.yaml && kubectl rollout restart deployment/my-opentelemetry-collector -n newrelic`                      |
+
+## 関連記事 [#related-articles]
+
+<DocTiles>
+  <DocTile title="Linkerdプロキシログを収集する" path="/docs/opentelemetry/integrations/linkerd/proxy-logs">
+    オプションで
+
+    `linkerd-proxy`
+
+    サイドカーコンテナのログを収集します。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">
+    OTel Collectorによって収集されるLinkerdメトリクスとリソース属性の完全なリスト。
+  </DocTile>
+
+  <DocTile title="データを検索してクエリを実行する" path="/docs/opentelemetry/integrations/linkerd/find-data">
+    ダッシュボードのウォークスルー、NRQLクエリ、およびトラブルシューティングの手順。
+  </DocTile>
+</DocTiles>
