@@ -125,6 +125,68 @@ const inlineCodeAttribute = () => (tree) => {
   });
 };
 
+// Machine translation vendors sometimes split a paragraph around an inline element
+// (e.g. <code>) into three separate siblings: <p>...before</p> <code/> <p>after...</p>.
+// remark-stringify then emits the JSX with surrounding blank lines (making it block-level),
+// which causes CodeBlock's children.trim() to throw during Gatsby's HTML render.
+// This plugin merges consecutive paragraphs and mdxJsxTextElements back into one paragraph
+// inside table cells and other block containers where the split happens.
+// Machine translation vendors sometimes split a paragraph around an inline element
+// (e.g. <code>) into three separate siblings: <p>...before</p> <code/> <p>after...</p>.
+// remark-stringify then emits the JSX with surrounding blank lines (making it block-level),
+// which causes CodeBlock's children.trim() to throw during Gatsby's HTML render.
+//
+// After rehype2remark runs, the <td> becomes a mdxJsxFlowElement whose children are:
+//   paragraph, mdxJsxTextElement, paragraph   ← the split pattern
+//
+// This plugin merges any run of paragraphs and mdxJsxTextElements that are siblings
+// inside the same parent into a single paragraph.
+const mergeInlineJsxIntoParagraphs = () => (tree) => {
+  visit(tree, (node) => {
+    if (!node.children) return;
+
+    // Only act when at least one mdxJsxTextElement is a direct child alongside paragraphs
+    const hasMixed = node.children.some(
+      (c) => c.type === 'mdxJsxTextElement'
+    ) && node.children.some((c) => c.type === 'paragraph');
+
+    if (!hasMixed) return;
+
+    const merged = [];
+    let currentParagraph = null;
+
+    for (const child of node.children) {
+      const isInlinable =
+        child.type === 'paragraph' ||
+        child.type === 'mdxJsxTextElement' ||
+        child.type === 'text';
+
+      if (isInlinable) {
+        if (!currentParagraph) {
+          currentParagraph = { type: 'paragraph', children: [] };
+        }
+        if (child.type === 'paragraph') {
+          if (currentParagraph.children.length > 0) {
+            // add a space between merged paragraphs so words don't run together
+            currentParagraph.children.push(u('text', ' '));
+          }
+          currentParagraph.children.push(...child.children);
+        } else {
+          currentParagraph.children.push(child);
+        }
+      } else {
+        if (currentParagraph) {
+          merged.push(currentParagraph);
+          currentParagraph = null;
+        }
+        merged.push(child);
+      }
+    }
+    if (currentParagraph) merged.push(currentParagraph);
+    node.children = merged;
+  });
+};
+
 // previously, this processor was defined in `deserialization-helpers`.
 // upgrading unified there would have involved changing a lot of CJS modules to ESM.
 // this is a sort of workaround to avoid doing all that,
@@ -163,6 +225,7 @@ const processor = unified()
       h6: headingWithCustomId,
     },
   })
+  .use(mergeInlineJsxIntoParagraphs)
   // order matters here.
   // remark-mdx must come before remark-stringify, because it adds handlers
   // for MDX nodes like `mdxJsxTextElement` and otherwise, remark-stringfy

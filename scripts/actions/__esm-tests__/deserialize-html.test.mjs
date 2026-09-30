@@ -297,4 +297,27 @@ test('deserializes headers as a span element', async () => {
   expect(mdx).toEqual(input);
 });
 
+// Machine translation vendors sometimes split a paragraph around an inline element
+// like <code> into three siblings: <p>before</p> <code/> <p>after</p>.
+// This causes blank lines around the <code> in the deserialized MDX, which makes it
+// block-level and crashes CodeBlock's children.trim() during Gatsby HTML rendering.
+test('merges vendor-split paragraphs around inline <code> back into one paragraph', async () => {
+  const vendorSplitHTML = `<table data-type="component">
+  <tbody data-type="component">
+    <tr data-type="component">
+      <td data-type="component">
+        <p>Run (for example, </p>
+        <code data-type="component" class="notranslate">@claude fix</code>
+        <p>) to start.</p>
+      </td>
+    </tr>
+  </tbody>
+</table>`;
+
+  const mdx = await deserializeHTML(vendorSplitHTML);
+  // <code> must be inline — no blank lines around it
+  expect(mdx).not.toMatch(/\n\n\s*<code>/);
+  expect(mdx).not.toMatch(/<code>[^<]*<\/code>\s*\n\n/);
+});
+
 test.run();
