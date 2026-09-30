@@ -27,25 +27,110 @@ You can configure the NRDOT Collector to monitor multiple MySQL instances from o
 
 ## Add multi-receiver configuration [#multi]
 
-The following example shows how to configure the NRDOT Collector to monitor two MySQL instances using a multi-receiver configuration. You can add more receivers as needed for additional MySQL instances.
+The following example shows how to configure the NRDOT Collector to monitor two MySQL instances using a multi-receiver configuration. The first instance carries the complete `nrmysql` configuration and acts as the anchor; the second instance inherits every shared setting through the YAML merge key and overrides only its own connection details. You can add more receivers as needed for additional MySQL instances.
 
 ```yaml
 receivers:
+  # First MySQL instance (anchor - full config, instance2 inherits shared settings via merge key)
   nrmysql/instance1: &nrmysql-common
-    endpoint: "<INSTANCE_1_HOST>:<PORT>"
-    username: "<YOUR_DB_USERNAME>"
-    password: "<YOUR_DB_PASSWORD>"
+    endpoint: "<INSTANCE_1_HOST>:<INSTANCE_1_PORT>"
+    transport: tcp
+    username: "<INSTANCE_1_USERNAME>"
+    password: "<INSTANCE_1_PASSWORD>"
+    allow_native_passwords: true
     collection_interval: 10s
+    initial_delay: 1s
+    explain_mode: procedure
+    statement_events:
+      digest_text_limit: 4096
+      time_limit: 24h
+      limit: 500
+    query_sample_collection:
+      max_rows_per_query: 100
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      lookback_time: 120
+      max_query_sample_count: 5000
+      top_query_count: 200
+      collection_interval: 60s
+      query_plan_cache_size: 1000
+      query_plan_cache_ttl: 1h
+      allowed_comment_keys: [nr_service_guid]
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+    metrics:
+      mysql.query.count:
+        enabled: true
+      mysql.query.slow.count:
+        enabled: true
+      mysql.commands:
+        enabled: true
+      mysql.innodb.data_file.io:
+        enabled: true
+
+  # Second MySQL instance (inherits every shared setting above, overrides only connection details)
   nrmysql/instance2:
     <<: *nrmysql-common
-    endpoint: "<INSTANCE_2_HOST>:<PORT>"
+    endpoint: "<INSTANCE_2_HOST>:<INSTANCE_2_PORT>"
+    username: "<INSTANCE_2_USERNAME>"
+    password: "<INSTANCE_2_PASSWORD>"
+
+processors:
+  batch:
+  resource/mysql/instance1:
+    attributes:
+      - key: server.address
+        value: "<INSTANCE_1_HOST>"
+        action: upsert
+      - key: server.port
+        value: <INSTANCE_1_PORT>
+        action: upsert
+  resource/mysql/instance2:
+    attributes:
+      - key: server.address
+        value: "<INSTANCE_2_HOST>"
+        action: upsert
+      - key: server.port
+        value: <INSTANCE_2_PORT>
+        action: upsert
+
+exporters:
+  otlp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
 
 service:
   pipelines:
-    metrics:
-      receivers: [nrmysql/instance1, nrmysql/instance2]
+    metrics/mysql-instance1:
+      receivers: [nrmysql/instance1]
+      processors: [resource/mysql/instance1, batch]
+      exporters: [otlp/newrelic]
+    logs/mysql-instance1:
+      receivers: [nrmysql/instance1]
+      processors: [resource/mysql/instance1, batch]
+      exporters: [otlp/newrelic]
+    metrics/mysql-instance2:
+      receivers: [nrmysql/instance2]
+      processors: [resource/mysql/instance2, batch]
+      exporters: [otlp/newrelic]
+    logs/mysql-instance2:
+      receivers: [nrmysql/instance2]
+      processors: [resource/mysql/instance2, batch]
       exporters: [otlp/newrelic]
 ```
+
+<Callout variant="tip">
+  This configuration omits the optional `database` and `tls` fields. By default, each receiver monitors every database its user can access, and connects without TLS. To [monitor a specific database](/docs/opentelemetry/database/mysql/advanced-config#database) per instance, or to [enable TLS](/docs/opentelemetry/database/mysql/advanced-config#tls), see Advanced configuration.
+</Callout>
+
+<Callout variant="important">
+  Never share one `resource/mysql` processor across pipelines for different instances. Doing so stamps every instance with the same `server.address` and `server.port`, and New Relic merges them into a single entity. Add a dedicated receiver, resource processor, and pair of pipelines for each additional instance, following the `instance1`/`instance2` pattern above.
+</Callout>
 
 </Step>
 
