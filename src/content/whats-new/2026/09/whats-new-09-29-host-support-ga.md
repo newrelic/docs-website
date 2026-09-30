@@ -1,42 +1,39 @@
 ---
-title: 'Linux and Windows host support for New Relic Agent Control and Fleet Control is now generally available'
-summary: 'Bring Linux and Windows hosts into the same fleet model as Kubernetes, with configurable approval workflows, self-upgrade, and seven new on-host integrations.'
+title: 'New Relic Control host-based fleets are now generally available'
+summary: 'Linux and Windows host-based fleets for Agent Control and Fleet Control are now GA, with support for config approval governance, remote agent upgrades, audit logging, and on-host integrations.'
 releaseDate: '2026-09-29'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-control/getting-started/'
 ---
 
-Linux and Windows host support for Agent Control and Fleet Control reaches General Availability today, matching the Kubernetes GA that shipped in September 2025. Kubernetes, Linux, and Windows now run on the same control plane, with a growing shared set of on-host integrations and the same self-upgrade capability. If you're already managing Kubernetes fleets with Agent Control, you can bring your Linux and Windows hosts into the same fleet model without adopting a different tool.
+Linux and Windows host support for Agent Control and Fleet Control reaches General Availability today, matching the GA support for Kubernetes that shipped in September 2025. New Relic Control now gives you one observability control plane across Kubernetes, Linux, and Windows hosts, so your entire fleet is managed the same way no matter where it runs.
 
-## New: configuration approval workflows keep every fleet change under control
+## Host-based fleets for Linux and Windows
 
-Fleet Control now includes a configurable approval workflow for configuration changes. Before a new configuration goes live, decide exactly how many approvals it needs, and set different rules for different agent types, so nothing reaches your fleet without the review your team requires. This applies across Kubernetes, Linux, and Windows fleets alike.
+Linux and Windows hosts now join Kubernetes clusters as first-class fleet types in Fleet Control and supported platforms for Agent Control. Group hosts into fleets by environment, application, or business unit, and apply the same RBAC, configuration templates, and deployment strategies you already use for Kubernetes, regardless of operating system. Roll out a change to thousands of hosts as easily as to a single cluster.
 
-- **Review before rollout:** A new configuration goes out for sign-off before it reaches production, the same review discipline your team already applies to code.
-- **Per-agent-type control:** Require a stricter approval chain for your most sensitive agent types, and lighter-weight rules everywhere else.
-- **No more accidental pushes:** A misconfigured or unreviewed change can't reach your fleet without the approvals you've defined for it.
+## Configuration approval governance
 
-## Agent Control self-upgrade now available on hosts
+Fleet Control now gives you governance over every agent configuration change before it reaches your fleet. An approval workflow lets you decide exactly how many people must approve a config change and set different rules for different agent types, so nothing ships without the review your team requires. Every approval, and every deployment it authorizes, is captured in Fleet Control's audit log, so you can always answer who changed what and when.
 
-Agent Control's self-upgrade capability was Kubernetes-only until this release. It now works the same way on Linux and Windows hosts, so you no longer need a separate process to keep Agent Control current across your fleet, regardless of platform.
+## Remote agent upgrades now available on hosts
 
-## First wave of on-host integrations reaches GA
+Agent Control can now remotely update itself and its managed agents on Linux and Windows hosts, the same way it already does on Kubernetes. Deploy a configuration change through Fleet Control, and any agent that needs an update, including Agent Control itself, can be upgraded as part of that deployment. Keeping your fleet current stops being a separate project and becomes a property of using Fleet Control.
 
-Seven on-host integrations move from Public Preview to GA alongside the infrastructure agent: Redis, NGINX, MySQL, PostgreSQL, Memcached, Apache, and Flex. All seven are fully supported on both Linux and Windows. This is the first of several planned batches; more integrations will roll out as fast follows in upcoming releases.
+## Initial wave of on-host integrations
 
-## Support for more secret and value providers
+On-host integrations move from Public Preview to General Availability alongside the New Relic infrastructure agent, including Flex, Redis, NGINX, MySQL, PostgreSQL, Memcached, and Apache. All are fully supported on both Linux and Windows. This is the first wave of several planned batches, with more integrations rolling out in upcoming releases.
 
-Agent Control now pulls configuration values from an even wider range of sources: HashiCorp Vault, Kubernetes Secrets, local files, environment variables, and now Kubernetes ConfigMaps. Wherever a value already lives, your agent configuration can reference it directly, so you're not stuck duplicating settings or relocating secrets just to get Agent Control running.
+## Agent version intelligence, right where you deploy
 
-## Unified fleet management across Kubernetes, Linux, and Windows
+When you deploy or update an agent from Fleet Control, the deployment page now shows richer detail on the agent type itself, including its version history, feature notes, bug fixes, security notes, breaking changes, and end-of-life dates, all pulled live from the associated version. Make your upgrade decision from the same screen where you're already configuring the deployment, instead of cross-referencing external release notes.
 
-Fleet Control groups hosts into fleets by environment, application, or business unit, the same way it already groups Kubernetes clusters. Apply consistent RBAC, configuration templates, and deployment strategies regardless of operating system, and roll out a change to thousands of Linux and Windows hosts as easily as to a single cluster.
+## More secret and value provider support
 
-## More agent detail right on the deployment page
-
-When you deploy or update a sub-agent from Fleet Control, the deployment page now shows richer detail on the agent type itself: version history, feature notes, bug fixes, security notes, breaking changes, and end-of-life dates, all pulled live from the associated version. Make your upgrade decision from the same screen where you're already configuring the deployment, instead of cross-referencing external release notes.
+Agent Control now pulls configuration values from an even wider range of sources, including HashiCorp Vault, Kubernetes Secrets, Kubernetes ConfigMaps, local files, and environment variables. Wherever a value already lives, your agent configuration authored in Fleet Control can reference it directly, so you're not stuck duplicating settings or relocating secrets just to get Agent Control running.
 
 ## Get started
 
+- [New Relic Control](https://docs.newrelic.com/docs/new-relic-control/getting-started/)
 - [Agent Control overview](https://docs.newrelic.com/docs/new-relic-control/agent-control/overview/)
 - [Supported agent types](https://docs.newrelic.com/docs/new-relic-control/agent-control/agent-types/)
 - [Overview of Fleet Control](https://docs.newrelic.com/docs/new-relic-control/fleet-control/overview/)
