@@ -132,7 +132,7 @@ const removeSections = () => (tree) => {
 const sortIndexPage = (html, navYaml = []) => {
   if (!html) throw new Error('Missing arguments');
 
-  const nav = { pages: navYaml.map(yaml.safeLoad) };
+  const nav = { pages: navYaml.map(yaml.load) };
 
   const { contents } = unified()
     .use(parse, { fragment: true })
