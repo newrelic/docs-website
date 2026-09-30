@@ -220,15 +220,15 @@ Choose your configuration option based on your monitoring requirements:
     },
     {
       name: 'endpoint',
-      label: 'New Relic OTLP Endpoint',
-      codeLine: 69,
-      defaultValue: 'https://otlp.nr-data.net',
+      label: 'New Relic OTLP Endpoint with port number',
+      codeLine: 85,
+      defaultValue: 'https://otlp.nr-data.net:4318',
       toolTip: 'Enter your New Relic OTLP endpoint. For more information, refer to https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
     },
     {
       name: 'licenseKey',
       label: 'New Relic License Key',
-      codeLine: 71,
+      codeLine: 87,
       defaultValue: 'YOUR_LICENSE_KEY',
       toolTip: 'Enter your New Relic license key',
     },
@@ -269,11 +269,15 @@ Choose your configuration option based on your monitoring requirements:
       sqlserver.memory.area:
         enabled: true
 
-    # Enable top query and query sample log collection
+    # Enable query sample, top query, query plan, and top procedure log collection
     events:
       db.server.query_sample:
         enabled: true
       db.server.top_query:
+        enabled: true
+      db.server.query_plan:
+        enabled: true
+      db.server.top_procedure:
         enabled: true
 
     # Top query collection configuration
@@ -282,14 +286,28 @@ Choose your configuration option based on your monitoring requirements:
       max_query_sample_count: 1000
       top_query_count: 250
       collection_interval: 60s
-
-    collect_full_query_text: true
-    allowed_comment_keys:
-      - nr_service_guid
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
 
     # Query sample collection configuration
     query_sample_collection:
       max_rows_per_query: 100
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
+
+    # Top stored procedure collection configuration
+    top_procedure_collection:
+      max_procedure_sample_count: 1000
+      top_procedure_count: 250
+      collection_interval: 60s
+
+    resource_attributes:
+      db.system.version:
+        enabled: true
+      sqlserver.db.edition:
+        enabled: true
 
 processors:
   memory_limiter:
@@ -297,16 +315,25 @@ processors:
     limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
     spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
 
-  batch:
-
 exporters:
   otlp:
-    endpoint: <input5>:4318
+    endpoint: <input5>
     headers:
       api-key: <input6>
     tls:
       insecure: false
     compression: gzip
+
+    sending_queue:
+      enabled: true
+      sizer: bytes
+      queue_size: 100_000_000
+      num_consumers: 10
+      batch:
+        sizer: bytes
+        max_size: 1_000_000
+        min_size: 100_000
+        flush_timeout: 5s
 
 service:
   telemetry:
@@ -316,17 +343,24 @@ service:
   pipelines:
     metrics:
       receivers: [nrsqlserver]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter]
       exporters: [otlp]
 
     logs:
       receivers: [nrsqlserver]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter]
       exporters: [otlp]`}
   fileName="mssql-config.yaml"
   tipMdx={{ body: null }}
   onChange={() => {}}
 />
+
+<Callout variant="tip">
+  * The `logs` pipeline doesn't carry collector debug or internal agent logs. It transmits SQL Server query telemetry, including query text, execution plans, and sample data. The `nrsqlserver` receiver captures this telemetry through `db.server.query_sample`, `db.server.top_query`, `db.server.query_plan`, and `db.server.top_procedure` events emitted as OpenTelemetry log records.
+
+  * The `db.server.top_procedure` event requires SQL Server 2017 CU3 or later, which introduced support for `sys.dm_exec_procedure_stats.total_spills`. On earlier versions, this event doesn't emit data and logs an error. Other events remain unaffected.
+    Accessing `sys.dm_exec_procedure_stats` requires `VIEW SERVER STATE` (or `VIEW SERVER PERFORMANCE STATE`, depending on the SQL Server version). Additionally, `VIEW ANY DEFINITION` is required for `OBJECT_NAME` and `OBJECT_SCHEMA_NAME` to resolve correctly across all user databases, and `CONNECT SQL` is needed to set up initial sessions. The monitoring user created in [Create monitoring user](#user) includes all 3 permissions.
+</Callout>
 
 </Step>
 
