@@ -84,24 +84,44 @@ The `{/* PROPS: ... */}` comment only declares **default values** — it doesn't
 
 ### Boolean props and conditional content
 
-Write a real conditional expression — same as any other JS-backed `.mdx` content:
+Copy this template and fill in the three `ALL_CAPS` placeholders — that's the whole pattern:
+
+```mdx
+{/* PROPS: YOUR_FLAG_NAME=false */}
+
+{props.YOUR_FLAG_NAME ? (
+  <>
+    CONTENT FOR WHEN IT'S TRUE GOES HERE
+  </>
+) : (
+  <>
+    CONTENT FOR WHEN IT'S FALSE GOES HERE
+  </>
+)}
+```
+
+**Safe to change:** `YOUR_FLAG_NAME` (must be the same word in both places), and the two content blocks.
+**Don't touch:** the `? (`, `) : (`, and `)}` punctuation, or the `<>`/`</>` around each block — that's what makes it a valid conditional. If you delete or move one of these, the build will fail with a clear error naming the file, not a silent broken page.
+
+A filled-in example:
 
 ```mdx
 {/* PROPS: showAdvanced=false */}
-
-## Basic setup
 
 Install the agent with `npm install newrelic`.
 
 {props.showAdvanced ? (
   <>
-    ## Advanced configuration
-
-    * **Custom attributes:** Use `newrelic.addCustomAttribute()`
-    * **Distributed tracing:** Enabled by default in version [14.x](/docs/example)
+    <h2>Advanced configuration</h2>
+    <ul>
+      <li><strong>Custom attributes:</strong> Use <code>newrelic.addCustomAttribute()</code></li>
+      <li><strong>Distributed tracing:</strong> Enabled by default in version <a href="/docs/example">14.x</a></li>
+    </ul>
   </>
 ) : (
-  <>For advanced configuration options, see the [configuration reference](/docs/agents/nodejs-agent/configuration/nodejs-agent-configuration/).</>
+  <>
+    For advanced configuration options, see the <a href="/docs/agents/nodejs-agent/configuration/nodejs-agent-configuration/">configuration reference</a>.
+  </>
 )}
 ```
 
@@ -112,7 +132,9 @@ Usage:
 <ApmSetup showAdvanced={true} />    {/* shows the advanced branch */}
 ```
 
-> **Note:** Markdown formatting (`**bold**`, `` `code` ``, `[links](url)`) only auto-renders in plain prose, not inside a JSX expression's children — write real JSX (`<strong>`, `<code>`, `<a href="...">`) for formatting inside a conditional branch like the one above.
+> **The one gotcha to know, and it's a real one:** *no* markdown — not `## headings`, not `* list items`, not `**bold**`/`` `code` ``/`[links](url)` — auto-renders inside the `<>...</>` content blocks above. Everything in there needs the real HTML tag instead: `<h2>`, `<ul><li>`, `<strong>`, `<code>`, `<a href="...">`. (Outside the conditional, in plain prose like the `Install the agent...` line above, normal markdown works exactly as usual — this rule is *only* about text inside `<>...</>`.)
+>
+> The most reliable way to avoid this trap: keep each conditional branch to **plain sentences and links only**, no headings or lists. If a branch genuinely needs a heading or list, copy the exact `<h2>`/`<ul><li>` shape from the example above rather than typing `##`/`*` — an accidental `##` in there won't error, it'll just print as literal text on the live page.
 
 ### How props work
 
@@ -142,11 +164,26 @@ pageMeta:
 
 ### Snippet syntax
 
-Call `usePageMeta()` directly wherever you need it — **you don't need to import it**, the generator handles that automatically:
+Copy this template — you don't need to import `usePageMeta()`, the generator handles that automatically:
 
 ```mdx
-## Installation steps
+{usePageMeta().YOUR_FIELD_NAME === "VALUE_TO_MATCH" ? (
+  <>
+    CONTENT FOR WHEN IT MATCHES GOES HERE
+  </>
+) : (
+  <>
+    CONTENT FOR WHEN IT DOESN'T MATCH GOES HERE
+  </>
+)}
+```
 
+**Safe to change:** `YOUR_FIELD_NAME` (must match a key in the page's `pageMeta` frontmatter, shown above), `VALUE_TO_MATCH` (keep the quotes around it), and the two content blocks.
+**Don't touch:** everything else — same rule as the boolean template above (same `? (` / `) : (` / `)}` shape, same real-JSX-tags-only rule inside `<>...</>`).
+
+A filled-in example:
+
+```mdx
 1. Download the agent package
 2. Add the license key to your config file
 
@@ -208,6 +245,8 @@ Snippets fully support MDX components available on any docs page — `<Callout>`
   <DNT>**{props.capabilityName}**</DNT> isn't available in the Japan data center/region.
 </Callout>
 ```
+
+Notice `**{props.capabilityName}**` renders as real bold text here — markdown works fine inside `<Callout>`/`<DNT>` written like this. That's *not* a contradiction of the "no markdown inside `<>...</>`" rule in the conditional-content section above — it's a different situation: a tag written directly in your snippet's normal flow (like this one) is still real markdown-aware content underneath, so `**bold**` converts as usual. It's specifically the content inside a `{ condition ? (...) : (...) }` expression that loses markdown parsing, because that whole expression is JavaScript, not MDX.
 
 ```mdx
 <CollapserGroup>
