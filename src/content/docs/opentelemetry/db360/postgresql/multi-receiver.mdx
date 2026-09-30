@@ -26,29 +26,121 @@ You can configure the NRDOT Collector to monitor multiple PostgreSQL instances f
 
 ## Add multi-receiver configuration [#multi]
 
-The following example shows how to configure the NRDOT Collector to monitor two PostgreSQL instances using a multi-receiver configuration. You can add more receivers as needed for additional PostgreSQL instances.
+The following example shows how to configure the NRDOT Collector to monitor two PostgreSQL instances using a multi-receiver configuration. The first instance, `nrpostgresql/db1`, carries the complete configuration and acts as the anchor; the second instance, `nrpostgresql/db2`, inherits every shared setting through the YAML merge key and overrides only its own connection details. You can add more receivers as needed for additional PostgreSQL instances.
 
 ```yaml
 receivers:
+  # Base PostgreSQL instance configuration (Anchor — subsequent instances inherit via merge key)
   nrpostgresql/db1: &nrpostgresql-common
     endpoint: "<YOUR_DB1_HOST>:<YOUR_DB1_PORT>"
     username: "<YOUR_DB_USERNAME>"
     password: "<YOUR_DB_PASSWORD>"
     databases:
-      - <YOUR_DB1_DATABASE_NAME>
-    collection_interval: 10s
+      - <YOUR_DB1_NAME>
+    collection_interval: 15s
+
+    events:
+      db.server.top_query:
+        enabled: true
+      db.server.query_sample:
+        enabled: true
+
+    top_query_collection:
+      max_rows_per_query: 1000
+      top_n_query: 200
+      collection_interval: 60s
+      allowed_comment_keys: [nr_service_guid]
+
+    query_sample_collection:
+      max_rows_per_query: 1000
+      allowed_comment_keys: [nr_service_guid]
+
+    metrics:
+      postgresql.database.locks:
+        enabled: true
+      postgresql.deadlocks:
+        enabled: true
+      postgresql.function.calls:
+        enabled: true
+      postgresql.query.conflicts:
+        enabled: true
+      postgresql.sequential_scans:
+        enabled: true
+      postgresql.temp.io:
+        enabled: true
+      postgresql.temp_files:
+        enabled: true
+
+  # Second PostgreSQL instance configuration
   nrpostgresql/db2:
     <<: *nrpostgresql-common
     endpoint: "<YOUR_DB2_HOST>:<YOUR_DB2_PORT>"
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
     databases:
-      - <YOUR_DB2_DATABASE_NAME>
+      - <YOUR_DB2_NAME>
+
+processors:
+  batch:
+
+  # Instance 1 server address/port attributes
+  resource/postgresql_db1:
+    attributes:
+      - key: server.address
+        value: "<YOUR_DB1_HOST>"
+        action: upsert
+      - key: server.port
+        value: <YOUR_DB1_PORT>
+        action: upsert
+
+  # Instance 2 server address/port attributes
+  resource/postgresql_db2:
+    attributes:
+      - key: server.address
+        value: "<YOUR_DB2_HOST>"
+        action: upsert
+      - key: server.port
+        value: <YOUR_DB2_PORT>
+        action: upsert
+
+exporters:
+  otlp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
 
 service:
   pipelines:
-    metrics:
-      receivers: [nrpostgresql/db1, nrpostgresql/db2]
+    metrics/db1:
+      receivers: [nrpostgresql/db1]
+      processors: [resource/postgresql_db1, batch]
+      exporters: [otlp/newrelic]
+    logs/db1:
+      receivers: [nrpostgresql/db1]
+      processors: [resource/postgresql_db1, batch]
+      exporters: [otlp/newrelic]
+
+    metrics/db2:
+      receivers: [nrpostgresql/db2]
+      processors: [resource/postgresql_db2, batch]
+      exporters: [otlp/newrelic]
+    logs/db2:
+      receivers: [nrpostgresql/db2]
+      processors: [resource/postgresql_db2, batch]
       exporters: [otlp/newrelic]
 ```
+
+The `<<: *nrpostgresql-common` merge key inherits all settings from `nrpostgresql/db1`, including its events, query collection settings, and metrics overrides. Any field you explicitly set after it, such as `endpoint` and `databases`, overrides the inherited value for that specific receiver instance.
+
+<Callout variant="important">
+Never share one `resource/postgresql` processor across pipelines for different instances. Doing so stamps every instance with the same `server.address` and `server.port`, and New Relic merges them into a single entity. Add a dedicated receiver, resource processor, and pair of pipelines for each additional instance, following the `db1`/`db2` pattern above.
+</Callout>
 
 </Step>
 
