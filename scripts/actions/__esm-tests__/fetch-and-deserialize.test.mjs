@@ -6,23 +6,33 @@ import vfile from 'vfile';
 
 // for some reason, sinon.stub just does not work for this function
 let writeSyncCalls = 0;
+let writtenPaths = [];
 const copySync = sinon.stub();
-const { writeFilesSync, createFileUriBatches } = await esmock(
-  '../fetch-and-deserialize.mjs',
-  {
-    'to-vfile': {
-      default: {
-        writeSync: () => {
-          writeSyncCalls += 1;
-        },
+const {
+  writeFilesSync,
+  createFileUriBatches,
+  extractFiles,
+  deserializeHtmlToMdx,
+} = await esmock('../fetch-and-deserialize.mjs', {
+  'to-vfile': {
+    default: {
+      writeSync: (file) => {
+        writeSyncCalls += 1;
+        writtenPaths.push(file.path);
       },
     },
-    'fs-extra': {
-      copySync,
-      existsSync: () => {},
-    },
-  }
-);
+  },
+  'fs-extra': {
+    copySync,
+    existsSync: () => {},
+  },
+  '../deserialize-html.mjs': {
+    default: async (html) => `deserialized: ${html}`,
+  },
+  '../utils/create-directories.js': {
+    default: () => {},
+  },
+});
 
 const testFiles = [
   vfile({
@@ -89,6 +99,69 @@ test('splits batches with correct content', () => {
       .flat()
       .sort()
   ).toEqual(input.sort());
+});
+
+// Fakes just enough of AdmZip's shape for extractFiles - a real zip entry's
+// entryName is `${locale}/${originalFileUri}`.
+const fakeZip = (entryNames) => ({
+  getEntries: () => entryNames.map((entryName) => ({ entryName })),
+  readAsText: (entry) => `html for ${entry.entryName}`,
+});
+
+test('extractFiles recognizes a docs page (unchanged behavior)', () => {
+  const [file] = extractFiles('ja-JP')(
+    fakeZip(['ja-JP/src/content/docs/apm/overview.mdx'])
+  );
+
+  expect(file.path).toEqual('/apm/overview');
+  expect(file.root.sourcePrefix).toEqual('src/content/docs');
+});
+
+test('extractFiles recognizes a reusable-snippet source, not just docs pages', () => {
+  const [file] = extractFiles('ja-JP')(
+    fakeZip(['ja-JP/src/components/snippets/apm/nodejs/prerequisites.mdx'])
+  );
+
+  expect(file.path).toEqual('/apm/nodejs/prerequisites');
+  expect(file.root.sourcePrefix).toEqual('src/components/snippets');
+});
+
+test('deserializeHtmlToMdx writes a docs page under src/i18n/content/<locale>/docs/ (unchanged behavior)', async () => {
+  writtenPaths = [];
+  const [{ path: contentPath, root }] = extractFiles('ja-JP')(
+    fakeZip(['ja-JP/src/content/docs/apm/overview.mdx'])
+  );
+
+  const result = await deserializeHtmlToMdx('ja-JP')({
+    path: contentPath,
+    html: 'irrelevant',
+    root,
+  });
+
+  expect(result.ok).toEqual(true);
+  expect(result.slug).toEqual('src/content/docs/apm/overview.mdx');
+  expect(writtenPaths).toEqual(['src/i18n/content/jp/docs/apm/overview.mdx']);
+});
+
+test('deserializeHtmlToMdx writes a translated snippet under src/i18n/content/<locale>/components/snippets/', async () => {
+  writtenPaths = [];
+  const [{ path: contentPath, root }] = extractFiles('ja-JP')(
+    fakeZip(['ja-JP/src/components/snippets/apm/nodejs/prerequisites.mdx'])
+  );
+
+  const result = await deserializeHtmlToMdx('ja-JP')({
+    path: contentPath,
+    html: 'irrelevant',
+    root,
+  });
+
+  expect(result.ok).toEqual(true);
+  expect(result.slug).toEqual(
+    'src/components/snippets/apm/nodejs/prerequisites.mdx'
+  );
+  expect(writtenPaths).toEqual([
+    'src/i18n/content/jp/components/snippets/apm/nodejs/prerequisites.mdx',
+  ]);
 });
 
 test.run();

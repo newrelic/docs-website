@@ -30,8 +30,9 @@ const defaultTrackingMetadata = {
 
 /**
  * @typedef HtmlFile
- * @property {string} path - Source path of file w/o `src/.../content/docs` prefix, or extension.
+ * @property {string} path - Source path of file w/o its content-root prefix (see CONTENT_ROOTS), or extension.
  * @property {string} html - (HTML) Content of the file as a string.
+ * @property {Object} root - Which CONTENT_ROOTS entry this file came from.
  */
 
 /**
@@ -143,10 +144,27 @@ const fetchTranslatedFilesZip = (locale) => {
   };
 };
 
+// The two source trees that can be queued for translation. Docs pages are
+// the original/only case this pipeline was built for; reusable snippets
+// (src/components/snippets/) mirror the exact same convention (see
+// generate-snippets.js's i18nSnippetsDir) rather than inventing a new one -
+// same src/content/<x> <-> src/i18n/content/<locale>/<x> shape, just a
+// second possible <x>. Order matters: check the more specific
+// "src/components/snippets" prefix before the unrelated "src/content/docs"
+// one (they don't overlap, but keeps this list self-documenting as "most
+// specific first" if a third root is ever added).
+const CONTENT_ROOTS = [
+  {
+    sourcePrefix: 'src/components/snippets',
+    i18nSubpath: 'components/snippets',
+  },
+  { sourcePrefix: 'src/content/docs', i18nSubpath: 'docs' },
+];
+
 /**
  * @param {String} locale
  */
-const extractFiles = (locale) => {
+export const extractFiles = (locale) => {
   /**
    * @param {AdmZip} zip - the downloaded zip containing batch of files.
    * @returns {HtmlFile[]}
@@ -154,14 +172,23 @@ const extractFiles = (locale) => {
   return (zip) => {
     try {
       return zip.getEntries().map((entry) => {
+        // Default to the docs root for any entry that doesn't match a known
+        // prefix, preserving this function's original behavior rather than
+        // silently dropping it.
+        const root =
+          CONTENT_ROOTS.find(({ sourcePrefix }) =>
+            entry.entryName.includes(`${locale}/${sourcePrefix}`)
+          ) || CONTENT_ROOTS[CONTENT_ROOTS.length - 1];
+
         const filepath = entry.entryName.replace(
-          `${locale}/src/content/docs`,
+          `${locale}/${root.sourcePrefix}`,
           ''
         );
         const slug = filepath.replace(`.mdx`, '');
         return {
           path: slug,
           html: zip.readAsText(entry, 'utf8'),
+          root,
         };
       });
     } catch (extractError) {
@@ -177,20 +204,24 @@ const extractFiles = (locale) => {
 /**
  * @param {String} locale
  */
-const deserializeHtmlToMdx = (locale) => {
+export const deserializeHtmlToMdx = (locale) => {
   /**
    * @param {HtmlFile} file
    * @returns {Promise<SlugStatus>}
    */
-  return async ({ path: contentPath, html }) => {
-    const completePath = `${path.join('src/content/docs', contentPath)}.mdx`;
+  return async ({
+    path: contentPath,
+    html,
+    root = CONTENT_ROOTS[CONTENT_ROOTS.length - 1],
+  }) => {
+    const completePath = `${path.join(root.sourcePrefix, contentPath)}.mdx`;
     const localeKey = Object.keys(LOCALE_IDS).find(
       (key) => LOCALE_IDS[key] === locale
     );
 
     try {
       const localePath = path.join(
-        `src/i18n/content/${localeKey}/docs/`,
+        `src/i18n/content/${localeKey}/${root.i18nSubpath}/`,
         contentPath
       );
       const mdx = await deserializedHtml(html);
@@ -245,14 +276,18 @@ export const fetchAndDeserializeFiles = async ({
     const batches = createFileUriBatches({ fileUris });
 
     console.log(
-      `[Batch ${batchUid || 'unknown'}] Created ${batches.length} batches of files for locale ${locale}.`
+      `[Batch ${batchUid || 'unknown'}] Created ${
+        batches.length
+      } batches of files for locale ${locale}.`
     );
 
     const zips = (
       await Promise.all(batches.map(fetchTranslatedFilesZip(locale)))
     ).filter(Boolean);
 
-    console.log(`[Batch ${batchUid || 'unknown'}] Downloaded ${zips.length} zips`);
+    console.log(
+      `[Batch ${batchUid || 'unknown'}] Downloaded ${zips.length} zips`
+    );
 
     const files = zips.flatMap(extractFiles(locale));
 
@@ -267,7 +302,9 @@ export const fetchAndDeserializeFiles = async ({
     return slugStatuses;
   } catch (error) {
     console.log(
-      `[Batch ${batchUid || 'unknown'}] Error processing batch for locale ${locale}: ${error.message}`
+      `[Batch ${
+        batchUid || 'unknown'
+      }] Error processing batch for locale ${locale}: ${error.message}`
     );
     console.log(error);
 
