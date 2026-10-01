@@ -1,0 +1,169 @@
+---
+title: Linkerdデータを検索してクエリを実行する
+metaDescription: 'Access Linkerd metrics, traces, and logs in New Relic. Navigate to your Linkerd entity, explore dashboards, and run NRQL queries.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Linkerd用のOpenTelemetry Collectorをセットアップすると、メッシュテレメトリーは、Linkerdエンティティにスコープされた`Metric`、`Span`、および`Log`イベントとしてNew Relicに送信されます。
+
+## Linkerdエンティティを検索します。 [#find-entity]
+
+1. [one.newrelic.com](https://one.newrelic.com)にアクセスして、**Entity Explorer**を選択します。
+2. クラスタ名を検索します。
+3. Linkerdエンティティを選択して、組み込みダッシュボードを開きます。
+
+組み込みダッシュボードは、リクエスト率、レイテンシp50/p95/p99、成功率、TCP接続、mTLS証明書のステータス、コントロールプレーンのヘルス、およびメッシュ化されたポッドのインベントリをカバーしています。
+
+### Linkerd ダッシュボード [#dashboard]
+
+Linkerdエンティティダッシュボードは、サービスメッシュテレメトリーの概要を提供します。次が含まれます：
+
+| セクション      | パネル                                   |
+| ---------- | ------------------------------------- |
+| トップライン     | TCP接続、プロキシによって処理されたリクエスト              |
+| トラフィック     | インバウンド率、アウトバウンド率                      |
+| 健康         | 成功率、エラー率、HTTPステータスコード                 |
+| レイテンシー     | リクエストレイテンシp50/p95/p99、アウトバウンドレイテンシp99 |
+| セキュリティ     | mTLS証明書の有効期限、証明書の更新レート                |
+| コントロールプレーン | 認可ポリシー、キューの深さ、CPリクエストレート              |
+| トポロジ       | プロキシのメモリ使用量、サービスごとのオペレーション            |
+| インベントリ     | メッシュ化されたポッド                           |
+
+## NRQLクエリの例 [#queries]
+
+各クエリで、`<YOUR_CLUSTER>`を実際のクラスタ名に置き換えます。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        目的
+      </th>
+
+      <th>
+        NRQLクエリ
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        サービスごとのリクエストレート
+      </td>
+
+      <td>
+        ```sql
+        SELECT rate(sum(request_total), 1 minute) AS 'Req/min' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' AND linkerd_control_plane_component IS NULL FACET k8s.deployment.name SINCE 30 minutes ago TIMESERIES
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        サービスごとのレイテンシp99
+      </td>
+
+      <td>
+        ```sql
+        SELECT histogram(response_latency_ms, width: 50, slide_by: 10) FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' AND linkerd_control_plane_component IS NULL FACET k8s.deployment.name SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        HTTP成功率
+      </td>
+
+      <td>
+        ```sql
+        SELECT sum(response_total) AS 'Total responses', filter(sum(response_total), WHERE classification = 'success') / sum(response_total) * 100 AS 'Success %' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' FACET k8s.deployment.name SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        mTLS証明書の有効期限
+      </td>
+
+      <td>
+        ```sql
+        SELECT latest(identity_cert_expiration_timestamp_seconds) AS 'Cert expires (epoch)' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' FACET k8s.deployment.name SINCE 10 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        コントロールプレーンのキュー深度
+      </td>
+
+      <td>
+        ```sql
+        SELECT latest(control_plane_queue_length) AS 'Queue depth' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' AND linkerd_control_plane_component IS NOT NULL FACET linkerd_control_plane_component SINCE 10 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        TCPオープン接続
+      </td>
+
+      <td>
+        ```sql
+        SELECT rate(sum(tcp_open_connections), 1 second) AS 'TCP connections' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' FACET k8s.deployment.name SINCE 30 minutes ago TIMESERIES
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        サービスごとのディストリビューティッド（分散）トレーシング（APMパスのみ）
+      </td>
+
+      <td>
+        ```sql
+        SELECT count(*) FROM Span WHERE k8s.cluster.name = '<YOUR_CLUSTER>' FACET service.name SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        プロキシスパンがLinkerd属性とともに収集されていることを確認します。
+      </td>
+
+      <td>
+        ```sql
+        SELECT count(*) FROM Span WHERE k8s.cluster.name = '<YOUR_CLUSTER>' AND linkerd_control_plane_component IS NOT NULL FACET service.name SINCE 10 minutes ago
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+&quot;Verify proxy spans&quot;クエリが0を返す場合、`transform/linkerd_component_inject`プロセッサが実行されていないか、スパンから`linkerd_control_plane_ns`が欠落しています。修復手順については、[Linkerd監視のトラブルシューティング](/docs/opentelemetry/integrations/linkerd/troubleshooting)をご覧ください。
+
+## 関連記事 [#related-articles]
+
+<DocTiles>
+  <DocTile title="Linkerd監視のトラブルシューティング" path="/docs/opentelemetry/integrations/linkerd/troubleshooting">
+    New Relicにメトリクス、トレース、ログが表示されない一般的な問題を修正します。
+  </DocTile>
+
+  <DocTile title="Linkerdプロキシログを収集する" path="/docs/opentelemetry/integrations/linkerd/proxy-logs">
+    オプションで
+
+    `linkerd-proxy`
+
+    サイドカーコンテナのログを収集します。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">
+    OTel Collectorによって収集されるLinkerdメトリクスとリソース属性の完全なリスト。
+  </DocTile>
+</DocTiles>
