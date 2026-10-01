@@ -19,6 +19,7 @@ You can configure the NRDOT Collector to monitor multiple PostgreSQL instances f
 ## Prerequisites [#prerequisites]
 - NRDOT is installed and configured for your PostgreSQL instances:
     - [Self-hosted PostgreSQL](/docs/opentelemetry/db360/postgresql/hosted)
+    - [AWS RDS/Aurora](/docs/opentelemetry/db360/postgresql/rds)
 
 </Step>
 
@@ -26,11 +27,19 @@ You can configure the NRDOT Collector to monitor multiple PostgreSQL instances f
 
 ## Add multi-receiver configuration [#multi]
 
-The following example shows how to configure the NRDOT Collector to monitor two PostgreSQL instances using a multi-receiver configuration. The first instance, `nrpostgresql/db1`, carries the complete configuration and acts as the anchor; the second instance, `nrpostgresql/db2`, inherits every shared setting through the YAML merge key and overrides only its own connection details. You can add more receivers as needed for additional PostgreSQL instances.
+Select the deployment type that matches your environment. You can add more receivers as needed for additional PostgreSQL instances.
+
+<CollapserGroup>
+
+<Collapser
+  id="self-hosted"
+  title="Self-hosted PostgreSQL">
+
+The following example shows how to configure the NRDOT Collector to monitor two self-hosted PostgreSQL instances using a multi-receiver configuration. The first instance, `nrpostgresql/db1`, carries the complete configuration and acts as the anchor; the second instance, `nrpostgresql/db2`, inherits every shared setting through the YAML merge key and overrides only its own connection details.
 
 ```yaml
 receivers:
-  # Base PostgreSQL instance configuration (Anchor — subsequent instances inherit via merge key)
+  # Base PostgreSQL instance configuration (Anchor; subsequent instances inherit via merge key)
   nrpostgresql/db1: &nrpostgresql-common
     endpoint: "<YOUR_DB1_HOST>:<YOUR_DB1_PORT>"
     username: "<YOUR_DB_USERNAME>"
@@ -132,9 +141,126 @@ service:
 
 The `<<: *nrpostgresql-common` merge key inherits all settings from `nrpostgresql/db1`, including its events, query collection settings, and metrics overrides. Any field you explicitly set after it, such as `endpoint` and `databases`, overrides the inherited value for that specific receiver instance.
 
-<Callout variant="tip">
-If you're monitoring an RDS/Aurora instance, add `exclude_databases: [rdsadmin]` to each receiver to skip reserved databases your monitoring user can't reach. See [AWS RDS instrumentation](/docs/opentelemetry/db360/postgresql/rds) for details.
-</Callout>
+</Collapser>
+
+<Collapser
+  id="rds"
+  title="PostgreSQL or Aurora on AWS RDS">
+
+The following example shows how to configure the NRDOT Collector to monitor two RDS or Aurora PostgreSQL instances using a multi-receiver configuration. The first instance, `nrpostgresql/db1`, carries the complete configuration, including `exclude_databases` for reserved databases, and acts as the anchor; the second instance, `nrpostgresql/db2`, inherits every shared setting through the YAML merge key and overrides only its own connection details.
+
+```yaml
+receivers:
+  # Base PostgreSQL instance configuration (Anchor; subsequent instances inherit via merge key)
+  nrpostgresql/db1: &nrpostgresql-common
+    endpoint: "<YOUR_DB1_HOST>:<YOUR_DB1_PORT>"
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    databases:
+      - <YOUR_DB1_NAME>
+    # top_query/query_sample scan pg_stat_statements/pg_stat_activity cluster-wide
+    # regardless of the databases list above; on RDS/Aurora, exclude reserved
+    # databases the monitoring user can never reach.
+    exclude_databases:
+      - rdsadmin
+    collection_interval: 15s
+
+    events:
+      db.server.top_query:
+        enabled: true
+      db.server.query_sample:
+        enabled: true
+      db.server.query_plan:
+        enabled: true
+
+    top_query_collection:
+      max_rows_per_query: 1000
+      top_n_query: 200
+      collection_interval: 60s
+      allowed_comment_keys: [nr_service_guid]
+
+    query_sample_collection:
+      max_rows_per_query: 1000
+      allowed_comment_keys: [nr_service_guid]
+
+    resource_attributes:
+      db.system.version:
+        enabled: true
+
+    metrics:
+      postgresql.database.locks:
+        enabled: true
+      postgresql.deadlocks:
+        enabled: true
+      postgresql.function.calls:
+        enabled: true
+      postgresql.query.conflicts:
+        enabled: true
+      postgresql.sequential_scans:
+        enabled: true
+      postgresql.temp.io:
+        enabled: true
+      postgresql.temp_files:
+        enabled: true
+
+  # Second PostgreSQL instance configuration
+  nrpostgresql/db2:
+    <<: *nrpostgresql-common
+    endpoint: "<YOUR_DB2_HOST>:<YOUR_DB2_PORT>"
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
+    databases:
+      - <YOUR_DB2_NAME>
+
+processors:
+  batch:
+  batch/metrics:
+    send_batch_size: 8192
+    send_batch_max_size: 8192
+    timeout: 10s
+
+exporters:
+  otlp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
+    sending_queue:
+      enabled: true
+      sizer: bytes
+      queue_size: 100_000_000
+      num_consumers: 10
+      batch:
+        sizer: bytes
+        max_size: 1_000_000
+        min_size: 0
+        flush_timeout: 5s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [nrpostgresql/db1, nrpostgresql/db2]
+      processors: [batch/metrics]
+      exporters: [otlp/newrelic]
+    logs:
+      receivers: [nrpostgresql/db1, nrpostgresql/db2]
+      processors: [batch]
+      exporters: [otlp/newrelic]
+```
+
+The `<<: *nrpostgresql-common` merge key inherits all settings from `nrpostgresql/db1`, including its `exclude_databases` list, events, query collection settings, and metrics overrides. Any field you explicitly set after it, such as `endpoint` and `databases`, overrides the inherited value for that specific receiver instance.
+
+</Collapser>
+
+</CollapserGroup>
 
 </Step>
 
