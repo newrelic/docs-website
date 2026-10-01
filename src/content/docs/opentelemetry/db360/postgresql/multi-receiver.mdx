@@ -44,6 +44,8 @@ receivers:
         enabled: true
       db.server.query_sample:
         enabled: true
+      db.server.query_plan:
+        enabled: true
 
     top_query_collection:
       max_rows_per_query: 1000
@@ -54,6 +56,10 @@ receivers:
     query_sample_collection:
       max_rows_per_query: 1000
       allowed_comment_keys: [nr_service_guid]
+
+    resource_attributes:
+      db.system.version:
+        enabled: true
 
     metrics:
       postgresql.database.locks:
@@ -82,26 +88,10 @@ receivers:
 
 processors:
   batch:
-
-  # Instance 1 server address/port attributes
-  resource/postgresql_db1:
-    attributes:
-      - key: server.address
-        value: "<YOUR_DB1_HOST>"
-        action: upsert
-      - key: server.port
-        value: <YOUR_DB1_PORT>
-        action: upsert
-
-  # Instance 2 server address/port attributes
-  resource/postgresql_db2:
-    attributes:
-      - key: server.address
-        value: "<YOUR_DB2_HOST>"
-        action: upsert
-      - key: server.port
-        value: <YOUR_DB2_PORT>
-        action: upsert
+  batch/metrics:
+    send_batch_size: 8192
+    send_batch_max_size: 8192
+    timeout: 10s
 
 exporters:
   otlp/newrelic:
@@ -109,6 +99,16 @@ exporters:
     headers:
       api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
     compression: gzip
+    sending_queue:
+      enabled: true
+      sizer: bytes
+      queue_size: 100_000_000
+      num_consumers: 10
+      batch:
+        sizer: bytes
+        max_size: 1_000_000
+        min_size: 0
+        flush_timeout: 5s
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -116,30 +116,24 @@ exporters:
       max_elapsed_time: 300s
 
 service:
+  telemetry:
+    metrics:
+      level: none
   pipelines:
-    metrics/db1:
-      receivers: [nrpostgresql/db1]
-      processors: [resource/postgresql_db1, batch]
+    metrics:
+      receivers: [nrpostgresql/db1, nrpostgresql/db2]
+      processors: [batch/metrics]
       exporters: [otlp/newrelic]
-    logs/db1:
-      receivers: [nrpostgresql/db1]
-      processors: [resource/postgresql_db1, batch]
-      exporters: [otlp/newrelic]
-
-    metrics/db2:
-      receivers: [nrpostgresql/db2]
-      processors: [resource/postgresql_db2, batch]
-      exporters: [otlp/newrelic]
-    logs/db2:
-      receivers: [nrpostgresql/db2]
-      processors: [resource/postgresql_db2, batch]
+    logs:
+      receivers: [nrpostgresql/db1, nrpostgresql/db2]
+      processors: [batch]
       exporters: [otlp/newrelic]
 ```
 
 The `<<: *nrpostgresql-common` merge key inherits all settings from `nrpostgresql/db1`, including its events, query collection settings, and metrics overrides. Any field you explicitly set after it, such as `endpoint` and `databases`, overrides the inherited value for that specific receiver instance.
 
-<Callout variant="important">
-Never share one `resource/postgresql` processor across pipelines for different instances. Doing so stamps every instance with the same `server.address` and `server.port`, and New Relic merges them into a single entity. Add a dedicated receiver, resource processor, and pair of pipelines for each additional instance, following the `db1`/`db2` pattern above.
+<Callout variant="tip">
+If you're monitoring an RDS/Aurora instance, add `exclude_databases: [rdsadmin]` to each receiver to skip reserved databases your monitoring user can't reach. See [AWS RDS instrumentation](/docs/opentelemetry/db360/postgresql/rds) for details.
 </Callout>
 
 </Step>

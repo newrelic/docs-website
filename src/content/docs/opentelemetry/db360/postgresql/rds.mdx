@@ -196,6 +196,8 @@ receivers:
         enabled: true
       db.server.query_sample:
         enabled: true
+      db.server.query_plan:
+        enabled: true
     top_query_collection:
       max_rows_per_query: 1000
       top_n_query: 200
@@ -204,6 +206,9 @@ receivers:
     query_sample_collection:
       max_rows_per_query: 1000
       allowed_comment_keys: [nr_service_guid]
+    resource_attributes:
+      db.system.version:
+        enabled: true
     # Metrics needed for the out-of-the-box dashboard but disabled by default —
     # see "Available metrics" below for the full default-on/default-off breakdown.
     metrics:
@@ -224,19 +229,10 @@ receivers:
 
 processors:
   batch:
-  # Static server.address/server.port instead of deriving them from
-  # service.instance.id — with receiver.nrpostgresql.useOTelSemconv enabled,
-  # service.instance.id becomes a UUID v5 hash, not a "host:port" string, so
-  # a Split(...)-based transform breaks. Applies uniformly to both metrics
-  # and logs pipelines since neither depends on that internal format.
-  resource/postgresql:
-    attributes:
-      - key: server.address
-        value: "<YOUR_DB_HOST>"
-        action: upsert
-      - key: server.port
-        value: <YOUR_DB_PORT>
-        action: upsert
+  batch/metrics:
+    send_batch_size: 8192
+    send_batch_max_size: 8192
+    timeout: 10s
 
 exporters:
   otlp/newrelic:
@@ -244,6 +240,16 @@ exporters:
     headers:
       api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
     compression: gzip
+    sending_queue:
+      enabled: true
+      sizer: bytes
+      queue_size: 100_000_000
+      num_consumers: 10
+      batch:
+        sizer: bytes
+        max_size: 1_000_000
+        min_size: 0
+        flush_timeout: 5s
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -251,14 +257,17 @@ exporters:
       max_elapsed_time: 300s
 
 service:
+  telemetry:
+    metrics:
+      level: none
   pipelines:
     metrics:
       receivers: [nrpostgresql]
-      processors: [resource/postgresql, batch]
+      processors: [batch/metrics]
       exporters: [otlp/newrelic]
     logs:
       receivers: [nrpostgresql]
-      processors: [resource/postgresql, batch]
+      processors: [batch]
       exporters: [otlp/newrelic]
 ```
 
@@ -355,6 +364,8 @@ receivers:
         enabled: true
       db.server.query_sample:
         enabled: true
+      db.server.query_plan:
+        enabled: true
     query_sample_collection:
       max_rows_per_query: 1000
       allowed_comment_keys: [nr_service_guid]
@@ -363,9 +374,15 @@ receivers:
       top_n_query: 200
       collection_interval: 60s
       allowed_comment_keys: [nr_service_guid]
-    # Metrics needed for the out-of-the-box dashboard but disabled by default —
-    # see "Available metrics" in the docs for the full default-on/default-off breakdown.
+    resource_attributes:
+      db.system.version:
+        enabled: true
+    # All metrics disabled by default in the receiver, enabled here for full dashboard coverage
     metrics:
+      postgresql.blks_hit:
+        enabled: true
+      postgresql.blks_read:
+        enabled: true
       postgresql.database.locks:
         enabled: true
       postgresql.deadlocks:
@@ -374,11 +391,35 @@ receivers:
         enabled: true
       postgresql.query.conflicts:
         enabled: true
+      postgresql.query.execution.time:
+        enabled: true
       postgresql.sequential_scans:
         enabled: true
       postgresql.temp.io:
         enabled: true
       postgresql.temp_files:
+        enabled: true
+      postgresql.tup_deleted:
+        enabled: true
+      postgresql.tup_fetched:
+        enabled: true
+      postgresql.tup_inserted:
+        enabled: true
+      postgresql.tup_returned:
+        enabled: true
+      postgresql.tup_updated:
+        enabled: true
+      postgresql.vector.insert.duration:
+        enabled: true
+      postgresql.vector.insert.rows:
+        enabled: true
+      postgresql.vector.search.calls:
+        enabled: true
+      postgresql.vector.search.duration:
+        enabled: true
+      postgresql.vector.search.rows_returned:
+        enabled: true
+      postgresql.wal.delay:
         enabled: true
 
 processors:
@@ -475,21 +516,12 @@ processors:
           - set(metric.description, "")
           - set(metric.unit, "")
 
-  # Static server.address/server.port instead of deriving them from
-  # service.instance.id — with receiver.nrpostgresql.useOTelSemconv enabled,
-  # service.instance.id becomes a UUID v5 hash, not a "host:port" string, so
-  # a Split(...)-based transform breaks. Applies uniformly to both metrics
-  # and logs pipelines since neither depends on that internal format.
-  resource/postgresql:
-    attributes:
-      - key: server.address
-        value: "<YOUR_DB_HOST>"
-        action: upsert
-      - key: server.port
-        value: <YOUR_DB_PORT>
-        action: upsert
-
   batch:
+
+  batch/metrics:
+    send_batch_size: 8192
+    send_batch_max_size: 8192
+    timeout: 10s
 
   resource_detection:
     detectors: ["system"]
@@ -515,6 +547,16 @@ exporters:
     headers:
       api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
     compression: gzip
+    sending_queue:
+      enabled: true
+      sizer: bytes
+      queue_size: 100_000_000
+      num_consumers: 10
+      batch:
+        sizer: bytes
+        max_size: 1_000_000
+        min_size: 0
+        flush_timeout: 5s
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -553,17 +595,15 @@ service:
     metrics/postgresql:
       receivers: [nrpostgresql]
       processors:
-        - resource/postgresql
         - resource_detection
         - resource_detection/cloud
         - resource_detection/env
-        - batch
+        - batch/metrics
       exporters: [otlp/newrelic]
 
     logs/postgresql:
       receivers: [nrpostgresql]
       processors:
-        - resource/postgresql
         - resource_detection
         - resource_detection/cloud
         - resource_detection/env
@@ -605,6 +645,8 @@ The following table describes the key configuration parameters for the `nrpostgr
 | `<YOUR_DB_USERNAME>` | Enter your database username. |
 | `<YOUR_DB_PASSWORD>` | Enter your database password. |
 | `<YOUR_DATABASE_NAME>` | Enter the name of the database you want to monitor. |
+| `databases` | List of databases to collect statistics for. Default: `[]` (all non-template databases). Applies to metrics only—query samples and top queries ignore this list and are filtered solely by `exclude_databases`. |
+| `exclude_databases` | Databases excluded from statistics, query samples, and top queries. Default: `[]`. Use this for managed-service internal databases (such as `rdsadmin`) that your monitoring user can't reach. |
 | `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, see [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
 | `<YOUR_NEWRELIC_LICENSE_KEY>` | Enter your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
 | `collection_interval` | Enter the interval between metric scrapes. Default: `15s`. |
