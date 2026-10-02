@@ -14,7 +14,7 @@ To support the latest Kubernetes versions and deliver new features, we're no lon
 ## What's happening [#whats-happening]
 
 * The upcoming Kubernetes integration will support only the three most recent minor versions of Kubernetes. For example, if the latest supported version is v1.36, then the integration will support v1.34, v1.35, and v1.36.
-* Most major Kubernetes cloud providers do not support more than three minor versions and have already removed v1.33 and earlier from standard support.
+* Most major Kubernetes cloud providers don't support more than three minor versions and have already removed v1.33 and earlier from standard support.
 
 ## What do you need to do [#what-to-do]
 
