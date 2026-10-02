@@ -332,3 +332,196 @@ translationType: machine
       </InlineCode>属性が存在するか確認します
   </Collapser>
 </CollapserGroup>
+
+## APMの相関とディストリビューティッド（分散）トレーシング [#correlation-troubleshooting]
+
+これらの問題は、[ディストリビューティッド（分散）トレーシングとのAPM相関](/docs/opentelemetry/integrations/elasticsearch/distributed-tracing)を設定した場合に適用されます。
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-no-es-spans" title="New RelicにElasticsearchのスパンが表示されない">
+    <strong>確認方法</strong>
+
+    ```sql
+    FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+    ```
+
+    <strong>解像度</strong>
+
+    * ネイティブOTLPトレースのエクスポートには、<strong>Elasticsearch 9.4以降</strong>が必要です。
+      <InlineCode>
+        curl http://localhost:9200
+      </InlineCode>
+      でバージョンを確認してください。
+    * <InlineCode>
+        elasticsearch.yml
+      </InlineCode>
+      に3つの設定すべてが存在することを確認してください：
+      <InlineCode>
+        telemetry.tracing.enabled: true
+      </InlineCode>
+      、
+      <InlineCode>
+        telemetry.export.endpoint
+      </InlineCode>
+      、および
+      <InlineCode>
+        telemetry.tracing.sample_rate
+      </InlineCode>
+      。
+    * JVMシステムプロパティ
+      <InlineCode>
+        -Dtelemetry.otel.traces.enabled=true
+      </InlineCode>
+      が（
+      <InlineCode>
+        jvm.options
+      </InlineCode>
+      または
+      <InlineCode>
+        ES_JAVA_OPTS
+      </InlineCode>
+      で）設定されていることを確認し、Elasticsearchを再起動してください。
+    * デフォルトの
+      <InlineCode>
+        telemetry.tracing.sample_rate
+      </InlineCode>
+      は
+      <InlineCode>
+        0.001
+      </InlineCode>
+      （0.1％）です。スパンがすぐに表示されるように、検証中に値を上げてください。
+  </Collapser>
+
+  <Collapser id="troubleshoot-traces-pipeline" title="Elasticsearch はスパンをエクスポートしていますが、New Relic に到達しません。">
+    <strong>解像度</strong>
+
+    * コレクターに
+      <InlineCode>
+        0.0.0.0:4317
+      </InlineCode>
+      でgRPCプロトコルが有効になっている
+      <InlineCode>
+        otlp
+      </InlineCode>
+      レシーバーがあること、およびElasticsearchノードからエンドポイントに到達可能であることを確認してください。
+    * <InlineCode>
+        traces
+      </InlineCode>
+      パイプラインが存在し、
+      <InlineCode>
+        otlp
+      </InlineCode>
+      レシーバーと
+      <InlineCode>
+        otlphttp
+      </InlineCode>
+      エクスポーターが含まれていることを確認してください。
+    * コレクターのログでOTLPレシーバーまたはエクスポートのエラーを確認してください。
+  </Collapser>
+
+  <Collapser id="troubleshoot-cluster-self-loop" title="クラスタは自身への関係を示します（自身を呼び出します）。">
+    <strong>原因</strong>
+
+    呼び出し元のアプリケーションに属性付けできないElasticsearchのスパンがNew Relicに到達すると、セルフループが表示されます。一般的な原因は2つあります：
+
+    * <strong>親のない（ルート）Elasticsearchスパン</strong> — KubernetesのヘルスプローブやElasticsearchメトリクスレシーバー自体のスクレイプ呼び出し（
+      <InlineCode>
+        \_nodes/stats
+      </InlineCode>
+      、
+      <InlineCode>
+        \_cluster/health
+      </InlineCode>
+      など）のような、親アプリケーションスパンを持たないスパン。これらはアプリケーションのトレースの一部ではないため、New Relicには呼び出し元のサービスがなく、クラスタ自体に関係を描画します。
+    * <strong>ノード自身のアドレス</strong> — Elasticsearchサーバーのスパンには
+      <InlineCode>
+        http.request.headers.host
+      </InlineCode>
+      （および
+      <InlineCode>
+        server.address
+      </InlineCode>
+      ）が含まれており、New Relicはこれをクラスタに解決します。
+
+    <strong>解像度</strong>
+
+    両方のプロセッサを<InlineCode>
+      traces
+    </InlineCode>パイプラインに追加し、コレクターを再起動してください。<InlineCode>
+      filter/drop\_rootless\_es
+    </InlineCode>は親のないElasticsearchスパンをドロップし（アプリケーション駆動のスパンには常に親があるため保持されます）、<InlineCode>
+      transform/strip\_es\_host
+    </InlineCode>はアドレス属性を削除します：
+
+    ```yaml
+    processors:
+      filter/drop_rootless_es:
+        error_mode: ignore
+        traces:
+          span:
+            - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+      transform/strip_es_host:
+        error_mode: ignore
+        trace_statements:
+          - context: span
+            statements:
+              - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+              - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+    # traces pipeline: processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+    ```
+
+    修正されたスパンが到着し、以前の関係の有効期限が切れると、既存のセルフループは自然にクリアされます（これには最大約75分かかる場合があります）。
+  </Collapser>
+
+  <Collapser id="troubleshoot-app-not-linked" title="Elasticsearchのスパンは届きますが、アプリケーションがクラスタにリンクされていません">
+    <strong>解像度</strong>
+
+    * アプリケーションがインストゥルメントされた状態であり、Elasticsearchの呼び出しでW3C
+      <InlineCode>
+        traceparent
+      </InlineCode>
+      ヘッダーを伝播することを確認してください。アプリケーションがOpenTelemetryでインストゥルメントされた場合、最新のElasticsearchクライアントのほとんどはこれを自動的に行います。
+    * Elasticsearchの呼び出しを含むディストリビューティッド（分散）トレーシングを開き、アプリケーションのスパンとElasticsearchのスパンが同じトレースを共有していることを確認してください。
+    * 関係が構築されるまで数分お待ちください。New Relicはエンティティの関係を定期的に再評価します。
+  </Collapser>
+
+  <Collapser id="troubleshoot-name-mismatch" title="トレースとメトリクスが異なるクラスタエンティティに解決される">
+    <strong>解像度</strong>
+
+    * トレースのパスは
+      <InlineCode>
+        es.cluster.name
+      </InlineCode>
+      （Elasticsearchによってスパンにスタンプされます）をキーとし、メトリクスのパスは
+      <InlineCode>
+        elasticsearch.cluster.name
+      </InlineCode>
+      をキーとします。
+      <InlineCode>
+        elasticsearchreceiver
+      </InlineCode>
+      はElasticsearchが返す値から自動的に
+      <InlineCode>
+        elasticsearch.cluster.name
+      </InlineCode>
+      を報告するため、両方とも同じ
+      <InlineCode>
+        cluster.name
+      </InlineCode>
+      から派生し、1つのエンティティに解決されます — 追加のコレクター設定は必要ありません。
+    * メトリクスのクラスタ名を固定値に強制しないでください。コレクター設定で
+      <InlineCode>
+        resource
+      </InlineCode>
+      プロセッサ（たとえば、名前をハードコードする
+      <InlineCode>
+        resource/cluster_name_override
+      </InlineCode>
+      ）を使用して設定している場合は、その上書きを削除してください — そうしないと、メトリクスとトレースが2つの異なるエンティティに解決され、相関するエンティティにメトリクスデータが表示されません。
+    * 単一の明確なエンティティにマッピングされるように、Elasticsearchの
+      <InlineCode>
+        cluster.name
+      </InlineCode>
+      がNew Relicアカウント内で一意であることを確認してください。
+  </Collapser>
+</CollapserGroup>

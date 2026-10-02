@@ -338,3 +338,198 @@ Se você concluiu a [instalação da integração do Elasticsearch com OpenTelem
       </InlineCode> está presente
   </Collapser>
 </CollapserGroup>
+
+## Correlação de APM e distributed tracing [#correlation-troubleshooting]
+
+Esses problemas se aplicam quando você configurou a [correlação do APM com o distributed tracing](/docs/opentelemetry/integrations/elasticsearch/distributed-tracing).
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-no-es-spans" title="Nenhum span do Elasticsearch aparece no New Relic">
+    <strong>Como verificar</strong>
+
+    ```sql
+    FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+    ```
+
+    <strong>Resolução</strong>
+
+    * A exportação nativa de trace OTLP requer o <strong>Elasticsearch 9.4 ou posterior</strong>. Confirme sua versão com
+      <InlineCode>
+        curl http://localhost:9200
+      </InlineCode>
+      .
+    * Verifique se todas as três configurações estão presentes em
+      <InlineCode>
+        elasticsearch.yml
+      </InlineCode>
+      :
+      <InlineCode>
+        telemetry.tracing.enabled: true
+      </InlineCode>
+      ,
+      <InlineCode>
+        telemetry.export.endpoint
+      </InlineCode>
+      e
+      <InlineCode>
+        telemetry.tracing.sample_rate
+      </InlineCode>
+      .
+    * Confirme se a propriedade de sistema da JVM
+      <InlineCode>
+        -Dtelemetry.otel.traces.enabled=true
+      </InlineCode>
+      está definida (em
+      <InlineCode>
+        jvm.options
+      </InlineCode>
+      ou
+      <InlineCode>
+        ES_JAVA_OPTS
+      </InlineCode>
+      ) e, em seguida, reinicie o Elasticsearch.
+    * O
+      <InlineCode>
+        telemetry.tracing.sample_rate
+      </InlineCode>
+      padrão é
+      <InlineCode>
+        0.001
+      </InlineCode>
+      (0,1%). Aumente-o durante a validação para que os spans apareçam rapidamente.
+  </Collapser>
+
+  <Collapser id="troubleshoot-traces-pipeline" title="O Elasticsearch está exportando spans, mas eles nunca chegam ao New Relic">
+    <strong>Resolução</strong>
+
+    * Confirme se o coletor tem um receptor
+      <InlineCode>
+        otlp
+      </InlineCode>
+      com o protocolo gRPC habilitado em
+      <InlineCode>
+        0.0.0.0:4317
+      </InlineCode>
+      e se o endpoint está acessível a partir dos nós do Elasticsearch.
+    * Confirme se existe um pipeline
+      <InlineCode>
+        traces
+      </InlineCode>
+      e se ele inclui o receptor
+      <InlineCode>
+        otlp
+      </InlineCode>
+      e o exportador
+      <InlineCode>
+        otlphttp
+      </InlineCode>
+      .
+    * Verifique os logs do coletor em busca de erros do receptor OTLP ou de exportação.
+  </Collapser>
+
+  <Collapser id="troubleshoot-cluster-self-loop" title="O cluster mostra um relacionamento consigo mesmo (chama a si mesmo)">
+    <strong>Causa</strong>
+
+    Um self-loop aparece quando os spans do Elasticsearch que chegam ao New Relic não podem ser atribuídos a um aplicativo chamador. Existem duas origens comuns:
+
+    * <strong>Spans do Elasticsearch sem pai (raiz)</strong> — spans sem um span de aplicativo pai, como sondas de integridade do Kubernetes ou as próprias chamadas de coleta do receptor de métricas do Elasticsearch (
+      <InlineCode>
+        \_nodes/stats
+      </InlineCode>
+      ,
+      <InlineCode>
+        \_cluster/health
+      </InlineCode>
+      e similares). Como eles não fazem parte do trace de um aplicativo, o New Relic não tem um serviço de chamada e desenha o relacionamento no próprio cluster.
+    * <strong>O próprio endereço do nó</strong> — os spans do servidor Elasticsearch carregam
+      <InlineCode>
+        http.request.headers.host
+      </InlineCode>
+      (e
+      <InlineCode>
+        server.address
+      </InlineCode>
+      ), que o New Relic resolve de volta para o cluster.
+
+    <strong>Resolução</strong>
+
+    Adicione ambos os processadores ao pipeline <InlineCode>
+      traces
+    </InlineCode> e, em seguida, reinicie o coletor. <InlineCode>
+      filter/drop\_rootless\_es
+    </InlineCode> descarta os spans do Elasticsearch sem pai (os spans orientados por aplicativo sempre têm um pai, portanto, são mantidos) e <InlineCode>
+      transform/strip\_es\_host
+    </InlineCode> remove os atributos de endereço:
+
+    ```yaml
+    processors:
+      filter/drop_rootless_es:
+        error_mode: ignore
+        traces:
+          span:
+            - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+      transform/strip_es_host:
+        error_mode: ignore
+        trace_statements:
+          - context: span
+            statements:
+              - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+              - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+    # traces pipeline: processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+    ```
+
+    Os auto-loops existentes são limpos automaticamente assim que os spans corrigidos chegam e o relacionamento anterior expira (isso pode levar até cerca de 75 minutos).
+  </Collapser>
+
+  <Collapser id="troubleshoot-app-not-linked" title="Os spans do Elasticsearch chegam, mas os aplicativos não estão vinculados ao cluster">
+    <strong>Resolução</strong>
+
+    * Certifique-se de que seus aplicativos estejam instrumentados e propaguem o cabeçalho W3C
+      <InlineCode>
+        traceparent
+      </InlineCode>
+      em suas chamadas do Elasticsearch. A maioria dos clientes modernos do Elasticsearch faz isso automaticamente quando o aplicativo é instrumentado com o OpenTelemetry.
+    * Abra um distributed trace que inclua uma chamada do Elasticsearch e confirme se os spans do aplicativo e os spans do Elasticsearch compartilham o mesmo trace.
+    * Aguarde alguns minutos para que o relacionamento seja estabelecido. O New Relic reavalia os relacionamentos de entidade periodicamente.
+  </Collapser>
+
+  <Collapser id="troubleshoot-name-mismatch" title="Traces e métricas resolvem para entidades de cluster diferentes">
+    <strong>Resolução</strong>
+
+    * O caminho dos traces usa
+      <InlineCode>
+        es.cluster.name
+      </InlineCode>
+      como chave (marcado pelo Elasticsearch em seus spans) e o caminho das métricas usa
+      <InlineCode>
+        elasticsearch.cluster.name
+      </InlineCode>
+      . O
+      <InlineCode>
+        elasticsearchreceiver
+      </InlineCode>
+      relata
+      <InlineCode>
+        elasticsearch.cluster.name
+      </InlineCode>
+      automaticamente a partir do valor que o Elasticsearch retorna, portanto, ambos derivam do mesmo
+      <InlineCode>
+        cluster.name
+      </InlineCode>
+      e são resolvidos em uma entidade — nenhuma configuração extra do coletor é necessária.
+    * Não force o nome do cluster de métricas para um valor fixo. Se a configuração do seu coletor o definir com um processador
+      <InlineCode>
+        resource
+      </InlineCode>
+      (por exemplo, um
+      <InlineCode>
+        resource/cluster_name_override
+      </InlineCode>
+      que define o nome de forma fixa), remova essa substituição — caso contrário, as métricas e os traces serão resolvidos em duas entidades diferentes e a entidade correlacionada não mostrará dados de métricas.
+    * Certifique-se de que o
+      <InlineCode>
+        cluster.name
+      </InlineCode>
+      do Elasticsearch seja exclusivo em sua conta do New Relic para que seja mapeado para uma única entidade não ambígua.
+  </Collapser>
+</CollapserGroup>
