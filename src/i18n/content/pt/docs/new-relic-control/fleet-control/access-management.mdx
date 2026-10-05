@@ -1,0 +1,637 @@
+---
+title: Gerenciar acesso ao Controle de Agentes
+tags:
+  - fleet-control
+  - access management
+  - permissions
+  - rbac
+  - governance
+  - agent-management
+metaDescription: 'Patterns for setting up role-based access control for Fleet Control, including per-fleet scoping, lifecycle separation, delegated group management, and business unit isolation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este guia fornece padrões para configurar o controle de acesso baseado em função (RBAC) para operações de <DNT>Fleet Control</DNT>. Ele abrange três padrões de implementação, do básico ao corporativo, com exemplos de interface e de <DNT>NerdGraph</DNT>.
+
+<Callout title="Qual abordagem se adapta à sua organização?" variant="tip">
+  * Organizações separadas (recomendado): se você gerencia várias unidades de negócios autônomas ou precisa de isolamento rigoroso de contratados com zero visibilidade entre unidades, use multilocação (organizações separadas do New Relic). Isso fornece a aplicação completa de limites sem funções personalizadas complexas. Ir para Delegar o Controle de Agentes com várias unidades de negócios.
+
+  * RBAC de organização única: se restrições de contrato, faturamento ou operacionais exigirem uma única organização, use os padrões de RBAC neste guia (Básico, Avançado ou Enterprise). Aviso: os usuários ainda verão que outras frotas existem em toda a organização, e a TI central deve criar concessões de acesso para cada nova frota.
+</Callout>
+
+## Pré-requisitos [#prerequisites]
+
+Antes de configurar qualquer um dos padrões abaixo:
+
+* **Usuário de plataforma completa:** toda permissão <DNT>Fleet Control</DNT> exige o [tipo de usuário](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) de plataforma completa.
+* **Edição Pro ou edição Enterprise:** necessário para criar as funções personalizadas e os grupos personalizados que esses padrões usam.
+* **Função de gerente de domínio de autenticação:** os usuários com a função <DNT>**Authentication domain manager**</DNT> podem criar concessões de acesso, que atribuem grupos e funções a frotas específicas. Este é um requisito da plataforma New Relic para todas as operações de concessão de acesso.
+* **Configuração inicial de <DNT>Agent Control</DNT>:** exige a função <DNT>**Authentication domain manager**</DNT>, uma vez, para criar identidades do sistema.
+* **Criar frotas e configurações:** requer a função <DNT>**Organization product admin**</DNT>, que é concedida automaticamente a qualquer pessoa no grupo <DNT>**User**</DNT> padrão.
+* **Executar implantação:** exige a função <DNT>**Organization Manager**</DNT>, que é concedida automaticamente a qualquer pessoa no grupo <DNT>**Admin**</DNT> padrão. Como alternativa, a função <DNT>**Fleet manager**</DNT> ou uma função personalizada com <DNT>**Deploy**</DNT> concede isso em frotas específicas, sem alcance em toda a organização.
+
+<Callout title="Equívoco comum sobre os requisitos de função" variant="important">
+  Muitas equipes presumem que <DNT>**Authentication domain manager**</DNT> é necessário para todas as operações de <DNT>Fleet Control</DNT>. **Isso não é verdade.**
+
+  <DNT>**Authentication domain manager**</DNT> é necessário apenas para:
+
+  1. **Configuração inicial do <DNT>Agent Control</DNT> **, uma única vez, que cria identidades do sistema.
+  2. **Criação de concessões de acesso**, que atribui grupos a frotas.
+
+  **Gerenciamento contínuo de frotas**, o que significa criar frotas e criar configurações, requer apenas <DNT>**Organization product admin**</DNT>, que a maioria dos usuários já possui.
+</Callout>
+
+## Como as permissões do Controle de Agentes são organizadas [#permissions]
+
+Ao criar uma função personalizada, as permissões de <DNT>Fleet Control</DNT> são exibidas como uma tabela: uma linha para o recurso e colunas para <DNT>**Read**</DNT>, <DNT>**Modify**</DNT>, <DNT>**Delete**</DNT> e <DNT>**Other**</DNT>. Cada caixa de seleção concede um conjunto de ações relacionadas em vez de uma permissão individual. A linha que você obtém depende do escopo da função.
+
+As funções com escopo de organização recebem a linha <DNT>**Fleets (all)**</DNT>, cobrindo todas as frotas na organização:
+
+| Permissão                                               | O que ele abrange                                                                                                                         |
+| :------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| <DNT>**Read**</DNT>                                     | Visualizar frotas, os agentes em suas entidades gerenciadas, configurações e seus conteúdos, associação à frota e a política de aprovação |
+| <DNT>**Modify**</DNT>                                   | Crie e atualize frotas, crie configurações e adicione versões, além de tudo em Read                                                       |
+| <DNT>**Delete**</DNT>                                   | Excluir frotas, configurações e implantações                                                                                              |
+| <DNT>**Other: Deploy**</DNT>                            | Criar, editar, executar e excluir implantações e alterar quais entidades gerenciadas estão em uma frota                                   |
+| <DNT>**Other: Approve configurations**</DNT>            | Aprove, solicite alterações ou negue uma versão de configuração                                                                           |
+| <DNT>**Other: Configure organization governance**</DNT> | Definir e alterar a política de aprovação                                                                                                 |
+
+Funções com escopo de entidade direcionadas a uma frota recebem a linha <DNT>**Fleets (individual)**</DNT>, abrangendo apenas as frotas nas quais a função é concedida:
+
+| Permissão                    | O que ele abrange                                                                                       |
+| :--------------------------- | :------------------------------------------------------------------------------------------------------ |
+| <DNT>**Modify**</DNT>        | Renomeie a frota, edite sua descrição e visualize seus membros                                          |
+| <DNT>**Delete**</DNT>        | Excluir a frota                                                                                         |
+| <DNT>**Other: Deploy**</DNT> | Crie, edite, execute e exclua implantações para a frota e altere quais entidades gerenciadas estão nela |
+
+<Callout title="As funções com escopo de frota baseiam-se no acesso de leitura em vez de substituí-lo" variant="important">
+  A linha <DNT>**Fleets (individual)**</DNT> não tem a permissão <DNT>**Read**</DNT>. Uma função com escopo de frota concede a capacidade de atuar em uma frota, não de ver <DNT>Fleet Control</DNT> em primeiro lugar.
+
+  Os usuários também precisam de acesso de leitura de uma função com escopo de organização, que normalmente têm por meio do grupo <DNT>**User**</DNT> padrão. Se uma função com escopo de frota for concedida a um grupo cujos membros não têm mais nada, eles não poderão ver nada sobre o que atuar.
+</Callout>
+
+A aprovação de configurações e a definição da política de aprovação estão disponíveis apenas para funções com escopo de organização, portanto, a autoridade de aprovação não pode ter o escopo de uma frota específica. Consulte [aprovações de configuração](/docs/new-relic-control/fleet-control/manage-fleets/#config-approvals) para obter os detalhes e [delegar autoridade de aprovação](/docs/new-relic-control/fleet-control/manage-fleets/#delegate-approval-authority) para saber como concedê-la.
+
+## Padrão básico: permissão de frota única (FGA) [#basic-pattern]
+
+<DNT>Fleet Control</DNT> oferece suporte a acesso refinado (FGA) por meio de concessões de acesso com escopo de entidade. A função <DNT>**Fleet manager**</DNT> integrada pode ter o escopo definido para entidades de frota específicas, o que dá a um grupo controle operacional total dessas frotas, incluindo implantações, sem <DNT>**Organization Manager**</DNT>.
+
+Isso permite conceder acesso a uma equipe para gerenciar uma frota específica sem dar a ela acesso a todas as frotas da organização.
+
+### Passo a passo da interface [#basic-ui]
+
+1. **Crie a frota**, se ainda não estiver criada:
+
+   1. Vá para <DNT>**All capabilities &gt; New Relic Control &gt; Fleets**</DNT>
+   2. Clique <DNT>**Create a fleet**</DNT>
+   3. Nomeie, por exemplo `production-us-east-fleets`
+   4. Salve e anote o GUID da frota
+
+2. **Criar ou identificar o grupo de destino**:
+
+   1. Vá para <DNT>**Administration &gt; Access management &gt; Groups**</DNT>
+   2. Crie um novo grupo, por exemplo `prod-us-east-fleet-operators`, ou use um existente
+   3. No modal <DNT>**Create a group**</DNT>, adicione usuários agora por meio do dropdown <DNT>**Add users**</DNT>, ou adicione-os mais tarde editando o grupo
+   4. Anote o ID do grupo
+
+3. **Conceder acesso com escopo de entidade**:
+
+   1. Vá para <DNT>**New Relic Control &gt; Fleets**</DNT>
+   2. Na linha da frota, abra o menu kebab e selecione <DNT>**Fleet permissions**</DNT>
+   3. No modal <DNT>**Fleet permissions**</DNT>, escolha um grupo e selecione <DNT>**Fleet manager**</DNT> como a função. Adicione quantos pares de grupo e função forem necessários
+   4. Clique em <DNT>**Save**</DNT>, o que cria uma concessão de acesso por par
+
+<Callout title="Se as permissões de frota estiverem ausentes ou abrirem bloqueadas" variant="important">
+  O item de menu <DNT>**Fleet permissions**</DNT> requer a função <DNT>**Authentication domain manager**</DNT>. Sem ela, a ação não aparece na linha da frota ou o modal é aberto bloqueado em vez de parcialmente disponível.
+
+  As concessões também podem ser anexadas no momento da criação da frota por meio da caixa de diálogo <DNT>**Create fleet**</DNT>.
+</Callout>
+
+**Resultado:** os membros de `prod-us-east-fleet-operators` agora podem executar implantações e gerenciar membros apenas para `production-us-east-fleets`. Eles não podem modificar outras frotas. Eles ainda verão que outras frotas existem, porque o acesso de leitura vem de sua função com escopo de organização, e não desta concessão.
+
+### Automação do NerdGraph [#basic-nerdgraph]
+
+```graphql
+mutation GrantFleetAccess {
+  authorizationManagementGrantAccess(
+    grantAccessOptions: {
+      grantee: { type: GROUP, id: "YOUR_GROUP_ID" }
+      entityAccessGrants: {
+        entity: { id: "YOUR_FLEET_GUID", type: "fleet" }
+        roleId: "YOUR_ROLE_ID"
+      }
+    }
+  ) {
+    accessGrants {
+      id
+    }
+  }
+}
+```
+
+**Como encontrar IDs:**
+
+* **Fleet GUID:** visível na URL da página de detalhes da frota, ou faça a consulta de frotas por meio do [tutorial do<DNT>NerdGraph Fleet Control</DNT>](/docs/apis/nerdgraph/examples/nerdgraph-fleet-control-tutorial)
+* **ID do grupo:** <DNT>**Administration &gt; Access management &gt; Groups**</DNT>, clique no grupo, o ID está na URL
+* **Role ID:** faça a consulta usando a solução alternativa em [problemas conhecidos](#known-issues)
+
+## Padrão avançado: funções personalizadas para separação de ciclo de vida [#advanced-pattern]
+
+Crie duas funções personalizadas com escopo de entidade com diferentes permissões de <DNT>Fleet Control</DNT> e, em seguida, conceda cada uma a um grupo diferente nas mesmas entidades da frota. <DNT>**Fleet manager**</DNT> inclui Modificar, Excluir e Implantar em conjunto; portanto, quando isso for mais autoridade do que um grupo deve ter, divida-o.
+
+Isso permite separar quem pode alterar a definição e a associação de uma frota de quem pode executar implantações, enquanto ambos os grupos trabalham nas mesmas frotas.
+
+### Blueprint de exemplo: design de funções personalizadas [#role-design]
+
+Esta seção fornece um exemplo recomendado de como você pode projetar funções personalizadas de menor privilégio para separar as permissões de arquitetura da execução de implantação.
+
+Ambas as funções têm escopo de entidade e destino <DNT>**Fleet**</DNT>:
+
+| Função           | Permissão                    | O que os titulares podem fazer                                                                     | Atribuído a                                      |
+| :--------------- | :--------------------------- | :------------------------------------------------------------------------------------------------- | :----------------------------------------------- |
+| `Fleet author`   | <DNT>**Modify**</DNT>        | Renomeie a frota, edite sua descrição, visualize seus membros                                      | Equipes de operações de plataforma               |
+| `Fleet deployer` | <DNT>**Other: Deploy**</DNT> | Criar, editar, executar e excluir implantações, alterar quais entidades gerenciadas estão na frota | Equipes de aplicativos e prestadores de serviços |
+
+Nenhuma das funções pode excluir uma frota, já que <DNT>**Delete**</DNT> é uma permissão separada que é deixada desmarcada.
+
+A criação de configuração não faz parte de nenhuma das funções, porque as configurações em <DNT>Fleet Control</DNT> são objetos no nível da organização, em vez de pertencerem a uma frota. A criação delas vem com <DNT>**Organization product admin**</DNT>, que o grupo <DNT>**User**</DNT> padrão já possui. Na prática, seus autores escrevem configurações e essas funções com escopo de frota controlam o que é implantado e onde.
+
+### Passo a passo da interface [#advanced-ui]
+
+1. **Criar as funções personalizadas.** Para cada uma:
+
+   1. Vá para <DNT>**Administration &gt; Access management &gt; Roles**</DNT>
+   2. Clique <DNT>**Add a role**</DNT>
+   3. Para o escopo da função, escolha <DNT>**Single item or entity**</DNT> e, em seguida, clique <DNT>**Next**</DNT>
+   4. Em <DNT>**Select what you want to configure access to**</DNT>, escolha <DNT>**Fleet**</DNT>
+   5. Nomeie a função, por exemplo `Fleet author`
+   6. Em <DNT>**Set permissions**</DNT>, expanda <DNT>**Fleet Control**</DNT> e selecione o que a função contém na linha <DNT>**Fleets (individual)**</DNT>: <DNT>**Modify**</DNT> para a função de autor, ou <DNT>**Deploy**</DNT> em <DNT>**Other**</DNT> para a função de implantador
+   7. Salve e, em seguida, repita para a segunda função
+
+2. **Crie grupos para cada função**:
+
+   1. Crie o grupo `fleet-architects` para os autores, adicionando os usuários relevantes por meio do dropdown <DNT>**Add users**</DNT> no modal <DNT>**Create a group**</DNT>, ou posteriormente editando o grupo
+   2. Crie o grupo `fleet-deployment-operators` para os implantadores, da mesma forma
+
+3. **Conceda acesso com escopo de entidade para cada grupo**:
+
+   1. Vá para <DNT>**New Relic Control &gt; Fleets**</DNT>, abra o menu kebab na frota de destino e selecione <DNT>**Fleet permissions**</DNT>
+   2. Adicione um par de grupo e função: `fleet-architects` com <DNT>**Fleet author**</DNT>
+   3. Adicione um par de grupo e função: `fleet-deployment-operators` com <DNT>**Fleet deployer**</DNT>
+   4. Salve, e ambas as concessões são criadas juntas
+
+<Callout title="As funções personalizadas não recebem novas permissões por conta própria" variant="important">
+  Uma função personalizada contém apenas o que um administrador adicionou a ela. As funções padrão recebem as permissões para novos recursos no escopo da organização à medida que são lançados; portanto, se <DNT>Fleet Control</DNT> adicionar capacidades posteriormente, alguém terá que adicioná-las a cada função personalizada que deva tê-las.
+
+  Para usuários que devem obter novos recursos do <DNT>Fleet Control</DNT> automaticamente, atribua uma função padrão em vez disso.
+</Callout>
+
+### Automação do NerdGraph [#advanced-nerdgraph]
+
+As funções personalizadas são criadas na interface. A criação de funções utiliza identificadores de permissão internos em vez dos nomes de permissão mostrados nas caixas de seleção, portanto, não há um caminho de API prático para criar as próprias funções.
+
+Quando as funções existirem, conceda-as com a mesma mutação que o [padrão básico](#basic-nerdgraph), passando o ID de cada função.
+
+**Resultado:** os autores de frotas podem estruturar as frotas que possuem, mas não podem executar implantações. Os operadores de implantação podem executar implantações, mas não podem redefinir ou excluir uma frota.
+
+## Padrão corporativo: gerenciamento de grupo delegado [#enterprise-pattern]
+
+Use a função <DNT>**Group admin**</DNT> com concessões com escopo de grupo para delegar o gerenciamento de associação de grupo.
+
+Isso permite que os líderes de equipe adicionem e removam membros dos grupos de suas equipes sem precisar de privilégios totais de <DNT>**Authentication domain manager**</DNT>.
+
+### Passo a passo da interface [#enterprise-ui]
+
+1. **Criar um grupo de gerentes**:
+
+   1. Vá para <DNT>**Administration &gt; Access management &gt; Groups**</DNT>
+   2. Criar grupo `fleet-team-leads`
+   3. Adicione os líderes de equipe como membros
+
+2. **Conceder a função de administrador de grupo sobre os grupos de destino**:
+
+   1. Vá para <DNT>**Administration &gt; Access management &gt; Access grants**</DNT>
+   2. Clique <DNT>**Create new grant**</DNT>
+   3. Escolha uma concessão de grupo, que é o tipo de concessão que tem como destino outros grupos
+   4. Selecionar grupo `fleet-team-leads`
+   5. Função: <DNT>**Group admin**</DNT>
+   6. Selecione os grupos que os líderes de equipe devem ser capazes de gerenciar, por exemplo, `fleet-architects` e `fleet-deployment-operators`
+   7. Salvar
+
+**Resultado:** os membros de `fleet-team-leads` agora podem adicionar e remover usuários de `fleet-architects` e `fleet-deployment-operators` sem precisar da função <DNT>**Authentication domain manager**</DNT>.
+
+<Callout title="Limitação importante" variant="caution">
+  <DNT>**Group admin**</DNT> pode gerenciar *quem* está em um grupo, mas não pode criar novas concessões de acesso ou atribuir grupos a novas frotas. Quando uma nova frota é criada, alguém com <DNT>**Authentication domain manager**</DNT> ainda deve criar a concessão de acesso para essa frota.
+</Callout>
+
+### Automação do NerdGraph [#enterprise-nerdgraph]
+
+```graphql
+mutation DelegateGroupManagement {
+  authorizationManagementGrantAccess(
+    grantAccessOptions: {
+      grantee: { type: GROUP, id: "YOUR_TEAM_LEADS_GROUP_ID" }
+      groupAccessGrants: [
+        {
+          groupId: "YOUR_TARGET_GROUP_ID"
+          roleId: "YOUR_GROUP_ADMIN_ROLE_ID"
+        }
+      ]
+    }
+  ) {
+    accessGrants {
+      id
+    }
+  }
+}
+```
+
+## Delegar o Controle de Agentes com várias unidades de negócios [#business-units]
+
+Esta seção descreve um cenário que vimos com clientes que têm várias unidades de negócios autônomas e precisam delegar o gerenciamento de <DNT>Fleet Control</DNT>. Ela fornece tanto a solução recomendada quanto abordagens alternativas usando os padrões acima.
+
+### O cenário [#scenario]
+
+**Exemplo:** a ByteFlix Entertainment é uma grande empresa de mídia com várias unidades de negócios autônomas operando sob uma única organização da New Relic:
+
+* **ByteFlix+**, um serviço de streaming
+* **BBS**, o ByteFlix Broadcast System, uma rede de transmissão
+* **PixelTV**, uma rede de TV a cabo
+
+#### Estrutura organizacional [#org-structure]
+
+**TI central:**
+
+* Apenas duas ou três pessoas têm as funções <DNT>**Organization Manager**</DNT> e <DNT>**Authentication domain manager**</DNT>
+* Eles gerenciam o licenciamento e a governança do New Relic
+* Eles **não** configuram nem criam entidades de monitoramento
+* Eles são um gargalo para as alterações de gerenciamento de acesso
+
+**Unidades de negócio:**
+
+* Cada unidade tem contas separadas sob a mesma organização da New Relic
+* Cada unidade gerencia sua própria observabilidade de forma independente
+* Muitas unidades usam prestadores de serviços para administrar a New Relic Infrastructure
+
+#### O desafio [#challenge]
+
+A ByteFlix deseja adotar <DNT>Fleet Control</DNT>, mas enfrenta dificuldades:
+
+1. **Isolamento rigoroso de unidades de negócios exigido:** as equipes do ByteFlix+ não devem gerenciar a infraestrutura do BBS ou da PixelTV
+2. **Delegação de prestadores de serviços:** os líderes de unidade precisam integrar prestadores de serviços sem envolver a TI central
+3. **Separação de ciclo de vida:** as operações de plataforma devem moldar as frotas e as equipes de aplicativos devem implantar, mas as equipes de aplicativos não devem conseguir excluir ou redefinir frotas
+4. **Sem concessões amplas de administrador:** a TI central não concederá <DNT>**Authentication domain manager**</DNT> às equipes das unidades devido a preocupações de segurança
+
+### Solução recomendada: organizações separadas [#separate-orgs]
+
+Com base na estrutura organizacional da ByteFlix, a multilocação é a solução ideal.
+
+#### O que isso significa [#multi-tenancy-meaning]
+
+Em vez de uma organização com várias contas, a ByteFlix cria três organizações separadas da New Relic:
+
+* **Organização ByteFlix+**, com suas próprias contas
+* **Organização BBS**, com suas próprias contas
+* **Organização PixelTV**, com suas próprias contas
+
+Cada unidade de negócios se torna sua própria organização isolada da New Relic.
+
+#### Benefícios [#multi-tenancy-benefits]
+
+1. **Isolamento completo da unidade de negócios:** recursos com escopo de organização, incluindo <DNT>Fleet Control</DNT>, veem apenas os dados dentro da organização dessa unidade
+2. **Sem visibilidade entre unidades:** os usuários do ByteFlix+ não podem ver as entidades do BBS ou da PixelTV, garantido por limites organizacionais
+3. **Administração autônoma:** cada unidade tem seus próprios gerentes de domínio de autenticação e gerentes de organização sem afetar os outros
+4. **Delegação de prestadores de serviços:** cada unidade pode conceder acesso a prestadores de serviços sem envolver a TI central ou as outras unidades
+5. **Permissões mais simples:** não são necessárias concessões com escopo de entidade ou funções personalizadas para impor o isolamento
+
+#### E quanto aos serviços compartilhados? [#shared-services]
+
+O [compartilhamento de contas](/docs/accounts/accounts-billing/account-structure/multi-tenancy/share-accounts) da New Relic permite que as contas cruzem os limites organizacionais. Se a ByteFlix tiver serviços de plataforma compartilhados, como logging centralizado ou infraestrutura compartilhada, que precisem de visibilidade entre as unidades, essas contas poderão ser compartilhadas em várias organizações.
+
+Por exemplo, a TI central mantém uma organização de observabilidade compartilhada com as contas de plataforma compartilhadas, e as organizações ByteFlix+, BBS e PixelTV têm, cada uma, acesso de leitura a essas contas por meio do compartilhamento de contas.
+
+#### Compensações [#multi-tenancy-tradeoffs]
+
+**Prós:**
+
+* Modelo de isolamento mais forte, imposto por limites organizacionais
+* Modelo de permissão mais simples, sem necessidade de concessões no escopo da entidade
+* Cada unidade opera de forma completamente autônoma
+
+**Contras:**
+
+* Requer reestruturação organizacional, não apenas alterações de permissão
+* Faturamento e licenciamento separados por organização, o que pode afetar a estrutura do contrato
+* Serviços compartilhados exigem configuração de compartilhamento de conta
+* Alguns relatórios entre organizações exigem dashboards personalizados ou recursos do Data Plus
+
+#### Próximos passos para organizações separadas [#multi-tenancy-next-steps]
+
+Para seguir esse modelo, consulte [multi-tenancy](/docs/accounts/accounts-billing/account-structure/multi-tenancy/intro-to-multi-tenancy) e, em seguida, entre em contato com seu representante de conta para trabalhar nos fluxos de trabalho de serviços compartilhados, em um plano de migração para mover unidades para organizações separadas, no compartilhamento de contas para quaisquer serviços de plataforma compartilhados e nas implicações de contrato e faturamento.
+
+### Solução alternativa: padrões de RBAC dentro de uma única organização [#rbac-single-org]
+
+Se a ByteFlix **não puder** mudar para organizações separadas, devido a restrições de contrato, cronograma ou resistência organizacional, ela poderá alcançar resultados semelhantes usando os padrões de RBAC neste guia dentro de uma única organização.
+
+#### Padrão 1: acesso com escopo de entidade (FGA) [#bu-pattern-1]
+
+**O que isso resolve:** separação de unidades de negócios dentro de uma única organização.
+
+**Como funciona:** use o acesso refinado para conceder aos grupos de cada unidade acesso apenas às suas entidades de frota específicas.
+
+**Exemplo:**
+
+* `byteflix-plus-platform-ops` concedida a função <DNT>**Fleet manager**</DNT>, com escopo apenas para a frota `byteflix-plus-prod-k8s`
+* `bbs-platform-ops` concedida a função <DNT>**Fleet manager**</DNT>, com escopo apenas para a frota `bbs-prod-k8s`
+
+**Resultado:** as equipes do ByteFlix+ podem atuar apenas nas frotas do ByteFlix+, e as equipes do BBS apenas nas frotas do BBS.
+
+**Limitação:** Isso exige que <DNT>**Authentication domain manager**</DNT> configure as concessões de acesso iniciais por meio da interface <DNT>**Fleet permissions**</DNT>. Uma vez estabelecido, os líderes de unidade não podem conceder acesso a novas frotas sem envolver a TI central.
+
+**Referência:** [padrão básico](#basic-pattern).
+
+#### Padrão 2: funções de ciclo de vida personalizadas [#bu-pattern-2]
+
+**O que isso resolve:** separação do ciclo de vida, com as operações de plataforma moldando as frotas e as equipes de aplicativos implantando.
+
+**Como funciona:** crie duas funções personalizadas com escopo de entidade direcionadas a <DNT>**Fleet**</DNT>:
+
+* **Autor da frota**, contendo <DNT>**Modify**</DNT>, atribuído às equipes de operações de plataforma
+* **Implantador de frota**, contendo <DNT>**Deploy**</DNT>, atribuído a Equipes de Aplicativos e prestadores de serviços
+
+Ambas as funções são então concedidas aos seus grupos em entidades de frota específicas usando o Padrão 1.
+
+**Resultado:** as operações de plataforma moldam as frotas que possuem, as equipes de aplicativos executam implantações e nenhuma delas pode excluir uma frota.
+
+**Limitação:** a criação de funções personalizadas requer a edição Pro ou a edição Enterprise. Concedê-las em frotas requer <DNT>**Authentication domain manager**</DNT>, por meio da interface <DNT>**Fleet permissions**</DNT>.
+
+**Referência:** [padrão avançado](#advanced-pattern).
+
+#### Padrão 3: delegação de administrador de grupo [#bu-pattern-3]
+
+**O que isso resolve:** delegação de prestadores de serviços sem <DNT>**Authentication domain manager**</DNT>.
+
+**Como funciona:** conceda aos líderes de unidade a função <DNT>**Group admin**</DNT> com escopo para os grupos operacionais de sua unidade.
+
+**Exemplo para ByteFlix+:**
+
+* Grupo: `byteflix-plus-bu-leads`
+* Função: <DNT>**Group admin**</DNT>
+* Escopo: pode gerenciar a associação de `byteflix-plus-platform-ops` e `byteflix-plus-app-teams`
+
+**Resultado:** os líderes de unidade podem adicionar e remover prestadores de serviços de grupos **sem envolver a TI central** e **sem precisar de <DNT>Authentication domain manager</DNT>**.
+
+**Limitação:** os líderes de unidade podem gerenciar *quem* está em um grupo, mas não podem criar novas concessões de acesso ou atribuir grupos a novas frotas. Quando uma nova frota é criada, a TI central ainda deve criar a concessão de acesso para ela.
+
+**Referência:** [padrão enterprise](#enterprise-pattern).
+
+#### Arquitetura RBAC combinada [#combined-architecture]
+
+Usando todos os três padrões juntos em uma única organização, a arquitetura da ByteFlix fica assim:
+
+```
+Organization: ByteFlix Entertainment
+
+├── ByteFlix+ (Streaming BU):
+│   ├── Groups:
+│   │   ├── byteflix-plus-bu-leads (Group admin over operational groups)
+│   │   ├── byteflix-plus-platform-ops (Fleet author role)
+│   │   └── byteflix-plus-app-teams (Fleet deployer role, includes contractors)
+│   └── Fleets (entity-scoped to ByteFlix+ groups only):
+│       ├── byteflix-plus-prod-k8s
+│       └── byteflix-plus-stage-k8s
+│
+├── BBS (Broadcast BU):
+│   ├── Groups:
+│   │   ├── bbs-bu-leads (Group admin)
+│   │   ├── bbs-platform-ops (Fleet author role)
+│   │   └── bbs-app-teams (Fleet deployer role)
+│   └── Fleets (entity-scoped to BBS groups only):
+│       ├── bbs-prod-k8s
+│       └── bbs-stage-k8s
+│
+└── PixelTV (Cable BU):
+    ├── Groups:
+    │   ├── pixeltv-bu-leads (Group admin)
+    │   ├── pixeltv-platform-ops (Fleet author role)
+    │   └── pixeltv-app-teams (Fleet deployer role)
+    └── Fleets (entity-scoped to PixelTV groups only):
+        ├── pixeltv-prod-k8s
+        └── pixeltv-stage-k8s
+
+Custom entity-scoped roles, created once by central IT:
+├── Fleet author (Modify)
+└── Fleet deployer (Deploy)
+```
+
+#### Trade-offs de RBAC [#rbac-tradeoffs]
+
+**Prós:**
+
+* Nenhuma reestruturação organizacional necessária
+* Contrato e relação de faturamento únicos
+* Alcança a separação operacional entre unidades com concessões configuradas corretamente
+
+**Contras:**
+
+* Requer configuração inicial pela TI central, o que significa o envolvimento do gerente de domínio de autenticação
+* Novas frotas ainda exigem que a TI central crie concessões de acesso, uma dependência contínua
+* Um modelo de permissão mais complexo do que organizações separadas
+* A separação depende da configuração correta de concessão de acesso e não é imposta por limites organizacionais
+
+<Callout title="Esse modelo controla quem pode atuar em uma frota, não quem pode vê-la" variant="important">
+  Como as funções com escopo de frota não têm permissão de <DNT>**Read**</DNT>, todos que trabalham em <DNT>Fleet Control</DNT> precisam de acesso de leitura com escopo de organização. Os usuários do ByteFlix+ verão que as frotas BBS e PixelTV existem, mesmo que não possam atuar nelas.
+
+  Se as suas unidades de negócios não devem ver as frotas umas das outras de forma alguma, organizações separadas é o único modelo que oferece isso.
+</Callout>
+
+### Requisitos da função [#role-clarification]
+
+| Ação                                                     | Função necessária                                    | Frequência     | Notas                                                                                                                               |
+| :------------------------------------------------------- | :--------------------------------------------------- | :------------- | :---------------------------------------------------------------------------------------------------------------------------------- |
+| **Configuração inicial de <DNT>Agent Control</DNT>**     | Gerente de domínio de autenticação                   | Uma vez        | Cria identidades de sistema e atribui permissões                                                                                    |
+| **Criar/atualizar frotas**                               | Administrador de produtos da organização             | Em andamento   | Atribuído automaticamente ao grupo <DNT>**User**</DNT>                                                                              |
+| **Criar configurações**                                  | Administrador de produtos da organização             | Em andamento   | Atribuído automaticamente ao grupo <DNT>**User**</DNT>                                                                              |
+| **Implantar frotas**                                     | Gerente de organização ou gerente de frota por frota | Em andamento   | Atribuído automaticamente ao grupo <DNT>**Admin**</DNT> padrão. Como alternativa, use uma função com escopo de frota com implantar. |
+| **Excluir frotas e implantações**                        | Gerente de organização ou gerente de frota por frota | Ocasional      | A exclusão da configuração requer escopo no nível da organização                                                                    |
+| **Aprovar configurações, definir política de aprovação** | Gerenciador de Organização                           | Em andamento   | Apenas com escopo de organização; não pode ter escopo por frota                                                                     |
+| **Criar concessões de acesso**                           | Gerente de domínio de autenticação                   | Por nova frota | Atribui grupos de usuários a frotas                                                                                                 |
+| **Gerenciar associação de grupo**                        | Administrador de grupo, delegado                     | Em andamento   | Gerencia a associação sem privilégios totais de gerenciador de domínio. Consulte o [Padrão 3](#bu-pattern-3)                        |
+
+As funções são aditivas, portanto, um usuário que possui várias tem a soma de suas permissões. Para saber o que cada função padrão abrange, consulte [conceitos de gerenciamento de usuário](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#standard-roles).
+
+## Problemas conhecidos e soluções alternativas [#known-issues]
+
+### Não é possível consultar IDs de função diretamente [#role-ids]
+
+**Problema:** <DNT>NerdGraph</DNT> não fornece uma consulta direta para listar os IDs de função por nome.
+
+**Solução alternativa:** leia-os dos grupos que já possuem a função:
+
+```graphql
+{
+  actor {
+    organization {
+      authorizationManagement {
+        authenticationDomains(id: "YOUR_AUTH_DOMAIN_ID") {
+          authenticationDomains {
+            groups {
+              groups {
+                displayName
+                roles {
+                  roles {
+                    roleId
+                    displayName
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Como encontrar GUIDs de frota [#fleet-guids]
+
+**Problema:** os GUIDs da frota não são facilmente descobertos pela interface.
+
+**Solução alternativa:** navegue até a página de detalhes da frota, onde o GUID está no URL após `/fleets/`. Para consultar frotas, consulte o [tutorial<DNT>NerdGraph Fleet Control</DNT> ](/docs/apis/nerdgraph/examples/nerdgraph-fleet-control-tutorial).
+
+## Referência rápida: encontrando IDs do NerdGraph [#find-ids]
+
+**IDs de organização e domínio de autenticação:**
+
+```graphql
+{
+  actor {
+    organization {
+      id
+      name
+      userManagement {
+        authenticationDomains {
+          authenticationDomains {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**IDs de grupo:**
+
+```graphql
+{
+  actor {
+    organization {
+      userManagement {
+        authenticationDomains(id: "YOUR_AUTH_DOMAIN_ID") {
+          authenticationDomains {
+            groups {
+              groups {
+                id
+                displayName
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**ID da conta:** visível na URL do New Relic, ou:
+
+```graphql
+{
+  actor {
+    accounts {
+      id
+      name
+    }
+  }
+}
+```
+
+## Modelo de script de automação [#automation-script]
+
+Para equipes que gerenciam várias frotas e grupos em escala, aqui está um modelo usando a [New Relic CLI](/docs/new-relic-solutions/tutorials/new-relic-cli). Ele cria um grupo, cria uma frota e concede ao grupo acesso a essa frota.
+
+Crie as funções personalizadas na interface primeiro, conforme descrito no [padrão avançado](#advanced-ui), e passe o ID da função para o script.
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Prerequisites:
+#   - New Relic CLI installed and profile configured with a user key
+#   - The Authentication domain manager role, required to create access grants
+#   - A role created in Administration > Access management > Roles, and its ID
+
+AUTH_DOMAIN_ID="YOUR_AUTH_DOMAIN_ID"
+ACCOUNT_ID="YOUR_ACCOUNT_ID"
+ROLE_ID="YOUR_ROLE_ID"
+GROUP_NAME="fleet-architects"
+FLEET_NAME="production-us-east-k8s"
+
+# 1. Create the group. Note the returned group ID.
+echo "Creating group ${GROUP_NAME}..."
+newrelic nerdgraph query 'mutation CreateGroup($authDomainId: ID!, $displayName: String!) {
+  userManagementCreateGroup(createGroupOptions: {
+    authenticationDomainId: $authDomainId
+    displayName: $displayName
+  }) {
+    group { id displayName }
+  }
+}' --variables "{\"authDomainId\": \"${AUTH_DOMAIN_ID}\", \"displayName\": \"${GROUP_NAME}\"}"
+
+# 2. Create the fleet. Note the returned fleet GUID.
+echo "Creating fleet ${FLEET_NAME}..."
+newrelic nerdgraph query 'mutation CreateFleet($name: String!, $scopeId: ID!) {
+  fleetControlCreateFleet(fleetEntity: {
+    name: $name
+    description: "Created by setup script"
+    managedEntityType: KUBERNETESCLUSTER
+    scope: { type: ACCOUNT, id: $scopeId }
+  }) {
+    entity { id name }
+  }
+}' --variables "{\"name\": \"${FLEET_NAME}\", \"scopeId\": \"${ACCOUNT_ID}\"}"
+
+# 3. Grant the group access to the fleet, using the IDs returned above.
+GROUP_ID="GROUP_ID_FROM_STEP_1"
+FLEET_GUID="FLEET_GUID_FROM_STEP_2"
+
+echo "Granting entity-scoped access..."
+newrelic nerdgraph query 'mutation GrantFleetAccess($groupId: ID!, $fleetGuid: ID!, $roleId: ID!) {
+  authorizationManagementGrantAccess(grantAccessOptions: {
+    grantee: { type: GROUP, id: $groupId }
+    entityAccessGrants: {
+      entity: { id: $fleetGuid, type: "fleet" }
+      roleId: $roleId
+    }
+  }) {
+    accessGrants { id }
+  }
+}' --variables "{\"groupId\": \"${GROUP_ID}\", \"fleetGuid\": \"${FLEET_GUID}\", \"roleId\": \"${ROLE_ID}\"}"
+
+echo "Setup complete."
+```
+
+Passe valores com `--variables` em vez de criar strings de consulta manualmente, para que nomes contendo espaços ou aspas não quebrem a solicitação. Para executar as etapas de forma autônoma, capture cada resposta e leia os IDs dela antes da próxima chamada.
+
+Para um conjunto mais completo de operações de frota, incluindo atualização e exclusão de frotas e gerenciamento de implantações, consulte [APIs e CLI do<DNT>Fleet Control</DNT> ](/docs/new-relic-control/fleet-control/apis-and-cli).
+
+## Qual é o próximo [#whats-next]
+
+* [Gerenciar frotas](/docs/new-relic-control/fleet-control/manage-fleets) para a interface de permissões de frota e aprovações de configuração
+* [APIs e CLI do Controle de Agentes](/docs/new-relic-control/fleet-control/apis-and-cli) para acesso programático
+* [Segurança do Controle de Agentes](/docs/new-relic-control/fleet-control/security) para saber como as configurações e credenciais são protegidas
+* [Permissões de usuário](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions) e [conceitos de gerenciamento de usuário](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts) para saber como grupos, funções e concessões de acesso funcionam em todo o New Relic
