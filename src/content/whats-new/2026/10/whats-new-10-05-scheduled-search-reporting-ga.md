@@ -15,7 +15,7 @@ Scheduled Search and Reporting lets you take any NRQL query and run it automatic
 
 ## Notification conditions
 
-Not every scheduled query needs to land in your inbox on every run; often you only care when something looks wrong. With Notification Conditions, you can attach a condition to your scheduled query so you're notified only when the results actually cross the line you care about. This turns a routine report into a lightweight, query-driven alert, with no separate alert condition needed.
+Not every scheduled query needs to land in your inbox on every run; often you only care when something looks wrong. With Notification Conditions, you can attach a condition based on the total number of results returned by the NRQL query (for example, when the result count equals, is greater than, or matches another specified threshold). This ensures you are notified only when the query results meet your defined criteria.
 
 ![Setting a notification condition on a scheduled search](/images/scheduled-search-notification.webp "Notification Conditions")
 
