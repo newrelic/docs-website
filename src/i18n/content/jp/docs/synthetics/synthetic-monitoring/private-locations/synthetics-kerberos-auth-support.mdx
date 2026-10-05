@@ -1,0 +1,313 @@
+---
+title: プライベートロケーションでのKerberos（SPNEGO）認証のサポート
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+  - Kerberos
+  - Security
+  - Authentication
+metaDescription: 'Configure a Kerberos KDC, a SPNEGO-protected web server, and the New Relic synthetics job manager to support Kerberos authentication.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このドキュメントでは、Amazon Linux 2023 EC2インスタンス上にKerberos Key Distribution Center（KDC）およびSPNEGO/Kerberos認証のWebアプリケーションをセットアップする方法と、Kerberos認証をサポートするモニターを実行するように[外形監視ジョブマネージャー](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager)（SJM）を設定する方法について説明します。
+
+## プレースホルダーの値 [#variables]
+
+始める前に、ご使用の環境の以下の値を確認してください。このドキュメントに表示されるプレースホルダーはすべて、ご自身の値に置き換えてください。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        プレースホルダー
+      </th>
+
+      <th>
+        説明
+      </th>
+
+      <th>
+        例
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `<REALM_NAME>`
+      </td>
+
+      <td>
+        Kerberosレルム（大文字である必要があります）
+      </td>
+
+      <td>
+        `KERBTEST.LOCAL`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `<EC2_PRIVATE_IP>`
+      </td>
+
+      <td>
+        EC2インスタンスのプライベートIPv4アドレス
+      </td>
+
+      <td>
+        `10.8.9.172`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `<EC2_INTERNAL_HOSTNAME>`
+      </td>
+
+      <td>
+        Webアプリの完全修飾ドメイン名（FQDN）
+      </td>
+
+      <td>
+        `ip-X-X-X-X.ec2.internal`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `<CLIENT_PRINCIPAL>`
+      </td>
+
+      <td>
+        外形監視ワーカーに割り当てられたKerberos ID
+      </td>
+
+      <td>
+        `synthetics-test`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `<CLIENT_KEYTAB_PATH>`
+      </td>
+
+      <td>
+        クライアントのキータブが保存されているホスト上のフルパス
+      </td>
+
+      <td>
+        `/home/ec2-user/kerb-test/synthetics-test.keytab`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `<PRIVATE_LOCATION_KEY>`
+      </td>
+
+      <td>
+        New Relic プライベートロケーションキー
+      </td>
+
+      <td>
+        `NRSP-us...`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## パート1：ホスト環境のセットアップ [#host-setup]
+
+<CollapserGroup>
+  <Collapser id="install-packages" title="ステップ1：Kerberosパッケージをインストールする">
+    ホストEC2インスタンスにKerberos KDCサーバーと管理ツールをインストールしてください：
+
+    ```bash
+    sudo dnf install -y krb5-server krb5-workstation
+    ```
+  </Collapser>
+
+  <Collapser
+    id="system-config"
+    title={<>ステップ2：システムKerberosの構成（<InlineCode>
+      /etc/krb5.conf
+    </InlineCode>）</>
+    }
+  >
+    レルムのrequestsをKDCに転送するように`/etc/krb5.conf`を設定します：
+
+    ```bash
+    sudo tee /etc/krb5.conf > /dev/null <<'EOF'
+    [libdefaults]
+        default_realm = <REALM_NAME>
+        dns_lookup_realm = false
+        dns_lookup_kdc = false
+        rdns = false
+
+    [realms]
+        <REALM_NAME> = {
+            kdc = <EC2_PRIVATE_IP>
+            admin_server = <EC2_PRIVATE_IP>
+        }
+
+    [domain_realm]
+        <EC2_INTERNAL_HOSTNAME> = <REALM_NAME>
+    EOF
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kdc-config"
+    title={<>ステップ3：KDCデーモン（<InlineCode>
+      kdc.conf
+    </InlineCode>）を構成する</>
+    }
+  >
+    KDCサービスのポートと暗号化ルールを定義します：
+
+    ```bash
+    sudo tee /var/kerberos/krb5kdc/kdc.conf > /dev/null <<'EOF'
+    [kdcdefaults]
+        kdc_ports = 88
+        kdc_tcp_ports = 88
+
+    [realms]
+        <REALM_NAME> = {
+            acl_file = /var/kerberos/krb5kdc/kadm5.acl
+            dict_file = /usr/share/dict/words
+            admin_keytab = /var/kerberos/krb5kdc/kadm5.keytab
+            supported_enctypes = aes256-cts-hmac-sha1-96:normal aes128-cts-hmac-sha1-96:normal
+        }
+    EOF
+    ```
+  </Collapser>
+
+  <Collapser id="init-db" title="ステップ4：マスターデータベースとKDCデーモンを初期化する">
+    データベースを作成し、KDCバックグラウンドサービスを開始します：
+
+    ```bash
+    # Create the Kerberos database (assign a master password when prompted)
+    sudo kdb5_util create -r <REALM_NAME> -s
+
+    # Grant admin permissions and enable KDC services on system boot
+    echo "*/admin@<REALM_NAME> *" | sudo tee /var/kerberos/krb5kdc/kadm5.acl
+    sudo systemctl enable --now krb5kdc kadmin
+    ```
+  </Collapser>
+
+  <Collapser id="keytab-generation" title="ステップ5：クライアントとサーバーのキータブの生成">
+    クライアント（外形監視ワーカー）とターゲットWebサーバーのサービスプリンシパル名（SPN）の両方の非対話型資格情報を保持するキータブファイルを生成します：
+
+    ```bash
+    mkdir -p /home/ec2-user/kerb-test
+
+    # 1. Create client principal & keytab for synthetics runners
+    sudo kadmin.local -q "addprinc -randkey <CLIENT_PRINCIPAL>@<REALM_NAME>"
+    sudo kadmin.local -q "ktadd -k <CLIENT_KEYTAB_PATH> <CLIENT_PRINCIPAL>@<REALM_NAME>"
+    sudo chmod 644 <CLIENT_KEYTAB_PATH>
+
+    # 2. Create HTTP service principal name (SPN) keytab for the web server
+    sudo kadmin.local -q "addprinc -randkey HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
+    sudo kadmin.local -q "ktadd -k /home/ec2-user/kerb-test/http.keytab HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
+    sudo chmod 644 /home/ec2-user/kerb-test/http.keytab
+    ```
+  </Collapser>
+
+  <Collapser id="deploy-test-container" title="（オプション）ステップ6：テストWebコンテナのデプロイ">
+    <Callout variant="tip">
+      この手順は、セットアップを検証するために同じホスト上でテストWebサーバーを実行する場合にのみ必要です。SJMの設定には必要ありません。
+    </Callout>
+
+    `mod_auth_gssapi`で構成されたApacheコンテナをデプロイします：
+
+    ```bash
+    mkdir -p ~/kerb-test/httpd-image && cd ~/kerb-test/httpd-image
+
+    cat > kerb-test.conf <<'EOF'
+    <Location /kerb-test>
+        AuthType GSSAPI
+        AuthName "Kerberos Login"
+        GssapiCredStore keytab:/etc/krb5-http.keytab
+        Require valid-user
+    </Location>
+    EOF
+
+    cat > Dockerfile <<'EOF'
+    FROM debian:bookworm-slim
+    RUN apt-get update && \
+        apt-get install -y --no-install-recommends apache2 libapache2-mod-auth-gssapi krb5-user && \
+        a2enmod auth_gssapi && \
+        mkdir -p /var/www/html/kerb-test && \
+        echo '<h1>Kerberos SSO worked</h1>' > /var/www/html/kerb-test/index.html && \
+        rm -rf /var/lib/apt/lists/*
+    COPY kerb-test.conf /etc/apache2/conf-enabled/kerb-test.conf
+    EXPOSE 80
+    CMD ["apache2ctl", "-D", "FOREGROUND"]
+    EOF
+
+    docker build -t kerb-test-httpd .
+
+    docker run -d --name kerb-test-httpd \
+      -p 8080:80 \
+      -v /etc/krb5.conf:/etc/krb5.conf:ro \
+      -v /home/ec2-user/kerb-test/http.keytab:/etc/krb5-http.keytab:ro \
+      kerb-test-httpd
+    ```
+  </Collapser>
+
+  <Collapser id="verify-handshake" title="ステップ7：ローカルDNSとKerberosハンドシェイクの検証">
+    内部ドメインがホスト上でローカルに解決されることを確認し、Kerberos認証が正常に完了することを検証します：
+
+    ```bash
+    # 1. Map internal hostname in /etc/hosts
+    echo "<EC2_PRIVATE_IP> <EC2_INTERNAL_HOSTNAME>" | sudo tee -a /etc/hosts
+
+    # 2. Verify unauthenticated challenge returns 401 Unauthorized
+    curl -i http://<EC2_INTERNAL_HOSTNAME>:8080/kerb-test/
+
+    # 3. Test ticket acquisition and end-to-end Kerberos SSO
+    kinit -kt <CLIENT_KEYTAB_PATH> <CLIENT_PRINCIPAL>@<REALM_NAME>
+    curl --negotiate -u : -i http://<EC2_INTERNAL_HOSTNAME>:8080/kerb-test/
+    ```
+
+    テストが成功すると、`HTTP/1.1 200 OK` で応答し、保護されたWebページのコンテンツが表示されます。
+  </Collapser>
+</CollapserGroup>
+
+## パート2：Kerberos用に外形監視ジョブマネージャーを設定する [#sjm-configuration]
+
+外形監視ブラウザランナーコンテナが自動的にKDCを解決し、Kerberosチケットを取得して、保護されたエンドポイントに対して認証できるようにするには、標準のSJM `docker run`コマンドに以下のKerberos環境変数とボリュームマウントを追加します。
+
+### 標準コマンド（Kerberosなし） [#standard-sjm-command]
+
+```bash
+docker run -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+  -d --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock:rw \
+  newrelic/synthetics-job-manager
+```
+
+### 必須コマンド（Kerberosサポートを有効にした場合） [#kerberos-sjm-command]
+
+以下の環境変数（`-e`）とキータブボリュームマウント（`-v`）を`docker run`コマンドに追加します：
+
+```bash
+docker run -d \
+  --name sjm-container \
+  --restart unless-stopped \
+  -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+  -e KERBEROS_REALM=<REALM_NAME> \
+  -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+  -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+  -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+  -e RUNTIME_EXTRA_HOSTS=<EC2_INTERNAL_HOSTNAME>:<EC2_PRIVATE_IP> \
+  -v /var/run/docker.sock:/var/run/docker.sock:rw \
+  -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro \
+  newrelic/synthetics-job-manager
+```
