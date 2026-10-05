@@ -1,0 +1,120 @@
+---
+title: セッションリプレイのデータ量を最適化する
+metaDescription: 'Learn how DOM complexity and mutation patterns affect session replay payload size, and how to reduce it.'
+freshnessValidatedDate: '2026-09-23T00:00:00.000Z'
+translationType: machine
+---
+
+セッションリプレイのペイロードサイズは、記録するセッション数だけでなく、サイトのDOMの複雑さや、そのDOMが変更される頻度にも依存します。このガイドではその理由を説明し、リプレイが生成するデータ量を削減するための具体的な方法を提供します。価格計算式とリプレイあたりの平均バイト数の見積もりについては、[「データ消費量」](/docs/browser/browser-monitoring/browser-pro-features/session-replay/additional-information/#data-consumption)をご覧ください。
+
+## DOMの複雑さがペイロードサイズを増大させる理由 [#dom-complexity]
+
+セッションリプレイは、ビデオやスクリーンショットを記録しません。[「セッションリプレイとアプリのパフォーマンス」](/docs/browser/browser-monitoring/browser-pro-features/session-replay/additional-information/#app-performance)で説明されているように、ページのDOM構造をキャプチャし、加えられた変更（ミューテーション）を追跡して圧縮されたペイロードとして報告します。
+
+そのペイロードサイズの背後には、2つの独立したコスト要因があります：
+
+* **スナップショットサイズ**：完全なスナップショットがキャプチャされた時点で、DOMノードがいくつ存在し、どの程度深くネストされているか。
+* **ミューテーションボリューム**：その後、それらのノードの属性、クラス、またはテキストが変更される頻度。
+
+[サンプリングレートの調整](/docs/browser/browser-monitoring/browser-pro-features/session-replay/configuration/setup-session-replay/#configure-sampling-rates)により、記録されるセッションの*数*を制御します。このガイドの手法は、サンプリングレートに関係なく、記録される各セッションの*コスト*を制御します。
+
+## ペイロードサイズを肥大化させる一般的なパターン [#common-patterns]
+
+以下のパターンは、インラインアイコンで構築された星評価ウィジェットや自動回転する画像カルーセルを備えた製品ページなど、コンテンツの多いページで一般的です。
+
+### インラインSVGとアイコンを多用するウィジェット [#inline-svgs]
+
+繰り返されるインラインSVGマークアップ — たとえば、ネストされた`<path>`、`<defs>`、およびグラデーション要素を使用して、各星を独自の`<svg>`として描画する評価ウィジェット — は、DOMノード数を急速に増加させます。この方法で描画された5つの星により、簡単に数十のノードが追加される可能性があります；評価ウィジェットでいっぱいのページでは、数千のノードが追加される可能性があります。
+
+```html
+<!-- Avoid: each star repeats a full, independent SVG definition -->
+<div class="rating">
+  <svg viewBox="0 0 20 20">
+    <defs><linearGradient id="star-fill-1">...</linearGradient></defs>
+    <path d="..." />
+  </svg>
+  <svg viewBox="0 0 20 20">
+    <defs><linearGradient id="star-fill-2">...</linearGradient></defs>
+    <path d="..." />
+  </svg>
+  <!-- repeated for every star, on every rating widget on the page -->
+</div>
+```
+
+これを減らすには：
+
+* シンプルで静的なアイコンには、インラインSVGの代わりに**CSSのbackground-imageまたはスプライトを使用してください**。これにより、アイコンのマークアップがDOMから完全に削除されます。
+
+* **インラインSVGが必要な場合は、シェイプを1度定義して再利用します**：シェイプを非表示の`<symbol>`に配置し、必要な場所すべてで`<use>`を使用して参照します。
+
+  ```html
+  <svg style="display:none">
+    <symbol id="star-icon" viewBox="0 0 20 20"><path d="..." /></symbol>
+  </svg>
+  <div class="rating">
+    <svg><use href="#star-icon"></use></svg>
+    <svg><use href="#star-icon"></use></svg>
+  </div>
+  ```
+
+* **リプレイでウィジェットの視覚的な忠実度が必要ない場合は、キャプチャから除外してください。**除外するには、ウィジェットのコンテナで`nr-block` CSSクラス（または`data-nr-block`属性）を使用するか、マークアップを変更したくない場合（編集できないサードパーティのウィジェットに便利です）は<DNT>**Application settings**</DNT>の<DNT>**Block selectors**</DNT>フィールドを使用します。[サイトコンテンツのブロック](/docs/browser/browser-monitoring/browser-pro-features/session-replay/configuration/customize-privacy-settings/#block-content)をご覧ください。
+
+  <Callout variant="important">
+    共有の`<symbol>`定義を保持するコンテナは、通常は非表示であり除外しても安全に見えますが、そのコンテナに`nr-block`、`nr-ignore`、またはブロックセレクタを適用しないでください。コンテナをブロックすると、キャプチャされたDOMからその子要素が完全に削除されます — これにより、ページ上の他の場所にあるそれらのシンボルへのすべての`<use>`参照が無効になります。個々の視覚的なインスタンス（`<use>`要素）のみをブロックまたは無視し、共有の定義は決してブロックまたは無視しないでください。
+  </Callout>
+
+### 肥大化した初期スナップショット [#initial-snapshot]
+
+ページの最初の完全なスナップショットは、表示されていないコンテンツやリプレイに必要のないコンテンツを含め、その時点でDOMに存在するすべてのものをキャプチャします：
+
+* ページに直接インライン化された、大規模でミニファイされた`<style>`ブロックは、スナップショットではテキストとしてキャプチャされます。
+* すぐに非表示になる要素（`display: none`または`visibility: hidden`）は、リプレイで閲覧者が目にする内容には何も寄与しませんが、引き続きキャプチャされます。
+
+これを減らすには：
+
+* 大きなインライン`<style>`ブロックの代わりに、`<link rel="stylesheet">`を使用して**CSSを外部化**します。セッションリプレイはファイルの内容ではなくリンクをキャプチャするため、スナップショットを小さく保つことができます。CSSが別のドメインでホストされている場合、正しくキャプチャするには`crossorigin="anonymous"`属性が必要です — [「セッションリプレイのクロスオリジンCSSの管理」](/docs/browser/browser-monitoring/browser-pro-features/session-replay/configuration/customize-privacy-settings/#cross-origin-css)をご覧ください。
+* ページ読み込み時にすべてをレンダリングするのではなく、モーダルやセカンダリセクションなど、**ファーストビュー以下のコンテンツを遅延読み込み**します。
+* 上記のように`nr-block`/`nr-ignore`または<DNT>**Block selectors**</DNT>を使用して、**すぐに非表示になり、ユーザーのアクション後にのみ表示される要素をブロックまたは無視**します。
+
+### 高頻度の属性およびクラスのミューテーション [#frequent-mutations]
+
+一部のUIパターンは、セッションが続く限り、ミューテーションイベントを継続的に生成します。一般的な例は、数秒ごとにCSSクラスを入れ替えて表示される画像を変更する、自動回転する画像カルーセルです — 各入れ替えはミューテーションイベントであり、セッション全体にわたって繰り返されます。
+
+これを減らすには：
+
+* UXで許容される場合は、アニメーション、スクロール、または自動回転によってトリガーされる**DOMの更新をスロットルまたはデバウンス**してください。
+* `style`または`class`属性に繰り返し書き込むJavaScriptよりも、**CSSトランジションまたはアニメーションによって駆動される単一のクラストグルを優先してください**。
+* リプレイに反映させる必要がない場合は、`nr-block`または<DNT>**Block selectors**</DNT>を使用して、**純粋に装飾的で変更の激しい要素をブロックしてください** — スピナー、自動回転するカルーセル、マーキースタイルのバナーなど。
+
+## サイズを肥大化させるパターンがないかサイトを監査する [#audit-your-site]
+
+変更を加える前に、自身のペイロードサイズが実際にどこから発生しているかを確認すると役立ちます。
+
+1. ブラウザのDevToolsを開き、代表的なページでDOMノード数とネストの深さを確認してください。Elementsパネル、またはコンソールでの簡単な`document.querySelectorAll('*').length`により、おおよその数がわかります。
+2. ページのソース内で、繰り返し使用されているか深くネストされたインラインSVGマークアップ、および大きなインライン`<style>`ブロックを探してください。
+3. ページを通常通り操作しながら「Elements」パネルを監視し、数秒ごとにクラスや属性が変更される要素に注意してください — これらが最も大量のミューテーションの発生源です。
+4. 確認した結果を、`nr-block`、`nr-ignore`、または<DNT>**Block selectors**</DNT>の候補と照らし合わせてください。
+
+また、NRQLクエリを使用して、スナップショットサイズのバイト数とミューテーションボリュームのバイト数を直接比較することもできます：
+
+```sql
+SELECT sum(newrelic.timeslice.value)
+FROM Metric
+WHERE (metricTimesliceName LIKE 'Browser/Supportability/rrweb/node/%/bytes') AND (`entity.guid` = 'YOUR_ENTITY_GUID')
+FACET metricTimesliceName
+SINCE 30 minutes ago UNTIL now
+TIMESERIES
+```
+
+`YOUR_ENTITY_GUID`をブラウザアプリのエンティティGUIDに置き換えてください。`.../node/2/bytes`シリーズは完全なスナップショット（DOMの複雑さ）のコストを反映し、`.../node/3/bytes`シリーズはミューテーション（DOMの変更）のコストを反映します。修正を適用する前後でこれを実行し、ペイロードサイズが実際に削減されたことを確認してください。
+
+## ベストプラクティスチェックリスト [#best-practices]
+
+* インラインSVGマークアップを複製する代わりに、CSSスプライト、背景画像、または`<symbol>`/`<use>`パターンを使用してください。
+* 大きなインラインCSSブロックを外部化します。
+* すべてを最初にレンダリングするのではなく、スクロールしなければ見えない部分のコンテンツを遅延読み込みしてください。
+* 装飾的または変更頻度の高い要素は`nr-block`または<DNT>**Block selectors**</DNT>でブロックしてください — ただし、共有の`<symbol>`定義を保持するコンテナは絶対にブロックしないでください。
+* `nr-ignore`を使用して、値自体がリプレイにとって重要ではない高頻度の入力フィールドを無視してください。
+* アニメーションおよびスクロール駆動のDOM更新をスロットルまたはデバウンスしてください。
+* 短いテスト期間で変更の前後を測定し、スナップショットサイズとミューテーションボリュームのバイト数を比較します。
+* サンプリングレートは代替手段ではなく、補完的な手段として扱ってください — これは記録されるセッション数を制御するものであり、各セッションのコストを制御するものではありません。
