@@ -1,0 +1,169 @@
+---
+title: Linkerd 데이터 찾기 및 쿼리
+metaDescription: 'Access Linkerd metrics, traces, and logs in New Relic. Navigate to your Linkerd entity, explore dashboards, and run NRQL queries.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Linkerd용 OpenTelemetry Collector를 설정한 후, 메시 텔레메트리는 Linkerd 엔티티 아래에 범위가 지정된 `Metric`, `Span` 및 `Log` 이벤트로 뉴렐릭에 유입됩니다.
+
+## Linkerd 엔티티 찾기 [#find-entity]
+
+1. [one.newrelic.com](https://one.newrelic.com)으로 이동하여 **Entity Explorer**를 선택합니다.
+2. 클러스터 이름을 검색하십시오.
+3. Linkerd 엔티티를 선택하여 내장 대시보드를 여십시오.
+
+기본 제공 대시보드는 요청 속도, 지연시간 p50/p95/p99, 성공률, TCP 연결, mTLS 인증서 상태, 컨트롤 플레인 상태 및 메시된 파드 인벤토리를 포함합니다.
+
+### 링커드 대시보드 [#dashboard]
+
+Linkerd 엔티티 대시보드는 서비스 메시 텔레메트리의 개요를 제공합니다. 여기에는 다음이 포함됩니다:
+
+| 부분      | 패널                                  |
+| ------- | ----------------------------------- |
+| 최상위     | TCP 연결, 프록시에서 처리한 요청                |
+| 교통      | 인바운드 비율, 아웃바운드 비율                   |
+| 건강      | 성공률, 오류율, HTTP 상태 코드                |
+| 지연 시간   | 요청 지연시간 p50/p95/p99, 아웃바운드 지연시간 p99 |
+| 보안      | mTLS 인증서 만료, 인증서 갱신 비율              |
+| 컨트롤 플레인 | 권한 부여 정책, 대기열 깊이, CP 요청 속도          |
+| 토폴로지    | 프록시 메모리 사용량, 서비스별 작업                |
+| 목록      | 메시된 파드                              |
+
+## NRQL 쿼리 예 [#queries]
+
+각 쿼리에서 `<YOUR_CLUSTER>`을(를) 실제 클러스터 이름으로 바꾸십시오.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        목적
+      </th>
+
+      <th>
+        NRQL 쿼리
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        서비스별 요청 속도
+      </td>
+
+      <td>
+        ```sql
+        SELECT rate(sum(request_total), 1 minute) AS 'Req/min' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' AND linkerd_control_plane_component IS NULL FACET k8s.deployment.name SINCE 30 minutes ago TIMESERIES
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        서비스별 지연시간 p99
+      </td>
+
+      <td>
+        ```sql
+        SELECT histogram(response_latency_ms, width: 50, slide_by: 10) FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' AND linkerd_control_plane_component IS NULL FACET k8s.deployment.name SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        HTTP 성공률
+      </td>
+
+      <td>
+        ```sql
+        SELECT sum(response_total) AS 'Total responses', filter(sum(response_total), WHERE classification = 'success') / sum(response_total) * 100 AS 'Success %' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' FACET k8s.deployment.name SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        mTLS 인증서 만료
+      </td>
+
+      <td>
+        ```sql
+        SELECT latest(identity_cert_expiration_timestamp_seconds) AS 'Cert expires (epoch)' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' FACET k8s.deployment.name SINCE 10 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        컨트롤 플레인 대기열 깊이
+      </td>
+
+      <td>
+        ```sql
+        SELECT latest(control_plane_queue_length) AS 'Queue depth' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' AND linkerd_control_plane_component IS NOT NULL FACET linkerd_control_plane_component SINCE 10 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        TCP 열린 연결
+      </td>
+
+      <td>
+        ```sql
+        SELECT rate(sum(tcp_open_connections), 1 second) AS 'TCP connections' FROM Metric WHERE k8s.cluster.name = '<YOUR_CLUSTER>' FACET k8s.deployment.name SINCE 30 minutes ago TIMESERIES
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        서비스별 분산 트레이스(APM 경로만 해당)
+      </td>
+
+      <td>
+        ```sql
+        SELECT count(*) FROM Span WHERE k8s.cluster.name = '<YOUR_CLUSTER>' FACET service.name SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Linkerd 속성과 함께 프록시 스팬이 수집되고 있는지 확인하십시오.
+      </td>
+
+      <td>
+        ```sql
+        SELECT count(*) FROM Span WHERE k8s.cluster.name = '<YOUR_CLUSTER>' AND linkerd_control_plane_component IS NOT NULL FACET service.name SINCE 10 minutes ago
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+&quot;Verify proxy spans&quot; 쿼리가 0을 반환하면 `transform/linkerd_component_inject` 프로세서가 실행되지 않거나 스팬에서 `linkerd_control_plane_ns`이(가) 누락된 것입니다. 해결 단계는 [Linkerd 모니터링 문제 해결](/docs/opentelemetry/integrations/linkerd/troubleshooting)을 참조하십시오.
+
+## 관련 기사 [#related-articles]
+
+<DocTiles>
+  <DocTile title="Linkerd 모니터링 문제 해결" path="/docs/opentelemetry/integrations/linkerd/troubleshooting">
+    뉴렐릭에 메트릭, 트레이스 및 로그가 표시되지 않는 일반적인 문제를 해결하십시오.
+  </DocTile>
+
+  <DocTile title="Linkerd 프록시 로그 수집" path="/docs/opentelemetry/integrations/linkerd/proxy-logs">
+    선택적으로 
+
+    `linkerd-proxy`
+
+     사이드카 컨테이너 로그를 수집하십시오.
+  </DocTile>
+
+  <DocTile title="지표 참조" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">
+    OTel Collector가 수집한 Linkerd 메트릭 및 리소스 속성의 전체 목록입니다.
+  </DocTile>
+</DocTiles>
