@@ -1,0 +1,225 @@
+---
+title: 'Instale e configure o monitoramento do Linkerd: OTel Collector Contrib com Helm'
+metaDescription: Install and configure the OpenTelemetry Collector Contrib using Helm to monitor your Linkerd service mesh with OpenTelemetry.
+tags:
+  - Linkerd
+  - OpenTelemetry
+  - OpenTelemetry Collector Contrib
+  - Helm
+  - Kubernetes
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: linkerd
+flow:
+  prev: /docs/opentelemetry/integrations/linkerd/introduction
+  next: null
+translationType: machine
+---
+
+Esta página instala o OpenTelemetry Collector Contrib da comunidade usando o Helm, configura-o para coletar métricas do proxy e do plano de controle do Linkerd e verifica se os dados estão fluindo para a New Relic. Isso deve levar cerca de 15 minutos.
+
+## Compatibilidade e requisitos [#requirements]
+
+### Suportado
+
+* Cluster do Kubernetes (EKS, GKE, AKS ou autogerenciado) com `kubectl` configurado nele
+* Linkerd instalado e íntegro (`linkerd check` aprovado)
+* Configuração de cluster gerenciada pelo Helm
+
+### Você precisa
+
+* Uma [chave de licença de ingestão](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)da New Relic
+
+* [Helm](https://helm.sh/docs/intro/install/) instalado e configurado em seu cluster
+
+* Conectividade de rede para os [endpoints OTLP da New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+* Injeção habilitada nos namespaces que você deseja observar. Se não estiver, anote e reinicie-os:
+
+  ```bash
+  kubectl annotate namespace <YOUR_NAMESPACE> linkerd.io/inject=enabled
+  kubectl rollout restart deployment -n <YOUR_NAMESPACE>
+  ```
+
+* (Opcional) [kube-state-metrics](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-state-metrics) em execução no seu cluster, se você quiser entidades de workload do Kubernetes correlacionadas com métricas do Linkerd. Se você já possui a [integração do Kubernetes da New Relic](/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration/) instalada, isso já está resolvido.
+
+<Steps>
+  <Step>
+    ## Instalar [#install]
+
+    1. Adicione o repositório Helm do OpenTelemetry.
+
+```bash
+    helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+    helm repo update
+```
+
+    2. Crie `values.yaml` e atualize as seguintes seções:
+
+    3. Defina o modo para implantação.
+
+```yaml
+    mode: deployment
+```
+
+    4. Substitua o repositório de imagens.
+
+```yaml
+    image:
+      repository: otel/opentelemetry-collector-contrib
+```
+
+    5. Configure a função do cluster.
+
+```yaml
+    clusterRole:
+      create: true
+      rules:
+        - apiGroups: [""]
+          resources: [pods, nodes, nodes/proxy, endpoints, services, namespaces]
+          verbs: [get, list, watch]
+        - apiGroups: ["apps"]
+          resources: [replicasets, deployments, daemonsets, statefulsets]
+          verbs: [get, list, watch]
+```
+
+    4. Defina o nome do seu cluster e a chave de licença de ingestão da New Relic.
+
+```yaml
+    extraEnvs:
+      - name: K8S_CLUSTER_NAME
+        value: "<YOUR_CLUSTER_NAME>"
+      - name: NEWRELIC_LICENSE_KEY
+        value: "<YOUR_NR_INGEST_LICENSE_KEY>"
+```
+
+    5. Substitua toda a seção `config` pela configuração de monitoramento do Linkerd.
+
+```yaml
+    config:
+      receivers:
+        prometheus:
+          config:
+            scrape_configs:
+              - job_name: 'linkerd-controller'
+                kubernetes_sd_configs:
+                  - role: pod
+                    namespaces: { names: ['linkerd', 'linkerd-viz'] }
+                relabel_configs:
+                  - { source_labels: [__meta_kubernetes_pod_container_port_name], action: keep, regex: admin-http }
+                  - { source_labels: [__meta_kubernetes_pod_container_name], target_label: component }
+                  - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+                  - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+              - job_name: 'linkerd-proxy'
+                kubernetes_sd_configs: [{ role: pod }]
+                relabel_configs:
+                  - { source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_label_linkerd_io_control_plane_ns], action: keep, regex: ^linkerd-proxy;linkerd-admin;linkerd$ }
+                  - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+                  - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+                  - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_ns], target_label: linkerd_control_plane_ns }
+                  - { source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_component], target_label: linkerd_control_plane_component }
+
+      processors:
+        resource/strip_service:
+          attributes:
+            - { key: service.name, action: delete }
+            - { key: service.instance.id, action: delete }
+        resource/cluster:
+          attributes:
+            - key: k8s.cluster.name
+              value: "${env:K8S_CLUSTER_NAME}"
+              action: insert
+        transform/k8s:
+          metric_statements:
+            - context: datapoint
+              statements:
+                - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+                - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+                - delete_key(attributes, "instance")
+        transform/deployment:
+          metric_statements:
+            - context: datapoint
+              statements:
+                - set(attributes["k8s.deployment.name"], attributes["k8s.pod.name"]) where attributes["k8s.deployment.name"] == nil and attributes["k8s.pod.name"] != nil
+                - replace_pattern(attributes["k8s.deployment.name"], "-[a-z0-9]+-[a-z0-9]+$", "") where attributes["k8s.deployment.name"] == attributes["k8s.pod.name"]
+        transform/metadata_nullify:
+          metric_statements:
+            - context: metric
+              statements:
+                - set(description, "")
+                - set(unit, "")
+
+      exporters:
+        otlp_http/newrelic:
+          endpoint: "https://otlp.nr-data.net:4318"
+          headers:
+            api-key: "${env:NEWRELIC_LICENSE_KEY}"
+
+      service:
+        pipelines:
+          metrics:
+            receivers: [prometheus]
+            processors: [memory_limiter, resource/strip_service, resource/cluster, transform/k8s, transform/deployment, transform/metadata_nullify, batch]
+            exporters: [otlp_http/newrelic]
+```
+
+    <Callout variant="tip">
+      Este chart não filtra métricas de proxy de baixo valor por padrão. Se você deseja a mesma filtragem que o NRDOT aplica, adicione um processador `filter/drop_unused`. Consulte a página [NRDOT com Helm](/docs/opentelemetry/integrations/linkerd/nrdot-helm#install) para ver a lista de filtros.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Configurar [#configure]
+
+    1. Atualize o arquivo `values.yaml` de acordo com a tabela a seguir:
+
+    | Parâmetro              | Descrição                                                                                                                                                                                          |
+    | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_CLUSTER_NAME>`  | Substitua pelo nome do seu cluster do Kubernetes para identificação no New Relic                                                                                                                   |
+    | `K8S_CLUSTER_NAME`     | O nome do seu cluster em `extraEnvs`. Este nome de cluster é usado pelo OTel Collector para identificar seu cluster do Kubernetes no New Relic                                                     |
+    | `NEWRELIC_LICENSE_KEY` | Sua chave de licença de ingestão da New Relic definida em `extraEnvs`                                                                                                                              |
+    | `filter/drop_unused`   | Não incluído por padrão na configuração deste chart. Consulte [NRDOT com Helm](/docs/opentelemetry/integrations/linkerd/nrdot-helm#install) se desejar a mesma filtragem de métrica de baixo valor |
+
+    2. Instale o helm-chart
+
+```bash
+    helm upgrade my-opentelemetry-collector open-telemetry/opentelemetry-collector \
+      -f values.yaml -n newrelic --create-namespace --install
+```
+  </Step>
+
+  <Step>
+    ## Encontre seus dados [#find]
+
+    1. Vá para <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities)** &gt; **All entities**</DNT>.
+    2. Pesquise o nome do seu cluster.
+    3. Selecione sua entidade do Linkerd para abrir o dashboard integrado.
+
+    O dashboard integrado abrange a taxa de requisições, latência p50/p95/p99, taxa de sucesso, conexões TCP, status do certificado mTLS, integridade do plano de controle e inventário de pods na malha. Para obter informações detalhadas, consulte a documentação [Find Linkerd data](/docs/opentelemetry/integrations/linkerd/find-data).
+  </Step>
+</Steps>
+
+## Artigos relacionados [#related-articles]
+
+<DocTiles>
+  <DocTile title="Linkerd distributed tracing com OpenTelemetry" path="/docs/opentelemetry/integrations/linkerd/distributed-tracing">
+    Ative a exportação de trace de proxy e instrumente os pods do seu aplicativo para correlacionar spans de malha com traces de APM.
+  </DocTile>
+
+  <DocTile title="Colete logs do proxy do Linkerd" path="/docs/opentelemetry/integrations/linkerd/proxy-logs">
+    Adicione um segundo release do Helm para coletar logs do sidecar 
+
+    `linkerd-proxy`
+
+    .
+  </DocTile>
+
+  <DocTile title="Referência de métricas" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">
+    Lista completa de métricas e atributos de recursos do Linkerd coletados pelo OTel Collector.
+  </DocTile>
+</DocTiles>
