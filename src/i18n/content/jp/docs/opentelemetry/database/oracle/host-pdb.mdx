@@ -1,0 +1,722 @@
+---
+title: オンホストPDB監視のためのNRDOT Collectorのインストールと設定
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - PDB
+  - Pluggable Database
+metaDescription: Set up Oracle Pluggable Database monitoring using NRDOT Collector in on-host environments
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Oracle-Database-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/database/oracle/introduction
+  next: null
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/)に従ってプレビューの一部として提供されています。
+</Callout>
+
+New Relic Distribution of OpenTelemetry（NRDOT）コレクターを使用して、データベース監視、クエリ分析、およびシステムヘルスメトリクスにより、Oracleプラガブルデータベース（PDB）のパフォーマンスに関する包括的なインサイトを取得します。
+
+<Callout variant="tip" title="ガイド付きインストレーション">
+  代わりにNew Relic UIからインストールするには、<DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Integrations &amp; Agents &gt; Oracle (OpenTelemetry)** </DNT>にアクセスしてください。このページでは、CLIでのインストール手順のみを説明します。
+</Callout>
+
+<Callout variant="tip">
+  個別のプラガブルデータベースではなくコンテナデータベース全体をモニターする必要がある場合は、[CDB計装](/docs/opentelemetry/database/oracle/host-cdb)を参照してください。
+</Callout>
+
+## 前提条件 [#prerequisites]
+
+始める前に、次のものがあることを確認してください。
+
+* 有効なNew Relic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* サポートされているアーキテクチャー: AMD64 および ARM64 を搭載した Linux
+* [New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのネットワーク接続
+* Oracleデータベース `19c` 以降
+
+### プレビューに登録 [#enroll]
+
+このインテグレーションは、New Relicパブリックプレビュープログラムの一部として利用可能です。[Previews &amp; Trials](https://one.newrelic.com/admin-portal/promotion-management/home)ページからオプトインするには、組織の管理者に連絡してください。
+
+<Steps>
+  <Step>
+    ## NRDOT Collectorをインストールする [#installation]
+
+    Linux 環境に適したインストレーション配布方法を選択します。
+
+    <CollapserGroup>
+      <Collapser title="AMD64向けアーキテクチャー" id="amd">
+        * Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+          ```
+
+        * RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+          ```
+      </Collapser>
+
+      <Collapser title="ARM64用アーキテクチャー" id="arm">
+        * Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+          ```
+
+        * RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+          ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## データベースユーザーを構成する [#database-user]
+
+    PDB Oracleデータベースインスタンスに必要な権限を持つ監視ユーザーを作成します。
+
+    1. ユーザーを作成したり権限を付与したりする前に、SYSとして以下のステートメントを実行します：
+       ```sql
+       ALTER SESSION SET CONTAINER = "<YOUR_PDB>";
+       ```
+    2. ターゲットPDB内でSYSとして次のステートメントを実行し、ローカル監視ユーザーを作成します：
+       ```sql
+       CREATE USER <USER_NAME> IDENTIFIED BY "<YOUR_PASSWORD>";
+       GRANT CREATE SESSION TO <USER_NAME>;
+       ```
+  </Step>
+
+  <Step>
+    ## マルチテナントデータベースの監視権限を付与する [#grant-privileges]
+
+    PDB内でSYSユーザーとしてこれらのコマンドを実行します。これにより、監視ツールがメトリクスを収集し、イベントを追跡し、データベースインスタンスを見つけるために必要な基本的なアクセス権が付与されます。
+
+    ```sql
+    GRANT SELECT ON V_$INSTANCE   TO <USER_NAME>;
+    GRANT SELECT ON V_$DATABASE   TO <USER_NAME>;
+    GRANT SELECT ON V_$CONTAINERS TO <USER_NAME>;
+    GRANT SELECT ON V_$DATAFILE   TO <USER_NAME>;
+    GRANT SELECT ON V_$SYSSTAT                    TO <USER_NAME>;
+    GRANT SELECT ON V_$SYSMETRIC                  TO <USER_NAME>;
+    GRANT SELECT ON V_$SESSION                    TO <USER_NAME>;
+    GRANT SELECT ON V_$RESOURCE_LIMIT             TO <USER_NAME>;
+    GRANT SELECT ON V_$OSSTAT                     TO <USER_NAME>;
+    GRANT SELECT ON V_$SGAINFO                    TO <USER_NAME>;
+    GRANT SELECT ON V_$ROWCACHE                   TO <USER_NAME>;
+    GRANT SELECT ON V_$PARAMETER                  TO <USER_NAME>;
+    GRANT SELECT ON DBA_TABLESPACE_USAGE_METRICS  TO <USER_NAME>;
+    GRANT SELECT ON DBA_TABLESPACES               TO <USER_NAME>;
+    GRANT SELECT ON DBA_DATA_FILES                TO <USER_NAME>;
+    GRANT SELECT ON DBA_FREE_SPACE                TO <USER_NAME>;
+    GRANT SELECT ON DBA_RECYCLEBIN                TO <USER_NAME>;
+    GRANT SELECT ON V_$SQL            TO <USER_NAME>;
+    GRANT SELECT ON V_$SQL_PLAN_STATISTICS_ALL       TO <USER_NAME>;
+    GRANT SELECT ON V_$LOCK           TO <USER_NAME>;
+    GRANT SELECT ON V_$SESSION_EVENT  TO <USER_NAME>;
+    GRANT SELECT ON DBA_PROCEDURES    TO <USER_NAME>;
+    GRANT SELECT ON DBA_OBJECTS       TO <USER_NAME>;
+    GRANT SELECT ON V_$PDBS      TO <USER_NAME>;
+    GRANT SELECT ON CDB_SERVICES TO <USER_NAME>;
+    ```
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorを構成する [#configure-collector]
+
+    PDB固有の設定でNRDOT Collectorを設定します。
+
+    1. 設定ファイルを作成します。ファイル名は`oracle-config.yaml`である必要があります。
+
+    ```bash
+    sudo nano /etc/nrdot-collector/oracle-config.yaml
+    ```
+
+    2. 前のステップで作成した`oracle-config.yaml`ファイルに、以下の設定内容を追加してください：
+
+    <Callout variant="tip" title="完全な設定">
+      この設定は、ホストインフラストラクチャのメトリクスを含まない、データベース監視のみを対象としています。フル機能の監視を有効にするには、[設定リファレンス](/docs/opentelemetry/database/oracle/config-reference/#pdb-full)を参照してください。
+    </Callout>
+
+    <OtelConfig
+      inputOptions={[{"name":"host","label":"Oracle PDBホスト名/IP","codeLine":3,"defaultValue":"oracle.example.com","toolTip":"Oracleデータベースのホスト名またはIPアドレスを入力してください"},{"name":"port","label":"Oracle PDBポート","codeLine":3,"defaultValue":"1521","toolTip":"Oracle データベースのポート番号を入力してください。デフォルト値は1521です。"},{"name":"username","label":"データベースユーザー名","codeLine":4,"defaultValue":"newrelic","toolTip":"認証用のデータベースユーザー名を入力してください"},{"name":"password","label":"データベースパスワード","codeLine":5,"defaultValue":"YOUR_PASSWORD","toolTip":"監視ユーザーに設定したパスワードを入力してください。"},{"name":"service","label":"PDBサービス名","codeLine":6,"defaultValue":"YOUR_PDB_SERVICE_NAME","toolTip":"Oracle PDBサービス名を入力してください"},{"name":"endpoint","label":"New Relic OTLPエンドポイント","codeLine":329,"defaultValue":"https://otlp.nr-data.net:4318","toolTip":"New Relic OTLPエンドポイントを入力します。詳細については、https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/ を参照してください。"},{"name":"licenseKey","label":"New Relicライセンスキー","codeLine":331,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"New Relicライセンスキーを入力してください。"}]}
+      config={`receivers:
+      nroracledb:
+      endpoint: <input1>:<input2>
+      username: <input3>
+      password: <input4>
+      service: <input5>
+      collection_interval: 10s
+      events:
+       db.server.query_sample:
+         enabled: true
+       db.server.top_query:
+         enabled: true
+       db.server.session.wait_sample:
+         enabled: true
+
+      top_query_collection:
+       max_query_sample_count: 1000
+       top_query_count: 200
+       collection_interval: 60s
+       allowed_comment_keys:
+         - nr_service_guid
+
+      query_sample_collection:
+       max_rows_per_query: 100
+       allowed_comment_keys:
+         - nr_service_guid
+
+      session_wait_event_collection:
+       max_rows_per_query: 100
+
+      # Metrics configuration - organized by category
+      metrics:
+       # === CPU & Performance Metrics ===
+       oracledb.cpu_time:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.database.cpu.utilization:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.host.cpu.utilization:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+       # === Execution & Parse Metrics ===
+       oracledb.executions:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.execution.utilization:
+         enabled: true
+         attributes:
+           - oracledb.parse.type
+           - oracle.db.pdb
+       oracledb.parse_calls:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.parse.rate:
+         enabled: true
+         attributes:
+           - oracledb.parse.result
+           - oracle.db.pdb
+       oracledb.parse.utilization:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.hard_parses:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+       # === I/O & Physical Read/Write Metrics ===
+       oracledb.logical_reads:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.physical_reads:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.physical_reads_direct:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.physical_writes:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.physical_writes_direct:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.physical_read_io_requests:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.physical_write_io_requests:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+       # === New Physical I/O Metrics (detailed) ===
+       oracledb.physical_io.cache_writes:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.physical_io.requests:
+         enabled: true
+         attributes:
+           - disk.io.direction
+           - disk.io.block_size
+           - oracle.db.pdb
+       oracledb.physical_io.transferred:
+         enabled: true
+         attributes:
+           - disk.io.direction
+           - disk.io.type
+           - oracle.db.pdb
+
+       # === Network I/O Metrics ===
+       oracledb.sqlnet.io.transferred:
+         enabled: true
+         attributes:
+           - network.io.direction
+           - destination.type
+           - oracle.db.pdb
+
+       # === Buffer & Cache Metrics ===
+       oracledb.consistent_gets:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.db_block_gets:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.buffer_cache.utilization:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.library_cache.utilization:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.data_dictionary.hit_ratio:
+         enabled: true
+       oracledb.shared_pool.utilization:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+       # === Memory Metrics ===
+       oracledb.pga_memory:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.sga.limit:
+         enabled: true
+       oracledb.sga.usage:
+         enabled: true
+         attributes:
+           - oracledb.sga.component.name
+
+       # === Wait & Database Time Metrics ===
+       oracledb.database.wait.utilization:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+       # === Lock & Deadlock Metrics ===
+       oracledb.dml_locks.limit:
+         enabled: true
+       oracledb.dml_locks.usage:
+         enabled: true
+       oracledb.enqueue_locks.limit:
+         enabled: true
+       oracledb.enqueue_locks.usage:
+         enabled: true
+       oracledb.enqueue_resources.limit:
+         enabled: true
+       oracledb.enqueue_resources.usage:
+         enabled: true
+       oracledb.enqueue_deadlocks:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.exchange_deadlocks:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+       # === Process & Session Metrics ===
+       oracledb.processes.limit:
+         enabled: true
+       oracledb.processes.usage:
+         enabled: true
+       oracledb.sessions.limit:
+         enabled: true
+       oracledb.sessions.usage:
+         enabled: true
+         attributes:
+           - session_type
+           - session_status
+           - oracle.db.pdb
+       oracledb.logons:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+       # === Transaction Metrics ===
+       oracledb.transactions.limit:
+         enabled: true
+       oracledb.transactions.usage:
+         enabled: true
+       oracledb.user_commits:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.user_rollbacks:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+       # === Tablespace Metrics ===
+       oracledb.tablespace_size.limit:
+         enabled: true
+         attributes:
+           - tablespace_name
+           - oracle.db.pdb
+       oracledb.tablespace_size.usage:
+         enabled: true
+         attributes:
+           - tablespace_name
+           - oracle.db.pdb
+
+       # === Storage Metrics ===
+       oracledb.storage.usage:
+         enabled: true
+       oracledb.storage.utilization:
+         enabled: true
+       oracledb.recycle_bin.limit:
+         enabled: true
+
+       # === Parallel Operations Metrics ===
+       oracledb.queries_parallelized:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.ddl_statements_parallelized:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.dml_statements_parallelized:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.parallel_operations_not_downgraded:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.parallel_operations_downgraded_1_to_25_pct:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.parallel_operations_downgraded_25_to_50_pct:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.parallel_operations_downgraded_50_to_75_pct:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.parallel_operations_downgraded_75_to_99_pct:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.parallel_operations_downgraded_to_serial:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+       # === Redo & Sort Metrics ===
+       oracledb.redo_allocation.utilization:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+       oracledb.sort.ratio:
+         enabled: true
+         attributes:
+           - oracledb.sort.type
+           - oracle.db.pdb
+
+       # === Response Time Metrics ===
+       oracledb.sql_service.response.duration:
+         enabled: true
+         attributes:
+           - oracle.db.pdb
+
+      # Resource attributes attached to all metrics/logs (all enabled by default)
+      resource_attributes:
+       host.name:
+         enabled: true
+       oracle.db.hosting_type:
+         enabled: true
+       oracle.db.open_mode:
+         enabled: true
+       oracle.db.pdb:
+         enabled: true
+       oracle.db.role:
+         enabled: true
+       oracle.db.version:
+         enabled: true
+       oracledb.instance.name:
+         enabled: true
+       service.instance.id:
+         enabled: true
+      processors:
+      batch:
+      resource/add_event_name:
+      attributes:
+       - key: host.address
+         value: YOUR_DB_HOST
+         action: upsert
+      exporters:
+      otlp/newrelic:
+      endpoint: <input6>
+      headers:
+       api-key: <input7>
+      compression: gzip
+      retry_on_failure:
+       enabled: true
+       initial_interval: 5s
+       max_interval: 30s
+       max_elapsed_time: 300s
+      service:
+      pipelines:
+      metrics/oracledb:
+       receivers: [nroracledb]
+       processors: [resource/add_event_name, batch]
+       exporters: [otlp/newrelic]
+      logs/oracledb:
+       receivers: [nroracledb]
+       processors: [resource/add_event_name, batch]
+       exporters: [otlp/newrelic]`}
+      fileName="oracle-config.yaml"
+      tipMdx={{ body: null }}
+      onChange={() => {}}
+    />
+
+    3. 「イベント」セクションで、これらのイベントタイプを有効にしてメトリクスを収集します：
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            イベント
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `db.server.query_sample`
+          </td>
+
+          <td>
+            現在のSQL、待機状態、およびブロックの詳細をキャプチャするセッションごとのアクティブなクエリのサンプル。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db.server.top_query`
+          </td>
+
+          <td>
+            実行統計とクエリプランを含む、CPUまたは経過時間ごとの上位N個のSQLステートメント。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db.server.session.wait_sample`
+          </td>
+
+          <td>
+            `v$session_event`
+
+            からのセッションごとの累積待機回数と期間。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    4. 各イベントタイプの収集設定を構成します：
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            設定セクション
+          </th>
+
+          <th>
+            パラメータ
+          </th>
+
+          <th>
+            価値
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `top_query_collection`
+          </td>
+
+          <td>
+            `max_query_sample_count`
+          </td>
+
+          <td>
+            1000
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `top_query_collection`
+          </td>
+
+          <td>
+            `top_query_count`
+          </td>
+
+          <td>
+            200
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `top_query_collection`
+          </td>
+
+          <td>
+            `collection_interval`
+          </td>
+
+          <td>
+            60秒
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `query_sample_collection`
+          </td>
+
+          <td>
+            `max_rows_per_query`
+          </td>
+
+          <td>
+            100
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `session_wait_event_collection`
+          </td>
+
+          <td>
+            `max_rows_per_query`
+          </td>
+
+          <td>
+            100
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      New Relic OTLPエンドポイント設定およびOpenTelemetryのベストプラクティスの詳細については、[OpenTelemetry OTLPドキュメント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)を参照してください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorの設定を更新 [#update]
+
+    `oracle-config.yaml`ファイルを使用するようにNRDOT Collectorの設定を更新してください：
+
+    ```bash
+    sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/oracle-config.yaml"|' /etc/nrdot-collector/nrdot-collector.conf
+    ```
+
+    <Callout variant="tip">
+      もできます。
+
+      * [複数のレシーバーを構成する](/docs/opentelemetry/database/oracle/multi-receiver)：1つのコレクターから複数のOracleデータベースインスタンスをモニターします。
+      * [SQL Query Receiverの設定](/docs/opentelemetry/database/capabilities/sql-query-receiver/): Oracleデータベースからカスタムメトリックを収集します。
+      * [OracleデータベースをAPMとリンクする](/docs/opentelemetry/database/capabilities/db-apm)：アプリケーションパフォーマンスとデータベース操作を関連付けます。これにより、どのアプリケーションが特定のデータベースワークロードを生成しているかを正確に確認できます。
+      * [シークレット管理の設定](/docs/opentelemetry/database/capabilities/db-apm/#secret-management): データベースの認証情報などの機密情報を安全に管理するためです。これにより、設定ファイルに機密データをハードコーディングすることを回避し、監視設定のセキュリティを強化できます。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorを再起動します [#restart-collector]
+
+    設定を更新した後、NRDOT Collectorを再起動します：
+
+    ```bash
+    sudo systemctl restart nrdot-collector.service
+    sudo systemctl status nrdot-collector.service
+    ```
+
+    <Callout variant="tip">
+      新しい設定を確実に適用するために、設定を変更した後は常にNRDOT Collectorを再起動してください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## データを探す、使う [#find-use-data]
+
+    データの収集が開始されると、New RelicのUIを通じて包括的なOracleデータベース監視にアクセスできるようになります。
+
+    New RelicでOracleデータベースエンティティを見つけるには：
+
+    1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>に移動します。
+    2. 検索条件を<DNT>`instrumentation.provider = opentelemetry`</DNT>に設定します。
+    3. エンティティのリストからOracleデータベースを選択します。
+  </Step>
+</Steps>
+
+## 関連記事 [#related-articles]
+
+<DocTiles>
+  <DocTile title="トラブルシューティング" path="/docs/opentelemetry/database/oracle/troubleshooting">
+    New RelicでOracle PDB監視設定をトラブルシューティングする方法を学びます。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/database/oracle/metrics-reference">
+    NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+  </DocTile>
+
+  <DocTile title="RDS計装" path="/docs/opentelemetry/database/oracle/rds">
+    New RelicでRDS監視用にOracleデータベースを設定する方法を学びます。
+  </DocTile>
+</DocTiles>
