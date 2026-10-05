@@ -1,0 +1,120 @@
+---
+title: Optimiser le volume de données de Session Replay
+metaDescription: 'Learn how DOM complexity and mutation patterns affect session replay payload size, and how to reduce it.'
+freshnessValidatedDate: '2026-09-23T00:00:00.000Z'
+translationType: machine
+---
+
+La taille de la charge de Session Replay ne dépend pas seulement du nombre de sessions que vous enregistrez ; elle dépend également de la complexité du DOM de votre site, et de la fréquence à laquelle ce DOM change. Ce guide explique pourquoi, et vous donne des moyens concrets de réduire la quantité de données qu’un replay génère. Pour la formule de tarification, et l’estimation moyenne des octets par replay, consultez la section [Consommation de données](/docs/browser/browser-monitoring/browser-pro-features/session-replay/additional-information/#data-consumption).
+
+## Pourquoi la complexité du DOM détermine la taille de la charge [#dom-complexity]
+
+Session Replay n’enregistre pas de vidéo ni de captures d’écran. Il capture la structure du DOM de votre page, puis suit et signale les modifications (mutations) qui y sont apportées sous forme de charges compressées, comme décrit dans [Session Replay et les performances de votre application](/docs/browser/browser-monitoring/browser-pro-features/session-replay/additional-information/#app-performance).
+
+Il existe deux facteurs de coût indépendants derrière la taille de cette charge :
+
+* **Taille de l’instantané**: le nombre de nœuds DOM existants, et leur niveau d’imbrication, au moment où un instantané complet est capturé.
+* **Volume de mutation**: la fréquence à laquelle les attributs, les classes, ou le texte de ces nœuds changent par la suite.
+
+[L’ajustement de votre taux d’échantillonnage](/docs/browser/browser-monitoring/browser-pro-features/session-replay/configuration/setup-session-replay/#configure-sampling-rates) contrôle *le nombre* de sessions enregistrées. Les techniques de ce guide contrôlent *le coût* de chaque session enregistrée, quel que soit votre taux d’échantillonnage.
+
+## Modèles courants qui augmentent la taille de la charge [#common-patterns]
+
+Les modèles suivants sont courants sur les pages riches en contenu, telles qu’une page produit avec un widget d’évaluation par étoiles construit à partir d’icônes en ligne, et un carrousel d’images à rotation automatique.
+
+### SVG en ligne et widgets riches en icônes [#inline-svgs]
+
+Le balisage SVG en ligne répété (par exemple, un widget d’évaluation qui dessine chaque étoile comme son propre `<svg>`, avec des éléments `<path>`, `<defs>`, et de dégradé imbriqués) multiplie rapidement le nombre de vos nœuds DOM. Cinq étoiles dessinées de cette manière peuvent facilement ajouter des dizaines de nœuds ; une page remplie de widget d’évaluation peut en ajouter des milliers.
+
+```html
+<!-- Avoid: each star repeats a full, independent SVG definition -->
+<div class="rating">
+  <svg viewBox="0 0 20 20">
+    <defs><linearGradient id="star-fill-1">...</linearGradient></defs>
+    <path d="..." />
+  </svg>
+  <svg viewBox="0 0 20 20">
+    <defs><linearGradient id="star-fill-2">...</linearGradient></defs>
+    <path d="..." />
+  </svg>
+  <!-- repeated for every star, on every rating widget on the page -->
+</div>
+```
+
+Pour réduire cela :
+
+* **Utilisez une image d’arrière-plan CSS ou un sprite** pour les icônes simples et statiques au lieu du SVG en ligne. Cela supprime entièrement le balisage de l’icône du DOM.
+
+* **Si le SVG en ligne est requis, définissez la forme une fois et réutilisez-la**: placez la forme dans un `<symbol>` masqué, puis référencez-la avec `<use>` partout où vous en avez besoin.
+
+  ```html
+  <svg style="display:none">
+    <symbol id="star-icon" viewBox="0 0 20 20"><path d="..." /></symbol>
+  </svg>
+  <div class="rating">
+    <svg><use href="#star-icon"></use></svg>
+    <svg><use href="#star-icon"></use></svg>
+  </div>
+  ```
+
+* **Si le widget n’a pas besoin de fidélité visuelle dans le replay, excluez-le de la capture** en utilisant soit la classe CSS `nr-block` (ou l’attribut `data-nr-block`) sur le conteneur du widget, soit le champ <DNT>**Block selectors**</DNT> dans <DNT>**Application settings**</DNT> si vous préférez ne pas toucher à votre balisage (utile pour les widget tiers que vous ne pouvez pas modifier). Consultez la section [Bloquer le contenu du site](/docs/browser/browser-monitoring/browser-pro-features/session-replay/configuration/customize-privacy-settings/#block-content).
+
+  <Callout variant="important">
+    N’appliquez pas `nr-block`, `nr-ignore` ou un sélecteur de bloc au conteneur qui contient vos définitions `<symbol>` partagées, même si ce conteneur est généralement masqué et semble pouvoir être exclu en toute sécurité. Le blocage d’un conteneur supprime entièrement ses enfants du DOM capturé, ce qui romprait chaque référence `<use>` à ces symboles n’importe où ailleurs sur la page. Bloquez ou ignorez uniquement les instances visuelles individuelles (les éléments `<use>`), jamais les définitions partagées.
+  </Callout>
+
+### Instantané initial volumineux [#initial-snapshot]
+
+Le premier instantané complet de votre page capture tout ce qui est présent dans le DOM à ce moment-là, y compris le contenu qui n’est pas visible, ou qui n’est pas nécessaire pour le replay :
+
+* Un grand bloc `<style>` minifié, et intégré directement dans la page, est capturé sous forme de texte dans l’instantané.
+* Les éléments qui sont immédiatement masqués (`display: none` ou `visibility: hidden`) sont tout de même capturés, bien qu’ils ne contribuent en rien à ce qu’un spectateur voit dans le replay.
+
+Pour réduire cela :
+
+* **Externalisez le CSS** à l’aide de `<link rel="stylesheet">` au lieu d’un grand bloc `<style>` en ligne. Session Replay capture le lien, et non le contenu du fichier, ce qui permet de conserver un instantané de petite taille. Si votre CSS est hébergé sur un domaine différent, vous aurez besoin de l’attribut `crossorigin="anonymous"` pour qu’il soit capturé correctement : consultez [Gérer le CSS cross-origin pour Session Replay](/docs/browser/browser-monitoring/browser-pro-features/session-replay/configuration/customize-privacy-settings/#cross-origin-css).
+* **Chargez en différé le contenu sous la ligne de flottaison**, tel que les fenêtres modales ou les sections secondaires, au lieu de tout afficher au chargement de la page.
+* **Bloquez ou ignorez les éléments qui sont immédiatement masqués**, et qui n’apparaissent qu’après une action de l’utilisateur, en utilisant `nr-block`/`nr-ignore`, ou <DNT>**Block selectors**</DNT> comme décrit ci-dessus.
+
+### Mutations d’attributs et de classes à haute fréquence [#frequent-mutations]
+
+Certains modèles d’interface utilisateur génèrent un flux continu d’événements de mutation pendant toute la durée d’une session. Un exemple courant est un carrousel d’images à rotation automatique qui échange une classe CSS toutes les quelques secondes pour changer l’image visible : chaque échange est un événement de mutation, répété pendant toute la durée de la session.
+
+Pour réduire cela :
+
+* **Limitez ou temporisez les mises à jour du DOM** qui sont pilotées par l’animation, le défilement, ou la rotation automatique, là où votre expérience utilisateur le permet.
+* **Privilégiez le basculement d’une seule classe piloté par une transition ou une animation CSS** plutôt que du JavaScript qui écrit de manière répétée dans les attributs `style` ou `class`.
+* **Bloquez les éléments purement décoratifs, et à forte mutation** (indicateurs de chargement, carrousels à rotation automatique, bannières défilantes) avec `nr-block`, ou <DNT>**Block selectors**</DNT> si vous n’avez pas besoin qu’ils soient reflétés dans le replay.
+
+## Auditez votre site pour détecter les modèles qui augmentent la taille [#audit-your-site]
+
+Avant d’apporter des modifications, il est utile de confirmer d’où provient réellement la taille de votre propre charge.
+
+1. Ouvrez les DevTools de votre navigateur et inspectez le nombre de nœuds du DOM et la profondeur d’imbrication sur une page représentative. Le panneau Éléments, ou un `document.querySelectorAll('*').length` rapide dans la console, vous donne un compte approximatif.
+2. Recherchez les balisages SVG en ligne répétés, ou profondément imbriqués, et les grands blocs `<style>` en ligne dans le code source de la page.
+3. Observez le panneau Éléments tout en interagissant normalement avec la page, et notez tous les éléments dont la classe ou les attributs changent toutes les quelques secondes : ce sont vos sources de mutations les plus importantes.
+4. Recoupez ce que vous trouvez avec les candidats pour `nr-block`, `nr-ignore` ou <DNT>**Block selectors**</DNT>.
+
+Vous pouvez également comparer directement les octets de la taille de l’instantané avec les octets du volume de mutation à l’aide d’une requête NRQL :
+
+```sql
+SELECT sum(newrelic.timeslice.value)
+FROM Metric
+WHERE (metricTimesliceName LIKE 'Browser/Supportability/rrweb/node/%/bytes') AND (`entity.guid` = 'YOUR_ENTITY_GUID')
+FACET metricTimesliceName
+SINCE 30 minutes ago UNTIL now
+TIMESERIES
+```
+
+Remplacez `YOUR_ENTITY_GUID` par le GUID de l’entité de votre application de navigateur. La série `.../node/2/bytes` reflète le coût de l’instantané complet (complexité du DOM), et la série `.../node/3/bytes` reflète le coût de mutation (rotation du DOM). Exécutez ceci avant et après l’application d’un correctif pour confirmer qu’il a réellement réduit la taille de votre charge.
+
+## Liste de contrôle des bonnes pratiques [#best-practices]
+
+* Utilisez des sprites CSS, des images d’arrière-plan, ou un modèle `<symbol>`/`<use>` au lieu de dupliquer le balisage SVG en ligne.
+* Externalisez les grands blocs CSS en ligne.
+* Chargez en différé le contenu situé sous la ligne de flottaison au lieu de tout afficher d’emblée.
+* Bloquez les éléments décoratifs ou à forte rotation avec `nr-block` ou <DNT>**Block selectors**</DNT>, mais jamais le conteneur abritant les définitions `<symbol>` partagées.
+* Ignorez les champs de saisie à haute fréquence où la valeur elle-même n’a pas d’importance pour le replay, en utilisant `nr-ignore`.
+* Limitez ou temporisez les mises à jour du DOM pilotées par l’animation et le défilement.
+* Mesurez avant et après tout changement avec une courte période de test, en comparant les octets de la taille de l’instantané et du volume de mutation.
+* Considérez le taux d’échantillonnage comme un levier complémentaire, et non comme un substitut : il contrôle le nombre de sessions enregistrées, et non le coût de chacune d’entre elles.

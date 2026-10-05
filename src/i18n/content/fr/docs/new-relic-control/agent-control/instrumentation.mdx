@@ -1,0 +1,837 @@
+---
+title: Instrumentez vos systèmes avec Agent Control
+metaDescription: 'Set up Agent Control instrumentation from scratch or migrate existing agents on Kubernetes, Linux, and Windows.'
+freshnessValidatedDate: '2026-09-22T00:00:00.000Z'
+translationType: machine
+---
+
+## Instrumentez un système propre
+
+<Callout variant="tip">
+  Agent Control est un service de supervision, il ne collecte, ni n’envoie de télémétrie par lui-même. Pour consulter les données dans New Relic, vous devez déployer des agents (tels que l’agent Infrastructure, ou NRDOT) via le contrôle de la flotte après l’installation d’Agent Control.
+</Callout>
+
+### Kubernetes
+
+1. **Créez une flotte** de type **cluster Kubernetes** dans le contrôle de la flotte. Consultez [Créer votre première flotte](/docs/new-relic-control/fleet-control/setup/#step-1-create-your-first-fleet) pour les étapes détaillées.
+
+2. **Installer Agent Control.** Suivez le [guide d&apos;installation de Kubernetes](/docs/new-relic-control/agent-control/setup/) et sélectionnez la flotte que vous avez créée à l&apos;étape 1.
+
+3. **Créez des configurations dans Fleet Control pour chacun de vos agents.** Après la connexion d’Agent Control à Fleet Control, [créez des configurations](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration) pour chacun de vos agents. Fleet Control est la source faisant autorité pour toute configuration d’agent, n’ajoutez pas de valeurs spécifiques à l’agent au `values.yaml` local.
+
+Exemple d&apos;ajout de l&apos;agent d&apos;infrastructure, de Fluent Bit, de Prometheus, et de NRDOT avec des paramètres personnalisés, chacune de ces configurations doit être créée en tant que configuration distante distincte dans le contrôle de la flotte :
+
+<CollapserGroup>
+  <Collapser id="k8s-clean-infra" title="Agent d'infrastructure">
+    Active l’agent New Relic Infrastructure avec des tolérances personnalisées et un intervalle de collecte de 30 secondes.
+
+    ```yaml
+    chart_values:
+      newrelic-infrastructure:
+        kubelet:
+          tolerations:
+            - operator: "Exists"
+              effect: "NoSchedule"
+            - operator: "Exists"
+              effect: "NoExecute"
+        common:
+          config:
+            interval: 30s
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-clean-logs" title="Fluent Bit (transfert de logs)">
+    Déploie le redirecteur de logs Fluent Bit avec des ressources CPU limitées.
+
+    ```yaml
+    chart_values:
+      newrelic-logging:
+        resources:
+          limits:
+            cpu: 200m
+          requests:
+            cpu: 200m
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-clean-prometheus" title="Prometheus">
+    Déploie l&apos;agent Prometheus en mode données réduites pour réduire le volume de télémétrie.
+
+    ```yaml
+    chart_values:
+      newrelic-prometheus-agent:
+        lowDataMode: true
+        config:
+          kubernetes:
+            integrations_filter:
+              enabled: false
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-clean-nrdot" title="NRDOT (collecteur OpenTelemetry)">
+    Déploie la distribution New Relic du collecteur OpenTelemetry. Le Récepteur `filelog` est désactivé ici : activez-le si vous souhaitez la collecte de logs.
+
+    ```yaml
+    chart_values:
+      nr-k8s-otel-collector:
+        receivers:
+          filelog:
+            enabled: false
+    ```
+  </Collapser>
+</CollapserGroup>
+
+4. **Créer un nouveau déploiement** en ajoutant les configurations distantes tout juste créées à votre flotte. Agent Control appliquera automatiquement la nouvelle configuration à votre cluster. Suivez ces étapes dans [créer et exécuter votre premier déploiement](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment).
+
+5. **Vérifiez que les données circulent.** Accédez à **Infrastructure &gt; Kubernetes** dans l’UI de New Relic. Votre cluster devrait apparaître dans les 1 - 2 minutes suivant l’application de la configuration à distance. S’il n’apparaît pas, consultez le [dépannage d’Agent Control](/docs/new-relic-control/agent-control/troubleshooting).
+
+### Linux
+
+1. **Créez une flotte** de type **Hôte Linux** dans le contrôle de la flotte. Consultez [Créer votre première flotte](/docs/new-relic-control/fleet-control/setup/#step-1-create-your-first-fleet) pour les étapes détaillées.
+
+2. **Installer Agent Control.** Suivez le [guide d’installation pour Linux](/docs/new-relic-control/agent-control/setup/) et sélectionnez la flotte que vous avez créée à l’étape 1.
+
+3. **Créez des configurations dans le contrôle de la flotte pour chacun de vos agents.** Après la connexion d’Agent Control au contrôle de la flotte, [créez des configurations](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration) pour chacun de vos agents.
+
+Exemple d&apos;ajout de l&apos;agent d&apos;infrastructure, nri-MySQL, nri-flex, fluentbit, et nrdot, chacune de ces configurations doit être créée en tant que configuration distante distincte dans le contrôle de la flotte :
+
+<CollapserGroup>
+  <Collapser id="linux-clean-infra" title="Agent d’infrastructure (base de référence)">
+    `config_agent` contient la configuration minimale requise. `license_key` est résolu à l’exécution à partir de la variable d’environnement `NEW_RELIC_LICENSE_KEY` à l’aide du fournisseur de valeurs `nr-env` ; `custom_attributes` est facultatif mais recommandé pour le filtrage. `config_logging` transfère le syslog du système vers New Relic Logs.
+
+    ```yaml
+    config_agent:
+      license_key: '${nr-env:NEW_RELIC_LICENSE_KEY}'
+      custom_attributes:
+        env: production
+    config_logging:
+      logging.yml:
+        logs:
+          - name: syslog
+            file: /var/log/syslog
+            attributes:
+              logtype: linux_syslog
+    ```
+  </Collapser>
+
+  <Collapser id="linux-clean-mysql" title="nri-MySQL (intégration sur hôte)">
+    Monitore une instance MySQL s’exécutant sur localhost. Le mot de passe est résolu au moment de l’exécution à partir de la variable d’environnement `MYSQL_PASSWORD` à l’aide du fournisseur de valeurs `nr-env` — ne codez jamais les identifiants en dur.
+
+    ```yaml
+    config:
+      integrations:
+        - name: nri-mysql
+          env:
+            HOSTNAME: localhost
+            PORT: 3306
+            USERNAME: newrelic
+            PASSWORD: ${nr-env:MYSQL_PASSWORD}
+            REMOTE_MONITORING: true
+          interval: 30s
+    ```
+  </Collapser>
+
+  <Collapser id="linux-clean-flex" title="nri-flex avec commande shell (intégration sur hôte)">
+    Collecte les statistiques d’utilisation du disque à partir du système de fichiers racine à l’aide de `df`. Cet exemple montre comment exécuter n’importe quelle commande shell et analyser sa sortie sous forme d’événements New Relic.
+
+    ```yaml
+    config:
+      integrations:
+        - name: nri-flex
+          config:
+            name: diskUsage
+            apis:
+              - event_type: DiskUsageSample
+                commands:
+                  - run: df -kP /
+                    split: horizontal
+                    split_by: \s+
+                    set_header: [filesystem, blocks, used, available, usePercent, mountpoint]
+                    row_start: 1
+    ```
+  </Collapser>
+
+  <Collapser id="linux-clean-nrdot" title="NRDOT (collecteur OpenTelemetry)">
+    Collecte les métriques d’hôte et les logs système, et ouvre un Récepteur OTLP pour les services APM. La clé de licence et le point de terminaison OTLP sont injectés automatiquement par Agent Control.
+
+    ```yaml
+    config:
+      # Variables set automatically by Agent Control:
+      # - NEW_RELIC_LICENSE_KEY: New Relic ingest license key.
+      # - OTEL_EXPORTER_OTLP_ENDPOINT: OTLP endpoint (see: https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/).
+
+      extensions:
+        health_check:
+
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+            http:
+
+        hostmetrics:
+          collection_interval: 60s
+          scrapers:
+            cpu:
+              metrics:
+                system.cpu.time:
+                  enabled: false
+                system.cpu.utilization:
+                  enabled: true
+            load:
+            memory:
+              metrics:
+                system.memory.utilization:
+                  enabled: true
+            paging:
+              metrics:
+                system.paging.utilization:
+                  enabled: false
+                system.paging.faults:
+                  enabled: false
+            filesystem:
+              metrics:
+                system.filesystem.utilization:
+                  enabled: true
+            disk:
+              metrics:
+                system.disk.merged:
+                  enabled: false
+                system.disk.pending_operations:
+                  enabled: false
+                system.disk.weighted_io_time:
+                  enabled: false
+            network:
+              metrics:
+                system.network.connections:
+                  enabled: false
+            # Uncomment to enable process metrics, which can be noisy but valuable.
+            # processes:
+            # process:
+            #  metrics:
+            #    process.cpu.utilization:
+            #      enabled: true
+            #    process.cpu.time:
+            #      enabled: false
+
+        filelog:
+          include:
+            - /var/log/alternatives.log
+            - /var/log/cloud-init.log
+            - /var/log/auth.log
+            - /var/log/dpkg.log
+            - /var/log/syslog
+            - /var/log/messages
+            - /var/log/secure
+            - /var/log/yum.log
+
+      processors:
+        metricstransform:
+          transforms:
+            - include: system.cpu.utilization
+              action: update
+              operations:
+                - action: aggregate_labels
+                  label_set: [state]
+                  aggregation_type: mean
+            - include: system.paging.operations
+              action: update
+              operations:
+                - action: aggregate_labels
+                  label_set: [direction]
+                  aggregation_type: sum
+        filter/exclude_cpu_utilization:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+              - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+              - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+        filter/exclude_memory_utilization:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+        filter/exclude_memory_usage:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+              - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+        filter/exclude_filesystem_utilization:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+        filter/exclude_filesystem_usage:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+              - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+        filter/exclude_filesystem_inodes_usage:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+              - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+        filter/exclude_system_disk:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+        filter/exclude_system_paging:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+              - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+        filter/exclude_network:
+          metrics:
+            datapoint:
+              - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+        attributes/exclude_system_paging:
+          include:
+            match_type: strict
+            metric_names:
+              - system.paging.operations
+          actions:
+            - key: type
+              action: delete
+        cumulativetodelta:
+        transform/host:
+          metric_statements:
+            - context: metric
+              statements:
+                - set(description, "")
+                - set(unit, "")
+        transform:
+          trace_statements:
+            - context: span
+              statements:
+                - truncate_all(attributes, 4095)
+                - truncate_all(resource.attributes, 4095)
+          log_statements:
+            - context: log
+              statements:
+                - truncate_all(attributes, 4095)
+                - truncate_all(resource.attributes, 4095)
+        memory_limiter:
+          check_interval: 1s
+          limit_mib: 100
+        batch:
+        resourcedetection:
+          detectors: ["system"]
+          system:
+            hostname_sources: ["os"]
+            resource_attributes:
+              host.id:
+                enabled: true
+        resourcedetection/cloud:
+          detectors: ["gcp", "ec2", "azure"]
+          timeout: 2s
+          ec2:
+            resource_attributes:
+              host.name:
+                enabled: false
+        resourcedetection/env:
+          detectors: ["env"]
+          timeout: 2s
+          override: true
+
+      exporters:
+        otlphttp:
+          endpoint: ${nr-env:OTEL_EXPORTER_OTLP_ENDPOINT}
+          headers:
+            api-key: ${nr-env:NEW_RELIC_LICENSE_KEY}
+
+      service:
+        pipelines:
+          metrics/host:
+            receivers: [hostmetrics]
+            processors:
+              - memory_limiter
+              - metricstransform
+              - filter/exclude_cpu_utilization
+              - filter/exclude_memory_utilization
+              - filter/exclude_memory_usage
+              - filter/exclude_filesystem_utilization
+              - filter/exclude_filesystem_usage
+              - filter/exclude_filesystem_inodes_usage
+              - filter/exclude_system_disk
+              - filter/exclude_network
+              - attributes/exclude_system_paging
+              - transform/host
+              - resourcedetection
+              - resourcedetection/cloud
+              - resourcedetection/env
+              - cumulativetodelta
+              - batch
+            exporters: [otlphttp]
+          logs/host:
+            receivers: [filelog]
+            processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+            exporters: [otlphttp]
+          traces:
+            receivers: [otlp]
+            processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+            exporters: [otlphttp]
+          metrics:
+            receivers: [otlp]
+            processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+            exporters: [otlphttp]
+          logs:
+            receivers: [otlp]
+            processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+            exporters: [otlphttp]
+        extensions: [health_check]
+    ```
+  </Collapser>
+</CollapserGroup>
+
+4. **Créer un nouveau déploiement** en ajoutant les configurations distantes tout juste créées à votre flotte. Agent Control appliquera automatiquement la nouvelle configuration à votre hôte, téléchargera et installera les packages OCI pour chacun des agents. Suivez ces étapes dans [créer et exécuter votre premier déploiement](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment).
+
+5. **Vérifiez que les données circulent.** Accédez à **Infrastructure &gt; Hosts** dans l’UI de New Relic. Votre hôte devrait apparaître sous 1 à 2 minutes. S’il n’apparaît pas, consultez le [dépannage d’Agent Control](/docs/new-relic-control/agent-control/troubleshooting).
+
+### Windows
+
+1. **Créez une flotte** de type **Hôte Windows** dans le contrôle de la flotte. Consultez [Créer votre première flotte](/docs/new-relic-control/fleet-control/setup/#step-1-create-your-first-fleet) pour les étapes détaillées.
+
+2. **Installer Agent Control.** Suivez le [guide d’installation de Windows](/docs/new-relic-control/agent-control/setup/) et sélectionnez la flotte que vous avez créée à l’étape 1.
+
+3. **Créez des configurations dans le contrôle de la flotte pour chacun de vos agents.** Après la connexion d’Agent Control au contrôle de la flotte, [créez des configurations](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration) pour chacun de vos agents.
+
+Exemple d&apos;ajout de l&apos;agent d&apos;infrastructure, nri-MySQL, nri-flex, fluentbit, et nrdot, chacune de ces configurations doit être créée en tant que configuration distante distincte dans le contrôle de la flotte :
+
+<CollapserGroup>
+  <Collapser id="win-clean-infra" title="Agent d’infrastructure (base de référence)">
+    `config_agent` contient la configuration minimale requise. `license_key` est résolu à l’exécution à partir de la variable d’environnement `NEW_RELIC_LICENSE_KEY` à l’aide du fournisseur de valeurs `nr-env` ; `custom_attributes` est facultatif mais recommandé pour le filtrage. `config_logging` transfère le log d’événements Windows vers New Relic Logs.
+
+    ```yaml
+    config_agent:
+      license_key: '${nr-env:NEW_RELIC_LICENSE_KEY}'
+      custom_attributes:
+        env: production
+    config_logging:
+      windows-event-log.yml:
+        logs:
+          - name: windows-event-log
+            winevtlog:
+              channel: System
+            attributes:
+              logtype: windows_event_log
+    ```
+  </Collapser>
+
+  <Collapser id="win-clean-mysql" title="nri-MySQL (intégration sur hôte)">
+    Monitore une instance MySQL s’exécutant sur localhost. Le mot de passe est résolu à l’exécution à partir de la variable d’environnement `MYSQL_PASSWORD` à l’aide du fournisseur de valeurs `nr-env`.
+
+    ```yaml
+    config:
+      integrations:
+        - name: nri-mysql
+          env:
+            HOSTNAME: localhost
+            PORT: 3306
+            USERNAME: newrelic
+            PASSWORD: ${nr-env:MYSQL_PASSWORD}
+            REMOTE_MONITORING: true
+          interval: 30s
+    ```
+  </Collapser>
+
+  <Collapser id="win-clean-flex" title="nri-flex avec commande PowerShell (intégration sur hôte)">
+    Collecte les métriques de performances des disques logiques à l’aide de `Get-CimInstance` via PowerShell. Cet exemple montre comment nri-flex peut exécuter n’importe quelle commande PowerShell et analyser sa sortie JSON en tant qu’événements New Relic. Nécessite PowerShell v3+.
+
+    ```yaml
+    config:
+      integrations:
+        - name: nri-flex
+          config:
+            name: winDiskPerf
+            apis:
+              - event_type: WinDiskPerfSample
+                shell: powershell
+                commands:
+                  - run: >
+                      Get-CimInstance -ClassName Win32_PerfFormattedData_PerfDisk_LogicalDisk |
+                      Select-Object -Property Name, PercentFreeSpace, FreeMegabytes |
+                      ConvertTo-Json
+    ```
+  </Collapser>
+
+  <Collapser id="win-clean-nrdot" title="NRDOT (collecteur OpenTelemetry)">
+    Collecte les métriques d’hôte et ouvre un Récepteur OTLP pour les services APM. La clé de licence et le point de terminaison OTLP sont injectés automatiquement par Agent Control.
+
+    ```yaml
+    config:
+      # Variables set automatically by Agent Control:
+      # - NEW_RELIC_LICENSE_KEY: New Relic ingest license key.
+      # - OTEL_EXPORTER_OTLP_ENDPOINT: OTLP endpoint (see: https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/).
+
+      extensions:
+        health_check:
+
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+            http:
+
+        hostmetrics:
+          collection_interval: 60s
+          scrapers:
+            cpu:
+              metrics:
+                system.cpu.time:
+                  enabled: false
+                system.cpu.utilization:
+                  enabled: true
+            load:
+            memory:
+              metrics:
+                system.memory.utilization:
+                  enabled: true
+            paging:
+              metrics:
+                system.paging.utilization:
+                  enabled: false
+                system.paging.faults:
+                  enabled: false
+            filesystem:
+              metrics:
+                system.filesystem.utilization:
+                  enabled: true
+            disk:
+              metrics:
+                system.disk.merged:
+                  enabled: false
+                system.disk.pending_operations:
+                  enabled: false
+                system.disk.weighted_io_time:
+                  enabled: false
+            network:
+              metrics:
+                system.network.connections:
+                  enabled: false
+
+      processors:
+        metricstransform:
+          transforms:
+            - include: system.cpu.utilization
+              action: update
+              operations:
+                - action: aggregate_labels
+                  label_set: [state]
+                  aggregation_type: mean
+            - include: system.paging.operations
+              action: update
+              operations:
+                - action: aggregate_labels
+                  label_set: [direction]
+                  aggregation_type: sum
+        filter/exclude_cpu_utilization:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+              - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+              - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+        filter/exclude_memory_utilization:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+        filter/exclude_memory_usage:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+              - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+        filter/exclude_filesystem_utilization:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+        filter/exclude_filesystem_usage:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+              - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+        filter/exclude_filesystem_inodes_usage:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+              - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+        filter/exclude_system_disk:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+        filter/exclude_system_paging:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+              - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+        filter/exclude_network:
+          metrics:
+            datapoint:
+              - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+        attributes/exclude_system_paging:
+          include:
+            match_type: strict
+            metric_names:
+              - system.paging.operations
+          actions:
+            - key: type
+              action: delete
+        cumulativetodelta:
+        transform/host:
+          metric_statements:
+            - context: metric
+              statements:
+                - set(description, "")
+                - set(unit, "")
+        transform:
+          trace_statements:
+            - context: span
+              statements:
+                - truncate_all(attributes, 4095)
+                - truncate_all(resource.attributes, 4095)
+          log_statements:
+            - context: log
+              statements:
+                - truncate_all(attributes, 4095)
+                - truncate_all(resource.attributes, 4095)
+        memory_limiter:
+          check_interval: 1s
+          limit_mib: 100
+        batch:
+        resourcedetection:
+          detectors: ["system"]
+          system:
+            hostname_sources: ["os"]
+            resource_attributes:
+              host.id:
+                enabled: true
+        resourcedetection/cloud:
+          detectors: ["gcp", "ec2", "azure"]
+          timeout: 2s
+          ec2:
+            resource_attributes:
+              host.name:
+                enabled: false
+        resourcedetection/env:
+          detectors: ["env"]
+          timeout: 2s
+          override: true
+
+      exporters:
+        otlphttp:
+          endpoint: ${nr-env:OTEL_EXPORTER_OTLP_ENDPOINT}
+          headers:
+            api-key: ${nr-env:NEW_RELIC_LICENSE_KEY}
+
+      service:
+        pipelines:
+          metrics/host:
+            receivers: [hostmetrics]
+            processors:
+              - memory_limiter
+              - metricstransform
+              - filter/exclude_cpu_utilization
+              - filter/exclude_memory_utilization
+              - filter/exclude_memory_usage
+              - filter/exclude_filesystem_utilization
+              - filter/exclude_filesystem_usage
+              - filter/exclude_filesystem_inodes_usage
+              - filter/exclude_system_disk
+              - filter/exclude_network
+              - attributes/exclude_system_paging
+              - transform/host
+              - resourcedetection
+              - resourcedetection/cloud
+              - resourcedetection/env
+              - cumulativetodelta
+              - batch
+            exporters: [otlphttp]
+          traces:
+            receivers: [otlp]
+            processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+            exporters: [otlphttp]
+          metrics:
+            receivers: [otlp]
+            processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+            exporters: [otlphttp]
+          logs:
+            receivers: [otlp]
+            processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+            exporters: [otlphttp]
+        extensions: [health_check]
+    ```
+  </Collapser>
+</CollapserGroup>
+
+4. **Créer un nouveau déploiement** en ajoutant les configurations distantes tout juste créées à votre flotte. Agent Control appliquera automatiquement la nouvelle configuration à votre hôte, téléchargera et installera les packages OCI pour chacun des agents. Suivez ces étapes dans [créer et exécuter votre premier déploiement](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment).
+
+5. **Vérifiez que les données circulent.** Accédez à **Infrastructure &gt; Hosts** dans l’UI de New Relic. Votre hôte devrait apparaître sous 1 à 2 minutes. S’il n’apparaît pas, consultez le [dépannage d’Agent Control](/docs/new-relic-control/agent-control/troubleshooting).
+
+## Migrer un système précédemment instrumenté
+
+<Callout variant="important">
+  Agent Control ne prend pas en charge la migration automatique des agents existants. La migration est toujours un processus manuel : désinstallez l’agent existant, installez Agent Control, puis recréez votre configuration en tant que configuration distante de contrôle de la flotte.
+</Callout>
+
+### Processus général de migration
+
+Quelle que soit la plateforme, la migration suit ces quatre étapes :
+
+1. **Notez votre configuration existante.** Sauvegardez une copie de tous les fichiers de configuration de l’agent et des configurations d’intégration avant de désinstaller quoi que ce soit. Vous les recréerez en tant que configurations à distance Fleet Control.
+2. **Désinstallez l’agent existant.** Agent Control ne peut pas coexister avec une installation d’agent autonome du même type.
+3. **Installer Agent Control et se connecter à une flotte.** Suivez le guide d’installation spécifique à la plateforme et sélectionnez une flotte existante ou créez-en une nouvelle.
+4. **Recréez votre configuration dans le contrôle de la flotte.** Créez une configuration à distance pour votre flotte avec vos paramètres précédents. Agent Control l’appliquera automatiquement.
+
+<Callout variant="important" title="La configuration à distance l'emporte toujours">
+  Le contrôle de la flotte est la source faisant autorité pour la configuration de l’agent. Tous les paramètres de l’agent, les versions, les valeurs de chart et les limites de ressources doivent être définis dans la configuration à distance du contrôle de la flotte, et non dans le fichier d’installation local. Si les deux existent, la configuration distante a la priorité et écrasera toutes les valeurs locales.
+</Callout>
+
+<Callout variant="tip" title="Meilleures pratiques">
+  Pour garantir la continuité des données, utilisez le même nom d’entité (nom de cluster ou nom d’hôte) et le même compte New Relic lors de l’installation d’Agent Control. Vous pouvez laisser en place tous les agents ou composants qui ne sont pas encore pris en charge par Agent Control jusqu’à ce que la prise en charge soit disponible.
+</Callout>
+
+### Kubernetes
+
+Si votre cluster Kubernetes est déjà instrumenté avec New Relic, vous pouvez passer vos agents sous la gestion d’Agent Control. Le processus de migration supprime les installations d’agents existantes, et les remplace par des installations gérées par Agent Control, configurées de manière centralisée via le contrôle de la flotte.
+
+Agent Control peut déployer et gérer les agents suivants à partir du chart Helm `nri-bundle` :
+
+* `newrelic-infrastructure`, `nri-kube-events` et `kube-state-metrics`: gérés comme le type d’ **Agent d’infrastructure**
+* `newrelic-prometheus-configurator`: géré en tant que type d’agent **Prometheus**
+* `newrelic-logging`: géré en tant que type d’agent **Fluent Bit**
+* `nr-k8s-otel-collector`: géré en tant que type d’agent **OpenTelemetry Collector**
+
+1. **Récupérez votre configuration existante.** Si vous avez installé des agents à l’aide de Helm, récupérez votre configuration d’installation à partir du cluster :
+
+```sh
+# Find releases in the namespace
+helm list --namespace <namespace-name>
+
+# Get the values for a specific release
+helm get values <release-name> --namespace <namespace-name>
+```
+
+Si vous disposez du fichier de configuration d’origine sauvegardé lors de l’installation, utilisez-le directement. Si vous avez instrumenté le cluster via des manifestes Kubernetes (kubectl ou Kustomize), notez les options définies pour chaque agent : vous les recréerez sous forme de configurations à distance Fleet Control.
+
+2. **Désinstallez vos anciens agents.** Avant d’installer Agent Control, supprimez les anciens agents de votre cluster. Pour une installation Helm :
+
+```shell
+helm uninstall <release-name> -n <namespace>
+```
+
+Par exemple, pour désinstaller le `nri-bundle`:
+
+```shell
+helm uninstall nri-bundle -n newrelic
+```
+
+3. **Installer Agent Control.** Lancez l’ [installation guidée d’Agent Control](/docs/new-relic-control/agent-control/setup/) et téléchargez le `values.yaml` généré. Ce fichier contient uniquement la configuration du superviseur Agent Control (identifiants, ID de flotte et types d’agents à gérer) — **n’ajoutez pas de valeurs de chart spécifiques à l’agent ici**. Ceux-ci appartiennent à la configuration à distance du contrôle de la flotte.
+
+```shell
+helm upgrade --install agent-control-bootstrap -n newrelic newrelic/agent-control-bootstrap --create-namespace --values my_values.yaml
+```
+
+4. **Recréez la configuration de votre agent dans Fleet Control.** Une fois Agent Control connecté au contrôle de la flotte, [créez les configurations](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration) pour chacun de vos anciens agents avec vos paramètres précédents.
+
+5. **Créer un nouveau déploiement** en ajoutant les configurations distantes tout juste créées à votre flotte. Agent Control appliquera automatiquement la nouvelle configuration à votre cluster. Suivez ces étapes dans [créer et exécuter votre premier déploiement](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment).
+
+6. **Vérifiez que les données circulent.** Accédez à **Infrastructure &gt; Kubernetes** dans l’UI de New Relic. Votre cluster devrait apparaître dans les 1 - 2 minutes suivant l’application de la configuration à distance. S’il n’apparaît pas, consultez le [dépannage d’Agent Control](/docs/new-relic-control/agent-control/troubleshooting).
+
+### Linux
+
+<Callout variant="important">
+  Agent Control ne prend pas en charge la migration automatique des agents existants sous Linux. Si l&apos;agent Infrastructure New Relic est déjà installé sur votre hôte Linux, vous devez le désinstaller manuellement avant d&apos;installer Agent Control. Agent Control distribue les agents via des packages conformes à l&apos;OCI par le biais de Fleet Control — il ne remplace ni n&apos;hérite de l&apos;installation existante du package `newrelic-infra`.
+</Callout>
+
+1. **Notez votre configuration existante**
+
+Avant de désinstaller, sauvegardez une copie de :
+
+* Votre configuration d’agent : `/etc/newrelic-infra/newrelic-infra.yml`
+* Toutes les configurations d’intégration sur hôte : `/etc/newrelic-infra/integrations.d/`
+
+Vous les recréerez en tant que configurations à distance Fleet Control à l’étape 4.
+
+2. **Désinstallez l’agent d’infrastructure existant**
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux-uninstall-debian">Debian, Ubuntu</TabsBarItem> <TabsBarItem id="linux-uninstall-suse">SLES</TabsBarItem> <TabsBarItem id="linux-uninstall-redhat">Amazon Linux, CentOS, RHEL</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux-uninstall-debian">
+      ```bash
+      sudo apt-get remove newrelic-infra -y
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="linux-uninstall-suse">
+      ```bash
+      sudo zypper -n remove newrelic-infra
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="linux-uninstall-redhat">
+      ```bash
+      sudo yum remove newrelic-infra -y
+      ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+3. **Installer Agent Control.** Suivez le [guide d’installation de Linux](/docs/new-relic-control/agent-control/setup/). Assurez-vous de sélectionner ou de créer une flotte de type **Host - Linux**.
+
+4. **Recréez la configuration de votre agent dans Fleet Control.** Après la connexion d’Agent Control au contrôle de la flotte, [créez la configuration](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration) pour chacun de vos anciens agents avec vos paramètres précédents. Utilisez vos fichiers de configuration enregistrés à l’étape 1 comme référence.
+
+5. **Créer un nouveau déploiement** en ajoutant les configurations distantes tout juste créées à votre flotte. Agent Control appliquera automatiquement la nouvelle configuration à votre hôte, téléchargera et installera les packages OCI pour chacun des agents. Suivez ces étapes dans [créer et exécuter votre premier déploiement](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment).
+
+6. **Vérifiez que les données circulent.** Accédez à **Infrastructure &gt; Hosts** dans l’UI de New Relic. Votre hôte devrait apparaître sous 1 à 2 minutes. S’il n’apparaît pas, consultez le [dépannage d’Agent Control](/docs/new-relic-control/agent-control/troubleshooting).
+
+Les dashboards personnalisés et les alertes faisant référence aux données de l&apos;agent d&apos;infrastructure continueront de fonctionner tant que vous utilisez le même compte et le même nom d&apos;hôte.
+
+### Windows
+
+<Callout variant="important">
+  Agent Control ne prend pas en charge la migration automatique des agents existants sous Windows. Si l’agent New Relic Infrastructure est déjà installé sur votre hôte Windows, vous devez le désinstaller manuellement avant d’installer Agent Control. Les agents APM ne sont pas gérés par Agent Control et peuvent rester installés.
+</Callout>
+
+1. **Notez votre configuration existante**
+
+Avant de désinstaller, sauvegardez une copie de :
+
+* Votre configuration d’agent : `C:\Program Files\New Relic\newrelic-infra\newrelic-infra.yml`
+* Toutes les configurations d’intégration sur hôte : `C:\Program Files\New Relic\newrelic-infra\integrations.d\`
+
+Vous les recréerez en tant que configurations à distance Fleet Control à l’étape 4.
+
+2. **Désinstallez l’agent d’infrastructure existant**
+
+Ouvrez **Add or Remove Programs** et désinstallez l’agent New Relic Infrastructure. Sinon, utilisez le désinstalleur MSI depuis PowerShell :
+
+```powershell
+# Replace {PRODUCT_CODE} with the GUID from Add/Remove Programs
+msiexec /x {PRODUCT_CODE} /quiet
+```
+
+3. **Installer Agent Control.** Suivez le [guide d’installation de Windows](/docs/new-relic-control/agent-control/setup/). Assurez-vous de sélectionner ou de créer une flotte de type **Host - Windows**.
+
+4. **Recréez la configuration de votre agent dans Fleet Control.** Après la connexion d’Agent Control au contrôle de la flotte, [créez la configuration](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration) pour chacun de vos anciens agents avec vos paramètres précédents. Utilisez vos fichiers de configuration enregistrés à l’étape 1 comme référence.
+
+5. **Créer un nouveau déploiement** en ajoutant les configurations distantes tout juste créées à votre flotte. Agent Control appliquera automatiquement la nouvelle configuration à votre hôte, téléchargera et installera les packages OCI pour chacun des agents. Suivez ces étapes dans [créer et exécuter votre premier déploiement](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment).
+
+6. **Vérifiez que les données circulent.** Accédez à **Infrastructure &gt; Hosts** dans l’UI de New Relic. Votre hôte devrait apparaître sous 1 à 2 minutes. S’il n’apparaît pas, consultez le [dépannage d’Agent Control](/docs/new-relic-control/agent-control/troubleshooting).
+
+Les dashboards personnalisés et les alertes faisant référence aux données de l&apos;agent d&apos;infrastructure continueront de fonctionner tant que vous utilisez le même compte et le même nom d&apos;hôte.
