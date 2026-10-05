@@ -13,6 +13,6 @@ Scheduled Search and Reporting lets you take any NRQL query and run it automatic
 
 ## Notification conditions
 
-Not every scheduled query needs to land in your inbox on every run; often you only care when something looks wrong. With Notification Conditions, you can attach a condition based on the total number of results returned by the NRQL query (for example, when the result count equals, is greater than, or matches another specified threshold). This ensures you are notified only when the query results meet your defined criteria.
+Not every scheduled query needs to land in your inbox on every run; often you only care when something looks wrong. With **Notification Conditions**, you can attach a condition based on the total number of results returned by the NRQL query (for example, when the result count equals, is greater than, or matches another specified threshold). This ensures you are notified only when the query results meet your defined criteria.
 
 Learn more about [Scheduled Search and Reporting](https://docs.newrelic.com/docs/nrql/using-nrql/schedule-nrql-searches/).
