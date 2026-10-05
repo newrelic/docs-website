@@ -5,7 +5,13 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-에이전트의 텔레메트리 데이터를 처리하는 게이트웨이의 경우 데이터를 뉴렐릭으로 직접 라우팅하는 대신 게이트웨이 클러스터로 라우팅하도록 에이전트를 재구성해야 합니다. 그렇게 하려면 샘플 뉴렐릭 NodeJS 에이전트 설정에 표시된 대로 `NEW_RELIC_HOST` 설정을 사용하여 엔드포인트 세부정보가 게이트웨이를 가리키도록 변경하세요.
+게이트웨이가 에이전트의 텔레메트리 데이터를 처리하도록 하려면, 데이터를 뉴렐릭으로 직접 라우팅하는 대신 게이트웨이 클러스터로 라우팅하도록 에이전트를 재설정하십시오. 이 방법은 에이전트 유형에 따라 다릅니다: 뉴렐릭 APM 에이전트는 `NEW_RELIC_HOST`을(를) 사용하고, OpenTelemetry 소스는 OTLP 익스포터 설정을 사용하며, 로그 전달자는 자체 출력 플러그인 설정을 사용합니다. 아래 섹션에서는 각 에이전트 유형을 다룹니다. 모든 예제는 클러스터 로컬 게이트웨이 엔드포인트를 사용합니다. 에이전트가 클러스터 외부에서 실행되는 경우 실제 엔드포인트로 교체하십시오.
+
+## 뉴렐릭 APM 에이전트
+
+`NEW_RELIC_HOST` APM 전용이며 OpenTelemetry 소스, 인프라 에이전트 또는 로그 전달자에 영향을 미치지 않습니다. 게이트웨이 엔드포인트는 HTTPS를 통해 접근할 수 있어야 하므로, APM 에이전트는 게이트웨이 파드에 직접 연결하지 않고 클러스터 내 리버스 프록시(NGINX 또는 Kong) 또는 클러스터 외부 ALB를 통해 연결합니다.
+
+다음 예는 Node.js 에이전트 설정 파일을 보여줍니다:
 
 ```js
 'use strict'
@@ -66,6 +72,93 @@ exports.config = {
   }
 }
 ```
+
+{/* [NEW SECTION START] */}
+
+## OpenTelemetry Collector
+
+**최소 버전:** opentelemetry-collector-contrib v0.104.0
+
+게이트웨이의 OTLP HTTP 포트를 가리키는 `otlphttp` 익스포터를 사용하십시오. 이 설정을 Kubernetes ConfigMap으로 배포하십시오:
+
+```yaml
+exporters:
+  otlphttp:
+    endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local:4318
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      exporters: [otlphttp]
+    metrics:
+      exporters: [otlphttp]
+    logs:
+      exporters: [otlphttp]
+```
+
+<Callout variant="important">
+  `otlp` 대신 `otlphttp` 익스포터를 사용하십시오. Helm 차트는 내부적으로 `otlp`을(를) `otlp_grpc` (으)로 이름을 변경하는데, 이는 이 수집기 버전에서 유효하지 않습니다.
+</Callout>
+
+## eBPF 자동 연결 에이전트
+
+values 파일에 `customOtlpEndpoint`을(를) 설정하여 OTLP gRPC를 통해 텔레메트리를 전송하도록 eBPF APM 자동 연결 에이전트를 구성하십시오:
+
+```yaml
+customOtlpEndpoint: "pipeline-control-gateway.newrelic.svc.cluster.local:4317"
+customOtlpEndpointTlsEnabled: false
+reportLogs: "true"
+```
+
+이는 포트 4317의 게이트웨이 OTLP gRPC 수신기를 통해 메트릭과 로그를 모두 라우팅합니다. 연결이 클러스터 내에 유지되므로 TLS가 비활성화됩니다.
+
+## 인프라 에이전트
+
+**최소 버전:** v1.62.0
+
+인프라 에이전트에는 게이트웨이를 통해 라우팅하려는 항목에 따라 두 가지 별도의 설정 경로가 있습니다:
+
+* **모든 텔레메트리(메트릭, 이벤트, 인벤토리 및 로그):** Helm 값에서 `collector_url` 및 `metric_url`을(를) 사용하십시오. 이렇게 하면 에이전트가 수집하는 모든 항목이 게이트웨이를 통해 라우팅됩니다.
+* **로그 전용:** `newrelic-infra.yml`에서 `logging_endpoint`을(를) 사용하십시오. 이렇게 하면 로그 포워딩만 게이트웨이를 통해 라우팅되고 다른 텔레메트리는 계속해서 뉴렐릭으로 직접 전송됩니다.
+
+### 모든 텔레메트리를 게이트웨이를 통해 라우팅하십시오.
+
+Helm values에 `collector_url` 및 `metric_url`을(를) 설정하십시오:
+
+```yaml
+newrelic-infrastructure:
+  common:
+    agentConfig:
+      collector_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+      metric_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+```
+
+### 로그만 게이트웨이를 통해 라우팅하십시오.
+
+`/etc/newrelic-infra.yml`에서 `logging_endpoint`을(를) 설정하고 로그 포워딩을 활성화하십시오:
+
+```yaml
+license_key: YOUR_LICENSE_KEY
+logging_endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1
+log:
+  forward: true
+```
+
+클러스터 로컬 엔드포인트에 `http://`을(를) 사용하십시오. cert-manager가 배포된 클러스터 내 리버스 프록시(NGINX 또는 Kong)를 통해 라우팅할 때만 `https://`을(를) 사용하십시오.
+
+그런 다음 `/etc/newrelic-infra/logging.d/logging.yml`에서 전달할 로그 파일을 정의하십시오:
+
+```yaml
+logs:
+  - name: my-app-logs
+    file: /var/log/my-app.log
+```
+
+변경 사항을 적용하려면 인프라 에이전트를 재시작하십시오.
+
+{/* [NEW SECTION END] */}
 
 ## 호환성 매트릭스: 지원되는 에이전트 및 버전
 
@@ -206,6 +299,16 @@ exports.config = {
 
       <td>
         2.3.0 이상 버전
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)
+      </td>
+
+      <td>
+        opentelemetry-collector-contrib v0.104.0 이상
       </td>
     </tr>
 
