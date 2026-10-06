@@ -11,7 +11,8 @@ If you've ever wanted your notebooks living in version control, reviewed in pull
 
 * **Full lifecycle management** — Create, update, and delete notebooks directly from your Terraform configuration, alongside the rest of your New Relic resources.
 * **Version-controlled notebooks** — Store your notebook definitions in source control and roll out changes through your existing CI/CD pipeline instead of managing them by hand in the UI.
-* **Copy-paste-ready examples** — The provider docs include a full schema reference and working example configurations you can adapt directly.
+* **Bring in what you've already built** — Already have notebooks created in the UI? Import them into Terraform state by GUID instead of recreating them from scratch.
+* **Copy-paste-ready examples** — The provider docs include a full schema reference and working example configurations — weekly service health reviews, incident runbooks, and per-service templates — you can adapt directly.
 
 ## Get started
 
