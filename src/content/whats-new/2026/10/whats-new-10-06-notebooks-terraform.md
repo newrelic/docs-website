@@ -2,7 +2,7 @@
 title: 'Manage New Relic Notebooks with Terraform'
 summary: 'Define, manage, and provision your New Relic Notebooks using Terraform.'
 releaseDate: '2026-10-06'
-getStartedLink: 'https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/notebook'
+getStartedLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/notebooks/introduction-notebooks/'
 ---
 
 You can now define, manage, and provision your New Relic Notebooks using Terraform. This lets you maintain notebooks in version control, review changes in pull requests, and deploy them alongside the rest of your infrastructure code.
