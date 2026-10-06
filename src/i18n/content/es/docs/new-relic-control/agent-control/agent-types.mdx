@@ -1,15 +1,36 @@
 ---
 title: Tipos de agentes
 metaDescription: 'What agent types are in Agent Control, how they work, and which agents are currently supported'
+tags:
+  - agent-control
+  - agent-types
+  - agent-management
+  - on-host-integrations
+  - kubernetes
+  - linux
+  - windows
 freshnessValidatedDate: never
 translationType: machine
 ---
 
-<Callout variant="important">
-  Agent Control y New Relic Control están **disponibles de forma general** para Kubernetes. El soporte para hosts Linux y Windows está en el programa de **vista previa pública**, de conformidad con nuestras [políticas de pre-lanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
-</Callout>
+Agent Control en sí no tiene conocimiento incorporado de ningún agente en particular. No sabe cómo iniciar el agente de infraestructura, renderizar una configuración de OpenTelemetry Collector o descubrir un binario de integración de Redis. Una **definición de tipo de agente** es lo que le enseña. Es un archivo YAML que describe cómo Agent Control debe identificar, descargar, configurar y ejecutar un tipo de agente, en una plataforma. Esto es lo que le permite gestionar un catálogo creciente de agentes sin un cambio de código cada vez que se añade uno nuevo.
 
-Una definición de tipo de agente es un archivo YAML que describe cómo Agent Control debe identificar, descargar, configurar y ejecutar un agente específico. Sus variables declaradas también forman el esquema de configuración que el control de flota expone a los operadores al desplegar o actualizar un subagente de la flota. Cada definición consta de tres secciones principales, <DNT>**metadata**</DNT>, <DNT>**variables**</DNT> y <DNT>**deployment**</DNT>, además de un campo `protocol_version` de nivel superior que versiona el lenguaje de esquema en el que está escrito el archivo.
+El **subagente** es una instancia con nombre de esa definición, por ejemplo, `nr-infra-agent` que hace referencia a `newrelic/com.newrelic.infrastructure:0.1.0`. Eso es lo que realmente agrega, elimina o reconfigura. Agent Control convierte eso en los artefactos de tiempo de ejecución que describe la definición, por ejemplo, un proceso y sus archivos en un host u objetos de Kubernetes en un clúster, y los mantiene sincronizados cada vez que cambia la configuración del subagente.
+
+Cada definición de tipo de agente consta de tres secciones principales: <DNT>**metadata**</DNT>, <DNT>**variables**</DNT> y <DNT>**deployment**</DNT>, además de un campo `protocol_version` de nivel superior que versiona el lenguaje de esquema en el que está escrito el archivo.
+
+## Versión del protocolo
+
+`protocol_version` es un campo de nivel superior que declara la versión del tipo de agente. Está desacoplado tanto del tipo de agente `version` (el semver de la definición) como de la versión de lanzamiento de Agent Control.
+
+Es una cadena `MAJOR.MINOR` entre comillas (por ejemplo, `"1.0"`).
+
+Se analiza y valida por sí solo, *antes* de que se interprete el resto del documento, por lo que puede controlar los archivos cuyos metadatos u otras secciones utilicen una forma que este Agent Control no entendería de otro modo. Cada versión de Agent Control entiende una única versión máxima del protocolo, y el `protocol_version` se trata como un único valor `MAJOR.MINOR` ordenado. Las reglas de compatibilidad son:
+
+* Más reciente que lo compatible (mayor `major`, o el mismo `major` con un `minor` mayor): rechazado —el archivo es más reciente de lo que entiende este Agent Control.
+* Igual o anterior a la compatible: aceptada —Agent Control entiende todas las versiones del protocolo hasta la compatible, inclusive.
+
+Por ejemplo, un Agent Control compatible con `1.6` acepta todo hasta `1.6` (incluidos `0.9` y `1.0`..=`1.6`) y rechaza cualquier versión más reciente (`1.7`, `2.0`,...).
 
 ## Metadatos
 
@@ -17,35 +38,134 @@ La sección de metadatos identifica el tipo de agente: su `name`, `namespace`, `
 
 ## Variables
 
-La sección de variables declara las entradas configurables que los operadores pueden establecer al agregar un subagente a su configuración. Cada variable tiene un `type` (como `string`, `bool` o `yaml`), un `default` opcional y una lista `variants` opcional de valores aceptados. Las variables se referencian en toda la sección de despliegue mediante `${nr-var:variable_name}`.
+La sección de variables declara las entradas configurables que los operadores pueden establecer al agregar un subagente a su configuración. Cada variable tiene estos campos:
+
+* **`description`**: una explicación de la variable legible por humanos.
+* **`type`**: el tipo de datos que acepta esta variable, como `string`, `bool`, `number`, `yaml` o `string_map`.
+* **`required`**: si los operadores deben establecer la variable (cuando se establece en false, Agent Control recurre al valor en `default`).
+* **`default`** (opcional): el valor utilizado cuando `required` es `false` y el operador no establece ninguno.
+* **`classification`** (opcional): una etiqueta que describe el tipo de valor que contiene la variable, como `config` o `multi-config`. El control de agente acepta e ignora este campo; el control de flota lo lee para determinar cómo se presenta la variable a los operadores.
+* **`deprecated`** (opcional): marca la variable como obsoleta (`deprecated: true`). Agent Control también acepta e ignora este campo —no conlleva ningún comportamiento en tiempo de ejecución y no afecta la resolución, la validación ni los valores predeterminados.
+
+Las variables se referencian en toda la sección de despliegue utilizando `${nr-var:variable_name}`.
 
 ## Despliegue
 
-La sección de despliegue describe cómo Agent Control instala y ejecuta el agente en la plataforma objetivo. Se compone de varias subsecciones:
-
-* **`packages`**: artefactos de OCI para descargar antes de que se inicie el agente —por lo general, el binario del agente o el paquete de integración.
-* **`executables`**: la lista de procesos que Agent Control iniciará, supervisará y reiniciará. Un tipo de agente sin esta sección se trata como una integración administrada (OHI): Agent Control maneja sus artefactos, pero delega la ejecución a otro agente.
-* **`health`**: cómo Agent Control determina si el agente está en buen estado —mediante la presencia del proceso, una comprobación de extremo HTTP o ambos.
-* **`filesystem`**: archivos o directorios individuales que Agent Control escribe en el host antes de iniciar el agente, como archivos de configuración o certificados.
-* **`shared_filesystem`**: entradas escritas en una zona de depósito compartida accesible para otros agentes gestionados por la misma instancia de Agent Control. Utilizado por los tipos de agente OHI para entregar su configuración y binarios al agente de infraestructura.
+La sección de despliegue describe cómo Agent Control instala y ejecuta el agente. Su forma es completamente diferente dependiendo del `platform` objetivo declarado en los metadatos del tipo de agente.
 
 Para obtener la referencia completa del esquema y todos los campos disponibles, consulte la [Referencia del esquema de tipo de agente](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/agent_type.md).
 
-## Obtener definiciones de tipo de agente
+### Despliegue en Kubernetes
 
-Agent Control obtiene las definiciones de tipo de agente de un registro OCI remoto, identificadas por `namespace`, `name` y `version` declarados en la sección de metadatos de la definición.
+En Kubernetes, Agent Control administra objetos de Kubernetes. La sección de despliegue se compone de:
 
-De forma predeterminada, Agent Control extrae de `docker.io`, usando el repositorio `newrelic/agent-control-agent-types`.
+* **`objects`**: los objetos de Kubernetes que Agent Control crea y mantiene actualizados.
+* **`health`**: una lista explícita de comprobaciones, cada una dirigida a un recurso de Kubernetes por `name`, `namespace` y `kind`.
 
-El Control del agente verifica la firma de cada definición con la clave pública de New Relic antes de descargarla.
+La forma en que Agent Control renderiza `objects` depende de si Flux está habilitado:
 
-Puede replicar este registro de la misma manera que los paquetes del agente.
+* **Con Flux (por defecto, o con una instalación de Flux existente):** los tipos de agente declaran un objeto `HelmRelease`. Agent Control renderiza las variables de configuración en los valores del chart de Helm de ese `HelmRelease` y crea o actualiza el recurso. Luego, Flux concilia el chart y crea los recursos subyacentes `Deployment`, `ConfigMap`, `Secret` y otros.
+* **Sin Flux:** los tipos de agente declaran objetos de Kubernetes simples directamente (por ejemplo, un `ConfigMap`, `Secret` o `Deployment`) en lugar de un `HelmRelease`. Agent Control aplica esos objetos al clúster en sí. No hay ningún chart de Helm ni reconciliación de Flux involucrados. El usuario tiene que gestionar el ciclo de vida del agente en ese caso.
 
-## Tipos de agentes vinculados
+<Callout variant="important">
+  Sin Flux, un cambio de configuración desde el control de flota solo actualiza el objeto `ConfigMap`/`Secret` que administra. Agent Control no reinicia ni vuelve a implementar el agente.
+</Callout>
 
-Dos tipos de agente están **vinculados** cuando uno escribe artefactos (configuración, binarios u otros archivos) en el sistema de archivos compartido y el otro está configurado para leer desde esas mismas rutas. El escritor puede no tener una sección `executables`, Agent Control administra sus artefactos, pero nunca inicia un proceso para él. En su lugar, el agente lector tiene la lógica incorporada para descubrir y ejecutar binarios y configuración desde una ruta conocida en el sistema de archivos compartido, lo que ejecuta de manera efectiva el complemento en nombre del escritor.
+### Despliegue en el host (Linux y Windows)
 
-La raíz del sistema de archivos compartido es:
+En los hosts, Agent Control instala y ejecuta el agente directamente en el sistema operativo de la máquina. La sección de despliegue se compone de varias subsecciones:
+
+* **`executables`**: la lista de procesos que Agent Control iniciará, supervisará y reiniciará. Un tipo de agente sin esta sección se trata como una integración administrada (OHI): Agent Control maneja sus artefactos, pero delega la ejecución a otro agente.
+* **`enable_file_logging`**: si el logging de archivos está habilitado.
+* **`health`**: cómo Agent Control determina si el agente está en buen estado —mediante la presencia del proceso, una comprobación de extremo HTTP o ambos.
+* **`filesystem`**: archivos o directorios individuales que Agent Control escribe en el host antes de iniciar el agente, como archivos de configuración o certificados.
+* **`shared_filesystem`**: entradas escritas en una zona de depósito compartida accesible para otros agentes gestionados por la misma instancia de Agent Control. Utilizado por los tipos de agente OHI para entregar su configuración y binarios al agente de infraestructura.
+* **`packages`**: artefactos de OCI para descargar antes de que se inicie el agente —por lo general, el binario del agente o el paquete de integración.
+
+## Almacenamiento del estado del agente
+
+### En Kubernetes
+
+El estado vive como objetos de Kubernetes, pero cuáles son esos objetos depende de si Flux está habilitado.
+
+Con Flux (predeterminado, o con una instalación de Flux existente), el tipo de agente normalmente declara recursos personalizados de Flux como un `HelmRepository` que apunta al chart, y un `HelmRelease` que contiene la configuración renderizada como valores del chart de Helm. Agent Control no crea los objetos `Deployment`, `ConfigMap` o `Secret` del agente directamente. Entrega el `HelmRelease` a Flux, y Flux instala el chart y mantiene esos recursos generados sincronizados con él.
+
+* **Una actualización de configuración parchea el `HelmRelease` in situ.** Agent Control solo vuelve a aplicar el objeto si su contenido cambió. Luego, Flux reconcilia el chart para que coincida.
+* **Eliminar un subagente elimina todos los objetos etiquetados como de su propiedad** —su `HelmRelease`, `HelmRepository` y cualquier `Secret` o `ConfigMap` creado para él, y Flux/Helm finaliza la limpieza de workload que había instalado ese chart.
+
+Sin Flux, no hay `HelmRelease` ni `HelmRepository`. El tipo de agente declara objetos de Kubernetes simples directamente, y Agent Control los crea y actualiza por sí mismo. No hay chart de Helm ni reconciliación de Flux. En este modo, el usuario es responsable del ciclo de vida del agente. Agent Control no instala ni actualiza el `Deployment` del agente, solo mantiene sincronizados los objetos de configuración que gestiona.
+
+* **Una actualización de configuración aplica un parche al objeto administrado (`ConfigMap`/`Secret`) in situ.** Agent Control solo lo vuelve a aplicar si su contenido cambió. Dado que no hay reconciliación de Flux, nada reinicia automáticamente el agente para aplicar el cambio a menos que el propio agente lo supervise.
+* **Al eliminar un subagente, se eliminan todos los objetos etiquetados como propiedad de este** —solo sus objetos `ConfigMap`/`Secret`, ya que no hay `HelmRelease`, `HelmRepository` ni workload instalada por chart que limpiar.
+
+### En el host
+
+#### Sistema de archivos en el host
+
+Cada subagente obtiene un directorio dedicado en el disco donde Agent Control escribe los archivos declarados por la sección `filesystem` de su tipo de agente.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "120px" }}>
+        Sistema operativo
+      </th>
+
+      <th>
+        Camino
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Linux
+      </td>
+
+      <td>
+        `/var/lib/newrelic-agent-control/filesystem/<agent-id>`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Windows
+      </td>
+
+      <td>
+        `C:\ProgramData\New Relic\newrelic-agent-control\filesystem\<agent-id>`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Agent Control obtiene el contenido para crear un archivo a partir de variables de tipo `yaml`, y el contenido para múltiples archivos dentro de un directorio a partir de variables de tipo `string_map`.
+
+Ejemplo
+
+```
+/var/lib/newrelic-agent-control/filesystem/nr-infra-agent/
+├── newrelic-infra.yaml     # content from variable of type `yaml`
+└── logging.d/              # content from variable of type `string_map`
+    ├── file1.yaml
+    └── file2.yaml
+```
+
+El comportamiento de este directorio depende del evento del ciclo de vida y del tipo de variable detrás de cada ruta:
+
+* **Un reinicio no toca el directorio.** El control del agente no reescribe nada a menos que el reinicio haya sido provocado por una actualización de configuración del control de flota.
+* **Una actualización de configuración reescribe `yaml` archivos en su lugar, pero regenera por completo `string_map` directorios.** Para un contenido `yaml`, el control del agente solo reescribe el contenido del archivo. Para un contenido `string_map`, el control del agente elimina todo el directorio (como `logging.d` arriba) y lo vuelve a crear desde cero, por lo que cualquier archivo que usted (o el subagente) haya agregado o editado en su interior desaparece en la siguiente escritura.
+* **Los archivos que Agent Control no gestiona se dejan intactos.** Solo sobrescribe las rutas exactas que declara el tipo de agente; cualquier otra cosa que el agente en ejecución cree por su cuenta dentro de su directorio (archivos de caché, estado local) no se toca.
+* **Al eliminar un subagente se elimina todo el directorio**, incluido cualquier archivo creado por el propio subagente o por un usuario.
+
+#### Sistema de archivos compartido en el host
+
+La mayoría de los tipos de agente son autónomos: el Control del agente escribe su configuración en un directorio que les pertenece exclusivamente e inicia un proceso que lee de él. Pero algunas integraciones no tienen un modelo de ejecución propio. No hay ningún proceso que el Control del agente deba iniciar. Dependen por completo de otro agente que ya se esté ejecutando (por ejemplo, el agente de infraestructura) para recoger sus archivos y ejecutarlos. Esa dependencia es la razón por la que existe una segunda ubicación **compartida**. Es una zona de entrega común en la que cualquier subagente del mismo host puede escribir y de la que cualquier otro subagente puede leer, utilizada específicamente para transferir artefactos entre agentes en lugar de almacenar el estado privado propio de un agente.
+
+Use `filesystem` para cualquier cosa que necesite el propio proceso de un tipo de agente, y dependa de `shared_filesystem` solo cuando un tipo de agente entregue archivos deliberadamente a otro, como la integración en el host que se describe más abajo.
+
+Todos los subagentes obtienen un directorio compartido en el disco donde Agent Control escribe los archivos declarados por el `shared_filesystem` de su tipo de agente.
 
 <table>
   <thead>
@@ -83,11 +203,29 @@ La raíz del sistema de archivos compartido es:
   </tbody>
 </table>
 
-Todos los agentes administrados por la misma instancia de Agent Control comparten esta raíz. Los nombres de los subdirectorios se eligen por convención entre los tipos de agentes vinculados.
+Dado que todos los subagentes tienen acceso a ese directorio compartido, pueden ver los archivos de los demás.
 
-### Integraciones en el host (OHI)
+Ejemplo
 
-Las integraciones en el host (OHI) son el ejemplo principal de agentes vinculados en Agent Control; donde otros agentes tienen un proceso iniciado por Agent Control, los agentes de OHI no tienen un proceso propio y Agent Control nunca los inicia. Permite que Agent Control administre el ciclo de vida completo de la integración de New Relic Infrastructure, descargándola, configurándola, actualizándola y desinstalándola, mientras delega su ejecución al agente de infraestructura, que descubre y ejecuta los binarios de integración desde el sistema de archivos compartido.
+```
+/var/lib/newrelic-agent-control/shared_filesystem/
+├── data/                  # All sub-agents can see `data` and `other-data` folders
+│   └── file.yaml
+└── other-data/
+    └── file2.yaml
+```
+
+El directorio compartido sigue las mismas reglas que el directorio del sistema de archivos por agente en los reinicios, las actualizaciones de configuración y los archivos no administrados. El comportamiento solo cambia al eliminar un subagente: sus archivos siempre se eliminan, ya que cada archivo es propiedad inequívoca del subagente que lo escribió, pero las carpetas solo se eliminan una vez que ningún otro subagente las esté usando.
+
+## Tipos de agente vinculados en el host
+
+Dos tipos de agente están **vinculados** cuando uno escribe artefactos (configuración, binarios u otros archivos) en el sistema de archivos compartido y el otro está configurado para leer desde esas mismas rutas. El escritor puede no tener una sección `executables`, Agent Control administra sus artefactos, pero nunca inicia un proceso para él. En su lugar, el agente lector tiene la lógica incorporada para descubrir y ejecutar binarios y configuración desde una ruta conocida en el sistema de archivos compartido, lo que ejecuta de manera efectiva el complemento en nombre del escritor.
+
+Los nombres de los subdirectorios se eligen por convención entre los tipos de agente vinculados.
+
+### Integración en el host (OHI)
+
+Las integraciones en el host (OHI) son el ejemplo principal de tipos de agente vinculados. Mientras que un subagente normal tiene un proceso que el Control del agente inicia y supervisa, una OHI no tiene ninguno. El Control del agente solo gestiona su ciclo de vida (descarga, configuración, actualización y desinstalación), mientras que el agente de infraestructura descubre y ejecuta sus binarios desde el sistema de archivos compartido en su nombre.
 
 ### La relación entre el agente de infraestructura y el agente de OHI
 
@@ -176,6 +314,14 @@ Las integraciones en el host (OHI) son el ejemplo principal de agentes vinculado
   Los tipos de agentes de OHI no tienen un proceso propio y dependen por completo del agente de infraestructura para ejecutarse. Debe tener `com.newrelic.infrastructure` configurado como subagente en la misma instancia de Agent Control antes de desplegar cualquier tipo de agente de OHI.
 </Callout>
 
+## Obtención de definiciones de tipos de agente
+
+El Control del agente obtiene las definiciones de tipos de agente de un registro OCI remoto, identificadas por `namespace`, `name` y `version` declarados en la sección de metadatos de la definición, teniendo en cuenta el entorno en el que se ejecuta (Kubernetes, Linux o Windows).
+
+De forma predeterminada, Agent Control extrae de `docker.io` utilizando el respositorio `newrelic/agent-control-agent-types`, después de verificar la firma con la clave pública de New Relic.
+
+Las definiciones de tipo de agente se pueden extraer de un espejo, como se explica en [Configurar un espejo de registro OCI para Agent Control](/docs/new-relic-control/agent-control/mirror-setup).
+
 ## Tipos de agentes admitidos
 
 ### Soporte actual
@@ -214,11 +360,11 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
     </tr>
 
@@ -232,11 +378,11 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
     </tr>
 
@@ -250,11 +396,11 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
     </tr>
 
@@ -268,11 +414,11 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
     </tr>
 
@@ -286,11 +432,11 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
     </tr>
 
@@ -304,11 +450,11 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
     </tr>
 
@@ -322,11 +468,11 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
     </tr>
 
@@ -340,11 +486,11 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
 
       <td>
-        Vista previa pública
+        ✅ Sí
       </td>
     </tr>
 
@@ -376,11 +522,19 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        🚫 No
+        ⚠️ Parcial (a través del 
+
+        [agente de infraestructura](#configuring-fluent-bit-on-hosts)
+
+        )
       </td>
 
       <td>
-        🚫 No
+        ⚠️ Parcial (a través del 
+
+        [agente de infraestructura](#configuring-fluent-bit-on-hosts)
+
+        )
       </td>
     </tr>
 
@@ -412,7 +566,7 @@ La siguiente tabla muestra qué tipos de agente admite Agent Control y su dispon
       </td>
 
       <td>
-        ⚠️ Experimental
+        ✅ Sí
       </td>
 
       <td>
@@ -656,12 +810,6 @@ La siguiente tabla enumera los permisos clave que requiere cada tipo de agente y
 
 <Callout variant="caution" title="NRDOT en hosts Windows es experimental">
   El New Relic OpenTelemetry Collector (NRDOT) en Windows está disponible, pero no ha sido probado ni documentado oficialmente por el equipo de NRDOT. La configuración empaquetada predeterminada está diseñada para Linux y puede generar advertencias o errores en Windows (por ejemplo, de las rutas de `filelogreceiver`). No se incluye una configuración predeterminada para Windows; debe proporcionar su propia configuración del recolector. Utilice NRDOT en Windows solo en entornos no críticos o de prueba.
-</Callout>
-
-<Callout variant="caution" title="eBPF en hosts de Linux es experimental">
-  El agente eBPF de New Relic requiere dependencias a nivel de kernel (como `linux-headers` correspondiente a la versión del kernel en ejecución) que Agent Control no puede resolver automáticamente en hosts Linux. Si estas dependencias faltan o no coinciden, el despliegue puede fallar sin un error claro. El soporte de eBPF en hosts Linux está disponible para entornos de Kubernetes solo en producción. Utilice eBPF en hosts Linux solo en entornos no críticos o de prueba.
-
-  eBPF **no es compatible** con los hosts de Windows.
 </Callout>
 
 ## Configuración de Fluent Bit en hosts

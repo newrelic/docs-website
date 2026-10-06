@@ -1,0 +1,213 @@
+---
+title: ディストリビューティッド（分散）トレーシングを使用してAPMとElasticsearchを関連付ける
+tags:
+  - OpenTelemetry
+  - Elasticsearch
+  - Integrations
+  - Distributed tracing
+  - APM
+metaDescription: 'Set up distributed tracing to automatically correlate your APM applications with the Elasticsearch cluster they call, with no per-application changes.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+デフォルトでは、New RelicはAPMアプリケーションとElasticsearchクラスタを2つの独立した、接続されていない項目としてモニターします：アプリが実際にそのクラスタを呼び出していることを示すものは何もありません。
+
+このページでは、ElasticsearchのネイティブなOpenTelemetryディストリビューティッド（分散）トレーシングを使用して、そのギャップを埋めます。Elasticsearchは、メトリクスにすでに使用しているのと同じOpenTelemetryコレクター（NRDOTまたはOTel Collector Contrib）を介して、アプリケーションごとの変更なしに独自のトレーススパンをエクスポートします。結果：遅いトランザクションは、それを処理したクラスタに直接つながります。
+
+内部的には、アプリケーションとElasticsearchはそれぞれ、同じリクエストのそれぞれの部分を単一の共有トレースに提供します。New Relicは、両側が互いに関連していることを認識し、サービスとクラスタの関係を自動的に構築します。
+
+<Callout variant="tip">
+  ディストリビューティッド（分散）トレーシングは、APMをElasticsearchと関連付ける2つの方法のうちの1つです。これにより、リクエストレベルの完全な詳細が得られますが、追加のトレースデータによって取り込み量が増加します。クラスタを関連エンティティとして表示するだけでよい場合は、代わりにAPMアプリケーションのテレメトリーにクラスタ名でタグ付けすることができます — これはどのElasticsearchバージョンでも機能しますが、エンドツーエンドのトレースの詳細はスキップされます。
+</Callout>
+
+## 互換性のある計装 [#compatibility]
+
+この関連付けは、W3Cトレースコンテキスト伝搬をサポートするすべてのアプリケーションで機能します。これには以下が含まれます：
+
+* OpenTelemetry SDKでインストゥルメントされたアプリケーション（任意の言語）
+* OpenTelemetry自動インストゥルメンテーション（Java、.NET、Python、Node.js）
+* New Relic APMエージェント（Go、Java、.NET、Node.js、Python、Ruby、PHP）で、[ディストリビューティッド（分散）トレーシング](/docs/distributed-tracing/concepts/quick-start/)が有効になっているもの
+
+計装アプローチを混在させることができます。たとえば、New Relic APMエージェントを使用するJavaサービスと、OpenTelemetry SDKを使用するPythonサービスは、どちらも同じElasticsearchクラスタを呼び出すことができ、それぞれがNew Relic内で正しくリンクされて表示されます。
+
+## 必要なこと [#you-need]
+
+始める前に、以下があることを確認してください：
+
+* 有効な[New Relicライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* ネイティブOTLPトレースエクスポートにはこのバージョンが必要なため、Elasticsearch 9.4以降
+* Elasticsearchノードから到達可能で、すでに実行されているOpenTelemetryコレクター（OTel Collector ContribまたはNRDOT）。まだインストールしていない場合は、[セルフホストのインストレーション](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-install)または[Kubernetesインストレーション](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install)に従ってください。
+* [ディストリビューティッド（分散）トレーシングを有効](/docs/distributed-tracing/concepts/quick-start/)にして、上記の互換性のある計装アプローチのいずれかを使用して、Elasticsearchにrequestsを送信するインストゥルメントされたアプリケーション。
+* コレクターからNew Relicの[OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)へのネットワークアクセス
+
+## ディストリビューティッド（分散）トレーシングの設定 [#configuration]
+
+設定には2つの部分があります：Elasticsearchでトレースをオンにすることと、コレクターにトレースパイプラインを追加することです。
+
+トレースを有効にすると、Elasticsearchは独自のOpenTelemetryスパンを発行し、`traceparent`ヘッダーを介してアプリケーションのトレースに結合し、それぞれに`es.cluster.name`をスタンプします。New Relicは、その共有トレースを使用して関係を自動的に結び付けます。
+
+デプロイメントに一致するセクションを展開します。
+
+<CollapserGroup>
+  <Collapser id="host" title="セルフホスト">
+    <Steps>
+      <Step>
+        ### Elasticsearchでトレースをオンにする [#es-enable-tracing]
+
+        すべてのノードの`elasticsearch.yml`に以下を追加します。次に、（`ES_JAVA_OPTS`または`jvm.options`経由で）`-Dtelemetry.otel.traces.enabled=true`を設定し、各ノードを再起動します：
+
+        ```yaml
+        telemetry.tracing.enabled: true
+        telemetry.export.endpoint: http://YOUR_COLLECTOR_HOST:4317   # localhost if the collector runs on this node
+        telemetry.tracing.sample_rate: 1.0                           # default 0.001; lower for high volume
+        ```
+      </Step>
+
+      <Step>
+        ### コレクターにトレースパイプラインを追加する [#collector-traces]
+
+        次に、Elasticsearchが送信するトレースを受信し、クラスタがそれ自体を呼び出しているように見せてしまうスパンを除外するようにコレクターを設定します。`otlp`レシーバーと`filter/drop_rootless_es`および`transform/strip_es_host`プロセッサーを`traces`パイプラインに追加します：
+
+        ```yaml
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+
+        processors:
+          # Drop Elasticsearch's own parentless spans (health checks, metrics-scrape calls) so the cluster isn't linked to itself
+          filter/drop_rootless_es:
+            error_mode: ignore
+            traces:
+              span:
+                - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+          # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+          transform/strip_es_host:
+            error_mode: ignore
+            trace_statements:
+              - context: span
+                statements:
+                  - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+                  - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+              exporters: [otlphttp]
+        ```
+      </Step>
+
+      <Step>
+        ### コレクターを再起動します [#restart-collector]
+
+        `<collector-service>`をコレクターのサービス名（たとえば、`nrdot-collector`または`otelcol-contrib`）に置き換えます：
+
+        ```bash
+        sudo systemctl restart <collector-service>
+        ```
+      </Step>
+
+      <Step>
+        ### スパンが到着していることを確認する [#verify-correlation]
+
+        Elasticsearchがクラスタ名でタグ付けされたトレースを送信していることを確認します：
+
+        ```sql
+        FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+        ```
+
+        `SINCE`句は、クエリがどれくらい遡って検索するかを設定します。状況に合わせて調整してください — たとえば、以前にトレースを有効にしており、より長い期間を確認したい場合は`SINCE 2 hours ago`にします。
+      </Step>
+    </Steps>
+  </Collapser>
+
+  <Collapser id="k8s" title="Kubernetes">
+    <Steps>
+      <Step>
+        ### Elasticsearchポッドでトレースをオンにする [#es-enable-tracing-k8s]
+
+        以下を`elasticsearch.yml`（ConfigMap、Helm値、またはECK `nodeSets`）に追加します。次に、`ES_JAVA_OPTS`を介して`-Dtelemetry.otel.traces.enabled=true`を設定し、ポッドをロールアウトします：
+
+        ```yaml
+        telemetry.tracing.enabled: true
+        telemetry.export.endpoint: http://YOUR_COLLECTOR_SVC.YOUR_NAMESPACE.svc.cluster.local:4317
+        telemetry.tracing.sample_rate: 1.0   # default 0.001; lower for high volume
+        ```
+      </Step>
+
+      <Step>
+        ### コレクターにトレースパイプラインを追加する [#collector-traces-k8s]
+
+        次に、Elasticsearchが送信するトレースを受信し、そのままではクラスタが自身を呼び出しているように見えてしまうスパンを除外するようにコレクターを構成します。コレクター設定の`traces`パイプラインに、`otlp`レシーバーと、`filter/drop_rootless_es`および`transform/strip_es_host`プロセッサーを追加します。コレクターがgRPCポート`4317`を公開していることを確認します：
+
+        ```yaml
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+
+        processors:
+          # Drop Elasticsearch's own parentless spans (health probes, metrics-scrape calls) so the cluster isn't linked to itself
+          filter/drop_rootless_es:
+            error_mode: ignore
+            traces:
+              span:
+                - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+          # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+          transform/strip_es_host:
+            error_mode: ignore
+            trace_statements:
+              - context: span
+                statements:
+                  - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+                  - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+              exporters: [otlphttp]
+        ```
+      </Step>
+
+      <Step>
+        ### コレクターを再デプロイする [#redeploy-collector]
+
+        更新された設定を適用し、コレクターポッドをロールアウトして設定を反映させます。[コレクターをインストール](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install)したときに使用したのと同じConfigMapファイル、`Deployment`名、およびネームスペースを使用します — たとえば、マニフェストベースのインストレーションに従った場合は`nr-k8s-otel-collector-deployment`です：
+
+        ```bash
+        kubectl apply -f <your-collector-config>.yaml -n <namespace>
+        kubectl rollout restart deployment/<collector-deployment> -n <namespace>
+        ```
+
+        Helmを使用してコレクターをデプロイした場合は、`kubectl apply`の代わりに更新された値を使用して`helm upgrade`を再実行します。
+      </Step>
+
+      <Step>
+        ### スパンが到着していることを確認する [#verify-correlation-k8s]
+
+        Elasticsearchがクラスタ名でタグ付けされたトレースを送信していることを確認します：
+
+        ```sql
+        FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+        ```
+
+        `SINCE`句は、クエリがどれくらい遡って検索するかを設定します。状況に合わせて調整してください — たとえば、以前にトレースを有効にしており、より長い期間を確認したい場合は`SINCE 2 hours ago`にします。
+      </Step>
+    </Steps>
+  </Collapser>
+</CollapserGroup>
+
+## トレースを表示する [#view-traces]
+
+スパンが流れ始めたら、それらをクエリして、相関するサービスマップを検査できます。クエリの例とNew Relicでサービスマップを見つける場所については、[ディストリビューティッド（分散）トレーシングとAPMの相関関係の表示](/docs/opentelemetry/integrations/elasticsearch/find-and-query-data/#traces-correlation)をご覧ください。
+
+## トラブルシューティング [#troubleshooting]
+
+スパンが表示されない場合、クラスタが自身への関係を示している場合、またはアプリケーションがクラスタにリンクしていない場合は、トラブルシューティングガイドの[APMの相関とディストリビューティッド（分散）トレーシングのセクション](/docs/opentelemetry/integrations/elasticsearch/troubleshooting/#correlation-troubleshooting)を参照してください。
