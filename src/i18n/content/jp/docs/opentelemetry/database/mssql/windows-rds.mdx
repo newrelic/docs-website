@@ -1,0 +1,934 @@
+---
+title: NRDOTを使用したWindows RDS MSSQL監視
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Windows
+  - RDS
+  - AWS
+metaDescription: Set up Microsoft SQL Server monitoring with NRDOT Collector on Windows for AWS RDS SQL Server instances
+freshnessValidatedDate: never
+hideTOC: true
+contentType: onboarding-intro
+audience:
+  - human
+  - ai
+surface:
+  - concept
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/database/mssql/introduction
+  next: null
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/)に従ってプレビューの一部として提供されています。
+</Callout>
+
+AWS RDS for SQL Serverインスタンスをモニターするために、Windows環境でNRDOT Collectorを使用してMicrosoft SQL Serverの監視をセットアップします。セルフホスト環境でモニターするには、[Windowsのセルフホスト計装](/docs/opentelemetry/database/mssql/windows-hosted)を参照してください。
+
+代わりにNew Relic UIからこれをインストールするには、<DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Integrations &amp; Agents &gt; MSSQL (OpenTelemetry)** </DNT>にアクセスしてください。画面上の指示に従って、インテグレーションをセットアップします。このページでは、CLIのインストールパスのみを説明します。
+
+RDS SQL Serverのセキュリティ設定に基づいて、NRDOT CollectorをRDSインスタンスに接続するための認証方法を選択してください：
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="sql">SQL Server認証</TabsBarItem> <TabsBarItem id="domain">Windowsドメイン認証</TabsBarItem> <TabsBarItem id="gmsa">gMSA</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="sql">
+      <Steps>
+        <Step>
+          ## 前提条件 [#prerequisites]
+
+          NRDOTを使用してMicrosoft SQL Serverを監視する前に、環境がこれらの要件を満たしていることを確認します：
+
+          * 有効な[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)を持つNew Relicアカウント
+
+          * ご使用のリージョンのNew Relic [OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+
+          * AWS RDS SQL Serverの要件：
+
+            * RDSインスタンスで有効化されたSQL Server認証
+            * RDSマスターユーザーの認証情報、または`rds_superuser`ロールを持つSQL Serverログインの認証情報
+            * ポート`1433`またはカスタムポートでの接続を許可するように設定されたRDSセキュリティグループ
+            * SQL Server Management Studio (SSMS) または`sqlcmd`ユーティリティ
+
+          * [New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのネットワーク接続
+
+          * RDS SQL ServerのエンドポイントURL。AWS RDSコンソールの「Connectivity &amp; security」で確認できます。詳細については、[AWS RDSのドキュメント](https://docs.aws.amazon.com/AmazonRDS/latest/gettingstartedguide/connecting-console.html)を参照してください。
+        </Step>
+
+        <Step>
+          ## プレビューに登録 [#enroll]
+
+          このインテグレーションは、New Relicパブリックプレビュープログラムの一部として利用可能です。[Previews &amp; Trials](https://one.newrelic.com/admin-portal/promotion-management/home)ページからオプトインするには、組織の管理者に連絡してください。
+        </Step>
+
+        <Step>
+          ## NRDOT Collectorをインストールする [#install-sql]
+
+          RDS SQL Serverインスタンスに接続できるEC2 Windowsインスタンス、またはローカルのWindowsマシンにNRDOT Collectorをインストールしてください。
+
+          <Callout variant="important">
+            RDS監視の場合、最適なネットワーク接続と低レイテンシを実現するために、RDSインスタンスと同じVPC内のEC2インスタンスにNRDOT Collectorをインストールします。
+          </Callout>
+
+          PowerShellを使用してNRDOT Collectorをダウンロードし、インストールします：
+
+          ```bash
+          [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+          ```
+        </Step>
+
+        <Step>
+          ## 監視ユーザーを作成する [#user-sql]
+
+          このスクリプトをアドミンユーザーとして実行して、`newrelic`監視ユーザーを作成し、SQL Serverのメトリクスを収集するために必要な権限を付与してください。
+
+          <Callout variant="tip">
+            RDSマスターユーザー名、または`rds_superuser`ロールを持つユーザーを使用して、これらのスクリプトを実行します。スクリプトは、AWSによって予約されている`rdsadmin`データベースを自動的に除外します。
+          </Callout>
+
+          SQL Server Management Studio（SSMS）で、次のスクリプトを実行して`newrelic`監視ユーザーを作成します。`<YOUR_PASSWORD>`を希望するパスワードに置き換えます：
+
+          ```sql
+          USE [master];
+          GO
+          CREATE LOGIN [newrelic] WITH PASSWORD = '<YOUR_PASSWORD>';
+          GO
+
+          GRANT VIEW SERVER STATE TO [newrelic];
+          GRANT VIEW ANY DEFINITION TO [newrelic];
+          GRANT VIEW ANY DATABASE TO [newrelic];
+          GO
+
+          DECLARE @name SYSNAME;
+          DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+          SELECT [name]
+          FROM [master].[sys].[databases]
+          WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+          AND [state] = 0;
+          OPEN db_cursor;
+          FETCH NEXT FROM db_cursor INTO @name;
+          WHILE @@FETCH_STATUS = 0
+          BEGIN
+            BEGIN TRY
+              EXEC('USE [' + @name + '];
+              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+              BEGIN
+                CREATE USER [newrelic] FOR LOGIN [newrelic];
+              END;
+              GRANT VIEW DATABASE STATE TO [newrelic];');
+            END TRY
+            BEGIN CATCH
+              PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+            END CATCH
+            FETCH NEXT FROM db_cursor INTO @name;
+          END
+          CLOSE db_cursor;
+          DEALLOCATE db_cursor;
+          GO
+          ```
+
+          <Callout variant="tip">
+            データベースの認証情報などの機密情報を安全に管理するには、[シークレット管理](/docs/opentelemetry/database/capabilities/db-apm/#secret-management)ツールに保存してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ## NRDOT Collectorを構成する [#configure-sql]
+
+          RDS SQL Serverのセットアップ用に、新しいNRDOT Collector設定ファイルを作成します。
+
+          1. アドミニストレーターとしてPowerShellで`mssql-config.yaml`という名前の設定ファイルを作成します：
+
+             ```bash
+             New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+             ```
+
+          2. 前の手順で作成した`mssql-config.yaml`ファイルに以下の設定を追加します：
+
+          <Callout variant="tip" title="完全な設定">
+            この設定は、RDS環境の不可欠なデータベース監視に焦点を当てています。利用可能なすべてのメトリクスを使用した包括的な監視を有効にするには、[設定リファレンス](/docs/opentelemetry/database/mssql/config-reference/#rds-sql)を参照してください。
+          </Callout>
+
+          <OtelConfig
+            inputOptions={[{"name":"username","label":"SQL Serverユーザー名","codeLine":4,"defaultValue":"newrelic","toolTip":"SQL Serverのユーザー名を入力してください。"},{"name":"password","label":"SQL Serverのパスワード","codeLine":5,"defaultValue":"YOUR_PASSWORD","toolTip":"SQL Serverのパスワードを入力してください。"},{"name":"server","label":"RDSエンドポイント","codeLine":6,"defaultValue":"mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com","toolTip":"RDS SQL Serverエンドポイントを入力します"},{"name":"port","label":"サーバーポート","codeLine":7,"defaultValue":"1433","toolTip":"SQL Serverのポート番号を入力してください（デフォルト：1433）"},{"name":"endpoint","label":"New Relic OTLPエンドポイント","codeLine":68,"defaultValue":"https://otlp.nr-data.net","toolTip":"ご利用のリージョンのNew Relic OTLPエンドポイントを入力してください。詳細については、https://docs.newrelic.com/docs/data-apis/ingest-apis/otlp-endpoint-urls/ を参照してください。"},{"name":"licenseKey","label":"New Relicライセンスキー","codeLine":70,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"New Relicライセンスキーを入力してください。"}]}
+            config={`receivers:
+            nrsqlserver:
+             collection_interval: 15s
+             username: <input1>
+             password: <input2>
+             server: <input3>
+             port: <input4>
+
+             # Enable comprehensive database metrics
+             metrics:
+               sqlserver.database.count:
+                 enabled: true
+               sqlserver.database.io:
+                 enabled: true
+               sqlserver.database.latency:
+                 enabled: true
+               sqlserver.database.operations:
+                 enabled: true
+               sqlserver.database.tempdb.space:
+                 enabled: true
+               sqlserver.database.tempdb.version_store.size:
+                 enabled: true
+               sqlserver.deadlock.rate:
+                 enabled: true
+               sqlserver.os.wait.duration:
+                 enabled: true
+               sqlserver.processes.blocked:
+                 enabled: true
+               sqlserver.memory.grants.pending.count:
+                 enabled: true
+               sqlserver.database.file.size:
+                 enabled: true
+               sqlserver.memory.area:
+                 enabled: true
+
+             # Enable top query and query sample log collection
+             events:
+               db.server.query_sample:
+                 enabled: true
+               db.server.top_query:
+                 enabled: true
+
+             # Top query collection configuration
+             top_query_collection:
+               lookback_time: 60s
+               max_query_sample_count: 1000
+               top_query_count: 250
+               collection_interval: 60s
+
+             collect_full_query_text: true
+             allowed_comment_keys:
+               - nr_service_guid
+
+             # Query sample collection configuration
+             query_sample_collection:
+               max_rows_per_query: 100
+
+            processors:
+            memory_limiter:
+             check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+             limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+             spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+            batch:
+
+            exporters:
+            otlp:
+             endpoint: <input5>:4318
+             headers:
+               api-key: <input6>
+             tls:
+               insecure: false
+             compression: gzip
+
+            service:
+            telemetry:
+             metrics:
+               level: none
+
+            pipelines:
+             metrics:
+               receivers: [nrsqlserver]
+               processors: [memory_limiter, batch]
+               exporters: [otlp]
+
+             logs:
+               receivers: [nrsqlserver]
+               processors: [memory_limiter, batch]
+               exporters: [otlp]`}
+            fileName="mssql-config.yaml"
+            tipMdx={{ body: null }}
+            onChange={() => {}}
+          />
+        </Step>
+
+        <Step>
+          ## Windowsサービスレジストリを更新します。 [#registry-sql]
+
+          1. 次のいずれかの方法を使用して、新しい`mssql-config.yaml`ファイルを使用するようにWindowsサービスレジストリを更新します：
+
+             * **PowerShellの場合：**アドミニストレーターとして次のコマンドを実行します：
+
+               ```bash
+               Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+               ```
+
+             * **コマンドプロンプトの場合：**PowerShellが利用できない場合は、代わりにコマンドプロンプトを使用し、アドミニストレーターとして次のコマンドを実行します：
+
+             ```bash
+             sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+             ```
+
+          2. NRDOT Collectorの設定を検証して、正しくフォーマットされ、適切に機能することを確認します。
+
+          ```bash
+          & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+          ```
+
+          <Callout variant="tip">
+            アプリケーションパフォーマンスとデータベース操作を関連付けるには、データベースサービス識別をセットアップできます。詳細については、[データベースサービスの識別の設定](/docs/opentelemetry/database/capabilities/db-apm/)を参照してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ## NRDOT Collectorを再起動します [#restart-sql]
+
+          設定を更新した後、NRDOT Collectorサービスを再起動します：
+
+          ```bash
+          net stop nrdot-collector
+          net start nrdot-collector
+          ```
+
+          <Callout variant="tip">
+            新しい設定を確実に適用するために、設定を変更した後は常にNRDOT Collectorサービスを再起動してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ## データを探す、使う [#find-sql]
+
+          データが収集されると、New Relic の UI を通じて包括的な SQL Server データベース監視にアクセスできるようになります。
+
+          New Relic で SQL Server データベース エンティティを見つけるには:
+
+          1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>に移動します。
+
+          2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**MSSQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+
+          3. エンティティのリストから SQL Server データベースを選択します。
+
+             NRDOTを使用してSQL Serverの監視をセットアップした後、次のことができます：
+
+             * データベースのメトリクスを視覚化する[カスタムダッシュボードを作成する](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/)
+             * クリティカルデータベースパフォーマンス閾値の[アラートを設定する](/docs/alerts/create-alert/create-alert-condition/alert-conditions/)
+             * New Relicのクエリ機能を使用して、[データを探索](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/)します
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="domain">
+      <Steps>
+        <Step>
+          ## 前提条件 [#prerequisites-domain]
+
+          Windowsドメイン認証を使用してNRDOTでMicrosoft SQL Serverを監視する前に、環境が以下の要件を満たしていることを確認してください：
+
+          * 有効な[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)を持つNew Relicアカウント
+
+          * ご使用のリージョンのNew Relic [OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+
+          * SQL Serverの要件として、以下が必要です：
+
+            * Amazon RDS上のSQL Server 2017以降
+            * RDSマスターユーザーの認証情報、または`rds_superuser`ロールを持つSQL Serverログインの認証情報
+            * ポート`1433`またはカスタムポートでの接続を許可するように設定されたRDSセキュリティグループ
+            * SQL Server Management Studio (SSMS) または`sqlcmd`ユーティリティ
+            * AWS Active Directoryサービスに関連付けられたRDSインスタンス
+
+          * Windowsドメイン認証の要件：
+
+            * Active Directoryを使用したWindowsドメイン環境
+            * ドメイン参加済みWindows EC2インスタンス
+            * Windows認証を受け入れるように設定されたRDS SQL Server
+            * NRDOT Collectorによって使用されるドメインユーザーアカウント
+
+          * [New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのネットワーク接続
+
+          * RDS SQL ServerのエンドポイントURL。AWS RDSコンソールの「Connectivity &amp; security」で確認できます。詳細については、[AWS RDSのドキュメント](https://docs.aws.amazon.com/AmazonRDS/latest/gettingstartedguide/connecting-console.html)を参照してください。
+        </Step>
+
+        <Step>
+          ## プレビューに登録 [#enroll-domain]
+
+          このインテグレーションは、New Relicパブリックプレビュープログラムの一部として利用可能です。[Previews &amp; Trials](https://one.newrelic.com/admin-portal/promotion-management/home)ページからオプトインするには、組織の管理者に連絡してください。
+        </Step>
+
+        <Step>
+          ## NRDOT Collectorをインストールする [#setup-domain]
+
+          ドメインに参加しているEC2 Windowsインスタンス、または同じドメインに属し、RDS SQL Serverインスタンスに接続できるローカルのWindowsマシンに、NRDOT Collectorをインストールします。
+
+          <Callout variant="important">
+            RDS監視の場合、最適なネットワーク接続と低レイテンシを実現するために、RDSインスタンスと同じVPC内のEC2インスタンスにNRDOT Collectorをインストールします。
+          </Callout>
+
+          1. PowerShellを使用してNRDOT Collectorをダウンロードし、インストールします：
+
+             ```bash
+               [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+             ```
+        </Step>
+
+        <Step>
+          ## Windowsドメインログインの作成 [#create-domain]
+
+          管理者権限を持つSQL Server Management Studio（SSMS）または`sqlcmd`を使用して、RDS SQL Serverインスタンスに接続します。
+
+          SQL Server Management Studio（SSMS）で次のスクリプトを実行し、gMSAアカウントのログインを作成して、必要な権限を付与します。`<YOUR_DOMAIN>\<YOUR_DOMAIN_USER>`のすべての出現箇所を、実際のドメインとアカウント名に置き換えます。
+
+          ```sql
+          USE [master];
+          GO
+
+          CREATE LOGIN [<YOUR_DOMAIN>\<YOUR_DOMAIN_USER>] FROM WINDOWS;
+          GO
+
+          GRANT VIEW ANY DATABASE   TO [<YOUR_DOMAIN>\<YOUR_DOMAIN_USER>];
+          GRANT VIEW SERVER STATE TO [<YOUR_DOMAIN>\<YOUR_DOMAIN_USER>];
+          GRANT VIEW ANY DEFINITION TO [<YOUR_DOMAIN>\<YOUR_DOMAIN_USER>];
+          GO
+
+          -- Grant access to all databases (required for query monitoring and tempdb metrics)
+          DECLARE @name SYSNAME;
+          DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+            SELECT [name] FROM [master].[sys].[databases]
+            WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+              AND [state] = 0;
+          OPEN db_cursor;
+          FETCH NEXT FROM db_cursor INTO @name;
+          WHILE @@FETCH_STATUS = 0
+          BEGIN
+            BEGIN TRY
+              EXEC('USE [' + @name + '];
+              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<YOUR_DOMAIN>\<YOUR_DOMAIN_USER>'')
+              BEGIN
+                CREATE USER [<YOUR_DOMAIN>\<YOUR_DOMAIN_USER>] FOR LOGIN [<YOUR_DOMAIN>\<YOUR_DOMAIN_USER>];
+              END;
+              GRANT VIEW DATABASE STATE TO [<YOUR_DOMAIN>\<YOUR_DOMAIN_USER>];');
+            END TRY
+            BEGIN CATCH
+              PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+            END CATCH
+            FETCH NEXT FROM db_cursor INTO @name;
+          END
+          CLOSE db_cursor;
+          DEALLOCATE db_cursor;
+          GO
+          ```
+
+          <Callout variant="tip">
+            データベースの認証情報などの機密情報を安全に管理するには、[シークレット管理](/docs/opentelemetry/database/capabilities/db-apm/#secret-management)ツールに保存してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ## ドメインユーザーとして実行 [#run-domain]
+
+          1. PowerShellを使用して、ドメインユーザーとして実行するようにNRDOT Collectorサービスを設定します。`YOUR_DOMAIN\YOUR_USER_ACCOUNT`をドメインとアカウント名に置き換えます：
+
+             ```bash
+             # Configure service to use domain account
+             # The space after obj= and password= is required syntax for sc.exe
+             sc.exe config "nrdot-collector" obj= "YOUR_DOMAIN\YOUR_USER_ACCOUNT" password= "<YOUR_PASSWORD>"
+
+             # Restart the service
+             Restart-Service nrdot-collector
+             ```
+
+          2. サービスIDを検証します：
+
+             ```bash
+             Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, State, StartName
+             # Expected: StartName = YOUR_DOMAIN\YOUR_USER_ACCOUNT
+             ```
+        </Step>
+
+        <Step>
+          ## NRDOT Collectorを構成する [#configure-domain]
+
+          1. アドミニストレーターとしてPowerShellで`mssql-config.yaml`という名前の設定ファイルを作成します：
+
+             ```bash
+             New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+             ```
+
+          2. 前の手順で作成した`mssql-config.yaml`ファイルに以下の設定を追加します：
+
+          <Callout variant="important">
+            Windowsドメイン認証は統合セキュリティを使用しており、gMSA認証と同じ設定アプローチを使用します。`datasource`サーバーの値をRDSエンドポイントに更新してください。NRDOTサービスは、[ステップ3](#create-domain)で設定したドメインアカウントを使用して認証します。
+          </Callout>
+
+          <OtelConfig
+            inputOptions={[{"name":"server","label":"RDSエンドポイント","codeLine":4,"defaultValue":"mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com","toolTip":"RDS SQL Serverエンドポイントを入力します"},{"name":"port","label":"RDSポート","codeLine":4,"defaultValue":"1433","toolTip":"RDS SQL Serverのポート番号を入力します。デフォルト値は1433です。"},{"name":"endpoint","label":"New Relic OTLPエンドポイント","codeLine":65,"defaultValue":"https://otlp.nr-data.net","toolTip":"New Relic OTLPエンドポイントを入力します。詳細については、https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/ を参照してください。"},{"name":"licenseKey","label":"New Relicライセンスキー","codeLine":67,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"New Relicライセンスキーを入力してください。"}]}
+            config={`receivers:
+            nrsqlserver:
+             collection_interval: 15s
+             datasource: "server=<input1>;port=<input2>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+
+             # Enable comprehensive database metrics
+             metrics:
+               sqlserver.database.count:
+                 enabled: true
+               sqlserver.database.io:
+                 enabled: true
+               sqlserver.database.latency:
+                 enabled: true
+               sqlserver.database.operations:
+                 enabled: true
+               sqlserver.database.tempdb.space:
+                 enabled: true
+               sqlserver.database.tempdb.version_store.size:
+                 enabled: true
+               sqlserver.deadlock.rate:
+                 enabled: true
+               sqlserver.os.wait.duration:
+                 enabled: true
+               sqlserver.processes.blocked:
+                 enabled: true
+               sqlserver.memory.grants.pending.count:
+                 enabled: true
+               sqlserver.database.file.size:
+                 enabled: true
+               sqlserver.memory.area:
+                 enabled: true
+
+             # Enable top query and query sample log collection
+             events:
+               db.server.query_sample:
+                 enabled: true
+               db.server.top_query:
+                 enabled: true
+
+             # Top query collection configuration
+             top_query_collection:
+               lookback_time: 60s
+               max_query_sample_count: 1000
+               top_query_count: 250
+               collection_interval: 60s
+
+             collect_full_query_text: true
+             allowed_comment_keys:
+               - nr_service_guid
+
+             # Query sample collection configuration
+             query_sample_collection:
+               max_rows_per_query: 100
+
+            processors:
+            memory_limiter:
+             check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+             limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+             spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+            batch:
+
+            exporters:
+            otlp:
+             endpoint: <input3>:4318
+             headers:
+               api-key: <input4>
+             tls:
+               insecure: false
+             compression: gzip
+
+            service:
+            telemetry:
+             metrics:
+               level: none
+
+            pipelines:
+             metrics:
+               receivers: [nrsqlserver]
+               processors: [memory_limiter, batch]
+               exporters: [otlp]
+
+             logs:
+               receivers: [nrsqlserver]
+               processors: [memory_limiter, batch]
+               exporters: [otlp]`}
+            fileName="mssql-config.yaml"
+            tipMdx={{ body: null }}
+            onChange={() => {}}
+          />
+
+          <Callout variant="tip" title="完全な設定">
+            この設定は、RDS環境の不可欠なデータベース監視に焦点を当てています。利用可能なすべてのメトリクスによる包括的な監視を有効にするには、[設定リファレンス](/docs/opentelemetry/database/mssql/config-reference/#rds-domain)を参照してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ## Windowsサービスレジストリの更新 [#update-registry-domain]
+
+          1. 次のいずれかの方法を使用して、新しい`mssql-config.yaml`ファイルを使用するようにWindowsサービスレジストリを更新します：
+
+             * **PowerShellの場合：**アドミニストレーターとして次のコマンドを実行します：
+
+               ```bash
+               Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+               ```
+
+             * **コマンドプロンプトの場合：**PowerShellが利用できない場合は、代わりにコマンドプロンプトを使用し、アドミニストレーターとして次のコマンドを実行します：
+
+             ```bash
+             sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+             ```
+
+          2. NRDOT Collectorの設定を検証して、正しくフォーマットされ、適切に機能することを確認します：
+
+             ```bash
+             & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+             ```
+
+          <Callout variant="tip">
+            アプリケーションパフォーマンスとデータベース操作を関連付けるには、データベースサービス識別をセットアップできます。詳細については、[データベースサービス識別セットアップガイド](/docs/opentelemetry/database/capabilities/db-apm)を参照してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ## NRDOT Collectorを再起動します [#restart-domain]
+
+          設定を更新した後、NRDOT Collectorサービスを再起動します：
+
+          ```bash
+          net stop nrdot-collector
+          net start nrdot-collector
+          ```
+
+          Windowsサービス（`services.msc`）をチェックして、サービスがドメインアカウントで実行されていることを確認してください。`Log On As`列にドメインアカウントが表示されるはずです。例：`CORP\SQLMonitor`。
+        </Step>
+
+        <Step>
+          ## データを探す、使う [#find-domain]
+
+          データが収集されると、New Relic の UI を通じて包括的な SQL Server データベース監視にアクセスできるようになります。
+
+          New Relic で SQL Server データベース エンティティを見つけるには:
+
+          1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>に移動します。
+
+          2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**MSSQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+
+          3. エンティティのリストから SQL Server データベースを選択します。
+
+             NRDOTを使用してSQL Serverの監視をセットアップした後、次のことができます：
+
+             * データベースのメトリクスを視覚化する[カスタムダッシュボードを作成する](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/)
+             * クリティカルデータベースパフォーマンス閾値の[アラートを設定する](/docs/alerts/create-alert/create-alert-condition/alert-conditions/)
+             * New Relicのクエリ機能を使用して、[データを探索](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/)します
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="gmsa">
+      <Steps>
+        <Step>
+          ## 前提条件 [#prerequisites-gmsa]
+
+          gMSA認証を使用してNRDOTでMicrosoft SQL Serverを監視する前に、次のことを確認してください：
+
+          * 有効な[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)を持つNew Relicアカウント
+
+          * ご使用のリージョンのNew Relic [OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)
+
+          * SQL Serverの要件として、以下が必要です：
+
+            * Amazon RDS上のSQL Server 2017以降
+            * RDSマスターユーザーの認証情報、または`rds_superuser`ロールを持つSQL Serverログインの認証情報
+            * ポート`1433`またはカスタムポートでの接続を許可するように設定されたRDSセキュリティグループ
+            * SQL Server Management Studio (SSMS) または`sqlcmd`ユーティリティ
+            * AWS Active Directoryサービスに関連付けられたRDSインスタンス
+
+          * RDS SQL ServerのエンドポイントURL。AWS RDSコンソールの「Connectivity &amp; security」で確認できます。詳細については、[AWS RDSのドキュメント](https://docs.aws.amazon.com/AmazonRDS/latest/gettingstartedguide/connecting-console.html)を参照してください。
+
+          * gMSAをサポートするActive Directory環境
+
+          * gMSAアカウントの使用を許可された、ドメインに参加しているWindows EC2インスタンス
+
+          * [New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのネットワーク接続
+        </Step>
+
+        <Step>
+          ## プレビューに登録 [#enroll-gmsa]
+
+          このインテグレーションは、New Relicパブリックプレビュープログラムの一部として利用可能です。[Previews &amp; Trials](https://one.newrelic.com/admin-portal/promotion-management/home)ページからオプトインするには、組織の管理者に連絡してください。
+        </Step>
+
+        <Step>
+          ## NRDOT Collectorをインストールする [#setup-gmsa]
+
+          PowerShellを使用してNRDOT Collectorをダウンロードし、インストールします：
+
+          ```bash
+          [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name; $WebClient = New-Object System.Net.WebClient; $WebClient.Headers.Add("User-Agent", "Mozilla/5.0"); $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi"); Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait; Get-Service nrdot-collector -ErrorAction SilentlyContinue
+          ```
+        </Step>
+
+        <Step>
+          ## 監視ユーザーを作成する [#create-user]
+
+          管理者権限を持つSQL Server Management Studio（SSMS）または`sqlcmd`を使用して、RDS SQL Serverインスタンスに接続します。
+
+          SQL Server Management Studio（SSMS）で次のスクリプトを実行し、gMSAアカウントのログインを作成して、必要な権限を付与します。`<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>`のすべての出現箇所を、実際のドメインとアカウント名に置き換えます。
+
+          ```sql
+          USE [master];
+          GO
+
+          CREATE LOGIN [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$] FROM WINDOWS;
+          GO
+
+          GRANT VIEW ANY DATABASE TO [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];
+          GRANT VIEW SERVER STATE TO [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];
+          GRANT VIEW ANY DEFINITION TO [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];
+          GO
+          -- Grant access to all databases 
+          DECLARE @name SYSNAME;
+          DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+            SELECT [name] FROM [master].[sys].[databases]
+            WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+            AND [state] = 0;
+          OPEN db_cursor;
+          FETCH NEXT FROM db_cursor INTO @name;
+          WHILE @@FETCH_STATUS = 0
+          BEGIN
+            BEGIN TRY
+              EXEC('USE [' + @name + '];
+              IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$'')
+              BEGIN
+                CREATE USER [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$] FOR LOGIN [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];
+              END;
+              GRANT VIEW DATABASE STATE TO [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];');
+            END TRY
+            BEGIN CATCH
+              PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+            END CATCH
+            FETCH NEXT FROM db_cursor INTO @name;
+          END
+          CLOSE db_cursor;
+          DEALLOCATE db_cursor;
+          GO
+          ```
+
+          <Callout variant="tip">
+            データベースの認証情報などの機密情報を安全に管理するには、[シークレット管理](/docs/opentelemetry/database/capabilities/db-apm/#secret-management)ツールに保存してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ## gMSAアカウントとして実行する [#run-gmsa]
+
+          PowerShellを使用して、gMSAアカウントとして実行するようにNRDOT Collectorサービスを設定します。`<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$`をドメインとgMSAアカウント名に置き換えます。gMSAアカウントには必須であるため、最後に`$`を含める必要があります：
+
+          ```bash
+          # Stop the NRDOT Collector service
+          Stop-Service nrdot-collector
+
+          # Configure service to use gMSA account
+          # Use cmd /c to avoid PowerShell treating $ as a variable
+          cmd /c 'sc config nrdot-collector obj= "<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$" password= ""'
+
+          # Verify the configuration
+          Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, StartName
+
+          # Start the NRDOT Collector service 
+          Start-Service nrdot-collector
+          ```
+
+          <Callout variant="important">
+            gMSAアカウントはパスワードを必要としません。サービスを設定する際は、空のままにしてください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ## NRDOT Collectorを構成する [#configure-gmsa]
+
+          1. アドミニストレーターとしてPowerShellで`mssql-config.yaml`という名前の設定ファイルを作成します：
+
+             ```bash
+             New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+             ```
+
+          2. 前の手順で作成した`mssql-config.yaml`ファイルに以下の設定を追加します：
+
+          <Callout variant="tip" title="完全な設定">
+            この設定は、RDS環境の不可欠なデータベース監視に焦点を当てています。利用可能なすべてのメトリクスを使用した包括的な監視を有効にするには、[設定リファレンス](/docs/opentelemetry/database/mssql/config-reference/#rds-gmsa)を参照してください。
+          </Callout>
+
+          <OtelConfig
+            inputOptions={[{"name":"server","label":"RDSエンドポイント","codeLine":4,"defaultValue":"mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com","toolTip":"RDS SQL Serverエンドポイントを入力します"},{"name":"port","label":"RDSポート","codeLine":4,"defaultValue":"1433","toolTip":"RDS SQL Serverのポート番号を入力します。デフォルト値は1433です。"},{"name":"endpoint","label":"New Relic OTLPエンドポイント","codeLine":65,"defaultValue":"https://otlp.nr-data.net","toolTip":"New Relic OTLPエンドポイントを入力します。詳細については、https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/ を参照してください。"},{"name":"licenseKey","label":"New Relicライセンスキー","codeLine":67,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"New Relicライセンスキーを入力してください。"}]}
+            config={`receivers:
+            nrsqlserver:
+             collection_interval: 15s
+             datasource: "server=<input1>;port=<input2>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+
+             # Enable comprehensive database metrics
+             metrics:
+               sqlserver.database.count:
+                 enabled: true
+               sqlserver.database.io:
+                 enabled: true
+               sqlserver.database.latency:
+                 enabled: true
+               sqlserver.database.operations:
+                 enabled: true
+               sqlserver.database.tempdb.space:
+                 enabled: true
+               sqlserver.database.tempdb.version_store.size:
+                 enabled: true
+               sqlserver.deadlock.rate:
+                 enabled: true
+               sqlserver.os.wait.duration:
+                 enabled: true
+               sqlserver.processes.blocked:
+                 enabled: true
+               sqlserver.memory.grants.pending.count:
+                 enabled: true
+               sqlserver.database.file.size:
+                 enabled: true
+               sqlserver.memory.area:
+                 enabled: true
+
+             # Enable top query and query sample log collection
+             events:
+               db.server.query_sample:
+                 enabled: true
+               db.server.top_query:
+                 enabled: true
+
+             # Top query collection configuration
+             top_query_collection:
+               lookback_time: 60s
+               max_query_sample_count: 1000
+               top_query_count: 250
+               collection_interval: 60s
+
+             collect_full_query_text: true
+             allowed_comment_keys:
+               - nr_service_guid
+
+             # Query sample collection configuration
+             query_sample_collection:
+               max_rows_per_query: 100
+
+            processors:
+            memory_limiter:
+             check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+             limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+             spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+            batch:
+
+            exporters:
+            otlp:
+             endpoint: <input3>:4318
+             headers:
+               api-key: <input4>
+             tls:
+               insecure: false
+             compression: gzip
+
+            service:
+            telemetry:
+             metrics:
+               level: none
+
+            pipelines:
+             metrics:
+               receivers: [nrsqlserver]
+               processors: [memory_limiter, batch]
+               exporters: [otlp]
+
+             logs:
+               receivers: [nrsqlserver]
+               processors: [memory_limiter, batch]
+               exporters: [otlp]`}
+            fileName="mssql-config.yaml"
+            tipMdx={{ body: null }}
+            onChange={() => {}}
+          />
+        </Step>
+
+        <Step>
+          ## Windowsサービスレジストリの更新 [#update-registry-gmsa]
+
+          1. 次のいずれかの方法を使用して、新しい`mssql-config.yaml`ファイルを使用するようにWindowsサービスレジストリを更新します：
+
+             * **PowerShellの場合：**アドミニストレーターとして次のコマンドを実行します：
+
+               ```bash
+               Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+               ```
+
+             * **コマンドプロンプトの場合：**PowerShellが利用できない場合は、代わりにコマンドプロンプトを使用し、アドミニストレーターとして次のコマンドを実行します：
+
+             ```bash
+             sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+             ```
+
+          2. NRDOTコレクターの設定を検証して、正しくフォーマットされ、適切に機能することを確認してください：
+
+          ```bash
+          & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+          ```
+
+          <Callout variant="tip">
+            アプリケーションパフォーマンスとデータベース操作を関連付けるには、データベースサービス識別をセットアップできます。詳細については、[データベースサービスの識別の設定](/docs/opentelemetry/database/capabilities/db-apm/)を参照してください。
+          </Callout>
+        </Step>
+
+        <Step>
+          ## NRDOTコレクターを再起動します [#restart-gmsa]
+
+          設定を更新した後、ドメインに参加しているEC2 WindowsインスタンスでNRDOT Collectorサービスを再起動します：
+
+          ```bash
+          net stop nrdot-collector
+          net start nrdot-collector
+          ```
+
+          Windowsサービス（`services.msc`）を確認して、サービスがgMSAアカウントで実行されていることを検証します。`Log On As`列には、gMSAアカウント（たとえば`CORP\SQL-gMSA$`）が表示されます。
+        </Step>
+
+        <Step>
+          ## データを探す、使う [#find-gmsa]
+
+          データが収集されると、New Relic の UI を通じて包括的な SQL Server データベース監視にアクセスできるようになります。
+
+          New Relic で SQL Server データベース エンティティを見つけるには:
+
+          1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>に移動します。
+
+          2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**MSSQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+
+          3. エンティティのリストから SQL Server データベースを選択します。
+
+             NRDOTを使用してSQL Serverの監視をセットアップした後、次のことができます：
+
+             * データベースのメトリクスを視覚化する[カスタムダッシュボードを作成する](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/)
+             * クリティカルデータベースパフォーマンス閾値の[アラートを設定する](/docs/alerts/create-alert/create-alert-condition/alert-conditions/)
+             * New Relicのクエリ機能を使用して、[データを探索](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/)します
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 関連ドキュメント [#related-docs]
+
+<DocTiles>
+  <DocTile title="APMとデータベースの相関を設定する" path="/docs/opentelemetry/database/capabilities/db-apm">
+    New Relicでアプリケーションパフォーマンスとデータベース操作を関連付ける方法について説明します。
+  </DocTile>
+
+  <DocTile title="トラブルシューティング" path="/docs/opentelemetry/database/mssql/windows-hosted">
+    New RelicでのMSSQL Windows監視設定のトラブルシューティング方法を学びます。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/database/mssql/metrics-reference">
+    NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+  </DocTile>
+</DocTiles>

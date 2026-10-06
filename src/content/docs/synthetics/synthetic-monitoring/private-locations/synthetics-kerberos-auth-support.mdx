@@ -11,7 +11,7 @@ metaDescription: Configure a Kerberos KDC, a SPNEGO-protected web server, and th
 freshnessValidatedDate: never
 ---
 
-This doc describes how to set up a Kerberos Key Distribution Center (KDC) and a SPNEGO/Kerberos-authenticated web application on an Amazon Linux 2023 EC2 instance, and how to configure the [synthetics job manager](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager) (SJM) to run monitors with Kerberos authentication support.
+This doc describes how to configure the [synthetics job manager](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager) (SJM) to run monitors with Kerberos authentication support. It also includes an optional walkthrough for standing up a Kerberos Key Distribution Center (KDC) and a SPNEGO-protected web application on an Amazon Linux 2023 EC2 instance, so you can validate the setup before you point the job manager at your own realm.
 
 ## Placeholder values [#variables]
 
@@ -59,7 +59,33 @@ Before you begin, identify the following values for your environment. Replace ea
   </tbody>
 </table>
 
-## Part 1: Set up the host environment [#host-setup]
+## Requirements and compatibility [#requirements]
+
+Kerberos authentication depends on direct network access to your Key Distribution Center (KDC), internal DNS resolution, and closely synchronized clocks. These constraints limit where you can run it, so review the following requirements before you begin.
+
+We support Kerberos authentication in these environments:
+
+* Private locations that run the synthetics job manager in a Docker container environment
+* Private locations that run the synthetics job manager in a Podman container environment
+
+We don't support Kerberos authentication in these environments:
+
+* Public locations, which have no network route to your internal KDC
+* Kubernetes and OpenShift job manager environments
+
+The job manager provides Kerberos credentials to browser monitor jobs only. Scripted API monitors and ping monitors run without Kerberos authentication.
+
+Each browser runtime container acquires its own Kerberos ticket (via `kinit`, before Chrome launches), so your private location must also meet these requirements:
+
+* Reach your KDC on TCP and UDP port 88 from inside the runtime containers.
+* Resolve your KDC and target application hostnames from inside the runtime containers. On Docker deployments, if internal DNS doesn't resolve them, map them with [`RUNTIME_EXTRA_HOSTS`](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration#mtls-docker) — this variable is Docker-only. Podman deployments depend on internal DNS.
+* Keep the private location host's clock within 5 minutes of the KDC clock, using a service such as `chrony`. Runtime containers share the host's kernel clock, so synchronizing the host is sufficient.
+
+## Part 1: Set up a Kerberos test lab (optional) [#host-setup]
+
+<Callout variant="tip">
+  Part 1 builds a self-contained Kerberos realm and a protected test application so you can validate the job manager configuration end to end. It isn't the production path, and New Relic doesn't manage your KDC. If you already run a Kerberos KDC or an Active Directory domain, get the realm name, the KDC address, and a client keytab from whoever administers it, then skip to [Part 2](#sjm-configuration).
+</Callout>
 
 <CollapserGroup>
   <Collapser
@@ -155,8 +181,13 @@ Before you begin, identify the following values for your environment. Replace ea
     # 2. Create HTTP service principal name (SPN) keytab for the web server
     sudo kadmin.local -q "addprinc -randkey HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
     sudo kadmin.local -q "ktadd -k /home/ec2-user/kerb-test/http.keytab HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
+    sudo chown 33:33 /home/ec2-user/kerb-test/http.keytab
     sudo chmod 644 /home/ec2-user/kerb-test/http.keytab
     ```
+
+    <Callout variant="important">
+      The client keytab's file mode matters less than it looks: The primary trust boundary here is Docker socket access — SJM itself requires `-v /var/run/docker.sock:/var/run/docker.sock:rw`, and anyone with that access can already read any file on the host as root regardless of its permission bits. Keep the client keytab root-owned, as created above, with permissions `644` — this matches the browser runtime container's execution identity (UID 2000, GID 0) via the group-read bit. Don't chown it to a different user, Doing so can break that group match and leave access depending entirely on the world-read bit. The HTTP service keytab is the test web server's own identity: Give it the UID and GID that Apache runs as inside the container from step 6 — `33`, the `www-data` user on Debian — and keep its permissions at `644` too. You don't need the HTTP keytab to configure the job manager.
+    </Callout>
   </Collapser>
 
   <Collapser
@@ -228,7 +259,15 @@ Before you begin, identify the following values for your environment. Replace ea
 
 ## Part 2: Configure the synthetics job manager for Kerberos [#sjm-configuration]
 
-To allow synthetics browser runner containers to automatically resolve the KDC, acquire Kerberos tickets, and authenticate against protected endpoints, add the following Kerberos environment variables and volume mounts to your standard SJM `docker run` command.
+To allow synthetics browser runner containers to automatically resolve the KDC, acquire Kerberos tickets, and authenticate against protected endpoints, add the following Kerberos environment variables and keytab volume mount to the command that starts your job manager.
+
+<Callout variant="caution">
+  When you enable Kerberos on a private location, every browser monitor job at that location receives the keytab mount and the Kerberos environment variables. The job manager doesn't filter credentials per monitor or per URL. Chrome decides which hosts receive a Kerberos ticket based only on `KERBEROS_HOST_ALLOWLIST`, so keep that allowlist as narrow as possible.
+</Callout>
+
+<Callout variant="important">
+  Set all four `KERBEROS_*` variables, or set none of them. If you set only some, the synthetics job manager fails to start and logs an incomplete Kerberos configuration error.
+</Callout>
 
 ### Standard command (without Kerberos) [#standard-sjm-command]
 
@@ -241,19 +280,101 @@ docker run -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
 
 ### Required command (with Kerberos support enabled) [#kerberos-sjm-command]
 
-Add the following environment variables (`-e`) and keytab volume mount (`-v`) to your `docker run` command:
+Add the four `KERBEROS_*` environment variables (`-e`) and the keytab volume mount (`-v`) to the command you already use to start the job manager.
 
-```bash
-docker run -d \
-  --name sjm-container \
-  --restart unless-stopped \
-  -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
-  -e KERBEROS_REALM=<REALM_NAME> \
-  -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
-  -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
-  -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
-  -e RUNTIME_EXTRA_HOSTS=<EC2_INTERNAL_HOSTNAME>:<EC2_PRIVATE_IP> \
-  -v /var/run/docker.sock:/var/run/docker.sock:rw \
-  -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro \
-  newrelic/synthetics-job-manager
-```
+<CollapserGroup>
+  <Collapser
+    id="kerberos-sjm-docker"
+    title="Docker"
+  >
+    ```bash
+    docker run -d \
+      --name sjm-container \
+      --restart unless-stopped \
+      -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+      -e KERBEROS_REALM=<REALM_NAME> \
+      -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+      -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+      -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+      -e RUNTIME_EXTRA_HOSTS=<EC2_INTERNAL_HOSTNAME>:<EC2_PRIVATE_IP> \
+      -v /var/run/docker.sock:/var/run/docker.sock:rw \
+      -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kerberos-sjm-podman"
+    title="Podman"
+  >
+    Add the same Kerberos variables and keytab mount to the `podman run` command from [Install the job manager](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager). Podman runs the job manager in a pod rather than mounting the Docker socket, so keep your existing `CONTAINER_ENGINE`, `PODMAN_API_SERVICE_PORT`, and `PODMAN_POD_NAME` settings.
+
+    ```bash
+    podman run -d \
+      --pod SYNTHETICS \
+      --restart unless-stopped \
+      -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+      -e CONTAINER_ENGINE=PODMAN \
+      -e PODMAN_API_SERVICE_PORT=8000 \
+      -e PODMAN_POD_NAME=SYNTHETICS \
+      -e KERBEROS_REALM=<REALM_NAME> \
+      -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+      -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+      -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+      -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro,Z \
+      newrelic/synthetics-job-manager
+    ```
+
+    <Callout variant="tip">
+      On SELinux hosts, add a relabel flag so the container can read the keytab. The job manager and every browser runtime container it launches run inside the same pod (`PODMAN_POD_NAME`), and Podman shares one SELinux label across all containers in a pod — so `:ro,Z` works here even though multiple containers read the keytab. Use `:Z` rather than `:ro,Z`, since the keytab never needs to be shared with containers outside this pod. For more information, see the [Podman volume documentation](https://docs.podman.io/en/latest/markdown/podman-run.1.html#volume-v-source-volume-host-dir-container-dir-options).
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Part 3: Troubleshoot Kerberos authentication [#troubleshooting]
+
+If Kerberos initialization fails inside the runtime container, the container's startup pipeline still launches the browser and runs your monitor. The monitor then fails against a protected endpoint with an HTTP 401 challenge or a navigation timeout, and we tag the result with a `KerberosInitWarning` root cause. Because the failure looks like an ordinary timeout, check your job logs for the following error codes before you investigate the monitor script.
+
+These codes are separate from the startup validation in [Part 2](#sjm-configuration) — if you set only some of the `KERBEROS_*` variables, the job manager fails to start outright, and none of these codes will ever appear in a job's logs.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>Error code</th>
+      <th>Cause</th>
+      <th>What to do</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`KERBEROS_KDC_UNREACHABLE`</td>
+      <td>The runtime container can't reach the KDC over the network.</td>
+      <td>Check the firewall rules for TCP and UDP port 88 between your private location host and the KDC.</td>
+    </tr>
+    <tr>
+      <td>`KERBEROS_BAD_CREDENTIAL`</td>
+      <td>The principal doesn't match the keytab, or the keytab is damaged.</td>
+      <td>Verify the keytab on the host by running `klist -kt <CLIENT_KEYTAB_PATH>`.</td>
+    </tr>
+    <tr>
+      <td>`KERBEROS_CLOCK_SKEW`</td>
+      <td>The host clock differs from the KDC clock by more than 5 minutes.</td>
+      <td>Synchronize the host clock with NTP, using a service such as `chrony`.</td>
+    </tr>
+    <tr>
+      <td>`KERBEROS_DNS_LOOKUP_FAILED`</td>
+      <td>The container can't resolve the KDC hostname or the realm.</td>
+      <td>Check the internal DNS resolver settings for your job manager container, or map the hosts with `RUNTIME_EXTRA_HOSTS`.</td>
+    </tr>
+    <tr>
+      <td>`KERBEROS_CONFIG_INVALID`</td>
+      <td>The runtime container can't read the mounted keytab, or no principal could be parsed from it (an empty or malformed keytab).</td>
+      <td>Verify the keytab is readable inside the runtime container and contains at least one principal: `klist -kt <CLIENT_KEYTAB_PATH>`.</td>
+    </tr>
+    <tr>
+      <td>`KERBEROS_UNKNOWN_FAILURE`</td>
+      <td>A system-level GSSAPI or cryptographic failure stopped the handshake.</td>
+      <td>Compare the encryption types in your client keytab (`klist -kt -e <CLIENT_KEYTAB_PATH>` lists each entry's enctype) against the `supported_enctypes` value configured on your KDC in step 3. A mismatch between what the keytab offers and what the KDC accepts causes most of these failures.</td>
+    </tr>
+  </tbody>
+</table>
