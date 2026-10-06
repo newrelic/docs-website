@@ -1,19 +1,22 @@
 ---
-title: 'Manage New Relic notebooks with Terraform'
-summary: 'Create, update, and version-control your notebooks with the new Terraform resource.'
+title: 'Manage New Relic Notebooks with Terraform'
+summary: 'Define, manage, and provision your New Relic Notebooks using Terraform.'
 releaseDate: '2026-10-06'
 getStartedLink: 'https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/notebook'
 ---
 
-If you've ever wanted your notebooks living in version control, reviewed in pull requests, and deployed the same way as the rest of your infrastructure, that day is here. The New Relic Terraform provider now includes full CRUD support for notebooks.
+You can now define, manage, and provision your New Relic Notebooks using Terraform. This lets you maintain notebooks in version control, review changes in pull requests, and deploy them alongside the rest of your infrastructure code.
 
-## What you get
+## Key features
 
-* **Full lifecycle management** — Create, update, and delete notebooks directly from your Terraform configuration, alongside the rest of your New Relic resources.
-* **Version-controlled notebooks** — Store your notebook definitions in source control and roll out changes through your existing CI/CD pipeline instead of managing them by hand in the UI.
-* **Bring in what you've already built** — Already have notebooks created in the UI? Import them into Terraform state by GUID instead of recreating them from scratch.
-* **Copy-paste-ready examples** — The provider docs include a full schema reference and working example configurations — weekly service health reviews, incident runbooks, and per-service templates — you can adapt directly.
+* **Full CRUD support:** Create, read, update, and delete New Relic Notebooks as a native Terraform resource.
+* **Access management:** Configure user permissions to safely control notebook creation and editing across your organization.
+* **Programmatic access:** Use the full CRUD API and Blob Storage API to build automated notebook workflows and AI agent integrations.
 
 ## Get started
 
-Add the `newrelic_notebook` resource to your Terraform configuration using the [schema reference and examples](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/notebook) in the Terraform registry. For more on notebooks themselves, see [Create data-driven documents with notebooks](https://docs.newrelic.com/docs/query-your-data/explore-query-data/notebooks/introduction-notebooks/).
+To start managing your notebooks with infrastructure as code, check out the resources below:
+
+* Explore the [Terraform Registry documentation](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/notebook) for schema references and example configurations.
+* Review the [Notebooks permissions documentation](https://docs.newrelic.com/docs/query-your-data/explore-query-data/notebooks/introduction-notebooks/#notebooks-permissions) to set up proper user access.
+* Read the [Notebooks Blob Storage API guide](https://docs.newrelic.com/docs/query-your-data/explore-query-data/notebooks/blob-storage-api-for-notebooks/) to build automated agent workflows.
