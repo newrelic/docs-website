@@ -10,4 +10,4 @@ This is a change to the label for the main navigation entry and nothing else. Th
 
 ![Triage Inbox (Errors Inbox) in the main navigation](/images/triage-inbox-nav-label.png "Triage Inbox (Errors Inbox) in the main navigation")
 
-**We're keeping '(Errors Inbox)' next to the new name for a few more months so the entry stays easy to recognize.**
+We're keeping **(Errors Inbox)** next to the new name **Triage Inbox** for a few more months so the entry stays easy to recognize.
