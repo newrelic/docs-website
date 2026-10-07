@@ -8,6 +8,6 @@ releaseDate: '2026-10-08'
 
 This is a change to the label for the main navigation entry and nothing else. There's no new page and no new feature to turn on. Errors Inbox and Performance Risks Inbox both work exactly as they did before, Errors Inbox inside your entity views is unchanged, and there's no change to pricing or billing.
 
-![Triage Inbox (Errors Inbox) in the main navigation](/images/triage-inbox-nav-label.png "Triage Inbox (Errors Inbox) in the main navigation")
+![Triage Inbox (Errors Inbox) in the main navigation](/images/triage-inbox-nav-label.gif "Triage Inbox (Errors Inbox) in the main navigation")
 
 We're keeping **(Errors Inbox)** next to the new name **Triage Inbox** for a few more months so the entry stays easy to recognize.
