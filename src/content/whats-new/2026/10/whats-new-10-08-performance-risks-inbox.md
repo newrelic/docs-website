@@ -13,7 +13,7 @@ Your feedback during the preview shaped four additions that ship with GA.
 
 ## What's new at GA
 
-* **Account-level overview**: A new [overview page](https://docs.newrelic.com/docs/triage-inbox/performance-risks/access-and-use/#overview) shows which entities in an account carry risk, how that risk is distributed, and which resolving which entities may have the highest impact, so you can go straight to what needs attention instead of checking entities one by one.
+* **Account-level overview**: A new [overview page](https://docs.newrelic.com/docs/triage-inbox/performance-risks/access-and-use/#overview) shows which entities in an account carry risk, how that risk is distributed, and which resolving entities may have the highest impact, so you can go straight to what needs attention instead of checking entities one by one.
 
 * **Workloads support**: Performance Risks now appear alongside errors in both [Standard and Intelligent Workloads](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/use-workloads/#performance-risks). You can see risk across a whole user journey, such as checkout, and move between a workload, the entities inside it, and the global view.
 
