@@ -22,6 +22,11 @@ const assetPrefix = () => {
   return '';
 };
 
+// Paths of the locale pages the EN build skips, written by gatsby-node.js
+// createPages and read by the sitemap plugin config in gatsby-config.js.
+const LOCALE_SITEMAP_PATHS_FILE = `${__dirname}/.cache/locale-sitemap-paths.json`;
+
 module.exports = {
   assetPrefix,
+  LOCALE_SITEMAP_PATHS_FILE,
 };

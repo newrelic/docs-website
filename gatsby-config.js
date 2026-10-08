@@ -4,7 +4,7 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const { assetPrefix } = require('./env');
+const { assetPrefix, LOCALE_SITEMAP_PATHS_FILE } = require('./env');
 
 const { LOCALES } = require('./scripts/actions/utils/constants');
 
@@ -341,10 +341,27 @@ module.exports = {
         allExtensions: true, // defaults to false
       },
     },
+    // Same options as the theme's sitemap, plus the locale paths the EN build
+    // doesn't create pages for (see gatsby-node.js createPages). The locale
+    // sites' own sitemaps don't list them, so the English sitemap must.
+    process.env.ENVIRONMENT === 'production' && {
+      resolve: 'gatsby-plugin-sitemap',
+      options: {
+        output: '/',
+        excludes: ['*/embed/'],
+        resolvePages: ({ allSitePage }) =>
+          allSitePage.nodes.concat(
+            JSON.parse(
+              fs.readFileSync(LOCALE_SITEMAP_PATHS_FILE)
+            ).map((pagePath) => ({ path: pagePath }))
+          ),
+      },
+    },
     {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
-        sitemap: process.env.ENVIRONMENT === 'production',
+        // the sitemap is configured below so it can include locale paths
+        sitemap: false,
         robots: {
           siteUrl,
           resolveEnv: () => process.env.ENVIRONMENT || 'development',

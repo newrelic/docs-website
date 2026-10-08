@@ -1,4 +1,6 @@
+const fs = require('fs');
 const path = require('path');
+const { LOCALE_SITEMAP_PATHS_FILE } = require('./env');
 const { prop } = require('./scripts/utils/functional.js');
 const { createFilePath } = require('gatsby-source-filesystem');
 const createSingleNav = require('./scripts/createSingleNav');
@@ -182,6 +184,16 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
 
+  // On the English site, Netlify force-rewrites /<locale>/* to the locale sites
+  // (scripts/createNetlifyRedirects.mjs), so English fallback copies of each
+  // page per locale are never served. The EN build skips creating them and only
+  // records their paths, which the sitemap still lists (see gatsby-config.js).
+  const skipLocalePages = process.env.BUILD_LANG === 'en';
+  const localeSitemapPaths = [];
+  const createLocalePage = skipLocalePages
+    ? (page) => localeSitemapPaths.push(path.join('/', page.path))
+    : createPage;
+
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     createPageFromNode(node, { createPage });
 
@@ -195,13 +207,19 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         i18nNode || node,
         {
           prefix: i18nNode ? '' : locale,
-          createPage,
+          createPage: createLocalePage,
           disableSwiftype: !i18nNode,
         },
         false // enable DSG
       );
     });
   });
+
+  // always written (empty unless EN) so a stale list never leaks into a sitemap
+  fs.writeFileSync(
+    LOCALE_SITEMAP_PATHS_FILE,
+    JSON.stringify(localeSitemapPaths)
+  );
 };
 
 exports.createSchemaCustomization = (
