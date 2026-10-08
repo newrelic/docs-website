@@ -1,0 +1,459 @@
+---
+title: "Install & configure NRDOT for MSSQL monitoring with Linux self-hosted"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Linux
+metaDescription: Set up Microsoft SQL Server monitoring with the NRDOT Collector on Linux self-hosted environments
+freshnessValidatedDate: 2026-10-06
+redirects:
+  - /docs/opentelemetry/database/mssql/linux-hosted
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: Microsoft-SQL-Server-with-NRDOT      
+flow:
+
+  prev: /docs/opentelemetry/db360/mssql/introduction
+
+  next: null
+---
+
+
+
+Get comprehensive insights into your SQL Server performance with database monitoring, query analysis, and system health metrics using the New Relic Distribution of OpenTelemetry (NRDOT) collector.
+
+To install this through the New Relic UI instead, go to <DNT> **[one.newrelic.com](https://one.newrelic.com) > Integrations & Agents > MSSQL (OpenTelemetry)** </DNT>. Follow the on-screen instructions to set up the integration. This page covers manual installation only.
+
+
+<Callout variant="tip">
+  If you're using SQL Server in an Linux RDS environment, refer to [Linux instrumentation for RDS](/docs/opentelemetry/db360/mssql/linux-rds).
+</Callout>
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+* A New Relic account with a valid [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+* Network connectivity to the [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp) for your region.
+* SQL Server requirements:
+  * SQL Server 2017 or later.
+  * Administrative access to SQL Server (`sysadmin` role or equivalent).
+  * Network connectivity between the collector and SQL Server on port `1433` or a custom port.
+  * The `sqlcmd` utility installed on your Linux system.
+
+
+
+
+</Step>
+
+
+<Step>
+
+## Install NRDOT Collector [#setup]
+
+Download and install the NRDOT package for your Linux distribution. Replace `<NRDOT_VERSION>` with the latest release tag from the [nrdot-collector-releases](https://github.com/newrelic/nrdot-collector-releases/releases) page.
+
+<Callout variant="tip">
+  We recommend installing the NRDOT Collector on the same host as the SQL Server instance to view infrastructure-level metrics for query performance monitoring.
+</Callout>
+
+<CollapserGroup>
+
+<Collapser
+  id="deb"
+  title="For Debian/Ubuntu">
+
+* For AMD64 architecture:
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+* For ARM64 architecture:
+
+    ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+    ```
+
+</Collapser>
+
+<Collapser
+  id="rpm"
+  title="For RHEL/CentOS">
+
+* For AMD64 architecture:
+
+  ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+* For ARM64 architecture:
+
+  ```bash
+    NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+</Collapser>
+
+</CollapserGroup>
+
+</Step>
+
+
+<Step>
+
+## Create monitoring user [#user]
+
+Run this script as root user to create the `newrelic` monitoring user and grant the necessary permissions for collecting SQL Server metrics.
+
+1. Create a configuration file named `nr-grant-permission.sql`.
+2. Paste the following SQL script to create the `newrelic` monitoring user and replace `<YOUR_PASSWORD>` with your desired password:
+
+    ```sql
+    USE [master];
+    GO
+    CREATE LOGIN [newrelic] WITH PASSWORD = '<YOUR_PASSWORD>';
+    GO
+    -- Instance-level permissions
+    GRANT VIEW SERVER STATE TO [newrelic];
+    GRANT VIEW ANY DEFINITION TO [newrelic];
+    GRANT VIEW ANY DATABASE TO [newrelic];
+    GO
+    -- Grant read access privileges to all user databases
+    DECLARE @name SYSNAME;
+    DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name]
+    FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+    AND [state] = 0; -- Only online databases
+    OPEN db_cursor;
+    FETCH NEXT FROM db_cursor INTO @name;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+      BEGIN TRY
+        EXEC('USE [' + @name + '];
+          IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+          BEGIN
+            CREATE USER [newrelic] FOR LOGIN [newrelic];
+          END;
+          GRANT VIEW DATABASE STATE TO [newrelic];');
+      END TRY
+      BEGIN CATCH
+        PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+      END CATCH
+      FETCH NEXT FROM db_cursor INTO @name;
+    END
+    CLOSE db_cursor;
+    DEALLOCATE db_cursor;
+    GO
+    ```
+
+3. Execute the script using `sqlcmd` with any login that has permission to create logins and grant server-level permissions (for example, the `sa` login, or another account with the `sysadmin` role). Replace `<YOUR_ADMIN_USERNAME>` and `<YOUR_ADMIN_PASSWORD>` with that login's credentials:
+
+    ```bash
+    sqlcmd -S <YOUR_DB_ENDPOINT> -U <YOUR_ADMIN_USERNAME> -P '<YOUR_ADMIN_PASSWORD>' -C -i nr-grant-permission.sql
+    ```
+
+4. (Optional) Verify the user is created successfully with the correct permissions:
+
+    ```bash
+    sqlcmd -S <YOUR_DB_ENDPOINT> -U <YOUR_ADMIN_USERNAME> -P '<YOUR_ADMIN_PASSWORD>' -C -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = 'newrelic';"
+    ```
+
+    **Expected Output:**
+    ```bash
+    User Permission_Granted
+    -------------------------------------------------------------------------------------
+    newrelic CONNECT SQL
+    newrelic VIEW ANY DEFINITION
+    newrelic VIEW ANY DATABASE
+    newrelic VIEW SERVER STATE
+    ```
+
+    This output confirms that your user has been created successfully with the required server-level permissions.
+
+    <Callout variant="tip">
+      To securely manage sensitive information, such as database credentials, store them in [secret management](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management) tools.
+    </Callout>
+
+
+</Step>
+
+
+<Step>
+
+## Configure NRDOT Collector [#configure]
+
+Choose your configuration option based on your monitoring requirements:
+
+1. Create a configuration file named `mssql-config.yaml`:
+
+  ```bash
+  sudo nano /etc/nrdot-collector/mssql-config.yaml
+  ```
+
+2. Add the following configuration to the `mssql-config.yaml` file created in the previous step:
+
+  <Callout variant="tip" title="full configuration">
+    This configuration focuses on essential database monitoring for your SQL Server environment. To enable comprehensive monitoring with all available metrics, refer to the [configuration reference](/docs/opentelemetry/db360/mssql/config-reference/#hosted-full).
+  </Callout>
+
+
+  <OtelConfig
+    inputOptions={[
+      {
+        name: 'username',
+        label: 'Database Username',
+        codeLine: 5,
+        defaultValue: 'newrelic',
+        toolTip: 'Enter your database username for authentication (typically newrelic)',
+      },
+      {
+        name: 'password',
+        label: 'Database Password',
+        codeLine: 6,
+        defaultValue: 'YOUR_PASSWORD',
+        toolTip: 'Enter the password you set for the newrelic user',
+      },
+      {
+        name: 'server',
+        label: 'SQL Server Hostname/IP',
+        codeLine: 7,
+        defaultValue: 'sqlserver.example.com',
+        toolTip: 'Enter your SQL Server hostname or IP address',
+      },
+      {
+        name: 'port',
+        label: 'SQL Server Port',
+        codeLine: 8,
+        defaultValue: '1433',
+        toolTip: 'Enter your SQL Server port number. The default value is 1433.',
+      },
+      {
+        name: 'endpoint',
+        label: 'New Relic OTLP Endpoint with port number',
+        codeLine: 85,
+        defaultValue: 'https://otlp.nr-data.net:4318',
+        toolTip: 'Enter your New Relic OTLP endpoint. For more information, refer to https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
+      },
+      {
+        name: 'licenseKey',
+        label: 'New Relic License Key',
+        codeLine: 87,
+        defaultValue: 'YOUR_LICENSE_KEY',
+        toolTip: 'Enter your New Relic license key',
+      },
+    ]}
+    config={`receivers:
+  nrsqlserver:
+    collection_interval: 15s
+    # Direct connection to SQL Server
+    username: <input1>
+    password: <input2>
+    server: <input3>
+    port: <input4>
+
+    # Enable comprehensive database metrics
+    metrics:
+      sqlserver.database.count:
+        enabled: true
+      sqlserver.database.io:
+        enabled: true
+      sqlserver.database.latency:
+        enabled: true
+      sqlserver.database.operations:
+        enabled: true
+      sqlserver.database.tempdb.space:
+        enabled: true
+      sqlserver.database.tempdb.version_store.size:
+        enabled: true
+      sqlserver.deadlock.rate:
+        enabled: true
+      sqlserver.os.wait.duration:
+        enabled: true
+      sqlserver.processes.blocked:
+        enabled: true
+      sqlserver.memory.grants.pending.count:
+        enabled: true
+      sqlserver.database.file.size:
+        enabled: true
+      sqlserver.memory.area:
+        enabled: true
+
+    # Enable query sample, top query, query plan, and top procedure log collection
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+      db.server.query_plan:
+        enabled: true
+      db.server.top_procedure:
+        enabled: true
+
+    # Top query collection configuration
+    top_query_collection:
+      lookback_time: 60s
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
+
+    # Query sample collection configuration
+    query_sample_collection:
+      max_rows_per_query: 100
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
+
+    # Top stored procedure collection configuration
+    top_procedure_collection:
+      max_procedure_sample_count: 1000
+      top_procedure_count: 250
+      collection_interval: 60s
+
+    resource_attributes:
+      db.system.version:
+        enabled: true
+      sqlserver.db.edition:
+        enabled: true
+
+processors:
+  memory_limiter:
+    check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+    limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+    spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+exporters:
+  otlp:
+    endpoint: <input5>
+    headers:
+      api-key: <input6>
+    tls:
+      insecure: false
+    compression: gzip
+
+    sending_queue:
+      enabled: true
+      sizer: bytes
+      queue_size: 100_000_000
+      num_consumers: 10
+      batch:
+        sizer: bytes
+        max_size: 1_000_000
+        min_size: 0
+        flush_timeout: 5s
+
+service:
+  telemetry:
+    metrics:
+      level: none
+
+  pipelines:
+    metrics:
+      receivers: [nrsqlserver]
+      processors: [memory_limiter]
+      exporters: [otlp]
+
+    logs:
+      receivers: [nrsqlserver]
+      processors: [memory_limiter]
+      exporters: [otlp]`}
+    fileName="mssql-config.yaml"
+    tipMdx={{ body: null }}
+    onChange={() => {}}
+  />
+
+  <Callout variant="tip">
+    * The `logs` pipeline doesn't carry collector debug or internal agent logs. It transmits SQL Server query telemetry, including query text, execution plans, and sample data. The `nrsqlserver` receiver captures this telemetry through `db.server.query_sample`, `db.server.top_query`, `db.server.query_plan`, and `db.server.top_procedure` events emitted as OpenTelemetry log records.
+    
+    * The `db.server.top_procedure` event requires SQL Server 2017 CU3 or later, which introduced support for `sys.dm_exec_procedure_stats.total_spills`. On earlier versions, this event doesn't emit data and logs an error. Other events remain unaffected.
+      Accessing `sys.dm_exec_procedure_stats` requires `VIEW SERVER STATE` (or `VIEW SERVER PERFORMANCE STATE`, depending on the SQL Server version). Additionally, `VIEW ANY DEFINITION` is required for `OBJECT_NAME` and `OBJECT_SCHEMA_NAME` to resolve correctly across all user databases, and `CONNECT SQL` is needed to set up initial sessions. The monitoring user created in [Create monitoring user](#user) includes all 3 permissions.
+  </Callout> 
+
+</Step>
+
+<Step>
+
+## Update NRDOT Collector configuration [#update]
+
+After configuring your YAML file with the interactive inputs above, complete the NRDOT Collector setup:
+
+1. Edit the service configuration file:
+
+    ```bash
+    sudo nano /etc/nrdot-collector/nrdot-collector.conf
+    ```
+
+2. Update the configuration path to point to your new `mssql-config.yaml` file:
+
+    ```bash
+    OTELCOL_CONFIG="/etc/nrdot-collector/mssql-config.yaml"
+    ```
+
+3. (Optional) Validate the NRDOT Collector configuration:
+
+    ```bash
+    sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mssql-config.yaml
+    ```
+
+    <Callout variant="tip">
+      To correlate your application performance with database operations, you can set up database service identification. For more information, refer to [database service identification setup guide](/docs/opentelemetry/db360/capabilities/db-apm).
+      </Callout>
+
+</Step>
+
+
+<Step>
+
+## Restart NRDOT Collector [#restart]
+
+After updating your configuration, restart the NRDOT Collector service:
+
+```bash
+sudo systemctl restart nrdot-collector
+```
+
+<Callout variant="tip">
+  Always restart the NRDOT Collector service after making configuration changes to ensure the new settings take effect.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find]
+
+Once your data is being collected, you can access comprehensive SQL Server database monitoring through the New Relic UI.
+
+To find your SQL Server database entity in New Relic:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MSSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your SQL Server database from the list of entities.
+  
+    After setting up SQL Server monitoring with NRDOT, you can:
+    
+    * [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your database metrics
+    * [Set up alerts](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) for critical database performance thresholds
+    * [Explore your data](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) using New Relic query capabilities
+  
+
+</Step>
+
+</Steps>
+
+
+## Related documentation [#related-docs]
+
+<DocTiles>
+  <DocTile title="Set up APM-database correlation" path="/docs/opentelemetry/db360/capabilities/db-apm">Learn how to correlate your application performance with database operations in New Relic.</DocTile>
+  <DocTile title="Troubleshooting" path="/docs/opentelemetry/db360/mssql/troubleshooting">Learn how to troubleshoot your MSSQL monitoring setup in New Relic.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/db360/mssql/metrics-reference">Learn about the available metrics collected by the NRDOT Collector.</DocTile>
+</DocTiles>

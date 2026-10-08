@@ -1,0 +1,101 @@
+---
+title: "Enable detailed insights"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Optional configuration
+metaDescription: Optional configuration options for deeper insights into PostgreSQL monitoring with the NRDOT Collector
+freshnessValidatedDate: 2026-10-06
+redirects:
+  - /docs/opentelemetry/database/postgresql/explain-permissions
+  - /docs/opentelemetry/db360/postgresql/explain-permissions
+---
+
+You can configure the following options to get deeper insights into your PostgreSQL instances:
+
+- [Enable TLS](#tls)
+- [Query plans for write statements](#query)
+
+## Enable TLS [#tls]
+
+The `tls` field is optional, but omitting it isn't the same as disabling TLS explicitly: the receiver's default configuration already sets `insecure: false` and `insecure_skip_verify: true`, so connections are encrypted (`sslmode=require`) but the server certificate isn't verified unless you set `insecure_skip_verify: false` and provide a `ca_file`. Most Amazon RDS and Aurora instances enforce SSL/TLS, so you'll typically want to add that verification for those environments.
+
+```yaml
+receivers:
+  nrpostgresql:
+    endpoint: <YOUR_HOST>:<YOUR_PORT>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    collection_interval: 30s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+      ca_file: <PATH_TO_CA_CERTIFICATE>
+      cert_file: <PATH_TO_CLIENT_CERTIFICATE>
+      key_file: <PATH_TO_CLIENT_KEY>
+```
+
+<Callout variant="tip">
+`cert_file`/`key_file` are only needed if your PostgreSQL server requires mutual TLS (client certificate authentication); most setups only need `ca_file` to verify the server. For Amazon RDS/Aurora, download the appropriate [RDS CA certificate bundle](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html) and reference it in `ca_file`. Leave `insecure_skip_verify: true` (the default) only for testing against instances with self-signed certificates, never in production.
+</Callout>
+
+## Query plans for write statements [#query]
+
+By default, `EXPLAIN` runs directly as the monitoring user, and PostgreSQL checks table privileges at plan time. That means row-locking or write statements fail with `permission denied` unless the monitoring user has write access, which it should never have.
+
+To collect query plans for locking or write statements without granting write access to the monitoring user, create the following function in each database:
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+### Execution plan collection mechanics [#mechanics]
+
+* **Rate limiting:** `top_query_collection.max_explain_each_interval` (default `1000`) caps the number of `EXPLAIN` calls per scrape.
+* **Caching:** `query_plan_cache_size` / `query_plan_cache_ttl` (default `1000` entries / `1h`) cache a plan once obtained, keyed by query ID.
+
+## Related documentation [#related]
+
+<DocTiles>
+  <DocTile title="Instrumentation in self-hosted environments" path="/docs/opentelemetry/db360/postgresql/hosted">Learn how to set up PostgreSQL monitoring in self-hosted environments with New Relic.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/db360/postgresql/metrics-reference">Learn about the available metrics collected by the NRDOT Collector.</DocTile>
+  <DocTile title="Troubleshooting guide" path="/docs/opentelemetry/db360/postgresql/troubleshooting">Learn how to troubleshoot common issues with PostgreSQL monitoring.</DocTile>
+</DocTiles>
