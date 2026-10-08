@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { LOCALE_SITEMAP_PATHS_FILE } = require('./env');
+const LOCALE_SITEMAP_PATHS_FILE = require('./gatsby/utils/locale-sitemap-paths');
 const { prop } = require('./scripts/utils/functional.js');
 const { createFilePath } = require('gatsby-source-filesystem');
 const createSingleNav = require('./scripts/createSingleNav');

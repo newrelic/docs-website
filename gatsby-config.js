@@ -4,7 +4,8 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const { assetPrefix, LOCALE_SITEMAP_PATHS_FILE } = require('./env');
+const { assetPrefix } = require('./env');
+const LOCALE_SITEMAP_PATHS_FILE = require('./gatsby/utils/locale-sitemap-paths');
 
 const { LOCALES } = require('./scripts/actions/utils/constants');
 
