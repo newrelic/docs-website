@@ -34,12 +34,12 @@ const waitForXPath = (xpath, timeout = TIMEOUT) =>
 
 const main = async () => {
   console.log('\n🧪 Beginning desktop test...');
-  // running on develop builds because the url is static
+  // running against the production alias because the url is static
   // github workflow triggers on PRs to main
 
   const testUrl =
     process.env.WEBDRIVER_ENV === 'main'
-      ? 'https://develop--docs-website-netlify.netlify.app/'
+      ? 'https://docs-website-netlify.netlify.app/'
       : 'http://localhost:8000/';
 
   console.log('\n🔍 looking for site at', testUrl);
