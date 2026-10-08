@@ -1,0 +1,262 @@
+---
+title: Symbolicate .NET MAUI C# errors
+tags:
+  - .NET MAUI
+  - Mobile monitoring
+  - New Relic Mobile .NET MAUI
+  - Errors
+metaDescription: "Generate, store, and upload .NET MAUI .pdb and .dll files so New Relic can show source file names and line numbers in C# stack traces in the browser."
+freshnessValidatedDate: never
+---
+
+Release builds of .NET MAUI apps for Android and iOS don't include debug information, so the C# stack traces your app reports show the method name, but not the source file or line number. New Relic can symbolicate these stack traces in your browser when you provide the matching `.pdb` and `.dll` files from that build.
+
+This page explains:
+
+* What a C# stack trace looks like before and after symbolication
+* How to generate the `.pdb` and `.dll` files and where to find them
+* How to symbolicate a stack trace in the New Relic UI
+* How to store these files so you can symbolicate errors from any release you've shipped
+
+<Callout variant="important">
+  Symbolication runs entirely in your browser. New Relic doesn't upload, store, or keep your `.pdb` or `.dll` files or the symbolicated stack traces. The result also isn't shared between errors: you upload the files separately for each error you open, and again whenever you reload the page or come back to it later. Because you'll need the files every time, [keep them for every release](#store-symbols).
+</Callout>
+
+## What symbolication adds [#before-after]
+
+Before symbolication, each frame shows `<unknown>` where the file and line number would be:
+
+```
+<unknown> in NewRelicMaui.MainPage.OnHandledExceptionClicked(Object sender, EventArgs e)()
+```
+
+After symbolication, the frame shows the source file and a line number:
+
+```
+MainPage.xaml.cs line 41 in NewRelicMaui.MainPage.OnHandledExceptionClicked()
+```
+
+The <DNT>**Thread**</DNT> column next to each frame shows the class the frame belongs to, for example `NewRelicMaui.MainPage`.
+
+<Callout variant="caution">
+  The line number is where the method starts (its first statement), not the exact line that threw the exception. The stack traces New Relic receives from .NET MAUI apps don't include the IL offset that would pinpoint the line inside the method. Use the line number to find the method in your source, then look through that method for the cause.
+</Callout>
+
+## Generate the `.pdb` and `.dll` files [#generate]
+
+<Steps>
+  <Step>
+    ### Enable portable PDBs for release builds [#enable-pdb]
+
+    In your app's `.csproj`, make sure Release builds produce portable debug symbols:
+
+    ```xml
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+      <DebugType>portable</DebugType>
+      <DebugSymbols>true</DebugSymbols>
+    </PropertyGroup>
+    ```
+
+    Portable PDBs are generated next to the assembly. They aren't packaged in your APK, AAB, or IPA, so they don't increase your app size.
+
+    Add the same settings to any class library projects whose code you want symbolicated.
+  </Step>
+
+  <Step>
+    ### Build your release [#build]
+
+    ```sh
+    # Android
+    dotnet publish -f net10.0-android -c Release
+
+    # iOS
+    dotnet publish -f net10.0-ios -c Release
+    ```
+
+    Use your project's target framework (for example, `net9.0-android`).
+  </Step>
+
+  <Step>
+    ### Find the output files [#output]
+
+    For each assembly that appears in your stack traces, you need its `.dll` and its matching `.pdb`. They're in your build output folder, named after your project:
+
+    | Platform | Location |
+    | --- | --- |
+    | Android | `bin/Release/net10.0-android/` |
+    | iOS | `bin/Release/net10.0-ios/ios-arm64/` (`ios-arm64` is the folder for physical devices. Don't use `iossimulator-arm64`.) |
+
+    For example, if your app project is `NewRelicMaui`, you need `NewRelicMaui.dll` and `NewRelicMaui.pdb`. To find which assembly a frame comes from, look at the namespace in the frame: `NewRelicMaui.MainPage.OnHandledExceptionClicked` is in `NewRelicMaui.dll`. If a frame comes from your own class library, such as `MyApp.Core`, use `MyApp.Core.dll` and `MyApp.Core.pdb`.
+
+    `dotnet publish` puts your APK, AAB, or IPA in a `publish/` subfolder. The `.dll` and `.pdb` files are in the folder above it, at the locations in the table.
+
+    You may also find copies of these files under `obj/Release/`. Always upload the `.dll` and `.pdb` together from the same folder in the table, so that they match each other.
+
+    <Callout variant="caution">
+      On iOS, don't take the `.dll` from inside the app bundle (`NewRelicMaui.app/`) or the IPA. Release builds trim and strip that copy, so it no longer matches any `.pdb`, and the bundle doesn't include a `.pdb`.
+    </Callout>
+
+    {/* Verified 2026-10-07 on .NET 10 Release builds. Android: bin/, obj/, obj/<rid>/linked/ and Obfuscar output all had the same MVID. iOS: bin/Release/net10.0-ios/ios-arm64/ dll+pdb are a matched pair; the .app copy (and obj/<rid>/linked|stripped) has a different MVID and is IL-stripped. App Exp confirmed in the UI that an iOS error symbolicates with the bin/Release/net10.0-ios/ios-arm64/ pair. */}
+  </Step>
+</Steps>
+
+## Symbolicate a stack trace in New Relic [#symbolicate]
+
+<Steps>
+  <Step>
+    ### Open the error [#open-error]
+
+    Open the C# error from either place:
+
+    * <DNT>**[one.newrelic.com](https://one.newrelic.com/) > Errors Inbox**</DNT>, then select the error.
+    * <DNT>**[one.newrelic.com](https://one.newrelic.com/) > Mobile > (select your app) > Handled exceptions**</DNT>, then select the error.
+
+    Scroll to the <DNT>**Stack trace**</DNT> section.
+
+    Note the error's `appVersion` and `appBuild`. These tell you which release's files you need.
+  </Step>
+
+  <Step>
+    ### Upload the `.pdb` and `.dll` files [#upload]
+
+    Above the stack trace, the <DNT>**Not seeing what you expected?**</DNT> banner offers on-demand symbolication. Click <DNT>**Upload .pdb and .dll files**</DNT> and select both the `.pdb` and the `.dll` for the assembly in the stack trace. If the stack trace includes frames from more than one of your assemblies, for example your app and a class library, select the `.pdb` and `.dll` for each of them. Both files are required: the `.dll` identifies the assembly and its methods, and the `.pdb` maps each method to its source file and line.
+
+    <img
+      title="Unsymbolicated .NET MAUI C# stack trace"
+      alt="Screenshot of an unsymbolicated .NET MAUI C# stack trace with the Upload .pdb and .dll files button"
+      src="/images/maui_screenshot-crop_symbolicate-upload.webp"
+    />
+
+    The selected files appear next to the button. Check that both are listed (remove a wrong one with <DNT>**×**</DNT>), then click <DNT>**Symbolicate**</DNT>.
+  </Step>
+
+  <Step>
+    ### Review or export the result [#export]
+
+    When symbolication finishes, the banner changes to <DNT>**Symbolicated your trace**</DNT> and reports how many frames were resolved, for example <DNT>**Symbolicated 1 of 1 unresolved frame**</DNT>. It also reminds you that frames resolve to the start of their method, not the exact line that threw.
+
+    <img
+      title="Symbolicated .NET MAUI C# stack trace"
+      alt="Screenshot of a .NET MAUI C# stack trace after symbolication, showing MainPage.xaml.cs line 41"
+      src="/images/maui_screenshot-crop_symbolicate-result.webp"
+    />
+
+    The result only lasts while the page is open. To keep it, click <DNT>**Export handled exception details**</DNT>. The export includes the symbolicated frames, so you can attach it to a ticket or share it with your team.
+
+    To symbolicate another error, open it and upload the files again. The result from one error doesn't carry over to others.
+  </Step>
+</Steps>
+
+## Find the right files [#match]
+
+A `.dll` and `.pdb` pair only gives correct results for stack traces from the build that produced it:
+
+1. **Release:** Match the error's `appVersion` and `appBuild` to the files you saved for that release.
+2. **Platform:** Use the Android files for Android errors and the iOS files for iOS errors.
+3. **Assembly:** Match the namespace in the stack frame to the assembly name, as described in [Find the output files](#output).
+4. **Same build:** The `.pdb` must come from the same build as the `.dll`. Don't mix files from different builds.
+
+<Callout variant="caution">
+  Because the stack trace doesn't include an assembly ID, New Relic can't always tell that the files come from a different build. Files from another version of your app can still produce a result, with line numbers that point to the wrong place if the code has changed. Even adding a single comment line above a method moves its line number. Make sure the files match the error's `appVersion` and `appBuild` before you rely on the result.
+</Callout>
+
+## Best practice: store symbols for every release [#store-symbols]
+
+New Relic doesn't keep your `.pdb` and `.dll` files, so you need to store them yourself. Do this as part of your release process, not after an error shows up.
+
+* **Archive files for every build you distribute,** including internal, beta, and store builds, for both Android and iOS.
+* **Organize them by platform, version, and build number**, matching the `appVersion` and `appBuild` attributes your app reports. For example: `symbols/maui/android/2.3.0+118/MyApp.dll` and `MyApp.pdb`.
+* **Include your own class libraries**, not only the main app assembly.
+* **Keep them for as long as that version is in use.** Users often stay on old versions for months.
+* **Use durable storage.** CI build artifacts usually expire (often after 30–90 days). For long-term retention, copy the files to a storage bucket or an artifact repository.
+* **Restrict access.** PDBs reveal your source file paths and code structure. Store them with the same access controls as your source code.
+
+<Callout variant="caution">
+  A rebuild produces identical files only if the source code, dependencies, SDK version, and build settings are all exactly the same. Save the files from the build you actually shipped. Don't count on recreating them.
+</Callout>
+
+### Example: Azure Pipelines [#azure-pipelines]
+
+```yaml
+- script: dotnet publish -f net10.0-android -c Release
+  displayName: Build Android release
+
+- task: CopyFiles@2
+  displayName: Collect symbol files
+  inputs:
+    SourceFolder: 'bin/Release/net10.0-android'  # iOS: bin/Release/net10.0-ios/ios-arm64
+    Contents: |
+      MyApp*.dll
+      MyApp*.pdb
+    TargetFolder: '$(Build.ArtifactStagingDirectory)/symbols/android/$(AppVersion)'
+
+- task: PublishPipelineArtifact@1
+  displayName: Archive symbol files
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)/symbols'
+    artifact: 'maui-symbols-$(AppVersion)'
+```
+
+### Example: GitHub Actions [#github-actions]
+
+```yaml
+- name: Build Android release
+  run: dotnet publish -f net10.0-android -c Release
+
+- name: Archive symbol files
+  uses: actions/upload-artifact@v4
+  with:
+    name: maui-symbols-android-${{ env.APP_VERSION }}
+    path: |
+      bin/Release/net10.0-android/MyApp*.dll
+      bin/Release/net10.0-android/MyApp*.pdb
+    retention-days: 90
+```
+
+Replace `MyApp` with your assembly names and `AppVersion` / `APP_VERSION` with your `ApplicationDisplayVersion` and `ApplicationVersion`. For long-term retention, also copy the files to your own storage.
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser
+    id="still-unknown"
+    title="Frames still show <unknown> after I upload the files"
+  >
+    Check that:
+
+    * You uploaded the assembly that contains the frames. The assembly name usually matches the start of the namespace in the frame.
+    * You uploaded both the `.pdb` and the `.dll`, and both come from the same build.
+    * The `.pdb` is a portable PDB. Older Windows-only (full) PDBs aren't supported.
+  </Collapser>
+
+  <Collapser
+    id="wrong-line"
+    title="The line number doesn't point to the line that threw"
+  >
+    That's expected. Frames resolve to the first line of their method, because the stack trace doesn't include the position inside the method. See [What symbolication adds](#before-after).
+
+    If the line points to a different method entirely, the files are probably from a different build. See [Find the right files](#match).
+  </Collapser>
+
+  <Collapser
+    id="partial"
+    title="Only some frames are symbolicated"
+  >
+    Each assembly needs its own `.dll` and `.pdb`. You can upload several pairs at once, so include every one of your assemblies that appears in the stack trace. Frames from assemblies you didn't upload, including .NET, MAUI, and third-party NuGet packages, stay unsymbolicated.
+  </Collapser>
+
+  <Collapser
+    id="no-pdb"
+    title="I can't find a .pdb file in my build output"
+  >
+    Check that `DebugType` is set to `portable` for the Release configuration, as shown in [Enable portable PDBs](#enable-pdb), then rebuild. The new files only match errors from the new build, not from releases you've already shipped.
+  </Collapser>
+</CollapserGroup>
+
+## Limitations [#limitations]
+
+* Frames resolve to the start of their method, not the exact line that threw.
+* Symbolication applies to C# errors. Native Android (Java/Kotlin) and iOS crashes use the [Android](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-crash-reporting) and [iOS](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) symbolication workflows.
+* Results aren't saved or shared between errors. You need to upload the files for each error, every time you view it.
+
+{/* No file size limit and no browser restrictions (confirmed for the Flutter tool by App Exp 2026-10-07; assumed the same for MAUI). */}
