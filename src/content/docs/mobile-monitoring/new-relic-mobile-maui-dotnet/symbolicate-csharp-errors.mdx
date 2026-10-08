@@ -42,6 +42,20 @@ The <DNT>**Thread**</DNT> column next to each frame shows the class the frame be
   The line number is where the method starts (its first statement), not the exact line that threw the exception. The stack traces New Relic receives from .NET MAUI apps don't include the IL offset that would pinpoint the line inside the method. Use the line number to find the method in your source, then look through that method for the cause.
 </Callout>
 
+## Understand .NET MAUI symbol files [#symbol-files]
+
+A .NET MAUI app contains both managed C# code and native platform code, and each has its own kind of debug symbol file. Each file only symbolicates errors from its own code, so a release can produce more than one kind:
+
+| File | Platform | What it symbolicates | Where it's created | How to use it in New Relic |
+| --- | --- | --- | --- | --- |
+| `.pdb` + `.dll` (portable PDB and its assembly) | Android, iOS | C# errors from your app and class libraries | `bin/Release/<target framework>/`, see [Find the output files](#output) | Upload in the browser, as described on this page |
+| `.dSYM` | iOS | Native iOS crashes | `bin/Release/net10.0-ios/ios-arm64/<YourApp>.app.dSYM` | [Upload dSYM files](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) |
+| `mapping.txt` (R8/ProGuard mapping) | Android | Obfuscated Java and Kotlin code in Android crashes. Only created if you enable R8 (`<AndroidLinkTool>r8</AndroidLinkTool>`). | Your Android build output | [Configure ProGuard or DexGuard](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-proguard-or-dexguard-android-apps) |
+
+Only the `.pdb` and `.dll` files are used to symbolicate C# errors. Uploading a dSYM or `mapping.txt` to a C# error won't symbolicate it. Keep all of them for each release, though, so you can symbolicate every kind of error the release reports.
+
+{/* Verified 2026-10-07 on a .NET 10 Release iOS build: NewRelicMaui.app.dSYM is next to the dll/pdb in bin/Release/net10.0-ios/ios-arm64/. The Android mapping.txt location wasn't verified (test app didn't enable R8). */}
+
 ## Generate the `.pdb` and `.dll` files [#generate]
 
 <Steps>
@@ -162,58 +176,20 @@ A `.dll` and `.pdb` pair only gives correct results for stack traces from the bu
 
 ## Best practice: store symbols for every release [#store-symbols]
 
-New Relic doesn't keep your `.pdb` and `.dll` files, so you need to store them yourself. Do this as part of your release process, not after an error shows up.
+New Relic doesn't keep your `.pdb` and `.dll` files, so you need to store them yourself. Save them when you build each release, not after an error shows up.
 
-* **Archive files for every build you distribute,** including internal, beta, and store builds, for both Android and iOS.
-* **Organize them by platform, version, and build number**, matching the `appVersion` and `appBuild` attributes your app reports. For example: `symbols/maui/android/2.3.0+118/MyApp.dll` and `MyApp.pdb`.
+* **Keep the files for every build you distribute,** including internal, beta, and store builds, for both Android and iOS.
+* **Keep every kind of symbol file,** including the iOS dSYMs. See [Understand .NET MAUI symbol files](#symbol-files).
 * **Include your own class libraries**, not only the main app assembly.
+* **Label them by platform, version, and build number**, matching the `appVersion` and `appBuild` attributes your app reports, so you can find the right files for an error.
 * **Keep them for as long as that version is in use.** Users often stay on old versions for months.
-* **Use durable storage.** CI build artifacts usually expire (often after 30–90 days). For long-term retention, copy the files to a storage bucket or an artifact repository.
 * **Restrict access.** PDBs reveal your source file paths and code structure. Store them with the same access controls as your source code.
+
+Where you store them is up to you, for example your CI system's build artifacts, a storage bucket, or an artifact repository. If you use CI build artifacts, check how long your CI system keeps them, because many delete them automatically after a set time.
 
 <Callout variant="caution">
   A rebuild produces identical files only if the source code, dependencies, SDK version, and build settings are all exactly the same. Save the files from the build you actually shipped. Don't count on recreating them.
 </Callout>
-
-### Example: Azure Pipelines [#azure-pipelines]
-
-```yaml
-- script: dotnet publish -f net10.0-android -c Release
-  displayName: Build Android release
-
-- task: CopyFiles@2
-  displayName: Collect symbol files
-  inputs:
-    SourceFolder: 'bin/Release/net10.0-android'  # iOS: bin/Release/net10.0-ios/ios-arm64
-    Contents: |
-      MyApp*.dll
-      MyApp*.pdb
-    TargetFolder: '$(Build.ArtifactStagingDirectory)/symbols/android/$(AppVersion)'
-
-- task: PublishPipelineArtifact@1
-  displayName: Archive symbol files
-  inputs:
-    targetPath: '$(Build.ArtifactStagingDirectory)/symbols'
-    artifact: 'maui-symbols-$(AppVersion)'
-```
-
-### Example: GitHub Actions [#github-actions]
-
-```yaml
-- name: Build Android release
-  run: dotnet publish -f net10.0-android -c Release
-
-- name: Archive symbol files
-  uses: actions/upload-artifact@v4
-  with:
-    name: maui-symbols-android-${{ env.APP_VERSION }}
-    path: |
-      bin/Release/net10.0-android/MyApp*.dll
-      bin/Release/net10.0-android/MyApp*.pdb
-    retention-days: 90
-```
-
-Replace `MyApp` with your assembly names and `AppVersion` / `APP_VERSION` with your `ApplicationDisplayVersion` and `ApplicationVersion`. For long-term retention, also copy the files to your own storage.
 
 ## Troubleshooting [#troubleshooting]
 

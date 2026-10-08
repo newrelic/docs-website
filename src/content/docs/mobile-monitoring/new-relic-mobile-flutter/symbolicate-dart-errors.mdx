@@ -65,6 +65,19 @@ The address values change every time the app runs, so two occurrences of the sam
 
 The header lines aren't code locations, so they're never symbolicated. They stay labeled `unparsed` before and after you upload a symbol file, and they're included unchanged when you export the error. Only the numbered frames below them change.
 
+## Understand Flutter symbol files [#symbol-files]
+
+A Flutter app is made of several layers of compiled code, and each layer has its own kind of debug symbol file. Each file only symbolicates errors from its own layer, so a Flutter release produces several symbol files:
+
+| File | Platform | What it symbolicates | Where it's created | How to use it in New Relic |
+| --- | --- | --- | --- | --- |
+| `.symbols` (Dart debug info) | Android, iOS | Dart errors from your Flutter code | The directory you pass to `--split-debug-info` | Upload in the browser, as described on this page |
+| `mapping.txt` (R8/ProGuard mapping) | Android | Obfuscated Java and Kotlin code in Android crashes | `build/app/outputs/mapping/release/` | [Configure ProGuard or DexGuard](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-proguard-or-dexguard-android-apps) |
+| `native-debug-symbols.zip` (ELF symbols) | Android | Native (C/C++) frames, including the Flutter engine (`libflutter.so`) | `build/app/outputs/native-debug-symbols/release/` | [Native crash reporting](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-native-crash-reporting) |
+| `.dSYM` | iOS | Native iOS crashes: `Runner`, the Flutter engine, `App.framework`, and native plugins | `build/ios/Release-iphoneos/` after `flutter build ios`, or `build/ios/archive/Runner.xcarchive/dSYMs/` after `flutter build ipa` | [Upload dSYM files](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) |
+
+Only the `.symbols` files are used to symbolicate Dart errors. Uploading a dSYM, `mapping.txt`, or `native-debug-symbols.zip` to a Dart error won't symbolicate it. Keep all of them for each release, though, so you can symbolicate every kind of error the release reports.
+
 ## Generate symbol files [#generate]
 
 Symbol files are created when you build your release. You can't create them later for a build you've already shipped.
@@ -106,18 +119,7 @@ Symbol files are created when you build your release. You can't create them late
 
     An iOS build produces only `app.ios-arm64.symbols`, because Flutter release builds run only on physical arm64 devices, not on the simulator. This is the file to upload for every Dart error from that iOS build.
 
-    <Callout variant="tip">
-      An Android build also produces two other symbol files. Neither is used for Dart error symbolication:
-
-      * `build/app/outputs/mapping/release/mapping.txt`: the R8/ProGuard mapping for Java and Kotlin code. It deobfuscates native Android crashes. See [Configure ProGuard or DexGuard](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-proguard-or-dexguard-android-apps).
-      * `build/app/outputs/native-debug-symbols/release/native-debug-symbols.zip`: native symbols for the Flutter engine (`libflutter.so.sym` for each architecture). It symbolicates native (C/C++) crashes. See [Native crash reporting](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-native-crash-reporting).
-
-      Keep them together with the `.symbols` files for the same build.
-    </Callout>
-
-    <Callout variant="tip">
-      An iOS build also produces dSYM files (`Runner.app.dSYM`, `App.framework.dSYM`, `Flutter.framework.dSYM`, and one for each native plugin). After `flutter build ios`, they're in `build/ios/Release-iphoneos/`. After `flutter build ipa`, they're in `build/ios/archive/Runner.xcarchive/dSYMs/`. dSYMs aren't used for Dart error symbolication. They symbolicate native iOS crashes. Upload them as described in [Upload dSYM files](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps). Keep them together with the `.symbols` file for the same build.
-    </Callout>
+    An Android build also creates `mapping.txt` and `native-debug-symbols.zip`, and an iOS build also creates dSYM files. They aren't used for Dart errors. See [Understand Flutter symbol files](#symbol-files).
   </Step>
 </Steps>
 
@@ -219,37 +221,16 @@ If you can't use the New Relic UI, or you want to symbolicate many traces in a s
 
 ## Best practice: store symbols for every release [#store-symbols]
 
-New Relic doesn't keep your symbol files, so you need to store them yourself. Do this as part of your release process, not after an error shows up.
+New Relic doesn't keep your symbol files, so you need to store them yourself. Save them when you build each release, not after an error shows up: you can't create them again for a build you've already shipped.
 
-* **Archive symbols for every build you distribute,** including internal, beta, and store builds.
-* **Organize them by version and build number**, matching the `appVersion` and `appBuild` attributes your app reports. For example: `symbols/flutter/1.4.2+57/app.android-arm64.symbols`.
-* **Keep all architectures** for each build, plus the Android `mapping.txt` and `native-debug-symbols.zip` and the iOS dSYMs if you also want to symbolicate native crashes.
+* **Keep the symbol files for every build you distribute,** including internal, beta, and store builds.
+* **Keep every kind of symbol file,** not only the `.symbols` files. See [Understand Flutter symbol files](#symbol-files).
+* **Keep all architectures** for each build.
+* **Label them by version and build number**, matching the `appVersion` and `appBuild` attributes your app reports, so you can find the right files for an error.
 * **Keep them for as long as that version is in use.** Users often stay on old versions for months.
-* **Use durable storage.** CI build artifacts usually expire (often after 30–90 days). For long-term retention, copy the files to a storage bucket or an artifact repository.
 * **Restrict access.** Symbol files reveal your code structure. Store them with the same access controls as your source code.
 
-### Example: GitHub Actions [#github-actions]
-
-```yaml
-- name: Build release
-  run: |
-    flutter build appbundle --release --obfuscate \
-      --split-debug-info=build/symbols/${{ env.APP_VERSION }}
-
-- name: Archive symbol files (short-term)
-  uses: actions/upload-artifact@v4
-  with:
-    name: flutter-symbols-${{ env.APP_VERSION }}
-    path: build/symbols/${{ env.APP_VERSION }}
-    retention-days: 90
-
-- name: Archive symbol files (long-term)
-  run: |
-    aws s3 cp build/symbols/${{ env.APP_VERSION }} \
-      s3://my-company-mobile-symbols/flutter/${{ env.APP_VERSION }}/ --recursive
-```
-
-Replace `APP_VERSION` with your `version+build` value from `pubspec.yaml`, and the bucket with your own storage.
+Where you store them is up to you, for example your CI system's build artifacts, a storage bucket, or an artifact repository. If you use CI build artifacts, check how long your CI system keeps them, because many delete them automatically after a set time.
 
 ## Troubleshooting [#troubleshooting]
 
