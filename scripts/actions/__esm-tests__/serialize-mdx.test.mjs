@@ -522,4 +522,20 @@ test('serializing headings with custom ids', async () => {
   await snapshot('serializing headings with custom ids', html);
 });
 
+test('serializes a real reusable-snippet component without a hand-written handlers.mjs entry', async () => {
+  // Falls back to the generic serializeComponent for any name that's a real,
+  // current file under src/components/snippets/ - see mdxElement's fallback
+  // in serialize-mdx.mjs. Uses ApmNodejsPrerequisites, a real committed
+  // snippet (src/components/snippets/apm/nodejs/prerequisites.mdx).
+  const html = await serializeMDX(`<ApmNodejsPrerequisites agentName="Node.js" />`);
+
+  expect(html).toContain('data-component="ApmNodejsPrerequisites"');
+});
+
+test('still throws on a component name that is neither a handler nor a real snippet', async () => {
+  await expect(
+    serializeMDX(`<DefinitelyNotARealComponentOrSnippet />`)
+  ).rejects.toThrow(/Unable to serialize component/);
+});
+
 test.run();

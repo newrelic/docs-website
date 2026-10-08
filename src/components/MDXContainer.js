@@ -34,6 +34,8 @@ import TechTile from './TechTile';
 import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
 import TypeDefReference from './TypeDefReference';
+import * as Snippets from './Snippets';
+import { PageMetaContext } from './PageMetaContext';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
@@ -135,14 +137,17 @@ const defaultComponents = {
   EolPage,
   DeveloperIcons,
   OtelConfig,
+  ...Snippets,
 };
 
-const MDXContainer = ({ body, children, components }) => {
+const MDXContainer = ({ body, children, components, pageMeta }) => {
   return (
-    <MarkdownContainer>
-      <MDX body={body} components={{ ...defaultComponents, ...components }} />
-      {children}
-    </MarkdownContainer>
+    <PageMetaContext.Provider value={pageMeta || {}}>
+      <MarkdownContainer>
+        <MDX body={body} components={{ ...defaultComponents, ...components }} />
+        {children}
+      </MarkdownContainer>
+    </PageMetaContext.Provider>
   );
 };
 
@@ -150,6 +155,7 @@ MDXContainer.propTypes = {
   body: PropTypes.node,
   components: PropTypes.object,
   children: PropTypes.node,
+  pageMeta: PropTypes.object,
 };
 
 export default MDXContainer;
