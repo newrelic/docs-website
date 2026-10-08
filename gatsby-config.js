@@ -344,19 +344,24 @@ module.exports = {
     // Same options as the theme's sitemap, plus the locale paths the EN build
     // doesn't create pages for (see gatsby-node.js createPages). The locale
     // sites' own sitemaps don't list them, so the English sitemap must.
-    process.env.ENVIRONMENT === 'production' && {
-      resolve: 'gatsby-plugin-sitemap',
-      options: {
-        output: '/',
-        excludes: ['*/embed/'],
-        resolvePages: ({ allSitePage }) =>
-          allSitePage.nodes.concat(
-            JSON.parse(
-              fs.readFileSync(LOCALE_SITEMAP_PATHS_FILE)
-            ).map((pagePath) => ({ path: pagePath }))
-          ),
-      },
-    },
+    // spread so non-production builds don't put `false` in the plugins list
+    ...(process.env.ENVIRONMENT === 'production'
+      ? [
+          {
+            resolve: 'gatsby-plugin-sitemap',
+            options: {
+              output: '/',
+              excludes: ['*/embed/'],
+              resolvePages: ({ allSitePage }) =>
+                allSitePage.nodes.concat(
+                  JSON.parse(
+                    fs.readFileSync(LOCALE_SITEMAP_PATHS_FILE)
+                  ).map((pagePath) => ({ path: pagePath }))
+                ),
+            },
+          },
+        ]
+      : []),
     {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
