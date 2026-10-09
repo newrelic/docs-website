@@ -69,12 +69,23 @@ Each onboarding page has a canonical structure: which sections appear, in what o
 | # | Req | Heading | Anchor | Purpose |
 |---|---|---|---|---|
 | 1 | ✓ | Capabilities | `#capabilities` | Bullet list of what the integration or feature provides. For telemetry-producing integrations: telemetry types (metrics, events, logs, traces, entities). For non-telemetry capabilities (Change Tracking, Alerts, SRE Agent, NR Control, Lens, etc.): what the feature does. Outliers get worked out with writers case by case. |
-| 2 | ✓ | Pricing | `#pricing` | Content comes directly from Legal and Product — do not write it yourself. Paste approved copy as-is. If approved copy is not yet available, include a clearly marked placeholder naming the dependency and point of contact. |
+| 2 | ✓ | Pricing | `#pricing` | Content comes directly from Legal and Product — do not write it yourself. Paste approved copy as-is. If approved copy is not yet available, include a clearly marked placeholder naming the dependency and point of contact. Do not leave this section empty or omit it. |
 | 3 | ◌ | Choose your install path | `#choose` | Bullet list of the supported install paths for this integration; mark the recommended one; one-line rationale per path (environment fit, upgrade model, tooling assumptions). Include only when the integration has multiple install paths. |
-| 4 | ◌ | Guided installation | `#ui-install` | One-sentence pointer to the NR1 entry point; no walkthrough. The anchor stays `#ui-install` for stability; the heading text reflects how the flow is framed in NR1. |
+| 4 | ◌ | Guided installation | `#ui-install` | One-sentence pointer to the NR1 entry point, plus any supplementary context the UI genuinely cannot deliver (see "Guided installation — supplementary content" below). The anchor stays `#ui-install` for stability; the heading text reflects how the flow is framed in NR1. |
 | 5 | ◌ | Time to first data | `#ttfv` | One-line expectation, e.g., "Expect data within ~15 minutes." |
 | 6 | ✓ | Installation at a glance | `#at-a-glance` | Numbered preview of the high-level tasks on the Install page. Each item corresponds 1:1 to an actionable H2 on Install (see "Correspondence rule" below the table). Not the actual instructions — a glimpse that sets reader expectations before they click through. Omit this section when there is no Install page (UI-only product areas). |
-| 7 | ✓ | Next: install and configure | `#next` | Link to the Install page in this flow. Omit when there is no Install page (UI-only product areas). |
+| 7 | ✓ | Next: install and configure | `#next` | Closure signal for the page. Content depends on whether `## Choose your install path` is present — see "Next section — single vs. multi-path" below. Omit when there is no Install page (UI-only product areas). |
+
+**Next section — single vs. multi-path**
+
+`## Next` is always required (the `[#next]` anchor must exist for AI citation and `flow.next` alignment), but its content is conditional:
+
+| Scenario | `## Choose your install path` | `## Next` content |
+|---|---|---|
+| Single install path | Omit | Single link: `[**Install and configure →**](url)` |
+| Multiple install paths | Required | One line only: "Select your install path above to continue." |
+
+When the chooser is present, it already serves as the navigation exit point — `## Next` just closes the page. It must **never** repeat the install path list. `## Next` is a closure signal, not a navigation component.
 
 **Example — *Intro lede*:**
 
@@ -104,6 +115,42 @@ Each onboarding page has a canonical structure: which sections appear, in what o
 > 2. Run the installation
 > 3. Apply the minimum configuration
 > 4. Verify your install
+
+---
+
+### Guided installation — supplementary content
+
+The `## Guided installation` section is not a UI walkthrough. It is a pointer to the NR1 entry path. That rule stands.
+
+However, some guided flows have genuine gaps the UI cannot fill — prerequisites the user must prepare before entering the flow, decision points the UI will surface but not explain, edge cases the guided experience handles poorly, or post-flow steps the UI doesn't guide. When these gaps exist, docs have a role. The content lives in this section.
+
+**What qualifies as supplementary content (allowed):**
+- Prerequisites the user must have in place before entering the guided flow
+- Decision-point caveats — context the user needs when the UI prompts them to choose something it doesn't explain
+- Known edge cases or account configurations the guided flow handles poorly or not at all
+- Post-flow steps the guided experience doesn't guide (e.g., manual configuration the UI skips)
+
+**What does not qualify (not allowed):**
+- Step-by-step click instructions ("click X, then select Y")
+- Screenshots of UI install or configuration screens
+- Content that describes what the UI already explains in-product
+- Anything that could be addressed by improving the UI itself — file that as a product feedback instead
+
+**Marking and governance:**
+
+All supplementary content in this section must be wrapped in a UI gap comment:
+
+```mdx
+{/* UI GAP: [describe the specific gap — what the UI fails to deliver and why]
+    Remove when: [describe the condition under which this content becomes unnecessary]
+    Filed: [link to product/design feedback ticket if one exists] */}
+```
+
+This comment is required for two reasons: it marks the content as temporary and explicitly tracks the gap so the product team can close it. Supplementary content without this comment should be rejected in review.
+
+**Review gate:** before adding supplementary content, confirm that the product or design team cannot fill the gap in-product within the near term. If they can, file the feedback and wait rather than documenting the gap. Docs are not a permanent substitute for product-side gaps — they are a short-term bridge.
+
+---
 
 **Correspondence rule — `Installation at a glance` must match Install's actionable H2s.**
 
@@ -366,6 +413,8 @@ The single biggest behavioral change. Apply consistently.
 - Include UI screenshots of install or configuration wizards.
 - Mirror in-app assistance content in docs.
 - Document UI workflows as a "fallback" when in-app assistance is weak. That's a product problem; flag it, don't bandaid it.
+
+**Exception — genuine UI gaps.** When the guided flow has gaps the UI cannot fill (missing prerequisites, unexplained decision points, edge cases, post-flow steps), supplementary context may live in the Intro page's `## Guided installation` section — not as a walkthrough, but as decision support the UI genuinely doesn't provide. This content must be marked with a `{/* UI GAP */}` comment, reviewed before merge, and removed when the product closes the gap. See "Guided installation — supplementary content" in Section 3 for the full rule.
 
 ### Rejection language for PR reviews
 
