@@ -1,0 +1,188 @@
+---
+title: "Migration guide"
+metaDescription: "Key considerations, configuration mapping, entity continuity, and rollback steps when migrating from a standalone Infrastructure Agent to Agent Control on Linux, Windows, and Kubernetes."
+freshnessValidatedDate: 2026-10-02
+---
+
+This guide covers the most common questions and pitfalls when moving from a standalone agent installation to agents managed by Agent Control and Fleet Control.
+
+<Callout variant="important">
+  This guide covers concepts, configuration mapping, and rollback for **Linux and Windows hosts** and **Kubernetes**. For step-by-step migration procedures, see [Instrument your systems with Agent Control](/docs/new-relic-control/agent-control/instrumentation#migrate-a-previously-instrumented-system).
+</Callout>
+
+## Before you start: the monitoring gap
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="gap-host">On Host</TabsBarItem>
+    <TabsBarItem id="gap-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+  <TabsPages>
+    <TabsPageItem id="gap-host">
+      <Callout variant="caution">
+        **Installing Agent Control removes the standalone Infrastructure Agent.**
+
+        The OS package that installs Agent Control removes or stops the previously installed Infrastructure Agent. From that moment, the host has no running agent until Agent Control connects to Fleet Control, receives the deployment configuration, and successfully starts the Infrastructure Agent as a managed sub-agent.
+      </Callout>
+
+      **Do not install Agent Control on a host until all of the following are true:**
+
+      1. Fleet Control has a deployment with an Infrastructure Agent targeting that host whose config has similar settings to your existing `newrelic-infra.yml` and `integrations.d/` files. See [Configuration migration](#configuration-migration) for how to translate each piece.
+      2. You have validated the deployment config on at least one non-production host first.
+      3. Agent Control can reach the Fleet Control endpoint and the OCI registry from the target host. Check firewall rules and proxy settings in advance.
+      4. You have the rollback steps ready in case the deployment does not come up. See [Rollback](#rollback).
+
+      The gap between Agent Control installation and the first successful managed agent start is typically a few seconds when everything is configured correctly.
+    </TabsPageItem>
+    <TabsPageItem id="gap-k8s">
+      <Callout variant="caution">
+        **Migration requires uninstalling existing agents before installing Agent Control.**
+
+        Unlike hosts where the Agent Control installer replaces the existing agent, on Kubernetes you manually uninstall the old agents first. There is a gap in monitoring from the moment you run `helm uninstall` until Agent Control connects to Fleet Control and applies your remote configuration.
+      </Callout>
+
+      **Do not uninstall your existing agents until all of the following are true:**
+
+      1. You have saved your existing Helm values: `helm get values RELEASE_NAME --namespace NAMESPACE`. These are your rollback point.
+      2. Fleet Control has remote configurations ready for each agent type you are migrating. See [Configuration migration](#configuration-migration) for how to map Helm values to Fleet Control configs.
+      3. Agent Control can reach the Fleet Control endpoint and the OCI registry from your cluster nodes. Check network policies and egress rules in advance. 
+      4. You have the rollback steps ready in case the deployment does not come up. See [Rollback](#rollback).
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Entity continuity and dashboards
+
+**Your existing dashboards, alerts, and workloads keep working without any changes.**
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="entity-host">On Host</TabsBarItem>
+    <TabsBarItem id="entity-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+  <TabsPages>
+    <TabsPageItem id="entity-host">
+      New Relic entity GUIDs are derived from stable attributes (primarily the hostname, CloudInstanceId, the account ID, and the integration identity) not from how the agent was installed or what is supervising its process. When Agent Control starts the Infrastructure Agent on the same host with the same configuration, the agent reports the same attributes it always did. New Relic resolves those attributes to the same entity GUIDs as before, so:
+
+      - The host entity in the Infrastructure UI is the same entity.
+      - On-host integration entities (MySQL, NGINX, and so on) keep their GUIDs.
+      - Any dashboard widget, alert condition, or workload that queries or filters by those entities continues to work.
+      - Golden signal history is preserved. There is no gap or duplication in the entity's metric timeline, provided the migration is done without a prolonged overlap or gap in agent execution.
+    </TabsPageItem>
+    <TabsPageItem id="entity-k8s">
+      New Relic entity GUIDs for Kubernetes are derived from the cluster name and account ID, not from how agents are installed or managed. When Agent Control deploys the Infrastructure Agent on the same cluster using the same cluster name, the cluster entity and all workload entities resolve to the same GUIDs as before, so:
+
+      - The cluster entity in the Kubernetes UI is the same entity.
+      - Workload and namespace entities keep their GUIDs.
+      - Any dashboard widget, alert condition, or workload that queries or filters by those entities continues to work.
+      - Golden signal history is preserved, provided the gap between uninstalling old agents and Agent Control starting managed agents is kept short.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Configuration migration
+
+Do not store secrets such as license keys, API keys, or passwords as plain text in Fleet Control configurations. Instead, reference them as environment variables using the `nr-env:` prefix:
+
+```yaml
+license_key: ${nr-env:NEW_RELIC_LICENSE_KEY}
+```
+
+Agent Control automatically exposes `NEW_RELIC_LICENSE_KEY` to sub-agents, so you do not need to set `license_key` explicitly; the example above is shown for reference. Use the same pattern for any other secrets. See the [variable interpolation docs](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/VARIABLE_INTERPOLATION.md#nr-env--environment-variables) for the full syntax and other supported sources.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="config-host">On Host</TabsBarItem>
+    <TabsBarItem id="config-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+  <TabsPages>
+    <TabsPageItem id="config-host">
+      **Infrastructure Agent main config**
+
+      The Infrastructure Agent main config (`newrelic-infra.yml`) maps directly to the `content` block of the Infrastructure Agent sub-agent configuration in Fleet Control. Any key accepted by `newrelic-infra.yml` is accepted there. Fields like `display_name`, `custom_attributes`, and `log` all carry over unchanged.
+
+      When Agent Control manages the Infrastructure Agent, it writes the effective configuration to disk on every remote config update. The agent reads from that path. The old `newrelic-infra.yml` config remains on disk after the migration, but it's not going to be used.
+
+      <Callout variant="tip">
+        Do not delete `newrelic-infra.yml` or the `integrations.d/` files until you have confirmed that managed agents are reporting data correctly. Keeping the originals on disk is what makes the [rollback procedure](#rollback) possible.
+      </Callout>
+
+      **On-host integrations**
+
+      Each integration configuration also needs to be created in Fleet Control selecting the correct agent type.
+    </TabsPageItem>
+    <TabsPageItem id="config-k8s">
+      **Agent types and Helm chart mapping**
+
+      Agent Control manages agents from the `nri-bundle` Helm chart as distinct agent types in Fleet Control. Each agent type has its own remote configuration:
+
+      | nri-bundle component | Fleet Control agent type |
+      |---|---|
+      | `newrelic-infrastructure`, `nri-kube-events`, `kube-state-metrics` | Infrastructure agent |
+      | `newrelic-prometheus-configurator` | Prometheus |
+      | `newrelic-logging` | Fluent Bit |
+      | `nr-k8s-otel-collector` | OpenTelemetry Collector |
+
+      **Translating Helm values to Fleet Control config**
+
+      The Helm values you retrieved with `helm get values` become the body of the Fleet Control remote configuration for each agent type. For example, a `values.yaml` section for the Infrastructure agent:
+
+      ```yaml
+      newrelic-infrastructure:
+        customAttributes:
+          environment: production
+        resources:
+          limits:
+            memory: 300Mi
+      ```
+
+      becomes a Fleet Control remote config for the **Infrastructure agent** type with those same keys under the agent's configuration block. Refer to each agent's documentation for the accepted keys.
+
+      **Secrets and license key**
+
+      Do not store secrets as plain text in Fleet Control configurations. The license key is automatically propagated by Agent Control to all managed sub-agents; you do not need to set it in the remote configuration. For other secrets (API keys, passwords), use environment variable references via the `nr-env:` prefix. See the [variable interpolation docs](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/VARIABLE_INTERPOLATION.md#nr-env--environment-variables) for details.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Rollback
+
+If Agent Control is not working as expected after installation, you can safely return to the standalone agents at any time.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="rollback-linux">Linux</TabsBarItem>
+    <TabsBarItem id="rollback-windows">Windows</TabsBarItem>
+    <TabsBarItem id="rollback-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+  <TabsPages>
+    <TabsPageItem id="rollback-linux">
+      1. Uninstall Agent Control:
+         ```bash
+         sudo sh /usr/lib/newrelic-agent-control/uninstall.sh
+         ```
+         The script stops the service, detects the package manager, and purges all Agent Control files.
+      2. Reinstall the Infrastructure Agent package if it was removed. Your `newrelic-infra.yml` and `integrations.d/` files are preserved on the host as long as you did not delete them before the migration.
+    </TabsPageItem>
+    <TabsPageItem id="rollback-windows">
+      1. Open PowerShell with Administrator privileges and uninstall Agent Control:
+         ```powershell
+         PowerShell.exe -ExecutionPolicy Bypass -File "C:\Program Files\New Relic\newrelic-agent-control\uninstall.ps1"
+         ```
+         The script stops the service, removes the service registration, and deletes Agent Control files.
+      2. Reinstall the Infrastructure Agent using the MSI installer if it was removed. Your `newrelic-infra.yml` and `integrations.d\` files are preserved on the host as long as you did not delete them before the migration.
+    </TabsPageItem>
+    <TabsPageItem id="rollback-k8s">
+      1. Uninstall Agent Control:
+         ```shell
+         helm uninstall agent-control-bootstrap -n newrelic
+         ```
+      2. Reinstall your previous agents using the Helm values you saved before the migration:
+         ```shell
+         helm upgrade --install nri-bundle newrelic/nri-bundle -n newrelic --values saved-values.yaml
+         ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+**Entity continuity is preserved on rollback.** Because entity GUIDs are derived from hostname or cluster name and account (not from how the agent is managed) the host or cluster entity and all integration entities are the same ones that were reporting before. Dashboards, alerts, and workloads resume working immediately with no gaps or duplicated history visible in the UI.
