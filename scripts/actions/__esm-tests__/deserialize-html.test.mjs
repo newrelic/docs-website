@@ -297,4 +297,32 @@ test('deserializes headers as a span element', async () => {
   expect(mdx).toEqual(input);
 });
 
+// from vulnerability-management/agent/overview.mdx, see #26073
+test('keeps inline elements inline in a single-line table cell', async () => {
+  const input = `
+<table>
+  <thead>
+    <tr>
+      <th>Trigger</th>
+      <th>How it works</th>
+      <th>Use this for</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><DNT>**Comment (trigger phrase)**</DNT></td>
+      <td>The Security RX Agent posts a comment containing a trigger phrase you configure (for example, <code>@claude fix</code>). Your agent watches for that phrase and starts working.</td>
+      <td>Claude, and custom agents that respond to a comment phrase.</td>
+    </tr>
+  </tbody>
+</table>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toContain(
+    'a trigger phrase you configure (for example, <code>@claude fix</code>). Your agent watches for that phrase and starts working.'
+  );
+});
+
 test.run();
