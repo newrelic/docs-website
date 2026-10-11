@@ -353,4 +353,11 @@ test('round-trips custom heading ids that contain underscores', async () => {
   expect(mdx).toEqual(input);
 });
 
+test('keeps heading text after inline code when a custom id is present', async () => {
+  const input = '## Use the `pkg` package [#use-pkg]';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
 test.run();
