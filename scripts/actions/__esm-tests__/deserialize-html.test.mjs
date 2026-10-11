@@ -346,4 +346,11 @@ Inline {'{requests}'} too.
   expect(mdx).toContain(`Inline {'{requests}'} too.`);
 });
 
+test('round-trips custom heading ids that contain underscores', async () => {
+  const input = '## Review goals [#review_goals]';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
 test.run();
