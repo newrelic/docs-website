@@ -325,4 +325,25 @@ test('keeps inline elements inline in a single-line table cell', async () => {
   );
 });
 
+// from opentelemetry/integrations/haproxy/metrics-reference.mdx, see #24918
+test('round-trips MDX expressions verbatim', async () => {
+  const input = `
+<table>
+  <tr>
+    <td>\`haproxy.connections.errors\`</td>
+    <td>Total number of connection errors (backend and server only)</td>
+    <td>Sum (cumulative)</td>
+    <td>{'{errors}'}</td>
+  </tr>
+</table>
+
+Inline {'{requests}'} too.
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toContain(`<td>\n      {'{errors}'}\n    </td>`);
+  expect(mdx).toContain(`Inline {'{requests}'} too.`);
+});
+
 test.run();
