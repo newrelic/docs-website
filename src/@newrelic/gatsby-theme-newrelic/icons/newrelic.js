@@ -37,6 +37,7 @@ import AttachmentIcon from './newrelic/attachment';
 import DocLinkIcon from './newrelic/doc-link';
 import MediaStreamingIcon from './newrelic/media-streaming';
 import CloudCostIcon from './newrelic/cci';
+import EbpfIcon from './newrelic/ebpf';
 
 export default {
   ...defaultIcons,
@@ -78,4 +79,5 @@ export default {
   attachment: AttachmentIcon,
   'doc-link': DocLinkIcon,
   cci: CloudCostIcon,
+  ebpf: EbpfIcon,
 };
