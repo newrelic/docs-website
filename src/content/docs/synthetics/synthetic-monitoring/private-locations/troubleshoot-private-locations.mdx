@@ -92,41 +92,48 @@ When synthetics job manager runs in Podman with `--pod`, every container joined 
 
 This means the following common attempts to fix shared memory issues **don't work** once a container has joined a pod, because the pod's `/dev/shm` mount takes precedence over per-container settings:
 
-* Setting `-e MOUNT_DEV_SHM=true` on `podman run`
 * Passing `--shm-size` on `podman run` instead of `podman pod create`
 * Bind-mounting with `-v /dev/shm:/dev/shm` on `podman run`
-
-(This is different from standalone Docker containers, where a per-container `--shm-size` is effective, because each Docker container gets its own private IPC namespace rather than sharing one with a pod.)
 
 ### Diagnose
 
 Before changing anything, confirm which of the following scenarios you're in:
 
-1. Check the pod's actual configured shared memory size:
+1. Check the `--shm-size` the pod was actually created with:
 
    ```shell
-   podman pod inspect YOUR_POD_NAME
+   podman pod inspect YOUR_POD_NAME --format '{{.CreateCommand}}'
    ```
 
-   If a previous pod with the same name wasn't fully removed before recreating it, or if a container in the pod wasn't restarted afterward, you may still be running on the original 64MB pod without realizing it.
-2. Check the shared memory actually available inside the browser runtime container, ideally captured during or immediately before a failing run:
+   This prints the exact `podman pod create` command that was run. Look for `--shm-size` in that output. If it's missing, the pod is running on the 64 MiB default regardless of what you intended to set—this can happen if a previous pod with the same name wasn't fully removed before recreating it, or if a container in the pod wasn't restarted afterward.
+2. Find the browser runtime container's ID:
+
+   ```shell
+   podman ps --filter pod=YOUR_POD_NAME --filter ancestor=newrelic/synthetics-node-browser-runtime --format '{{.ID}}'
+   ```
+
+3. Check the shared memory actually available inside that container, ideally captured during or immediately before a failing run:
 
    ```shell
    podman exec YOUR_BROWSER_RUNTIME_CONTAINER_ID df -h /dev/shm
    ```
 
-   * If this still shows `64M`, the resize never took effect—recreate the pod as described below.
-   * If this shows your configured size (for example `2.0G`) and monitors are still crashing, the resize did take effect, but that size is a shared pool across every container currently running in the pod, not a per-browser-instance allocation. If multiple monitors run concurrently on the same private location, they're all drawing from that same pool, and it may need to be sized larger or run with reduced concurrency.
+   * If `Size` still shows `64M`, the resize never took effect—recreate the pod as described below.
+   * If `Size` shows your configured value (for example `2.0G` for a pod created with `--shm-size=2g`), check the `Used` and `Avail` columns. If `Avail` is near zero, the pool is exhausted—every container in the pod draws from this same shared allocation, so if multiple monitors run concurrently on the same private location, size `--shm-size` larger or reduce how many run at once. If `Avail` still has headroom, the pool isn't the cause of this particular crash and you should look elsewhere (for example, `HEAVY_WORKER_MEMORY`).
 
 ### Fix
 
-Recreate the pod with a larger `--shm-size`, then restart synthetics job manager so it rejoins the new pod:
+Remove the existing pod and recreate it with a larger `--shm-size`, then restart synthetics job manager so it rejoins the new pod:
 
 ```shell
+podman pod stop YOUR_POD_NAME
+podman pod rm YOUR_POD_NAME
 podman pod create --network slirp4netns --name YOUR_POD_NAME --add-host=podman.service:HOST_IP_ADDRESS --shm-size=2g
 ```
 
-See [set up and start synthetics job manager](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-update) for the full pod creation and start procedure.
+`2g` is the starting point used throughout this guide and is enough for most single-monitor-at-a-time setups; if diagnosis in step 3 shows the pool is still exhausted, increase it further (for example to `4g`) rather than reducing concurrency first, and re-check `df -h /dev/shm` after each change.
+
+Then start synthetics job manager again using the `podman run` command from [set up and start synthetics job manager](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-update)—removing the pod also removes the containers that were running in it.
 
 ## CPU usage troubleshooting [#cpu-usage]
 
