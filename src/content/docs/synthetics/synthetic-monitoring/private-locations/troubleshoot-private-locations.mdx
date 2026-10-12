@@ -78,17 +78,17 @@ Helpful queries to identify current usage:
 
 ## Browser monitors crash due to shared memory sizing on Podman [#shm]
 
-If browser monitors running on a Podman-based private location fail intermittently with errors such as:
+Browser monitors running on a Podman-based private location might fail intermittently with an error like this:
 
 ```log
 NoSuchSessionError: invalid session id: session deleted as the browser has closed the connection, disconnected: Unable to receive message from renderer
 ```
 
-this is typically a Chrome renderer process crash caused by insufficient shared memory (`/dev/shm`), not a scripting or network issue. Chrome relies heavily on shared memory for rendering and tends to exhaust it faster than Firefox, especially on pages that redirect across origins during login flows—each new origin spins up additional renderer processes that draw from the same `/dev/shm` pool.
+This is typically a Chrome renderer process crash caused by insufficient shared memory (`/dev/shm`), not a scripting or network issue. Chrome relies heavily on shared memory for rendering and tends to exhaust it faster than Firefox, especially on pages that redirect across origins during login flows—each new origin spins up additional renderer processes that draw from the same `/dev/shm` pool.
 
-### Why this happens with Podman pods
+### How Podman pods allocate shared memory
 
-When synthetics job manager runs in Podman with `--pod`, every container joined to that pod shares a single IPC namespace, and `/dev/shm` is mounted once, by the pod itself, at the size the pod was created with (64MB by default). That size is fixed at `podman pod create` time and can't be changed or overridden by an individual container afterward.
+When synthetics job manager runs in Podman with `--pod`, every container joined to that pod shares a single IPC namespace. The pod itself mounts `/dev/shm` once, at the size you created the pod with (64 MiB by default). You set that size at `podman pod create` time, and an individual container can't change or override it afterward.
 
 This means the following common attempts to fix shared memory issues **don't work** once a container has joined a pod, because the pod's `/dev/shm` mount takes precedence over per-container settings:
 
@@ -97,7 +97,7 @@ This means the following common attempts to fix shared memory issues **don't wor
 
 ### Diagnose
 
-Before changing anything, confirm which of the following scenarios you're in:
+Before you change anything, run these checks to confirm the cause:
 
 1. Check the `--shm-size` the pod was actually created with:
 
@@ -105,7 +105,7 @@ Before changing anything, confirm which of the following scenarios you're in:
    podman pod inspect YOUR_POD_NAME --format '{{.CreateCommand}}'
    ```
 
-   This prints the exact `podman pod create` command that was run. Look for `--shm-size` in that output. If it's missing, the pod is running on the 64 MiB default regardless of what you intended to set—this can happen if a previous pod with the same name wasn't fully removed before recreating it, or if a container in the pod wasn't restarted afterward.
+   This prints the exact `podman pod create` command that was run. Look for `--shm-size` in that output. If it's missing, the pod is running on the 64 MiB default regardless of what you intended to set—this can happen if you didn't fully remove a previous pod with the same name before recreating it, or didn't restart a container in the pod afterward.
 2. Find the browser runtime container's ID:
 
    ```shell
@@ -118,8 +118,10 @@ Before changing anything, confirm which of the following scenarios you're in:
    podman exec YOUR_BROWSER_RUNTIME_CONTAINER_ID df -h /dev/shm
    ```
 
-   * If `Size` still shows `64M`, the resize never took effect—recreate the pod as described below.
-   * If `Size` shows your configured value (for example `2.0G` for a pod created with `--shm-size=2g`), check the `Used` and `Avail` columns. If `Avail` is near zero, the pool is exhausted—every container in the pod draws from this same shared allocation, so if multiple monitors run concurrently on the same private location, size `--shm-size` larger or reduce how many run at once. If `Avail` still has headroom, the pool isn't the cause of this particular crash and you should look elsewhere (for example, `HEAVY_WORKER_MEMORY`).
+   Compare the output to the size you configured:
+
+   * If `Size` still shows `64M`, the resize never took effect—recreate the pod as described in the next section.
+   * If `Size` shows your configured value (for example, `2.0G` for a pod created with `--shm-size=2g`), check the `Used` and `Avail` columns. If `Avail` is near zero, the pool is exhausted—every container in the pod draws from this same shared allocation, so if multiple monitors run concurrently on the same private location, size `--shm-size` larger or reduce how many run at once. If `Avail` still has headroom, the pool isn't the cause of this particular crash and you should look elsewhere (for example, `HEAVY_WORKER_MEMORY`).
 
 ### Fix
 
@@ -133,7 +135,7 @@ podman pod create --network slirp4netns --name YOUR_POD_NAME --add-host=podman.s
 
 `2g` is the starting point used throughout this guide and is enough for most single-monitor-at-a-time setups; if diagnosis in step 3 shows the pool is still exhausted, increase it further (for example to `4g`) rather than reducing concurrency first, and re-check `df -h /dev/shm` after each change.
 
-Then start synthetics job manager again using the `podman run` command from [set up and start synthetics job manager](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-update)—removing the pod also removes the containers that were running in it.
+Then start synthetics job manager again using the `podman run` command from the [Podman start procedure](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-update)—removing the pod also removes the containers that were running in it.
 
 ## CPU usage troubleshooting [#cpu-usage]
 
