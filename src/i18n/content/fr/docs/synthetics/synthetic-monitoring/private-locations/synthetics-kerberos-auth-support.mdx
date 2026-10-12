@@ -12,7 +12,7 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-Ce document décrit comment configurer un centre de distribution de clés (KDC) Kerberos et une application web authentifiée par SPNEGO/Kerberos sur une instance EC2 Amazon Linux 2023, et comment configurer le [gestionnaire de tâches Synthetics](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager) (SJM) pour monitorer avec la prise en charge de l’authentification Kerberos.
+Ce document décrit comment configurer le [gestionnaire de tâches Synthetics](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager) (SJM) pour exécuter des moniteurs avec la prise en charge de l’authentification Kerberos. Il inclut également un guide facultatif pour configurer un centre de distribution de clés (KDC) Kerberos, et une application web protégée par SPNEGO sur une instance Amazon Linux 2023 EC2, afin que vous puissiez valider la configuration avant de diriger le gestionnaire de tâches vers votre propre domaine.
 
 ## Valeurs d’espace réservé [#variables]
 
@@ -122,7 +122,33 @@ Avant de commencer, identifiez les valeurs suivantes pour votre environnement. R
   </tbody>
 </table>
 
-## Partie 1 : configurer l&apos;environnement hôte [#host-setup]
+## Exigences et compatibilité [#requirements]
+
+L’authentification Kerberos dépend de l’accès réseau direct à votre centre de distribution de clés (KDC), de la résolution DNS interne, et d’horloges étroitement synchronisées. Ces contraintes limitent les endroits où vous pouvez l’exécuter, passez donc en revue les exigences suivantes avant de commencer.
+
+Nous prenons en charge l’authentification Kerberos dans ces environnements :
+
+* Sites privés qui exécutent le gestionnaire de tâches Synthetics dans un environnement de conteneur Docker
+* Sites privés qui exécutent le gestionnaire de tâches Synthetics dans un environnement de conteneur Podman
+
+Nous ne prenons pas en charge l’authentification Kerberos dans ces environnements :
+
+* Emplacements publics, qui n’ont aucune route réseau vers votre KDC interne
+* Environnements de gestionnaire de tâches Kubernetes, et OpenShift
+
+Le gestionnaire de jobs fournit des identifiants Kerberos uniquement aux jobs pour monitorer le navigateur. Les moniteurs d’API scriptés, et les moniteurs de ping s’exécutent sans authentification Kerberos.
+
+Chaque conteneur d’exécution de navigateur acquiert son propre ticket Kerberos (via `kinit`, avant le lancement de Chrome), votre site privé doit donc également répondre à ces exigences :
+
+* Accédez à votre KDC sur le port TCP et UDP 88 depuis l’intérieur des conteneurs d’exécution.
+* Résolvez votre KDC et les noms d’hôte de l’application cible depuis l’intérieur des conteneurs d’exécution. Sur les déploiements Docker, si le DNS interne ne les résout pas, mappez-les avec [`RUNTIME_EXTRA_HOSTS`](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration#mtls-docker) (cette variable est spécifique à Docker). Les déploiements Podman dépendent du DNS interne.
+* Maintenez l’horloge de l’hôte du site privé à moins de 5 minutes de l’horloge du KDC, en utilisant un service tel que `chrony`. Les conteneurs d’exécution partagent l’horloge du noyau de l’hôte, il suffit donc de synchroniser l’hôte.
+
+## Partie 1 : configurer un laboratoire de test Kerberos (facultatif) [#host-setup]
+
+<Callout variant="tip">
+  La partie 1 crée un domaine Kerberos autonome, et une application de test protégée, afin que vous puissiez valider la configuration du gestionnaire de tâches de bout en bout. Il ne s’agit pas du chemin de production, et New Relic ne gère pas votre KDC. Si vous exécutez déjà un KDC Kerberos, ou un domaine Active Directory, obtenez le nom du domaine, l’adresse du KDC, et un keytab client auprès de la personne qui l’administre, puis passez à la [partie 2](#sjm-configuration).
+</Callout>
 
 <CollapserGroup>
   <Collapser id="install-packages" title="Étape 1 : installer les packages Kerberos">
@@ -215,8 +241,13 @@ Avant de commencer, identifiez les valeurs suivantes pour votre environnement. R
     # 2. Create HTTP service principal name (SPN) keytab for the web server
     sudo kadmin.local -q "addprinc -randkey HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
     sudo kadmin.local -q "ktadd -k /home/ec2-user/kerb-test/http.keytab HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
+    sudo chown 33:33 /home/ec2-user/kerb-test/http.keytab
     sudo chmod 644 /home/ec2-user/kerb-test/http.keytab
     ```
+
+    <Callout variant="important">
+      Le mode de fichier du keytab client a moins d’importance qu’il n’y paraît : la principale limite de confiance ici est l’accès au socket Docker — SJM lui-même nécessite `-v /var/run/docker.sock:/var/run/docker.sock:rw`, et toute personne disposant de cet accès peut déjà lire n’importe quel fichier sur l’hôte en tant que root, quels que soient ses bits d’autorisation. Conservez le keytab client sous la propriété de root, tel que créé ci-dessus, avec les autorisations `644` — cela correspond à l’identité d’exécution du conteneur d’exécution du navigateur (UID 2000, GID 0) via le bit de lecture de groupe. Ne le modifiez pas avec chown pour un utilisateur différent, cela peut rompre cette correspondance de groupe, et laisser l’accès dépendre entièrement du bit de lecture universelle. Le keytab du service HTTP est la propre identité du serveur web de test : donnez-lui l’UID, et le GID sous lesquels Apache s’exécute à l’intérieur du conteneur de l’étape 6, `33`, l’utilisateur `www-data` sur Debian, et maintenez ses autorisations à `644` également. Vous n’avez pas besoin du keytab HTTP pour configurer le gestionnaire de tâches.
+    </Callout>
   </Collapser>
 
   <Collapser id="deploy-test-container" title="(Facultatif) Étape 6 : déployer un conteneur web de test">
@@ -282,7 +313,15 @@ Avant de commencer, identifiez les valeurs suivantes pour votre environnement. R
 
 ## Partie 2 : configurer le gestionnaire de tâches Synthetics pour Kerberos [#sjm-configuration]
 
-Pour permettre aux conteneurs d&apos;exécution de navigateur Synthetics de résoudre automatiquement le KDC, d&apos;acquérir des tickets Kerberos, et de s&apos;authentifier auprès des points de terminaison protégés, ajoutez les variables d&apos;environnement Kerberos et les montages de volume suivants à votre commande SJM `docker run` standard.
+Pour permettre aux conteneurs d&apos;exécuteur de navigateur Synthetics de résoudre automatiquement le KDC, d&apos;acquérir des tickets Kerberos, et de s&apos;authentifier auprès des points de terminaison protégés, ajoutez les variables d&apos;environnement Kerberos et le montage de volume keytab suivants à la commande qui démarre votre gestionnaire de tâches.
+
+<Callout variant="caution">
+  Lorsque vous activez Kerberos sur un site privé, chaque tâche de monitoring de navigateur sur ce site reçoit le montage du keytab et les variables d’environnement Kerberos. Le gestionnaire de tâches ne filtre pas les identifiants par moniteur, ni par URL. Chrome décide quels hôtes reçoivent un ticket Kerberos en se basant uniquement sur `KERBEROS_HOST_ALLOWLIST`; gardez donc cette liste d’autorisation aussi restreinte que possible.
+</Callout>
+
+<Callout variant="important">
+  Définissez les quatre variables `KERBEROS_*`, ou n’en définissez aucune. Si vous n’en définissez que certaines, le gestionnaire de jobs Synthetics ne parvient pas à démarrer, et enregistre une erreur de configuration Kerberos incomplète dans les logs.
+</Callout>
 
 ### Commande standard (sans Kerberos) [#standard-sjm-command]
 
@@ -295,19 +334,181 @@ docker run -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
 
 ### Commande requise (avec la prise en charge de Kerberos activée) [#kerberos-sjm-command]
 
-Ajoutez les variables d’environnement (`-e`) et le montage de volume keytab (`-v`) suivants à votre commande `docker run` :
+Ajoutez les quatre variables d’environnement `KERBEROS_*` (`-e`) et le montage du volume keytab (`-v`) à la commande que vous utilisez déjà pour démarrer le gestionnaire de tâches.
 
-```bash
-docker run -d \
-  --name sjm-container \
-  --restart unless-stopped \
-  -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
-  -e KERBEROS_REALM=<REALM_NAME> \
-  -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
-  -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
-  -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
-  -e RUNTIME_EXTRA_HOSTS=<EC2_INTERNAL_HOSTNAME>:<EC2_PRIVATE_IP> \
-  -v /var/run/docker.sock:/var/run/docker.sock:rw \
-  -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro \
-  newrelic/synthetics-job-manager
-```
+<CollapserGroup>
+  <Collapser id="kerberos-sjm-docker" title="Docker">
+    ```bash
+    docker run -d \
+      --name sjm-container \
+      --restart unless-stopped \
+      -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+      -e KERBEROS_REALM=<REALM_NAME> \
+      -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+      -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+      -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+      -e RUNTIME_EXTRA_HOSTS=<EC2_INTERNAL_HOSTNAME>:<EC2_PRIVATE_IP> \
+      -v /var/run/docker.sock:/var/run/docker.sock:rw \
+      -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser id="kerberos-sjm-podman" title="Podman">
+    Ajoutez les mêmes variables Kerberos et le même montage keytab à la commande `podman run` de [Installer le gestionnaire de tâches](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager). Podman exécute le gestionnaire de tâches dans un pod plutôt que de monter le socket Docker, conservez donc vos paramètres `CONTAINER_ENGINE`, `PODMAN_API_SERVICE_PORT`, et `PODMAN_POD_NAME` existants.
+
+    ```bash
+    podman run -d \
+      --pod SYNTHETICS \
+      --restart unless-stopped \
+      -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+      -e CONTAINER_ENGINE=PODMAN \
+      -e PODMAN_API_SERVICE_PORT=8000 \
+      -e PODMAN_POD_NAME=SYNTHETICS \
+      -e KERBEROS_REALM=<REALM_NAME> \
+      -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+      -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+      -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+      -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro,Z \
+      newrelic/synthetics-job-manager
+    ```
+
+    <Callout variant="tip">
+      Sur les hôtes SELinux, ajoutez un indicateur de réétiquetage afin que le conteneur puisse lire le keytab. Le gestionnaire de tâches et chaque conteneur d’exécution de navigateur dont il effectue le lancement s’exécutent dans le même pod (`PODMAN_POD_NAME`), et Podman partage une étiquette SELinux entre tous les conteneurs d’un pod ; `:ro,Z` fonctionne donc ici même si plusieurs conteneurs lisent le keytab. Utilisez `:Z` plutôt que `:ro,Z`, car le keytab n’a jamais besoin d’être partagé avec des conteneurs en dehors de ce pod. Pour plus d’informations, consultez la [documentation sur les volumes Podman](https://docs.podman.io/en/latest/markdown/podman-run.1.html#volume-v-source-volume-host-dir-container-dir-options).
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Partie 3 : dépanner l’authentification Kerberos [#troubleshooting]
+
+Si l’initialisation de Kerberos échoue à l’intérieur du conteneur d’exécution, le pipeline de démarrage du conteneur procède tout de même au lancement du navigateur, et exécute votre moniteur. Le moniteur échoue ensuite contre un point de terminaison protégé avec un challenge HTTP 401, ou un délai de navigation dépassé, et nous ajoutons un tag au résultat avec une cause racine `KerberosInitWarning`. Comme l’échec ressemble à un dépassement de délai ordinaire, vérifiez vos logs de tâches pour trouver les codes d’erreur suivants avant d’enquêter sur le script du moniteur.
+
+Ces codes sont distincts de la validation de démarrage de la [Partie 2](#sjm-configuration) — si vous ne définissez que certaines des variables `KERBEROS_*`, le gestionnaire de jobs ne démarre tout simplement pas, et aucun de ces codes n’apparaîtra jamais dans les logs d’un job.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Code d’erreur
+      </th>
+
+      <th>
+        Cause
+      </th>
+
+      <th>
+        Que faire
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `KERBEROS_KDC_UNREACHABLE`
+      </td>
+
+      <td>
+        Le conteneur d’exécution ne peut pas atteindre le KDC sur le réseau.
+      </td>
+
+      <td>
+        Vérifiez les règles du pare-feu pour le port TCP, et UDP 88 entre l’hôte de votre site privé, et le KDC.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_BAD_CREDENTIAL`
+      </td>
+
+      <td>
+        Le principal ne correspond pas au keytab, ou le keytab est endommagé.
+      </td>
+
+      <td>
+        Vérifiez le keytab sur l’hôte en exécutant 
+
+        `klist -kt <CLIENT_KEYTAB_PATH>`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_CLOCK_SKEW`
+      </td>
+
+      <td>
+        L’horloge de l’hôte diffère de l’horloge du KDC de plus de 5 minutes.
+      </td>
+
+      <td>
+        Synchronisez l’horloge de l’hôte avec NTP, en utilisant un service tel que 
+
+        `chrony`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_DNS_LOOKUP_FAILED`
+      </td>
+
+      <td>
+        Le conteneur ne peut pas résoudre le nom d’hôte du KDC, ou le domaine.
+      </td>
+
+      <td>
+        Vérifiez les paramètres du résolveur DNS interne pour votre conteneur de gestionnaire de jobs, ou mappez les hôtes avec 
+
+        `RUNTIME_EXTRA_HOSTS`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_CONFIG_INVALID`
+      </td>
+
+      <td>
+        Le conteneur d’exécution ne peut pas lire le keytab monté, ou aucun principal n’a pu en être extrait (un keytab vide, ou malformé).
+      </td>
+
+      <td>
+        Vérifiez que le keytab est lisible à l’intérieur du conteneur d’exécution et contient au moins un principal : 
+
+        `klist -kt <CLIENT_KEYTAB_PATH>`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_UNKNOWN_FAILURE`
+      </td>
+
+      <td>
+        Une défaillance cryptographique, ou GSSAPI au niveau du système a interrompu la négociation.
+      </td>
+
+      <td>
+        Comparez les types de chiffrement dans votre keytab client (
+
+        `klist -kt -e <CLIENT_KEYTAB_PATH>`
+
+         répertorie le type de chiffrement de chaque entrée) avec la valeur 
+
+        `supported_enctypes`
+
+         configurée sur votre KDC à l’étape 3. Une inadéquation entre ce que le keytab propose, et ce que le KDC accepte provoque la plupart de ces échecs.
+      </td>
+    </tr>
+  </tbody>
+</table>
