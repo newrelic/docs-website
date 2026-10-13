@@ -12,7 +12,7 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-Este documento descreve como configurar um Centro de Distribuição de Chaves (KDC) Kerberos e um aplicativo web autenticado por SPNEGO/Kerberos em uma instância de EC2 do Amazon Linux 2023, e como configurar o [gerenciador de trabalhos de Sintéticos](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager) (SJM) para executar monitores com suporte à autenticação Kerberos.
+Este documento descreve como configurar o [gerenciador de trabalhos de Sintéticos](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager) (SJM) para executar monitores com suporte à autenticação Kerberos. Ele também inclui um passo a passo opcional para configurar um Centro de Distribuição de Chaves (KDC) Kerberos e um aplicativo web protegido por SPNEGO em uma instância de EC2 do Amazon Linux 2023, para que você possa validar a configuração antes de apontar o gerenciador de trabalhos para o seu próprio realm.
 
 ## Valores de espaço reservado [#variables]
 
@@ -122,7 +122,33 @@ Antes de começar, identifique os seguintes valores para o seu ambiente. Substit
   </tbody>
 </table>
 
-## Parte 1: configurar o ambiente de host [#host-setup]
+## Requisitos e compatibilidade [#requirements]
+
+A autenticação Kerberos depende de acesso direto à rede para o seu Key Distribution Center (KDC), resolução de DNS interno e relógios rigorosamente sincronizados. Essas restrições limitam onde você pode executá-la, portanto, revise os seguintes requisitos antes de começar.
+
+Oferecemos suporte à autenticação Kerberos nestes ambientes:
+
+* Localizações privadas que executam o gerenciador de tarefas Sintético em um ambiente de contêiner Docker
+* Localizações privadas que executam o gerenciador de jobs de Sintéticos em um ambiente de contêiner Podman
+
+Não oferecemos suporte à autenticação Kerberos nestes ambientes:
+
+* Localizações públicas, que não têm rota de rede para o seu KDC interno
+* Ambientes do gerenciador de jobs do Kubernetes e do OpenShift
+
+O gerenciador de jobs fornece credenciais Kerberos apenas para jobs de monitor de navegador. Monitores de API com script e monitores de ping são executados sem autenticação Kerberos.
+
+Cada contêiner de tempo de execução do navegador adquire seu próprio ticket Kerberos (via `kinit`, antes do lançamento do Chrome), portanto, sua localização privada também deve atender a estes requisitos:
+
+* Acesse seu KDC na porta 88 TCP e UDP de dentro dos contêineres de tempo de execução.
+* Resolva os nomes do host do seu KDC e do aplicativo de destino de dentro dos contêineres de tempo de execução. Nas implantações do Docker, se o DNS interno não os resolver, mapeie-os com [`RUNTIME_EXTRA_HOSTS`](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration#mtls-docker) — esta variável é exclusiva do Docker. As implantações do Podman dependem do DNS interno.
+* Mantenha o relógio do host da localização privada com uma diferença máxima de 5 minutos em relação ao relógio do KDC, usando um serviço como `chrony`. Os contêineres de tempo de execução compartilham o relógio do kernel do host, portanto, sincronizar o host é suficiente.
+
+## Parte 1: configurar um laboratório de testes Kerberos (opcional) [#host-setup]
+
+<Callout variant="tip">
+  A Parte 1 cria um realm do Kerberos independente e um aplicativo de teste protegido para que você possa validar a configuração do gerenciador de trabalhos de ponta a ponta. Não é o caminho de produção e a New Relic não gerencia o seu KDC. Se você já executa um KDC do Kerberos ou um domínio do Active Directory, obtenha o nome do realm, o endereço do KDC e um keytab de cliente de quem o administra e, em seguida, pule para a [Parte 2](#sjm-configuration).
+</Callout>
 
 <CollapserGroup>
   <Collapser id="install-packages" title="Etapa 1: instalar pacotes do Kerberos">
@@ -215,8 +241,13 @@ Antes de começar, identifique os seguintes valores para o seu ambiente. Substit
     # 2. Create HTTP service principal name (SPN) keytab for the web server
     sudo kadmin.local -q "addprinc -randkey HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
     sudo kadmin.local -q "ktadd -k /home/ec2-user/kerb-test/http.keytab HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
+    sudo chown 33:33 /home/ec2-user/kerb-test/http.keytab
     sudo chmod 644 /home/ec2-user/kerb-test/http.keytab
     ```
+
+    <Callout variant="important">
+      O modo de arquivo do keytab do cliente importa menos do que parece: o limite de confiança primário aqui é o acesso ao soquete do Docker — o próprio SJM requer `-v /var/run/docker.sock:/var/run/docker.sock:rw`, e qualquer pessoa com esse acesso já pode ler qualquer arquivo no host como root, independentemente de seus bits de permissão. Mantenha o keytab do cliente como propriedade do root, conforme criado acima, com as permissões `644` — isso corresponde à identidade de execução do contêiner de tempo de execução do navegador (UID 2000, GID 0) por meio do bit de leitura de grupo. Não altere a propriedade para um usuário diferente, pois fazer isso pode quebrar essa correspondência de grupo e deixar o acesso dependendo inteiramente do bit de leitura global. O keytab do serviço HTTP é a própria identidade do servidor da web de teste: atribua a ele o UID e o GID com os quais o Apache é executado dentro do contêiner da etapa 6 — `33`, o usuário `www-data` no Debian — e mantenha suas permissões em `644` também. Você não precisa do keytab HTTP para configurar o gerenciador de tarefas.
+    </Callout>
   </Collapser>
 
   <Collapser id="deploy-test-container" title="(Opcional) Etapa 6: implantar um contêiner web de teste">
@@ -282,7 +313,15 @@ Antes de começar, identifique os seguintes valores para o seu ambiente. Substit
 
 ## Parte 2: configurar o gerenciador de jobs de Sintéticos para o Kerberos [#sjm-configuration]
 
-Para permitir que os contêineres de runner de navegador de Sintéticos resolvam automaticamente o KDC, adquiram tickets Kerberos e se autentiquem em endpoints protegidos, adicione as seguintes variáveis de ambiente e montagens de volume do Kerberos ao seu comando SJM `docker run` padrão.
+Para permitir que os contêineres do executor de navegador do Sintéticos resolvam automaticamente o KDC, adquiram tickets Kerberos e se autentiquem em endpoints protegidos, adicione as seguintes variáveis de ambiente Kerberos e a montagem de volume keytab ao comando que inicia o seu gerenciador de trabalhos.
+
+<Callout variant="caution">
+  Quando você ativa o Kerberos em uma localização privada, cada trabalho de monitor de navegador nessa localização recebe a montagem keytab e as variáveis de ambiente Kerberos. O gerenciador de jobs não filtra credenciais por monitor ou por URL. O Chrome decide quais hosts recebem um ticket Kerberos com base apenas em `KERBEROS_HOST_ALLOWLIST`, portanto, mantenha essa lista de permissões o mais restrita possível.
+</Callout>
+
+<Callout variant="important">
+  Defina todas as quatro variáveis `KERBEROS_*`, ou não defina nenhuma delas. Se definir apenas algumas, o gerenciador de tarefas Sintético falha ao iniciar e registra um erro de configuração incompleta do Kerberos.
+</Callout>
 
 ### Comando padrão (sem Kerberos) [#standard-sjm-command]
 
@@ -295,19 +334,181 @@ docker run -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
 
 ### Comando obrigatório (com suporte a Kerberos habilitado) [#kerberos-sjm-command]
 
-Adicionar as seguintes variáveis de ambiente (`-e`) e a montagem de volume do keytab (`-v`) ao seu comando `docker run`:
+Adicione as quatro variáveis de ambiente `KERBEROS_*` (`-e`) e a montagem de volume keytab (`-v`) ao comando que você já usa para iniciar o gerenciador de trabalhos.
 
-```bash
-docker run -d \
-  --name sjm-container \
-  --restart unless-stopped \
-  -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
-  -e KERBEROS_REALM=<REALM_NAME> \
-  -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
-  -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
-  -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
-  -e RUNTIME_EXTRA_HOSTS=<EC2_INTERNAL_HOSTNAME>:<EC2_PRIVATE_IP> \
-  -v /var/run/docker.sock:/var/run/docker.sock:rw \
-  -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro \
-  newrelic/synthetics-job-manager
-```
+<CollapserGroup>
+  <Collapser id="kerberos-sjm-docker" title="Docker">
+    ```bash
+    docker run -d \
+      --name sjm-container \
+      --restart unless-stopped \
+      -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+      -e KERBEROS_REALM=<REALM_NAME> \
+      -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+      -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+      -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+      -e RUNTIME_EXTRA_HOSTS=<EC2_INTERNAL_HOSTNAME>:<EC2_PRIVATE_IP> \
+      -v /var/run/docker.sock:/var/run/docker.sock:rw \
+      -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro \
+      newrelic/synthetics-job-manager
+    ```
+  </Collapser>
+
+  <Collapser id="kerberos-sjm-podman" title="Homem-Pod">
+    Adicione as mesmas variáveis Kerberos e a montagem do keytab ao comando `podman run` de [Instalar o gerenciador de jobs](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager). O Podman executa o gerenciador de jobs em um pod em vez de montar o soquete do Docker, portanto, mantenha as suas configurações existentes de `CONTAINER_ENGINE`, `PODMAN_API_SERVICE_PORT` e `PODMAN_POD_NAME`.
+
+    ```bash
+    podman run -d \
+      --pod SYNTHETICS \
+      --restart unless-stopped \
+      -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+      -e CONTAINER_ENGINE=PODMAN \
+      -e PODMAN_API_SERVICE_PORT=8000 \
+      -e PODMAN_POD_NAME=SYNTHETICS \
+      -e KERBEROS_REALM=<REALM_NAME> \
+      -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+      -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+      -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+      -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro,Z \
+      newrelic/synthetics-job-manager
+    ```
+
+    <Callout variant="tip">
+      Em hosts SELinux, adicione uma flag de relabel para que o contêiner possa ler o keytab. O gerenciador de jobs e cada contêiner de tempo de execução de navegador que ele lança são executados dentro do mesmo pod (`PODMAN_POD_NAME`), e o Podman compartilha um rótulo SELinux entre todos os contêineres em um pod — portanto, `:ro,Z` funciona aqui, mesmo que vários contêineres leiam o keytab. Use `:Z` em vez de `:ro,Z`, já que o keytab nunca precisa ser compartilhado com contêineres fora deste pod. Para obter mais informações, consulte a [documentação de volume do Podman](https://docs.podman.io/en/latest/markdown/podman-run.1.html#volume-v-source-volume-host-dir-container-dir-options).
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Parte 3: solução de problemas de autenticação Kerberos [#troubleshooting]
+
+Se a inicialização do Kerberos falhar dentro do contêiner de tempo de execução, o pipeline de inicialização do contêiner ainda faz o lançamento do navegador e executa o seu monitor. O monitor então falha em um endpoint protegido com um desafio HTTP 401 ou um tempo limite de navegação, e adicionamos a tag de causa raiz `KerberosInitWarning` ao resultado. Como a falha parece um tempo limite comum, verifique os logs do seu job em busca dos seguintes códigos de erro antes de investigar o script do monitor.
+
+Esses códigos são separados da validação de inicialização na [Parte 2](#sjm-configuration) — se você definir apenas algumas das variáveis `KERBEROS_*`, o gerenciador de trabalhos falhará ao iniciar imediatamente, e nenhum desses códigos aparecerá nos logs de um trabalho.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Código de erro
+      </th>
+
+      <th>
+        Causa
+      </th>
+
+      <th>
+        O que fazer
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `KERBEROS_KDC_UNREACHABLE`
+      </td>
+
+      <td>
+        O contêiner de tempo de execução não consegue acessar o KDC pela rede.
+      </td>
+
+      <td>
+        Verifique as regras de firewall para a porta TCP e UDP 88 entre o host da sua localização privada e o KDC.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_BAD_CREDENTIAL`
+      </td>
+
+      <td>
+        O principal não corresponde ao keytab, ou o keytab está danificado.
+      </td>
+
+      <td>
+        Verifique o keytab no host executando 
+
+        `klist -kt <CLIENT_KEYTAB_PATH>`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_CLOCK_SKEW`
+      </td>
+
+      <td>
+        O relógio do host difere do relógio do KDC em mais de 5 minutos.
+      </td>
+
+      <td>
+        Sincronize o relógio do host com o NTP, usando um serviço como 
+
+        `chrony`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_DNS_LOOKUP_FAILED`
+      </td>
+
+      <td>
+        O contêiner não consegue resolver o nome do host do KDC ou o realm.
+      </td>
+
+      <td>
+        Verifique as configurações do resolvedor DNS interno para o contêiner do seu gerenciador de tarefas ou mapeie os hosts com 
+
+        `RUNTIME_EXTRA_HOSTS`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_CONFIG_INVALID`
+      </td>
+
+      <td>
+        O contêiner de tempo de execução não consegue ler o keytab montado, ou nenhum principal pôde ser analisado a partir dele (um keytab vazio ou malformado).
+      </td>
+
+      <td>
+        Verifique se o keytab pode ser lido dentro do contêiner de tempo de execução e se contém pelo menos um principal: 
+
+        `klist -kt <CLIENT_KEYTAB_PATH>`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `KERBEROS_UNKNOWN_FAILURE`
+      </td>
+
+      <td>
+        Uma falha criptográfica ou de GSSAPI no nível do sistema interrompeu o handshake.
+      </td>
+
+      <td>
+        Compare os tipos de criptografia no seu keytab de cliente (
+
+        `klist -kt -e <CLIENT_KEYTAB_PATH>`
+
+         lista o enctype de cada entrada) com o valor 
+
+        `supported_enctypes`
+
+         configurado no seu KDC na etapa 3. Uma incompatibilidade entre o que o keytab oferece e o que o KDC aceita causa a maioria dessas falhas.
+      </td>
+    </tr>
+  </tbody>
+</table>
