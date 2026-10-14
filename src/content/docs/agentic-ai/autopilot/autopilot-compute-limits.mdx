@@ -156,7 +156,7 @@ Daily and monthly token caps evaluate total cumulative spend, but they cannot pr
 To maintain platform stability and protect organization budgets during sudden alert spikes, two concurrent protection mechanisms operate at the entry gate:
 
 * **Per-org automated concurrency cap**: Imposes a strict ceiling of maximum 10 simultaneous active automated runs per organization. Requests arriving while 10 automated runs are in-flight are shed immediately with HTTP 429 backpressure and standard `Retry-After` response headers, preventing unmonitored execution queues.
-* **Atomic Valkey reservations**: Prior to spawning an asynchronous execution task (`asyncio.create_task`), the entry gate atomically increments high-speed Valkey counters by a conservative estimated token cost—specifically 50,000 tokens for automated runs and 200,000 tokens for interactive human sessions. Upon run completion, the orchestration engine reconciles the reservation against actual consumed token spend. If an initial reservation causes the organization's counter to exceed its configured limit, the transaction rolls back, and the request is rejected immediately.
+* **Atomic Valkey reservations**: Prior to spawning an asynchronous execution task (`asyncio.create_task`), the entry gate atomically increments high-speed Valkey counters by a conservative estimated token cost. Upon run completion, the orchestration engine reconciles the reservation against actual consumed token spend. If an initial reservation causes the organization's counter to exceed its configured limit, the transaction rolls back, and the request is rejected immediately.
 
 ### High availability and disaster recovery: Valkey outage fallback policy [#valkey-fallback]
 
@@ -166,73 +166,6 @@ During local cache or Valkey infrastructure outages, the orchestration engine ap
   * **Automated / SI workflows (fail-closed)**: All automated trigger requests are blocked (HTTP 429) during cache dark periods to prevent unmonitored spend spikes.
   * **Interactive user workflows (fail-open)**: Human interactive chat sessions remain available to preserve engineer operational capabilities during active incident response.
 </Callout>
-
-Beyond backend concurrency safeguards, complete administrative operational control relies on continuous telemetry and analytics driven by NRQL.
-
-## Track usage and telemetry with NRQL [#nrql]
-
-All compute limit evaluations, budget transitions, and rejection events emit real-time telemetry to the New Relic Telemetry Data Platform (NRDB). System administrators and engineers can query these events to monitor resource consumption and audit access patterns.
-
-### The SreComputeLimitEvent schema [#schema]
-
-Compute limit evaluation events are emitted to NRDB under the `SreComputeLimitEvent` custom event type. Key schema attributes include:
-
-* `organizationId`: The target New Relic organization account ID.
-* `userId`: The specific user ID (populated for interactive requests; NULL for System Identity runs).
-* `principalType`: The category of caller (`USER` vs. `SYSTEM_IDENTITY`).
-* `limitName`: The policy evaluated (for example, `Autopilot Feature Daily Token Limit`).
-* `currentValue`: Cumulative token or compute count at evaluation time.
-* `limitValue`: Configured budget ceiling.
-* `verdict`: The outcome of the policy evaluation (`PASS`, `WARN`, `REJECT`, or `CONCURRENCY_LIMIT_EXCEEDED`).
-
-<Callout variant="note" title="Granular troubleshooting">
-  While `SreComputeLimitEvent` records rolled-up policy evaluation decisions and gating verdicts, individual LLM calls and step executions continue to write granular telemetry to `SreAgentTokens` tagged with `run_id` and `agent_id` for deep, call-level troubleshooting.
-</Callout>
-
-### Standard analytical queries [#queries]
-
-Administrators can run the following NRQL queries in the New Relic query builder to analyze consumption.
-
-**Daily consumption trend vs. configured cap**
-
-```sql
-SELECT sum(currentValue) AS 'Total Tokens Consumed', max(limitValue) AS 'Daily Cap'
-FROM SreComputeLimitEvent
-WHERE limitName = 'Autopilot Feature Daily Token Limit'
-TIMESERIES 1 hour SINCE 1 day AGO
-```
-
-**Rejection audit for automated SI workflows**
-
-```sql
-SELECT count(*)
-FROM SreComputeLimitEvent
-WHERE principalType = 'SYSTEM_IDENTITY' AND verdict = 'REJECT'
-FACET organizationId, limitName
-SINCE 7 days AGO
-```
-
-**Top interactive users by compute volume**
-
-```sql
-SELECT sum(currentValue) AS 'Token Consumption'
-FROM SreComputeLimitEvent
-WHERE principalType = 'USER'
-FACET userId
-SINCE 30 days AGO
-```
-
-**Concurrency cap rejection events**
-
-```sql
-SELECT count(*)
-FROM SreComputeLimitEvent
-WHERE verdict = 'CONCURRENCY_LIMIT_EXCEEDED'
-FACET organizationId
-TIMESERIES SINCE 24 hours AGO
-```
-
-To complement real-time analytics, understanding the architectural relationship between enforcement mechanisms and billing reporting is critical for long-term governance.
 
 ## Billing reconciliation, data lag, and disclaimers [#billing]
 
