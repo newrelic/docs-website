@@ -1,0 +1,608 @@
+---
+title: Instale e configure o NRDOT para monitoramento do MSSQL com Helm
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Kubernetes
+  - Helm
+metaDescription: Install and configure Microsoft SQL Server monitoring on Kubernetes using the mssql-otel Helm chart
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+Você pode instalar e configurar o monitoramento do SQL Server no Kubernetes usando o chart do Helm `mssql-otel`. Opcionalmente, o chart também pode executar um job de configuração que cria o login de monitoramento para você.
+
+<Callout variant="tip" title="Instalação guiada">
+  Para instalar isso pela interface da New Relic, acesse <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Microsoft SQL Server (Database 360)](https://onenr.io/00jlEJX6EQW)** </DNT>. Siga as instruções na tela para configurar a integração. Esta página aborda apenas a instalação manual.
+</Callout>
+
+<Callout variant="important">
+  Este chart suporta apenas a Autenticação do SQL Server (nome de usuário/senha). Ele não suporta a Autenticação do Windows, a Autenticação de domínio do Windows ou gMSA. O coletor sempre acessa o SQL Server remotamente pela rede, seja executado no Linux ou no Windows, auto-hospedado ou no RDS, portanto, a autenticação do SQL funciona de forma idêntica em todos os casos. Ele também relata apenas métricas do SQL Server (sem métricas de host/infraestrutura), já que o coletor é executado como uma implantação do Kubernetes em vez de no próprio host do SQL Server.
+</Callout>
+
+<Steps>
+  <Step>
+    ## Pré-requisitos [#helm-prerequisites]
+
+    * [Chave de licença](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) da New Relic válida.
+
+    * Helm 3.0 ou posterior, e `kubectl` configurado para acessar seu cluster do Kubernetes.
+
+    * Conectividade de rede do seu cluster do Kubernetes para o host do SQL Server (ou endpoint do RDS) e porta:
+
+      * Auto-hospedado: um caminho roteado para o host do SQL Server (VPN, peering ou rede compartilhada), e o firewall do lado do SQL Server deve permitir o IP de origem da conexão.
+      * AWS RDS: emparelhamento de VPC, um transit gateway ou posicionamento em VPC compartilhada com a instância do RDS, e o grupo de segurança do RDS deve permitir a porta do SQL Server (`1433` por padrão) a partir da origem de saída do cluster.
+
+    * Um login de monitoramento que você já criou ou credenciais de administrador do SQL Server (um login com a função `sysadmin`, como `sa` ou o usuário mestre do RDS) para que o job de configuração do chart possa criar um para você. Veja [Configurar credenciais de monitoramento](#helm-credentials) abaixo.
+  </Step>
+
+  <Step>
+    ## Crie o namespace [#helm-namespace]
+
+    Crie o namespace onde a instalação será realizada. Ele deve existir antes da criação de qualquer secret na próxima etapa, já que `helm install --create-namespace` cria o namespace apenas durante a etapa final de instalação:
+
+    ```bash
+    kubectl create namespace newrelic
+    ```
+
+    <Callout variant="tip">
+      Defina-o como o namespace padrão para o seu contexto `kubectl` atual para que não seja necessário passar `-n` em todos os comandos abaixo:
+
+      ```bash
+      kubectl config set-context --current --namespace=newrelic
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Configure as credenciais de monitoramento [#helm-credentials]
+
+    Decida se deseja que o job de configuração do chart crie o login de monitoramento do SQL Server para você e, caso contrário, como você fornecerá as credenciais dele:
+
+    <CollapserGroup>
+      <Collapser id="helm-creds-inline" title="Sem job de configuração: nome de usuário e senha simples">
+        Com este método, não há job de configuração, portanto, nada aqui cria o login de monitoramento para você. Este chart suporta apenas a Autenticação do SQL Server, portanto, antes de instalá-lo, crie o login de monitoramento usando a etapa **Criar usuário de monitoramento** da Autenticação do SQL Server em [Linux self-hosted](/docs/opentelemetry/db360/mssql/linux-hosted/#user), [Windows self-hosted](/docs/opentelemetry/db360/mssql/windows-hosted-sql/#user-sql), [Linux RDS](/docs/opentelemetry/db360/mssql/linux-rds/#user) ou [Windows RDS](/docs/opentelemetry/db360/mssql/windows-rds-sql/#user-sql), dependendo do seu ambiente.
+
+        Você definirá o nome de usuário e a senha de monitoramento diretamente em `values.yaml` na próxima etapa.
+      </Collapser>
+
+      <Collapser id="helm-creds-secret-nojob" title="Sem job de configuração: credenciais baseadas em segredos">
+        Com este método, também não há job de configuração. Crie você mesmo o login de monitoramento primeiro, exatamente como no método plain-credentials acima. A única diferença é onde suas credenciais ficam: em vez de texto simples em `values.yaml`, armazene-as em um secret do Kubernetes:
+
+        ```bash
+        kubectl create secret generic mssql-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        ```
+      </Collapser>
+
+      <Collapser id="helm-creds-setupjob" title="Tarefa de configuração automatizada">
+        Com este método, o job de configuração do chart cria o login de monitoramento para você usando as credenciais de administrador do SQL Server. Tanto as credenciais de monitoramento quanto as de administrador devem ser fornecidas como secrets do Kubernetes: o job de configuração nunca aceita credenciais de administrador em texto simples, e habilitá-lo também requer credenciais de monitoramento baseadas em secrets.
+
+        1. Crie um secret com o nome de usuário e a senha de monitoramento. Esta é a identidade que o job de configuração cria e com a qual o coletor se conecta:
+
+           ```bash
+           kubectl create secret generic mssql-monitor-creds \
+             --from-literal=username=<MONITORING_USERNAME> \
+             --from-literal=password='<MONITORING_PASSWORD>' \
+             -n newrelic
+           ```
+
+        2. O job de configuração aceita apenas credenciais de administrador por meio de um secret do Kubernetes (sem nome de usuário/senha em texto simples em `values.yaml`). Como essa credencial pode criar logins e conceder amplo acesso `VIEW`, crie-a como seu próprio segredo. Use um login na função `sysadmin` (ou equivalente) para o SQL Server auto-hospedado, ou o usuário mestre do RDS para o SQL Server no AWS RDS:
+
+           ```bash
+           kubectl create secret generic mssql-admin-creds \
+             --from-literal=username=<ADMIN_USERNAME> \
+             --from-literal=password='<ADMIN_PASSWORD>' \
+             -n newrelic
+           ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Configure os valores do Helm [#helm-configure]
+
+    Defina `mssql.topology` para corresponder ao seu ambiente:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Valor
+          </th>
+
+          <th>
+            Descrição
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `self-hosted`
+          </td>
+
+          <td>
+            SQL Server auto-hospedado, acessado pela rede (host Linux ou Windows).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rds`
+          </td>
+
+          <td>
+            SQL Server no AWS RDS.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Use o `values.yaml` que corresponde ao método de credencial escolhido na etapa anterior:
+
+    <CollapserGroup>
+      <Collapser id="helm-values-inline" title="Sem job de configuração: nome de usuário e senha simples">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        mssql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          username: <YOUR_MONITORING_USERNAME>
+          password: <YOUR_MONITORING_PASSWORD>
+
+        # No setup job runs, so create the monitoring login yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-secret-nojob" title="Sem job de configuração: credenciais baseadas em segredos">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        mssql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: mssql-monitor-creds
+
+        # No setup job runs, so the monitoring login referenced by
+        # this secret must already exist - create it yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-setupjob" title="Tarefa de configuração automatizada">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        mssql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: mssql-monitor-creds
+
+        setupJob:
+          enabled: true
+          image:
+            # -- sqlcmd image. No default: see the chart's README for why
+            # (mcr.microsoft.com/mssql-tools:latest is freely pullable but
+            # stale and unmaintained).
+            repository: ""
+            tag: ""
+            pullPolicy: IfNotPresent
+          sqlAdmin:
+            existingSecret: mssql-admin-creds
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Parâmetro
+          </th>
+
+          <th>
+            Descrição
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `licenseKey`
+          </td>
+
+          <td>
+            Sua chave de licença New Relic.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `otlpEndpoint`
+          </td>
+
+          <td>
+            O endpoint OTLP/HTTP da sua região, como um URL completo com esquema: 
+
+            `https://otlp.nr-data.net:4318`
+
+             (US) ou 
+
+            `https://otlp.eu01.nr-data.net:4318`
+
+             (EU). Para mais informações, consulte a 
+
+            [documentação dos endpoints OTLP da New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+            .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mssql.server`
+
+             / 
+
+            `mssql.port`
+          </td>
+
+          <td>
+            Seu host do SQL Server (ou endpoint do RDS) e porta, acessíveis a partir do cluster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mssql.tls.enabled`
+
+             / 
+
+            `mssql.tls.trustServerCertificate`
+          </td>
+
+          <td>
+            Opcional. Defina 
+
+            `enabled: true`
+
+             para criptografar a conexão com o SQL Server e 
+
+            `trustServerCertificate: true`
+
+             para ignorar a validação do certificado (útil para certificados autoassinados em ambientes de teste).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.image.repository`
+
+             / 
+
+            `setupJob.image.tag`
+          </td>
+
+          <td>
+            Uma imagem compatível com 
+
+            `sqlcmd`
+
+            usada pelo job de configuração. Não há padrão: o 
+
+            `mcr.microsoft.com/mssql-tools:latest`
+
+             da Microsoft, que pode ser baixado gratuitamente, é de 2017 e não tem manutenção; portanto, confirme se está confortável com a idade (incluindo CVEs sem correção) antes de usá-lo, ou crie você mesmo uma imagem atual a partir dos pacotes apt 
+
+            `mssql-tools18`
+
+             da Microsoft. Necessário apenas para credenciais baseadas em segredos, em que o job de configuração está habilitado.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Consulte o [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/mssql-otel/values.yaml) do chart para ver todas as opções de configuração disponíveis, incluindo `mssql.collectionInterval`, `mssql.maxConcurrentQueries` e a válvula de escape `additionalReceiverConfig`.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## (Opcional) Monitorar várias instâncias a partir de um release [#helm-multi]
+
+    Em vez de `mssql.*`, defina `mssqlMulti.enabled: true` para monitorar várias instâncias do SQL Server (self-hosted ou RDS) a partir de um único pod de coletor em um release. Os dois modos são mutuamente exclusivos: não defina `mssql.server` e `mssqlMulti.enabled: true` no mesmo release.
+
+    O modo multi-instância não possui um caminho de nome de usuário/senha em texto simples: cada instância precisa de seu próprio secret do Kubernetes com credenciais de monitoramento. Decida se você também deseja que o job de configuração crie cada login de monitoramento para você:
+
+    <CollapserGroup>
+      <Collapser id="helm-multi-nojob" title="Sem job de configuração">
+        Crie manualmente o secret de login de monitoramento de cada instância antes da instalação (repita por instância, correspondendo ao `name` fornecido em `values.yaml`):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secret you created for it.
+        mssqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          databases:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              existingSecret: db1-monitor-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              existingSecret: db2-monitor-creds
+
+        # No admin credential is configured here since the setup
+        # job is disabled - create each instance's monitoring login
+        # yourself first.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-multi-setupjob" title="Tarefa de configuração automatizada">
+        Cada instância precisa tanto de seu próprio segredo de login de monitoramento quanto de seu próprio segredo de credenciais de administrador (repita por instância):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        kubectl create secret generic db1-admin-creds \
+          --from-literal=username=<ADMIN_USERNAME> \
+          --from-literal=password='<ADMIN_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secrets you created for it.
+        mssqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          databases:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              existingSecret: db1-monitor-creds
+              sqlAdmin:
+                existingSecret: db1-admin-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              existingSecret: db2-monitor-creds
+              sqlAdmin:
+                existingSecret: db2-admin-creds
+
+        setupJob:
+          enabled: true
+          image:
+            repository: ""
+            tag: ""
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Parâmetro
+          </th>
+
+          <th>
+            Descrição
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `mssqlMulti.enabled`
+          </td>
+
+          <td>
+            Defina como 
+
+            `true`
+
+             para monitorar várias instâncias de uma versão em vez de 
+
+            `mssql.*`
+
+            . O padrão é 
+
+            `false`
+
+            .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mssqlMulti.topology`
+          </td>
+
+          <td>
+            `self-hosted`
+
+             ou 
+
+            `rds`
+
+            , mesmo significado que 
+
+            `mssql.topology`
+
+            , compartilhado por todas as instâncias nesta versão.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mssqlMulti.databases`
+          </td>
+
+          <td>
+            Lista de instâncias a serem monitoradas. Cada entrada requer um 
+
+            `name`
+
+             exclusivo, 
+
+            `server`
+
+             (
+
+            `port`
+
+             tem como padrão 
+
+            `1433`
+
+            ) e 
+
+            `existingSecret`
+
+            ; adicione 
+
+            `sqlAdmin.existingSecret`
+
+             por entrada apenas quando 
+
+            `setupJob.enabled`
+
+             for 
+
+            `true`
+
+            .
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      As configurações de scrape (intervalo de coleta, TLS, métricas) se aplicam de forma idêntica a cada instância em `mssqlMulti.databases`. Não há substituição por instância. Use `additionalReceiverConfig` para qualquer item que precise ser diferente. O job de configuração é executado uma vez por instância (`<release>-setup-<name>`) em vez de uma vez por release.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Instale o Helm chart [#helm-install]
+
+    1. Adicione o repositório Helm da New Relic:
+
+       ```bash
+       helm repo add newrelic https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. Instale o chart usando seu arquivo `values.yaml`:
+
+       ```bash
+       helm upgrade --install mssql-otel newrelic/mssql-otel \
+         -n newrelic \
+         --create-namespace \
+         -f values.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## Verifique a instalação [#helm-verify]
+
+    1. Verifique se o job de configuração foi concluído (se ativado) e se o pod do coletor está em execução:
+
+       ```bash
+       kubectl get jobs,pods -n newrelic --watch
+       ```
+
+    2. Execute esta consulta no [criador de consulta](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/) para confirmar se os dados estão chegando:
+
+       ```sql
+       SELECT count(*) FROM Metric
+       WHERE metricName LIKE 'sqlserver.%'
+       AND instrumentation.provider = 'opentelemetry'
+       SINCE 10 minutes ago
+       ```
+  </Step>
+
+  <Step>
+    ## Encontre e use seus dados [#find]
+
+    Assim que os dados estiverem sendo coletados, será possível acessar o monitoramento abrangente do banco de dados SQL Server por meio da interface do New Relic.
+
+    Para encontrar sua entidade de banco de dados SQL Server no New Relic:
+
+    1. Vá para <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>.
+
+    2. Na dropdown **<DNT>Entity type</DNT>**, selecione <DNT>**MSSQL instance**</DNT> e clique em <DNT>**Apply**</DNT>.
+
+    3. Selecione seu banco de dados SQL Server na lista de entidades.
+
+       Após configurar o monitoramento do SQL Server com o NRDOT, você pode:
+
+       * [Crie dashboards personalizados](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) para visualizar suas métricas de banco de dados
+       * [Configure alertas](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) para limites críticos de desempenho do banco de dados
+       * [Explore seus dados](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) usando os recursos de consulta do New Relic
+  </Step>
+</Steps>
+
+## Documentação relacionada [#related-docs]
+
+<DocTiles>
+  <DocTile title="Referência de métricas" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+    Saiba mais sobre as métricas disponíveis coletadas pelo NRDOT Collector.
+  </DocTile>
+
+  <DocTile title="Resolução de problemas" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+    Saiba como solucionar problemas na sua configuração de monitoramento do MSSQL no New Relic.
+  </DocTile>
+
+  <DocTile title="Configurar a correlação entre APM e banco de dados" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    Aprenda a correlacionar o desempenho do seu aplicativo com as operações de banco de dados no New Relic.
+  </DocTile>
+</DocTiles>
