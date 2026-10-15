@@ -1,0 +1,153 @@
+---
+title: Configuration multi-récepteur pour MySQL avec NRDOT
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Self-hosted
+  - AWS RDS
+metaDescription: Set up a multi-receiver configuration with the NRDOT Collector
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+translationType: machine
+---
+
+Vous pouvez configurer le NRDOT Collector pour monitorer plusieurs instances MySQL à partir d’un seul collecteur. Cela est utile si vous avez plusieurs bases de données MySQL exécutées sur différents hôtes ou ports et que vous souhaitez collecter des métriques de toutes ces bases à l’aide d’une seule instance NRDOT Collector.
+
+<Steps>
+  <Step>
+    ## Prérequis [#prerequisites]
+
+    * NRDOT est installé et configuré pour vos instances MySQL :
+
+      * [MySQL auto-hébergé](/docs/opentelemetry/db360/mysql/hosted)
+      * [Monitoring de RDS MySQL](/docs/opentelemetry/db360/mysql/rds)
+  </Step>
+
+  <Step>
+    ## Ajouter une configuration multi-récepteur [#multi]
+
+    L’exemple suivant montre comment configurer le NRDOT Collector pour monitorer deux instances MySQL à l’aide d’une configuration multi-Récepteur. La première instance contient la configuration `nrmysql` complète et sert de point d’ancrage ; la seconde instance hérite de chaque paramètre partagé via la clé de fusion YAML et ne surcharge que ses propres détails de connexion. Vous pouvez ajouter d’autres Récepteurs au besoin pour des instances MySQL supplémentaires.
+
+    ```yaml
+    receivers:
+      # First MySQL instance (anchor - full config, instance2 inherits shared settings via merge key)
+      nrmysql/instance1: &nrmysql-common
+        endpoint: "<INSTANCE_1_HOST>:<INSTANCE_1_PORT>"
+        transport: tcp
+        username: "<INSTANCE_1_USERNAME>"
+        password: "<INSTANCE_1_PASSWORD>"
+        allow_native_passwords: true
+        collection_interval: 15s
+        initial_delay: 1s
+        explain_mode: procedure
+        statement_events:
+          digest_text_limit: 4096
+          time_limit: 24h
+          limit: 500
+        query_sample_collection:
+          max_rows_per_query: 100
+          allowed_comment_keys: [nr_service_guid]
+        top_query_collection:
+          lookback_time: 60
+          max_query_sample_count: 5000
+          top_query_count: 200
+          collection_interval: 60s
+          query_plan_cache_size: 1000
+          query_plan_cache_ttl: 1h
+          allowed_comment_keys: [nr_service_guid]
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+        resource_attributes:
+          db.system.version:
+            enabled: true
+        metrics:
+          mysql.query.count:
+            enabled: true
+          mysql.query.slow.count:
+            enabled: true
+          mysql.commands:
+            enabled: true
+          mysql.innodb.data_file.io:
+            enabled: true
+
+      # Second MySQL instance (inherits every shared setting above, overrides only connection details)
+      nrmysql/instance2:
+        <<: *nrmysql-common
+        endpoint: "<INSTANCE_2_HOST>:<INSTANCE_2_PORT>"
+        username: "<INSTANCE_2_USERNAME>"
+        password: "<INSTANCE_2_PASSWORD>"
+
+    processors:
+      batch:
+
+    exporters:
+      otlp/newrelic:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+        headers:
+          api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+    service:
+      pipelines:
+        metrics/mysql-instance1:
+          receivers: [nrmysql/instance1, nrmysql/instance2]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+        logs/mysql-instance1:
+          receivers: [nrmysql/instance1, nrmysql/instance2]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+    ```
+
+    <Callout variant="tip">
+      Cette configuration omet les champs optionnels `database` et `tls`. Par défaut, chaque Récepteur monitore chaque base de données à laquelle son utilisateur peut accéder, et se connecte sans TLS. Pour [monitorer une base de données spécifique](/docs/opentelemetry/db360/mysql/optional#database) par instance, ou pour [activer TLS](/docs/opentelemetry/db360/mysql/optional#tls), consultez Activer les informations détaillées.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Redémarrer NRDOT Collector [#restart]
+
+    Redémarrez le service <DNT>NRDOT Collector</DNT> pour que les modifications de configuration prennent effet. Le collecteur charge les paramètres de configuration une fois au démarrage et ne prend pas en charge le rechargement à chaud. Toutes les modifications apportées à la configuration pendant que le collecteur est en cours d’exécution restent inactives jusqu’à ce que le processus redémarre.
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+  </Step>
+</Steps>
+
+## Documentation associée [#related]
+
+<DocTiles>
+  <DocTile title="Compatibilité et prérequis" path="/docs/opentelemetry/db360/mysql/compatibility">
+    Découvrez les versions de MySQL prises en charge, les privilèges requis et les exigences réseau.
+  </DocTile>
+
+  <DocTile title="Référence des métriques" path="/docs/opentelemetry/db360/mysql/metrics-reference">
+    Découvrez les métriques disponibles collectées par le collecteur NRDOT.
+  </DocTile>
+
+  <DocTile title="Guide de dépannage" path="/docs/opentelemetry/db360/mysql/troubleshooting">
+    Apprenez à résoudre les problèmes courants liés au monitoring MySQL.
+  </DocTile>
+</DocTiles>

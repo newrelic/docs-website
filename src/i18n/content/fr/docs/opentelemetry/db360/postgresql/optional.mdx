@@ -1,0 +1,107 @@
+---
+title: Activez les informations détaillées
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Optional configuration
+metaDescription: Optional configuration options for deeper insights into PostgreSQL monitoring with the NRDOT Collector
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+translationType: machine
+---
+
+Vous pouvez configurer les options suivantes pour obtenir des informations détaillées plus approfondies sur vos instances PostgreSQL :
+
+* [Activer TLS](#tls)
+* [Plans de requête pour les instructions d&apos;écriture](#query)
+
+## Activer TLS [#tls]
+
+Le champ `tls` est facultatif, mais l’omettre n’équivaut pas à désactiver TLS explicitement : la configuration par défaut du Récepteur définit déjà `insecure: false` et `insecure_skip_verify: true`, de sorte que les connexions sont chiffrées (`sslmode=require`), mais le certificat du serveur n’est pas vérifié à moins que vous ne définissiez `insecure_skip_verify: false` et ne fournissiez un `ca_file`. La plupart des instances Amazon RDS et Aurora imposent SSL/TLS, vous souhaiterez donc généralement ajouter cette vérification pour ces environnements.
+
+```yaml
+receivers:
+  nrpostgresql:
+    endpoint: <YOUR_HOST>:<YOUR_PORT>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    collection_interval: 30s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+      ca_file: <PATH_TO_CA_CERTIFICATE>
+      cert_file: <PATH_TO_CLIENT_CERTIFICATE>
+      key_file: <PATH_TO_CLIENT_KEY>
+```
+
+<Callout variant="tip">
+  `cert_file`/`key_file` ne sont nécessaires que si votre serveur PostgreSQL requiert le protocole TLS mutuel (authentification par certificat client) ; la plupart des configurations n’ont besoin que de `ca_file` pour vérifier le serveur. Pour Amazon RDS/Aurora, téléchargez l’ [ensemble de certificats d’autorité de certification RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html) approprié et référencez-le dans `ca_file`. Laissez `insecure_skip_verify: true` (la valeur par défaut) uniquement pour les tests sur des instances avec des certificats auto-signés, jamais en production.
+</Callout>
+
+## Plans de requête pour les instructions d&apos;écriture [#query]
+
+Par défaut, `EXPLAIN` s&apos;exécute directement en tant qu&apos;utilisateur de monitoring, et PostgreSQL vérifie les privilèges de table lors de la planification. Cela signifie que les instructions de verrouillage de ligne ou d’écriture échouent avec `permission denied` à moins que l’utilisateur de monitoring n’ait un accès en écriture, ce qu’il ne devrait jamais avoir.
+
+Pour collecter des plans de requête pour les instructions de verrouillage ou d&apos;écriture sans accorder d&apos;accès en écriture à l&apos;utilisateur de monitoring, créez la fonction suivante dans chaque base de données :
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+### Mécanismes de collecte du plan d’exécution [#mechanics]
+
+* **Limitation de débit :** `top_query_collection.max_explain_each_interval` (par défaut `1000`) limite le nombre d’appels `EXPLAIN` par scrape.
+* **Mise en cache :** `query_plan_cache_size` / `query_plan_cache_ttl` (par défaut `1000` entrées/ `1h`) met en cache un plan une fois obtenu, indexé par l&apos;ID de requête.
+
+## Documentation associée [#related]
+
+<DocTiles>
+  <DocTile title="Instrumentation dans les environnements auto-hébergés" path="/docs/opentelemetry/db360/postgresql/hosted">
+    Découvrez comment configurer le monitoring PostgreSQL dans des environnements auto-hébergés avec New Relic.
+  </DocTile>
+
+  <DocTile title="Référence des métriques" path="/docs/opentelemetry/db360/postgresql/metrics-reference">
+    Découvrez les métriques disponibles collectées par le collecteur NRDOT.
+  </DocTile>
+
+  <DocTile title="Guide de dépannage" path="/docs/opentelemetry/db360/postgresql/troubleshooting">
+    Apprenez à résoudre les problèmes courants liés au monitoring PostgreSQL.
+  </DocTile>
+</DocTiles>
