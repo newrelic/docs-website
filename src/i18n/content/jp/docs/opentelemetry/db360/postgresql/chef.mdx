@@ -1,0 +1,409 @@
+---
+title: Chefを使用したPostgreSQL監視のためのNRDOTのインストールと設定
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Chef
+metaDescription: Install and configure the NRDOT Collector for PostgreSQL monitoring using the newrelic-install Chef cookbook
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+`newrelic-install` Chefクックブックを使用して、PostgreSQL監視用のNRDOT Collectorをインストールおよび設定できます。`newrelic-install::default`レシピを実行すると、クックブックはコレクターをインストールし、監視ロールとその権限を作成して、コレクターを設定します。
+
+<Steps>
+  <Step>
+    ## 前提条件 [#prerequisites]
+
+    * 有効な[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)を持つNew Relicアカウント。
+    * New Relic [アカウントID](/docs/accounts/accounts-billing/account-structure/account-id)。
+    * PostgreSQL 14以降。
+    * Chef 15以降が必要です。
+    * Debian/UbuntuまたはRHEL/CentOSを実行しているLinuxコレクターホスト。
+    * `pg_stat_statements` `shared_preload_libraries`経由でロードする必要があり、これにはデータベースの再起動が必要です。レシピを実行する前に、[サーバーレベルの前提条件](/docs/opentelemetry/db360/postgresql/cli/#server-prereqs)を準備してください。
+    * セルフホスト型PostgreSQLの場合：パスワードが設定され、`pg_hba.conf`でパスワードベースのホスト認証が許可されている、PostgreSQLサーバーへの管理者アクセス権（`postgres`スーパーユーザーまたは同等の権限）。
+    * AWS RDS上のPostgreSQLまたはAuroraの場合：コレクターホストからRDSエンドポイントへのネットワーク接続、およびRDSマスターのユーザー名とパスワード。
+    * ご利用のリージョンの[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのネットワーク接続。
+
+    詳細な要件については、[互換性](/docs/opentelemetry/db360/postgresql/compatibility)をご覧ください。
+  </Step>
+
+  <Step>
+    ## Chefクックブックをダウンロードします。 [#chef-download-cookbook]
+
+    Chef Supermarketから`newrelic-install` [Chefクックブック](https://supermarket.chef.io/cookbooks/newrelic-install)をchef-repoディレクトリにダウンロードします：
+
+    ```bash
+    knife supermarket install newrelic-install
+    ```
+  </Step>
+
+  <Step>
+    ## デフォルトの属性を置き換えます [#chef-configure]
+
+    `attributes/default.rb`のデフォルトの属性をアカウントの詳細に置き換えてください：
+
+    <CollapserGroup>
+      <Collapser id="chef-host" title="セルフホスト型PostgreSQL">
+        このクックブックは、単一のコレクターから1つ以上のPostgreSQLインスタンスをモニターします。単一のホスト/ポート/資格情報のセットの代わりに、ノード上にすでに存在している必要がある2つのファイルを読み取ります：モニターするすべてのインスタンスとそれぞれでモニターするデータベースをリストしたインスタンスファイル（YAML）、および一致するようにインデックス付けされた、それぞれに対するスーパーユーザーのログインとパスワードを含むシークレットファイル（`KEY=VALUE`）です。正確なファイル形式については、「[CLIインストール](/docs/opentelemetry/db360/postgresql/cli/#cli-install)」ページを参照してください。
+
+        ```ruby
+        default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+        default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+        default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+        default['newrelic_install']['targets'] = [
+          'nrdot-collector-postgresql'
+        ]
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_CONFIG_PRESET']         = <1 Basic, 2 Advanced, default 1>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_INSTANCES_FILE']        = <path to the instances YAML file on the node>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_SECRETS_FILE']          = <path to the secrets file (KEY=VALUE per instance) on the node>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER'] = <y or N, default N; PREVIEW feature, see table below>
+        # See all available targets at: https://github.com/newrelic/chef-install
+        ```
+
+        <Callout variant="important">
+          クックブックはパスワードを使用してTCP経由でPostgreSQLに接続するため、各インスタンスのスーパーユーザーにはパスワードが設定されている必要があり、`pg_hba.conf`はTCP接続に対してパスワードベースのホスト認証（`md5`または`scram-sha-256`）を許可する必要があります：
+
+          ```bash
+          sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '<password>';"
+          ```
+        </Callout>
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                属性（
+
+                `env`
+
+                の下）
+              </th>
+
+              <th>
+                説明
+              </th>
+
+              <th>
+                デフォルト
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOTの設定：
+
+                `1`
+
+                 Basic、
+
+                `2`
+
+                 Advanced。
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_INSTANCES_FILE`
+              </td>
+
+              <td>
+                **必須。**
+
+                ノード上にすでに存在する、インスタンスYAMLファイルへのパス。
+              </td>
+
+              <td>
+                なし
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_SECRETS_FILE`
+              </td>
+
+              <td>
+                **必須。**
+
+                ノード上にすでに存在するシークレットファイル（
+
+                `KEY=VALUE`
+
+                、インスタンスごとに1つのスーパーユーザーのログイン/パスワードのペア）へのパス。
+              </td>
+
+              <td>
+                なし
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`
+              </td>
+
+              <td>
+                ロック/書き込みステートメントのクエリプランも収集します。各モニターデータベースに
+
+                `SECURITY DEFINER`
+
+                ヘルパー関数（
+
+                `otel.explain_statement`
+
+                ）を作成し、DMLアクセスを付与せずに監視ユーザー
+
+                `EXPLAIN`
+
+                に実行権限を付与します。これはプレビュー機能です。
+
+                `y`
+
+                /
+
+                `N`
+
+                。
+              </td>
+
+              <td>
+                `n`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          これらの変数には、デフォルトの属性値は提供されていません。`default['newrelic_install']['env'][...]`を使用して、ターゲットに関連するものを明示的に設定してください。
+        </Callout>
+
+        <Callout variant="tip">
+          このコレクターから複数のPostgreSQLインスタンスをモニターするには、instancesファイルにさらにエントリーを追加し、secretsファイルに対応する番号付きの認証情報（`_2`、`_3`、...）を追加してください。チェックに失敗した（またはデータベースがリストされていない）インスタンスは、インストール全体を中止するのではなく、理由をログに記録してスキップされます。
+        </Callout>
+      </Collapser>
+
+      <Collapser id="chef-rds" title="AWS RDS 上の PostgreSQL または Aurora">
+        このクックブックは、セルフホスト型と同じインスタンスファイル/シークレットファイルのパターンを使用して、単一のコレクターから1つ以上のRDS PostgreSQLまたはAuroraエンドポイントをモニターします（両方のファイルがノード上にすでに存在している必要があります）。
+
+        ```ruby
+        default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+        default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+        default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+        default['newrelic_install']['targets'] = [
+          'nrdot-collector-postgresql-rds'
+        ]
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_CONFIG_PRESET']         = <1 Basic, 2 Advanced, default 1>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_INSTANCES_FILE']        = <path to the instances YAML file on the node, using RDS or Aurora endpoints as host>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_SECRETS_FILE']          = <path to the secrets file (KEY=VALUE per instance) on the node>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER'] = <y or N, default N; PREVIEW feature, see table below>
+        # See all available targets at: https://github.com/newrelic/chef-install
+        ```
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                属性（
+
+                `env`
+
+                の下）
+              </th>
+
+              <th>
+                説明
+              </th>
+
+              <th>
+                デフォルト
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOTの設定：
+
+                `1`
+
+                 Basic、
+
+                `2`
+
+                 Advanced。
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_INSTANCES_FILE`
+              </td>
+
+              <td>
+                **必須。**
+
+                すでにノード上に存在している、RDSまたはAuroraのエンドポイントを
+
+                `host`
+
+                として使用するインスタンスのYAMLファイルへのパス。
+              </td>
+
+              <td>
+                なし
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_SECRETS_FILE`
+              </td>
+
+              <td>
+                **必須。**
+
+                ノード上にすでに存在するシークレットファイル（
+
+                `KEY=VALUE`
+
+                、インスタンスごとに1つのRDSマスターユーザー名/パスワードのペア）へのパス。
+              </td>
+
+              <td>
+                なし
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`
+              </td>
+
+              <td>
+                ロック/書き込みステートメントのクエリプランも収集します。各モニターデータベースに
+
+                `SECURITY DEFINER`
+
+                ヘルパー関数（
+
+                `otel.explain_statement`
+
+                ）を作成し、DMLアクセスを付与せずに監視ユーザー
+
+                `EXPLAIN`
+
+                に実行権限を付与します。これはプレビュー機能です。
+
+                `y`
+
+                /
+
+                `N`
+
+                。
+              </td>
+
+              <td>
+                `n`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          これらの変数には、デフォルトの属性値は提供されていません。`default['newrelic_install']['env'][...]`を使用して、ターゲットに関連するものを明示的に設定してください。
+        </Callout>
+
+        <Callout variant="tip">
+          このコレクターから複数のRDS PostgreSQLまたはAuroraエンドポイントをモニターするには、インスタンスファイルにエントリを追加し、シークレットファイルに一致する番号付きの認証情報を追加してください。チェックに失敗した（またはデータベースがリストされていない）インスタンスは、インストール全体を中止するのではなく、理由をログに記録してスキップされます。
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Chefクックブックをアップロードします。 [#chef-upload-cookbook]
+
+    `newrelic-install` ChefクックブックをChefサーバーにアップロードします：
+
+    ```bash
+    knife cookbook upload newrelic-install
+    ```
+  </Step>
+
+  <Step>
+    ## ランリストを更新します。 [#chef-run-list]
+
+    ノードのランリストに `newrelic-install` レシピを追加します：
+
+    ```json
+    "run_list": [
+      "recipe[newrelic-install]"
+    ]
+    ```
+  </Step>
+
+  <Step>
+    ## データを探す、使う [#find]
+
+    データの収集が開始されると、New Relic UIから包括的なPostgreSQLデータベース監視にアクセスできます。
+
+    New RelicでPostgreSQLデータベースエンティティを見つけるには：
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>に移動します。
+    2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**PostgreSQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+    3. エンティティのリストからPostgreSQLデータベースを選択します。
+  </Step>
+</Steps>
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+  <DocTile title="NRDOTを使用したPostgreSQL監視の概要" path="/docs/opentelemetry/db360/postgresql/introduction">
+    New Relicを使用したPostgreSQL監視で利用可能なすべてのインストレーション方法をご覧ください。
+  </DocTile>
+
+  <DocTile title="CLIインストール" path="/docs/opentelemetry/db360/postgresql/cli">
+    単一のNew Relic CLIコマンドを使用して、PostgreSQLの監視をインストールおよび設定する方法について説明します。
+  </DocTile>
+
+  <DocTile title="Ansibleのインストール" path="/docs/opentelemetry/db360/postgresql/ansible">
+    newrelic.newrelic_installを使用して、大規模なPostgreSQL監視をインストールおよび構成する方法について説明しますAnsibleロール。
+  </DocTile>
+
+  <DocTile title="Helmチャートのインストール" path="/docs/opentelemetry/db360/postgresql/helm">
+    postgresql-otel Helmチャートを使用して、Kubernetes上でPostgreSQLの監視をインストールおよび設定する方法について説明します。
+  </DocTile>
+</DocTiles>
