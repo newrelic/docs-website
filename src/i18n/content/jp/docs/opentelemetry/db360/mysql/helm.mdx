@@ -1,0 +1,662 @@
+---
+title: Helmを使用したMySQL監視用のNRDOTのインストールと構成
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Kubernetes
+  - Helm
+metaDescription: Install and configure MySQL monitoring on Kubernetes using the mysql-otel Helm chart
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+`mysql-otel` Helmチャートを使用して、Kubernetes上でMySQL監視をインストールおよび構成できます。オプションで、チャートは監視ユーザーを作成するセットアップジョブを実行することもできます。
+
+<Callout variant="important">
+  チャートは、ネットワーク経由でリモートからMySQLに到達するKubernetesデプロイメントとしてコレクターをデプロイします。その結果、常にTCP経由で接続し（Unixソケットの監視はサポートされていません）、MySQLのメトリクスのみを報告します（MySQLが実行されているマシンのホストやインフラストラクチャのメトリクスは報告しません）。`mysql.*`を使用すると、リリースごとに1つのMySQLインスタンスをモニターします。1つのリリースから複数のインスタンスをモニターするには、代わりに`mysqlMulti.*`を使用してください（以下の「[1つのリリースから複数のインスタンスをモニターする](#helm-multi)」を参照してください）。
+</Callout>
+
+<Steps>
+  <Step>
+    ## 前提条件 [#helm-prerequisites]
+
+    * 有効なNew Relicの[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)。
+
+    * MySQL 5.7以降。
+
+    * Helm 3.0以降、およびKubernetesクラスタにアクセスするように設定された`kubectl`。
+
+    * KubernetesクラスタからMySQLホスト（またはRDSエンドポイント）およびポートへのネットワーク接続：
+
+      * セルフホスト型：MySQLホストへのルーティングされたパス（VPN、ピアリング、または共有ネットワーク）、ホスト名の場合はDNS解決、およびMySQL側のファイアウォールで接続の実際の送信元IP（ポッドIP自体ではなく、NATゲートウェイである場合があります）を許可する必要があります。
+      * AWS RDS：VPCピアリング、トランジットゲートウェイ、またはRDSインスタンスとの共有VPC配置であり、RDSセキュリティグループはクラスタのエグレスソースからのMySQLポート（デフォルトでは`3306`）を許可する必要があります。
+
+    * すでに作成済みの監視ユーザー、またはチャートのセットアップジョブが監視ユーザーを作成できるようにするためのMySQL管理者認証情報のいずれかです。以下の[監視認証情報の設定](#helm-credentials)を参照してください。
+  </Step>
+
+  <Step>
+    ## ネームスペースを作成 [#helm-namespace]
+
+    インストール先のネームスペースを作成します。`helm install --create-namespace`は最後のインストール手順でのみネームスペースを作成するため、次の手順でシークレットを作成する前に、ネームスペースが存在している必要があります：
+
+    ```bash
+    kubectl create namespace newrelic
+    ```
+
+    <Callout variant="tip">
+      以下のすべてのコマンドで`-n`を渡す必要がないように、現在の`kubectl`コンテキストのデフォルトのネームスペースとして設定します：
+
+      ```bash
+      kubectl config set-context --current --namespace=newrelic
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## 監視資格情報の設定 [#helm-credentials]
+
+    チャートのセットアップジョブにMySQL監視ユーザーを作成させるかどうかを決定し、作成させない場合は、その資格情報をどのように提供するかを決定してください：
+
+    <CollapserGroup>
+      <Collapser id="helm-creds-inline" title="セットアップジョブなし：プレーンなユーザー名とパスワード">
+        この方法ではセットアップジョブがないため、ここで監視ユーザーが自動的に作成されることはありません。チャートをインストールする前に、[ セルフホスト型MySQL](/docs/opentelemetry/db360/mysql/hosted/#user) または [RDS上のMySQL の](/docs/opentelemetry/db360/mysql/rds/#user)** データベースユーザーの構成 ステップを使用して自分で作成するか、アドミンユーザーとして同等のSQLを実行してください：**
+
+        ```sql
+        CREATE USER IF NOT EXISTS 'newrelic'@'%' IDENTIFIED BY '<password>';
+        GRANT SELECT ON performance_schema.* TO 'newrelic'@'%';
+        FLUSH PRIVILEGES;
+        ```
+
+        次のステップで、監視用のユーザー名とパスワードを直接`values.yaml`に設定します。
+      </Collapser>
+
+      <Collapser id="helm-creds-secret-nojob" title="セットアップジョブなし：シークレットベースの認証情報">
+        この方法でも、セットアップジョブはありません。上記のプレーンテキストの資格情報を使用する方法とまったく同じように、まずご自身で監視ユーザーを作成してください。唯一の違いは、資格情報の保存場所です：`values.yaml`にプレーンテキストで保存する代わりに、Kubernetesシークレットに保存します：
+
+        ```bash
+        kubectl create secret generic mysql-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        ```
+      </Collapser>
+
+      <Collapser id="helm-creds-setupjob" title="自動セットアップジョブ">
+        この方法では、チャートのセットアップジョブがMySQLの管理者認証情報を使用して監視ユーザーを作成します。監視および管理者の認証情報はどちらもKubernetesシークレットとして提供する必要があります：セットアップジョブはプレーンテキストの管理者認証情報を受け入れることはなく、これを有効にするにはシークレットベースの監視認証情報も必要になります。
+
+        1. 監視のユーザー名とパスワードを使用してシークレットを作成します。これは、セットアップジョブが作成し、コレクターが接続に使用するIDです：
+
+           ```bash
+           kubectl create secret generic mysql-monitor-creds \
+             --from-literal=username=<MONITORING_USERNAME> \
+             --from-literal=password='<MONITORING_PASSWORD>' \
+             -n newrelic
+           ```
+
+        2. セットアップジョブは、Kubernetesシークレットを介した管理者認証情報のみを受け入れます（`values.yaml`にプレーンテキストのユーザー名/パスワードを含めることはできません）。この認証情報は`CREATE USER`を実行し、広範な`performance_schema`アクセスを許可できるため、独自のシークレットとして作成してください。セルフホスト型のMySQLには`root`アカウントを使用し、AWS RDS上のMySQLにはRDSマスターユーザーを使用します：
+
+           ```bash
+           kubectl create secret generic mysql-admin-creds \
+             --from-literal=username=<ADMIN_USERNAME> \
+             --from-literal=password='<ADMIN_PASSWORD>' \
+             -n newrelic
+           ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Helmの値を設定します [#helm-configure]
+
+    環境に合わせて`mysql.topology`を設定してください：
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            価値
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `self-hosted`
+          </td>
+
+          <td>
+            ネットワーク経由で到達するセルフホスト型MySQL。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rds`
+          </td>
+
+          <td>
+            AWS RDS上のMySQLまたはAurora。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    前の手順で選択した資格情報メソッドに一致する`values.yaml`を使用します：
+
+    <CollapserGroup>
+      <Collapser id="helm-values-inline" title="セットアップジョブなし：プレーンなユーザー名とパスワード">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        mysql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          username: <YOUR_MONITORING_USERNAME>
+          password: <YOUR_MONITORING_PASSWORD>
+
+        # No setup job runs, so create the monitoring user yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-secret-nojob" title="セットアップジョブなし：シークレットベースの認証情報">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        mysql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: mysql-monitor-creds
+
+        # No setup job runs, so the monitoring user referenced by
+        # this secret must already exist - create it yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-setupjob" title="自動セットアップジョブ">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        mysql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: mysql-monitor-creds
+
+        setupJob:
+          enabled: true
+          mysqlAdmin:
+            existingSecret: mysql-admin-creds
+          # -- Also grants UPDATE on performance_schema.setup_consumers,
+          # needed for wait-time data. Optional.
+          enableWaitTimeMetrics: false
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            パラメータ
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `licenseKey`
+          </td>
+
+          <td>
+            New Relicライセンスキー。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `otlpEndpoint`
+          </td>
+
+          <td>
+            ご使用のリージョンのOTLP/gRPCエンドポイントは、
+
+            **スキームなし**
+
+            の単なる
+
+            `host:port`
+
+            として指定します：
+
+            `otlp.nr-data.net:4317`
+
+            （米国）または
+
+            `otlp.eu01.nr-data.net:4317`
+
+            （EU）。詳細については、
+
+            [New Relic OTLPエンドポイントのドキュメント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+            を参照してください。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mysql.server`
+
+             / 
+
+            `mysql.port`
+          </td>
+
+          <td>
+            クラスタから到達可能な、MySQLホスト（またはRDSエンドポイント）とポート。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mysql.database`
+          </td>
+
+          <td>
+            オプション。監視を1つのデータベースに制限します。すべてのデータベースをモニターするには、空のままにします。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `additionalReceiverConfig.tls.*`
+          </td>
+
+          <td>
+            オプション。チャートは
+
+            `tls`
+
+            ブロックを宣言しておらず、
+
+            `mysql.tls.*`
+
+            値を持っていません。レシーバー独自のデフォルトが適用され（
+
+            `insecure: false`
+
+            、
+
+            `insecure_skip_verify: false`
+
+            ）、証明書の検証を伴う暗号化された接続が必要になります。
+
+            `additionalReceiverConfig`
+
+            を使用してこれらをオーバーライドします：
+
+            `additionalReceiverConfig.tls.insecure_skip_verify=true`
+
+            を設定して証明書の検証をスキップするか（接続のセキュリティを弱めるため、自己署名証明書を使用したテスト用のみ）、
+
+            `additionalReceiverConfig.tls.ca_file`
+
+            を設定してコレクターコンテナにマウントされたCAバンドルを指すようにします。
+
+            **SSL/TLSの強制を必要とするAmazon RDSインスタンスでは、`ca_file`をAmazonのRDS CAバンドルに設定する必要があります**
+
+            。AmazonがCAをローテーションする際にハードコードされたバンドルが古くなるリスクがあるため、チャートには意図的にデフォルトのバンドルが含まれていません。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.image.repository`
+
+             / 
+
+            `setupJob.image.tag`
+          </td>
+
+          <td>
+            セットアップジョブで使用される
+
+            `mysql`
+
+             CLIイメージ。デフォルトは公式で積極的に保守されている
+
+            `mysql:8.4`
+
+            であるため、セットアップジョブを有効にする際に追加のイメージフラグは必要ありません。異なるバージョンが必要な場合のみオーバーライドしてください。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.enableWaitTimeMetrics`
+          </td>
+
+          <td>
+            オプション。待機時間データに必要な
+
+            `performance_schema.setup_consumers`
+
+            に対する
+
+            `UPDATE`
+
+            も付与します。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      `mysql.collectionInterval`、`mysql.explainMode`、`statementEvents`/`querySampleCollection`/`topQueryCollection`ブロック、および`additionalReceiverConfig`エスケープハッチを含む、利用可能なすべての設定オプションについては、チャートの[values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/mysql-otel/values.yaml)を参照してください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## (オプション) 1つのリリースから複数のインスタンスをモニターする [#helm-multi]
+
+    1つのリリース内の単一のコレクターポッドから複数のMySQLインスタンス（セルフホストまたはRDS）をモニターするには、`mysql.*`の代わりに`mysqlMulti.enabled: true`を設定します。2つのモードは相互に排他的です：同じリリースで`mysql.server`と`mysqlMulti.enabled: true`を設定しないでください。
+
+    マルチインスタンスモードには、プレーンなユーザー名/パスワードのパスはありません：各インスタンスには、監視資格情報を含む独自のKubernetesシークレットが必要です。セットアップジョブで各監視ユーザーも作成するかどうかを決定します：
+
+    <CollapserGroup>
+      <Collapser id="helm-multi-nojob" title="セットアップジョブなし">
+        インストールする前に、各インスタンスの監視ユーザーのシークレットを自分で作成してください（`values.yaml`で指定した`name`と一致するように、インスタンスごとに繰り返します）：
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secret you created for it.
+        mysqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          databases:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              existingSecret: db1-monitor-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              existingSecret: db2-monitor-creds
+
+        # No admin credential is configured here since the setup
+        # job is disabled - create each instance's monitoring user
+        # yourself first.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-multi-setupjob" title="自動セットアップジョブ">
+        各インスタンスには、独自の監視ユーザーシークレットと独自の管理者資格情報シークレットの両方が必要です（インスタンスごとに繰り返します）：
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        kubectl create secret generic db1-admin-creds \
+          --from-literal=username=<ADMIN_USERNAME> \
+          --from-literal=password='<ADMIN_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secrets you created for it.
+        mysqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          databases:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              existingSecret: db1-monitor-creds
+              mysqlAdmin:
+                existingSecret: db1-admin-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              existingSecret: db2-monitor-creds
+              mysqlAdmin:
+                existingSecret: db2-admin-creds
+
+        setupJob:
+          enabled: true
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            パラメータ
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `mysqlMulti.enabled`
+          </td>
+
+          <td>
+            1つのリリースから複数のインスタンスをモニターするには、
+
+            `mysql.*`
+
+            の代わりに
+
+            `true`
+
+            に設定します。デフォルトは
+
+            `false`
+
+            です。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mysqlMulti.topology`
+          </td>
+
+          <td>
+            `self-hosted`
+
+             または
+
+            `rds`
+
+            、
+
+            `mysql.topology`
+
+            と同じ意味であり、このリリースのすべてのインスタンスで共有されます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mysqlMulti.databases`
+          </td>
+
+          <td>
+            モニターするインスタンスの一覧。各エントリには一意の
+
+            `name`
+
+            、
+
+            `server`
+
+            （
+
+            `port`
+
+            のデフォルトは
+
+            `3306`
+
+            ）、および
+
+            `existingSecret`
+
+            が必要です；
+
+            `database`
+
+            はオプションで監視を1つのデータベースに制限します（
+
+            `mysql.database`
+
+            と同じ意味です）；
+
+            `setupJob.enabled`
+
+            が
+
+            `true`
+
+            の場合にのみ、エントリごとに
+
+            `mysqlAdmin.existingSecret`
+
+            を追加します。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      スクレイプ設定（収集間隔、TLS、ステートメントイベント、クエリサンプル収集、トップクエリ収集）は、`mysqlMulti.databases`内のすべてのインスタンスに同一に適用されます。インスタンスごとのオーバーライドはありません。異なる必要があるものには`additionalReceiverConfig`を使用します。セットアップジョブは、リリースごとに1回ではなく、インスタンス（`<release>-setup-<name>`）ごとに1回実行されます。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Helmチャートをインストールする [#helm-install]
+
+    1. New Relic Helm リポジトリを追加します。
+
+       ```bash
+       helm repo add newrelic https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. `values.yaml`ファイルを使用してチャートをインストールします：
+
+       ```bash
+       helm upgrade --install mysql-otel newrelic/mysql-otel \
+         -n newrelic \
+         --create-namespace \
+         -f values.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## インストレーションを確認する [#helm-verify]
+
+    1. セットアップジョブが完了し（有効な場合）、コレクターポッドが実行されていることを確認します：
+
+       ```bash
+       kubectl get jobs,pods -n newrelic --watch
+       ```
+
+    2. データが到着していることを確認するには、[クエリビルダー](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)でこのクエリを実行してください：
+
+       ```sql
+       SELECT count(*) FROM Metric
+       WHERE metricName LIKE 'mysql.%'
+       AND instrumentation.provider = 'opentelemetry'
+       SINCE 10 minutes ago
+       ```
+  </Step>
+
+  <Step>
+    ## データを探す、使う [#find]
+
+    データの収集が開始されると、New Relic UIから包括的なMySQLデータベース監視にアクセスできます。
+
+    New RelicでMySQLデータベースエンティティを見つけるには：
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>に移動します。
+    2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**MySQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+    3. エンティティのリストからMySQLデータベースを選択します。
+  </Step>
+</Steps>
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+  <DocTile title="NRDOTを使用したMySQLモニタリングの概要" path="/docs/opentelemetry/db360/mysql/introduction">
+    New Relicを使用したMySQL監視で利用可能なすべてのインストレーション方法についてご確認ください。
+  </DocTile>
+
+  <DocTile title="CLIインストール" path="/docs/opentelemetry/db360/mysql/cli">
+    単一のNew Relic CLIコマンドを使用して、MySQL監視をインストールおよび設定する方法を学びます。
+  </DocTile>
+
+  <DocTile title="Ansibleのインストール" path="/docs/opentelemetry/db360/mysql/ansible">
+    newrelic.newrelic_installを使用して、MySQL監視を大規模にインストールおよび設定する方法をご確認ください。Ansibleロール。
+  </DocTile>
+
+  <DocTile title="Chefのインストール" path="/docs/opentelemetry/db360/mysql/chef">
+    newrelic-install Chefクックブックを使用して、MySQL監視を大規模にインストールおよび設定する方法について説明します。
+  </DocTile>
+</DocTiles>
