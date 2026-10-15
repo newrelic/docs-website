@@ -13,6 +13,8 @@ import { visit } from 'unist-util-visit4';
 import { encode as htmlEncode } from 'html-entities';
 import { decode as htmlDecode } from 'html-entities';
 import handlers from './utils/handlers.mjs';
+import { deserializeComponent } from './utils/deserialization-helpers.mjs';
+import { listSnippetComponentNames } from '../generate-snippets.js';
 import { configuration } from './configuration.js';
 import remarkGfm from 'remark-gfm';
 
@@ -35,13 +37,21 @@ const component = (state, node) => {
 
   const handler = handlers[key];
 
-  if (!handler || !handler.deserialize) {
-    throw new Error(
-      `Unable to deserialize node: '${key}'. Please specify a deserializer in 'scripts/actions/utils/handlers.js'`
-    );
+  if (handler && handler.deserialize) {
+    return handler.deserialize(state, node, undefined, attributeProcessor);
   }
 
-  return handler.deserialize(state, node, undefined, attributeProcessor);
+  // Mirrors the same fallback in serialize-mdx.mjs's mdxElement - a snippet
+  // component was serialized with the generic serializeComponent, so it
+  // round-trips with the generic deserializeComponent too. Only for names
+  // that are REAL, current snippets, so a genuinely unknown node still throws.
+  if (listSnippetComponentNames().includes(key)) {
+    return deserializeComponent(state, node, undefined, attributeProcessor);
+  }
+
+  throw new Error(
+    `Unable to deserialize node: '${key}'. Please specify a deserializer in 'scripts/actions/utils/handlers.js'`
+  );
 };
 
 const headingWithCustomId = (state, node) => {

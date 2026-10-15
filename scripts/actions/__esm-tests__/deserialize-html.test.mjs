@@ -297,4 +297,24 @@ test('deserializes headers as a span element', async () => {
   expect(mdx).toEqual(input);
 });
 
+test('round-trips a real reusable-snippet component without a hand-written handlers.mjs entry', async () => {
+  // ApmNodejsPrerequisites is a real committed snippet (see
+  // src/components/snippets/apm/nodejs/prerequisites.mdx) - the fallback in
+  // both serialize-mdx.mjs and deserialize-html.mjs recognizes it as a
+  // current snippet name and uses the generic component handler, with no
+  // entry for it in handlers.mjs.
+  const input = `<ApmNodejsPrerequisites agentName="Node.js" />`;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
+test('still throws deserializing a node that is neither a handler nor a real snippet', async () => {
+  await expect(
+    deserializeHTML(
+      '<div data-type="component" data-component="DefinitelyNotARealComponentOrSnippet"></div>'
+    )
+  ).rejects.toThrow(/Unable to deserialize node/);
+});
+
 test.run();
