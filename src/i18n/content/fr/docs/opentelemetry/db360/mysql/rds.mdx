@@ -1,0 +1,303 @@
+---
+title: Installez & configurez NRDOT pour le monitoring MySQL avec AWS RDS
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - AWS RDS
+metaDescription: Set up MySQL and MariaDB monitoring with the NRDOT Collector on AWS RDS environments
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+Configurez le monitoring MySQL en utilisant le NRDOT Collector pour les instances AWS RDS MySQL. Les environnements RDS ont des considérations spécifiques pour les consommateurs et les privilèges du Performance Schema.
+
+<Steps>
+  <Step>
+    ## Prérequis [#prerequisites]
+
+    Avant d’installer, assurez-vous d’avoir :
+
+    * Une [clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) New Relic.
+    * Connectivité réseau entre l&apos;hôte où vous installez le Collector NRDOT et votre instance RDS MySQL.
+    * Connectivité réseau vers la [documentation sur les points de terminaison OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+    * Identifiants de l&apos;utilisateur maître RDS.
+
+    Pour les versions de MySQL prises en charge, les droits requis et les exigences `performance_schema`, consultez [Compatibilité et prérequis](/docs/opentelemetry/db360/mysql/compatibility).
+  </Step>
+
+  <Step>
+    ## Configurer le Collector NRDOT [#setup]
+
+    Installez le NRDOT Collector sur un système qui peut se connecter à votre instance RDS :
+
+    <CollapserGroup>
+      <Collapser title="Pour l'architecture AMD64" id="amd">
+        * Pour les systèmes Debian/Ubuntu, exécutez :
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+          ```
+
+        * Pour les systèmes RHEL/CentOS/OEL, exécutez :
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+          ```
+      </Collapser>
+
+      <Collapser title="Pour l'architecture ARM64" id="arm">
+        * Pour les systèmes Debian/Ubuntu, exécutez :
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+          ```
+
+        * Pour les systèmes RHEL/CentOS/OEL, exécutez :
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+          ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Configurer l&apos;utilisateur de la base de données [#user]
+
+    Créez un utilisateur de monitoring avec les privilèges nécessaires pour votre instance RDS MySQL.
+
+    * Pour créer un utilisateur de monitoring, connectez-vous à votre instance RDS en tant qu&apos;utilisateur principal et exécutez :
+
+      ```sql
+      CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>';
+      ```
+
+    * Pour collecter des échantillons de requêtes et les requêtes principales, accordez les privilèges suivants à l’utilisateur de monitoring :
+
+      ```sql
+      GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%';
+      GRANT SELECT ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+      GRANT REPLICATION CLIENT ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+      GRANT PROCESS ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+      ```
+
+    * (Facultatif) Pour afficher les données de temps d&apos;attente dans la plateforme New Relic, accordez les privilèges suivants à l&apos;utilisateur de monitoring :
+
+      ```sql
+      GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+      ```
+
+      <Callout variant="tip">
+        Ce paramètre ne persiste pas sur RDS ; le consommateur `events_waits_current` se réinitialise à chaque redémarrage ou basculement. L’octroi de ce privilège permet au collecteur de le réactiver automatiquement lors de la reconnexion ; sinon, vous devrez réexécuter l’instruction d’activation après chaque redémarrage.
+      </Callout>
+
+    * (Facultatif) Pour vérifier la connexion et les autorisations, exécutez :
+
+      ```shell
+      mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
+      ```
+
+      Si la commande se termine sans erreur, l&apos;utilisateur de monitoring, l&apos;hôte et le port sont tous corrects.
+  </Step>
+
+  <Step>
+    ## Configurer le collecteur NRDOT [#configure]
+
+    Configurez le Collector NRDOT avec vos paramètres spécifiques à MySQL.
+
+    Cette configuration se concentre sur le monitoring essentiel de MySQL avec le Récepteur `nrmysql` uniquement.
+
+    <Callout variant="tip" title="configuration complète">
+      Cette configuration de base de référence capture les métriques essentielles. Pour voir le catalogue complet des métriques, reportez-vous à la [référence de configuration](/docs/opentelemetry/db360/mysql/config-reference/#rds-full).
+    </Callout>
+
+    1. Créez un fichier de configuration nommé `mysql-config.yaml`:
+
+    ```bash
+      sudo nano /etc/nrdot-collector/mysql-config.yaml
+    ```
+
+    2. Ajoutez la configuration suivante au fichier `mysql-config.yaml` que vous avez créé à l’étape précédente.
+
+    ```yaml
+    receivers:
+      nrmysql:
+        endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+        transport: tcp
+        username: "<YOUR_DB_USERNAME>"
+        password: "<YOUR_DB_PASSWORD>"
+        allow_native_passwords: true
+        collection_interval: 15s
+        initial_delay: 1s
+        explain_mode: procedure
+        statement_events:
+          digest_text_limit: 4096
+          time_limit: 24h
+          limit: 500
+        query_sample_collection:
+          max_rows_per_query: 100
+          allowed_comment_keys: [nr_service_guid]
+        top_query_collection:
+          lookback_time: 60
+          max_query_sample_count: 5000
+          top_query_count: 200
+          collection_interval: 60s
+          query_plan_cache_size: 1000
+          query_plan_cache_ttl: 1h
+          allowed_comment_keys: [nr_service_guid]
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+        resource_attributes:
+          db.system.version:
+            enabled: true
+        metrics:
+          mysql.query.count:
+            enabled: true
+          mysql.query.slow.count:
+            enabled: true
+          mysql.commands:
+            enabled: true
+          mysql.innodb.data_file.io:
+            enabled: true
+
+    processors:
+      batch:
+
+    exporters:
+      otlp/newrelic:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+        headers:
+          api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+        compression: gzip
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [nrmysql]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+        logs:
+          receivers: [nrmysql]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+    ```
+
+    <Callout variant="tip">
+      Cette configuration omet les champs facultatifs `database` et `tls`. Par défaut, le Récepteur monitore chaque base de données à laquelle l’utilisateur de monitoring peut accéder, et se connecte sans TLS. La plupart des instances Amazon RDS/Aurora imposent SSL/TLS, vous devrez donc probablement [l’activer](/docs/opentelemetry/db360/mysql/optional#tls). Voir Activer les informations détaillées pour le bloc `tls` et la configuration `ca_file`.
+    </Callout>
+
+    ### Paramètres de configuration
+
+    Le tableau suivant décrit les principaux paramètres de configuration du récepteur `nrmysql` :
+
+    | paramètres                      | Description                                                                                                                                                                                                                                                                                                                            |
+    | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_DB_HOST>`                | Votre point de terminaison RDS MySQL. Par exemple, `mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com`                                                                                                                                                                                                                            |
+    | `<YOUR_DB_PORT>`                | Saisissez votre numéro de port MySQL. La valeur par défaut est `3306`.                                                                                                                                                                                                                                                                 |
+    | `<YOUR_DB_USERNAME>`            | Saisissez le nom d’utilisateur de l’utilisateur de monitoring que vous avez créé dans [Configurer l’utilisateur de la base de données](#user).                                                                                                                                                                                         |
+    | `<YOUR_DB_PASSWORD>`            | Saisissez le mot de passe de l&apos;utilisateur de monitoring que vous avez créé dans [Configurer l&apos;utilisateur de base de données](#user).                                                                                                                                                                                       |
+    | `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Saisissez le point de terminaison OTLP New Relic. Pour plus d&apos;informations, consultez les [points de terminaison OTLP New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/).                                                                                                                                         |
+    | `<YOUR_NEWRELIC_LICENSE_KEY>`   | Saisissez votre [clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) New Relic.                                                                                                                                                                                                                              |
+    | `transport`                     | La valeur par défaut est définie sur `tcp` pour se connecter sur le réseau.                                                                                                                                                                                                                                                            |
+    | `collection_interval`           | Saisissez l&apos;intervalle entre les collectes de métriques. Valeur par défaut : `15s`.                                                                                                                                                                                                                                               |
+    | `explain_mode`                  | La valeur par défaut est définie sur `inline`. Définissez la valeur sur `procedure` pour collecter les plans de requête pour les instructions d’écriture sans accorder de privilèges DML à l’utilisateur de monitoring. Consultez [Plans de requête pour les instructions d’écriture](/docs/opentelemetry/db360/mysql/optional#query). |
+  </Step>
+
+  <Step>
+    ## Valider la configuration du Collector NRDOT [#validate]
+
+    1. Mettez à jour le chemin de configuration pour pointer vers votre nouveau fichier `mysql-config.yaml` :
+
+    ```bash
+      sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/mysql-config.yaml"|' /etc/nrdot-collector/nrdot-collector.conf
+    ```
+
+    2. Validez la configuration du Collector NRDOT pour vous assurer qu&apos;elle est correctement formatée et qu&apos;elle fonctionnera correctement :
+
+    ```bash
+      sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mysql-config.yaml
+    ```
+
+<Callout variant="tip">
+  Vous pouvez également :
+
+  * [Configurer plusieurs récepteurs](/docs/opentelemetry/db360/mysql/multi-receiver): pour monitorer plusieurs instances MySQL depuis un seul collecteur.
+  * [Liez votre base de données MySQL à l’APM](/docs/opentelemetry/db360/capabilities/db-apm): pour corréler les performances des applications avec les opérations de la base de données. Cela vous permet de voir exactement quelles applications génèrent des workloads de base de données spécifiques.
+  * [Configurer la gestion des secrets](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management): pour gérer en toute sécurité des informations sensibles, telles que les identifiants de base de données. Cela permet de renforcer la sécurité de votre configuration de monitoring en évitant de coder en dur des données sensibles dans les fichiers de configuration.
+</Callout>
+  </Step>
+
+  <Step>
+    ## Redémarrer NRDOT Collector [#restart]
+
+    * Après avoir mis à jour votre configuration, redémarrez le service NRDOT Collector :
+
+      ```shell
+      sudo systemctl restart nrdot-collector
+      ```
+
+      <Callout variant="tip">
+        Redémarrez toujours le service NRDOT Collector après avoir modifié la configuration pour vous assurer que les nouveaux paramètres soient pris en compte.
+      </Callout>
+
+    * Pour vérifier que le collecteur fonctionne correctement, vérifiez l&apos;état du service :
+
+      ```shell
+      sudo systemctl status nrdot-collector
+      ```
+  </Step>
+
+  <Step>
+    ## Trouvez et utilisez vos données [#find]
+
+    Une fois vos données collectées, vous pouvez accéder à un monitoring complet de la base de données RDS MySQL via l&apos;UI de New Relic.
+
+    Pour trouver votre entité de base de données RDS MySQL dans New Relic :
+
+    1. Allez à <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>.
+    2. Dans la liste déroulante **<DNT>Entity type</DNT>**, sélectionnez <DNT>**MySQL instance**</DNT>, puis cliquez sur <DNT>**Apply**</DNT>.
+    3. Sélectionnez votre base de données RDS MySQL dans la liste des entités.
+  </Step>
+</Steps>
+
+## Limitations d&apos;Amazon RDS [#limitations]
+
+Le consommateur Performance Schema `events_waits_current` est requis pour `mysql.events_waits_current.timer_wait` et les dashboards basés sur l’attente. La famille de groupes de paramètres RDS `mysql8.0` n’expose pas les paramètres `performance_schema_consumer_*`, empêchant une configuration persistante. Ce consommateur doit être activé au moment de l’exécution, car le paramètre se réinitialise après chaque redémarrage ou basculement de la base de données.
+
+## Documentation associée [#related]
+
+<DocTiles>
+  <DocTile title="Instrumentation dans les environnements auto-hébergés" path="/docs/opentelemetry/db360/mysql/hosted">
+    Découvrez comment configurer le monitoring MySQL dans des environnements auto-hébergés avec New Relic.
+  </DocTile>
+
+  <DocTile title="Référence des métriques" path="/docs/opentelemetry/db360/mysql/metrics-reference">
+    Découvrez les métriques disponibles collectées par le collecteur NRDOT.
+  </DocTile>
+
+  <DocTile title="Guide de dépannage" path="/docs/opentelemetry/db360/mysql/troubleshooting">
+    Apprenez à résoudre les problèmes courants liés au monitoring MySQL.
+  </DocTile>
+</DocTiles>

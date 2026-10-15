@@ -1,0 +1,255 @@
+---
+title: Dockerを使用したMySQL監視用のNRDOTのインストールと設定
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Docker
+metaDescription: Set up MySQL and MariaDB monitoring with the NRDOT Collector when MySQL runs in a Docker container
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+Dockerで既に実行されているMySQLインスタンスの兄弟コンテナとしてNRDOT Collectorを使用して、MySQL監視をセットアップします。
+
+<Callout variant="tip">
+  これを大規模に自動化するか、代わりにKubernetesで実行することをお考えですか？[Ansibleのインストール](/docs/opentelemetry/db360/mysql/ansible)、[Chefのインストール](/docs/opentelemetry/db360/mysql/chef)、または[Helmチャートのインストール](/docs/opentelemetry/db360/mysql/helm)をご覧ください。
+</Callout>
+
+<Steps>
+  <Step>
+    ## 前提条件 [#prerequisites]
+
+    インストールする前に、以下のものがあることを確認してください：
+
+    * ホストにインストールされているDocker。
+    * すでに実行中のMySQLコンテナ（MySQL 5.7以降）。
+    * NewRelic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)。
+    * コレクターコンテナから[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)へのネットワーク接続。
+
+    サポートされているMySQLのバージョン、必要な権限、および`performance_schema`の要件については、[互換性と前提条件](/docs/opentelemetry/db360/mysql/compatibility)をご覧ください。
+  </Step>
+
+  <Step>
+    ## データベースユーザーを構成する [#user]
+
+    `docker exec`を使用してMySQLコンテナに対してSQLを実行し、必要な権限を持つ監視ユーザーを作成します。`<YOUR_MYSQL_CONTAINER_NAME>`、`<YOUR_MYSQL_ROOT_PASSWORD>`、`<YOUR_DB_USERNAME>`、`<YOUR_DB_PASSWORD>`をご自身の値に置き換えます。
+
+    * メトリクス収集に必要な最小限の権限を持つ監視ユーザーを作成するには、次を実行します：
+
+      ```bash
+      docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u root -p'<YOUR_MYSQL_ROOT_PASSWORD>' -e "CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>'; GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%'; FLUSH PRIVILEGES;"
+      ```
+
+    * クエリサンプルと上位クエリも収集するには、代わりにすべての権限を付与してください：
+
+      ```bash
+      docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u root -p'<YOUR_MYSQL_ROOT_PASSWORD>' -e "CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>'; GRANT SELECT, PROCESS, REPLICATION CLIENT ON *.* TO '<YOUR_DB_USERNAME>'@'%'; GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%'; FLUSH PRIVILEGES;"
+      ```
+
+    * （オプション）New Relicプラットフォームで待機時間データを表示するには、監視ユーザーに次の権限を付与します：
+
+      ```bash
+      docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u root -p'<YOUR_MYSQL_ROOT_PASSWORD>' -e "GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%'; FLUSH PRIVILEGES;"
+      ```
+
+    * （オプション）接続と権限を確認するには、次を実行します：
+
+      ```bash
+      docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u '<YOUR_DB_USERNAME>' -p'<YOUR_DB_PASSWORD>' -e "SELECT 1;"
+      ```
+
+      コマンドがエラーなしで完了した場合、監視ユーザーとパスワードは正しいです。
+  </Step>
+
+  <Step>
+    ## NRDOT Collector の設定を作成します [#configure]
+
+    この設定は、`nrmysql`レシーバーを使用した基本的なMySQL監視に焦点を当てています。現在のディレクトリに`mysql-config.yaml`を生成するには、Dockerホストで以下を実行します：
+
+    ```bash
+    cat << 'EOF' > mysql-config.yaml
+    receivers:
+      nrmysql:
+        endpoint: "<YOUR_MYSQL_CONTAINER_NAME>:3306"
+        transport: tcp
+        username: "<YOUR_DB_USERNAME>"
+        password: "<YOUR_DB_PASSWORD>"
+        allow_native_passwords: true
+        collection_interval: 15s
+        initial_delay: 1s
+        explain_mode: procedure
+        statement_events:
+          digest_text_limit: 4096
+          time_limit: 24h
+          limit: 500
+        query_sample_collection:
+          max_rows_per_query: 100
+          allowed_comment_keys: [nr_service_guid]
+        top_query_collection:
+          lookback_time: 60
+          max_query_sample_count: 5000
+          top_query_count: 200
+          collection_interval: 60s
+          query_plan_cache_size: 1000
+          query_plan_cache_ttl: 1h
+          allowed_comment_keys: [nr_service_guid]
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+        resource_attributes:
+          db.system.version:
+            enabled: true
+        metrics:
+          mysql.query.count:
+            enabled: true
+          mysql.query.slow.count:
+            enabled: true
+          mysql.commands:
+            enabled: true
+          mysql.innodb.data_file.io:
+            enabled: true
+
+    processors:
+      batch:
+
+    exporters:
+      otlp/newrelic:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+        headers:
+          api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+        compression: gzip
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [nrmysql]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+        logs:
+          receivers: [nrmysql]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+    EOF
+    ```
+
+    ### 設定パラメーター
+
+    | パラメータ                           | 説明                                                                                                                      |
+    | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_MYSQL_CONTAINER_NAME>`   | 実行中のMySQLコンテナの名前（またはDockerでDNS解決可能なホスト名）。                                                                               |
+    | `<YOUR_DB_USERNAME>`            | [データベースユーザーの設定](#user)で作成した監視ユーザー。                                                                                      |
+    | `<YOUR_DB_PASSWORD>`            | [データベースユーザーの構成](#user)で作成した監視ユーザーのパスワード。                                                                                |
+    | `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | New Relic OTLPエンドポイント。詳細については、[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)を参照してください。 |
+    | `<YOUR_NEWRELIC_LICENSE_KEY>`   | あなたのNew Relic [ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 。                                 |
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorコンテナを起動してください。 [#start]
+
+    コンテナ名で `<YOUR_MYSQL_CONTAINER_NAME>` を解決できるように、MySQLコンテナと同じDockerネットワーク上でコレクターを実行してください：
+
+    ```bash
+    docker run -d \
+      --name nrdot-collector \
+      --network <YOUR_DOCKER_NETWORK> \
+      -v "$PWD/mysql-config.yaml:/etc/nrdot-collector/mysql-config.yaml" \
+      newrelic/nrdot-collector:latest \
+      --config /etc/nrdot-collector/mysql-config.yaml
+    ```
+
+    <Callout variant="tip">
+      `docker inspect <YOUR_MYSQL_CONTAINER_NAME> --format '{{json .NetworkSettings.Networks}}'`を使用して、MySQLコンテナのネットワークを特定してください。まだ共有のユーザー定義ネットワーク上にない場合は、ネットワークを作成し、両方のコンテナをそのネットワークに接続します：
+
+      ```bash
+      docker network create <YOUR_DOCKER_NETWORK>
+      docker network connect <YOUR_DOCKER_NETWORK> <YOUR_MYSQL_CONTAINER_NAME>
+      ```
+    </Callout>
+
+    コレクターコンテナが実行されていることを確認します：
+
+    ```bash
+    docker ps --filter name=nrdot-collector
+    ```
+
+    実行されていない場合は、ログでエラーを確認してください。最も一般的な原因は、`mysql-config.yaml`でのYAMLインデントの問題、または到達できないMySQLコンテナです：
+
+    ```bash
+    docker logs nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      `mysql-config.yaml`を変更した後、コンテナを再起動して変更を適用してください：
+
+      ```bash
+      docker restart nrdot-collector
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## データを探す、使う [#find]
+
+    データの収集が開始されると、New Relic UIから包括的なMySQLデータベース監視にアクセスできます。
+
+    New RelicでMySQLデータベースエンティティを見つけるには：
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>に移動します。
+    2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**MySQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+    3. エンティティのリストからMySQLデータベースを選択します。
+
+    データが到着していることを確認するには、[クエリビルダー](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)で次のクエリを実行します：
+
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE metricName LIKE 'mysql.%'
+    AND instrumentation.provider = 'opentelemetry'
+    SINCE 10 minutes ago
+    ```
+  </Step>
+</Steps>
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+  <DocTile title="NRDOTを使用したMySQLモニタリングの概要" path="/docs/opentelemetry/db360/mysql/introduction">
+    New Relicを使用したMySQL監視で利用可能なすべてのインストレーション方法についてご確認ください。
+  </DocTile>
+
+  <DocTile title="セルフホスト型インストール" path="/docs/opentelemetry/db360/mysql/hosted">
+    物理サーバー、仮想マシン、およびスタンドアロンのインストレーションでMySQL監視をセットアップする方法を学びます。
+  </DocTile>
+
+  <DocTile title="Ansibleのインストール" path="/docs/opentelemetry/db360/mysql/ansible">
+    newrelic.newrelic_installを使用して、MySQL監視を大規模にインストールおよび設定する方法をご確認ください。Ansibleロール。
+  </DocTile>
+
+  <DocTile title="Chefのインストール" path="/docs/opentelemetry/db360/mysql/chef">
+    newrelic-install Chefクックブックを使用して、MySQL監視を大規模にインストールおよび設定する方法について説明します。
+  </DocTile>
+
+  <DocTile title="Helmチャートのインストール" path="/docs/opentelemetry/db360/mysql/helm">
+    mysql-otel Helmチャートを使用して、KubernetesでMySQL監視をインストールおよび構成する方法について説明します。
+  </DocTile>
+</DocTiles>
