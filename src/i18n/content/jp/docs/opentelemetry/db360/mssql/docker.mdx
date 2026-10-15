@@ -1,0 +1,327 @@
+---
+title: Dockerを使用したMSSQL監視用NRDOTのインストールと設定
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Docker
+metaDescription: Set up Microsoft SQL Server monitoring with the NRDOT Collector when SQL Server runs in a Docker container
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+Dockerですでに実行されているSQL ServerインスタンスのシブリングコンテナとしてNRDOT Collectorを使用して、SQL Serverの監視を設定します。
+
+<Callout variant="tip">
+  これを大規模に自動化するか、代わりにKubernetesで実行することをお考えですか？[Ansibleのインストール](/docs/opentelemetry/db360/mssql/ansible)、[Chefのインストール](/docs/opentelemetry/db360/mssql/chef)、または[Helmチャートのインストール](/docs/opentelemetry/db360/mssql/helm)を参照してください。
+</Callout>
+
+<Steps>
+  <Step>
+    ## 前提条件 [#prerequisites]
+
+    * ホストにインストールされているDocker。
+    * すでに実行中のSQL Serverコンテナ（SQL Server 2017以降）があり、その内部で`sqlcmd`ユーティリティが利用可能である必要があります。Microsoftの`mssql-server`イメージでは、これが`/opt/mssql-tools18/bin`または`/opt/mssql-tools/bin`の下にバンドルされています。
+    * `sysadmin` サーバーロール（または同等のもの）のログインとそのパスワード。
+    * NewRelic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)。
+    * コレクターコンテナから[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)へのネットワーク接続。
+  </Step>
+
+  <Step>
+    ## 監視ユーザーを作成し、権限を付与します。 [#user]
+
+    `docker exec`を使用して、SQL Serverコンテナ内でgrantスクリプトを実行してください。`<YOUR_MSSQL_CONTAINER_NAME>`、`<YOUR_ADMIN_USERNAME>`、`<YOUR_ADMIN_PASSWORD>`、`<YOUR_DB_USERNAME>`、および`<YOUR_DB_PASSWORD>`を独自の値に置き換えてください。イメージに合わせて`sqlcmd`のパス（`/opt/mssql-tools18/bin/sqlcmd`または`/opt/mssql-tools/bin/sqlcmd`）を調整してください。
+
+    ```bash
+    docker exec -i <YOUR_MSSQL_CONTAINER_NAME> /opt/mssql-tools18/bin/sqlcmd \
+      -S localhost -U <YOUR_ADMIN_USERNAME> -P '<YOUR_ADMIN_PASSWORD>' -C \
+      -Q "
+    USE [master];
+    GO
+    CREATE LOGIN [<YOUR_DB_USERNAME>] WITH PASSWORD = '<YOUR_DB_PASSWORD>';
+    GO
+    -- Instance-level permissions
+    GRANT VIEW SERVER STATE TO [<YOUR_DB_USERNAME>];
+    GRANT VIEW ANY DEFINITION TO [<YOUR_DB_USERNAME>];
+    GRANT VIEW ANY DATABASE TO [<YOUR_DB_USERNAME>];
+    GO
+    -- Grant read access privileges to all user databases
+    DECLARE @name SYSNAME;
+    DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name]
+    FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+    AND [state] = 0;
+    OPEN db_cursor;
+    FETCH NEXT FROM db_cursor INTO @name;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+      BEGIN TRY
+        EXEC('USE [' + @name + '];
+          IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<YOUR_DB_USERNAME>'')
+          BEGIN
+            CREATE USER [<YOUR_DB_USERNAME>] FOR LOGIN [<YOUR_DB_USERNAME>];
+          END;
+          GRANT VIEW DATABASE STATE TO [<YOUR_DB_USERNAME>];');
+      END TRY
+      BEGIN CATCH
+        PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+      END CATCH
+      FETCH NEXT FROM db_cursor INTO @name;
+    END
+    CLOSE db_cursor;
+    DEALLOCATE db_cursor;
+    GO
+    "
+    ```
+
+    <Callout variant="tip">
+      このスクリプトは、実行時に`ONLINE`であるデータベース（`master`、`msdb`、`model`、`rdsadmin`、および`distribution`を除く）に対してのみ、データベースレベルのユーザーを作成し、権限を付与します。モニターしたい新しいデータベースを追加するたびに、再実行してください。
+    </Callout>
+
+    （オプション）ログインとそのサーバーレベルの権限を確認します：
+
+    ```bash
+    docker exec -i <YOUR_MSSQL_CONTAINER_NAME> /opt/mssql-tools18/bin/sqlcmd \
+      -S localhost -U <YOUR_ADMIN_USERNAME> -P '<YOUR_ADMIN_PASSWORD>' -C \
+      -Q "SELECT sp.name AS [User], p.permission_name AS [Permission_Granted] FROM sys.server_permissions p JOIN sys.server_principals sp ON p.grantee_principal_id = sp.principal_id WHERE sp.name = '<YOUR_DB_USERNAME>';"
+    ```
+
+    （オプション）監視ユーザーが認証でき、すべてのデータベースを表示できることを確認します：
+
+    ```bash
+    docker exec -i <YOUR_MSSQL_CONTAINER_NAME> /opt/mssql-tools18/bin/sqlcmd \
+      -S localhost -U <YOUR_DB_USERNAME> -P '<YOUR_DB_PASSWORD>' -C \
+      -Q "SELECT name FROM sys.databases;"
+    ```
+  </Step>
+
+  <Step>
+    ## Dockerネットワークの接続を確認してください。 [#network]
+
+    共有のユーザー定義ネットワークを作成し（まだ作成していない場合）、SQL Serverコンテナをそれに接続して、コレクターコンテナが名前で解決できるようにしてください：
+
+    ```bash
+    docker network create <YOUR_DOCKER_NETWORK> 2>/dev/null || true
+    docker network connect <YOUR_DOCKER_NETWORK> <YOUR_MSSQL_CONTAINER_NAME> 2>/dev/null || true
+    ```
+
+    <Callout variant="tip">
+      どちらのコマンドも安全に再実行できます：`|| true` は、前回の実行による &quot;already exists&quot; または &quot;already connected&quot; エラーを無視します。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collector の設定を作成します [#configure]
+
+    この設定は、`nrsqlserver`レシーバーを使用した基本的なSQL Server監視に焦点を当てています。現在のディレクトリに`mssql-config.yaml`を生成するには、Dockerホストで以下を実行します：
+
+    ```bash
+    cat << 'EOF' > mssql-config.yaml
+    receivers:
+      nrsqlserver:
+        collection_interval: 15s
+        username: "<YOUR_DB_USERNAME>"
+        password: "<YOUR_DB_PASSWORD>"
+        server: "<YOUR_MSSQL_CONTAINER_NAME>"
+        port: 1433
+
+        # Enable comprehensive database metrics
+        metrics:
+          sqlserver.database.count:
+            enabled: true
+          sqlserver.database.io:
+            enabled: true
+          sqlserver.database.latency:
+            enabled: true
+          sqlserver.database.operations:
+            enabled: true
+          sqlserver.database.tempdb.space:
+            enabled: true
+          sqlserver.database.tempdb.version_store.size:
+            enabled: true
+          sqlserver.deadlock.rate:
+            enabled: true
+          sqlserver.os.wait.duration:
+            enabled: true
+          sqlserver.processes.blocked:
+            enabled: true
+          sqlserver.memory.grants.pending.count:
+            enabled: true
+          sqlserver.database.file.size:
+            enabled: true
+          sqlserver.memory.area:
+            enabled: true
+
+        # Enable query sample, top query, query plan, and top procedure log collection
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+          db.server.top_procedure:
+            enabled: true
+
+        # Top query collection configuration
+        top_query_collection:
+          lookback_time: 60s
+          max_query_sample_count: 1000
+          top_query_count: 250
+          collection_interval: 60s
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        # Query sample collection configuration
+        query_sample_collection:
+          max_rows_per_query: 100
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        # Top stored procedure collection configuration
+        top_procedure_collection:
+          max_procedure_sample_count: 1000
+          top_procedure_count: 250
+          collection_interval: 60s
+
+        resource_attributes:
+          db.system.version:
+            enabled: true
+          sqlserver.db.edition:
+            enabled: true
+
+    processors:
+      memory_limiter:
+        check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+    exporters:
+      otlp:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>:4318"
+        headers:
+          api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+        tls:
+          insecure: false
+        compression: gzip
+
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter]
+          exporters: [otlp]
+
+        logs:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter]
+          exporters: [otlp]
+    EOF
+    ```
+
+    ### 設定パラメーター
+
+    | パラメータ                           | 説明                                                                                                                                                            |
+    | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_MSSQL_CONTAINER_NAME>`   | 実行中のSQL Serverコンテナの名前（またはDockerでDNS解決可能なホスト名）。                                                                                                                |
+    | `<YOUR_DB_USERNAME>`            | [監視ユーザーを作成して権限を付与する](#user)で作成した監視ログイン。                                                                                                                       |
+    | `<YOUR_DB_PASSWORD>`            | [監視ユーザーの作成と権限の付与](#user)で作成した監視ログインのパスワード。                                                                                                                    |
+    | `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | New Relic OTLPエンドポイント（ホストのみ、スキームやポートは不要；`:4318`は自動的に追加されます）。詳細については、[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)を参照してください。 |
+    | `<YOUR_NEWRELIC_LICENSE_KEY>`   | あなたのNew Relic [ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 。                                                                       |
+
+    <Callout variant="tip" title="完全な設定">
+      この設定は、Docker環境の基本的なデータベース監視に焦点を当てています。利用可能なすべてのメトリクスを使用した包括的な監視を有効にするには、[設定リファレンス](/docs/opentelemetry/db360/mssql/config-reference/#hosted-full)を参照してください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorコンテナを起動してください。 [#start]
+
+    SQL Serverコンテナと同じDockerネットワークでコレクターを実行してください：
+
+    ```bash
+    docker run -d \
+      --name nrdot-collector \
+      --network <YOUR_DOCKER_NETWORK> \
+      -v "$PWD/mssql-config.yaml:/etc/nrdot-collector/mssql-config.yaml" \
+      newrelic/nrdot-collector:latest \
+      --config /etc/nrdot-collector/mssql-config.yaml
+    ```
+
+    コレクターコンテナが実行されていることを確認します：
+
+    ```bash
+    docker ps --filter name=nrdot-collector
+    ```
+
+    実行されていない場合は、ログでエラーを確認してください。最も一般的な原因は、`mssql-config.yaml`でのYAMLインデントの問題、または到達できないSQL Serverコンテナです：
+
+    ```bash
+    docker logs nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      `mssql-config.yaml`を変更した後、コンテナを再起動して変更を適用してください：
+
+      ```bash
+      docker restart nrdot-collector
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## データを探す、使う [#find]
+
+    データの収集が開始されると、New Relic UIを通じて包括的なSQL Serverデータベース監視にアクセスできます。
+
+    New Relic で SQL Server データベース エンティティを見つけるには:
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>に移動します。
+    2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**MSSQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+    3. エンティティのリストから SQL Server データベースを選択します。
+  </Step>
+</Steps>
+
+## 関連ドキュメント [#related-docs]
+
+<DocTiles>
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+    NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+  </DocTile>
+
+  <DocTile title="トラブルシューティング" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+    New RelicでMSSQL監視セットアップをトラブルシューティングする方法について説明します。
+  </DocTile>
+
+  <DocTile title="APMとデータベースの相関を設定する" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    New Relicでアプリケーションパフォーマンスとデータベース操作を関連付ける方法について説明します。
+  </DocTile>
+</DocTiles>

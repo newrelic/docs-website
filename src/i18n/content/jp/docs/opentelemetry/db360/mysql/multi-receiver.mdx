@@ -1,0 +1,153 @@
+---
+title: NRDOTを使用したMySQLのマルチレシーバー設定
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Self-hosted
+  - AWS RDS
+metaDescription: Set up a multi-receiver configuration with the NRDOT Collector
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+translationType: machine
+---
+
+1つのコレクターから複数のMySQLインスタンスをモニターするようにNRDOT Collectorを設定できます。これは、異なるホストまたはポートで実行されている複数のMySQLデータベースがあり、単一のNRDOT Collectorインスタンスを使用してそれらすべてからメトリクスを収集したい場合に便利です。
+
+<Steps>
+  <Step>
+    ## 前提条件 [#prerequisites]
+
+    * NRDOTがインストールされ、MySQLインスタンス用に設定されていること：
+
+      * [セルフホスト型MySQL](/docs/opentelemetry/db360/mysql/hosted)
+      * [RDS MySQL監視](/docs/opentelemetry/db360/mysql/rds)
+  </Step>
+
+  <Step>
+    ## マルチレシーバー設定の追加 [#multi]
+
+    以下の例では、マルチレシーバー設定を使用して2つのMySQLインスタンスをモニターするようにNRDOT Collectorを設定する方法を示します。1番目のインスタンスは完全な`nrmysql`設定を保持してアンカーとして機能します；2番目のインスタンスはYAMLマージキーを介してすべての共有設定を継承し、自身の接続詳細のみを上書きします。追加のMySQLインスタンス用に、必要に応じてさらにレシーバーを追加できます。
+
+    ```yaml
+    receivers:
+      # First MySQL instance (anchor - full config, instance2 inherits shared settings via merge key)
+      nrmysql/instance1: &nrmysql-common
+        endpoint: "<INSTANCE_1_HOST>:<INSTANCE_1_PORT>"
+        transport: tcp
+        username: "<INSTANCE_1_USERNAME>"
+        password: "<INSTANCE_1_PASSWORD>"
+        allow_native_passwords: true
+        collection_interval: 15s
+        initial_delay: 1s
+        explain_mode: procedure
+        statement_events:
+          digest_text_limit: 4096
+          time_limit: 24h
+          limit: 500
+        query_sample_collection:
+          max_rows_per_query: 100
+          allowed_comment_keys: [nr_service_guid]
+        top_query_collection:
+          lookback_time: 60
+          max_query_sample_count: 5000
+          top_query_count: 200
+          collection_interval: 60s
+          query_plan_cache_size: 1000
+          query_plan_cache_ttl: 1h
+          allowed_comment_keys: [nr_service_guid]
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+        resource_attributes:
+          db.system.version:
+            enabled: true
+        metrics:
+          mysql.query.count:
+            enabled: true
+          mysql.query.slow.count:
+            enabled: true
+          mysql.commands:
+            enabled: true
+          mysql.innodb.data_file.io:
+            enabled: true
+
+      # Second MySQL instance (inherits every shared setting above, overrides only connection details)
+      nrmysql/instance2:
+        <<: *nrmysql-common
+        endpoint: "<INSTANCE_2_HOST>:<INSTANCE_2_PORT>"
+        username: "<INSTANCE_2_USERNAME>"
+        password: "<INSTANCE_2_PASSWORD>"
+
+    processors:
+      batch:
+
+    exporters:
+      otlp/newrelic:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+        headers:
+          api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+    service:
+      pipelines:
+        metrics/mysql-instance1:
+          receivers: [nrmysql/instance1, nrmysql/instance2]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+        logs/mysql-instance1:
+          receivers: [nrmysql/instance1, nrmysql/instance2]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+    ```
+
+    <Callout variant="tip">
+      この設定では、オプションの`database`および`tls`フィールドを省略します。デフォルトでは、各レシーバーはユーザーがアクセスできるすべてのデータベースをモニターし、TLSなしで接続します。インスタンスごとに[特定のデータベースをモニターする](/docs/opentelemetry/db360/mysql/optional#database)場合、または[TLSを有効にする](/docs/opentelemetry/db360/mysql/optional#tls)場合は、「詳細なインサイトを有効にする」を参照してください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorを再起動します [#restart]
+
+    設定の変更を有効にするには、<DNT>NRDOT Collector</DNT>サービスを再起動してください。コレクターは起動時に一度だけ設定パラメーターを読み込み、ホットリロードをサポートしていません。コレクターの実行中に設定に加えられた変更は、プロセスが再起動されるまで無効なままです。
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+  </Step>
+</Steps>
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+  <DocTile title="互換性と前提条件" path="/docs/opentelemetry/db360/mysql/compatibility">
+    サポートされているMySQLバージョン、必要な権限、およびネットワーク要件について説明します。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/db360/mysql/metrics-reference">
+    NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+  </DocTile>
+
+  <DocTile title="トラブルシューティングガイド" path="/docs/opentelemetry/db360/mysql/troubleshooting">
+    MySQL監視に関する一般的な問題のトラブルシューティング方法をご覧ください。
+  </DocTile>
+</DocTiles>

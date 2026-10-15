@@ -1,0 +1,347 @@
+---
+title: サンプリングの設定
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Sampling
+  - APM agents
+metaDescription: 'Deep dive into APM agent sampling configuration including sampler types like adaptive and trace id ratio based, adaptive sampling targets, and sampling based on upstream sampling decisions.'
+freshnessValidatedDate: '2026-09-29T00:00:00.000Z'
+translationType: machine
+---
+
+APMエージェントのサンプラーは、特定のサービス内のどのトランザクションをエージェントがNew Relicに送信するかを制御します。このページでは、アダプティブやトレースID比率ベースなどのサンプラーのタイプ、アダプティブサンプリングのターゲット、およびアップストリームのサンプリング決定に基づいてサンプリングを設定する方法について説明します。
+
+このガイドの設定例では、YAML形式を使用しています（Javaエージェント）。エージェント固有の構文および完全なパラメーターリファレンスについては、以下をご覧ください：
+
+* [Javaエージェントのディストリビューティッド（分散）トレーシング設定](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file)
+* [Node.jsエージェントのディストリビューティッド（分散）トレーシングの設定](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration)
+* [Pythonエージェントのディストリビューティッド（分散）トレーシングの設定](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+
+## サンプリングの仕組み [#how-sampling-works]
+
+### サンプリング決定のステップ
+
+サンプリングの決定は5つのステップで行われます：
+
+1. リクエストがサービスに到達します。
+2. エージェントはサンプリングコンテキストを確認します：これはルートトランザクションですか、それともアップストリームサービスがすでにサンプリングの決定を行いましたか？
+3. エージェントは、コンテキストと設定に基づいて適切なサンプラーを適用します。
+4. エージェントはサンプリング決定を行います：サンプリングするか、しないか。
+5. エージェントは、ディストリビューティッド（分散）トレーシングコンテキストヘッダーを介して、ダウンストリームサービスに決定を伝播します。
+
+## サンプラーのコンテキスト [#sampling-contexts]
+
+APMエージェントは、さまざまなトレースのシナリオを処理するために3つのサンプリングコンテキストを使用します。各コンテキストには、独自のサンプラー設定を含めることができます。
+
+| コンテクスト                                                   | 適用される場合                                   | 使用事例                                   |
+| -------------------------------------------------------- | ----------------------------------------- | -------------------------------------- |
+| [ルート](#root-context)                                     | ディストリビューティッド（分散）トレーシングは現在のサービスから開始されます    | このサービスから開始されるトレースのサンプリングを制御します         |
+| [遠隔地の親がサンプリングされている](#remote-parent-sampled-context)      | アップストリームサービスがすでにこのトレースをサンプリングしている         | アップストリームサービスがサンプリングしたトレースのトレーシングを制御します |
+| [遠隔地の親がサンプリングされていない](#remote-parent-not-sampled-context) | アップストリームサービスは、このトレースをサンプリングし*ない*ことを決定しました | アップストリームサービスが拒否したトレースのサンプリングの制御        |
+
+<CollapserGroup>
+  <Collapser id="root-context" title="ルートコンテキスト">
+    <DNT>**When it applies**</DNT>：ディストリビューティッド（分散）トレースは現在のサービスから開始されています（これがディストリビューティッド（分散）トレースの最初のサービスです）。
+
+    <DNT>**Example scenario**</DNT>：APIゲートウェイは、顧客のrequestsのエントリポイントです。これらの顧客主導のトレースの20％をキャプチャするようにルートサンプリングを設定します。
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.2  # 20% of traces originating here
+    ```
+  </Collapser>
+
+  <Collapser id="remote-parent-sampled-context" title="遠隔地の親がサンプリングされているコンテキスト">
+    <DNT>**When it applies**</DNT>：アップストリームサービスが、このディストリビューティッド（分散）トレーシングをサンプリングすることを決定しました（アップストリームサービスは、ディストリビューティッド（分散）トレーシングコンテキストで「sampled」というサンプリング決定を送信しました）。
+
+    <DNT>**Common pattern**</DNT>：アップストリームサービスがディストリビューティッド（分散）トレーシングをサンプリングした場合、現在のサービスでも常にサンプリングします：
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          always_on  # Always capture traces sampled by upstream
+    ```
+
+    <DNT>**Alternative pattern**</DNT>：アップストリームサービスによってすでにサンプリングされたトレースの一定の割合をサンプリングします：
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          trace_id_ratio_based:
+            ratio: 0.6  # Sample 60% of traces sampled by upstream
+    ```
+
+    <Callout variant="caution">
+      アップストリームの&quot;サンプリング済み&quot;の決定を上書きすると、一部のサービスのみが存在する断片化されたトレースが作成される可能性があります。アップストリームでサンプリングされたトレースを破棄する特定の必要がある場合にのみ、このパターンを使用してください。
+    </Callout>
+  </Collapser>
+
+  <Collapser id="remote-parent-not-sampled-context" title="遠隔地の親がサンプリングされていないコンテキスト">
+    <DNT>**When it applies**</DNT>：アップストリームサービスが、このディストリビューティッド（分散）トレーシングをサンプリング*しない*ことを決定しました（アップストリームサービスは、トレースコンテキストで「not sampled」というサンプリング決定を送信しました）。
+
+    <DNT>**Common pattern**</DNT>：アップストリームサービスがディストリビューティッド（分散）トレーシングをサンプリングし*なかった*場合、現在のサービスでは絶対にサンプリングしないでください：
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          always_off  # Don't sample traces that upstream rejected
+    ```
+
+    <DNT>**Alternative pattern**</DNT>：アップストリームがサンプリングしないことを選択した場合でも、一部のディストリビューティッド（分散）トレーシングをサンプリングします（注意して使用してください）：
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          trace_id_ratio_based:
+            ratio: 0.05  # Sample 5% even if upstream said not to
+    ```
+
+    <Callout variant="caution">
+      アップストリームの&quot;サンプリングされていない&quot;決定を上書きすると、一部のサービスのみが存在する断片化されたトレースが作成される可能性があります。アップストリームがサンプリングしなかった場合でも、ダウンストリームサービスのアクティビティを確認する特定の必要がある場合にのみ、このパターンを使用してください。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## サンプラーのタイプ [#sampler-types]
+
+APMエージェントは4つのサンプラーのタイプを提供しており、それぞれ異なるシナリオに適しています。
+
+| サンプラーのタイプ                                    | 使い方                                   | 最適な用途                         |
+| -------------------------------------------- | ------------------------------------- | ----------------------------- |
+| [適応型](#adaptive-sampler)                     | トラフィック量に関係なく、1分あたりの固定数のトレースをターゲットにします | トラフィックの急増に関係なく、一貫した数のトレース     |
+| [トレースID比率ベース](#trace-id-ratio-based-sampler) | トレースIDに基づいて、固定割合のトレースをサンプリングします。      | トラフィックの割合としてのサービス間の決定論的サンプリング |
+| [常時オン](#always-on-sampler)                   | すべてのトランザクションをサンプリングします                | 特定のコンテキストに対する完全なトレースカバレッジ     |
+| [常にオフ](#always-off-sampler)                  | トランザクションをサンプリングしません                   | 特定のコンテキストのサンプリングを完全に無効にする     |
+
+<CollapserGroup>
+  <Collapser id="adaptive-sampler" title="適応型サンプラー">
+    <DNT>**How it works**</DNT>：トラフィック量に関係なく、1分あたりのルートトレースのターゲット数をサンプリングするために、サービスのスループットに動的に適応します。アップストリームサービスによってサンプリングされたトランザクションを常にサンプリングし、それらを適応型サンプリングのターゲットにはカウントしません。
+
+    <DNT>**Default behavior**</DNT>：APMエージェントはデフォルトで適応型サンプラーを使用します。ほとんどのAPMエージェントのデフォルトの適応型サンプリングのターゲットは、1分あたり10トランザクションです。詳細については、各APMエージェントの設定ドキュメントをご覧ください。
+
+    <DNT>**When to use**</DNT>：
+
+    * トラフィックの一定の割合ではなく、トラフィックの変動に関係なく、1分あたりにサンプリングされるトランザクションの数を一定にしたい場合。
+    * 毎分を通じてサンプリングの間隔を空けるために動的な調整が必要です。
+    * アップストリームサービスによってサンプリングされたすべてのトランザクションをサンプリングし、それらを適応型サンプリングのターゲットにカウントしないようにしたい場合。
+
+    <DNT>**Configuration**</DNT>：
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root: adaptive
+    ```
+
+    <DNT>**How it adapts**</DNT>：
+
+    * 低トラフィック（10 requests/分）：ターゲットに到達するためにすべてのリクエストをサンプリングします
+    * 中程度のトラフィック（100 requests/分）：ターゲットに到達するために、およそ5番目のrequestsごとにサンプリングします
+    * 高トラフィック（1,000 requests/分）：ターゲットに到達するために約50番目のリクエストごとにサンプリングします
+
+    <Callout variant="tip">
+      適応型サンプラーは、アップストリームサービスによってサンプリングされたトレースを常にサンプリングします。これらのトレースは、設定された適応型サンプリングのターゲットにはカウントされません。
+    </Callout>
+
+    ### アダプティブサンプリングのターゲット [#adaptive-targets]
+
+    アダプティブサンプリングのターゲットは、エージェントが1分間にキャプチャしようとするトレースの数を制御します。予測可能な動作を実現するには、**グローバル**ターゲットと**コンテキスト単位**のターゲットの違いを理解することが重要です。
+
+    | 設定プロパティ                                               | 範囲                        |
+    | ----------------------------------------------------- | ------------------------- |
+    | [`adaptive_sampling_target`](#global-sampling-target) | グローバル — すべてのコンテキストで共有されます |
+    | [`sampling_target`](#context-sampling-targets)        | 単一コンテキスト                  |
+
+    <CollapserGroup>
+      <Collapser
+        id="global-sampling-target"
+        title={<>グローバルを設定 <InlineCode>
+          adaptive_sampling_target
+        </InlineCode></>
+        }
+      >
+        `adaptive_sampling_target`はすべてのコンテキストで共有され、**デフォルト**のサンプリングターゲットになります。コンテキストは、グローバルな`adaptive_sampling_target`を独自のコンテキスト固有の[`sampling_target`](#context-sampling-targets)で上書きする場合があります。
+
+        `adaptive_sampling_target`は、1～120の任意の整数に設定できます。
+
+        <DNT>**Configuration**</DNT>：
+
+        ```yaml
+        distributed_tracing:
+          sampler:
+            adaptive_sampling_target: 10  # Applied to all contexts without explicit override
+            root: adaptive
+        ```
+
+        <DNT>**Result**</DNT>：エージェントは、現在のサービスから発生するトランザクションを1分あたり約10件キャプチャしようとします。
+      </Collapser>
+
+      <Collapser
+        id="context-sampling-targets"
+        title={<>コンテキストごとの設定 <InlineCode>
+          sampling_target
+        </InlineCode></>
+        }
+      >
+        各サンプリングコンテキストは、独自の`sampling_target`でグローバルターゲットを上書きできます。
+
+        `sampling_target`は、1～120の任意の整数に設定できます。
+
+        <DNT>**Configuration**</DNT>：
+
+        ```yaml
+        distributed_tracing:
+          sampler:
+            adaptive_sampling_target: 10  # Global default
+            root:
+              adaptive:
+                sampling_target: 5  # Overrides global default to capture 5 traces/min
+        ```
+
+        <DNT>**Result**</DNT>：エージェントは、グローバルのデフォルトである10をオーバーライドして、現在のサービスから発生するトランザクションを1分間に5つキャプチャしようと試みます。
+      </Collapser>
+    </CollapserGroup>
+
+    #### 適応型サンプリングのターゲットを増やす理由
+
+    デフォルトの1分あたり10トレースは、ディストリビューティッド（分散）トレーシングではなく、トランザクショントレーシング用に設計されています。ディストリビューティッド（分散）トレーシングでは、次のような目的でより高いサンプリングが必要になることがよくあります：
+
+    * <DNT>**Fill service map gaps**</DNT>：まれなエンドポイントは、1分あたり10件ではサンプリングされない可能性があります。
+    * <DNT>**Improve trace diversity**</DNT>：より多くのトランザクションタイプとコードパスを確認します
+  </Collapser>
+
+  <Collapser id="trace-id-ratio-based-sampler" title="トレースID比率ベースのサンプラー">
+    <DNT>**How it works**</DNT>：トレースIDに基づいて、トレースの一定割合をサンプリングします。サンプリングの決定はトレースIDに基づいているため、同じ比率サンプラーとAPM言語エージェントを使用するすべてのサービスで、同じトレースに対して同じ決定が行われます。
+
+    <DNT>**When to use**</DNT>：
+
+    * サンプリングされるトラフィックの一貫した割合が必要です。
+    * 決定論的なサンプリング（同じAPM言語エージェントを使用するすべてのサービスで、同じディストリビューティッド（分散）トレーシングがサンプリングされること）が必要な場合。
+    * アップストリームサービスによってサンプリングされたトランザクションが常にサンプリングされ、アダプティブサンプリングのターゲットにカウントされないという、アダプティブサンプラーの動作を回避したい場合。
+
+    すべての`trace_id_ratio_based`サンプラーは、`ratio`に0.0（含まない）から1.0（含む）までの小数を指定する**必要があります**。`ratio`は、キャプチャするトレースの割合を指定します。
+
+    <Callout variant="important">
+      `trace_id_ratio_based`サンプラーを使用する場合、`ratio`プロパティは必須です。比率が設定されていない場合は、代わりにデフォルトのアダプティブサンプラーが使用されます。
+    </Callout>
+
+    <DNT>**Configuration**</DNT>：
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.1  # 10% of traces
+    ```
+
+    <DNT>**Important characteristic**</DNT>：トレースIDによって、トレースがサンプリングされるかどうかが決定されます。複数のサービスが同じ比率とLanguageエージェントを使用する場合、同じトレースに対して一貫した決定を下します。
+
+    <DNT>**Example**</DNT>：ルートのディストリビューティッド（分散）トレーシングの10％、およびアップストリームでサンプリングされたディストリビューティッド（分散）トレーシングの50％をサンプリングします：
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.1
+        remote_parent_sampled:
+          trace_id_ratio_based:
+            ratio: 0.5
+    ```
+  </Collapser>
+
+  <Collapser id="always-on-sampler" title="常時有効サンプラー">
+    <DNT>**How it works**</DNT>：このコンテキストに一致するすべてのトランザクションをサンプリングします。
+
+    <DNT>**When to use**</DNT>：
+
+    * 特定のコンテキスト（`root`、`remote_parent_sampled`、`remote_parent_not_sampled`）の完全なトレースカバレッジが必要です
+    * アップストリームサービスのサンプリングの決定に従うか、上書きしたい場合
+
+    <DNT>**Configuration**</DNT>：
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          always_on  # Capture all upstream-sampled traces
+    ```
+
+    <Callout variant="caution">
+      `always_on`を使用すると、指定されたコンテキストのすべてのトランザクションがキャプチャされるため、トラフィックの多いサービスでは大量のデータが生成される可能性があります。
+    </Callout>
+  </Collapser>
+
+  <Collapser id="always-off-sampler" title="常時無効サンプラー">
+    <DNT>**How it works**</DNT>：指定されたコンテキストのトランザクションを一切サンプリングしません。
+
+    <DNT>**When to use**</DNT>：
+
+    * アップストリームサービスのサンプリングしないという決定を受け入れたい場合
+    * 特定のコンテキストのサンプリングを無効にしたい場合
+
+    <DNT>**Configuration**</DNT>：
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          always_off  # Don't sample if upstream did NOT sample
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 推奨される設定
+
+選択できるサンプラーが非常に多いため、サービスに適切な設定を見つけるのは難しい場合があります。適切な設定を見つけるための最良の方法は、サービスが現在持っているトレースの分布を観察し、目的のトレースの分布に向けて少しずつ調整することです。
+
+出発点として、この設定をお勧めします：
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      always_on
+    remote_parent_not_sampled:
+      always_off
+```
+
+この設定では、`root`コンテキストからのトレースの10％、`remote_parent_sampled`コンテキストからのすべてのトレースをサンプリングし、`remote_parent_not_sampled`コンテキストからのトレースはサンプリングしません。
+
+一部のアプリケーションでは、この設定はトレースのバランスの取れた分散のための妥当な出発点となります。他のアプリケーション（たとえば、*ほとんどの*トレースがアップストリームサービスから開始されるアプリケーションなど）では、この設定により`remote_parent_sampled`トレースが過剰に優先され、`root`トレースの優先度が低くなる可能性があります。その場合は、アップストリームでサンプリングされたトレースの一定の割合のみをキャプチャするように`remote_parent_sampled`設定を変更してみてください：
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.2 # Sample 20% of sampled traces originating upstream, instead of all of them
+    remote_parent_not_sampled:
+      always_off
+```
+
+## 次のステップ [#whats-next]
+
+サンプリングについて理解したところで：
+
+* エージェントの完全なサンプラー設定リファレンスをご覧ください：[Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file)、[Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration)、[Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+* コピーしてすぐに使える設定の実際のシナリオについては、[サンプラー設定の例](/docs/apm/distributed-tracing/sampler-configuration-examples)をご覧ください
+
+<Callout variant="tip">
+  サンプリングの設定は複雑になる場合があります。単一のパターンから始めて、実際のトレース量とニーズに基づいて反復してください。サポートアビリティメトリクスとトレースクエリを使用して、設定が期待どおりに機能していることを確認してください。
+</Callout>

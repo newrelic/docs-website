@@ -1,0 +1,224 @@
+---
+title: NRDOTを使用したMSSQLのマルチレシーバー設定
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-MSSQL
+  - nrdot-collector-Database
+  - NRDOT
+  - MSSQL
+  - Multi-receiver configuration
+metaDescription: Set up a multi-receiver configuration with the NRDOT Collector for MSSQL monitoring
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MSSQL-with-NRDOT
+flow:
+  prev:
+    - /docs/opentelemetry/db360/mssql/linux-rds
+    - /docs/opentelemetry/db360/mssql/linux-hosted
+    - /docs/opentelemetry/db360/mssql/windows-hosted-sql
+    - /docs/opentelemetry/db360/mssql/windows-hosted-domain
+    - /docs/opentelemetry/db360/mssql/windows-hosted-gmsa
+    - /docs/opentelemetry/db360/mssql/windows-rds-sql
+    - /docs/opentelemetry/db360/mssql/windows-rds-domain
+    - /docs/opentelemetry/db360/mssql/windows-rds-gmsa
+  next: null
+translationType: machine
+---
+
+1つのコレクターから複数のMSSQLインスタンスをモニターするようにNRDOT Collectorを設定できます。これは、異なるホストで実行されている複数のMSSQLインスタンスがあり、単一のNRDOT Collectorインスタンスを使用してそれらすべてからメトリクスを収集したい場合に役立ちます。
+
+<Steps>
+  <Step>
+    ## 前提条件 [#prerequisites]
+
+    * MSSQLインスタンス用にNRDOTがインストールおよび設定されていること：
+
+      * [Linux RDS](/docs/opentelemetry/db360/mssql/linux-rds)
+
+      * [Linux Hosted](/docs/opentelemetry/db360/mssql/linux-hosted)
+
+      * Windowsセルフホスト：
+
+        * [SQL Server 認証](/docs/opentelemetry/db360/mssql/windows-hosted-sql)
+        * [Windowsドメイン認証](/docs/opentelemetry/db360/mssql/windows-hosted-domain)
+        * [gMSA](/docs/opentelemetry/db360/mssql/windows-hosted-gmsa)
+
+      * Windows RDS：
+
+        * [SQL Server 認証](/docs/opentelemetry/db360/mssql/windows-rds-sql)
+        * [Windowsドメイン認証](/docs/opentelemetry/db360/mssql/windows-rds-domain)
+        * [gMSA](/docs/opentelemetry/db360/mssql/windows-rds-gmsa)
+  </Step>
+
+  <Step>
+    ## マルチレシーバー設定の追加 [#multi]
+
+    次の例では、マルチ・レシーバー設定を使用して2つのMSSQLインスタンスをモニターするようにNRDOT Collectorを設定する方法を示します。1番目のインスタンス`nrsqlserver/1`は、完全な設定を保持し、アンカーとして機能します；2番目のインスタンス`nrsqlserver/2`は、YAMLマージ・キーを通じてすべての共有設定を継承し、自身の接続の詳細のみを上書きします。追加のインスタンス用に、必要に応じてさらにレシーバーを追加できます。
+
+    ```yaml
+    receivers:
+      # Base SQL Server instance: defines the anchor all others inherit from.
+      nrsqlserver/1: &nrsqlserver-common
+        username: "<YOUR_DB1_USERNAME>"
+        password: "<YOUR_DB1_PASSWORD>"
+        server: "<YOUR_SERVER_1>"
+        port: 1433
+        collection_interval: 15s
+
+        metrics:
+          sqlserver.database.count:
+            enabled: true
+          sqlserver.database.io:
+            enabled: true
+          sqlserver.database.latency:
+            enabled: true
+          sqlserver.database.operations:
+            enabled: true
+          sqlserver.database.tempdb.space:
+            enabled: true
+          sqlserver.database.tempdb.version_store.size:
+            enabled: true
+          sqlserver.deadlock.rate:
+            enabled: true
+          sqlserver.os.wait.duration:
+            enabled: true
+          sqlserver.processes.blocked:
+            enabled: true
+          sqlserver.memory.grants.pending.count:
+            enabled: true
+          sqlserver.database.file.size:
+            enabled: true
+          sqlserver.memory.area:
+            enabled: true
+
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+          db.server.top_procedure:
+            enabled: true
+
+        top_query_collection:
+          lookback_time: 60s
+          max_query_sample_count: 1000
+          top_query_count: 250
+          collection_interval: 60s
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        query_sample_collection:
+          max_rows_per_query: 100
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        top_procedure_collection:
+          max_procedure_sample_count: 1000
+          top_procedure_count: 250
+          collection_interval: 60s
+
+        resource_attributes:
+          db.system.version:
+            enabled: true
+          sqlserver.db.edition:
+            enabled: true
+
+      # Second SQL Server instance: inherits all settings from nrsqlserver/1,
+      # overrides only the connection-specific fields.
+      # Additional SQL Server instances can be added here following the same pattern.
+      nrsqlserver/2:
+        <<: *nrsqlserver-common
+        username: "<YOUR_DB2_USERNAME>"
+        password: "<YOUR_DB2_PASSWORD>"
+        server: "<YOUR_SERVER_2>"
+        port: 1433
+
+    processors:
+      memory_limiter:
+        check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib: ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+    exporters:
+      otlp:
+        endpoint: https://otlp.nr-data.net:4318
+        headers:
+          api-key: <YOUR_LICENSE_KEY>
+        tls:
+          insecure: false
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+
+      # Metrics and logs pipelines for multiple SQL Server instances
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver/1, nrsqlserver/2]
+          processors: [memory_limiter]
+          exporters: [otlp]
+        logs:
+          receivers: [nrsqlserver/1, nrsqlserver/2]
+          processors: [memory_limiter]
+          exporters: [otlp]
+    ```
+
+    `<<: *nrsqlserver-common`マージキーは、メトリクスカタログ、イベント、クエリ/プロシージャ収集設定、リソース属性など、`nrsqlserver/1`からすべての設定を継承します。`username`、`password`、`server`、`port`など、その後で明示的に設定したフィールドはすべて、その特定のレシーバーインスタンスの継承された値を上書きします。
+
+    <Callout variant="important">
+      新しいレシーバーインスタンス（たとえば`nrsqlserver/3`）を追加するたびに、`service.pipelines`の下にある`metrics`パイプラインと`logs`パイプラインの両方の`receivers`リストにもそれを追加してください。`receivers`ブロックで定義されていても、`service.pipelines`にないレシーバーはデータを収集しません。
+    </Callout>
+
+    <Callout variant="tip">
+      ドメインまたはgMSA認証を使用するWindowsセルフホストおよびRDS環境では、`username`/`password`/`server`/`port`の代わりに`datasource`フィールドを使用してください。`datasource`の形式については、[Windowsセルフホスト計装（Windowsドメイン認証）](/docs/opentelemetry/db360/mssql/windows-hosted-domain)を参照してください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorを再起動します [#restart]
+
+    設定の変更を有効にするには、<DNT>NRDOT Collector</DNT>サービスを再起動してください。コレクターは起動時に一度だけ設定パラメーターを読み込み、ホットリロードをサポートしていません。コレクターの実行中に設定に加えられた変更は、プロセスが再起動されるまで無効なままです。
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+  </Step>
+</Steps>
+
+## 関連ドキュメント [#related-docs]
+
+<DocTiles>
+  <DocTile title="セルフホスト環境向けのLinux計装" path="/docs/opentelemetry/db360/mssql/linux-hosted">
+    New Relicを使用して、セルフホストのLinux環境でMSSQL監視を設定する方法について説明します。
+  </DocTile>
+
+  <DocTile title="セルフホスト環境向けのWindows計装" path="/docs/opentelemetry/db360/mssql/windows-hosted-sql">
+    New Relicを使用して、セルフホストのWindows環境でMSSQL監視を設定する方法について説明します。
+  </DocTile>
+
+  <DocTile title="APMとデータベースの相関を設定する" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    New Relicでアプリケーションパフォーマンスとデータベース操作を関連付ける方法について説明します。
+  </DocTile>
+</DocTiles>
