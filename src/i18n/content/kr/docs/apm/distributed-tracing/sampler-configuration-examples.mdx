@@ -1,0 +1,81 @@
+---
+title: 샘플러 설정 예시
+tags:
+  - Samplers
+  - Distributed tracing
+  - Configuring distributed tracing
+metaDescription: Control what transactions are sampled.
+freshnessValidatedDate: '2026-09-29T00:00:00.000Z'
+translationType: machine
+---
+
+기본 샘플링 설정은 모든 서비스에서 작동하지만 최적의 설정은 아닐 수 있습니다. APM 은 샘플링 설정 옵션을 제공하여 서비스 요구 사항에 맞게 샘플링을 사용자 지정할 수 있도록 합니다. 이 페이지에서는 다양한 유형의 서비스에 대한 몇 가지 실제 사례와 이러한 요구 사항에 맞게 샘플링 설정을 수정하는 방법을 안내합니다.
+
+이 페이지의 설정 예제는 YAML 형식을 사용합니다(자바 에이전트). 해당 언어의 동등한 구문 및 전체 파라미터 참조는 에이전트 문서를 참조하십시오:
+
+* [자바 에이전트 분산 추적 설정](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file)
+* [Node.js 에이전트 분산 추적 설정](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration)
+* [파이썬 에이전트 분산 추적 설정](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+
+## 전제 조건
+
+이 가이드는 샘플러 컨텍스트 및 유형에 익숙하다고 가정합니다. 샘플러 개념에 대한 전체 개요는 [샘플링 설정](/docs/apm/distributed-tracing/distributed-trace-sampling) 페이지를 방문해 주십시오.
+
+## 예제 1: 드물게 호출되는 엔드포인트로 인해 캡처된 엔드포인트의 분포가 불량함
+
+기본 샘플러인 적응형(Adaptive) 샘플러는 대부분의 APM 언어 에이전트에 대해 분당 약 10개의 트레이스를 샘플링합니다. 적응형 샘플러는 트레이스를 무작위로 선택하므로, 드물게 호출되는 엔드포인트보다 자주 호출되는 엔드포인트를 샘플링할 가능성이 더 높습니다.
+
+### 해결책: 적응형 샘플링 타겟 증가
+
+`adaptive_sampling_target`을(를) 늘리면 매분 더 많은 트레이스를 샘플링하여 드문 엔드포인트에 대한 트레이스를 캡처할 가능성이 높아집니다.
+
+```yaml
+distributed_tracing:
+  sampler:
+    adaptive_sampling_target: 20  # Increase from default 10 to 20
+```
+
+## 예제 2: 업스트림 샘플링으로 인해 캡처된 엔드포인트의 분포가 불량함
+
+기본 적응형 샘플러를 사용하면, 현재 서비스는 업스트림 서비스가 이미 샘플링한 모든 수신 트레이스도 샘플링합니다. 때로는 이로 인해 업스트림 상위 항목이 있는 엔드포인트의 트레이스가 너무 많아지고, 다른 엔드포인트의 트레이스는 너무 적어집니다.
+
+### 해결책: 업스트림 서비스에서 샘플링한 트레이스의 샘플링 속도 감소
+
+트레이스 ID 비율 기반 샘플러(Trace Id Ratio Based Sampler)를 사용하여 업스트림에서 샘플링된 트레이스를 10%의 빈도로만 샘플링할 수 있습니다. 이렇게 하면 업스트림 서비스에서 샘플링한 트레이스로 스팬 저장소가 가득 찰 가능성이 줄어듭니다.
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.1
+```
+
+## 예제 3: 모든 컨텍스트에 대한 트레이스 분포 변경
+
+[예제 2](#example-2-poor-distribution-of-endpoints-captured-due-to-upstream-sampling) — 너무 많은 업스트림 샘플링 트레이스 — 는 더 일반적인 문제의 특정 사례입니다. 즉, 모든 트레이스 컨텍스트에서 표시되는 트레이스 분포를 더 세밀하게 제어하고자 하는 경우입니다.
+
+### 해결책: 여러 비율 샘플러 계층화
+
+여러 트레이스 비율 샘플러를 계층화하여 이전 예제를 기반으로 구축할 수 있습니다. 각 트레이스 컨텍스트의 샘플링 속도는 독립적이므로, 원하는 트레이스 분포를 달성하도록 각 비율을 조정할 수 있습니다.
+
+이 예제에서는 모든 트레이스 컨텍스트가 비율 기반 샘플링을 사용합니다. 비율은 (고정된 수 대신) `root` 트레이스 중 `25%`을(를) 샘플링하고, (전체 대신) 업스트림 서비스에서 샘플링한 트레이스 중 `50%`을(를) 샘플링하며, (전혀 샘플링하지 않는 대신) 업스트림 서비스에서 샘플링하지 않은 트레이스 중 `5%`을(를) 샘플링하도록 설정됩니다.
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.25
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.5
+    remote_parent_not_sampled:
+      trace_id_ratio_based:
+        ratio: 0.05
+```
+
+## 무엇 향후 계획
+
+* 에이전트에 대한 전체 샘플러 설정 참조를 확인하십시오: [자바](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file), [Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration), [파이썬](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+* 샘플러 유형 및 적응형 샘플링 타겟에 대한 [샘플링 설정](/docs/apm/distributed-tracing/distributed-trace-sampling)을 이해하십시오.
