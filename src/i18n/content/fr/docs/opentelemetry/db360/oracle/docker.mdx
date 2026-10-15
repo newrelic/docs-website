@@ -1,0 +1,713 @@
+---
+title: Installez & configurez NRDOT pour le monitoring Oracle avec Docker
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - Docker
+metaDescription: Set up Oracle Database monitoring with the NRDOT Collector when Oracle Database runs in a Docker container
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Oracle-Database-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/oracle/introduction
+  next: null
+translationType: machine
+---
+
+Obtenez des informations détaillées et complètes sur les performances de votre Oracle Database avec le monitoring de base de données, l’analyse des requêtes, et les métriques de santé du système à l’aide du New Relic Distribution of OpenTelemetry (NRDOT) Collector, s’exécutant en tant que conteneur frère d’une instance Oracle Database qui s’exécute déjà dans Docker.
+
+<Callout variant="tip" title="Installation guidée">
+  Pour installer plutôt via l’UI de New Relic, accédez à <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Oracle (Database 360)](https://onenr.io/0kjnebKW7Ro)**</DNT>. Cette page couvre uniquement le chemin d’installation Docker.
+</Callout>
+
+<Callout variant="tip">
+  Vous cherchez plutôt à automatiser cela à grande échelle ? Consultez [l&apos;installation d&apos;Ansible](/docs/opentelemetry/db360/oracle/ansible), [l&apos;installation de Chef](/docs/opentelemetry/db360/oracle/chef), ou [l&apos;installation du chart Helm](/docs/opentelemetry/db360/oracle/helm) pour Kubernetes.
+</Callout>
+
+## Prérequis [#prerequisites]
+
+Avant de commencer, assurez-vous d’avoir les éléments suivants :
+
+* Docker installé sur l’hôte.
+* Un conteneur de base de données Oracle déjà en cours d’exécution (base de données Oracle `19c` ou version ultérieure), avec `sqlplus` disponible à l’intérieur.
+* Le mot de passe `sys` pour ce conteneur.
+* Une [clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) New Relic valide.
+* Connectivité réseau depuis le conteneur du collecteur vers [le point de terminaison OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp).
+
+<Steps>
+  <Step>
+    ## Configurer l’utilisateur de la base de données et accorder des privilèges [#database-user]
+
+    Créez un utilisateur de monitoring, et accordez-lui les vues nécessaires pour la collecte de métriques, de requêtes, et d&apos;événements en exécutant du SQL sur votre conteneur Oracle avec `docker exec`. Choisissez l&apos;onglet qui correspond à votre déploiement, soit une base de données conteneur (CDB) multilocataire, soit une base de données enfichable (PDB) unique :
+
+    <CollapserGroup>
+      <Collapser id="docker-cdb" title="Base de données conteneur (CDB)">
+        Cela crée un utilisateur commun (requis pour utiliser le préfixe `C##`) et lui accorde une visibilité sur chaque PDB sous la CDB. Remplacez `<YOUR_ORACLE_CONTAINER_NAME>`, `<YOUR_SYS_PASSWORD>`, `<YOUR_DB_USERNAME>` et `<YOUR_DB_PASSWORD>` par vos propres valeurs :
+
+        ```bash
+        docker exec -i <YOUR_ORACLE_CONTAINER_NAME> sqlplus sys/'<YOUR_SYS_PASSWORD>' as sysdba << 'EOF'
+        ALTER SESSION SET CONTAINER = CDB$ROOT;
+
+        -- Create the common user and set container-data visibility
+        CREATE USER c##<YOUR_DB_USERNAME> IDENTIFIED BY "<YOUR_DB_PASSWORD>" CONTAINER=ALL;
+        GRANT CREATE SESSION TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        ALTER USER c##<YOUR_DB_USERNAME> SET CONTAINER_DATA=ALL CONTAINER=CURRENT;
+
+        -- Grant system and dynamic performance views
+        GRANT SELECT ON V_$INSTANCE                   TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$DATABASE                   TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$CONTAINERS                 TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$DATAFILE                   TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$SYSSTAT                    TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$CON_SYSSTAT                TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$SYSMETRIC                  TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$CON_SYSMETRIC              TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$SESSION                    TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$RESOURCE_LIMIT             TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$OSSTAT                     TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$SGAINFO                    TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$ROWCACHE                   TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$PARAMETER                  TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON CDB_TABLESPACE_USAGE_METRICS  TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON CDB_TABLESPACES               TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON DBA_DATA_FILES                TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON DBA_FREE_SPACE                TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON DBA_RECYCLEBIN                TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$SQL                        TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$SQL_PLAN_STATISTICS_ALL    TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$LOCK                       TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$SESSION_EVENT              TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON DBA_PROCEDURES                TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON DBA_OBJECTS                   TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$PDBS                       TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON CDB_SERVICES                  TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON CDB_DATA_FILES                TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON CDB_PROCEDURES                TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON CDB_OBJECTS                   TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$ASM_DISKGROUP_STAT          TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+        GRANT SELECT ON V_$ASM_DISK_STAT               TO c##<YOUR_DB_USERNAME> CONTAINER=ALL;
+
+        EXIT;
+        EOF
+        ```
+
+        <Callout variant="tip">
+          Le préfixe `C##` est requis par Oracle pour les utilisateurs communs. Les deux derniers privilèges (`V_$ASM_DISKGROUP_STAT` et `V_$ASM_DISK_STAT`) sont uniquement requis si vous souhaitez collecter les [métriques de disque et de groupe de disques ASM](/docs/opentelemetry/db360/oracle/metrics-reference/#asm). Ignorez-les si vous n’utilisez pas ASM.
+        </Callout>
+      </Collapser>
+
+      <Collapser id="docker-pdb" title="Base de données enfichable (PDB)">
+        Cela crée un utilisateur local dans une seule PDB cible. Remplacez `<YOUR_ORACLE_CONTAINER_NAME>`, `<YOUR_SYS_PASSWORD>`, `<YOUR_PDB_SERVICE_NAME>`, `<YOUR_DB_USERNAME>` et `<YOUR_DB_PASSWORD>` par vos propres valeurs :
+
+        ```bash
+        docker exec -i <YOUR_ORACLE_CONTAINER_NAME> sqlplus sys/'<YOUR_SYS_PASSWORD>'@//localhost:1521/<YOUR_PDB_SERVICE_NAME> as sysdba << 'EOF'
+        ALTER SESSION SET CONTAINER = <YOUR_PDB_SERVICE_NAME>;
+
+        -- Create the local user in the PDB
+        CREATE USER <YOUR_DB_USERNAME> IDENTIFIED BY "<YOUR_DB_PASSWORD>";
+        GRANT CREATE SESSION TO <YOUR_DB_USERNAME>;
+
+        -- Grant system and dynamic performance views
+        GRANT SELECT ON V_$INSTANCE                   TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$DATABASE                   TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$CONTAINERS                 TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$DATAFILE                   TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$SYSSTAT                    TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$SYSMETRIC                  TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$SESSION                    TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$RESOURCE_LIMIT             TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$OSSTAT                     TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$SGAINFO                    TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$ROWCACHE                   TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$PARAMETER                  TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON DBA_TABLESPACE_USAGE_METRICS  TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON DBA_TABLESPACES               TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON DBA_DATA_FILES                TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON DBA_FREE_SPACE                TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON DBA_RECYCLEBIN                TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$SQL                        TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$SQL_PLAN_STATISTICS_ALL    TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$LOCK                       TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$SESSION_EVENT              TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON DBA_PROCEDURES                TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON DBA_OBJECTS                   TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$PDBS                       TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$PROCESS                    TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$TRANSACTION                TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$CON_SYSSTAT                TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$CON_SYSMETRIC               TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$ASM_DISKGROUP_STAT          TO <YOUR_DB_USERNAME>;
+        GRANT SELECT ON V_$ASM_DISK_STAT               TO <YOUR_DB_USERNAME>;
+
+        EXIT;
+        EOF
+        ```
+
+        <Callout variant="tip">
+          Les droits `V_$ASM_DISKGROUP_STAT` et `V_$ASM_DISK_STAT` ne sont requis que si vous souhaitez collecter les [métriques de disque et de groupe de disques ASM](/docs/opentelemetry/db360/oracle/metrics-reference/#asm).
+        </Callout>
+
+        <Callout variant="tip">
+          Si vous devez monitorer toute la base de données conteneur plutôt qu&apos;une base de données enfichable individuelle, utilisez plutôt l&apos;onglet CDB.
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## S’assurer de la connectivité réseau de Docker [#network]
+
+    Créez un réseau partagé défini par l’utilisateur (si vous n’en avez pas déjà un) et connectez-y votre conteneur Oracle, afin que le conteneur du collecteur puisse le résoudre par son nom :
+
+    ```bash
+    docker network create <YOUR_DOCKER_NETWORK> 2>/dev/null || true
+    docker network connect <YOUR_DOCKER_NETWORK> <YOUR_ORACLE_CONTAINER_NAME> 2>/dev/null || true
+    ```
+
+    <Callout variant="tip">
+      Les deux commandes peuvent être réexécutées en toute sécurité : `|| true` ignore les erreurs « already exists » ou « already connected » d’une exécution précédente.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Créez la configuration du Collector NRDOT [#configure]
+
+    Choisissez l’onglet correspondant à l’utilisateur que vous avez créé dans [Configurer l’utilisateur de la base de données et accorder des privilèges](#database-user):
+
+    <CollapserGroup>
+      <Collapser id="docker-cdb-config" title="Configuration de la base de données conteneur (CDB)">
+        <Callout variant="tip" title="configuration complète">
+          Cette configuration se concentre uniquement sur le monitoring de la base de données sans les métriques d&apos;infrastructure de l&apos;hôte. Pour activer le monitoring de toutes les fonctionnalités, reportez-vous à la [référence de configuration](/docs/opentelemetry/db360/oracle/config-reference/#cdb-full).
+        </Callout>
+
+        Exécutez ce qui suit sur l’hôte Docker pour générer `oracle-config.yaml`:
+
+        ```bash
+        cat << 'EOF' > oracle-config.yaml
+        receivers:
+          nroracledb:
+            endpoint: "<YOUR_ORACLE_CONTAINER_NAME>:1521"
+            username: "c##<YOUR_DB_USERNAME>"
+            password: "<YOUR_DB_PASSWORD>"
+            service: "<YOUR_CDB_SERVICE_NAME>"
+            collection_interval: 15s
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+              db.server.session.wait_sample:
+                enabled: true
+              db.server.top_procedure:
+                enabled: true
+              db.server.query_plan:
+                enabled: true
+
+            top_query_collection:
+              max_query_sample_count: 1000
+              top_query_count: 200
+              collection_interval: 60s
+              allowed_comment_keys:
+                - nr_service_guid
+
+            query_sample_collection:
+              max_rows_per_query: 100
+              allowed_comment_keys:
+                - nr_service_guid
+
+            session_wait_event_collection:
+              max_rows_per_query: 100
+
+            top_procedure_collection:
+              max_procedure_sample_count: 1000
+              top_procedure_count: 250
+              collection_interval: 60s
+
+            # Metrics configuration - This baseline configuration captures essential metrics. To enable advanced monitoring and extended telemetry, refer to the full configuration documentation
+            metrics:
+              oracledb.buffer_cache.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.consistent_gets:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.cpu_time:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.database.cpu.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.database.wait.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.db_block_gets:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.enqueue_deadlocks:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.execution.utilization:
+                enabled: true
+                attributes:
+                  - oracledb.parse.type
+                  - oracle.db.pdb
+              oracledb.executions:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.hard_parses:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.host.cpu.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.library_cache.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.logical_reads:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.logons:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.parse.rate:
+                enabled: true
+                attributes:
+                  - oracledb.parse.result
+                  - oracle.db.pdb
+              oracledb.parse_calls:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.pga_memory:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.physical_io.requests:
+                enabled: true
+                attributes:
+                  - disk.io.direction
+                  - disk.io.block_size
+                  - oracle.db.pdb
+              oracledb.physical_reads:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.physical_writes:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.processes.usage:
+                enabled: true
+              oracledb.sessions.usage:
+                enabled: true
+                attributes:
+                  - session_type
+                  - session_status
+                  - oracle.db.pdb
+              oracledb.sga.usage:
+                enabled: true
+                attributes:
+                  - oracledb.sga.component.name
+              oracledb.shared_pool.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.sql_service.response.duration:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.sqlnet.io.transferred:
+                enabled: true
+                attributes:
+                  - network.io.direction
+                  - destination.type
+                  - oracle.db.pdb
+              oracledb.tablespace_size.usage:
+                enabled: true
+                attributes:
+                  - tablespace_name
+                  - oracle.db.pdb
+              oracledb.transactions.usage:
+                enabled: true
+              oracledb.user_commits:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.user_rollbacks:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+
+            # Resource attributes attached to all metrics/logs (all enabled by default)
+            resource_attributes:
+              oracle.db.edition:
+                enabled: true
+
+        exporters:
+          otlp/newrelic:
+            endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+            headers:
+              api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+            compression: gzip
+            retry_on_failure:
+              enabled: true
+              initial_interval: 5s
+              max_interval: 30s
+              max_elapsed_time: 300s
+            sending_queue:
+              enabled: true
+              sizer: bytes
+              queue_size: 100_000_000
+              num_consumers: 10
+              batch:
+                sizer: bytes
+                max_size: 1_000_000
+                min_size: 0
+                flush_timeout: 5s
+
+        service:
+          pipelines:
+            metrics/oracledb:
+              receivers: [nroracledb]
+              exporters: [otlp/newrelic]
+            logs/oracledb:
+              receivers: [nroracledb]
+              exporters: [otlp/newrelic]
+        EOF
+        ```
+      </Collapser>
+
+      <Collapser id="docker-pdb-config" title="Configuration de la base de données enfichable (PDB)">
+        <Callout variant="tip" title="configuration complète">
+          Cette configuration se concentre uniquement sur le monitoring de la base de données sans les métriques d&apos;infrastructure de l&apos;hôte. Pour activer le monitoring de toutes les fonctionnalités, reportez-vous à la [référence de configuration](/docs/opentelemetry/db360/oracle/config-reference/#pdb-full).
+        </Callout>
+
+        Exécutez ce qui suit sur l’hôte Docker pour générer `oracle-config.yaml`:
+
+        ```bash
+        cat << 'EOF' > oracle-config.yaml
+        receivers:
+          nroracledb:
+            endpoint: "<YOUR_ORACLE_CONTAINER_NAME>:1521"
+            username: "<YOUR_DB_USERNAME>"
+            password: "<YOUR_DB_PASSWORD>"
+            service: "<YOUR_PDB_SERVICE_NAME>"
+            collection_interval: 15s
+            events:
+              db.server.query_sample:
+                enabled: true
+              db.server.top_query:
+                enabled: true
+              db.server.session.wait_sample:
+                enabled: true
+              db.server.top_procedure:
+                enabled: true
+              db.server.query_plan:
+                enabled: true
+
+            top_query_collection:
+              max_query_sample_count: 1000
+              top_query_count: 200
+              collection_interval: 60s
+              allowed_comment_keys:
+                - nr_service_guid
+
+            query_sample_collection:
+              max_rows_per_query: 100
+              allowed_comment_keys:
+                - nr_service_guid
+
+            session_wait_event_collection:
+              max_rows_per_query: 100
+
+            top_procedure_collection:
+              max_procedure_sample_count: 1000
+              top_procedure_count: 250
+              collection_interval: 60s
+
+            # Metrics configuration - This baseline configuration captures essential metrics. To enable advanced monitoring and extended telemetry, refer to the full configuration documentation
+            metrics:
+              oracledb.buffer_cache.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.consistent_gets:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.cpu_time:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.database.cpu.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.database.wait.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.db_block_gets:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.enqueue_deadlocks:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.execution.utilization:
+                enabled: true
+                attributes:
+                  - oracledb.parse.type
+                  - oracle.db.pdb
+              oracledb.executions:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.hard_parses:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.host.cpu.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.library_cache.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.logical_reads:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.logons:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.parse.rate:
+                enabled: true
+                attributes:
+                  - oracledb.parse.result
+                  - oracle.db.pdb
+              oracledb.parse_calls:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.pga_memory:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.physical_io.requests:
+                enabled: true
+                attributes:
+                  - disk.io.direction
+                  - disk.io.block_size
+                  - oracle.db.pdb
+              oracledb.physical_reads:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.physical_writes:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.processes.usage:
+                enabled: true
+              oracledb.sessions.usage:
+                enabled: true
+                attributes:
+                  - session_type
+                  - session_status
+                  - oracle.db.pdb
+              oracledb.sga.usage:
+                enabled: true
+                attributes:
+                  - oracledb.sga.component.name
+              oracledb.shared_pool.utilization:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.sql_service.response.duration:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.sqlnet.io.transferred:
+                enabled: true
+                attributes:
+                  - network.io.direction
+                  - destination.type
+                  - oracle.db.pdb
+              oracledb.tablespace_size.usage:
+                enabled: true
+                attributes:
+                  - tablespace_name
+                  - oracle.db.pdb
+              oracledb.transactions.usage:
+                enabled: true
+              oracledb.user_commits:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+              oracledb.user_rollbacks:
+                enabled: true
+                attributes:
+                  - oracle.db.pdb
+
+            # Resource attributes attached to all metrics/logs (all enabled by default)
+            resource_attributes:
+              oracle.db.edition:
+                enabled: true
+
+        exporters:
+          otlp/newrelic:
+            endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+            headers:
+              api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+            compression: gzip
+            retry_on_failure:
+              enabled: true
+              initial_interval: 5s
+              max_interval: 30s
+              max_elapsed_time: 300s
+            sending_queue:
+              enabled: true
+              sizer: bytes
+              queue_size: 100_000_000
+              num_consumers: 10
+              batch:
+                sizer: bytes
+                max_size: 1_000_000
+                min_size: 0
+                flush_timeout: 5s
+
+        service:
+          pipelines:
+            metrics/oracledb:
+              receivers: [nroracledb]
+              exporters: [otlp/newrelic]
+            logs/oracledb:
+              receivers: [nroracledb]
+              exporters: [otlp/newrelic]
+        EOF
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    ### Paramètres de configuration [#configuration-parameters]
+
+    | paramètres                                            | Description                                                                                                                                                                                          |
+    | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_ORACLE_CONTAINER_NAME>`                        | Le nom (ou le nom d’hôte résolvable par le DNS Docker) de votre conteneur de base de données Oracle en cours d’exécution.                                                                            |
+    | `<YOUR_DB_USERNAME>`                                  | L’utilisateur de monitoring que vous avez créé dans [Configurer l’utilisateur de base de données et accorder des privilèges](#database-user) (le préfixe `C##` est ajouté automatiquement pour CDB). |
+    | `<YOUR_DB_PASSWORD>`                                  | Le mot de passe de l’utilisateur de monitoring que vous avez créé dans [Configurer l’utilisateur de la base de données et accorder des privilèges](#database-user).                                  |
+    | `<YOUR_CDB_SERVICE_NAME>` / `<YOUR_PDB_SERVICE_NAME>` | Le nom du service Oracle pour votre CDB ou PDB.                                                                                                                                                      |
+    | `<YOUR_NEWRELIC_OTLP_ENDPOINT>`                       | Votre point de terminaison OTLP New Relic. Pour plus d’informations, consultez les [points de terminaison OTLP New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/).                   |
+    | `<YOUR_NEWRELIC_LICENSE_KEY>`                         | Votre [clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) New Relic.                                                                                                      |
+  </Step>
+
+  <Step>
+    ## Démarrer le conteneur NRDOT Collector [#start]
+
+    Exécutez le collecteur sur le même réseau Docker que votre conteneur Oracle :
+
+    ```bash
+    docker run -d \
+      --name nrdot-collector \
+      --network <YOUR_DOCKER_NETWORK> \
+      --platform linux/amd64 \
+      -v "$PWD/oracle-config.yaml:/etc/nrdot-collector/oracle-config.yaml" \
+      newrelic/nrdot-collector:latest \
+      --config /etc/nrdot-collector/oracle-config.yaml
+    ```
+
+    <Callout variant="tip">
+      `--platform linux/amd64` évite les incompatibilités d’architecture sur Apple Silicon et d’autres hôtes ARM64 où l’image Oracle elle-même n’est généralement fournie que pour AMD64. Supprimez-le si votre hôte et vos images sont déjà natifs AMD64.
+    </Callout>
+
+    Confirmez que le conteneur du collecteur est en cours d&apos;exécution :
+
+    ```bash
+    docker ps --filter name=nrdot-collector
+    ```
+
+    S’il n’est pas en cours d’exécution, vérifiez ses logs pour y trouver des erreurs. Les causes les plus courantes sont des problèmes d’indentation YAML dans `oracle-config.yaml` ou un conteneur Oracle inaccessible :
+
+    ```bash
+    docker logs nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      Après avoir modifié `oracle-config.yaml`, redémarrez le conteneur pour appliquer vos modifications :
+
+      ```bash
+      docker restart nrdot-collector
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Trouvez et utilisez vos données [#find-use-data]
+
+    Une fois vos données collectées, vous pouvez accéder à un monitoring complet de la base de données Oracle via l&apos;UI de New Relic.
+
+    Pour trouver votre entité de base de données Oracle dans New Relic :
+
+    1. Allez à <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>.
+    2. Définissez les critères de recherche comme <DNT>`instrumentation.provider = opentelemetry`</DNT>.
+    3. Sélectionnez votre base de données Oracle dans la liste des entités.
+  </Step>
+</Steps>
+
+## Articles connexes [#related-articles]
+
+<DocTiles>
+  <DocTile title="Monitoring de CDB sur l’hôte" path="/docs/opentelemetry/db360/oracle/host-cdb">
+    Découvrez comment installer et configurer le NRDOT Collector pour le monitoring de la base de données conteneur Oracle sur l’hôte.
+  </DocTile>
+
+  <DocTile title="Monitoring de PDB sur l’hôte" path="/docs/opentelemetry/db360/oracle/host-pdb">
+    Découvrez comment installer et configurer le NRDOT Collector pour le monitoring de la base de données Oracle Pluggable sur l’hôte.
+  </DocTile>
+
+  <DocTile title="Installation via Ansible" path="/docs/opentelemetry/db360/oracle/ansible">
+    Découvrez comment installer et configurer le monitoring de base de données Oracle à grande échelle avec le newrelic.newrelic_install rôle Ansible.
+  </DocTile>
+
+  <DocTile title="Installation via Chef" path="/docs/opentelemetry/db360/oracle/chef">
+    Apprenez à installer et configurer le monitoring de la base de données Oracle à grande échelle avec le cookbook Chef newrelic-install.
+  </DocTile>
+
+  <DocTile title="Installation du chart Helm" path="/docs/opentelemetry/db360/oracle/helm">
+    Découvrez comment installer et configurer le monitoring de la base de données Oracle sur Kubernetes avec le chart Helm.
+  </DocTile>
+
+  <DocTile title="Dépannage" path="/docs/opentelemetry/db360/oracle/troubleshooting">
+    Découvrez comment dépanner votre configuration de monitoring de base de données Oracle dans New Relic.
+  </DocTile>
+
+  <DocTile title="Référence des métriques" path="/docs/opentelemetry/db360/oracle/metrics-reference">
+    Découvrez les métriques disponibles collectées par le collecteur NRDOT.
+  </DocTile>
+</DocTiles>
