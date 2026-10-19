@@ -1,0 +1,265 @@
+---
+title: Install and configure OpenTelemetry Collector Contrib on HAProxy self-hosted
+metaDescription: "Install and configure the OpenTelemetry Collector Contrib to monitor self-hosted HAProxy load balancers on Linux and send data to New Relic."
+tags:
+  - OpenTelemetry
+  - HAProxy
+  - OTel Collector Contrib
+  - Self-hosted
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: haproxy
+flow:
+  prev: /docs/opentelemetry/integrations/haproxy/introduction
+  next: null
+stepTTFV: 10m
+---
+
+Use this guide to install the OpenTelemetry Collector Contrib and configure the [haproxyreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/haproxyreceiver) to monitor a self-hosted HAProxy load balancer on Linux. The haproxyreceiver scrapes HAProxy's CSV stats endpoint and produces dimensional metrics per frontend, backend, and server.
+
+<Callout variant="tip" title="Guided installation">
+  To install through the New Relic UI instead, go to <DNT>**one.newrelic.com > Integrations & Agents > HAProxy (OpenTelemetry Collector)**</DNT>. This page covers manual installation only.
+</Callout>
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+- HAProxy with the stats endpoint enabled (CSV stats; works on all versions that support stats)
+- Linux hosts: Amazon Linux, Red Hat Enterprise Linux (RHEL), CentOS, Ubuntu, Debian
+
+### Not supported
+- HAProxy running in Kubernetes — see the [Kubernetes install pages](/docs/opentelemetry/integrations/haproxy/install-configure/kubernetes/nrdot-helm-install)
+- Windows hosts
+
+### You need
+- A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- Root or sudo privileges on the host
+- Network access from the host to the HAProxy stats endpoint (typically `http://localhost:8404/stats`) and to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+<Steps>
+
+<Step>
+
+## Enable the HAProxy stats endpoint [#stats-endpoint]
+
+If you haven't already enabled the HAProxy stats endpoint, add the following to your `haproxy.cfg`:
+
+```text
+frontend stats
+    bind *:8404
+    stats enable
+    stats uri /stats
+    stats refresh 10s
+```
+
+Reload HAProxy to apply the configuration:
+
+```bash
+sudo systemctl reload haproxy
+```
+
+Verify the stats endpoint is accessible:
+
+```bash
+curl -s http://localhost:8404/stats
+```
+
+</Step>
+
+<Step>
+
+## Install the OpenTelemetry Collector Contrib [#install]
+
+If you haven't already installed the OpenTelemetry Collector Contrib, download and install the latest release from the [OpenTelemetry Collector releases](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest):
+
+For Debian/Ubuntu:
+
+```bash
+wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_<VERSION>_linux_amd64.deb
+sudo dpkg -i otelcol-contrib_<VERSION>_linux_amd64.deb
+```
+
+For RHEL/Amazon Linux:
+
+```bash
+wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_<VERSION>_linux_amd64.rpm
+sudo rpm -U otelcol-contrib_<VERSION>_linux_amd64.rpm
+```
+
+</Step>
+
+<Step>
+
+## Configure the OpenTelemetry Collector Contrib [#configure]
+
+<Callout variant="important">
+Before editing: Back up your existing configuration: `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
+</Callout>
+
+Replace the contents of your collector configuration file (`/etc/otelcol-contrib/config.yaml`) with:
+
+```yaml
+receivers:
+  haproxy:
+    endpoint: http://localhost:8404/stats
+    collection_interval: 15s
+
+processors:
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+
+  batch:
+
+exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    metrics:
+      receivers: [haproxy]
+      processors: [resourcedetection, batch]
+      exporters: [otlphttp]
+```
+
+This minimal configuration collects all 17 default metrics. The haproxyreceiver automatically attaches `haproxy.proxy_name`, `haproxy.service_name`, and `haproxy.addr` attributes to each metric.
+
+### Configuration parameters
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`endpoint`</td>
+    <td>Your HAProxy stats endpoint URL (for example `http://localhost:8404/stats`)</td>
+  </tr>
+  <tr>
+    <td>`collection_interval`</td>
+    <td>Interval between metric collections. Recommended: `15s` for full detail or `60s` for lower ingest volume</td>
+  </tr>
+</tbody>
+</table>
+
+To collect the optional metrics, reduce data ingest, or monitor the whole host, see [Advanced configuration](/docs/opentelemetry/integrations/haproxy/advanced-configuration).
+
+</Step>
+
+<Step>
+
+## Set the environment variables [#env-vars]
+
+Set the required environment variables:
+
+```bash
+# Set your New Relic license key
+export NEW_RELIC_LICENSE_KEY="<YOUR_LICENSE_KEY>"
+
+# Set the OTLP endpoint. For more information, refer to New Relic OTLP endpoint: https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT="<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+```
+
+For a systemd service, add these to the service environment file:
+
+```bash
+echo "NEW_RELIC_LICENSE_KEY=<YOUR_LICENSE_KEY>" | sudo tee -a /etc/otelcol-contrib/otelcol-contrib.conf
+echo "OTEL_EXPORTER_OTLP_ENDPOINT=<YOUR_NEWRELIC_OTLP_ENDPOINT>" | sudo tee -a /etc/otelcol-contrib/otelcol-contrib.conf
+```
+
+Replace `<YOUR_LICENSE_KEY>` with your <InlinePopover type="licenseKey"/>.
+
+</Step>
+
+<Step>
+
+## Restart the OpenTelemetry Collector Contrib [#restart]
+
+Start (or restart) the collector service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart otelcol-contrib
+```
+
+Check the service status:
+
+```bash
+sudo systemctl status otelcol-contrib
+```
+
+Review logs for any configuration errors:
+
+```bash
+sudo journalctl -u otelcol-contrib -n 50 --no-pager
+```
+
+</Step>
+
+<Step>
+
+## Verify data collection [#verify]
+
+Within ~5 minutes of restarting the collector, run this query in New Relic to confirm data is flowing:
+
+```sql
+FROM Metric SELECT uniques(metricName)
+WHERE metricName LIKE 'haproxy.%'
+SINCE 10 minutes ago
+```
+
+You should see HAProxy metric names, for example 17 with the default configuration. To confirm dimensional attributes, run:
+
+```sql
+FROM Metric SELECT latest(haproxy.sessions.count)
+FACET haproxy.proxy_name, haproxy.service_name
+SINCE 5 minutes ago
+```
+
+<Callout variant="tip">
+You can also check the collector itself: `otelcol-contrib` should report `active (running)` (`sudo systemctl status otelcol-contrib`), with no errors in the logs (`sudo journalctl -u otelcol-contrib -n 50 --no-pager`).
+</Callout>
+
+If you don't see data within ~5 minutes, see [HAProxy troubleshooting](/docs/opentelemetry/integrations/haproxy/troubleshooting).
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find-and-use]
+
+Once New Relic collects your data, your HAProxy instances appear as entities.
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > All entities**</DNT>.
+2. Search for your HAProxy entities by name or filter by entity type `HAPROXYINSTANCE`.
+3. Select an entity to view the summary page with golden metrics (sessions per second, requests per second, connection errors).
+
+After setting up HAProxy monitoring, you can:
+
+- [Query your data with NRQL](/docs/opentelemetry/integrations/haproxy/find-and-query-data)
+- [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your HAProxy metrics
+- [Set up alerts](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) for backend health and error thresholds
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [Advanced configuration](/docs/opentelemetry/integrations/haproxy/advanced-configuration)
+- [HAProxy metrics reference](/docs/opentelemetry/integrations/haproxy/metrics-reference)
+- [HAProxy distributed tracing](/docs/opentelemetry/integrations/haproxy/distributed-tracing)
+- [HAProxy troubleshooting](/docs/opentelemetry/integrations/haproxy/troubleshooting)

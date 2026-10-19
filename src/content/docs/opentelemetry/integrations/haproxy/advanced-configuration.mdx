@@ -1,0 +1,144 @@
+---
+title: Advanced configuration for HAProxy monitoring
+metaDescription: "Advanced, optional configuration for HAProxy monitoring with NRDOT and the OpenTelemetry Collector Contrib, including optional metrics and reduced data ingest."
+tags:
+  - OpenTelemetry
+  - HAProxy
+  - NRDOT
+  - OTel Collector Contrib
+  - Advanced configuration
+freshnessValidatedDate: never
+---
+
+This page covers optional configuration for HAProxy monitoring beyond the minimum setup — optional metrics, reduced data ingest, and whole-host monitoring.
+
+## Collect optional metrics [#optional-metrics]
+
+To enable additional metrics for deeper visibility (27 total: 17 default + 10 optional), add optional metrics:
+
+```yaml
+receivers:
+  haproxy:
+    endpoint: http://localhost:8404/stats
+    collection_interval: 15s
+    metrics:
+      haproxy.connections.average_time:
+        enabled: true
+      haproxy.requests.average_time:
+        enabled: true
+      haproxy.responses.average_time:
+        enabled: true
+      haproxy.active:
+        enabled: true
+      haproxy.backup:
+        enabled: true
+      haproxy.downtime:
+        enabled: true
+      haproxy.failed_checks:
+        enabled: true
+      haproxy.weight:
+        enabled: true
+      haproxy.sessions.total:
+        enabled: true
+      haproxy.connections.total:
+        enabled: true
+```
+
+## Reduce data ingest [#reduce-ingest]
+
+<Callout variant="tip">
+  The optimized configuration below reduces data ingest by approximately 85% compared to comprehensive mode. All dashboards and golden metrics remain fully functional.
+</Callout>
+
+To reduce data ingest volume, use a 60-second interval and add optimization processors:
+
+```yaml
+receivers:
+  haproxy:
+    endpoint: http://localhost:8404/stats
+    collection_interval: 60s
+
+processors:
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+
+  transform/metadata_nullify:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(description, "") where description != ""
+          - set(unit, "") where unit != ""
+
+  resource/remove_attributes:
+    attributes:
+      - key: os.description
+        action: delete
+      - key: telemetry.sdk.version
+        action: delete
+      - key: telemetry.sdk.language
+        action: delete
+      - key: telemetry.sdk.name
+        action: delete
+      - key: host.arch
+        action: delete
+
+  batch:
+    send_batch_size: 2048
+    timeout: 30s
+
+exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    metrics:
+      receivers: [haproxy]
+      processors: [resourcedetection, transform/metadata_nullify, resource/remove_attributes, batch]
+      exporters: [otlphttp]
+```
+
+## Monitor the whole host [#whole-host]
+
+<Callout variant="important">
+**Choose your monitoring approach**:
+
+- HAProxy-only monitoring (this guide): Monitors just your HAProxy load balancer performance and metrics
+- Complete server monitoring: Monitors HAProxy plus your entire server (CPU usage, memory, disk space, system logs)
+
+If you want to monitor your whole server, not just HAProxy, use the NRDOT collector's [default configuration](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/config.yaml) instead and add the HAProxy receiver configuration to it.
+</Callout>
+
+## Restart the collector [#restart]
+
+After you change the configuration, restart the collector:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart nrdot-collector   # or otelcol-contrib
+```
+
+For Kubernetes, restart the collector deployment or run `helm upgrade` with your updated values.
+
+## Verify your changes [#verify]
+
+```sql
+FROM Metric SELECT uniques(metricName)
+WHERE metricName LIKE 'haproxy.%'
+SINCE 10 minutes ago
+```
+
+You should see 27 metric names with all optional metrics enabled.
+
+## Related articles [#related-articles]
+
+- [HAProxy metrics reference](/docs/opentelemetry/integrations/haproxy/metrics-reference)
+- [HAProxy troubleshooting](/docs/opentelemetry/integrations/haproxy/troubleshooting)
