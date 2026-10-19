@@ -824,16 +824,16 @@ Synthetics ジョブ マネージャーのイメージは、 [Docker Hub](https:
        kind: BuildConfig
        metadata:
          name: synthetics-node-api-runtime-build
-         namespace: <your_namespace> 
+         namespace: <your_namespace>
        spec:
          output:
            to:
              kind: ImageStreamTag
-             name: <your_output_image_name>:<output_tag> 
+             name: <your_output_image_name>:<output_tag>
          source:
            type: Dockerfile
            dockerfile: |-
-             FROM newrelic/synthetics-node-api-runtime:latest 
+             FROM newrelic/synthetics-node-api-runtime:latest
              USER root
              RUN setcap -r /usr/bin/node
              USER 2000
@@ -841,7 +841,7 @@ Synthetics ジョブ マネージャーのイメージは、 [Docker Hub](https:
            type: Docker
            dockerStrategy:
              platform:
-               architecture: amd64 
+               architecture: amd64
          postCommit: {}
          triggers:
            - type: ConfigChange
@@ -1029,6 +1029,64 @@ Dockerまたは Podman コンテナ システム環境では、それぞれの `
 
     リリースには重要な依存関係があります。 サンドボックスを有効にするには、次の点を確認してください。
 
+    The rootless setup below is a mix of one-time admin/root steps and steps the service account (the rootless user that runs Podman) completes for itself. Here&apos;s how the work splits:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Admin/rootful (sudo)
+          </th>
+
+          <th>
+            Service account (rootless user)
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Install Podman
+          </td>
+
+          <td>
+            `~/.config/containers/containers.conf`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Enable cgroups v2 via GRUB (RHEL only)
+          </td>
+
+          <td>
+            `~/.config/systemd/user/podman.service.d/override.conf`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `/etc/systemd/system/user@.service.d/delegate.conf`
+          </td>
+
+          <td>
+            `systemctl --user enable/start podman.socket`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `loginctl enable-linger YOUR_SERVICE_ACCOUNT_USERNAME`
+          </td>
+
+          <td>
+            `~/.config/systemd/user/podman-api.service` + `systemctl --user enable/start`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
     1. Podman [5.0.0-ce](https://github.com/containers/podman/releases/tag/v5.0.0)以降をインストールしました。
 
     2. ルートレス実行を有効にしました:
@@ -1060,7 +1118,25 @@ Dockerまたは Podman コンテナ システム環境では、それぞれの `
        echo -e "[Service]\nDelegate=yes" | sudo tee /etc/systemd/system/user@.service.d/delegate.conf > /dev/null
        ```
 
-    5. ユーザーレベルの`systemd`サービスを設定します。
+    5. Enabled lingering for the service account, so its user-level `systemd` services (configured in the next steps) keep running without an active login session:
+
+       ```
+       sudo loginctl enable-linger YOUR_SERVICE_ACCOUNT_USERNAME
+       ```
+
+       Verify it took effect:
+
+       ```
+       loginctl show-user YOUR_SERVICE_ACCOUNT_USERNAME --property=Linger
+       ```
+
+       This should return `Linger=yes`.
+
+       <Callout variant="tip">
+         If you&apos;re provisioning the service account centrally and don&apos;t have `sudo` access to run this on its behalf, the account can enable its own lingering by running `loginctl enable-linger` with no arguments while logged in as itself.
+       </Callout>
+
+    6. ユーザーレベルの`systemd`サービスを設定します。
 
        * ユーザー レベルの`systemd`サービス用のディレクトリを作成します。
          ```
@@ -1071,14 +1147,14 @@ Dockerまたは Podman コンテナ システム環境では、それぞれの `
          echo -e "[Service]\nDelegate=yes" > ~/.config/systemd/user/podman.service.d/override.conf
          ```
 
-    6. Podman ソケットを有効にして起動しました。
+    7. Podman ソケットを有効にして起動しました。
        ```
        systemctl --user enable podman.socket
        systemctl --user start podman.socket
        systemctl --user status podman.socket
        ```
 
-    7. Podman API サービスを作成して構成しました。
+    8. Podman API サービスを作成して構成しました。
 
        * Podman API サービスを作成し、HTTP API アクセスを提供するように Podman を設定します。
          ```
@@ -1101,7 +1177,7 @@ Dockerまたは Podman コンテナ システム環境では、それぞれの `
          WantedBy=default.target
          ```
 
-    8. Podman API サービスを有効にして開始しました。
+    9. Podman API サービスを有効にして開始しました。
        ```
        systemctl --user daemon-reload
        systemctl --user enable podman-api.service
