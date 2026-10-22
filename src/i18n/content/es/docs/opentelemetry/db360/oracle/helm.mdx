@@ -1,0 +1,601 @@
+---
+title: Instalar y configurar NRDOT para el monitoreo de Oracle con Helm
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - Kubernetes
+  - Helm
+metaDescription: Install and configure Oracle Database monitoring on Kubernetes using the oracle-otel Helm chart
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Oracle-Database-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/oracle/introduction
+  next: null
+translationType: machine
+---
+
+Puede instalar y configurar el monitoreo de la base de datos de Oracle en Kubernetes mediante el chart de Helm `oracle-otel`. Opcionalmente, el chart también puede ejecutar un trabajo de configuración que crea el usuario de la base de datos de monitoreo.
+
+<Callout variant="tip" title="Instalación guiada">
+  Para instalar a través de la UI de New Relic en su lugar, vaya a <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Oracle (Database 360)](https://onenr.io/0kjnebKW7Ro)**</DNT>. Esta página solo cubre la instalación manual.
+</Callout>
+
+<Steps>
+  <Step>
+    ## Requisitos previos [#prerequisites]
+
+    * Una [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic válida.
+    * Helm 3.0 o posterior, y `kubectl` configurado para acceder al clúster de Kubernetes.
+    * Conectividad de red desde el clúster de Kubernetes al host y al puerto de escucha de la base de datos de Oracle.
+    * Ya sea un usuario de base de datos de monitoreo que ya haya creado, o credenciales de administrador de base de datos de Oracle (usuario maestro de RDS, `SYS` o `ADMIN`) para que el trabajo de configuración del chart pueda crear uno. Consulte [Configurar las credenciales de monitoreo](#credentials) a continuación.
+  </Step>
+
+  <Step>
+    ## Cree el namespace [#namespace]
+
+    Cree el namespace en el que realizará la instalación. Debe existir antes de crear cualquier secreto en el siguiente paso, ya que `helm install --create-namespace` solo crea el namespace durante el paso de instalación final:
+
+    ```bash
+    kubectl create namespace newrelic
+    ```
+
+    <Callout variant="tip">
+      Establézcalo como el namespace predeterminado para el contexto `kubectl` actual para que no necesite pasar `-n` en cada comando a continuación:
+
+      ```bash
+      kubectl config set-context --current --namespace=newrelic
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Configurar las credenciales de monitoreo [#credentials]
+
+    Decida si desea que el trabajo de configuración del chart cree el usuario de monitoreo de la base de datos Oracle por usted y, de no ser así, cómo proporcionará sus credenciales:
+
+    <CollapserGroup>
+      <Collapser id="helm-creds-inline" title="Sin trabajo de configuración: nombre de usuario y contraseña en texto sin formato">
+        Con este método no hay un trabajo de configuración, por lo que nada aquí crea el usuario de monitoreo. Antes de instalar el chart, créelo usted mismo: siga los pasos **Configurar usuario de base de datos** y **Otorgar privilegios de monitoreo** en [CDB en el host](/docs/opentelemetry/db360/oracle/host-cdb) o [PDB en el host](/docs/opentelemetry/db360/oracle/host-pdb), según el entorno.
+
+        Configurará el nombre de usuario y la contraseña de monitoreo directamente en `values.yaml` en el siguiente paso.
+      </Collapser>
+
+      <Collapser id="helm-creds-secret-nojob" title="Sin trabajo de configuración: credenciales basadas en secretos">
+        Con este método tampoco hay un trabajo de configuración. Cree el usuario de monitoreo primero, exactamente como en el método de credenciales en texto sin formato anterior. La única diferencia es dónde residen sus credenciales: en lugar de texto sin formato en `values.yaml`, almacénelas en un secreto de Kubernetes:
+
+        ```bash
+        kubectl create secret generic oracle-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        ```
+      </Collapser>
+
+      <Collapser id="helm-creds-setupjob" title="Trabajo de configuración automatizado">
+        Con este método, el trabajo de configuración del chart crea el usuario de monitoreo utilizando las credenciales de administrador de la base de datos. Tanto las credenciales de monitoreo como las de administrador deben proporcionarse como secretos de Kubernetes: el trabajo de configuración nunca acepta credenciales de administrador en texto sin formato, y habilitarlo también requiere credenciales de monitoreo basadas en secretos.
+
+        1. Cree un secreto con el nombre de usuario y la contraseña de monitoreo. Esta es la identidad que crea el trabajo de configuración y con la que se conecta el recolector:
+
+           ```bash
+           kubectl create secret generic oracle-monitor-creds \
+             --from-literal=username=<MONITORING_USERNAME> \
+             --from-literal=password='<MONITORING_PASSWORD>' \
+             -n newrelic
+           ```
+
+        2. El trabajo de configuración solo acepta credenciales de administrador a través de un secreto de Kubernetes (sin nombre de usuario/contraseña en texto sin formato en `values.yaml`). Dado que esta credencial puede crear usuarios y otorgar un amplio acceso a la base de datos, créela como su propio secreto:
+
+           ```bash
+           kubectl create secret generic oracle-admin-creds \
+             --from-literal=username=<ADMIN_USERNAME> \
+             --from-literal=password='<ADMIN_PASSWORD>' \
+             -n newrelic
+           ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Configurar los valores de Helm [#configure]
+
+    Establezca `oracle.topology` para que coincida con su entorno:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Valor
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `cdb`
+          </td>
+
+          <td>
+            CDB multiinquilino en el host. Se monitorean todas las PDB bajo esta CDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pdb`
+          </td>
+
+          <td>
+            PDB única en el host.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rds`
+          </td>
+
+          <td>
+            Oracle Database en AWS RDS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `adb`
+          </td>
+
+          <td>
+            Base de datos Oracle Autonomous.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Utilice el `values.yaml` que coincida con el método de credenciales que eligió en el paso anterior:
+
+    <CollapserGroup>
+      <Collapser id="helm-values-inline" title="Sin trabajo de configuración: nombre de usuario y contraseña en texto sin formato">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        oracle:
+          topology: <cdb|pdb|rds|adb>
+          endpoint: <YOUR_DB_HOST>:<YOUR_DB_PORT>
+          service: <YOUR_SERVICE_NAME>
+          username: <YOUR_MONITORING_USERNAME>
+          password: <YOUR_MONITORING_PASSWORD>
+
+        # No setup job runs, so create the monitoring user yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-secret-nojob" title="Sin trabajo de configuración: credenciales basadas en secretos">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        oracle:
+          topology: <cdb|pdb|rds|adb>
+          endpoint: <YOUR_DB_HOST>:<YOUR_DB_PORT>
+          service: <YOUR_SERVICE_NAME>
+          existingSecret: oracle-monitor-creds
+
+        # No setup job runs, so the monitoring user referenced by
+        # this secret must already exist - create it yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-setupjob" title="Trabajo de configuración automatizado">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        oracle:
+          topology: <cdb|pdb|rds|adb>
+          endpoint: <YOUR_DB_HOST>:<YOUR_DB_PORT>
+          service: <YOUR_SERVICE_NAME>
+          existingSecret: oracle-monitor-creds
+
+        setupJob:
+          enabled: true
+          image:
+            # -- Oracle Instant Client + sqlplus image. No default: pulling from container-registry.oracle.com requires accepting Oracle's license terms first. See README.
+            repository: ""
+            tag: ""
+            pullPolicy: IfNotPresent
+          oracleAdmin:
+            existingSecret: oracle-admin-creds
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `licenseKey`
+          </td>
+
+          <td>
+            Su clave de licencia de New Relic.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `otlpEndpoint`
+          </td>
+
+          <td>
+            El extremo OTLP/gRPC de su región, como un 
+
+            `host:port`
+
+             simple sin esquema: 
+
+            `otlp.nr-data.net:4317`
+
+             (EE. UU.) o 
+
+            `otlp.eu01.nr-data.net:4317`
+
+             (UE). Para obtener más información, consulte la 
+
+            [documentación de los extremos OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+            .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracle.endpoint`
+          </td>
+
+          <td>
+            El host de la base de datos Oracle (o extremo RDS) y el puerto del listener, accesibles desde el clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracle.service`
+          </td>
+
+          <td>
+            El nombre del servicio CDB, PDB, RDS o ADB para la conexión del recolector.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.image.repository`
+
+             / 
+
+            `setupJob.image.tag`
+          </td>
+
+          <td>
+            Una imagen de Oracle Instant Client + 
+
+            `sqlplus`
+
+             utilizada por el trabajo de configuración. No hay un valor predeterminado: extraer de 
+
+            `container-registry.oracle.com`
+
+             requiere aceptar primero los términos de licencia de Oracle, por lo que debe proporcionar su propia imagen. Solo es necesario para las credenciales basadas en secretos, donde el trabajo de configuración está habilitado.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Consulte el archivo [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/oracle-otel/values.yaml) del chart para ver todas las opciones de configuración disponibles.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## (Opcional) Monitorear múltiples instancias desde un release [#multi]
+
+    En lugar de `oracle.*`, configure `oracleMulti.enabled: true` para monitorear varias instancias de base de datos Oracle desde un solo pod recolector en un lanzamiento. Los dos modos son mutuamente excluyentes: no configure `oracle.endpoint` y `oracleMulti.enabled: true` en el mismo lanzamiento. Cada instancia en un lanzamiento debe compartir el mismo `oracleMulti.topology` (`cdb`, `pdb`, `rds` o `adb`): no se admite mezclar topologías, por ejemplo, una instancia de RDS y una CDB autohospedada, en un solo lanzamiento; en su lugar, use un lanzamiento independiente para cada topología.
+
+    El modo multiinstancia no tiene una ruta de nombre de usuario/contraseña en texto plano: cada instancia necesita su propio secreto de Kubernetes con credenciales de monitoreo. Decida si también desea que el trabajo de configuración cree cada usuario de monitoreo:
+
+    <CollapserGroup>
+      <Collapser id="helm-multi-nojob" title="Sin trabajo de configuración">
+        Cree usted mismo el secreto del usuario de monitoreo de cada instancia antes de instalar (repita por instancia, haciendo coincidir el `name` que le asigne en `values.yaml`):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secret you created for it.
+        oracleMulti:
+          enabled: true
+          topology: <cdb|pdb|rds|adb>
+          collectionInterval: 15s
+          databases:
+            - name: db1
+              endpoint: <YOUR_DB_1_HOST>:<YOUR_DB_1_PORT>
+              service: <YOUR_DB_1_SERVICE_NAME>
+              existingSecret: db1-monitor-creds
+            - name: db2
+              endpoint: <YOUR_DB_2_HOST>:<YOUR_DB_2_PORT>
+              service: <YOUR_DB_2_SERVICE_NAME>
+              existingSecret: db2-monitor-creds
+
+        # No admin credential is configured here since the setup
+        # job is disabled - create each instance's monitoring user
+        # yourself first.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-multi-setupjob" title="Trabajo de configuración automatizado">
+        Cada instancia necesita tanto su propio secreto de usuario de monitoreo como su propio secreto de credenciales de administrador (repita por instancia):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        kubectl create secret generic db1-admin-creds \
+          --from-literal=username=<ADMIN_USERNAME> \
+          --from-literal=password='<ADMIN_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secrets you created for it.
+        oracleMulti:
+          enabled: true
+          topology: <cdb|pdb|rds|adb>
+          collectionInterval: 15s
+          databases:
+            - name: db1
+              endpoint: <YOUR_DB_1_HOST>:<YOUR_DB_1_PORT>
+              service: <YOUR_DB_1_SERVICE_NAME>
+              existingSecret: db1-monitor-creds
+              oracleAdmin:
+                existingSecret: db1-admin-creds
+            - name: db2
+              endpoint: <YOUR_DB_2_HOST>:<YOUR_DB_2_PORT>
+              service: <YOUR_DB_2_SERVICE_NAME>
+              existingSecret: db2-monitor-creds
+              oracleAdmin:
+                existingSecret: db2-admin-creds
+
+        setupJob:
+          enabled: true
+          image:
+            repository: ""
+            tag: ""
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `oracleMulti.enabled`
+          </td>
+
+          <td>
+            Establezca en 
+
+            `true`
+
+             para monitorear varias instancias desde un lanzamiento en lugar de 
+
+            `oracle.*`
+
+            . Por defecto es 
+
+            `false`
+
+            .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracleMulti.topology`
+          </td>
+
+          <td>
+            `cdb`
+
+            , 
+
+            `pdb`
+
+            , 
+
+            `rds`
+
+             o 
+
+            `adb`
+
+             (mismo significado que 
+
+            `oracle.topology`
+
+            ), compartido por cada instancia en esta versión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracleMulti.collectionInterval`
+          </td>
+
+          <td>
+            Intervalo de extracción predeterminado para cada entrada. El valor predeterminado es 
+
+            `15s`
+
+            . Sobrescríbalo para una instancia específica con el propio 
+
+            `collectionInterval`
+
+             de esa entrada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracleMulti.databases`
+          </td>
+
+          <td>
+            Lista de instancias para monitorear. Cada entrada requiere un 
+
+            `name`
+
+            , 
+
+            `endpoint`
+
+             (
+
+            `host:port`
+
+            ), 
+
+            `service`
+
+             y 
+
+            `existingSecret`
+
+             únicos; agregue 
+
+            `oracleAdmin.existingSecret`
+
+             por entrada solo cuando 
+
+            `setupJob.enabled`
+
+             sea 
+
+            `true`
+
+            .
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      A diferencia de los otros charts de Helm de NRDOT, Oracle le permite sobrescribir `collectionInterval` por instancia. Todas las demás configuraciones de extracción se siguen aplicando de forma idéntica a cada instancia. Utilice `additionalReceiverConfig` para cualquier otra cosa que deba ser diferente. El trabajo de configuración se ejecuta una vez por instancia (`<release>-setup-<name>`) en lugar de una vez por versión.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Instale el chart de Helm [#install]
+
+    1. Agregue el repositorio Helm de New Relic:
+
+       ```bash
+       helm repo add newrelic https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. Instale el chart utilizando su archivo `values.yaml`:
+
+       ```bash
+       helm upgrade --install oracle-otel newrelic/oracle-otel \
+         -n newrelic \
+         --create-namespace \
+         -f values.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## Verifique la instalación [#verify]
+
+    1. Compruebe que el trabajo de configuración se haya completado y que el pod del recolector se esté ejecutando:
+
+       ```bash
+       kubectl get jobs,pods -n newrelic --watch
+       ```
+
+    2. Ejecute esta consulta en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/) para confirmar que los datos están llegando:
+
+       ```sql
+       SELECT count(*) FROM Metric
+       WHERE metricName LIKE 'oracledb.%'
+       AND instrumentation.provider = 'opentelemetry'
+       SINCE 10 minutes ago
+       ```
+  </Step>
+</Steps>
+
+Para encontrar su entidad de base de datos Oracle en New Relic, consulte [Buscar y usar sus datos](/docs/opentelemetry/db360/oracle/introduction/#find).
