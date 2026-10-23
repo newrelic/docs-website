@@ -4,6 +4,7 @@ const LOCALE_SITEMAP_PATHS_FILE = require('./gatsby/utils/locale-sitemap-paths')
 const { prop } = require('./scripts/utils/functional.js');
 const { createFilePath } = require('gatsby-source-filesystem');
 const createSingleNav = require('./scripts/createSingleNav');
+const { generateSnippets } = require('./scripts/generate-snippets');
 const generateTOC = require('mdast-util-toc');
 // are needed for our tableOfContents override
 const genMDX = require('gatsby-plugin-mdx/utils/gen-mdx.js');
@@ -20,7 +21,11 @@ const hasOwnProperty = (obj, key) =>
 const hasTrailingSlash = (pathname) =>
   pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
-exports.onPreBootstrap = () => {
+exports.onPreBootstrap = async () => {
+  // Throws (rejects) and halts the build on a snippet name collision or
+  // duplicate - must be awaited, or a rejection here would just be an
+  // unhandled promise rejection instead of stopping the build.
+  await generateSnippets();
   createSingleNav();
 };
 
@@ -263,6 +268,7 @@ exports.createSchemaCustomization = (
     features: [String]
     bugs: [String]
     security: [String]
+    pageMeta: JSON
   }
 
   `;
