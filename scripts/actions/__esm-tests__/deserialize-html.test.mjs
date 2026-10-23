@@ -297,4 +297,67 @@ test('deserializes headers as a span element', async () => {
   expect(mdx).toEqual(input);
 });
 
+// from vulnerability-management/agent/overview.mdx, see #26073
+test('keeps inline elements inline in a single-line table cell', async () => {
+  const input = `
+<table>
+  <thead>
+    <tr>
+      <th>Trigger</th>
+      <th>How it works</th>
+      <th>Use this for</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><DNT>**Comment (trigger phrase)**</DNT></td>
+      <td>The Security RX Agent posts a comment containing a trigger phrase you configure (for example, <code>@claude fix</code>). Your agent watches for that phrase and starts working.</td>
+      <td>Claude, and custom agents that respond to a comment phrase.</td>
+    </tr>
+  </tbody>
+</table>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toContain(
+    'a trigger phrase you configure (for example, <code>@claude fix</code>). Your agent watches for that phrase and starts working.'
+  );
+});
+
+// from opentelemetry/integrations/haproxy/metrics-reference.mdx, see #24918
+test('round-trips MDX expressions verbatim', async () => {
+  const input = `
+<table>
+  <tr>
+    <td>\`haproxy.connections.errors\`</td>
+    <td>Total number of connection errors (backend and server only)</td>
+    <td>Sum (cumulative)</td>
+    <td>{'{errors}'}</td>
+  </tr>
+</table>
+
+Inline {'{requests}'} too.
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toContain(`<td>\n      {'{errors}'}\n    </td>`);
+  expect(mdx).toContain(`Inline {'{requests}'} too.`);
+});
+
+test('round-trips custom heading ids that contain underscores', async () => {
+  const input = '## Review goals [#review_goals]';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
+test('keeps heading text after inline code when a custom id is present', async () => {
+  const input = '## Use the `pkg` package [#use-pkg]';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
 test.run();
