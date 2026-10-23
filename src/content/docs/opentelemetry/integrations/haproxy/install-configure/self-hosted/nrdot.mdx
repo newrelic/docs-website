@@ -1,0 +1,271 @@
+---
+title: Install and configure NRDOT on HAProxy self-hosted
+metaDescription: "Install and configure the NRDOT collector to monitor self-hosted HAProxy load balancers on Linux and send data to New Relic."
+tags:
+  - OpenTelemetry
+  - HAProxy
+  - NRDOT
+  - Self-hosted
+freshnessValidatedDate: never
+redirects:
+  - /docs/opentelemetry/integrations/haproxy/self-hosted
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: haproxy
+flow:
+  prev: /docs/opentelemetry/integrations/haproxy/introduction
+  next: null
+stepTTFV: 10m
+---
+
+Use this guide to install and configure the NRDOT collector to monitor a self-hosted HAProxy load balancer on a Linux server or VM. Once configured, the collector sends your HAProxy metrics to New Relic. To monitor HAProxy running in Kubernetes, see the [Kubernetes install pages](/docs/opentelemetry/integrations/haproxy/install-configure/kubernetes/nrdot-helm-install).
+
+<Callout variant="tip" title="Guided installation">
+  To install through the New Relic UI instead, go to <DNT>**one.newrelic.com > Integrations & Agents > HAProxy (OpenTelemetry Collector)**</DNT>. This page covers manual installation only.
+</Callout>
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+- HAProxy with the stats endpoint enabled (CSV stats; works on all versions that support stats)
+- Linux hosts: Amazon Linux, Red Hat Enterprise Linux (RHEL), CentOS, Ubuntu, Debian
+
+### Not supported
+- Windows hosts
+
+### You need
+- A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- Root or sudo privileges on the host
+- Network access from the host to the HAProxy stats endpoint (typically `http://localhost:8404/stats`) and to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+<Steps>
+
+<Step>
+
+## Install the NRDOT collector [#install]
+
+Follow the [NRDOT installation steps](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#deb-installation) to install the collector on your Linux host. During the installation, run this command to set the collector distribution:
+
+```bash
+export collector_distro="nrdot-collector"
+```
+
+</Step>
+
+<Step>
+
+## Enable the HAProxy stats endpoint [#stats-endpoint]
+
+The NRDOT collector collects HAProxy metrics by reading the stats endpoint, so HAProxy must expose it first.
+
+If you haven't already enabled the HAProxy stats endpoint, add the following to your `haproxy.cfg`:
+
+```text
+frontend stats
+    bind *:8404
+    stats enable
+    stats uri /stats
+    stats refresh 10s
+```
+
+Reload HAProxy to apply the configuration:
+
+```bash
+sudo systemctl reload haproxy
+```
+
+Verify the stats endpoint is accessible:
+
+```bash
+curl -s http://localhost:8404/stats
+```
+
+You should see HTML output with HAProxy statistics.
+
+</Step>
+
+<Step>
+
+## Configure the NRDOT collector [#configure]
+
+Configure the NRDOT collector to collect metrics from your HAProxy stats endpoint and send them to New Relic.
+
+<Callout variant="important">
+**Choose your monitoring approach**:
+
+- HAProxy-only monitoring (this guide): Monitors just your HAProxy load balancer performance and metrics
+- Complete server monitoring: Monitors HAProxy plus your entire server (CPU usage, memory, disk space, system logs)
+
+If you want to monitor your whole server, not just HAProxy, use the NRDOT collector's [default configuration](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/config.yaml) instead and add the HAProxy receiver configuration to it.
+</Callout>
+
+Create the configuration file `/etc/nrdot-collector/haproxy-config.yaml`:
+
+```yaml
+receivers:
+  haproxy:
+    endpoint: http://localhost:8404/stats
+    collection_interval: 15s
+
+processors:
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+
+  batch:
+
+exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    metrics:
+      receivers: [haproxy]
+      processors: [resourcedetection, batch]
+      exporters: [otlphttp]
+```
+
+This configuration collects all 17 default metrics at a 15-second interval. The haproxyreceiver automatically attaches `haproxy.proxy_name`, `haproxy.service_name`, and `haproxy.addr` attributes to each metric.
+
+### Configuration parameters
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`endpoint`</td>
+    <td>Replace with your HAProxy stats endpoint URL (for example `http://localhost:8404/stats`)</td>
+  </tr>
+  <tr>
+    <td>`collection_interval`</td>
+    <td>Interval between metric collections. `15s` for full detail, `60s` for lower ingest volume</td>
+  </tr>
+</tbody>
+</table>
+
+To collect the optional metrics, reduce data ingest, or monitor the whole host, see [Advanced configuration](/docs/opentelemetry/integrations/haproxy/advanced-configuration).
+
+</Step>
+
+<Step>
+
+## Update the collector config path and OTLP endpoint [#env-vars]
+
+Update the NRDOT collector configuration to use your HAProxy config file and set the OTLP endpoint.
+
+For information on your OTLP endpoint, refer to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp).
+
+<Callout variant="important">
+Your license key is already configured in `/etc/nrdot-collector/nrdot-collector.conf` during installation. You only need to update the config file path and OTLP endpoint.
+</Callout>
+
+Update the collector configuration file:
+
+```bash
+export collector_distro="nrdot-collector"
+export otlp_endpoint="<YOUR_NEWRELIC_OTLP_ENDPOINT>"  # Replace with your region's endpoint
+
+# Update the config file path to point to haproxy-config.yaml
+sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/haproxy-config.yaml"|' /etc/${collector_distro}/${collector_distro}.conf
+
+# Add the OTLP endpoint
+echo "OTEL_EXPORTER_OTLP_ENDPOINT=${otlp_endpoint}" | sudo tee -a /etc/${collector_distro}/${collector_distro}.conf > /dev/null
+```
+
+</Step>
+
+<Step>
+
+## Restart the NRDOT collector [#restart]
+
+The collector reads its configuration only when it starts, so restart it to apply the HAProxy configuration file and OTLP endpoint you set in the previous step.
+
+Restart the NRDOT collector service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart nrdot-collector
+```
+
+Check the service status:
+
+```bash
+sudo systemctl status nrdot-collector
+```
+
+Review logs for any configuration errors:
+
+```bash
+sudo journalctl -u nrdot-collector -n 50 --no-pager
+```
+
+</Step>
+
+<Step>
+
+## Verify data collection [#verify]
+
+Within ~5 minutes of restarting the collector, run this query in New Relic to confirm data is flowing:
+
+```sql
+FROM Metric SELECT uniques(metricName)
+WHERE metricName LIKE 'haproxy.%'
+SINCE 10 minutes ago
+```
+
+You should see HAProxy metric names, for example 17 with the default configuration. To confirm dimensional attributes, run:
+
+```sql
+FROM Metric SELECT latest(haproxy.sessions.count)
+FACET haproxy.proxy_name, haproxy.service_name
+SINCE 5 minutes ago
+```
+
+<Callout variant="tip">
+You can also check the collector itself: `nrdot-collector` should report `active (running)` (`sudo systemctl status nrdot-collector`), with no errors in the logs (`sudo journalctl -u nrdot-collector -n 50 --no-pager`).
+</Callout>
+
+If you don't see data within ~5 minutes, see [HAProxy troubleshooting](/docs/opentelemetry/integrations/haproxy/troubleshooting).
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find-and-use]
+
+Once New Relic collects your data, your HAProxy instances appear as entities.
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > All entities**</DNT>.
+2. Search for your HAProxy entities by name or filter by entity type `HAPROXYINSTANCE`.
+3. Select an entity to view the summary page with golden metrics (sessions per second, requests per second, connection errors).
+
+After setting up HAProxy monitoring, you can:
+
+- [Query your data with NRQL](/docs/opentelemetry/integrations/haproxy/find-and-query-data)
+- [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your HAProxy metrics
+- [Set up alerts](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) for backend health and error thresholds
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [Advanced configuration](/docs/opentelemetry/integrations/haproxy/advanced-configuration)
+- [HAProxy metrics reference](/docs/opentelemetry/integrations/haproxy/metrics-reference)
+- [HAProxy distributed tracing](/docs/opentelemetry/integrations/haproxy/distributed-tracing)
+- [HAProxy troubleshooting](/docs/opentelemetry/integrations/haproxy/troubleshooting)
