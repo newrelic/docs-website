@@ -81,6 +81,70 @@ Consulta útil para identificar o uso atual:
   WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES MAX
   ```
 
+## Monitores do Browser apresentam falha devido ao dimensionamento de memória compartilhada no Podman [#shm]
+
+Os monitores de Browser em execução em uma localização privada baseada em Podman podem falhar intermitentemente com um erro como este:
+
+```log
+NoSuchSessionError: invalid session id: session deleted as the browser has closed the connection, disconnected: Unable to receive message from renderer
+```
+
+Isso é tipicamente uma falha no processo de renderização do Chrome causada por memória compartilhada insuficiente (`/dev/shm`), não um problema de script ou de rede. O Chrome depende muito da memória compartilhada para renderização e tende a esgotá-la mais rápido que o Firefox, especialmente em páginas que redirecionam entre origens durante os fluxos de login — cada nova origem inicia processos de renderização adicionais que extraem do mesmo pool `/dev/shm`.
+
+### Como os pod do Podman alocam memória compartilhada
+
+Quando o gerenciador de trabalhos de Sintéticos é executado no Podman com `--pod`, cada contêiner associado a esse pod compartilha um único namespace IPC. O próprio pod monta `/dev/shm` uma vez, no tamanho com o qual você criou o pod (64 MiB por padrão). Você define esse tamanho no momento de `podman pod create`, e um contêiner individual não pode alterá-lo ou substituí-lo posteriormente.
+
+Isso significa que as seguintes tentativas comuns de corrigir problemas de memória compartilhada **não funcionam** depois que um contêiner é associado a um pod, porque a montagem `/dev/shm` do pod tem precedência sobre as configurações por contêiner:
+
+* Passando `--shm-size` em `podman run` em vez de `podman pod create`
+* Montagem de bind com `-v /dev/shm:/dev/shm` em `podman run`
+
+### Diagnóstico
+
+Antes de realizar qualquer alteração, estas verificações devem ser executadas para confirmar a causa:
+
+1. Verifique o valor `--shm-size` no comando de criação do pod:
+
+   ```shell
+   podman pod inspect YOUR_POD_NAME --format '{{.CreateCommand}}'
+   ```
+
+   Isto exibe o comando `podman pod create` exato que criou o pod. Procure por `--shm-size` nessa saída. Caso esteja ausente, o pod estará sendo executado no padrão de 64 MiB, independentemente do que se pretendia definir — isso pode ocorrer caso um pod anterior com o mesmo nome não tenha sido totalmente removido antes de ser recriado, ou caso um contêiner no pod não tenha sido reiniciado posteriormente.
+
+2. Encontre o ID do contêiner de runtime do navegador:
+
+   ```shell
+   podman ps --filter pod=YOUR_POD_NAME --filter ancestor=newrelic/synthetics-node-browser-runtime --format '{{.ID}}'
+   ```
+
+   Este ID deve ser utilizado como `YOUR_BROWSER_RUNTIME_CONTAINER_ID` na próxima etapa.
+
+3. Verifique a memória compartilhada realmente disponível dentro desse contêiner, idealmente capturada durante ou imediatamente antes de uma execução com falha:
+
+   ```shell
+   podman exec YOUR_BROWSER_RUNTIME_CONTAINER_ID df -h /dev/shm
+   ```
+
+   Compare a saída com o tamanho que você configurou:
+
+   * Se `Size` ainda mostrar `64M`, o redimensionamento nunca entrou em vigor — recrie o pod conforme descrito na próxima seção.
+   * Se `Size` mostrar o valor configurado (por exemplo, `2.0G` para um pod criado com `--shm-size=2g`), verifique as colunas `Used` e `Avail`. Se `Avail` estiver próximo de zero, o pool está esgotado — cada contêiner no pod extrai dessa mesma alocação compartilhada, portanto, se vários monitores forem executados simultaneamente na mesma localização privada, dimensione `--shm-size` para um valor maior ou reduza quantos são executados de uma vez. Se `Avail` ainda tiver espaço livre, o pool não é a causa dessa falha específica e você deve procurar em outro lugar (por exemplo, `HEAVY_WORKER_MEMORY`).
+
+### Consertar
+
+O pod existente deve ser removido e recriado com um `--shm-size` maior e, em seguida, o gerenciador de trabalhos de Sintéticos deve ser reiniciado para que ele ingresse novamente no novo pod:
+
+```shell
+podman pod stop YOUR_POD_NAME
+podman pod rm YOUR_POD_NAME
+podman pod create --network slirp4netns --name YOUR_POD_NAME --add-host=podman.service:HOST_IP_ADDRESS --shm-size=2g
+```
+
+Deve-se começar com `2g`, o valor utilizado na documentação de instalação. Caso a verificação na etapa 3 ainda mostre que o pool está esgotado, ele deve ser aumentado ainda mais (por exemplo, para `4g`) antes de se reduzir a simultaneidade, e `df -h /dev/shm` deve ser verificado novamente após cada alteração.
+
+Em seguida, inicie o gerenciador de trabalhos de Sintéticos novamente usando o comando `podman run` do [procedimento de inicialização do Podman](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-update)— a remoção do pod também remove os contêineres que estavam em execução nele.
+
 ## Resolução de problemas de uso da CPU [#cpu-usage]
 
 Identifique possíveis períodos de alta demanda de CPU:
