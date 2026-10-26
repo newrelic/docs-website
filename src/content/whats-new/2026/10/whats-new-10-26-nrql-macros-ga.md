@@ -25,7 +25,5 @@ Macros can be created/edited in the **Administration > NRQL Macro** UI, or via o
 
 We're excited to see all the different ways you will use macros to optimize/simplify your NRQL!
 
-Learn more in our blog post or [docs](https://docs.newrelic.com/docs/nrql/nrql-macros/nrql-macros-overview)!
-
-<!-- TODO: swap in the blog post link above once it's available, and link "blog post" to it -->
+Learn more about [NRQL Macros](https://docs.newrelic.com/docs/nrql/nrql-macros/nrql-macros-overview)!
 
