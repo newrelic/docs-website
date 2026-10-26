@@ -1,0 +1,357 @@
+---
+title: MySQL NRDOT 모니터링 문제 해결
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Troubleshooting
+metaDescription: Troubleshoot common issues with MySQL monitoring using NRDOT Collector
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+NRDOT Collector로 MySQL을 모니터링할 때 발생할 수 있는 일반적인 문제를 해결하십시오.
+
+## 연결 테스트
+
+### MySQL에 대한 네트워크 연결 테스트
+
+먼저 포트에 연결할 수 있는지 확인하십시오:
+
+```bash
+nc -zv <YOUR_DB_HOST> <YOUR_DB_PORT>
+```
+
+그런 다음 모니터링 사용자가 실제로 인증하고 쿼리할 수 있는지 확인하십시오:
+
+```bash
+mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
+```
+
+명령이 오류 없이 완료되면 모니터링 사용자, 호스트 및 포트가 모두 올바른 것입니다.
+
+### OTLP 엔드포인트 연결 테스트
+
+호스트가 선택한 뉴렐릭 OTLP 엔드포인트에 도달할 수 있는지 확인하려면 다음을 실행하십시오:
+
+```shell
+ENDPOINT="<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+HOST=$(echo "$ENDPOINT" | sed 's|https://||' | cut -d: -f1)
+PORT=$(echo "$ENDPOINT" | awk -F: '{print $NF}')
+(timeout 2 bash -c "</dev/tcp/$HOST/$PORT" && echo "SUCCESS") || echo "FAILED"
+```
+
+**예상 출력:** `SUCCESS`
+
+## 일반적인 문제
+
+<CollapserGroup>
+  <Collapser id="no-query-events" title="쿼리 이벤트 또는 샘플이 나타나지 않습니다">
+    **증상:** 뉴렐릭에서 쿼리 샘플 및 상위 쿼리 로그 이벤트가 누락되었습니다.
+
+    **가능한 원인:**
+
+    * `performance_schema` 비활성화
+    * 수신기 설정에서 쿼리 이벤트가 활성화되지 않았습니다.
+    * 데이터베이스 권한 부족
+
+    **해결책:**
+
+    1. **성능 스키마가 활성화되어 있는지 확인하십시오:**
+
+       ```sql
+       SHOW VARIABLES LIKE 'performance_schema';
+       ```
+
+       값은 `ON`이어야 합니다.
+
+    2. **수신자 설정 확인:**
+
+       ```yaml
+       events:
+         db.server.query_sample:
+           enabled: true
+         db.server.top_query:
+           enabled: true
+       ```
+
+    3. **데이터베이스 권한을 확인하십시오:**
+
+       ```sql
+       SHOW GRANTS FOR '<YOUR_DB_USERNAME>'@'%';
+       ```
+
+       `performance_schema.*`에 `SELECT`을(를) 포함해야 합니다.
+  </Collapser>
+
+  <Collapser id="missing-wait-times" title="대기 시간 메트릭이 표시되지 않습니다">
+    **증상:** 잠금 대기 시간 메트릭이 항상 0초로 표시됩니다.
+
+    **원인:** `events_waits_current` 성능 스키마 소비자가 비활성화되었습니다.
+
+    **해결책:**
+
+    **자체 관리형 MySQL 데이터베이스의 경우:** `my.cnf`/`my.ini`에 추가하십시오:
+
+    ```ini
+    [mysqld]
+    performance-schema-consumer-events-waits-current=ON
+    ```
+
+    그런 다음 MySQL을 다시 시작하십시오.
+
+    **AWS RDS의 경우:**
+
+    ```sql
+    UPDATE performance_schema.setup_consumers 
+    SET ENABLED='YES' 
+    WHERE NAME='events_waits_current';
+    ```
+
+    <Callout variant="important">
+      RDS에서는 이 설정이 재시작 시 유지되지 않습니다. 수집기가 자동으로 다시 활성화할 수 있도록 모니터링 사용자에게 `performance_schema.setup_consumers`에 대한 UPDATE 권한을 부여합니다.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="missing-query-plans" title="긴 쿼리에 대한 쿼리 계획이 누락되었습니다.">
+    **증상:** 일부 쿼리, 특히 긴 쿼리의 경우 `mysql.query_plan`이(가) 비어 있습니다.
+
+    **원인:** 명령문 텍스트가 MySQL의 다이제스트 길이 제한에 의해 잘려 수신기가 `EXPLAIN`을(를) 건너뜁니다.
+
+    **해결 방법:** MySQL 서버 파라미터를 늘리십시오:
+
+    ```sql
+    SET GLOBAL max_digest_length = 4096;
+    SET GLOBAL performance_schema_max_digest_length = 4096;
+    SET GLOBAL performance_schema_max_sql_text_length = 4096;
+    ```
+
+    영구적으로 적용하려면 `my.cnf`에 추가하십시오:
+
+    ```ini
+    [mysqld]
+    max_digest_length = 4096
+    performance_schema_max_digest_length = 4096
+    performance_schema_max_sql_text_length = 4096
+    ```
+  </Collapser>
+
+  <Collapser id="no-query-plans-old-versions" title="상위 쿼리 이벤트에서 누락된 쿼리 계획">
+    **증상:** `db.server.top_query` 이벤트에서 사용할 수 있는 쿼리 계획이 없습니다.
+
+    **원인:** 예상되는 동작 ― `query_sample_text`이(가) MySQL `5.7.x` 또는 `8.0.0`～`8.0.2`에 존재하지 않습니다.
+
+    **해결책:** 쿼리 계획을 지원하려면 MySQL `8.0.3` 이상으로 업그레이드하십시오.
+  </Collapser>
+
+  <Collapser id="write-statement-plans" title="쓰기 문 계획 누락">
+    **증상:** `UPDATE`, `INSERT`, `DELETE` 또는 `REPLACE` 문에 대한 쿼리 계획이 누락되었습니다.
+
+    **원인:** 모니터링 사용자에게 DML 권한이 없으며 `explain_mode`이(가) `inline`(으)로 설정되어 있습니다.
+
+    **해결책:** 수신기 설정에서 `procedure` 모드로 전환하십시오:
+
+    ```yaml
+    nrmysql:
+      explain_mode: procedure
+    ```
+
+    이는 모니터링 사용자에게 DML 권한을 부여하지 않고 쓰기 문을 설명하기 위해 `SQL SECURITY DEFINER` 프로시저를 사용합니다.
+  </Collapser>
+
+  <Collapser id="empty-client-name" title="세션의 클라이언트 이름이 비어 있습니다.">
+    **증상:** 일부 데이터베이스 연결에서 `mysql.session.client_name` 속성이 비어 있습니다.
+
+    **원인:** 버그가 아닙니다 ― 일부 클라이언트 드라이버는 기본적으로 연결 속성을 전송하지 않습니다.
+
+    **메모:**
+
+    * 이는 데이터 종속적인 동작입니다.
+    * MySQL 클라이언트 라이브러리마다 연결 속성에 대한 지원이 다릅니다.
+    * 모든 애플리케이션이 이 정보를 보내도록 드라이버를 설정하는 것은 아닙니다.
+  </Collapser>
+
+  <Collapser id="empty-comment-tags" title="주석 태그가 비어 있습니다.">
+    **증상:** SQL 주석에서 APM 상관관계 태그가 추출되지 않습니다.
+
+    **원인:** 주석 태그 추출이 설정되지 않았습니다.
+
+    **해결책:** 설정의 두 수집 블록 모두에 `allowed_comment_keys`을(를) 추가하십시오:
+
+    ```yaml
+    query_sample_collection:
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      allowed_comment_keys: [nr_service_guid]
+    ```
+
+    보안상의 이유로 주석 태그 추출은 기본적으로 비어 있습니다.
+  </Collapser>
+
+  <Collapser id="entity-missing" title="MySQL 엔티티 또는 APM 관계 누락">
+    **증상:**
+
+    * 엔티티 탐색기에서 MySQL 엔티티가 누락되었습니다.
+    * APM 애플리케이션에 데이터베이스 관계가 표시되지 않습니다.
+
+    **원인:** 엔티티 합성에 필요한 `server.address` 및 `server.port` 리소스 속성이 누락되었습니다.
+
+    **해결책:** 수집기 설정에 리소스 프로세서를 추가하십시오:
+
+    ```yaml
+    processors:
+      resource/mysql:
+        attributes:
+          - key: server.address
+            value: "<YOUR_DB_HOST>"
+            action: upsert
+          - key: server.port
+            value: <YOUR_DB_PORT>
+            action: upsert
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [nrmysql]
+          processors: [resource/mysql, batch]
+          exporters: [otlp/newrelic]
+        logs:
+          receivers: [nrmysql]
+          processors: [resource/mysql, batch]
+          exporters: [otlp/newrelic]
+    ```
+  </Collapser>
+
+  <Collapser id="connection-errors" title="연결 거부 또는 인증 오류">
+    **증상:**
+
+    * &quot;연결 거부&quot; 오류
+    * &quot;액세스 거부&quot; 인증 실패
+
+    **해결책:**
+
+    **연결 거부의 경우:**
+
+    1. MySQL이 실행 중인지 확인하십시오:
+       ```bash
+       systemctl status mysql
+       ```
+    2. 방화벽 규칙이 MySQL 포트(기본값 3306)에서 연결을 허용하는지 확인하십시오.
+    3. MySQL 설정의 `bind-address`이(가) 외부 연결을 허용하는지 확인하십시오
+
+    **인증 오류의 경우:**
+
+    1. 사용자가 존재하고 올바른 권한이 있는지 확인하십시오:
+       ```sql
+       SELECT User, Host FROM mysql.user WHERE User='<YOUR_DB_USERNAME>';
+       SHOW GRANTS FOR '<YOUR_DB_USERNAME>'@'%';
+       ```
+    2. 비밀번호가 올바른지 확인하십시오
+    3. RDS의 경우 보안 그룹이 인바운드 연결을 허용하는지 확인합니다.
+  </Collapser>
+
+  <Collapser id="rds-specific-issues" title="AWS RDS 특정 문제">
+    **RDS 성능 스키마 소비자 재설정:** RDS 재시작/장애 조치 시 `events_waits_current` 소비자가 자동으로 비활성화됩니다. 수집기가 이를 다시 활성화할 수 있도록 `performance_schema.setup_consumers`에 UPDATE 권한을 부여하십시오:
+
+    ```sql
+    GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+    ```
+
+    **RDS 네트워크 보안:** RDS 보안 그룹이 NRDOT Collector의 IP 주소 또는 보안 그룹에서 포트 3306으로의 인바운드 트래픽을 허용하는지 확인하십시오.
+  </Collapser>
+
+  <Collapser id="rds-tls-certificate-error" title="RDS 연결 시 TLS 인증서 오류">
+    **증상:** 수집기가 인증서 또는 TLS 관련 오류와 함께 연결에 실패합니다.
+
+    **원인:** RDS가 TLS를 강제합니다. 수집기는 기본적으로 Amazon의 RDS CA를 신뢰하지 않습니다.
+
+    **해결책:** `tls.ca_file` (또는 `tls.ca_pem`)을 [Amazon RDS 인증서 번들](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem)로 설정하고, `tls.insecure`/`tls.insecure_skip_verify`은(는) `false`로 유지하십시오:
+
+    ```yaml
+    nrmysql:
+      tls:
+        insecure: false
+        insecure_skip_verify: false
+        ca_file: /path/to/global-bundle.pem
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## NRQL 쿼리 예
+
+다음 NRQL 쿼리를 사용하여 MySQL 모니터링 문제를 진단, 해결하고 확인하십시오:
+
+### 차단된 쿼리를 확인하십시오.
+
+```sql
+FROM Log SELECT * WHERE event.name = 'db.server.query_sample' 
+AND mysql.blocking.blocker.count > 0 
+SINCE 1 hour ago
+```
+
+<Callout variant="tip">
+  `!= 0`이(가) 아닌 `mysql.blocking.blocker.count > 0`(으)로 필터링하십시오 ― NRQL에서 `null != 0`은(는) `TRUE`(으)로 평가되어 차단되지 않은 세션을 결과에 조용히 포함시킵니다.
+</Callout>
+
+### 가장 느린 쿼리 찾기
+
+```sql
+FROM Log SELECT db.query.text, 
+mysql.events_statements_summary_by_digest.sum_timer_wait,
+mysql.events_statements_summary_by_digest.count_star
+WHERE event.name = 'db.server.top_query'
+ORDER BY mysql.events_statements_summary_by_digest.sum_timer_wait DESC
+LIMIT 10
+```
+
+### 엔티티 합성 확인
+
+```sql
+FROM Metric SELECT uniqueCount(entity.guid) 
+WHERE metricName LIKE 'mysql.%' 
+FACET server.address, server.port
+SINCE 1 hour ago
+```
+
+## 도움 받기
+
+문제가 계속 발생하는 경우:
+
+1. NRDOT Collector 로그를 확인합니다:
+
+   ```bash
+   journalctl -u nrdot-collector -f
+   ```
+
+2. 설정 구문을 확인하십시오:
+
+   ```bash
+   nrdot-collector validate --config=<your-config-file>
+   ```
+
+3. [호환성 요구 사항](/docs/opentelemetry/database/mysql/compatibility)을 확인하십시오.
+
+4. 수집기 로그 및 설정(비밀번호와 같은 민감한 정보는 제거)을 첨부하여 뉴렐릭 지원팀에 문의하십시오
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="자체 호스팅 환경에서의 계측" path="/docs/opentelemetry/database/mysql/hosted">
+    뉴렐릭을 사용하여 자체 호스팅 환경에서 MySQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="RDS 환경에서의 계측" path="/docs/opentelemetry/database/mysql/rds">
+    뉴렐릭을 사용하여 RDS 환경에서 MySQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="지표 참조" path="/docs/opentelemetry/database/mysql/metrics-reference">
+    NRDOT Collector가 수집하는 사용 가능한 메트릭에 대해 알아보십시오.
+  </DocTile>
+</DocTiles>
