@@ -1,0 +1,350 @@
+---
+title: 移行ガイド
+metaDescription: 'Key considerations, configuration mapping, entity continuity, and rollback steps when migrating from a standalone Infrastructure Agent to Agent Control on Linux, Windows, and Kubernetes.'
+freshnessValidatedDate: '2026-10-02T00:00:00.000Z'
+translationType: machine
+---
+
+本ガイドでは、スタンドアロンエージェントのインストレーションから、Agent ControlおよびFleet Controlによって管理されるエージェントへ移行する際の、最もよくある質問と落とし穴について説明します。
+
+## 開始する前に：監視のギャップ
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="gap-host">オンホスト</TabsBarItem> <TabsBarItem id="gap-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="gap-host">
+      <Callout variant="caution">
+        **Agent Controlをインストールすると、スタンドアロンのinfrastructureエージェントが削除されます。**
+
+        Agent ControlをインストールするOSパッケージは、以前にインストールされたinfrastructureエージェントを削除または停止します。その時点から、Agent ControlがFleet Controlに接続し、デプロイメント設定を受信して、管理対象のサブエージェントとしてinfrastructureエージェントを正常に起動するまで、ホストで実行中のエージェントはなくなります。
+      </Callout>
+
+      **以下のすべてが当てはまるまで、ホストにAgent Controlをインストールしないでください。**
+
+      1. Fleet Controlには、既存の`newrelic-infra.yml`および`integrations.d/`ファイルと同様の設定を持つ、そのホストをターゲットとするinfrastructureエージェントのデプロイメントがあります。各部分の変換方法については、[設定の移行](#configuration-migration)を参照してください。
+      2. 最初に、少なくとも1つの非本番ホストでデプロイメント設定を検証していること。
+      3. Agent Controlが、ターゲットホストからFleet ControlエンドポイントおよびOCIレジストリに到達できる。事前にファイアウォールルールとプロキシ設定を確認してください。
+      4. デプロイメントが起動しない場合に備えて、ロールバック手順を準備している。[「ロールバック」](#rollback)を参照してください。
+
+      すべてが正しく設定されている場合、Agent Controlのインストレーションから管理対象エージェントの最初の正常な起動までの間隔は、通常数秒です。
+    </TabsPageItem>
+
+    <TabsPageItem id="gap-k8s">
+      <Callout variant="caution">
+        **移行するには、Agent Controlをインストールする前に既存のエージェントをアンインストールする必要があります。**
+
+        Agent Controlインストーラが既存のエージェントを置き換えるホストとは異なり、Kubernetesではまず古いエージェントを手動でアンインストールします。`helm uninstall`を実行した時点から、Agent ControlがFleet Controlに接続してリモート設定を適用するまでの間、監視にギャップが生じます。
+      </Callout>
+
+      **以下のすべてが満たされるまで、既存のエージェントをアンインストールしないでください。**
+
+      1. 既存のHelmの値を保存しました：`helm get values RELEASE_NAME --namespace NAMESPACE`。これらがロールバックポイントです。
+      2. 移行する各エージェントタイプに対して、Fleet Controlでリモート設定が準備されていること。Helmの値をFleet Controlの設定にマッピングする方法については、[設定の移行](#configuration-migration)を参照してください。
+      3. Agent Controlは、クラスタノードからFleet ControlエンドポイントおよびOCIレジストリに到達できます。ネットワークポリシーとエグレスルールを事前に確認してください。
+      4. デプロイメントが起動しない場合に備えて、ロールバック手順を準備している。[「ロールバック」](#rollback)を参照してください。
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 以前にインストゥルメントされたシステムの移行
+
+<Callout variant="important">
+  Agent Controlは、既存のエージェントの自動移行をサポートしていません。移行は常に手動プロセスです：既存のエージェントをアンインストールし、Agent Controlをインストールしてから、Fleet Controlのリモート設定として設定を再作成します。
+</Callout>
+
+<Callout variant="caution" title="LinuxおよびWindowsホストでの監視のギャップ">
+  ホストにAgent Controlをインストールすると、**スタンドアロンのinfrastructureエージェントが削除されます**。古いエージェントが停止した時点から、Agent ControlがFleet Controlに接続して管理対象エージェントを起動するまで、テレメトリーが一時的に失われることが予想されます。本番環境を移行する前に、非本番ホストでFleet Controlのデプロイメント設定を準備して検証してください。ロールバック手順を含む詳細については、[ホスト移行ガイド](/docs/new-relic-control/agent-control/migration-guide)を参照してください。
+</Callout>
+
+### 一般的な移行プロセス
+
+プラットフォームに関係なく、移行は次の4つのステップに従います：
+
+1. **現在の設定をメモしておいてください。**アンインストールする前に、すべてのエージェント設定ファイルとインテグレーション設定のコピーを保存してください。これらをFleet Controlリモート設定として再作成します。
+2. **既存のエージェントをアンインストールします。**Agent Controlは、同じタイプのスタンドアロンエージェントのインストレーションと共存することはできません。
+3. **Agent Controlをインストールし、フリートに接続します。**プラットフォーム固有のインストレーションガイドに従い、既存のフリートを選択するか、新しいフリートを作成します。
+4. **Fleet Controlで設定を再作成します。**以前の設定を使用して、フリートのリモート設定を作成します。Agent Controlはそれを自動的に適用します。
+
+<Callout variant="important" title="リモート設定が常に優先される">
+  Fleet Controlは、エージェント設定の信頼できるソースです。エージェントの設定、バージョン、チャート値、およびリソース制限はすべて、ローカルのインストレーションファイルではなく、Fleet Controlのリモート設定で定義する必要があります。両方が存在する場合、リモート設定が優先され、ローカルの値を上書きします。
+</Callout>
+
+<Callout variant="tip" title="ベストプラクティス">
+  データの継続性を確保するために、Agent Controlのインストレーション中は、同じエンティティ名（クラスタ名またはホスト名）と同じNew Relicアカウントを使用してください。エンティティのGUIDはこれらの属性に結び付けられており、エージェントの管理方法には結び付けられていません。詳細については、[エンティティの継続性とダッシュボード](/docs/new-relic-control/agent-control/migration-guide#entity-continuity-and-dashboards)を参照してください。Agent Controlでまだサポートされていないエージェントやコンポーネントは、サポートが利用可能になるまでそのままにしておくことができます。
+</Callout>
+
+### Kubernetes
+
+KubernetesクラスタがすでにNew Relicでインストゥルメントされている場合、エージェントをAgent Controlで管理するように移行できます。移行プロセスでは、既存のエージェントのインストールを削除し、Fleet Controlを通じて一元的に設定されるAgent Control管理のインストールに置き換えます。
+
+Agent Controlは、`nri-bundle` Helmチャートから以下のエージェントをデプロイおよび管理できます：
+
+* `newrelic-infrastructure`、`nri-kube-events`、および`kube-state-metrics`：**infrastructureエージェント**タイプとして管理されます
+* `newrelic-prometheus-configurator`：**Prometheus**エージェントタイプとして管理されます
+* `newrelic-logging`：**Fluent Bit**エージェントタイプとして管理されます
+* `nr-k8s-otel-collector`：**OpenTelemetry Collector**エージェントタイプとして管理されます
+
+1. **既存の設定を取得します。**Helmを使用してエージェントをインストールした場合は、クラスタからインストレーション設定を取得します：
+
+```sh
+# Find releases in the namespace
+helm list --namespace <namespace-name>
+
+# Get the values for a specific release
+helm get values <release-name> --namespace <namespace-name>
+```
+
+インストレーションから保存した元の設定ファイルがある場合は、それを直接使用します。Kubernetesマニフェスト（kubectlまたはKustomize）を介してクラスタがインストゥルメントされた場合は、各エージェントに設定されているオプションに注意してください — それらをFleet Controlのリモート設定として再作成します。
+
+2. **古いエージェントをアンインストールします。**Agent Controlをインストールする前に、クラスタから古いエージェントを削除してください。Helmインストレーションの場合：
+
+```shell
+helm uninstall <release-name> -n <namespace>
+```
+
+例えば、 `nri-bundle`をアンインストールするには、次のようにします。
+
+```shell
+helm uninstall nri-bundle -n newrelic
+```
+
+3. **Agent Controlをインストールしてください。**[Agent Controlのガイド付きインストレーション](/docs/new-relic-control/agent-control/setup/)を開始し、生成された`values.yaml`をダウンロードします。このファイルには、Agent Controlスーパーバイザーの設定（認証情報、フリートID、管理するエージェントタイプ）のみが含まれています — **ここにエージェント固有のチャート値を追加しないでください**。これらはFleet Controlのリモート設定に属します。
+
+```shell
+helm upgrade --install agent-control-bootstrap -n newrelic newrelic/agent-control-bootstrap --create-namespace --values my_values.yaml
+```
+
+4. **Fleet Controlでエージェントの設定を再作成します。**Agent ControlがFleet Controlに接続した後、以前の設定を使用して、古い各エージェントの[設定を作成](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration)します。
+
+5. 作成したばかりのリモート設定をフリートに追加して、**新しいデプロイメントを作成**します。Agent Controlは、新しい設定をクラスタに自動的に適用します。[「最初のデプロイメントの作成と実行」](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment)の手順に従ってください。
+
+6. **データが流れていることを確認します。**New RelicのUIで、**Infrastructure &gt; Kubernetes**に移動します。リモート設定が適用されてから1～2分以内にクラスタが表示されます。表示されない場合は、[Agent Controlのトラブルシューティング](/docs/new-relic-control/agent-control/troubleshooting)を参照してください。
+
+### Linux
+
+<Callout variant="important">
+  Agent Controlは、Linux上の既存エージェントの自動移行をサポートしていません。Linux ホストにNew Relic Infrastructureエージェントが既にインストールされている場合は、 Agent Controlインストールする前に手動でアンインストールする必要があります。 Agent Control 、 Fleet Controlを介して OCI 準拠のパッケージを介してエージェントを配布します。既存の`newrelic-infra`パッケージ インストレーションを置き換えたり継承したりするものではありません。
+</Callout>
+
+1. **現在の設定をメモしておいてください**
+
+アンインストールする前に、以下のコピーを保存してください：
+
+* エージェントの設定： `/etc/newrelic-infra/newrelic-infra.yml`
+* すべてのオンホストインテグレーションの設定： `/etc/newrelic-infra/integrations.d/`
+
+ステップ4で、これらをFleet Controlのリモート設定として再作成します。各設定ファイルと設定がFleet Controlの形式にどのようにマッピングされるかについては、[設定の移行](/docs/new-relic-control/agent-control/migration-guide#configuration-migration)を参照してください。
+
+2. **既存のinfrastructureエージェントのアンインストール**
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux-uninstall-debian">Debian、Ubuntu</TabsBarItem> <TabsBarItem id="linux-uninstall-suse">SLES、</TabsBarItem> <TabsBarItem id="linux-uninstall-redhat">Amazon Linux、CentOS、RHEL</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux-uninstall-debian">
+      ```bash
+      sudo apt-get remove newrelic-infra -y
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="linux-uninstall-suse">
+      ```bash
+      sudo zypper -n remove newrelic-infra
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="linux-uninstall-redhat">
+      ```bash
+      sudo yum remove newrelic-infra -y
+      ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+3. **Agent Controlをインストールしてください。**[Linuxへのインストレーションガイド](/docs/new-relic-control/agent-control/setup/)に従ってください。**Host - Linux**タイプのフリートを選択または作成してください。
+
+4. **Fleet Controlでエージェントの設定を再作成します。**Agent ControlがFleet Controlに接続した後、以前の設定を使用して、古いエージェントごとに[設定を作成](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration)します。ステップ1で保存した設定ファイルを参考にしてください。各設定がFleet Controlの形式にどのようにマッピングされるかについては、[設定の移行](/docs/new-relic-control/agent-control/migration-guide#configuration-migration)を参照してください。
+
+5. 作成したばかりのリモート設定をフリートに追加して、**新しいデプロイメントを作成**します。Agent Controlは、新しい設定をホストに自動的に適用し、各エージェントのOCIパッケージをダウンロードしてインストールします。[「最初のデプロイメントの作成と実行」](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment)の手順に従ってください。
+
+6. **データが流れていることを確認します。**New RelicのUIで、**Infrastructure &gt; Hosts**に移動します。1～2分以内にホストが表示されます。表示されない場合は、[Agent Controlのトラブルシューティング](/docs/new-relic-control/agent-control/troubleshooting)を参照してください。
+
+同じアカウントとホスト名を使用している限り、infrastructureエージェントからのデータを参照するカスタムダッシュボードとアラートは引き続き機能します。エンティティのGUIDは、エージェントの管理方法からではなく、ホスト名とアカウントから派生します。詳細な説明とロールバック手順については、[『ホスト移行ガイド』](/docs/new-relic-control/agent-control/migration-guide)を参照してください。
+
+### ウィンドウズ
+
+<Callout variant="important">
+  Agent Controlは、Windows上の既存のエージェントの自動移行をサポートしていません。WindowsホストにNew Relic infrastructureエージェントがすでにインストールされている場合は、Agent Controlをインストールする前に手動でアンインストールする必要があります。APMエージェントはAgent Controlによって管理されないため、インストールしたままにしておくことができます。
+</Callout>
+
+1. **現在の設定をメモしておいてください**
+
+アンインストールする前に、以下のコピーを保存してください：
+
+* エージェントの設定： `C:\Program Files\New Relic\newrelic-infra\newrelic-infra.yml`
+* すべてのオンホストインテグレーションの設定： `C:\Program Files\New Relic\newrelic-infra\integrations.d\`
+
+ステップ4で、これらをFleet Controlのリモート設定として再作成します。各設定ファイルと設定がFleet Controlの形式にどのようにマッピングされるかについては、[設定の移行](/docs/new-relic-control/agent-control/migration-guide#configuration-migration)を参照してください。
+
+2. **既存のinfrastructureエージェントのアンインストール**
+
+**Add or Remove Programs** \[プログラムの追加と削除]を開き、New Relic infrastructureエージェントをアンインストールします。または、PowerShellからMSIアンインストーラーを使用してください：
+
+```powershell
+# Replace {PRODUCT_CODE} with the GUID from Add/Remove Programs
+msiexec /x {PRODUCT_CODE} /quiet
+```
+
+3. **Agent Controlをインストールしてください。**[Windowsへのインストレーションガイド](/docs/new-relic-control/agent-control/setup/)に従ってください。**Host - Windows**タイプのフリートを選択または作成してください。
+
+4. **Fleet Controlでエージェントの設定を再作成します。**Agent ControlがFleet Controlに接続した後、以前の設定を使用して、古いエージェントごとに[設定を作成](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration)します。ステップ1で保存した設定ファイルを参考にしてください。各設定がFleet Controlの形式にどのようにマッピングされるかについては、[設定の移行](/docs/new-relic-control/agent-control/migration-guide#configuration-migration)を参照してください。
+
+5. 作成したばかりのリモート設定をフリートに追加して、**新しいデプロイメントを作成**します。Agent Controlは、新しい設定をホストに自動的に適用し、各エージェントのOCIパッケージをダウンロードしてインストールします。[「最初のデプロイメントの作成と実行」](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment)の手順に従ってください。
+
+6. **データが流れていることを確認します。**New RelicのUIで、**Infrastructure &gt; Hosts**に移動します。1～2分以内にホストが表示されます。表示されない場合は、[Agent Controlのトラブルシューティング](/docs/new-relic-control/agent-control/troubleshooting)を参照してください。
+
+同じアカウントとホスト名を使用している限り、infrastructureエージェントからのデータを参照するカスタムダッシュボードとアラートは引き続き機能します。エンティティのGUIDは、エージェントの管理方法からではなく、ホスト名とアカウントから派生します。詳細な説明とロールバック手順については、[『ホスト移行ガイド』](/docs/new-relic-control/agent-control/migration-guide)を参照してください。
+
+## エンティティの継続性とダッシュボード
+
+**既存のダッシュボード、アラート、およびワークロードは、変更なしで引き続き機能します。**
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="entity-host">オンホスト</TabsBarItem> <TabsBarItem id="entity-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="entity-host">
+      New RelicのエンティティGUIDは、エージェントのインストール方法やプロセスを監視しているものではなく、安定した属性（主にホスト名、CloudInstanceId、アカウントID、およびインテグレーションID）から派生します。Agent Controlが同じホスト上で同じ設定を使用してinfrastructureエージェントを起動すると、エージェントは常に報告していたものと同じ属性を報告します。New Relicはこれらの属性を以前と同じエンティティGUIDに解決するため、次のようになります。
+
+      * インフラストラクチャUIのホストエンティティは、同じエンティティです。
+      * オンホストインテグレーションのエンティティ（MySQL、NGINXなど）は、そのGUIDを保持します。
+      * それらのエンティティでクエリまたはフィルタリングを行うダッシュボードウィジェット、アラート条件、またはワークロードは、引き続き機能します。
+      * ゴールデンシグナルの履歴は保持されます。エージェントの実行に長時間の重複やギャップなしに移行が行われた場合、エンティティのメトリクスタイムラインにギャップや重複は発生しません。
+    </TabsPageItem>
+
+    <TabsPageItem id="entity-k8s">
+      KubernetesのNew RelicエンティティGUIDは、エージェントのインストールや管理方法からではなく、クラスタ名とアカウントIDから生成されます。Agent Controlが同じクラスタ名を使用して同じクラスタにinfrastructureエージェントをデプロイすると、クラスタエンティティとすべてのワークロードエンティティは以前と同じGUIDに解決されるため、次のようになります：
+
+      * Kubernetes UIのクラスタエンティティは同じエンティティです。
+      * ワークロードおよびネームスペースエンティティは、そのGUIDを保持します。
+      * それらのエンティティでクエリまたはフィルタリングを行うダッシュボードウィジェット、アラート条件、またはワークロードは、引き続き機能します。
+      * 古いエージェントのアンインストールとAgent Controlによる管理対象エージェントの起動との間のギャップが短く保たれていれば、ゴールデンシグナルの履歴は保持されます。
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 設定の移行
+
+ライセンスキー、APIキー、パスワードなどのシークレットを、Fleet Controlの設定にプレーンテキストとして保存しないでください。代わりに、`nr-env:`プレフィックスを使用して環境変数として参照してください：
+
+```yaml
+license_key: ${nr-env:NEW_RELIC_LICENSE_KEY}
+```
+
+Agent Controlは自動的に`NEW_RELIC_LICENSE_KEY`をサブエージェントに公開するため、`license_key`を明示的に設定する必要はありません；上記の例は参考として示されています。他のシークレットにも同じパターンを使用してください。完全な構文およびサポートされている他のソースについては、[変数展開のドキュメント](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/VARIABLE_INTERPOLATION.md#nr-env--environment-variables)を参照してください。
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="config-host">オンホスト</TabsBarItem> <TabsBarItem id="config-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="config-host">
+      **infrastructureエージェントのメイン設定**
+
+      infrastructureエージェントのメイン設定（`newrelic-infra.yml`）は、Fleet Controlのinfrastructureエージェントのサブエージェント設定の`content`ブロックに直接マッピングされます。`newrelic-infra.yml`で受け入れられるすべてのキーは、そこでも受け入れられます。`display_name`、`custom_attributes`、および`log`のようなフィールドはすべて変更されずに引き継がれます。
+
+      Agent Controlがinfrastructureエージェントを管理する場合、リモート設定の更新ごとに有効な設定をディスクに書き込みます。エージェントは、そのパスから読み取ります。移行後も古い`newrelic-infra.yml`設定はディスクに残りますが、使用されることはありません。
+
+      <Callout variant="tip">
+        管理対象エージェントがデータを正しく報告していることを確認するまで、`newrelic-infra.yml`または`integrations.d/`ファイルを削除しないでください。オリジナルをディスク上に保持することで、[ロールバック手順](#rollback)が可能になります。
+      </Callout>
+
+      **オンホストインテグレーション**
+
+      各インテグレーション設定も、正しいエージェントタイプを選択してFleet Controlで作成する必要があります。
+    </TabsPageItem>
+
+    <TabsPageItem id="config-k8s">
+      **エージェントタイプとHelmチャートのマッピング**
+
+      Agent Controlは、`nri-bundle` HelmチャートからのエージェントをFleet Controlの個別のエージェントタイプとして管理します。各エージェントタイプには独自のリモート設定があります：
+
+      | nri-bundleコンポーネント                                                   | Fleet Controlエージェントタイプ |
+      | ------------------------------------------------------------------- | ---------------------- |
+      | `newrelic-infrastructure`、 `nri-kube-events` 、 `kube-state-metrics` | インフラストラクチャー・エージェント     |
+      | `newrelic-prometheus-configurator`                                  | Prometheus             |
+      | `newrelic-logging`                                                  | Fluent Bit             |
+      | `nr-k8s-otel-collector`                                             | OpenTelemetry          |
+
+      **Helmの値をFleet Control設定に変換する**
+
+      `helm get values`で取得したHelmの値は、各エージェントタイプのFleet Controlリモート設定の本文になります。たとえば、infrastructureエージェントの`values.yaml`セクション：
+
+      ```yaml
+      newrelic-infrastructure:
+        customAttributes:
+          environment: production
+        resources:
+          limits:
+            memory: 300Mi
+      ```
+
+      エージェントの設定ブロックの下にそれらと同じキーを持つ、**infrastructureエージェント**タイプのFleet Controlリモート設定になります。受け入れ可能なキーについては、各エージェントのドキュメントをご覧ください。
+
+      **シークレットとライセンスキー**
+
+      Fleet Controlの設定にシークレットをプレーンテキストとして保存しないでください。ライセンスキーは、Agent Controlによってすべての管理対象サブエージェントに自動的に伝播されます。リモート設定で設定する必要はありません。その他のシークレット（APIキー、パスワード）については、`nr-env:`プレフィックスを使用した環境変数参照を使用してください。詳細については、[変数展開のドキュメント](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/VARIABLE_INTERPOLATION.md#nr-env--environment-variables)を参照してください。
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## ロールバック
+
+インストレーション後にAgent Controlが期待どおりに機能しない場合は、いつでも安全にスタンドアロンエージェントに戻ることができます。
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="rollback-linux">Linux</TabsBarItem> <TabsBarItem id="rollback-windows">Windows</TabsBarItem> <TabsBarItem id="rollback-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="rollback-linux">
+      1. Agent Controlのアンインストール：
+         ```bash
+         sudo sh /usr/lib/newrelic-agent-control/uninstall.sh
+         ```
+         スクリプトはサービスを停止し、パッケージマネージャを検出し、すべてのAgent Controlファイルをパージします。
+      2. infrastructureエージェントのパッケージが削除された場合は、再インストールしてください。移行前に削除していない限り、`newrelic-infra.yml`ファイルと`integrations.d/`ファイルはホスト上に保持されます。
+    </TabsPageItem>
+
+    <TabsPageItem id="rollback-windows">
+      1. アドミニストレーター権限でPowerShellを開き、Agent Controlをアンインストールします：
+         ```powershell
+         PowerShell.exe -ExecutionPolicy Bypass -File "C:\Program Files\New Relic\newrelic-agent-control\uninstall.ps1"
+         ```
+         スクリプトはサービスを停止し、サービスの登録を削除して、Agent Controlファイルを削除します。
+      2. 削除された場合は、MSIインストーラを使用してinfrastructureエージェントを再インストールします。移行前に削除していない限り、`newrelic-infra.yml`および`integrations.d\`ファイルはホスト上に保持されます。
+    </TabsPageItem>
+
+    <TabsPageItem id="rollback-k8s">
+      1. Agent Controlのアンインストール：
+         ```shell
+         helm uninstall agent-control-bootstrap -n newrelic
+         ```
+      2. 移行前に保存したHelm値を使用して、以前のエージェントを再インストールしてください：
+         ```shell
+         helm upgrade --install nri-bundle newrelic/nri-bundle -n newrelic --values saved-values.yaml
+         ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+**ロールバック時にもエンティティの継続性は維持されます。**エンティティのGUIDは（エージェントの管理方法からではなく）ホスト名またはクラスタ名とアカウントから派生するため、ホストまたはクラスタのエンティティ、およびすべてのインテグレーションのエンティティは、以前にレポートしていたものと同じになります。Dashboards、アラート、およびワークロードはすぐに動作を再開し、UIにギャップや重複した履歴が表示されることはありません。
