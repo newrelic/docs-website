@@ -1,5 +1,5 @@
 ---
-title: 'NRQL Macros is now generally available!'
+title: 'NRQL Macros is now generally available'
 summary: 'Save a NRQL expression as a reusable, named shortcut you can use across your queries and dashboards.'
 releaseDate: '2026-10-26'
 learnMoreLink: 'https://docs.newrelic.com/docs/nrql/nrql-macros/nrql-macros-overview'
