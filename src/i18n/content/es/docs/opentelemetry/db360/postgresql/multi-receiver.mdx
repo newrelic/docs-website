@@ -1,0 +1,279 @@
+---
+title: Configuración de múltiples receptores para PostgreSQL con NRDOT
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Self-hosted
+metaDescription: Set up a multi-receiver configuration with the NRDOT Collector
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+translationType: machine
+---
+
+Puede configurar NRDOT Collector para monitorear múltiples instancias de PostgreSQL desde un recolector. Esto es útil si tiene múltiples bases de datos PostgreSQL ejecutándose en diferentes hosts o puertos y desea recopilar métricas de todas ellas utilizando una sola instancia de NRDOT Collector.
+
+<Steps>
+  <Step>
+    ## Requisitos previos [#prerequisites]
+
+    * NRDOT está instalado y configurado para sus instancias de PostgreSQL:
+
+      * [PostgreSQL autohospedado](/docs/opentelemetry/db360/postgresql/hosted)
+      * [AWS RDS/Aurora](/docs/opentelemetry/db360/postgresql/rds)
+  </Step>
+
+  <Step>
+    ## Agregar configuración de múltiples receptores [#multi]
+
+    Seleccione el tipo de despliegue que coincida con su entorno. Puede agregar más receptores según sea necesario para instancias adicionales de PostgreSQL.
+
+    <CollapserGroup>
+      <Collapser id="self-hosted" title="PostgreSQL autohospedado">
+        El siguiente ejemplo muestra cómo configurar el Collector de NRDOT para monitorear dos instancias de PostgreSQL autohospedadas mediante una configuración de múltiples receptores. La primera instancia, `nrpostgresql/db1`, contiene la configuración completa y actúa como ancla; la segunda instancia, `nrpostgresql/db2`, hereda todos los ajustes compartidos a través de la clave de combinación de YAML y anula solo sus propios detalles de conexión.
+
+        ```yaml
+        receivers:
+          # Base PostgreSQL instance configuration (Anchor; subsequent instances inherit via merge key)
+          nrpostgresql/db1: &nrpostgresql-common
+            endpoint: "<YOUR_DB1_HOST>:<YOUR_DB1_PORT>"
+            username: "<YOUR_DB_USERNAME>"
+            password: "<YOUR_DB_PASSWORD>"
+            databases:
+              - <YOUR_DB1_NAME>
+            collection_interval: 15s
+
+            events:
+              db.server.top_query:
+                enabled: true
+              db.server.query_sample:
+                enabled: true
+              db.server.query_plan:
+                enabled: true
+
+            top_query_collection:
+              max_rows_per_query: 1000
+              top_n_query: 200
+              collection_interval: 60s
+              allowed_comment_keys: [nr_service_guid]
+
+            query_sample_collection:
+              max_rows_per_query: 1000
+              allowed_comment_keys: [nr_service_guid]
+
+            resource_attributes:
+              db.system.version:
+                enabled: true
+
+            metrics:
+              postgresql.database.locks:
+                enabled: true
+              postgresql.deadlocks:
+                enabled: true
+              postgresql.function.calls:
+                enabled: true
+              postgresql.query.conflicts:
+                enabled: true
+              postgresql.sequential_scans:
+                enabled: true
+              postgresql.temp.io:
+                enabled: true
+              postgresql.temp_files:
+                enabled: true
+
+          # Second PostgreSQL instance configuration
+          nrpostgresql/db2:
+            <<: *nrpostgresql-common
+            endpoint: "<YOUR_DB2_HOST>:<YOUR_DB2_PORT>"
+            username: "<YOUR_DB_USERNAME>"
+            password: "<YOUR_DB_PASSWORD>"
+            databases:
+              - <YOUR_DB2_NAME>
+
+        processors:
+          batch:
+          batch/metrics:
+            send_batch_size: 8192
+            send_batch_max_size: 8192
+            timeout: 10s
+
+        exporters:
+          otlp/newrelic:
+            endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+            headers:
+              api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+            compression: gzip
+            sending_queue:
+              enabled: true
+              sizer: bytes
+              queue_size: 100_000_000
+              num_consumers: 10
+              batch:
+                sizer: bytes
+                max_size: 1_000_000
+                min_size: 0
+                flush_timeout: 5s
+            retry_on_failure:
+              enabled: true
+              initial_interval: 5s
+              max_interval: 30s
+              max_elapsed_time: 300s
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+          pipelines:
+            metrics:
+              receivers: [nrpostgresql/db1, nrpostgresql/db2]
+              processors: [batch/metrics]
+              exporters: [otlp/newrelic]
+            logs:
+              receivers: [nrpostgresql/db1, nrpostgresql/db2]
+              processors: [batch]
+              exporters: [otlp/newrelic]
+        ```
+
+        La clave de combinación `<<: *nrpostgresql-common` hereda todos los ajustes de `nrpostgresql/db1`, incluidos sus eventos, los ajustes de recopilación de consultas y las anulaciones de métricas. Cualquier campo que establezca explícitamente después de esta, como `endpoint` y `databases`, anula el valor heredado para esa instancia de receptor específica.
+      </Collapser>
+
+      <Collapser id="rds" title="PostgreSQL o Aurora en AWS RDS">
+        El siguiente ejemplo muestra cómo configurar el Collector de NRDOT para monitorear dos instancias de RDS o Aurora PostgreSQL mediante una configuración de múltiples receptores. La primera instancia, `nrpostgresql/db1`, contiene la configuración completa, incluyendo `exclude_databases` para las bases de datos reservadas, y actúa como ancla; la segunda instancia, `nrpostgresql/db2`, hereda todos los ajustes compartidos a través de la clave de combinación de YAML y sobrescribe solo sus propios detalles de conexión.
+
+        ```yaml
+        receivers:
+          # Base PostgreSQL instance configuration (Anchor; subsequent instances inherit via merge key)
+          nrpostgresql/db1: &nrpostgresql-common
+            endpoint: "<YOUR_DB1_HOST>:<YOUR_DB1_PORT>"
+            username: "<YOUR_DB_USERNAME>"
+            password: "<YOUR_DB_PASSWORD>"
+            databases:
+              - <YOUR_DB1_NAME>
+            # top_query/query_sample scan pg_stat_statements/pg_stat_activity cluster-wide
+            # regardless of the databases list above; on RDS/Aurora, exclude reserved
+            # databases the monitoring user can never reach.
+            exclude_databases:
+              - rdsadmin
+            collection_interval: 15s
+
+            events:
+              db.server.top_query:
+                enabled: true
+              db.server.query_sample:
+                enabled: true
+              db.server.query_plan:
+                enabled: true
+
+            top_query_collection:
+              max_rows_per_query: 1000
+              top_n_query: 200
+              collection_interval: 60s
+              allowed_comment_keys: [nr_service_guid]
+
+            query_sample_collection:
+              max_rows_per_query: 1000
+              allowed_comment_keys: [nr_service_guid]
+
+            resource_attributes:
+              db.system.version:
+                enabled: true
+
+            metrics:
+              postgresql.database.locks:
+                enabled: true
+              postgresql.deadlocks:
+                enabled: true
+              postgresql.function.calls:
+                enabled: true
+              postgresql.query.conflicts:
+                enabled: true
+              postgresql.sequential_scans:
+                enabled: true
+              postgresql.temp.io:
+                enabled: true
+              postgresql.temp_files:
+                enabled: true
+
+          # Second PostgreSQL instance configuration
+          nrpostgresql/db2:
+            <<: *nrpostgresql-common
+            endpoint: "<YOUR_DB2_HOST>:<YOUR_DB2_PORT>"
+            username: "<YOUR_DB_USERNAME>"
+            password: "<YOUR_DB_PASSWORD>"
+            databases:
+              - <YOUR_DB2_NAME>
+
+        processors:
+          batch:
+          batch/metrics:
+            send_batch_size: 8192
+            send_batch_max_size: 8192
+            timeout: 10s
+
+        exporters:
+          otlp/newrelic:
+            endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+            headers:
+              api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+            compression: gzip
+            sending_queue:
+              enabled: true
+              sizer: bytes
+              queue_size: 100_000_000
+              num_consumers: 10
+              batch:
+                sizer: bytes
+                max_size: 1_000_000
+                min_size: 0
+                flush_timeout: 5s
+            retry_on_failure:
+              enabled: true
+              initial_interval: 5s
+              max_interval: 30s
+              max_elapsed_time: 300s
+
+        service:
+          telemetry:
+            metrics:
+              level: none
+          pipelines:
+            metrics:
+              receivers: [nrpostgresql/db1, nrpostgresql/db2]
+              processors: [batch/metrics]
+              exporters: [otlp/newrelic]
+            logs:
+              receivers: [nrpostgresql/db1, nrpostgresql/db2]
+              processors: [batch]
+              exporters: [otlp/newrelic]
+        ```
+
+        La clave de combinación `<<: *nrpostgresql-common` hereda todas las configuraciones de `nrpostgresql/db1`, incluida su lista de `exclude_databases`, eventos, configuraciones de recopilación de consultas y anulaciones de métricas. Cualquier campo que establezca explícitamente después de esta, como `endpoint` y `databases`, anula el valor heredado para esa instancia de receptor específica.
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Reiniciar NRDOT Collector [#restart]
+
+    Reinicie el servicio <DNT>NRDOT Collector</DNT> para que los cambios de configuración surtan efecto. El recolector carga los parámetros de configuración una vez al inicio y no admite la recarga en caliente. Cualquier cambio realizado en la configuración mientras el recolector está en ejecución permanece inactivo hasta que el proceso se reinicie.
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+  </Step>
+</Steps>
+
+## Documentación relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Compatibilidad y requisitos previos" path="/docs/opentelemetry/db360/postgresql/compatibility">
+    Conozca las versiones de PostgreSQL compatibles, los permisos requeridos y los requisitos de red.
+  </DocTile>
+
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/db360/postgresql/metrics-reference">
+    Obtenga información sobre las métricas disponibles recopiladas por NRDOT Collector.
+  </DocTile>
+
+  <DocTile title="Guía de solución de problemas" path="/docs/opentelemetry/db360/postgresql/troubleshooting">
+    Aprenda a solucionar problemas comunes con el monitoreo de PostgreSQL.
+  </DocTile>
+</DocTiles>
