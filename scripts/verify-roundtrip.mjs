@@ -14,6 +14,12 @@ process.env.TRANSLATION_TYPE ??= 'machine';
 
 const require = createRequire(import.meta.url);
 const mdx = require('@mdx-js/mdx');
+// the site splits code blocks that swallowed an indented closing fence back
+// apart; without it, the English baseline here doesn't match what renders
+const fencedCodeBlocks = require('../plugins/gatsby-remark-mdx-v2-fenced-code-blocks');
+
+const siteFencedCodeBlocks = () => (markdownAST) =>
+  fencedCodeBlocks({ markdownAST });
 
 const { default: serializeMDX } = await import('./actions/serialize-mdx.mjs');
 const { default: deserializeHTML } = await import(
@@ -42,7 +48,9 @@ const textOf = (node) =>
 // Inline elements that render as blocks: a `<p>` directly inside them, or
 // alone in their own paragraph next to other content in a table cell.
 const findBlockInlines = (source) => {
-  const compiler = mdx.createMdxAstCompiler({ remarkPlugins: [] });
+  const compiler = mdx.createMdxAstCompiler({
+    remarkPlugins: [siteFencedCodeBlocks],
+  });
   const found = [];
 
   const walk = (node) => {
