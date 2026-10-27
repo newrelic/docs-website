@@ -6,6 +6,7 @@ import frontmatter from 'remark-frontmatter5';
 import remarkMdx from 'remark-mdx2.3';
 import { defaultHandlers } from 'hast-util-to-mdast9';
 import { defaultHandlers as defaultStringifyHandlers } from 'mdast-util-to-markdown';
+import { mdxJsxToMarkdown } from 'mdast-util-mdx-jsx';
 import u from 'unist-builder';
 import last from 'lodash/last.js';
 import yaml from 'js-yaml';
@@ -118,6 +119,36 @@ const inlineCodeAttribute = () => (tree) => {
   });
 };
 
+// remark-mdx indents the children of block-level JSX by two spaces per level.
+// The MDX parser the site builds with misreads some of that output: an ordered
+// list nested in a component, followed by a component holding a bullet list,
+// leaves the second component unclosed (the db360 pages in #26334).
+// The English docs write children flat, so we do the same.
+const {
+  mdxJsxFlowElement: indentedJsxFlowElement,
+} = mdxJsxToMarkdown().handlers;
+const CHILDREN = '\uE000';
+
+const jsxFlowElement = (node, parent, state, info) => {
+  if (!node.children || !node.children.length) {
+    return indentedJsxFlowElement(node, parent, state, info);
+  }
+
+  // the stock handler writes the tag and attributes around a placeholder,
+  // which we swap for the children serialized without indentation
+  const shell = indentedJsxFlowElement(
+    { ...node, children: [u('paragraph', [u('text', CHILDREN)])] },
+    parent,
+    state,
+    info
+  );
+  const exit = state.enter(node.type);
+  const children = state.containerFlow(node, info);
+  exit();
+
+  return shell.replace(`  ${CHILDREN}`, () => children);
+};
+
 // previously, this processor was defined in `deserialization-helpers`.
 // upgrading unified there would have involved changing a lot of CJS modules to ESM.
 // this is a sort of workaround to avoid doing all that,
@@ -166,9 +197,13 @@ const processor = unified()
   // This prevents issues with HTML comments from translators/Smartling
   .use(stringify, {
     bullet: '*',
+    // without it, adjacent lists are kept apart with `<!---->`, which MDX
+    // can't parse
+    bulletOther: '-',
     fences: true,
     listItemIndent: '1',
     handlers: {
+      mdxJsxFlowElement: jsxFlowElement,
       // by the time this processor gets to the stringify step,
       // we've already turned the HTML into a MDX AST.
       // by default, remark-stringify (which uses `mdast-util-to-markdown` internally)
