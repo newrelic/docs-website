@@ -41,6 +41,7 @@ const defaultTrackingMetadata = {
  * @typedef SlugStatus
  * @property {boolean} ok - Boolean flag indicating whether the translated file whether file was successfully deserialized or not.
  * @property {string} slug - Complete source path of the translated file
+ * @property {string} [error] - Why it failed, when `ok` is false
  */
 
 /**
@@ -227,7 +228,7 @@ const deserializeHtmlToMdx = (locale) => {
       console.log(`Failed to deserialize: ${contentPath}`);
       console.log(ex);
 
-      return { ok: false, slug: completePath, locale };
+      return { ok: false, slug: completePath, locale, error: ex.message };
     }
   };
 };

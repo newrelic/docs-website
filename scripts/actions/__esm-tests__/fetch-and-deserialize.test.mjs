@@ -121,7 +121,12 @@ test('reports a translation that does not compile as errored without writing it'
   });
 
   expect(statuses).toEqual([
-    { ok: false, slug: 'src/content/docs/page.mdx', locale: 'es-LA' },
+    {
+      ok: false,
+      slug: 'src/content/docs/page.mdx',
+      locale: 'es-LA',
+      error: expect.stringContaining('<Callout>'),
+    },
   ]);
   expect(writes).toEqual(0);
 });
