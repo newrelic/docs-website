@@ -22,24 +22,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check for member permission
+        id: check_permission
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+          script: |
+            const actor = context.actor;
+            const org = context.repo.owner;
+            const team_slug = 'docs-eng';
+            try {
+              const response = await github.rest.teams.getMembershipForUserInOrg({
+                org,
+                team_slug,
+                username: actor,
+              });
+              if (response.data.state === 'active') {
+                console.log(`✅ ${actor} is an active member of the ${team_slug} team.`);
+              } else {
+                core.setFailed(`${actor} is not an active member of the required team.`);
+              }
+            } catch (error) {
+              if (error.status === 404) {
+                core.setFailed(`${actor} is not a member of the required team.`);
+              } else {
+                core.setFailed(`Could not verify team membership: ${error.message}`);
+              }
+            }
+
       # we use `jq` to parse the GH API response
       - name: setup jq
+        if: steps.check_permission.outcome == 'success'
         uses: dcarbone/install-jq-action@v2
 
       - name: send request to Netlify build hook
-        env: 
+        if: steps.check_permission.outcome == 'success'
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_API_URL: ${{ github.event.issue.pull_request.url || github.event.pull_request.url }}
         run: |
-          gh_api_url=$(echo ${{ github.event.issue.pull_request.url || github.event.pull_request.url }} | sed 's/https:\/\/api.github.com//')
-          gh_api_response=$(gh api $gh_api_url)
-          branch_name=$(echo $gh_api_response | jq -r .head.ref)
-          sha=$(echo $gh_api_response | jq -r .head.sha)
-          pr_number=$(echo $gh_api_response | jq -r .number)
+          gh_api_url=$(echo "$PR_API_URL" | sed 's/https:\/\/api.github.com//')
+          gh_api_response=$(gh api "$gh_api_url")
+          branch_name=$(echo "$gh_api_response" | jq -r '.head.ref | @uri')
+          sha=$(echo "$gh_api_response" | jq -r .head.sha)
+          pr_number=$(echo "$gh_api_response" | jq -r .number)
 
           curl -X POST \
           "https://api.netlify.com/build_hooks/${{ secrets.NETLIFY_BUILD_HOOK_ID }}?trigger_branch=$branch_name"'&trigger_title=Manual+deploy+preview+for+PR+%23'"$pr_number"'+-+'"$sha"
 
       - name: comment for Netlify to update with preview URL
+        if: steps.check_permission.outcome == 'success'
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
