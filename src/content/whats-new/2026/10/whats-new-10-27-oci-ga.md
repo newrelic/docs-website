@@ -1,7 +1,7 @@
 ---
 title: 'Oracle Cloud Infrastructure integration is now generally available'
 summary: 'Monitor Oracle Cloud Infrastructure (OCI) metrics and logs in New Relic alongside AWS, Azure, and Google Cloud in a single platform.'
-releaseDate: '2026-09-30'
+releaseDate: '2026-10-27'
 getStartedLink: 'https://docs.newrelic.com/docs/infrastructure/oci/introduction/'
 ---
 
