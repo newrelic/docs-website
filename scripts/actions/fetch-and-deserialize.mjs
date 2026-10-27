@@ -3,6 +3,7 @@
 import AdmZip from 'adm-zip';
 import vfile from 'vfile';
 import toVfile from 'to-vfile';
+import { createRequire } from 'module';
 import path from 'path';
 import fetch from 'node-fetch';
 
@@ -16,6 +17,8 @@ import {
 } from './utils/translation-monitoring.js';
 
 const { writeSync } = toVfile;
+// the MDX compiler the site builds with
+const { sync: compileMDX } = createRequire(import.meta.url)('@mdx-js/mdx');
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 const defaultTrackingMetadata = {
@@ -194,6 +197,9 @@ const deserializeHtmlToMdx = (locale) => {
         contentPath
       );
       const mdx = await deserializedHtml(html);
+      // a page that doesn't compile breaks the whole locale build, so leave
+      // the current translation in place and report this one as errored
+      compileMDX(mdx);
 
       const temp = vfile({
         contents: mdx,
