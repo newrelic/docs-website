@@ -100,4 +100,28 @@ test('never changes words and is idempotent', () => {
   expect(fix(once)).toEqual(once);
 });
 
+// from es/docs/accounts/.../eligibility-guidelines-new-relic-nonprofit-program.mdx
+test('keeps a DNT label that English also writes over several lines', () => {
+  const label = `<DNT>
+  **Ineligible nonprofits**
+</DNT>`;
+  const english = `Intro.\n\n${label}\n\nMore.`;
+  const input = `Introducción.\n\n${label}\n\nMás.`;
+
+  expect(fix(input, english)).toEqual(input);
+});
+
+test('still joins a DNT that English writes inline', () => {
+  const english = 'See <DNT>**Debug console**</DNT> menu.';
+  const input = `Vea el menú
+
+<DNT>
+  **Debug console**
+</DNT>
+
+.`;
+
+  expect(fix(input, english)).toEqual('Vea el menú <DNT>**Debug console**</DNT>.');
+});
+
 test.run();
