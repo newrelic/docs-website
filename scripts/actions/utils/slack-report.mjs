@@ -27,9 +27,9 @@ export const buildReport = ({
   succeeded,
   failures,
 }) => {
-  const lines = [`🌐 *${title}* — ${todayISO()}`, ''];
+  const lines = [`🌐 ${title} — ${todayISO()}`, ''];
 
-  lines.push('📊 *Overview*');
+  lines.push('📊 Overview');
   lines.push(`• Attempted: ${attempted}`);
   lines.push(`• ✅ Succeeded: ${succeeded}`);
   lines.push(
@@ -38,10 +38,10 @@ export const buildReport = ({
 
   if (failures.length > 0) {
     lines.push('');
-    lines.push(`🔍 *Failures* (${failures.length})`);
+    lines.push(`🔍 Failures (${failures.length})`);
     for (const failure of failures) {
       lines.push(
-        `• \`${failure.slug}\` (${failure.locale}) — ${truncate(failure.error)}`
+        `• ${failure.slug} (${failure.locale}) — ${truncate(failure.error)}`
       );
     }
   }
@@ -49,7 +49,7 @@ export const buildReport = ({
   const runLink = getRunLink();
   if (runLink) {
     lines.push('');
-    lines.push(`🔗 <${runLink}|View full run>`);
+    lines.push(`🔗 View full run: ${runLink}`);
   }
 
   return lines.join('\n');

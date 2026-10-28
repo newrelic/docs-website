@@ -17,10 +17,10 @@ test('lists each failed file with its locale and reason', () => {
     ],
   });
 
-  expect(report).toContain('*Translations received (machine)*');
+  expect(report).toContain('🌐 Translations received (machine) — ');
   expect(report).toContain('• ❌ Failed: 1');
   expect(report).toContain(
-    '• `src/content/docs/page.mdx` (ja-JP) — Unexpected end of file in element <Callout>'
+    '• src/content/docs/page.mdx (ja-JP) — Unexpected end of file in element <Callout>'
   );
   expect(report).not.toContain('at line 3');
 });
@@ -28,7 +28,7 @@ test('lists each failed file with its locale and reason', () => {
 test('keeps the default title for the send report', () => {
   const report = buildReport({ attempted: 0, succeeded: 0, failures: [] });
 
-  expect(report).toContain('*Translation Pipeline Report*');
+  expect(report).toContain('🌐 Translation Pipeline Report — ');
   expect(report).toContain('• ✅ Failed: 0');
 });
 

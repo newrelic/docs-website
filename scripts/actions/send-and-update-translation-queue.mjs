@@ -254,7 +254,7 @@ const main = async () => {
     if (Object.keys(translationsPerLocale).length === 0) {
       console.log('No ready to go translations. Exiting early.');
       await postToSlack(
-        `🌐 *Translation Pipeline Report* — ${todayISO()}\nNo translations pending today.`
+        `🌐 Translation Pipeline Report — ${todayISO()}\nNo translations pending today.`
       );
       process.exit(0);
     }
@@ -299,10 +299,10 @@ const main = async () => {
     const runLink = getRunLink();
     await postToSlack(
       [
-        `🚨 *Translation Pipeline Report* — ${todayISO()}`,
+        `🚨 Translation Pipeline Report — ${todayISO()}`,
         'The workflow crashed before completing.',
         `Error: ${truncate(error.message || String(error))}`,
-        runLink ? `🔗 <${runLink}|View full run>` : null,
+        runLink ? `🔗 View full run: ${runLink}` : null,
       ]
         .filter(Boolean)
         .join('\n')
