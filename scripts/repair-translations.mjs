@@ -146,7 +146,19 @@ const joinParas = (a, b, listItem) => {
   return [...a.slice(0, -1), `${x}${kept || !glued ? ' ' : ''}${y}`, ...b.slice(1)];
 };
 
-const collapseInline = (text, counts) => {
+const squash = (s) => s.replace(/\s+/g, ' ').trim();
+
+// <DNT> text is never translated, so a multi-line <DNT> whose text the English
+// page also writes over several lines is a deliberate label, not damage. The
+// pipeline writes it the same way, so collapsing it would only churn.
+const englishBlockDNTs = (englishText) =>
+  new Set(
+    [...englishText.matchAll(COLLAPSE)]
+      .filter(([, tag]) => tag === 'DNT')
+      .map(([, , , body]) => squash(body))
+  );
+
+const collapseInline = (text, counts, keep = new Set()) => {
   let prev;
   let cur = text;
   do {
@@ -154,6 +166,7 @@ const collapseInline = (text, counts) => {
     cur = cur.replace(COLLAPSE, (m, tag, attrs, body) => {
       const lines = body.trimEnd().split('\n').map((l) => l.trim());
       if (!isPhrasing(lines)) return m;
+      if (tag === 'DNT' && keep.has(squash(body))) return m;
       counts['inline-collapse'] += 1;
       return `<${tag}${attrs}>${lines.join('\n')}</${tag}>`;
     });
@@ -251,12 +264,13 @@ const comparable = (s) =>
 export const repair = (text, englishText = '') => {
   const counts = emptyCounts();
   const english = englishLones(englishText);
+  const keep = englishBlockDNTs(englishText);
   const out = mapProse(text, (prose) => {
     const fixed = prose
       .split('\n')
       .map((l) => fixExpressions(fixHeading(l, counts), counts))
       .join('\n');
-    return mergeInline(mergeInline(collapseInline(fixed, counts), counts, english), counts, english);
+    return mergeInline(mergeInline(collapseInline(fixed, counts, keep), counts, english), counts, english);
   });
   if (!process.env.NOCHECK && out !== text && comparable(out) !== comparable(text)) {
     return { text, counts: emptyCounts(), rejected: true };
