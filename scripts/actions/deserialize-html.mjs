@@ -52,17 +52,10 @@ const headingWithCustomId = (state, node) => {
     return result;
   }
 
-  const value = `#${id}`;
+  // raw `html` so it is written as-is: a `linkReference` gets its label
+  // escaped, turning `[#a_b]` into `[#a\_b][#a_b]`.
+  const customId = u('html', `[#${id}]`);
   const lastChild = last(result.children);
-  const linkReference = u(
-    'linkReference',
-    {
-      identifier: value,
-      label: value,
-      referenceType: 'shortcut',
-    },
-    [u('text', value)]
-  );
 
   if (lastChild.type === 'text' && !lastChild.value.match(/\s$/)) {
     lastChild.value = `${lastChild.value} `;
@@ -70,7 +63,7 @@ const headingWithCustomId = (state, node) => {
     result.children.push(u('text', ' '));
   }
 
-  result.children.push(linkReference);
+  result.children.push(customId);
 
   return result;
 };
