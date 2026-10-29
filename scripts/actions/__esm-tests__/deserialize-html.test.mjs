@@ -404,6 +404,21 @@ test('separates adjacent lists without an HTML comment', async () => {
   expect(() => compileMDX(output)).not.toThrow();
 });
 
+test('separates adjacent ordered lists with an MDX comment', async () => {
+  const input = `
+1. one
+2. two
+
+1) three
+2) four
+  `;
+
+  const output = await deserializeHTML(await serializeMDX(input));
+
+  expect(output).toEqual('1. one\n2. two\n\n{/* */}\n\n1. three\n2. four');
+  expect(() => compileMDX(output)).not.toThrow();
+});
+
 // from nrql/nrql-syntax-clauses-functions.mdx and kafka-integration.mdx, see #26334
 test('round-trips expressions in JSX attributes with single braces', async () => {
   const input = `

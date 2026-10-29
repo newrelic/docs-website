@@ -244,8 +244,14 @@ const processor = unified()
 
 const deserializeHTML = async (html) => {
   const vfile = await processor.process(html);
-  
-  return vfile.toString().trim();
+
+  // remark-stringify still separates adjacent ordered lists with `<!---->`
+  // (there's no ordered-list marker the site's parser accepts as an
+  // alternative to `1.`), and MDX can't parse HTML comments
+  return vfile
+    .toString()
+    .trim()
+    .replace(/^([ \t]*)<!---->$/gm, '$1{/* */}');
 };
 
 export default deserializeHTML;
