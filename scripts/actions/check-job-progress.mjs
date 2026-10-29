@@ -14,6 +14,7 @@ import {
 import { vendorRequest } from './utils/vendor-request.mjs';
 import { fetchAndDeserializeFiles } from './fetch-and-deserialize.mjs';
 import { configuration } from './configuration.js';
+import { buildReport, postToSlack } from './utils/slack-report.mjs';
 import {
   trackTranslationError,
   trackTranslationEvent,
@@ -353,6 +354,18 @@ const main = async () => {
 
     core.setOutput('successfulTranslations', results.totalSuccesses);
     core.setOutput('failedTranslations', results.totalFailures);
+
+    // failures include translations the compile check kept out of the PR
+    if (slugStatuses.length > 0) {
+      await postToSlack(
+        buildReport({
+          title: `Translations received (${configuration.TRANSLATION.TYPE})`,
+          attempted: slugStatuses.length,
+          succeeded: results.totalSuccesses,
+          failures: erroredStatuses,
+        })
+      );
+    }
 
     await trackTranslationEvent({
       ...defaultTrackingMetadata,
