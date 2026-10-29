@@ -122,7 +122,15 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
           }
         `}
       >
-        {introBody && <MDXContainer body={introBody} />}
+        {introBody && (
+          <div
+            css={css`
+              margin-bottom: 2rem;
+            `}
+          >
+            <MDXContainer body={introBody} />
+          </div>
+        )}
         <Timeline>
           {sortedPosts.map((post, idx) => {
             const isLast = idx === sortedPosts.length - 1;
