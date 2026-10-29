@@ -1,11 +1,15 @@
 import esmock from 'esmock';
 import fs from 'fs';
+import { createRequire } from 'module';
 import path, { dirname } from 'path';
 import { expect } from 'expect';
 import { fileURLToPath } from 'url';
 import { test } from 'uvu';
 
 import serializeMDX from '../serialize-mdx.mjs';
+
+// the MDX compiler the site builds with
+const { sync: compileMDX } = createRequire(import.meta.url)('@mdx-js/mdx');
 
 const deserializeHTML = await esmock('../deserialize-html.mjs', {
   '../configuration.js': {
@@ -22,9 +26,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 test('deserializes mdx with DNT', async () => {
   const input = `
 <DNT>
-  # Not all who wander are lost...
+# Not all who wander are lost...
 
-  but some probably are...
+but some probably are...
 </DNT>
   `;
 
@@ -36,9 +40,9 @@ test('deserializes mdx with DNT', async () => {
 test('serializes DNT wrapping a Collapser', async () => {
   const input = `
 <DNT>
-  <Collapser title="Collapse me yo">
-    These tests are hard to write docs for
-  </Collapser>
+<Collapser title="Collapse me yo">
+These tests are hard to write docs for
+</Collapser>
 </DNT>
   `;
 
@@ -76,7 +80,7 @@ This is an MDX doc
 test('deserializes simple components', async () => {
   const input = `
 <Button to="/docs/agents/ruby-sdk">
-  Go to Ruby docs
+Go to Ruby docs
 </Button>
   `;
 
@@ -88,7 +92,7 @@ test('deserializes simple components', async () => {
 test('deserializes components with text props', async () => {
   const input = `
 <Callout title="Life tip #3">
-  There are 10 types of people in this world. Those that understand binary and those that don&apos;t.
+There are 10 types of people in this world. Those that understand binary and those that don&apos;t.
 </Callout>
   `;
 
@@ -109,7 +113,7 @@ test('deserializes components with text props as JSX expressions', async () => {
   </>
   }
 >
-  All about that API
+All about that API
 </Collapser>
   `;
 
@@ -121,18 +125,18 @@ test('deserializes components with text props as JSX expressions', async () => {
 test('deserializes components with children', async () => {
   const input = `
 <CollapserGroup>
-  <Collapser
-    title={<>
-      <InlineCode>
-        agent.send_custom_event
-      </InlineCode>
+<Collapser
+  title={<>
+    <InlineCode>
+      agent.send_custom_event
+    </InlineCode>
 
-      API
-    </>
-    }
-  >
-    All about that API
-  </Collapser>
+    API
+  </>
+  }
+>
+All about that API
+</Collapser>
 </CollapserGroup>
   `;
 
@@ -144,7 +148,7 @@ test('deserializes components with children', async () => {
 test('deserializes InlineCode components', async () => {
   const input = `
 <InlineCode>
-  agent.send_custom_event
+agent.send_custom_event
 </InlineCode>
   `;
 
@@ -156,7 +160,7 @@ test('deserializes InlineCode components', async () => {
 test('deserializes Side components', async () => {
   const input = `
 <Side>
-  This is one side for the SideBySide component
+This is one side for the SideBySide component
 </Side>
   `;
 
@@ -168,13 +172,13 @@ test('deserializes Side components', async () => {
 test('deserializes SideBySide components', async () => {
   const input = `
 <SideBySide>
-  <Side>
-    This will be displayed on the left hand-side
-  </Side>
+<Side>
+This will be displayed on the left hand-side
+</Side>
 
-  <Side>
-    This will be displayed on the right hand-side
-  </Side>
+<Side>
+This will be displayed on the right hand-side
+</Side>
 </SideBySide>
   `;
 
@@ -187,7 +191,7 @@ test('deserializes SideBySide components', async () => {
 test('deserializes TechTileGrid components', async () => {
   const input = `
 <TechTileGrid>
-  <TechTile name="iOS" icon="logo-apple" to="/agents/ios-agent" />
+<TechTile name="iOS" icon="logo-apple" to="/agents/ios-agent" />
 </TechTileGrid>
   `;
 
@@ -240,27 +244,27 @@ test('deserialize html with backticks as <code>', async () => {
 test('deserializes Tabs Component', async () => {
   const input = `
 <Tabs>
-  <TabsBar>
-    <TabsBarItem id="grails-run-app">
-      Pass with run-app
-    </TabsBarItem>
+<TabsBar>
+<TabsBarItem id="grails-run-app">
+Pass with run-app
+</TabsBarItem>
 
-    <TabsBarItem id="grails-run-war">
-      Pass with run-war
-    </TabsBarItem>
-  </TabsBar>
+<TabsBarItem id="grails-run-war">
+Pass with run-war
+</TabsBarItem>
+</TabsBar>
 
-  <TabsPages>
-    <TabsPageItem id="grails-run-app">
-      1. Begin with an unzipped version of Grails.
-      2. Run this command:
-    </TabsPageItem>
+<TabsPages>
+<TabsPageItem id="grails-run-app">
+1. Begin with an unzipped version of Grails.
+2. Run this command:
+</TabsPageItem>
 
-    <TabsPageItem id="grails-run-war">
-      1. In your Grails app, open this file with your text editor:
-      2. Add or edit the JVM arguments line:
-    </TabsPageItem>
-  </TabsPages>
+<TabsPageItem id="grails-run-war">
+1. In your Grails app, open this file with your text editor:
+2. Add or edit the JVM arguments line:
+</TabsPageItem>
+</TabsPages>
 </Tabs>
   `;
 
@@ -295,6 +299,141 @@ test('deserializes headers as a span element', async () => {
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
+});
+
+// from vulnerability-management/agent/overview.mdx, see #26073
+test('keeps inline elements inline in a single-line table cell', async () => {
+  const input = `
+<table>
+  <thead>
+    <tr>
+      <th>Trigger</th>
+      <th>How it works</th>
+      <th>Use this for</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><DNT>**Comment (trigger phrase)**</DNT></td>
+      <td>The Security RX Agent posts a comment containing a trigger phrase you configure (for example, <code>@claude fix</code>). Your agent watches for that phrase and starts working.</td>
+      <td>Claude, and custom agents that respond to a comment phrase.</td>
+    </tr>
+  </tbody>
+</table>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toContain(
+    'a trigger phrase you configure (for example, <code>@claude fix</code>). Your agent watches for that phrase and starts working.'
+  );
+});
+
+// from opentelemetry/integrations/haproxy/metrics-reference.mdx, see #24918
+test('round-trips MDX expressions verbatim', async () => {
+  const input = `
+<table>
+  <tr>
+    <td>\`haproxy.connections.errors\`</td>
+    <td>Total number of connection errors (backend and server only)</td>
+    <td>Sum (cumulative)</td>
+    <td>{'{errors}'}</td>
+  </tr>
+</table>
+
+Inline {'{requests}'} too.
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toContain(`<td>\n{'{errors}'}\n</td>`);
+  expect(mdx).toContain(`Inline {'{requests}'} too.`);
+});
+
+test('round-trips custom heading ids that contain underscores', async () => {
+  const input = '## Review goals [#review_goals]';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
+test('keeps heading text after inline code when a custom id is present', async () => {
+  const input = '## Use the `pkg` package [#use-pkg]';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
+// from opentelemetry/db360/mysql/hosted.mdx and 15 sibling pages, see #26334
+test('keeps a Callout with a list closed after a list inside a component', async () => {
+  const input = `
+<Steps>
+<Step>
+
+1. Validate the configuration:
+
+  \`\`\`bash
+  sudo nrdot-collector validate
+  \`\`\`
+
+<Callout variant="tip">
+  You can also:
+  * Configure multiple receivers
+  * Link your database with APM
+</Callout>
+
+</Step>
+</Steps>
+  `;
+
+  const output = await deserializeHTML(await serializeMDX(input));
+
+  expect(() => compileMDX(output)).not.toThrow();
+});
+
+// from release-notes/docs-release-notes/docs-4-11-2025.mdx, see #26334
+test('separates adjacent lists without an HTML comment', async () => {
+  const input = `
+* NRAI Fixes:
+- Enhanced the Ask AI feature with dynamic prompts.
+  `;
+
+  const output = await deserializeHTML(await serializeMDX(input));
+
+  expect(output).not.toContain('<!---->');
+  expect(() => compileMDX(output)).not.toThrow();
+});
+
+test('separates adjacent ordered lists with an MDX comment', async () => {
+  const input = `
+1. one
+2. two
+
+1) three
+2) four
+  `;
+
+  const output = await deserializeHTML(await serializeMDX(input));
+
+  expect(output).toEqual('1. one\n2. two\n\n{/* */}\n\n1. three\n2. four');
+  expect(() => compileMDX(output)).not.toThrow();
+});
+
+// from nrql/nrql-syntax-clauses-functions.mdx and kafka-integration.mdx, see #26334
+test('round-trips expressions in JSX attributes with single braces', async () => {
+  const input = `
+<Collapser
+  id="func-cardinality"
+  title={<InlineCode>cardinality(include:{\`{attribute_list}\`})</InlineCode>
+  }
+>
+body
+</Collapser>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
 });
 
 test.run();
