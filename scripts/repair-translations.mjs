@@ -8,6 +8,12 @@
 //   expression       `\{&apos;&lt;&apos;}` -> `{'<'}`
 //   fragment-expr    `\{&lt;&gt;...&lt;/&gt;}` -> `{<>...</>}`
 //
+// Only run it on translations written by the old pipeline (before #26365).
+// inline-merge can't tell a translated paragraph that is just a link or bold
+// text from an inline element split out of its sentence, so on newer
+// translations it may join a real paragraph onto its neighbour. Review the
+// merges in the diff.
+//
 // Dry-run by default.
 //   node scripts/repair-translations.mjs [--write] [--locale es,fr] [file ...]
 //   LIST=1 prints the changed files.
