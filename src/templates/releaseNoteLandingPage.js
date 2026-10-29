@@ -17,6 +17,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
     allMdx: { nodes: posts },
     mdx: {
       frontmatter: { subject },
+      body: introBody,
     },
   } = data;
 
@@ -121,6 +122,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
           }
         `}
       >
+        {introBody && <MDXContainer body={introBody} />}
         <Timeline>
           {sortedPosts.map((post, idx) => {
             const isLast = idx === sortedPosts.length - 1;
@@ -265,6 +267,7 @@ export const pageQuery = graphql`
       frontmatter {
         subject
       }
+      body
     }
     totalReleaseNotesPerAgent: allMdx(
       filter: {
