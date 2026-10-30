@@ -209,10 +209,28 @@ const aggregateStatuses = (slugStatuses) => {
  * @returns {Promise<void>}
  */
 const updateTranslationRecords = async (project_id, slugStatuses) => {
+  // match each file to a record of the job it was downloaded for. Matching on
+  // slug and locale alone let one job's download complete (and so delete)
+  // another job's record of the same page, leaving that job unable to finish.
+  const translationIds = {};
+  const translationIdsOf = (job_id) => {
+    translationIds[job_id] ??= (async () =>
+      (await getTranslationsJobsRecords({ job_id })).map(
+        (record) => record.translation_id
+      ))();
+    return translationIds[job_id];
+  };
+
   await Promise.all(
-    slugStatuses.map(async ({ locale, slug }) => {
+    slugStatuses.map(async ({ locale, slug, jobId }) => {
       const records = await updateTranslations(
-        { slug, status: StatusEnum.IN_PROGRESS, locale, project_id },
+        {
+          id: await translationIdsOf(jobId),
+          slug,
+          status: StatusEnum.IN_PROGRESS,
+          locale,
+          project_id,
+        },
         { status: StatusEnum.COMPLETED }
       );
 
@@ -241,9 +259,14 @@ const updateJobRecords = async (jobStatuses) => {
         job_id,
       });
 
-      if (successes + failures === records.length) {
+      // a job with no records left has nothing to track. Before
+      // updateTranslationRecords matched on the job, other jobs' downloads
+      // could complete all of them, and the job was downloaded again every day.
+      if (!records.length || successes + failures === records.length) {
         const updateStatus =
-          failures > 0 ? StatusEnum.ERRORED : StatusEnum.COMPLETED;
+          records.length && failures > 0
+            ? StatusEnum.ERRORED
+            : StatusEnum.COMPLETED;
 
         await updateJob(job_id, { status: updateStatus });
 
