@@ -16,8 +16,7 @@ This script automatically converts your dSYM to the New Relic map file format an
 
 ## Automatic script [#Automatic]
 
-A Swift script is included with the iOS agent that is intended to be run from a build script in your target's build phases in Xcode.
-The script automatically uploads dSYM files in the background (or converts your dSYM to the New Relic map file format), and then performs a background upload of the files needed for crash symbolication to New Relic.
+The iOS agent includes `run-symbol-tool`, a shell script that you run from a Run Script build phase in Xcode. After each build, it runs `run-symbol-tool.swift` in the background, which converts your dSYM files to the New Relic map file format and uploads them to New Relic.
 
 In Xcode 14 Apple changed the default setting on newly created projects to disable bitcode. The App Store now only accepts app submissions with bitcode turned off. See [Xcode 14 release notes](https://developer.apple.com/documentation/xcode-release-notes/xcode-14-release-notes).
 If your project still has bitcode enabled you must disable it. The automatic script requires bitcode to be disabled.
@@ -26,12 +25,184 @@ Apple generates dSYM files for Bitcode-enabled apps. You must [download the dSYM
 
 If you see unreadable machine code in the [<DNT>**Crashes**</DNT> page](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/mobile-apps-crashes-dashboard), your dSYM files may not be uploaded correctly. In some cases, you may need to [manually upload dSYM files](#manual-dsym).
 
-In New Relic iOS agent version 7.4.0 we introduced a new symbol upload script which uses Swift. The Python version of the symbol upload script is still available but will be removed in a future release.
-With the New Relic iOS agent version 7.3.8, the python version of the automatic script uses Python 3. If you use macOS 12.3 [macOS 12.3 (Monterey)](https://developer.apple.com/documentation/macos-release-notes/macos-12_3-release-notes), Python 3 will be installed by default with Xcode. But if you use the python automatic script on macOS 12.2 or before, you may need to manually install [Python 3](https://www.python.org/downloads/mac-osx/).
+<Callout variant="important">
+  The Python upload scripts (`generateMap.py`, `generateMapPython2.py`, and `newrelic_postbuild.sh`) were removed in iOS agent version 7.4.8. If your Run Script build phase still calls `newrelic_postbuild.sh`, replace it with the `run-symbol-tool` script below.
+</Callout>
+
+### Add the Run Script build phase [#run-script]
+
+1. In Xcode, select your project in the navigator, then select your app target.
+2. Select the <DNT>**Build Phases**</DNT> tab.
+3. Click <DNT>**+**</DNT> and choose <DNT>**New Run Script Phase**</DNT>.
+4. Add the following lines to the new phase. Replace `APP_TOKEN` with your application token from New Relic.
+
+   ```shell
+   ARTIFACT_DIR="${BUILD_DIR%Build/*}"
+   SCRIPT=`/usr/bin/find "${SRCROOT}" "${ARTIFACT_DIR}" -type f -name run-symbol-tool | head -n 1`
+   /bin/sh "${SCRIPT}" "APP_TOKEN"
+   ```
+
+In Xcode 15.3 or higher, set <DNT>**User Script Sandboxing**</DNT> to <DNT>**No**</DNT> so the script can read your dSYM files and write its log. See [Automatic dSYM upload failures](/docs/mobile-monitoring/new-relic-mobile-ios/troubleshoot/dSYM-upload-tools).
+
+### Optional arguments [#arguments]
+
+Add optional arguments after the app token, in any order:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Argument
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `--debug`
+      </td>
+
+      <td>
+        Writes additional detail to `upload_dsym_results.log`, such as the dSYM paths, the upload URL, and the upload commands. The debug output includes your application token.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-appVersion <version>`
+      </td>
+
+      <td>
+        Sets the app version that's reported with the uploaded symbols. `--appVersion` and `--app-version` are also accepted. Requires iOS agent version 7.7.5 or higher. See [App version](#app-version).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+For example:
+
+```shell
+ARTIFACT_DIR="${BUILD_DIR%Build/*}"
+SCRIPT=`/usr/bin/find "${SRCROOT}" "${ARTIFACT_DIR}" -type f -name run-symbol-tool | head -n 1`
+/bin/sh "${SCRIPT}" "APP_TOKEN" -appVersion "1.4.2" --debug
+```
+
+### App version [#app-version]
+
+Uploaded symbols are matched to your builds by app version. The script uses the first non-empty value from this list:
+
+1. The `-appVersion` argument
+2. The `NEWRELIC_APP_VERSION` environment variable
+3. The `MARKETING_VERSION` build setting
+4. The placeholder `1.2.3`. The script logs a warning in `upload_dsym_results.log` when it uses the placeholder.
+
+Some projects don't set `MARKETING_VERSION`, such as apps versioned with `agvtool` or multi-target apps that use `GENERATE_INFOPLIST_FILE = YES`. For these projects, pass `-appVersion` or set `NEWRELIC_APP_VERSION` so your symbols match your builds.
+
+### Environment variables [#environment-variables]
+
+You don't need to set these variables for a standard upload. To set one, add an `export` line above the script in the same Run Script phase:
+
+```shell
+export NEWRELIC_APP_VERSION="1.4.2"
+ARTIFACT_DIR="${BUILD_DIR%Build/*}"
+SCRIPT=`/usr/bin/find "${SRCROOT}" "${ARTIFACT_DIR}" -type f -name run-symbol-tool | head -n 1`
+/bin/sh "${SCRIPT}" "APP_TOKEN"
+```
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Variable
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `NEWRELIC_APP_VERSION`
+      </td>
+
+      <td>
+        App version reported with the uploaded symbols. Requires iOS agent version 7.7.5 or higher. See [App version](#app-version).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `DSYM_UPLOAD_URL`
+      </td>
+
+      <td>
+        Upload host. Default: `https://mobile-symbol-upload.newrelic.com`. This variable is ignored when your application token has a region prefix, such as EU or JP tokens. Those tokens always use their regional host.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEWRELIC_SYMBOL_ENDPOINT`
+      </td>
+
+      <td>
+        Path for map file uploads. Default: `map`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEWRELIC_DSYM_ENDPOINT`
+      </td>
+
+      <td>
+        Path for dSYM uploads. Default: `symbol`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEWRELIC_SYMBOL_POST_KEY`
+      </td>
+
+      <td>
+        Form field name for map file uploads. Default: `upload`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEWRELIC_DSYM_POST_KEY`
+      </td>
+
+      <td>
+        Form field name for dSYM uploads. Default: `dsym`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### How the script works [#how-it-works]
+
+* The upload runs in the background, so your build doesn't wait for it to finish. Results are written to [`upload_dsym_results.log`](#auto-upload-fail-troubleshooting).
+* iOS simulator builds (`EFFECTIVE_PLATFORM_NAME` is `-iphonesimulator`) are skipped.
+* Bitcode-enabled builds (`ENABLE_BITCODE = YES`) exit without uploading and without failing the build.
+* The script converts each dSYM in `DWARF_DSYM_FOLDER_PATH` to a map file, zips the map files, and uploads the zip to the `/map` endpoint.
+* If a dSYM can't be converted, the script zips that dSYM and uploads it to the `/symbol` endpoint instead. If the map upload itself fails, the script logs the HTTP status code and doesn't fall back to a dSYM upload. In that case, [upload the dSYM manually](#manual-dsym).
+* In iOS agent version 7.7.2 and higher, if a zipped map file is larger than 200 MB, the script doesn't upload it. It sends only the file size and app version to New Relic. Crashes from that build aren't symbolicated unless you [upload its dSYM manually](#manual-dsym).
+* The script chooses the upload region (US, EU, or JP) from your application token. These are the same hosts used in the [manual upload commands](#manual-dsym).
 
 ## Identify missing dSYMs [#IdentifyingMissingdSYMs]
 
-When a Bitcode-enabled app is uploaded to Apple for App Store review or ad-hoc distribution, dSYMs need to be manually downloaded from Apple and uploaded to New Relic to allow the [mobile crash reports](/docs/mobile-monitoring/new-relic-mobile/getting-started/ios-agent-crash-reporting) to be properly symbolicated. These dSYMs can be downloaded through the archives organizer in Xcode within several minutes of uploading the app. In this situation follow the procedures to [find the archive and download dSYMs](#Archive).
+When a Bitcode-enabled app is uploaded to Apple for App Store review or ad-hoc distribution, dSYMs need to be manually downloaded from Apple and uploaded to New Relic to allow the [mobile crash reports](/docs/mobile-monitoring/new-relic-mobile/getting-started/ios-agent-crash-reporting) to be properly symbolicated. These dSYMs can be downloaded through the archives organizer in Xcode within several minutes of uploading the app. In this situation follow the procedures to [find the archive and download dSYMs](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/retrieve-dsyms-bitcode-apps#Archive).
 
 If an app is missing a dSYM file, you'll see three indicators in the mobile monitoring UI:
 
@@ -46,7 +217,7 @@ We were unable to locate your dsym.
 
 ## Upload dSYM files through the mobile monitoring UI [#mobile-ui]
 
-You can easily upload your dSYM files directly from the New Relic UI. The maximum file size is 600 MB. To upload your dSYM files:
+You can easily upload your dSYM files directly from the New Relic UI. For size limits, see [Limitations](#limitations). To upload your dSYM files:
 
 1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile**</DNT>. Then select your app from the list.
 2. View <DNT>**Crashes**</DNT>.
@@ -59,22 +230,32 @@ You can easily upload your dSYM files directly from the New Relic UI. The maximu
 
 ## Manually upload dSYM files [#manual-dsym]
 
-In some circumstances, New Relic's automatic upload of dSYM files may fail. If the dSYM upload fails, it creates an `upload_dsym_results` file. For example, if there's a network failure and the dSYM upload isn't completed, `upload_dsym_results` will contain a log of what went wrong. For additional information about how New Relic handles dSYM uploads, see [New Relic's Online Technical Community](https://support.newrelic.com/s/hubtopic/aAX8W0000008Yv9/relic-solution-ios-dsym-upload-deepdive).
+In some circumstances, New Relic's automatic upload of dSYM files may fail. For example, if there's a network failure and the upload isn't completed, [`upload_dsym_results.log`](#auto-upload-fail-troubleshooting) records what went wrong. For additional information about how New Relic handles dSYM uploads, see [New Relic's Online Technical Community](https://support.newrelic.com/s/hubtopic/aAX8W0000008Yv9/relic-solution-ios-dsym-upload-deepdive).
 
-If the automatic upload fails, you can manually upload your dSYM file. If you have multiple dSYM files, they can be within a single zip with a maximum file size of 600 MB. The `YOUR_NEW_RELIC_APPLICATION_TOKEN` value in the commands below is the same key used for `+[NewRelic startWithApplicationToken:]` (in Objective-C) or `NewRelic.start(withApplicationToken:)` (in Swift).
+If the automatic upload fails, you can manually upload your dSYM file. If you have multiple dSYM files, they can be within a single zip. For size limits, see [Limitations](#limitations). The `YOUR_NEW_RELIC_APPLICATION_TOKEN` value in the commands below is the same key used for `+[NewRelic startWithApplicationToken:]` (in Objective-C) or `NewRelic.start(withApplicationToken:)` (in Swift).
+
+In the commands below, use full paths or `$HOME`. The shell doesn't expand `~` inside quotes.
 
 To manually upload your dSYM files:
 
 <CollapserGroup>
   <Collapser
-    id="python-manual-upload"
-    title="Via Python script (agent versions 6.0.0 or higher)"
+    id="swift-manual-upload"
+    title="Via Swift script"
   >
-    In iOS agent versions 6.0.0 or higher, the agent includes a Python script that automatically processes and uploads symbols. You can call this script from the command line:
+    You can run `run-symbol-tool.swift` from the command line. It converts the dSYM files in a folder, such as the `dSYMs` folder of an Xcode archive, and uploads them the same way as the [automatic script](#how-it-works). The script is in the same folder as `run-symbol-tool` (for example, `NewRelic.xcframework/Resources`).
 
     ```shell
-    NewRelicAgent.framework/Resources/generateMap.py "DSYM_ARCHIVE_PATH" "YOUR_NEW_RELIC_APPLICATION_TOKEN"
+    DWARF_DSYM_FOLDER_PATH="DSYM_FOLDER_PATH" /usr/bin/xcrun --sdk macosx swift "SCRIPT_PATH/run-symbol-tool.swift" "YOUR_NEW_RELIC_APPLICATION_TOKEN" -appVersion "APP_VERSION"
     ```
+
+    Replace:
+
+    * `DSYM_FOLDER_PATH` with the full path to the folder that contains your `.dSYM` files (for example, `$HOME/Library/Developer/Xcode/Archives/2026-10-22/MyApp.xcarchive/dSYMs`).
+    * `SCRIPT_PATH` with the full path to the folder that contains `run-symbol-tool.swift`.
+    * `APP_VERSION` with the version of the build. `MARKETING_VERSION` isn't set outside of Xcode, so pass the version explicitly. For agent versions 7.4.12 to 7.7.4, set `MARKETING_VERSION="APP_VERSION"` before the command instead of passing `-appVersion`.
+
+    The script prints its output to the terminal.
   </Collapser>
 
   <Collapser
@@ -83,34 +264,36 @@ To manually upload your dSYM files:
   >
     To manually upload individual dSYM files from the command line:
 
-    1. Zip up your dSYM file or files using the following command. Replace `~/ZIPPED_DSYM_PATH` with your new dSYM archive path and file name (for example, `Users/my-name/desktop`). Also replace `~/dSYM_PATH` with your existing dSYM file path.
+    1. Zip up your dSYM file or files using the following command. Replace `ZIPPED_DSYM_PATH` with the full path and file name for the new zip file (for example, `/Users/my-name/Desktop/dSYMs.zip`). Also replace `DSYM_PATH` with the full path to your existing dSYM file.
 
        ```shell
-       /usr/bin/zip --recurse-paths --quiet "~/ZIPPED_DSYM_PATH" "~/dSYM_PATH"
+       /usr/bin/zip --recurse-paths --quiet "ZIPPED_DSYM_PATH" "DSYM_PATH"
        ```
-    2. Upload the dSYM zip file using the following command:
+    2. Upload the dSYM zip file using the following command. Replace `ZIPPED_DSYM_PATH` with the zip file path from the previous step.
 
        * For <DNT>**US accounts (default)**</DNT>:
 
          ```shell
-         curl -F dsym=@"~/DSYM_ZIP_PATH" -H "X-APP-LICENSE-KEY: YOUR_NEW_RELIC_APPLICATION_TOKEN" https://mobile-symbol-upload.newrelic.com/symbol
+         curl -F dsym=@"ZIPPED_DSYM_PATH" -H "X-APP-LICENSE-KEY: YOUR_NEW_RELIC_APPLICATION_TOKEN" https://mobile-symbol-upload.newrelic.com/symbol
          ```
        * For <DNT>**EU accounts**</DNT>:
 
          ```shell
-         curl -F dsym=@"~/DSYM_ZIP_PATH" -H "X-APP-LICENSE-KEY: YOUR_NEW_RELIC_APPLICATION_TOKEN" https://mobile-symbol-upload.eu01.nr-data.net/symbol
+         curl -F dsym=@"ZIPPED_DSYM_PATH" -H "X-APP-LICENSE-KEY: YOUR_NEW_RELIC_APPLICATION_TOKEN" https://mobile-symbol-upload.eu01.nr-data.net/symbol
          ```
        * For <DNT>**JP accounts**</DNT>:
 
          ```shell
-         curl -F dsym=@"~/DSYM_ZIP_PATH" -H "X-APP-LICENSE-KEY: YOUR_NEW_RELIC_APPLICATION_TOKEN" https://mobile-symbol-upload.jp.nr-data.net/symbol
+         curl -F dsym=@"ZIPPED_DSYM_PATH" -H "X-APP-LICENSE-KEY: YOUR_NEW_RELIC_APPLICATION_TOKEN" https://mobile-symbol-upload.jp.nr-data.net/symbol
          ```
   </Collapser>
 </CollapserGroup>
 
 ## Troubleshooting [#auto-upload-fail-troubleshooting]
 
-The automatic script will create an `upload_dsym_results.log` file in your project's root directory, which  contains information about any failures that occur during symbol upload.
+The `run-symbol-tool` script writes `upload_dsym_results.log` to your project's root directory on every build, whether the upload succeeds or fails. Each build overwrites the previous log. To write more detail to the log, add the [`--debug` argument](#arguments).
+
+If your build log shows `upload_dsym_results.log: Operation not permitted`, see [Automatic dSYM upload failures](/docs/mobile-monitoring/new-relic-mobile-ios/troubleshoot/dSYM-upload-tools).
 
 ### Missing dSYMs [#troubleshooting-missing-dsyms]
 
@@ -125,6 +308,7 @@ Strip Linked Product: Yes
 Strip Debug Symbols During Copy : Yes
 ```
 
-### Limitations
+### Limitations [#limitations]
 
-dSYM files are limited in size to 1 GB each. 
+* Zipped dSYM uploads through the [mobile monitoring UI](#mobile-ui) or the [command line](#manual-dsym) can be up to 600 MB.
+* The automatic script doesn't upload zipped map files larger than 200 MB. See [How the script works](#how-it-works).
