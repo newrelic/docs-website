@@ -1,3 +1,4 @@
+import AdmZip from 'adm-zip';
 import esmock from 'esmock';
 import { expect } from 'expect';
 import sinon from 'sinon';
@@ -89,6 +90,45 @@ test('splits batches with correct content', () => {
       .flat()
       .sort()
   ).toEqual(input.sort());
+});
+
+test('reports a translation that does not compile as errored without writing it', async () => {
+  const zip = new AdmZip();
+  zip.addFile('es-LA/src/content/docs/page.mdx', Buffer.from('<p>hola</p>'));
+  let writes = 0;
+
+  const { fetchAndDeserializeFiles } = await esmock(
+    '../fetch-and-deserialize.mjs',
+    {
+      'node-fetch': async () => ({
+        status: 200,
+        buffer: async () => zip.toBuffer(),
+      }),
+      '../deserialize-html.mjs': async () => '<Callout>\nhola',
+      '../utils/vendor-request.mjs': { getAccessToken: async () => 'token' },
+      '../utils/translation-monitoring.js': {
+        trackTranslationError: async () => {},
+        TRACKING_TARGET: {},
+      },
+      '../utils/create-directories.js': () => {},
+      'to-vfile': { default: { writeSync: () => (writes += 1) } },
+    }
+  );
+
+  const statuses = await fetchAndDeserializeFiles({
+    locale: 'es-LA',
+    fileUris: ['src/content/docs/page.mdx'],
+  });
+
+  expect(statuses).toEqual([
+    {
+      ok: false,
+      slug: 'src/content/docs/page.mdx',
+      locale: 'es-LA',
+      error: expect.stringContaining('<Callout>'),
+    },
+  ]);
+  expect(writes).toEqual(0);
 });
 
 test.run();
