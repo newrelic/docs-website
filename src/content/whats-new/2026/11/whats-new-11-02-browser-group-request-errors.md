@@ -1,6 +1,6 @@
 ---
 title: 'Browser applications now show Request errors'
-summary: 'In Browser, a new 'Request errors' page groups your failed AJAX and fetch requests so you can find the API calls behind broken pages. 'Errors (errors inbox)' is now 'JavaScript errors', so it's clear which page holds which kind of error.'
+summary: "In Browser, a new 'Request errors' page groups your failed AJAX and fetch requests so you can find the API calls behind broken pages. 'Errors (errors inbox)' is now 'JavaScript errors', so it's clear which page holds which kind of error."
 releaseDate: '2026-11-02'
 getStartedLink: 'https://docs.newrelic.com/docs/triage-inbox/group-request-errors-browser/'
 ---
