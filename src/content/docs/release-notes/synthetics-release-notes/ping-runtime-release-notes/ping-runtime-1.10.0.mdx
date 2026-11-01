@@ -1,0 +1,9 @@
+---
+subject: Ping Runtime
+releaseDate: '2022-12-12'
+version: 1.10.0
+---
+
+### Fixes
+
+* Updated base ubuntu image to remediate CVEs.

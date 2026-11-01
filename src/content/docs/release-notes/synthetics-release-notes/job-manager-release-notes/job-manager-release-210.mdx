@@ -1,0 +1,9 @@
+---
+subject: Job Manager
+releaseDate: '2023-01-17'
+version: '210'
+---
+
+### Improvements
+
+* Adds the type of monitor being staging for execution in key logs in our system.

@@ -1,0 +1,9 @@
+---
+subject: Job Manager
+releaseDate: '2022-10-06'
+version: '172'
+---
+
+### Improvements
+
+* Improved AWS error messages

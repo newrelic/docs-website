@@ -1,0 +1,9 @@
+---
+subject: Node API runtime
+releaseDate: '2022-10-04'
+version: 1.1.20
+---
+
+### Fixes
+
+* Self-signed certs do not fail the monitor by default anymore
