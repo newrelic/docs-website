@@ -47,11 +47,7 @@ const mdxFlowExpression = (_h, node) => {
     return handlers.mdxComment.serialize(null, node);
   }
 
-  // For non-comment expressions, convert to text (default behavior)
-  return {
-    type: 'text',
-    value: `{${node.value}}`,
-  };
+  return handlers.mdxExpression.serialize(null, node);
 };
 
 // Handle MDX text expressions (inline expressions like {value})
@@ -61,10 +57,7 @@ const mdxTextExpression = (_h, node) => {
     return handlers.mdxComment.serialize(null, node);
   }
 
-  return {
-    type: 'text',
-    value: `{${node.value}}`,
-  };
+  return handlers.mdxExpression.serialize(null, node);
 };
 
 
