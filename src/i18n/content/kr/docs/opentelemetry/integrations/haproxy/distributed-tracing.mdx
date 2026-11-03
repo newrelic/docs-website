@@ -1,0 +1,381 @@
+---
+title: OpenTelemetry를 사용한 HAProxy 분산 추적
+tags:
+  - Integrations
+  - OpenTelemetry
+  - HAProxy
+  - Distributed tracing
+  - Service maps
+metaDescription: Enable distributed tracing through HAProxy using the OpenTelemetry filter. View service relationships in New Relic service maps.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+HAProxy를 서비스 간의 단순한 블랙박스가 아니라 분산 트레이스에서 연결된 홉으로 확인하십시오. HAProxy 3.4 이상에는 로드 밸런서가 분산 트레이스에 직접 참여할 수 있도록 하는 [OpenTelemetry 필터](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/overview/)가 포함되어 있으므로, 뉴렐릭은 [서비스 맵](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/)에서 애플리케이션과 HAProxy 엔티티 간의 [서비스 관계](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/)를 자동으로 매핑할 수 있습니다 ― 수동 설정이 필요하지 않습니다.
+
+이 페이지에서는 트레이스 데이터가 뉴렐릭에 도달하도록 HAProxy OTel 필터, 해당 익스포터 및 OTel Collector를 구성하는 방법을 안내합니다. 내부적으로 트레이싱이 어떻게 작동하는지 ― HAProxy를 통해 [W3C Trace Context](https://www.w3.org/TR/trace-context/)를 추출하고 전파하는 방법 ― 살펴보려면 아래의 [작동 방식](#how-it-works)을 참조하십시오.
+
+## 작동 원리 [#how-it-works]
+
+일반적인 설정에서 트래픽은 다음과 같이 흐릅니다:
+
+```
+Instrumented app (frontend) → HAProxy (with OTel filter) → Instrumented app (backend)
+```
+
+1. 프런트엔드 애플리케이션은 W3C `traceparent` 헤더와 함께 요청을 보냅니다.
+2. HAProxy의 OTel 필터는 트레이스 컨텍스트를 추출하고, 요청 수명 주기를 포괄하는 스팬을 생성하며, 백앤드로 전달되는 요청에 업데이트된 트레이스 컨텍스트를 주입합니다.
+3. 백앤드 애플리케이션은 전파된 트레이스 컨텍스트와 함께 요청을 수신하고 트레이스를 계속합니다.
+4. 프런트엔드, HAProxy 및 백앤드는 스팬을 OpenTelemetry Collector로 내보내며, OpenTelemetry Collector는 이를 뉴렐릭으로 전달합니다.
+
+뉴렐릭은 이러한 연결된 스팬을 사용하여 CALLS 관계를 생성합니다:
+
+* **프런트엔드 서비스**가 **HAProxy 엔티티**를 호출합니다.
+* **HAProxy 엔티티**가 **백앤드 서비스**를 호출합니다.
+
+이러한 관계는 [서비스 맵](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/) 및 [맵 환경](/docs/service-architecture-intelligence/maps/advanced-maps/)에서 볼 수 있습니다.
+
+## 시작하기 전에 [#prerequisites]
+
+HAProxy OTel 필터는 다음을 포함하여 W3C Trace Context 전파를 지원하는 모든 애플리케이션과 작동합니다:
+
+* **OpenTelemetry SDK**로 계측된 애플리케이션(모든 언어)
+* **OpenTelemetry 자동 계측** (자바, .NET, 파이썬, Node.js)
+* **뉴렐릭 APM 에이전트** (Go, 자바, .NET, Node.js, 파이썬, 루비, PHP) 중 [분산 추적](/docs/distributed-tracing/enable-configure/overview-enable-distributed-tracing/)이 활성화된 에이전트
+
+계측 방식을 혼합할 수 있습니다. 예를 들어, OTel SDK 프런트엔드는 HAProxy를 통해 뉴렐릭 APM 에이전트 백앤드로 호출할 수 있으며, 관계 체인은 뉴렐릭에 올바르게 표시됩니다.
+
+또한 다음 사항을 갖추고 있는지 확인하십시오:
+
+* 유효한 뉴렐릭 [클러스터](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* OTel 필터가 활성화된 **HAProxy 3.4 이상**. OTel 필터 지원이 포함된 배포판을 얻는 방법에 대한 지침은 [HAProxy OTel 설치 가이드](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/installation/)를 참조하십시오.
+* 동일한 호스트에서 실행되거나 HAProxy 호스트에서 액세스할 수 있는 **OpenTelemetry Collector** ([OTel Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest) 또는 [NRDOT](https://github.com/newrelic/nrdot-collector-releases))
+* 위에 나열된 호환 가능한 계측 접근 방식 중 하나를 사용하여 HAProxy를 통해 requests를 보내는 **계측된 애플리케이션**
+* 수집기에서 뉴렐릭의 [OTLP 엔드포인트](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)로의 네트워크 액세스
+
+<Callout variant="tip">
+  이 가이드는 단일 OTel Collector에서 메트릭 수집과 분산 추적을 모두 설정합니다. 고급 메트릭 설정 또는 Kubernetes 배포에 대해서는 [자체 호스팅 HAProxy 모니터](/docs/opentelemetry/integrations/haproxy/self-hosted/) 및 [Kubernetes의 HAProxy 모니터](/docs/opentelemetry/integrations/haproxy/kubernetes/)를 참조하십시오.
+</Callout>
+
+## 분산 추적 설정 [#setup]
+
+<Callout variant="tip">
+  아래의 트레이스 파이프라인은 수동 관계 설정이 아니라 ― 분산 추적에 참여하는 모든 서비스에 사용할 수 있는 동일한 표준 설정입니다. 추적이 활성화되면 뉴렐릭은 연결된 스팬을 자동으로 감지하고 서비스 관계를 생성합니다. 관계가 표시되기 위해 추가적인 설정은 필요하지 않습니다.
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="step1-haproxy-config" title="1단계: HAProxy OTel 필터 구성">
+    `haproxy.cfg`의 프런트엔드 섹션에 `filter opentelemetry` 지시문을 추가합니다. 이는 HAProxy가 수신되는 requests에 OTel 필터를 적용하도록 지시합니다:
+
+    ```text
+    frontend main
+        bind *:8080
+        default_backend app_servers
+        filter opentelemetry id otel config /etc/haproxy/otel.cfg
+
+    frontend stats
+        bind *:8404
+        stats enable
+        stats uri /stats
+    ```
+
+    `config` 파라미터는 스팬, 컨텍스트 전파 및 익스포터 설정을 정의하는 별도의 OTel 필터 설정 파일을 가리킵니다.
+
+    `stats` 프런트엔드는 HAProxy 통계 엔드포인트를 활성화하며, OTel Collector의 `haproxyreceiver`은(는) 이를 사용하여 성능 메트릭을 수집합니다. 필요한 경우 바인딩 주소와 포트를 조정하십시오.
+
+    OTel 필터 설정 파일을 생성하십시오(예: `/etc/haproxy/otel.cfg`):
+
+    ```text
+    [otel]
+        otel-instrumentation otel-inst
+            config /etc/haproxy/otel.yml default
+            no option disabled
+            rate-limit 100.0
+
+            scopes client_session_start
+            scopes frontend_http_request
+            scopes backend_http_request
+            scopes client_session_end
+            scopes server_session_start
+            scopes http_response
+            scopes server_session_end
+
+        otel-scope client_session_start
+            extract "-ctx" use-headers
+            span "HAProxy session" parent "-ctx" root
+            otel-event on-client-session-start
+
+        otel-scope frontend_http_request
+            span "Frontend HTTP request" parent "HAProxy session" kind server
+                attribute "http.method" method
+                attribute "http.url" url
+                attribute "http.target" path
+            otel-event on-frontend-http-request
+
+        otel-scope backend_http_request
+            span "Backend HTTP request" parent "Frontend HTTP request" kind client
+            finish "Frontend HTTP request"
+            span "HAProxy session"
+                inject "-ctx" use-headers
+            otel-event on-backend-http-request
+
+        otel-scope client_session_end
+            finish "Backend HTTP request"
+            otel-event on-client-session-end
+
+        otel-scope server_session_start
+            span "Server session" parent "HAProxy session"
+            otel-event on-server-session-start
+
+        otel-scope http_response
+            span "HTTP response" parent "Server session"
+                attribute "http.status_code" status
+            finish "Server session"
+            otel-event on-http-response
+
+        otel-scope server_session_end
+            finish *
+            otel-event on-server-session-end
+    ```
+
+    이 설정은 다음을 수행합니다:
+
+    * 수신되는 W3C `traceparent` 헤더(`extract "-ctx" use-headers`)를 **추출하여** HAProxy 스팬을 호출하는 서비스의 트레이스에 연결합니다.
+    * 전체 요청 수명 주기에 대한 **스팬을 생성합니다**: 세션 시작, 프런트엔드 요청 처리, 백앤드 요청 전달, 응답 처리 및 세션 종료.
+    * 백앤드(`inject "-ctx" use-headers`)로 전송된 requests에 업데이트된 트레이스 컨텍스트를 **주입하여** 다운스트림 서비스가 트레이스를 계속할 수 있도록 합니다.
+    * requests(`rate-limit 100.0`)의 **100%를 트레이스** 합니다. 처리량이 많은 환경에서는 이 값을 조정하여 트레이스 볼륨을 줄이십시오.
+
+    <Callout variant="important">
+      `haproxy.cfg`의 `filter opentelemetry` 지시어에 있는 `id` 값은 `otel.cfg`의 섹션 이름과 일치해야 합니다(예: `[otel]`).
+    </Callout>
+
+    전체 OTel 필터 설정 참조는 [HAProxy OTel 트레이스 문서](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/traces/)를 참조하십시오.
+  </Collapser>
+
+  <Collapser id="step2-filter-exporter" title="2단계: 필터 익스포터 구성">
+    필터 익스포터 설정 파일을 생성하십시오(예: `/etc/haproxy/otel.yml`). 이는 HAProxy OTel 필터에 트레이스 데이터를 보낼 위치를 알려줍니다:
+
+    ```yaml
+    exporters:
+      exporter_traces:
+        type:     otlp_grpc
+        endpoint: "http://localhost:4317/v1/traces"
+
+    processors:
+      processor_batch:
+        type: batch
+
+    providers:
+      provider_traces:
+        resources:
+          - service.name: "YOUR_HAPROXY_SERVICE_NAME"
+
+    signals:
+      traces:
+        default:
+          scope_name: "HAProxy OTel filter"
+          exporters:  exporter_traces
+          processors: processor_batch
+          providers:  provider_traces
+    ```
+
+    `YOUR_HAPROXY_SERVICE_NAME`을(를) 이 HAProxy 인스턴스를 식별하는 이름으로 바꾸십시오(예: `haproxy-prod-lb`).
+
+    `service.name` 은(는) 분산 추적에 참여하는 모든 서비스를 식별하는 표준 [OpenTelemetry 리소스 속성](https://opentelemetry.io/docs/specs/semconv/resource/#service) 입니다 ― HAProxy뿐만이 아닙니다. 모든 OTel 계측된 애플리케이션은 (`OTEL_SERVICE_NAME`을(를) 통해) 이를 설정하며, 모든 뉴렐릭 APM 에이전트에는 동등한 항목(`app_name`)이 있습니다. 이것이 없어도 트레이스는 여전히 올바르게 흐르고 연결되지만, 스팬이 UI에서 `unknown_service` (으)로 표시되어 식별하기 어렵습니다. 보다 자세한 내용은 [OpenTelemetry 리소스 모범 사례](/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/)를 참조하십시오.
+
+    이는 HAProxy 인스턴스당 일회성 설정입니다. 새로운 백앤드 또는 프런트엔드 애플리케이션을 추가할 때 이 파일을 변경할 필요가 없습니다 — 트레이스 컨텍스트 전파를 통해 관계가 자동으로 형성됩니다.
+
+    익스포터는 gRPC를 통해 OTel Collector가 수신 대기 중인 `localhost:4317`(으)로 트레이스를 보냅니다. 수집기가 다른 호스트에서 실행되는 경우 `endpoint`을(를) 조정하십시오.
+  </Collapser>
+
+  <Collapser id="step3-collector" title="3단계: OTel Collector 설정">
+    HAProxy OTel 필터에서 트레이스를 수신하고 HAProxy 통계 엔드포인트에서 메트릭을 수신하여 뉴렐릭으로 전달하도록 OTel Collector를 설정하십시오.
+
+    ```yaml
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+      haproxy:
+        endpoint: "http://127.0.0.1:8404/stats"
+        collection_interval: 30s
+
+    processors:
+      resourcedetection:
+        detectors: [system]
+        system:
+          resource_attributes:
+            host.name:
+              enabled: true
+            host.id:
+              enabled: true
+      resource/haproxy:
+        attributes:
+          - key: haproxy.addr
+            value: "http://127.0.0.1:8404/stats"
+            action: upsert
+      batch:
+
+    exporters:
+      otlphttp:
+        endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [resourcedetection, resource/haproxy, batch]
+          exporters: [otlphttp]
+        metrics:
+          receivers: [haproxy]
+          processors: [resourcedetection, resource/haproxy, batch]
+          exporters: [otlphttp]
+    ```
+
+    이 수집기 설정에는 두 개의 파이프라인이 포함됩니다:
+
+    * **트레이스 파이프라인**: gRPC(포트 4317) 또는 HTTP(포트 4318)를 통해 HAProxy OTel 필터 및 계측된 애플리케이션에서 OTLP 트레이스 데이터를 수신합니다. 이는 OTLP 데이터를 뉴렐릭으로 전송하는 모든 서비스에 사용하는 것과 동일한 표준 트레이스 파이프라인입니다.
+    * **메트릭 파이프라인**: [`haproxyreceiver`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/haproxyreceiver)을(를) 사용하여 HAProxy 통계 엔드포인트에서 성능 메트릭(초당 세션 수, 요청 속도, 백앤드 상태)을 수집합니다. 이러한 메트릭은 골든 메트릭과 함께 뉴렐릭에 HAProxy 엔티티를 생성합니다.
+
+    두 파이프라인 모두 다음 프로세서를 공유합니다:
+
+    * **`resourcedetection`**: OpenTelemetry 에코시스템 전체에서 호스트를 식별하는 데 사용되는 표준 리소스 속성인 `host.name` 및 `host.id`를 추가합니다.
+    * **`resource/haproxy`**: `haproxy.addr` 속성을 추가합니다. 이 속성은 이 HAProxy 인스턴스를 식별하고 뉴렐릭의 동일한 HAProxy 엔티티 아래에 메트릭과 트레이스 데이터를 함께 연결합니다.
+
+    `http://127.0.0.1:8404/stats` 값은 HAProxy 공식 문서에서 사용되는 일반적인 HAProxy 통계 주소이며 1단계의 `haproxy.cfg`과 일치합니다. 이는 HAProxy 인스턴스당 일회성 정적 값입니다. 백앤드 및 프런트엔드 애플리케이션을 추가하거나 제거할 때 수집기 설정을 변경할 필요가 없습니다 — 트레이스 컨텍스트 전파를 통해 관계가 자동으로 형성됩니다. 통계 엔드포인트가 다른 주소, 포트 또는 URI를 사용하는 경우에만 `haproxy` 수신기 `endpoint` 및 `resource/haproxy` 값을 조정하십시오 — 두 값은 항상 일치해야 합니다.
+
+    필요한 환경 변수를 설정하고 수집기를 시작(또는 다시 시작)하십시오:
+
+    ```bash
+    export NEW_RELIC_LICENSE_KEY="YOUR_LICENSE_KEY"
+    export OTEL_EXPORTER_OTLP_ENDPOINT="YOUR_NEWRELIC_OTLP_ENDPOINT"
+
+    sudo systemctl restart otelcol-contrib
+    ```
+
+    `YOUR_LICENSE_KEY`을(를) <InlinePopover type="licenseKey" />(으)로 교체합니다. OTLP 엔드포인트의 경우 [뉴렐릭 OTLP 엔드포인트 설정](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)을 참조하십시오.
+  </Collapser>
+
+  <Collapser id="step4-restart" title="4단계: HAProxy 시작">
+    OTel 필터 설정을 로드하려면 HAProxy를 다시 시작하십시오:
+
+    ```bash
+    sudo systemctl restart haproxy
+    ```
+
+    <Callout variant="important">
+      HAProxy 바이너리에는 OTel 필터가 포함되어야 합니다. `unknown keyword 'filter'` 또는 `unknown keyword 'opentelemetry'`과 같은 오류가 표시되면 HAProxy 빌드에 필터가 포함되지 않은 것입니다. 호환되는 배포판에 대해서는 [HAProxy OTel 설치 가이드](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/installation/)를 참조하십시오.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## 서비스 관계를 확인하십시오. [#view-relationships]
+
+HAProxy와 수집기가 실행되면 계측된 애플리케이션을 통해 트래픽을 생성하십시오. 몇 분 후 뉴렐릭에 데이터가 도착하는지 확인하십시오:
+
+```sql
+-- Verify HAProxy trace spans
+FROM Span SELECT count(*)
+WHERE service.name = 'YOUR_HAPROXY_SERVICE_NAME'
+SINCE 10 minutes ago
+
+-- Verify HAProxy metrics
+FROM Metric SELECT count(*)
+WHERE metricName LIKE 'haproxy.%'
+SINCE 10 minutes ago
+```
+
+트레이스 데이터가 유입되기 시작하면 뉴렐릭은 서비스와 HAProxy 엔티티 간에 CALLS 관계를 자동으로 생성합니다. 관계가 나타나려면 최대 10분이 걸릴 수 있습니다.
+
+관계를 보려면 다음 단계를 따르십시오.
+
+1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; All entities**</DNT> 으)로 이동합니다.
+2. HAProxy 엔티티 또는 계측된 서비스 중 하나를 검색하십시오.
+3. 엔티티를 선택하여 요약 페이지를 여십시오.
+4. 엔티티 관계 그래프를 보려면 <DNT>**Service map**</DNT>을(를) 클릭하십시오.
+
+프런트엔드 서비스가 HAProxy에 연결되고, HAProxy가 백앤드 서비스에 연결된 것을 확인할 수 있어야 합니다:
+
+```
+[Frontend app] → CALLS → [HAProxy] → CALLS → [Backend app]
+```
+
+또한 NRQL로 관계를 쿼리할 수 있습니다:
+
+```sql
+FROM Relationship SELECT *
+WHERE source.entityName = 'YOUR_HAPROXY_SERVICE_NAME'
+  OR target.entityName = 'YOUR_HAPROXY_SERVICE_NAME'
+SINCE 1 day ago
+```
+
+## 문제점 해결 [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-filter-errors" title="OTel 필터 오류로 인해 HAProxy가 시작되지 않음">
+    다음 시작 오류를 확인하십시오:
+
+    * **필터 지원 누락**: `unknown keyword 'filter'` 또는 `unknown keyword 'opentelemetry'`이 표시되면 HAProxy 바이너리에 OTel 필터가 포함되지 않은 것입니다. [HAProxy OTel 설치 가이드](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/installation/)를 참조하십시오.
+    * **설정 파일을 찾을 수 없음**: `unable to load OTel configuration`이 표시되면 `filter opentelemetry` 지시어의 `config` 경로가 올바르고 파일이 존재하는지 확인하십시오. 경로는 HAProxy 작업 디렉터리에 대한 상대 경로입니다.
+    * **공유 라이브러리 오류**: OTel 필터에는 OpenTelemetry C++ SDK 공유 라이브러리가 필요합니다. 설치되어 있고 검색 가능한지 확인하십시오(예: `LD_LIBRARY_PATH` 또는 `ldconfig`을(를) 통해).
+  </Collapser>
+
+  <Collapser id="troubleshoot-no-spans" title="뉴렐릭에 HAProxy 스팬이 나타나지 않습니다.">
+    다음 확인 사항을 순서대로 진행하십시오.
+
+    * HAProxy가 오류 없이 시작되었는지 확인하십시오: `sudo journalctl -u haproxy -n 50 --no-pager`
+    * OTel 필터가 로드되었는지 확인하십시오. HAProxy 로그에서 `filter`, `opentelemetry` 또는 `otel`를 언급하는 오류를 찾으십시오.
+    * OTel Collector가 실행 중이고 `otel.yml`에 지정된 포트에서 수신 대기 중인지 확인하십시오. `sudo ss -tlnp | grep 4317`
+    * 수집기 로그에서 오류 확인: `sudo journalctl -u otelcol-contrib -n 50 --no-pager`
+    * `otel.yml` 익스포터 엔드포인트가 수집기의 gRPC 리스너 주소와 일치하는지 확인하십시오.
+  </Collapser>
+
+  <Collapser id="troubleshoot-no-relationships" title="스팬은 나타나지만 관계가 형성되지 않습니다">
+    다음 가능한 원인을 확인하십시오:
+
+    * 첫 번째 스팬이 도착한 후 관계가 나타나려면 최대 10분이 걸립니다.
+
+    * 계측된 애플리케이션이 수집기를 통해 트레이스를 전송하고 있는지 확인하십시오. 관계가 형성되려면 HAProxy 스팬과 애플리케이션 스팬이 모두 뉴렐릭에 도달해야 합니다.
+
+    * 프런트엔드 애플리케이션이 W3C `traceparent` 헤더를 전파하는지 확인하십시오. 트레이스 컨텍스트 전파가 없으면 HAProxy 스팬이 호출 서비스에 연결되지 않습니다.
+
+    * `resourcedetection` 및 `resource/haproxy` 프로세서가 모두 수집기 트레이스 파이프라인에 포함되어 있는지 확인하십시오. HAProxy 엔티티 식별에는 `host.id` 및 `haproxy.addr` 속성이 필요합니다.
+
+    * 메트릭 파이프라인이 `haproxy` 수신기와 함께 실행 중인지 확인하십시오. 메트릭 파이프라인은 HAProxy 엔티티를 생성합니다 ― 이 파이프라인이 없으면 HAProxy는 전용 HAProxy 엔티티가 아닌 일반 서비스로 표시됩니다.
+
+    * HAProxy 및 애플리케이션 스팬이 모두 트레이스 ID를 공유하는지 확인하는 쿼리:
+
+      ```sql
+      FROM Span SELECT uniques(service.name)
+      WHERE trace.id IN (
+        SELECT uniques(trace.id) FROM Span
+        WHERE service.name = 'YOUR_HAPROXY_SERVICE_NAME'
+        SINCE 10 minutes ago LIMIT 5
+      )
+      SINCE 10 minutes ago
+      ```
+
+      애플리케이션 서비스 이름과 함께 HAProxy 서비스 이름이 표시되어야 합니다.
+  </Collapser>
+
+  <Collapser id="troubleshoot-partial-relationships" title="일부 관계는 나타나지만 전부는 아님">
+    다음과 같은 가능한 원인을 고려해 보십시오:
+
+    * 모든 서비스의 스팬 데이터가 동일한 계정에 도달하도록 각 계측된 애플리케이션의 트레이스를 동일한 OTel Collector를 통해(또는 뉴렐릭으로 직접) 보내십시오.
+    * 뉴렐릭 APM 에이전트를 사용하는 애플리케이션의 경우 [분산 추적](/docs/distributed-tracing/enable-configure/overview-enable-distributed-tracing/)이 활성화되어 있고 에이전트가 연결되어 있는지 확인하십시오.
+    * OTel SDK 애플리케이션의 경우 OTLP 익스포터가 수집기로 전송하도록 설정되어 있는지 확인하십시오.
+    * 트래픽 볼륨이 적은 서비스의 관계는 표시되는 데 시간이 더 오래 걸릴 수 있으므로 추가 시간을 허용하십시오.
+  </Collapser>
+</CollapserGroup>
+
+## 다음 단계 [#next-steps]
+
+* [서비스 맵](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/) — 엔티티 관계의 시각적 탐색
+* [자체 호스팅 HAProxy 메트릭 모니터](/docs/opentelemetry/integrations/haproxy/self-hosted/) — 고급 메트릭 설정 및 대시보드 설정
+* [HAProxy 데이터 찾기 및 쿼리](/docs/opentelemetry/integrations/haproxy/find-and-query-data/) — 메트릭 및 트레이스 데이터 모두에 대한 NRQL 쿼리
+* [HAProxy OTel 필터 문서](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/opentelemetry/traces/) — HAProxy OpenTelemetry 필터 설정에 대한 전체 참조

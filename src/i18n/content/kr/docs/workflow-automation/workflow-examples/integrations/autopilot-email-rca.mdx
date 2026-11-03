@@ -1,0 +1,142 @@
+---
+title: Autopilot 및 이메일을 사용한 공지 RCA
+tags:
+  - workflow automation
+  - workflow
+  - autopilot
+  - email
+  - RCA
+  - incident response
+metaDescription: Use Autopilot to run a root cause analysis on a New Relic alert and send a formatted HTML report by email.
+freshnessValidatedDate: '2026-09-23T00:00:00.000Z'
+translationType: machine
+---
+
+이 템플릿은 뉴렐릭 공지에서 <DNT>[Autopilot](/docs/agentic-ai/autopilot/overview)</DNT>을(를) 실행하고 근본 원인 분석을 형식화된 HTML 이메일로 전송합니다. <DNT>Autopilot</DNT>이(가) 사용 가능한 응답을 반환하지 않을 경우, 워크플로우는 대신 오류 알림을 전송합니다. 공통 전제 조건 및 설정 참고 사항은 [Autopilot RCA 워크플로우 템플릿](/docs/workflow-automation/workflow-examples/integrations/autopilot-rca)을 참조하십시오.
+
+이 워크플로우를 사용하기 전에 다음 사항을 확인하십시오:
+
+* 뉴렐릭에 구성된 이메일 대상 ― [대상 생성](/docs/workflow-automation/setup-and-configure/create-destinations)참조
+* 대상의 UUID
+
+이 워크플로우는 다음 단계를 완료합니다:
+
+1. 공지 이슈 ID로 범위가 지정된 근본 원인 분석 프롬프트를 사용하여 <DNT>Autopilot</DNT>을(를) 실행합니다
+2. <DNT>Autopilot</DNT>이(가) 사용 가능한 응답을 반환했는지 확인합니다
+3. <DNT>Autopilot</DNT>이(가) 성공하면, 응답을 HTML로 포맷하고 이메일 목적지로 전송합니다.
+4. <DNT>Autopilot</DNT>이(가) 실패하면 이슈 ID가 포함된 오류 이메일을 전송합니다.
+
+이 워크플로우는 `newrelic.autopilot.run` 및 `newrelic.notification.sendEmail`을(를) 사용합니다.
+
+```yaml
+name: autopilotEmailRCA
+description: Automatically analyze New Relic alerts with Autopilot and send a formatted incident analysis report via email
+workflowInputs:
+  issueId:
+    type: String
+    required: true
+    validations:
+      - errorMessage: Must be a valid New Relic issue ID in UUID format
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        type: regex
+  emailDestinationId:
+    type: String
+    required: true
+    validations:
+      - pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+        errorMessage: "Invalid format. Please provide a valid UUID."
+        type: regex
+steps:
+  - name: runAutopilot
+    type: action
+    action: newrelic.autopilot.run
+    version: 1
+    inputs:
+      prompt: >-
+        Investigate New Relic issue ${{ .workflowInputs.issueId }}.
+        Produce an incident analysis report covering: what triggered the alert, likely root cause, affected entities, supporting evidence, and recommended next steps.
+        IMPORTANT: Output your final answer DIRECTLY as clean, basic HTML. Use <h2> for section headers, <b> for bold text, <p> for paragraphs, <code> for logs/IDs, and standard <table>/<tr>/<td> tags with simple borders for tabular data. Do NOT use markdown.
+      selectors:
+        - name: agentResponse
+          expression: .response.finalAnswer
+        - name: agentResponseBlocks
+          expression: '(.response.finalAnswer // "") as $r | (if ($r|type)=="string" then ($r | try fromjson catch null) else $r end) as $json | if ($json|type)=="object" and ($json.card.body|type)=="array" then $json.card.body elif ($json|type)=="array" then $json elif ($json|type)=="object" and ($json.text|type)=="string" then [{"type":"Text","value":$json.text}] else [{"type":"Text","value":($r|tostring)}] end'
+    ignoreErrors: true
+
+  - name: checkAutopilotResponse
+    type: switch
+    switch:
+      - condition: ${{ (.steps.runAutopilot.outputs.agentResponse // "") != "" }}
+        next: sendRcaEmail
+    next: sendAutopilotError
+
+  - name: sendRcaEmail
+    type: action
+    action: newrelic.notification.sendEmail
+    version: 1
+    inputs:
+      destinationId: ${{ .workflowInputs.emailDestinationId }}
+      subject: Autopilot RCA Report - Issue ${{ .workflowInputs.issueId }}
+      message: '${{ def sanitizeHtml: gsub("(?i)<script\\b[^>]*>[\\s\\S]*?</\\s*script\\s*>"; "") | gsub("(?i)<\\s*script\\b[^>]*/?\\s*>"; "") | gsub("(?i)<style\\b[^>]*>[\\s\\S]*?</\\s*style\\s*>"; "") | gsub("(?i)<\\s*(iframe|object|embed|link|meta|form|svg)\\b[^>]*/?\\s*>"; "") | gsub("(?i)</\\s*(iframe|object|embed|form|svg)\\s*>"; "") | gsub("(?i)\\son\\w+\\s*=\\s*[^\\s>]+"; "") | gsub("(?i)javascript\\s*:"; ""); (.steps.runAutopilot.outputs.agentResponseBlocks // []) as $blocks | [ $blocks[] | if .type == "CodeBlock" then "<pre><code>" + ((.code // "") | gsub("&";"&amp;") | gsub("<";"&lt;") | gsub(">";"&gt;")) + "</code></pre>" else ((.value // "") | gsub("\\*\\*";"") | sanitizeHtml) as $clean | [ $clean / "\n" | .[] | select((. | gsub("^\\s+|\\s+$";"")) != "") ] as $lines | (reduce $lines[] as $line ([]; ($line | test("^\\s*\\|?\\s*:?-+:?\\s*(\\|\\s*:?-+:?\\s*)+\\|?\\s*$")) as $isSep | ($line | contains("|")) as $isPipe | if $isSep then . elif $isPipe then if (length > 0 and .[-1].type == "table") then .[0:-1] + [ .[-1] + {rows: (.[-1].rows + [$line])} ] else . + [ {type:"table", rows: [$line]} ] end else . + [ {type:"line", value: $line} ] end )) as $rawSegments | [ $rawSegments[] | if .type == "table" and (.rows | length) < 2 then {type:"line", value: .rows[0]} else . end ] as $segments | [ $segments[] | if .type == "table" then "<table style=\"width:100%;border-collapse:collapse;font-family:Arial,sans-serif;\">" + ([ .rows | to_entries[] | . as {key: $i, value: $row} | ($row | sub("^\\s*\\|";"") | sub("\\|\\s*$";"")) as $trimmed | [ $trimmed / "|" | .[] | gsub("^\\s+|\\s+$";"") ] as $cells | (if $i == 0 then "th" else "td" end) as $tag | (if $i == 0 then "text-align:left;padding:8px;border-bottom:2px solid #ccc;" else "padding:8px;border-bottom:1px solid #eee;" end) as $style | "<tr>" + ([ $cells[] | "<" + $tag + " style=\"" + $style + "\">" + . + "</" + $tag + ">" ] | join("")) + "</tr>" ] | join("")) + "</table>" else .value as $line | ($line | sub("^\\s+";"")) as $t | if ($t | startswith("<")) then $line elif ($line | startswith("### ")) then "<h3>" + ($line | ltrimstr("### ")) + "</h3>" elif ($line | startswith("## ")) then "<h2>" + ($line | ltrimstr("## ")) + "</h2>" elif ($line | startswith("# ")) then "<h2>" + ($line | ltrimstr("# ")) + "</h2>" elif ($line | startswith("- ")) then "<p>&#8226; " + ($line | ltrimstr("- ")) + "</p>" else "<p>" + $line + "</p>" end end ] | join("\n") end ] | join("\n") }}'
+    next: end
+
+  - name: sendAutopilotError
+    type: action
+    action: newrelic.notification.sendEmail
+    version: 1
+    inputs:
+      destinationId: ${{ .workflowInputs.emailDestinationId }}
+      subject: Autopilot RCA Failed - Issue ${{ .workflowInputs.issueId }}
+      message: >-
+        Autopilot could not produce findings for issue ${{ .workflowInputs.issueId }}. Please investigate manually.
+    next: end
+```
+
+## 작동 원리 [#how-it-works]
+
+`runAutopilot` 단계는 데이터 추출 계층에서 `finalAnswer` 형태 가변성을 처리하기 위해 두 개의 선택기를 사용합니다:
+
+* **`agentResponse`**은(는) 원시 `finalAnswer` 값을 캡처합니다. `checkAutopilotResponse` 단계에서는 이를 사용하여 <DNT>Autopilot</DNT>이(가) 무언가를 반환했는지 확인합니다.
+* **`agentResponseBlocks`**은(는) 값을 유형이 지정된 블록 객체의 어레이로 정규화하며, 일반 문자열, `.card.body` 어레이가 포함된 JSON 인코딩 객체, 단순 어레이라는 세 가지 가능한 `finalAnswer` 형태를 처리합니다. 이는 <DNT>Autopilot</DNT>이(가) 응답을 포맷한 방식과 관계없이 `sendRcaEmail` 단계에 반복할 수 있는 일관된 구조를 제공합니다.
+
+`sendRcaEmail` 블록을 인라인으로 처리합니다:
+
+* `CodeBlock` 항목은 HTML 엔티티가 이스케이프 처리되어 `<pre><code>` (으)로 렌더링됩니다.
+* 다른 블록은 `sanitizeHtml`을(를) 통과하며, 이는 `<script>`, `<style>`, 인라인 이벤트 핸들러 및 기타 잠재적으로 안전하지 않은 마크업을 제거합니다.
+* 마크다운 스타일 파이프 테이블이 감지되어 기본 인라인 스타일이 적용된 `<table>` 요소로 변환됩니다.
+* 제목 접두사(`# `, `## `, `### `)와 글머리 기호 마커(`- `)는 해당하는 HTML 태그로 변환됩니다.
+* 나머지 모든 줄은 `<p>` 태그로 감싸집니다.
+
+[Autopilot 및 Slack을 사용한 공지 RCA](/docs/workflow-automation/workflow-examples/integrations/autopilot-slack-rca) 템플릿과 달리, HTML 형식 지정은 전적으로 `sendRcaEmail` 단계 내에서 처리됩니다 ― 별도의 `assign` 단계가 필요하지 않습니다.
+
+## 관련 주제 [#related-topics]
+
+<DocTiles>
+  <DocTile title="Autopilot RCA 워크플로우 템플릿" path="/docs/workflow-automation/workflow-examples/integrations/autopilot-rca">
+    모든 Autopilot RCA 템플릿에 대한 공통 전제 조건 및 설정 참고 사항
+  </DocTile>
+
+  <DocTile title="오토파일럿 개요" path="/docs/agentic-ai/autopilot/overview">
+    Autopilot이 알림 및 인시던트를 조사하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="조건부 논리" path="/docs/workflow-automation/workflow-examples/basic-patterns/conditional-logic">
+    성공 또는 실패 시 분기하기 위해 switch 문 사용
+  </DocTile>
+
+  <DocTile title="이메일 알림 전송" path="/docs/workflow-automation/setup-and-configure/actions-catalog/newrelic/notification/newrelic-notification-sendemail">
+    sendEmail 작업에 대한 전체 참조
+  </DocTile>
+
+  <DocTile title="목적지를 생성하세요" path="/docs/workflow-automation/setup-and-configure/create-destinations">
+    이 워크플로우에 필요한 이메일 대상을 구성하십시오.
+  </DocTile>
+
+  <DocTile title="Autopilot 및 Slack을 사용한 공지 RCA" path="/docs/workflow-automation/workflow-examples/integrations/autopilot-slack-rca">
+    이메일 대신 Slack에 RCA 결과 게시
+  </DocTile>
+
+  <DocTile title="흐름 흐름 자동화 문제 해결" path="/docs/workflow-automation/troubleshooting">
+    일반적인 Autopilot 및 워크플로우 통합 문제에 대한 해결 방법
+  </DocTile>
+</DocTiles>

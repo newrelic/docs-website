@@ -1,0 +1,323 @@
+---
+title: Instalar y configurar NRDOT para el monitoreo de MySQL con la CLI
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - CLI
+metaDescription: Install and configure the NRDOT Collector for MySQL monitoring using the New Relic CLI
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+Puede instalar y configurar el NRDOT Collector para el monitoreo de MySQL usando la CLI de New Relic. La CLI instala el recolector, crea el usuario de monitoreo y configura el recolector en un solo comando.
+
+<Callout variant="tip" title="Instalación guiada">
+  Para instalar a través de la UI de New Relic en su lugar, vaya a <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; MySQL (Database 360)](https://onenr.io/0oQDYBNG1wy)** </DNT>. Esta página solo cubre la instalación manual.
+</Callout>
+
+<Steps>
+  <Step>
+    ## Requisitos previos [#prerequisites]
+
+    * Una cuenta de New Relic con una [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys) válida.
+    * Un [ID de cuenta](/docs/accounts/accounts-billing/account-structure/account-id) de New Relic.
+    * MySQL 5.7 o posterior.
+    * Un host recolector de Linux que ejecuta Debian/Ubuntu o RHEL/CentOS, con `curl` y `systemd` instalados, y el cliente `mysql` disponible.
+    * Para MySQL autohospedado: acceso administrativo a su servidor MySQL (la cuenta `root` o equivalente).
+    * Para AWS RDS/Aurora MySQL: conectividad de red desde el host del recolector hasta el extremo de RDS (acceso entrante en el puerto de MySQL en el grupo de seguridad de RDS), y el nombre de usuario y la contraseña maestros de RDS.
+    * Conectividad de red al [extremo OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp) para su región.
+
+    Para obtener información detallada sobre los requisitos, consulte [Compatibilidad y requisitos previos](/docs/opentelemetry/db360/mysql/compatibility).
+  </Step>
+
+  <Step>
+    ## Instalar y configurar el NRDOT Collector [#cli-install]
+
+    <CollapserGroup>
+      <Collapser id="cli-host" title="MySQL autohospedado">
+        Esta receta monitorea una o más instancias de MySQL desde un solo recolector. En lugar de solicitar un único conjunto de host/puerto/credenciales, lee dos archivos que debe crear con anticipación: un archivo de instancias (YAML) que enumera cada instancia que se va a monitorear y un archivo de secretos (`KEY=VALUE`) con un inicio de sesión y contraseña de administrador para cada una, indexados para que coincidan.
+
+        1. Cree el archivo de instancias. Agregue una entrada por cada instancia de MySQL que desee que este recolector supervise; solo una entrada si solo ejecuta una única instancia:
+
+           ```bash
+           cat > ~/mysql-instances.yml << 'EOF'
+           instances:
+             - host: localhost
+               port: 3306
+               login_name: newrelic
+           EOF
+           ```
+
+        2. Cree el archivo de secretos con un inicio de sesión de administrador (cualquier usuario administrador con acceso total funciona; no tiene que ser `root`) y una contraseña para cada instancia, indexado para que coincida con el orden del archivo de instancia:
+
+           ```bash
+           umask 077
+           cat > ~/mysql-secrets.env << 'EOF'
+           NR_CLI_MYSQL_ADMIN_USER_1=root
+           NR_CLI_MYSQL_ADMIN_PASSWORD_1=YourRootPassword1
+           EOF
+           chmod 600 ~/mysql-secrets.env
+           ```
+
+        ```bash
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-mysql
+        ```
+
+        <Callout variant="important">
+          Este instalador se conecta a MySQL a través de TCP mediante una contraseña, por lo que la cuenta de administrador en el archivo de secretos debe usar autenticación basada en contraseña. En algunas instalaciones de Debian/Ubuntu, `root`@`localhost` usa por defecto el plug-in `auth_socket` (sin contraseña, solo socket local), lo cual no funcionará aquí. Cámbielo primero ejecutando esto localmente como root:
+
+          ```bash
+          mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '<password>';"
+          ```
+
+          Si eso falla con `Access denied`, el paquete `mysql-server` también crea una cuenta `debian-sys-maint` con credenciales de administrador conocidas en `/etc/mysql/debian.cnf`. Empléela en su lugar:
+
+          ```bash
+          mysql --defaults-file=/etc/mysql/debian.cnf -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '<password>';"
+          ```
+        </Callout>
+
+        La CLI solicita de forma interactiva las siguientes variables. También puede configurarlas con anticipación como variables de entorno para ejecutar de forma no interactiva.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variable
+              </th>
+
+              <th>
+                Descripción
+              </th>
+
+              <th>
+                Por defecto
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_CONFIG_PRESET`
+              </td>
+
+              <td>
+                Configuración de NRDOT:
+
+                * `1` para Basic
+                * `2` para Advanced
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_INSTANCES_FILE`
+              </td>
+
+              <td>
+                Obligatorio. Ruta al archivo YAML de instancias.
+              </td>
+
+              <td>
+                Ninguno
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_SECRETS_FILE`
+              </td>
+
+              <td>
+                Obligatorio. Ruta al archivo de secretos (
+
+                `KEY=VALUE`
+
+                , un par de inicio de sesión/contraseña de administrador por instancia).
+              </td>
+
+              <td>
+                Ninguno
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          Para monitorear más de una instancia de MySQL desde este recolector, agregue más entradas al archivo de instancia y credenciales numeradas correspondientes (`_2`, `_3`...) al archivo de secretos. Una instancia que no pasa sus comprobaciones se omite con un motivo registrado en lugar de cancelar toda la instalación. La instalación solo falla por completo si ninguna de las instancias pasa.
+        </Callout>
+      </Collapser>
+
+      <Collapser id="cli-rds" title="AWS RDS/Aurora MySQL">
+        Esta receta monitorea uno o más extremos de RDS MySQL o Aurora desde un solo recolector, usando el mismo patrón de archivo de instancias/archivo de secretos que en la versión autohospedada.
+
+        1. Cree el archivo de instancias, usando el extremo de RDS como `host`; solo una entrada si solo está monitoreando una única instancia de RDS:
+
+           ```bash
+           cat > ~/mysql-instances.yml << 'EOF'
+           instances:
+             - host: mydb1.abcdefg12345.us-east-1.rds.amazonaws.com
+               port: 3306
+               login_name: newrelic
+           EOF
+           ```
+
+        2. Cree el archivo de secretos con el nombre de usuario y la contraseña maestros de RDS para cada instancia, indexado para que coincida con el orden del archivo de instancia:
+
+           ```bash
+           umask 077
+           cat > ~/mysql-secrets.env << 'EOF'
+           NR_CLI_MYSQL_ADMIN_USER_1=admin
+           NR_CLI_MYSQL_ADMIN_PASSWORD_1=YourMasterPassword1
+           EOF
+           chmod 600 ~/mysql-secrets.env
+           ```
+
+        ```bash
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-mysql-rds
+        ```
+
+        La CLI solicita de forma interactiva las siguientes variables. También puede configurarlas con anticipación como variables de entorno para ejecutar de forma no interactiva.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variable
+              </th>
+
+              <th>
+                Descripción
+              </th>
+
+              <th>
+                Por defecto
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_CONFIG_PRESET`
+              </td>
+
+              <td>
+                Configuración de NRDOT:
+
+                * `1` para Basic
+                * `2` para Advanced
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_INSTANCES_FILE`
+              </td>
+
+              <td>
+                Obligatorio. Ruta al archivo YAML de instancias, usando los extremos de RDS como 
+
+                `host`
+
+                .
+              </td>
+
+              <td>
+                Ninguno
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_SECRETS_FILE`
+              </td>
+
+              <td>
+                Obligatorio. Ruta al archivo de secretos (
+
+                `KEY=VALUE`
+
+                , un par de nombre de usuario/contraseña maestro de RDS por instancia).
+              </td>
+
+              <td>
+                Ninguno
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          Para monitorear más de un extremo de RDS MySQL o Aurora desde este recolector, agregue más entradas al archivo de instancias y credenciales numeradas coincidentes al archivo de secretos. Una instancia que falla sus comprobaciones se omite con un motivo registrado en lugar de abortar toda la instalación.
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Encuentra y utiliza tus datos [#find]
+
+    Una vez que sus datos se estén recopilando, puede acceder al monitoreo integral de bases de datos MySQL a través de la UI de New Relic.
+
+    Para encontrar su entidad de base de datos MySQL en New Relic:
+
+    1. Vaya a <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>.
+    2. En el menú desplegable **<DNT>Entity type</DNT>**, seleccione <DNT>**MySQL instance**</DNT> y luego haga clic en <DNT>**Apply**</DNT>.
+    3. Seleccione su base de datos MySQL de la lista de entidades.
+
+    Para confirmar que los datos están llegando, ejecute esta consulta en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE metricName LIKE 'mysql.%'
+    AND instrumentation.provider = 'opentelemetry'
+    SINCE 10 minutes ago
+    ```
+  </Step>
+</Steps>
+
+## Documentación relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Introducción al monitoreo de MySQL con NRDOT" path="/docs/opentelemetry/db360/mysql/introduction">
+    Conozca todos los métodos de instalación disponibles para el monitoreo de MySQL con New Relic.
+  </DocTile>
+
+  <DocTile title="Instalación con Ansible" path="/docs/opentelemetry/db360/mysql/ansible">
+    Aprenda a instalar y configurar el monitoreo de MySQL a escala con newrelic.newrelic_install rol de Ansible.
+  </DocTile>
+
+  <DocTile title="Instalación con Chef" path="/docs/opentelemetry/db360/mysql/chef">
+    Aprenda a instalar y configurar el monitoreo de MySQL a escala con el cookbook de Chef newrelic-install.
+  </DocTile>
+
+  <DocTile title="Instalación del chart de Helm" path="/docs/opentelemetry/db360/mysql/helm">
+    Aprenda a instalar y configurar el monitoreo de MySQL en Kubernetes con el chart de Helm mysql-otel.
+  </DocTile>
+
+  <DocTile title="Instalación de Docker" path="/docs/opentelemetry/db360/mysql/docker">
+    Aprenda a ejecutar el Collector de NRDOT como un contenedor hermano de una instancia de MySQL que ya se ejecuta en Docker.
+  </DocTile>
+</DocTiles>

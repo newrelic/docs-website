@@ -1,5 +1,5 @@
 const visit = require('unist-util-visit');
-const { get, set } = require('lodash');
+const { get, last, set } = require('lodash');
 const { isHeadingWithCustomId, getId } = require('./heading');
 
 // a heading with a custom id has two possible cases for its children.
@@ -49,6 +49,9 @@ const { isHeadingWithCustomId, getId } = require('./heading');
 //     }
 //   ]
 // ```
+//
+// the last text node may also hold more heading text before the id, e.g.
+// ' package [#some-id]' for: ## Use the `x` package [#some-id]
 const visitor = () => (tree) => {
   visit(tree, isHeadingWithCustomId, (heading) => {
     const id = getId(heading);
@@ -64,7 +67,12 @@ const visitor = () => (tree) => {
     }
     // second case, multiple nodes
     else {
-      set(heading, 'children', heading.children.slice(0, -1));
+      const lastChild = last(heading.children);
+      lastChild.value = lastChild.value.replace(`[#${id}]`, '').trimEnd();
+
+      if (!lastChild.value) {
+        heading.children.pop();
+      }
     }
 
     const firstChild = heading.children[0];

@@ -1,0 +1,400 @@
+---
+title: CLI를 사용하여 오라클 모니터링을 위한 NRDOT 설치 및 구성
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - CLI
+metaDescription: Install and configure the NRDOT Collector for Oracle Database monitoring using the New Relic CLI
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Oracle-Database-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/oracle/introduction
+  next: null
+translationType: machine
+---
+
+뉴렐릭 CLI를 사용하여 오라클 데이터베이스 모니터링을 위한 NRDOT Collector를 설치하고 구성할 수 있습니다. CLI는 단일 명령으로 수집기를 설치하고, 모니터링 데이터베이스 사용자를 생성하며, 수집기를 구성합니다.
+
+<Callout variant="tip" title="가이드 설치">
+  대신 뉴렐릭 UI를 통해 설치하려면 <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Oracle (Database 360)](https://onenr.io/0kjnebKW7Ro)** </DNT>(으)로 이동하십시오. 이 페이지는 수동 설치만 다룹니다.
+</Callout>
+
+<Steps>
+  <Step>
+    ## 전제 조건 [#prerequisites]
+
+    * 유효한 [라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)가 있는 뉴렐릭 계정.
+    * 뉴렐릭 [계정 ID](/docs/accounts/accounts-billing/account-structure/account-id).
+    * 오라클 데이터베이스 19c 이상입니다.
+    * 자체 호스팅 오라클의 경우: `curl` 및 `systemd`이(가) 설치된 오라클 리눅스 7, 8 또는 9가 필요하며, SSH 사용자가 비밀번호 프롬프트 없이 `sudo su - oracle`을(를) 실행할 수 있는 오라클 데이터베이스 호스트에 대한 SSH 액세스(에이전트 포워딩 포함)가 필요합니다.
+    * AWS RDS 기반 오라클의 경우: Debian/Ubuntu 또는 CentOS/RHEL/OEL을 실행하고 `curl` 및 `systemd`이(가) 설치되어 있으며 수집기 호스트에서 RDS 오라클 엔드포인트로 네트워크 연결이 가능한 수집기 호스트입니다.
+    * 오라클 자율운영 데이터베이스(ADB)의 경우: `curl`, `systemd` 및 오라클 인스턴트 클라이언트(`sqlplus`)가 설치되어 있고 `PATH`에 있는 Debian/Ubuntu 또는 CentOS/RHEL/OEL을 실행하는 수집기 호스트, 해당 ADB 액세스 제어 목록에 허용된 각 인스턴스의 이그레스 IP, 수집기 호스트의 자체 디렉터리에 다운로드 및 압축 해제된 각 인스턴스의 오라클 월렛.
+  </Step>
+
+  <Step>
+    ## NRDOT Collector를 설치하고 구성하십시오 [#install]
+
+    <CollapserGroup>
+      <Collapser id="cli-host" title="자체 호스팅 오라클 데이터베이스">
+        이 레시피는 단일 수집기에서 하나 이상의 오라클 데이터베이스 인스턴스(각각 SSH를 통해 도달 가능)를 모니터합니다. 단일 호스트/컨테이너/자격 증명 세트를 묻는 프롬프트를 표시하는 대신, 모니터할 모든 인스턴스를 나열하는 인스턴스 파일(YAML)을 읽으며, 선택적으로 모니터링 사용자 비밀번호를 자동 생성하는 대신 특정 비밀번호로 고정하는 보안 비밀 파일을 읽습니다.
+
+        이 명령을 실행하기 전에 다음을 준비하십시오:
+
+        * 나열된 모든 오라클 데이터베이스 호스트에 대한 SSH 액세스(에이전트 포워딩 포함)로, 각 `ssh_user`은(는) 비밀번호 프롬프트 없이 `sudo su - oracle`을(를) 실행할 수 있습니다.
+        * 인스턴스당 컨테이너 유형(모든 PDB의 경우 CDB 또는 단일 PDB 이름)
+        * 인스턴스당 CDB 또는 PDB 서비스 이름
+        * 기본 또는 고급 메트릭을 원하는지 여부
+
+        1. 인스턴스 파일을 생성합니다. 이 수집기가 모니터할 오라클 데이터베이스 인스턴스당 하나의 항목을 추가하십시오, 단일 인스턴스만 모니터링하는 경우 하나의 항목만 추가하십시오:
+
+           ```bash
+           cat > ~/oracle-instances.yml << 'EOF'
+           instances:
+             - host: dbhost1.example.com
+               port: 1521
+               ssh_user: opc
+               container_type: 1
+               pdb_name:
+               service: ORCLCDB
+               login_name: newrelic
+           EOF
+           ```
+
+           `container_type` CDB의 경우 `1` (모든 PDB를 모니터하고 공통 `c##<login_name>` 사용자를 생성함)이거나 단일 PDB의 경우 `2` (이 경우에만 `pdb_name`이(가) 필요함)입니다. `c##` 접두사 없이 `login_name`을(를) 입력하십시오: 레시피가 CDB 모드에서 자동으로 추가합니다.
+
+        2. (선택 사항) 레시피가 비밀번호를 자동 생성하도록 하는 대신 인스턴스당 고정된 모니터링 사용자 비밀번호를 지정하는 보안 비밀 파일을 생성하십시오. 자체 호스팅 오라클은 여기에서 관리자 자격 증명이 필요하지 않습니다. 모니터링 사용자는 SSH 및 OS 인증 SYSDBA 액세스를 통해 생성됩니다:
+
+           ```bash
+           umask 077
+           cat > ~/oracle-secrets.env << 'EOF'
+           NR_CLI_ORACLE_LOGIN_PASSWORD_1=SomeFixedPassword1
+           EOF
+           chmod 600 ~/oracle-secrets.env
+           ```
+
+           대신 모든 인스턴스에 대해 무작위 비밀번호를 자동 생성하려면 보안 비밀 파일 경로를 비워 두십시오(또는 존재하지 않는 파일을 지정하십시오).
+
+        인스턴스 파일에 나열된 모든 오라클 데이터베이스 호스트에 대한 SSH 액세스(에이전트 포워딩 포함) 권한이 있는 호스트에서 다음을 실행하십시오:
+
+        ```bash
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle
+        ```
+
+        CLI는 다음 변수에 대해 대화형으로 프롬프트를 표시합니다. 비대화형으로 실행하기 위해 환경 변수로 미리 설정할 수도 있습니다.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                변하기 쉬운
+              </th>
+
+              <th>
+                설명
+              </th>
+
+              <th>
+                기본값
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_ORACLE_INSTANCES_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 인스턴스 YAML 파일의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_ORACLE_SECRETS_FILE`
+              </td>
+
+              <td>
+                선택 사항입니다. 인스턴스당 
+
+                `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>`
+
+                을(를) 고정하는 시크릿 파일(
+
+                `KEY=VALUE`
+
+                )의 경로입니다. 모든 인스턴스에 대해 임의의 비밀번호를 자동 생성하려면 설정하지 않은 상태로 둡니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_ORACLE_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOT 설정:
+
+                * `1` Basic용
+                * `2` 고급의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          이 수집기에서 두 개 이상의 오라클 데이터베이스 인스턴스를 모니터하려면 인스턴스 파일에 항목을 더 추가하십시오. 검사에 실패한 인스턴스는 전체 설치를 중단하는 대신 로그된 이유와 함께 건너뜁니다. 이미 모니터링 사용자가 있는 인스턴스에 대해 다시 실행하면 이를 재사용할지 아니면 새 사용자를 생성할지 묻는 대화형 프롬프트가 표시됩니다(이 단계는 완전히 스크립트화할 수 없습니다).
+        </Callout>
+      </Collapser>
+
+      <Collapser id="cli-rds" title="AWS RDS 기반 오라클 데이터베이스">
+        이 레시피는 인스턴스 파일과 시크릿 파일을 사용하여 단일 수집기에서 하나 이상의 RDS 오라클 엔드포인트를 모니터링합니다.
+
+        이 명령을 실행하기 전에 다음을 준비하십시오:
+
+        * 모든 인스턴스의 RDS 오라클 엔드포인트, 리스너 포트 및 DB 서비스 이름
+        * 모든 인스턴스에 대한 RDS 마스터 사용자 이름 및 비밀번호
+        * 기본 또는 고급 메트릭을 원하는지 여부
+
+        1. 인스턴스 파일을 생성합니다(이 수집기가 모니터할 RDS 오라클 엔드포인트당 하나의 항목이며, 단일 인스턴스만 모니터링하는 경우에도 하나의 항목만 해당):
+
+           ```bash
+           cat > ~/oracle-instances.yml << 'EOF'
+           instances:
+             - host: rds-orders.abcdef123.us-east-1.rds.amazonaws.com
+               port: 1521
+               service: ORDERSDB
+               login_name: newrelic
+           EOF
+           ```
+
+        2. 인스턴스 파일의 순서와 일치하도록 인덱싱된 각 인스턴스의 RDS 마스터 사용자 이름과 비밀번호가 포함된 보안 비밀 파일을 생성하십시오. 선택적으로 인스턴스당 고정된 모니터링 사용자 비밀번호를 지정할 수도 있습니다. 자동 생성하려면 생략하십시오:
+
+           ```bash
+           umask 077
+           cat > ~/oracle-secrets.env << 'EOF'
+           NR_CLI_ORACLE_ADMIN_USER_1=admin
+           NR_CLI_ORACLE_ADMIN_PASSWORD_1=YourMasterPassword1
+           EOF
+           chmod 600 ~/oracle-secrets.env
+           ```
+
+        ```bash
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle-rds
+        ```
+
+        CLI는 다음 변수에 대해 대화형으로 프롬프트를 표시합니다. 비대화형으로 실행하기 위해 환경 변수로 미리 설정할 수도 있습니다.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                변하기 쉬운
+              </th>
+
+              <th>
+                설명
+              </th>
+
+              <th>
+                기본값
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_ORACLE_INSTANCES_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 인스턴스 YAML 파일의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_ORACLE_SECRETS_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 시크릿 파일 경로(
+
+                `KEY=VALUE`
+
+                , 인스턴스당 하나의 RDS 마스터 사용자 이름/비밀번호 쌍, 자동 생성하는 대신 모니터링 비밀번호를 고정하려면 선택적으로 
+
+                `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>`
+
+                 사용).
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_ORACLE_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOT 설정:
+
+                * `1` Basic용
+                * `2` 고급의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          이 수집기에서 둘 이상의 RDS 오라클 엔드포인트를 모니터하려면 인스턴스 파일에 항목을 더 추가하고 시크릿 파일에 일치하는 번호가 지정된 자격 증명을 추가하십시오. 검사에 실패한 인스턴스는 전체 설치를 중단하는 대신 로그된 이유와 함께 건너뜁니다.
+        </Callout>
+      </Collapser>
+
+      <Collapser id="cli-adb" title="오라클 자율운영 데이터베이스(ADB)">
+        이 레시피는 인스턴스 파일과 보안 비밀 파일을 사용하여 단일 수집기에서 하나 이상의 오라클 자율운영 데이터베이스(ADB) 인스턴스를 모니터합니다. 각 인스턴스는 다운로드한 자체 지갑을 사용하여 상호 TLS(ADB의 기본값)를 통해 연결됩니다. 인스턴스 간에 하나의 지갑 디렉터리를 공유하지 마십시오.
+
+        이 명령을 실행하기 전에 다음을 준비하십시오:
+
+        * 각 인스턴스: 해당 연결 문자열(`host`, `port`, `service`, ADB 콘솔의 **Database connection &gt; Connection strings**에서 가져옴)
+        * 각 인스턴스의 경우: 수집기 호스트의 자체 디렉터리에 압축 해제된 다운로드한 해당 오라클 월렛(ADB 콘솔의 **Database connection &gt; Download wallet**)
+        * 모든 인스턴스의 ADB 관리자(`ADMIN`) 사용자 이름 및 비밀번호
+
+        1. 인스턴스 파일을 생성합니다. 이 수집기가 모니터할 ADB 인스턴스당 하나의 항목을 추가하며, 단일 인스턴스만 모니터링하는 경우 하나의 항목만 추가합니다:
+
+           ```bash
+           cat > ~/adb-instances.yml << 'EOF'
+           instances:
+             - host: adb1.adb.us-ashburn-1.oraclecloud.com
+               port: 1522
+               service: myadb1_high
+               login_name: newrelic
+               wallet_dir: /home/opc/wallet1
+           EOF
+           ```
+
+           `wallet_dir` 은(는) 해당 인스턴스의 지갑이 압축 해제된 디렉터리입니다(`cwallet.sso` 및 `sqlnet.ora`을(를) 포함해야 함), 지갑 디렉터리가 누락되거나 유효하지 않은 인스턴스는 전체 설치를 실패하게 하는 대신 건너뜁니다.
+
+        2. 각 인스턴스에 대한 ADB 관리자 사용자 이름 및 비밀번호가 포함된 시크릿 파일을 생성하고, 인스턴스 파일의 순서와 일치하도록 인덱싱하십시오. 선택적으로 인스턴스당 고정된 모니터링 사용자 비밀번호를 지정할 수도 있습니다. 자동 생성하려면 생략하십시오:
+
+           ```bash
+           umask 077
+           cat > ~/adb-secrets.env << 'EOF'
+           NR_CLI_ORACLE_ADMIN_USER_1=ADMIN
+           NR_CLI_ORACLE_ADMIN_PASSWORD_1=YourAdminPassword1
+           EOF
+           chmod 600 ~/adb-secrets.env
+           ```
+
+        `PATH`에 `sqlplus` (오라클 인스턴트 클라이언트)가 있고 나열된 모든 ADB 인스턴스에 대한 네트워크 연결(mTLS)이 있는 호스트에서 이를 실행하십시오:
+
+        ```bash
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle-adb
+        ```
+
+        CLI는 다음 변수에 대해 대화형으로 프롬프트를 표시합니다. 비대화형으로 실행하기 위해 환경 변수로 미리 설정할 수도 있습니다.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                변하기 쉬운
+              </th>
+
+              <th>
+                설명
+              </th>
+
+              <th>
+                기본값
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_ORACLE_INSTANCES_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 인스턴스 YAML 파일의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_ORACLE_SECRETS_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 시크릿 파일(
+
+                `KEY=VALUE`
+
+                , 인스턴스당 하나의 ADB 관리자 사용자 이름/비밀번호 쌍, 자동 생성하는 대신 모니터링 비밀번호를 고정하려면 선택적으로 
+
+                `NR_CLI_ORACLE_LOGIN_PASSWORD_<i>`
+
+                 사용: ADB는 대문자 1개, 소문자 1개, 숫자 1개 이상을 포함하는 12～30자를 요구함)의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          ADB용 `NR_CLI_ORACLE_CONFIG_PRESET`은(는) 없습니다. 호스트 수준 메트릭을 수집할 호스트가 없는 완전 관리형 서비스이기 때문입니다.
+        </Callout>
+
+        <Callout variant="tip">
+          이 수집기에서 두 개 이상의 ADB 인스턴스를 모니터하려면 인스턴스 파일에 항목을 더 추가하고 보안 비밀 파일에 일치하는 번호가 지정된 자격 증명을 추가하십시오. 검사에 실패한 인스턴스는 전체 설치를 중단하는 대신 로그된 이유와 함께 건너뜁니다.
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+</Steps>
+
+뉴렐릭에서 오라클 데이터베이스 엔티티를 찾으려면 [데이터 찾기 및 사용](/docs/opentelemetry/db360/oracle/introduction/#find)을 참조하십시오.

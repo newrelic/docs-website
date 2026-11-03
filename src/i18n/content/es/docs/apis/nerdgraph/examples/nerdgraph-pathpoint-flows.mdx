@@ -1,0 +1,953 @@
+---
+title: 'Tutorial de NerdGraph: Crear y administrar flujos de Pathpoint'
+tags:
+  - APIs
+  - NerdGraph
+  - Pathpoint
+  - Business observability
+metaDescription: 'Use NerdGraph to create, read, update, duplicate, and delete Pathpoint flows, including their stages, levels, steps, signals, and KPIs.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta característica se proporciona actualmente como parte de un programa de vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Puede usar [nuestra API de NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) para crear y administrar flujos de Pathpoint de manera programática, en lugar de crearlos en la UI.
+
+Un flujo representa un recorrido comercial, como el pago, la autenticación o la incorporación. Es la unidad que crea y administra a través de la API. Los flujos son [entidades](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic), por lo que cada uno tiene un <DNT>GUID</DNT> de entidad que usa para leerlo, actualizarlo o eliminarlo.
+
+Cada flujo sigue una jerarquía de cuatro niveles, con KPI adjuntos al nivel de flujo, al nivel de etapa o a ambos:
+
+```
+Flow
+├── Flow KPIs
+└── Stages
+    ├── Stage KPIs
+    └── Levels
+        └── Steps
+            └── Signals (entity GUIDs, alert condition GUIDs, or a dynamic query)
+```
+
+Para una introducción al propio Pathpoint, consulte [Primeros pasos con Pathpoint](/docs/pathpoint/get-started-pathpoint).
+
+## Antes de que empieces [#requirements]
+
+Necesitas:
+
+* Pathpoint habilitado en la cuenta.
+* Un <InlinePopover type="userKey" />de New Relic para autenticar las requests.
+* Su [ID de cuenta](/docs/accounts/accounts-billing/account-structure/account-id).
+
+## Operaciones de flujo [#crud-operations]
+
+Para ejecutar estos ejemplos de forma interactiva, abra el [explorador NerdGraph GraphiQL](https://api.newrelic.com/graphiql) y busque el esquema para `pathPoint`. Antes de ejecutar un ejemplo, reemplace los marcadores de posición con sus propios valores: `YOUR_ACCOUNT_ID`, `TARGET_ACCOUNT_ID`, `FLOW_GUID`, `SOURCE_FLOW_GUID`, `ENTITY_GUID`, `ANOTHER_ENTITY_GUID`, `ENTITY_NAME`, `ALERT_CONDITION_GUID` y los ID de etapa, nivel y paso.
+
+### Crear un flujo [#create-flow]
+
+Cree un flujo pasando sus etapas, niveles, pasos y señales anidados en una sola mutación.
+
+<CollapserGroup>
+  <Collapser id="mutation-create-flow" title="Cree un flujo con tres pasos">
+    Esto crea un “Checkout flow” con una etapa, “Frontend”, que contiene tres pasos. “Login page” coincide con entidades con una consulta dinámica, “Cart service” fija una entidad específica por GUID y “Checkout errors” fija una condición de alerta.
+
+    ```graphql
+    mutation {
+      pathPointCreate(
+        scope: { id: YOUR_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: {
+          name: "Checkout flow"
+          description: "End-to-end checkout journey"
+          category: "E-Commerce"
+          refreshInterval: FIVE_MINUTES
+          stages: [
+            {
+              name: "Frontend"
+              healthRollup: AUTOMATIC_ROLL_UP
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Login page"
+                      entitySearchQuery: {
+                        query: "domain = 'BROWSER' AND type = 'APPLICATION' AND name = 'Login'"
+                      }
+                    }
+                    {
+                      name: "Cart service"
+                      signals: [
+                        { guid: "ENTITY_GUID", name: "Cart service", type: ENTITY }
+                      ]
+                    }
+                    {
+                      name: "Checkout errors"
+                      signals: [
+                        {
+                          guid: "ALERT_CONDITION_GUID"
+                          name: "Checkout error rate"
+                          type: ALERT
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        guid
+        name
+        version
+        message
+        excludedKpis
+        stages {
+          totalCount
+          items {
+            id
+            name
+            levels {
+              items {
+                id
+                steps {
+                  items {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="mutation-create-flow-kpis" title="Crear un flujo con KPI">
+    Los KPI en el nivel superior se aplican a todo el flujo. Los KPI dentro de una etapa (`stageKpis`) se aplican solo a esa etapa. Ambos usan el mismo esquema.
+
+    El `timeWindow` de cada KPI toma un `relativeRange` creado a partir de duraciones fijas o un `customRange` que contiene una expresión de tiempo de NRQL sin procesar, no ambos.
+
+    ```graphql
+    mutation {
+      pathPointCreate(
+        scope: { id: YOUR_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: {
+          name: "Checkout flow"
+          refreshInterval: FIVE_MINUTES
+          kpis: [
+            {
+              name: "Order success rate"
+              category: "Revenue"
+              description: "Orders completed successfully"
+              query: {
+                from: "Transaction"
+                where: "transactionType = 'Web' AND name = 'checkout'"
+                select: { aggregationType: COUNT, alias: "orders" }
+                timeWindow: {
+                  relativeRange: { since: TWENTY_FOUR_HOURS, compareAgainst: SEVEN_DAYS }
+                }
+              }
+            }
+          ]
+          stages: [
+            {
+              name: "Payment"
+              stageKpis: [
+                {
+                  name: "Payment errors"
+                  category: "Reliability"
+                  query: {
+                    from: "TransactionError"
+                    select: { aggregationType: COUNT, alias: "errors" }
+                    timeWindow: { customRange: "SINCE 30 minutes ago" }
+                  }
+                }
+              ]
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Payment gateway"
+                      config: {
+                        healthRollup: WORST_STATUS_WINS
+                        thresholdType: FIXED
+                        thresholdValue: 1
+                      }
+                      entitySearchQuery: {
+                        query: "domain = 'APM' AND name = 'PaymentGateway'"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        guid
+        name
+        version
+        excludedKpis
+        kpis {
+          id
+          name
+          category
+          query {
+            from
+            where
+            select {
+              aggregationType
+              attribute
+              alias
+            }
+            timeWindow {
+              customRange
+              relativeRange {
+                since
+                compareAgainst
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="mutation-create-flow-health-rollup" title="Cálculo de acumulación de salud">
+    Un flujo y cada una de sus etapas calculan el estado de una de dos maneras, que se configura con un campo `healthRollup` en ese nivel.
+
+    A nivel de flujo, `healthRollup` controla cómo se deriva el estado general del flujo:
+
+    * <DNT>**Automatic rollup**</DNT> (`AUTOMATIC_ROLL_UP`, el valor predeterminado): el estado se acumula automáticamente a partir de las etapas del flujo. Establezca `isExcluded: true` en una etapa para excluirla del estado general del flujo. Los niveles, pasos y señales propios de esa etapa aún se evalúan y siguen apareciendo en la UI. La etapa simplemente deja de afectar el estado del flujo, lo que resulta útil para etapas en construcción o temporalmente fuera de alcance. `isExcluded: false`, el valor predeterminado, significa que la etapa participa normalmente.
+    * <DNT>**Alert conditions**</DNT> (`ALERT_CONDITIONS`): la salud proviene de las condiciones de alerta en los KPI del flujo en lugar de la acumulación de la etapa. Combínelo con `kpis` a nivel de flujo.
+
+    Los mismos dos métodos se aplican a nivel de etapa, y se establecen con un campo `healthRollup` en la propia etapa. `AUTOMATIC_ROLL_UP` se acumula desde los niveles de esa etapa, a través de sus pasos y señales; establezca `isExcluded: true` en un paso, señal o `entitySearchQuery` para dejarlo fuera de ese cálculo. `ALERT_CONDITIONS` vincula el estado de salud de la etapa a uno de sus propios KPI (`stageKpis`) en su lugar, lo que se adapta a una etapa cuyo estado debe reflejar resultados comerciales en lugar de telemetría de pasos y señales, como un KPI de tasa de apertura de correos electrónicos en una etapa de campañas de marketing.
+
+    Los ajustes a nivel de flujo y a nivel de etapa son independientes, por lo que un flujo puede usar un método mientras que sus etapas usan el otro.
+
+    Este ejemplo crea un “Checkout flow” que usa `AUTOMATIC_ROLL_UP` para su propio estado general, con dos etapas. “Revenue” usa `ALERT_CONDITIONS` vinculado a un KPI de “Payment errors”, y “Frontend” usa `AUTOMATIC_ROLL_UP` mientras excluye una señal del estado.
+
+    ```graphql
+    mutation {
+      pathPointCreate(
+        scope: { id: YOUR_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: {
+          name: "Checkout flow"
+          description: "End-to-end checkout pipeline"
+          refreshInterval: FIVE_MINUTES
+          healthRollup: AUTOMATIC_ROLL_UP
+          stages: [
+            {
+              name: "Revenue"
+              healthRollup: ALERT_CONDITIONS
+              related: { source: false, target: true }
+              stageKpis: [
+                {
+                  name: "Payment errors"
+                  category: "Reliability"
+                  query: {
+                    from: "TransactionError"
+                    select: { aggregationType: COUNT, alias: "errors" }
+                  }
+                }
+              ]
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Order service"
+                      config: { healthRollup: WORST_STATUS_WINS }
+                      entitySearchQuery: {
+                        query: "domain = 'APM' AND name = 'OrderService'"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+            {
+              name: "Frontend"
+              healthRollup: AUTOMATIC_ROLL_UP
+              related: { source: true, target: false }
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Login page"
+                      config: {
+                        healthRollup: WORST_STATUS_WINS
+                        thresholdType: FIXED
+                        thresholdValue: 1
+                      }
+                      entitySearchQuery: {
+                        query: "domain = 'BROWSER' AND name = 'Login'"
+                      }
+                      signals: [
+                        {
+                          guid: "ENTITY_GUID"
+                          name: "ENTITY_NAME"
+                          type: ENTITY
+                          isExcluded: true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        guid
+        name
+        message
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+`pathPointCreate` requiere la cuenta `scope`. Dentro de la carga, solo se requiere `name`. Todo lo demás, incluido `stages`, es opcional. Un paso obtiene sus señales de una de tres maneras, y puede combinarlas:
+
+* <DNT>**A dynamic query**</DNT> (`entitySearchQuery`): las entidades que coincidan con la consulta, reevaluadas en cada actualización.
+* <DNT>**A pinned entity**</DNT> (`type: ENTITY`): una entidad específica, identificada por su GUID.
+* <DNT>**A pinned alert condition**</DNT> (`type: ALERT`): una condición de alerta, identificada por su GUID.
+
+El campo `type` es opcional. El GUID es suficiente para identificar la señal.
+
+Las etapas también toman un bloque `related` opcional que controla cómo la UI dibuja las flechas conectoras entre ellas, independientemente de la acumulación de estado. Establezca `source: true` si una etapa debe mostrar una flecha entrante de la etapa anterior, y `target: true` si debe mostrar una flecha saliente a la etapa posterior. En un flujo donde cada etapa se conecta a la siguiente en secuencia, la primera etapa es `source: false, target: true`, la última es `source: true, target: false` y cada etapa intermedia es `true` para ambas.
+
+<Callout variant="important">
+  El `accountId` de un KPI se establece de forma predeterminada en la cuenta del flujo. Si lo establece en una cuenta diferente, el KPI no se crea y no se devuelve ningún error. Revise el campo `excludedKpis` en la respuesta para ver qué KPI omitió la mutación.
+</Callout>
+
+### Leer un flujo [#read-flow]
+
+Lea un flujo por el GUID de su entidad para obtener su configuración completa más el estado de salud actual del flujo, cada etapa, cada nivel y cada paso. `healthStatus` aparece solo en las lecturas.
+
+Las etapas, los niveles y los pasos devuelven 50 elementos por página. Cuando un `nextCursor` se devuelve como no nulo, páselo para obtener la siguiente página.
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      pathPoint {
+        flow(guid: "FLOW_GUID") {
+          guid
+          name
+          description
+          category
+          refreshInterval
+          healthRollup
+          healthStatus
+          version
+          message
+          kpis {
+            id
+            name
+            category
+            accountId
+            query {
+              from
+              where
+              select {
+                aggregationType
+                attribute
+                alias
+                threshold
+              }
+              timeWindow {
+                customRange
+                relativeRange {
+                  since
+                  compareAgainst
+                }
+              }
+            }
+            metricQuery
+          }
+          stages {
+            totalCount
+            nextCursor
+            items {
+              id
+              name
+              link
+              healthRollup
+              healthStatus
+              isExcluded
+              related {
+                source
+                target
+              }
+              levels {
+                totalCount
+                nextCursor
+                items {
+                  id
+                  healthStatus
+                  steps {
+                    totalCount
+                    nextCursor
+                    items {
+                      id
+                      name
+                      healthStatus
+                      isExcluded
+                      scopedAccounts
+                      config {
+                        healthRollup
+                        thresholdType
+                        thresholdValue
+                      }
+                      entitySearchQuery {
+                        query
+                        isExcluded
+                      }
+                      signals {
+                        guid
+                        name
+                        type
+                        isExcluded
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          metadata {
+            createdAt
+            createdBy {
+              name
+              email
+            }
+            updatedAt
+            updatedBy {
+              name
+              email
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Solicite menos campos si no necesita todo el árbol. Leer solo `name` y `healthStatus`, por ejemplo, es suficiente para consultar el estado de un flujo.
+
+### Actualizar un flujo [#update-flow]
+
+`pathPointUpdate` es una operación basada en diferencias. Compara la carga que envía con el estado actual del flujo y actúa sobre cada etapa, nivel, paso y KPI según si incluyó su ID:
+
+* <DNT>**ID included**</DNT>: actualiza el objeto existente.
+* <DNT>**ID omitted**</DNT>: crea un nuevo objeto.
+* <DNT>**Object left out of the payload entirely**</DNT>: lo elimina del flujo.
+
+<Callout variant="caution">
+  Como la omisión significa eliminación, siempre [lea el flujo](#read-flow) primero, modifique la carga que reciba y envíe el estado previsto completo. Enviar una carga parcial elimina todo lo que omitió.
+
+  El campo `version` también es obligatorio. Es el timestamp de la última actualización del flujo en milisegundos de epoch, utilizado para el control de concurrencia optimista. Omitirlo o enviar un valor obsoleto hace que la actualización falle.
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="mutation-update-flow" title="Agregar un paso conservando los objetos existentes">
+    El primer paso lleva su `id`, por lo que se actualiza en su lugar. El segundo no tiene `id`, por lo que se crea como nuevo.
+
+    ```graphql
+    mutation {
+      pathPointUpdate(
+        guid: "FLOW_GUID"
+        pathpoint: {
+          name: "Checkout flow"
+          refreshInterval: FIVE_MINUTES
+          version: 1786624914316
+          stages: [
+            {
+              id: "STAGE_ID"
+              name: "Frontend"
+              healthRollup: AUTOMATIC_ROLL_UP
+              levels: [
+                {
+                  id: "LEVEL_ID"
+                  steps: [
+                    {
+                      id: "STEP_ID"
+                      name: "Cart service"
+                      signals: [
+                        { guid: "ENTITY_GUID", name: "Cart service", type: ENTITY }
+                      ]
+                    }
+                    {
+                      name: "Recommendation service"
+                      signals: [
+                        { guid: "ANOTHER_ENTITY_GUID", name: "Recommendation service", type: ENTITY }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        guid
+        name
+        version
+        message
+        stages {
+          totalCount
+          items {
+            id
+            name
+            levels {
+              items {
+                id
+                steps {
+                  items {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Duplicar un flujo [#duplicate-flow]
+
+Puede duplicar solo la estructura o todo el flujo:
+
+* `STRUCTURE`: copia solo etapas, niveles y pasos, sin señales ni KPI.
+* `WHOLE_FLOW`: copia la estructura junto con sus señales y KPI.
+
+Cualquier propiedad que establezca en la entrada anula el valor del flujo de origen. Omita una propiedad para heredarla.
+
+<CollapserGroup>
+  <Collapser id="mutation-duplicate-flow" title="Duplicar un flujo completo en la misma cuenta">
+    Para duplicar dentro de la misma cuenta, no necesita un argumento `scope`. Establezca `duplicateType: WHOLE_FLOW`.
+
+    ```graphql
+    mutation {
+      pathPointDuplicate(
+        sourceGuid: "SOURCE_FLOW_GUID"
+        pathpoint: {
+          name: "Checkout flow (copy)"
+          category: "E-Commerce"
+          refreshInterval: TEN_MINUTES
+          duplicateType: WHOLE_FLOW
+        }
+      ) {
+        guid
+        name
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="mutation-duplicate-flow-cross-account" title="Duplicar un flujo completo en otra cuenta">
+    Para copiar un flujo en una cuenta diferente, agregue un `scope` y establezca su `id` en la cuenta objetivo. Omita `scope` para duplicar dentro de la cuenta de origen.
+
+    Duplicar en otra cuenta solo copia etapas, niveles, pasos y señales, no KPI.
+
+    ```graphql
+    mutation {
+      pathPointDuplicate(
+        sourceGuid: "SOURCE_FLOW_GUID"
+        scope: { id: TARGET_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: { name: "Checkout flow", duplicateType: WHOLE_FLOW }
+      ) {
+        guid
+        name
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="mutation-duplicate-flow-structure" title="Duplicar la estructura de un flujo">
+    Establezca `duplicateType: STRUCTURE` para copiar solo la estructura del flujo, sin sus señales ni KPI.
+
+    ```graphql
+    mutation {
+      pathPointDuplicate(
+        sourceGuid: "SOURCE_FLOW_GUID"
+        pathpoint: {
+          name: "Checkout flow (copy)"
+          category: "E-Commerce"
+          refreshInterval: TEN_MINUTES
+          duplicateType: STRUCTURE
+        }
+      ) {
+        guid
+        name
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Eliminar un flujo [#delete-flow]
+
+Eliminar un flujo tiene efecto en cascada: elimina el flujo junto con todas sus etapas, niveles, pasos y KPI. Las señales en sí, las entidades y las condiciones de alerta a las que apuntaba el flujo, permanecen en la cuenta.
+
+<Callout variant="caution">
+  Eliminar un flujo es permanente.
+</Callout>
+
+```graphql
+mutation {
+  pathPointDelete(guid: "FLOW_GUID") {
+    guid
+    name
+  }
+}
+```
+
+## Fallas parciales [#partial-failures]
+
+Una creación o actualización puede tener éxito en general mientras que los objetos individuales fallan. Dos campos en la respuesta le indican cuándo ocurrió eso:
+
+* `message`: detalles de cualquier etapa, nivel o paso que haya fallado. Es `null` cuando todo se realizó correctamente.
+* `excludedKpis`: los nombres de los KPI que no se crearon, generalmente porque el `accountId` del KPI no coincidía con la cuenta del flujo.
+
+Solicite ambos campos en las mutaciones para no tratar un éxito parcial como uno completo.
+
+## Límites [#limits]
+
+Los siguientes límites se aplican a cada flujo, ya sea que lo cree a través de la API o en la UI:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Límite
+      </th>
+
+      <th>
+        Valor
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Máximo de etapas por flujo
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Niveles máximos por etapa
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Máximo de pasos por nivel
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Máximo de elementos devueltos por página
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Referencia de tipo [#type-reference]
+
+Estas enumeraciones aparecen en las operaciones anteriores. Cada fila muestra los valores aceptados, seguidos de lo que controlan:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Enumeración
+      </th>
+
+      <th>
+        Valores
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `PathPointRefreshInterval`
+      </td>
+
+      <td>
+        `ONE_MINUTE`
+
+        , 
+
+        `FIVE_MINUTES`
+
+        , 
+
+        `TEN_MINUTES`
+
+        , 
+
+        `FIFTEEN_MINUTES`
+
+        , 
+
+        `THIRTY_MINUTES`
+
+        . Con qué frecuencia se actualiza el estado del flujo, la etapa, el nivel y el paso.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointFlowHealthRollup`
+
+        , 
+
+        `PathPointStageHealthRollup`
+      </td>
+
+      <td>
+        `AUTOMATIC_ROLL_UP`
+
+        , 
+
+        `ALERT_CONDITIONS`
+
+        . Si el estado de salud se consolida desde los objetos secundarios o proviene de la peor condición de alerta en los KPI del flujo o de la etapa.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointStepHealthRollup`
+      </td>
+
+      <td>
+        `WORST_STATUS_WINS`
+
+        , 
+
+        `BEST_STATUS_WINS`
+
+        . Si el paso toma su señal menos saludable o la más saludable.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointThresholdType`
+      </td>
+
+      <td>
+        `FIXED`
+
+        , 
+
+        `PERCENTAGE`
+
+        . Si 
+
+        `thresholdValue`
+
+         es un recuento absoluto o un porcentaje de señales.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointStatusValue`
+      </td>
+
+      <td>
+        `OPERATIONAL`
+
+        , 
+
+        `DEGRADED`
+
+        , 
+
+        `DISRUPTED`
+
+        , 
+
+        `UNKNOWN`
+
+        . Salud calculada, devuelta en las lecturas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointSignalType`
+      </td>
+
+      <td>
+        `ENTITY`
+
+        , 
+
+        `ALERT`
+
+        . Si el GUID apunta a una entidad monitoreada, como un servicio de APM o un host, o a una condición de alerta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointKpiNrqlAggregations`
+      </td>
+
+      <td>
+        `COUNT`
+
+        , 
+
+        `SUM`
+
+        , 
+
+        `AVERAGE`
+
+        , 
+
+        `MAX`
+
+        , 
+
+        `MIN`
+
+        , 
+
+        `UNIQUE_COUNT`
+
+        , 
+
+        `PERCENTILE`
+
+        , 
+
+        `HISTOGRAM`
+
+        . La agregación que aplica una consulta de KPI. Todas las funciones excepto 
+
+        `COUNT`
+
+         necesitan un 
+
+        `attribute`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointKpiTimeDuration`
+      </td>
+
+      <td>
+        `THIRTY_MINUTES`
+
+        , 
+
+        `SIXTY_MINUTES`
+
+        , 
+
+        `THREE_HOURS`
+
+        , 
+
+        `SIX_HOURS`
+
+        , 
+
+        `TWENTY_FOUR_HOURS`
+
+        , 
+
+        `SEVEN_DAYS`
+
+        , 
+
+        `THIRTY_DAYS`
+
+        . Duraciones para 
+
+        `since`
+
+         y 
+
+        `compareAgainst`
+
+         de un KPI.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointDuplicateType`
+      </td>
+
+      <td>
+        `STRUCTURE`
+
+        , 
+
+        `WHOLE_FLOW`
+
+        . Si se deben copiar solo las etapas, los niveles y los pasos, o la estructura junto con sus señales y KPI.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Temas relacionados [#related-topics]
+
+<DocTiles>
+  <DocTile title="Primeros pasos con Pathpoint" path="/docs/pathpoint/get-started-pathpoint">
+    Conozca qué es Pathpoint y cómo acceder a él.
+  </DocTile>
+
+  <DocTile title="Crear y administrar flujos" path="/docs/pathpoint/create-manage-flows">
+    Cree y configure flujos en la UI.
+  </DocTile>
+
+  <DocTile title="Introducción a NerdGraph" path="/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph">
+    Aprenda a usar la API GraphQL de New Relic.
+  </DocTile>
+</DocTiles>

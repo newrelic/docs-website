@@ -1,0 +1,340 @@
+---
+title: "Installer & configurer NRDOT pour MSSQL sur Windows auto-hébergé\_: authentification SQL"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Windows
+metaDescription: Set up Microsoft SQL Server monitoring with the NRDOT Collector on Windows self-hosted environments using SQL Server authentication
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+Configurez le monitoring de Microsoft SQL Server à l’aide du NRDOT Collector sur les environnements Windows auto-hébergés, y compris les serveurs physiques, les machines virtuelles et les installations Windows autonomes, en utilisant l’authentification SQL Server. Pour monitorer dans un environnement Windows RDS, reportez-vous à l’ [instrumentation Windows RDS](/docs/opentelemetry/db360/mssql/windows-rds-sql).
+
+<Callout variant="tip" title="Installation guidée">
+  Pour installer ceci via l’UI de New Relic à la place, accédez à <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Microsoft SQL Server (Database 360)](https://onenr.io/00jlEJX6EQW)** </DNT>. Suivez les instructions à l’écran pour configurer l’intégration. Cette page couvre uniquement l’installation manuelle.
+</Callout>
+
+Cette page traite de l’authentification SQL Server. Si votre environnement utilise une méthode d’authentification différente, consultez [Authentification de domaine Windows](/docs/opentelemetry/db360/mssql/windows-hosted-domain) ou [gMSA](/docs/opentelemetry/db360/mssql/windows-hosted-gmsa).
+
+<Steps>
+  <Step>
+    ## Prérequis [#prerequisites]
+
+    Avant de monitorer votre Microsoft SQL Server avec NRDOT, assurez-vous que votre environnement répond à ces exigences :
+
+    * Un compte New Relic avec une [clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) valide.
+
+    * Connectivité réseau vers le [point de terminaison OTLP New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp) pour votre région.
+
+    * Prérequis SQL Server :
+
+      * SQL Server 2017 ou version ultérieure.
+      * Accès administrateur à SQL Server (rôle `sysadmin` ou équivalent).
+      * Connectivité réseau entre le collecteur et SQL Server sur le port `1433` ou un port personnalisé.
+      * SQL Server Management Studio (SSMS) ou l&apos;utilitaire `sqlcmd`.
+      * Authentification de domaine Windows ou SQL Server.
+  </Step>
+
+  <Step>
+    ## Installer le collecteur NRDOT [#setup-sql]
+
+    Téléchargez et installez le NRDOT Collector à l&apos;aide de PowerShell :
+
+    ```powershell
+    [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'
+    $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name
+    $WebClient = New-Object System.Net.WebClient
+    $WebClient.Headers.Add("User-Agent", "Mozilla/5.0")
+    $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi")
+    Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait
+    Get-Service nrdot-collector -ErrorAction SilentlyContinue
+    ```
+  </Step>
+
+  <Step>
+    ## Créer un utilisateur de monitoring [#user-sql]
+
+    Exécutez ce script en tant qu’utilisateur root `user/sysadmin` pour créer l’utilisateur de monitoring `newrelic` et accorder les autorisations nécessaires pour la collecte des métriques SQL Server.
+
+    Dans votre SQL Server Management Studio (SSMS), exécutez le script suivant pour créer l’utilisateur de monitoring `newrelic`. Remplacez `<YOUR_PASSWORD>` par le mot de passe souhaité :
+
+    ```sql
+    USE [master];
+    GO
+    CREATE LOGIN [newrelic] WITH PASSWORD = '<YOUR_PASSWORD>';
+    GO
+
+    GRANT VIEW SERVER STATE TO [newrelic];
+    GRANT VIEW ANY DEFINITION TO [newrelic];
+    GRANT VIEW ANY DATABASE TO [newrelic];
+    GO
+
+    DECLARE @name SYSNAME;
+    DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name]
+    FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+    AND [state] = 0;
+    OPEN db_cursor;
+    FETCH NEXT FROM db_cursor INTO @name;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+      BEGIN TRY
+        EXEC('USE [' + @name + '];
+        IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+        BEGIN
+          CREATE USER [newrelic] FOR LOGIN [newrelic];
+        END;
+        GRANT VIEW DATABASE STATE TO [newrelic];');
+      END TRY
+      BEGIN CATCH
+        PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+      END CATCH
+      FETCH NEXT FROM db_cursor INTO @name;
+    END
+    CLOSE db_cursor;
+    DEALLOCATE db_cursor;
+    GO
+    ```
+
+    <Callout variant="tip">
+      Pour gérer en toute sécurité les informations sensibles, telles que les identifiants de base de données, stockez-les dans des outils de [gestion des secrets](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management).
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Configurer le collecteur NRDOT [#configure-sql]
+
+    1. Créez un fichier de configuration nommé `mssql-config.yaml` dans PowerShell en tant qu’administrateur :
+
+    ```powershell
+    New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+    ```
+
+    2. Ajoutez vos valeurs spécifiques à l’environnement à la configuration suivante, et copiez-la dans le fichier `mssql-config.yaml` créé à l’étape précédente :
+
+    <Callout variant="tip" title="configuration complète">
+      Cette configuration se concentre sur le monitoring essentiel de la base de données pour votre environnement SQL Server. Pour activer un monitoring complet avec toutes les métriques disponibles, reportez-vous à la [référence de configuration](/docs/opentelemetry/db360/mssql/config-reference/#hosted-sql).
+    </Callout>
+
+    <OtelConfig
+      inputOptions={[{"name":"username","label":"Nom d’utilisateur SQL Server","codeLine":4,"defaultValue":"newrelic","toolTip":"Saisissez votre nom d’utilisateur SQL Server"},{"name":"password","label":"Mot de passe SQL Server","codeLine":5,"defaultValue":"YOUR_PASSWORD","toolTip":"Saisissez votre mot de passe SQL Server"},{"name":"server","label":"Nom d’hôte/IP du serveur","codeLine":6,"defaultValue":"sqlserver.example.com","toolTip":"Saisissez le nom d'hôte ou l'adresse IP de SQL Server"},{"name":"port","label":"Port du serveur","codeLine":7,"defaultValue":"1433","toolTip":"Saisissez votre numéro de port SQL Server. La valeur par défaut est 1433."},{"name":"endpoint","label":"Point de terminaison OTLP de New Relic avec numéro de port","codeLine":84,"defaultValue":"https://otlp.nr-data.net:4318","toolTip":"Saisissez votre point de terminaison OTLP New Relic. Pour plus d’informations, consultez https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/"},{"name":"licenseKey","label":"Clé de licence New Relic","codeLine":86,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"Entrez votre clé de licence d’ingestion New Relic"}]}
+      config={`receivers:
+      nrsqlserver:
+       collection_interval: 15s
+       username: <input1>
+       password: <input2>
+       server: <input3>
+       port: <input4>
+
+       # Enable comprehensive database metrics
+       metrics:
+         sqlserver.database.count:
+           enabled: true
+         sqlserver.database.io:
+           enabled: true
+         sqlserver.database.latency:
+           enabled: true
+         sqlserver.database.operations:
+           enabled: true
+         sqlserver.database.tempdb.space:
+           enabled: true
+         sqlserver.database.tempdb.version_store.size:
+           enabled: true
+         sqlserver.deadlock.rate:
+           enabled: true
+         sqlserver.os.wait.duration:
+           enabled: true
+         sqlserver.processes.blocked:
+           enabled: true
+         sqlserver.memory.grants.pending.count:
+           enabled: true
+         sqlserver.database.file.size:
+           enabled: true
+         sqlserver.memory.area:
+           enabled: true
+
+       # Enable query sample, top query, query plan, and top procedure log collection
+       events:
+         db.server.query_sample:
+           enabled: true
+         db.server.top_query:
+           enabled: true
+         db.server.query_plan:
+           enabled: true
+         db.server.top_procedure:
+           enabled: true
+
+       # Top query collection configuration
+       top_query_collection:
+         lookback_time: 60s
+         max_query_sample_count: 1000
+         top_query_count: 250
+         collection_interval: 60s
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       # Query sample collection configuration
+       query_sample_collection:
+         max_rows_per_query: 100
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       # Top stored procedure collection configuration
+       top_procedure_collection:
+         max_procedure_sample_count: 1000
+         top_procedure_count: 250
+         collection_interval: 60s
+
+       resource_attributes:
+         db.system.version:
+           enabled: true
+         sqlserver.db.edition:
+           enabled: true
+
+      processors:
+      memory_limiter:
+       check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+       limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+       spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+      exporters:
+      otlp:
+       endpoint: <input5>
+       headers:
+         api-key: <input6>
+       tls:
+         insecure: false
+       compression: gzip
+
+       sending_queue:
+         enabled: true
+         sizer: bytes
+         queue_size: 100_000_000
+         num_consumers: 10
+         batch:
+           sizer: bytes
+           max_size: 1_000_000
+           min_size: 0
+           flush_timeout: 5s
+
+      service:
+      telemetry:
+       metrics:
+         level: none
+
+      pipelines:
+       metrics:
+         receivers: [nrsqlserver]
+         processors: [memory_limiter]
+         exporters: [otlp]
+
+       logs:
+         receivers: [nrsqlserver]
+         processors: [memory_limiter]
+         exporters: [otlp]`}
+      fileName="mssql-config.yaml"
+      tipMdx={{ body: null }}
+      onChange={() => {}}
+    />
+
+    <Callout variant="tip">
+      Le pipeline `logs` ne transporte ni les logs de débogage du collecteur, ni les logs internes de l’agent. Il transmet la télémétrie des requêtes SQL Server, y compris le texte des requêtes, les plans d’exécution, et les données d’exemple. Le Récepteur `nrsqlserver` capture cette télémétrie via les événements `db.server.query_sample`, `db.server.top_query`, `db.server.query_plan`, et `db.server.top_procedure` émis sous forme d’enregistrements de log OpenTelemetry.
+
+      L’événement `db.server.top_procedure` nécessite SQL Server 2017 CU3 ou une version ultérieure, qui a introduit la prise en charge de `sys.dm_exec_procedure_stats.total_spills`. Sur les versions antérieures, cet événement n’émet pas de données et log une erreur. Les autres événements ne sont pas affectés. L’accès à `sys.dm_exec_procedure_stats` nécessite `VIEW SERVER STATE` (ou `VIEW SERVER PERFORMANCE STATE`, selon la version de SQL Server). De plus, `VIEW ANY DEFINITION` est requis pour que `OBJECT_NAME` et `OBJECT_SCHEMA_NAME` se résolvent correctement sur toutes les bases de données utilisateur, et `CONNECT SQL` est nécessaire pour configurer les sessions initiales. L’utilisateur de monitoring créé dans [Créer un utilisateur de monitoring](#user-sql) inclut les 3 autorisations.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Mettre à jour le registre des services Windows [#update-sql]
+
+    1. Mettez à jour le registre des services Windows pour utiliser le nouveau fichier `mssql-config.yaml` à l&apos;aide de l&apos;une des méthodes suivantes :
+
+       * **Pour PowerShell :** Exécutez la commande suivante en tant qu&apos;administrateur :
+
+         ```powershell
+         Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+         ```
+
+       * **Pour l’invite de commande :** si PowerShell n’est pas disponible, utilisez plutôt l’invite de commande et exécutez la commande suivante en tant qu’administrateur :
+
+         ```bash
+         sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+         ```
+
+    2. Validez la configuration du Collector NRDOT pour vous assurer qu’elle est correctement formatée et qu’elle fonctionnera correctement.
+
+       ```bash
+       & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+       ```
+
+       <Callout variant="tip">
+         Pour corréler les performances de votre application avec les opérations de base de données, vous pouvez configurer l’identification du service de bases de données. Pour plus d’informations, reportez-vous à [configurer l’identification du service de bases de données](/docs/opentelemetry/db360/capabilities/db-apm/).
+       </Callout>
+  </Step>
+
+  <Step>
+    ## Redémarrer NRDOT Collector [#restart-sql]
+
+    Après avoir mis à jour votre configuration, redémarrez le service NRDOT Collector :
+
+    ```bash
+    net stop nrdot-collector
+    net start nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      Redémarrez toujours le service NRDOT Collector après avoir modifié la configuration pour vous assurer que les nouveaux paramètres soient pris en compte.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Trouvez et utilisez vos données [#find]
+
+    Une fois vos données collectées, vous pouvez accéder à un monitoring complet de la base de données SQL Server via l’UI de New Relic.
+
+    Pour trouver votre entité de base de données SQL Server dans New Relic :
+
+    1. Allez à <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>.
+
+    2. Dans la liste déroulante **<DNT>Entity type</DNT>**, sélectionnez <DNT>**MSSQL instance**</DNT>, puis cliquez sur <DNT>**Apply**</DNT>.
+
+    3. Sélectionnez votre base de données SQL Server dans la liste des entités.
+
+       Après avoir configuré le monitoring SQL Server avec NRDOT, vous pouvez :
+
+       * [Créez des dashboards personnalisés](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) pour visualiser les métriques de votre base de données
+       * [Configurer des alertes](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) pour les seuils critiques de performances des bases de données
+       * [Explorez vos données](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) à l’aide des fonctionnalités de requête de New Relic
+  </Step>
+</Steps>
+
+## Documentation associée [#related-docs]
+
+<DocTiles>
+  <DocTile title="Configurer la corrélation APM-base de données" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    Découvrez comment corréler les performances des applications avec les opérations de base de données dans New Relic.
+  </DocTile>
+
+  <DocTile title="Dépannage" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+    Découvrez comment dépanner votre configuration de monitoring MSSQL Windows dans New Relic.
+  </DocTile>
+
+  <DocTile title="Référence des métriques" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+    Découvrez les métriques disponibles collectées par le collecteur NRDOT.
+  </DocTile>
+</DocTiles>

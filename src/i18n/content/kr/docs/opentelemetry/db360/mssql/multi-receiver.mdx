@@ -1,0 +1,224 @@
+---
+title: NRDOT를 사용한 MSSQL용 다중 수신자 설정
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-MSSQL
+  - nrdot-collector-Database
+  - NRDOT
+  - MSSQL
+  - Multi-receiver configuration
+metaDescription: Set up a multi-receiver configuration with the NRDOT Collector for MSSQL monitoring
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MSSQL-with-NRDOT
+flow:
+  prev:
+    - /docs/opentelemetry/db360/mssql/linux-rds
+    - /docs/opentelemetry/db360/mssql/linux-hosted
+    - /docs/opentelemetry/db360/mssql/windows-hosted-sql
+    - /docs/opentelemetry/db360/mssql/windows-hosted-domain
+    - /docs/opentelemetry/db360/mssql/windows-hosted-gmsa
+    - /docs/opentelemetry/db360/mssql/windows-rds-sql
+    - /docs/opentelemetry/db360/mssql/windows-rds-domain
+    - /docs/opentelemetry/db360/mssql/windows-rds-gmsa
+  next: null
+translationType: machine
+---
+
+하나의 수집기에서 여러 MSSQL 인스턴스를 모니터하도록 NRDOT Collector를 구성할 수 있습니다. 이는 서로 다른 호스트에서 실행 중인 여러 MSSQL 인스턴스가 있고 단일 NRDOT Collector 인스턴스를 사용하여 이들 모두에서 메트릭을 수집하려는 경우에 유용합니다.
+
+<Steps>
+  <Step>
+    ## 전제 조건 [#prerequisites]
+
+    * MSSQL 인스턴스에 NRDOT가 설치 및 구성되었습니다:
+
+      * [Linux RDS](/docs/opentelemetry/db360/mssql/linux-rds)
+
+      * [Linux 호스팅](/docs/opentelemetry/db360/mssql/linux-hosted)
+
+      * Windows 자체 호스팅:
+
+        * [SQL Server 인증](/docs/opentelemetry/db360/mssql/windows-hosted-sql)
+        * [Windows 도메인 인증](/docs/opentelemetry/db360/mssql/windows-hosted-domain)
+        * [gMSA](/docs/opentelemetry/db360/mssql/windows-hosted-gmsa)
+
+      * Windows RDS:
+
+        * [SQL Server 인증](/docs/opentelemetry/db360/mssql/windows-rds-sql)
+        * [Windows 도메인 인증](/docs/opentelemetry/db360/mssql/windows-rds-domain)
+        * [gMSA](/docs/opentelemetry/db360/mssql/windows-rds-gmsa)
+  </Step>
+
+  <Step>
+    ## 다중 수신기 설정 추가 [#multi]
+
+    다음 예제는 다중 수신기 설정을 사용하여 두 개의 MSSQL 인스턴스를 모니터하도록 NRDOT Collector를 설정하는 방법을 보여줍니다. 첫 번째 인스턴스인 `nrsqlserver/1`은(는) 전체 설정을 포함하고 앵커 역할을 하며, 두 번째 인스턴스인 `nrsqlserver/2`은(는) YAML 병합 키를 통해 모든 공유 설정을 상속하고 자체 연결 세부 정보만 재정의합니다. 추가 인스턴스를 위해 필요에 따라 수신기를 더 추가할 수 있습니다.
+
+    ```yaml
+    receivers:
+      # Base SQL Server instance: defines the anchor all others inherit from.
+      nrsqlserver/1: &nrsqlserver-common
+        username: "<YOUR_DB1_USERNAME>"
+        password: "<YOUR_DB1_PASSWORD>"
+        server: "<YOUR_SERVER_1>"
+        port: 1433
+        collection_interval: 15s
+
+        metrics:
+          sqlserver.database.count:
+            enabled: true
+          sqlserver.database.io:
+            enabled: true
+          sqlserver.database.latency:
+            enabled: true
+          sqlserver.database.operations:
+            enabled: true
+          sqlserver.database.tempdb.space:
+            enabled: true
+          sqlserver.database.tempdb.version_store.size:
+            enabled: true
+          sqlserver.deadlock.rate:
+            enabled: true
+          sqlserver.os.wait.duration:
+            enabled: true
+          sqlserver.processes.blocked:
+            enabled: true
+          sqlserver.memory.grants.pending.count:
+            enabled: true
+          sqlserver.database.file.size:
+            enabled: true
+          sqlserver.memory.area:
+            enabled: true
+
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+          db.server.top_procedure:
+            enabled: true
+
+        top_query_collection:
+          lookback_time: 60s
+          max_query_sample_count: 1000
+          top_query_count: 250
+          collection_interval: 60s
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        query_sample_collection:
+          max_rows_per_query: 100
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        top_procedure_collection:
+          max_procedure_sample_count: 1000
+          top_procedure_count: 250
+          collection_interval: 60s
+
+        resource_attributes:
+          db.system.version:
+            enabled: true
+          sqlserver.db.edition:
+            enabled: true
+
+      # Second SQL Server instance: inherits all settings from nrsqlserver/1,
+      # overrides only the connection-specific fields.
+      # Additional SQL Server instances can be added here following the same pattern.
+      nrsqlserver/2:
+        <<: *nrsqlserver-common
+        username: "<YOUR_DB2_USERNAME>"
+        password: "<YOUR_DB2_PASSWORD>"
+        server: "<YOUR_SERVER_2>"
+        port: 1433
+
+    processors:
+      memory_limiter:
+        check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib: ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+    exporters:
+      otlp:
+        endpoint: https://otlp.nr-data.net:4318
+        headers:
+          api-key: <YOUR_LICENSE_KEY>
+        tls:
+          insecure: false
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+
+      # Metrics and logs pipelines for multiple SQL Server instances
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver/1, nrsqlserver/2]
+          processors: [memory_limiter]
+          exporters: [otlp]
+        logs:
+          receivers: [nrsqlserver/1, nrsqlserver/2]
+          processors: [memory_limiter]
+          exporters: [otlp]
+    ```
+
+    `<<: *nrsqlserver-common` 병합 키는 메트릭 카탈로그, 이벤트, 쿼리/프로시저 수집 설정 및 리소스 속성을 포함하여 `nrsqlserver/1`에서 모든 설정을 상속합니다. `username`, `password`, `server` 및 `port`와 같이 그 이후에 명시적으로 설정한 모든 필드는 해당 특정 수신기 인스턴스에 대해 상속된 값을 재정의합니다.
+
+    <Callout variant="important">
+      새로운 수신기 인스턴스(예: `nrsqlserver/3`)를 추가할 때마다 `service.pipelines` 아래의 `metrics` 및 `logs` 파이프라인 모두에 있는 `receivers` 목록에도 추가해 주십시오. `receivers` 블록에 정의되어 있지만 `service.pipelines`에서 누락된 수신기는 데이터를 수집하지 않습니다.
+    </Callout>
+
+    <Callout variant="tip">
+      도메인 또는 gMSA 인증을 사용하는 Windows 자체 호스팅 및 RDS 환경의 경우 `username`/`password`/`server`/`port` 대신 `datasource` 필드를 사용하십시오. `datasource` 형식에 대해서는 [Windows 자체 호스팅 계측(Windows 도메인 인증)](/docs/opentelemetry/db360/mssql/windows-hosted-domain)을 참조하십시오.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collector를 다시 시작하십시오 [#restart]
+
+    설정 변경 사항을 적용하려면 <DNT>NRDOT Collector</DNT> 서비스를 다시 시작합니다. 수집기는 시작 시 설정 파라미터를 한 번 로드하며 핫 리로딩을 지원하지 않습니다. 수집기가 실행되는 동안 설정에 적용된 모든 변경 사항은 프로세스가 다시 시작될 때까지 비활성 상태로 유지됩니다.
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+  </Step>
+</Steps>
+
+## 관련 문서 [#related-docs]
+
+<DocTiles>
+  <DocTile title="자체 호스팅 환경을 위한 Linux 계측" path="/docs/opentelemetry/db360/mssql/linux-hosted">
+    뉴렐릭을 사용하여 자체 호스팅 Linux 환경에서 MSSQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="자체 호스팅 환경을 위한 Windows 계측" path="/docs/opentelemetry/db360/mssql/windows-hosted-sql">
+    뉴렐릭을 사용하여 자체 호스팅 Windows 환경에서 MSSQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="APM-데이터베이스 상관관계 설정" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    뉴렐릭에서 애플리케이션 성능을 데이터베이스 작업과 연관시키는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>

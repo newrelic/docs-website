@@ -1,0 +1,213 @@
+---
+title: 분산 추적을 사용하여 APM을 Elasticsearch와 연관시키기
+tags:
+  - OpenTelemetry
+  - Elasticsearch
+  - Integrations
+  - Distributed tracing
+  - APM
+metaDescription: 'Set up distributed tracing to automatically correlate your APM applications with the Elasticsearch cluster they call, with no per-application changes.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+기본적으로 뉴렐릭은 APM 애플리케이션과 Elasticsearch 클러스터를 두 개의 분리되고 연결되지 않은 항목으로 모니터링합니다: 앱이 실제로 해당 클러스터를 호출한다는 것을 보여주는 것은 없습니다.
+
+이 페이지는 Elasticsearch의 기본 OpenTelemetry 분산 추적을 사용하여 해당 격차를 해소합니다. Elasticsearch는 애플리케이션별 변경 없이 메트릭에 이미 사용하는 것과 동일한 OpenTelemetry 수집기(NRDOT 또는 OTel Collector Contrib)를 통해 자체 트레이스 스팬을 내보냅니다. 결과: 느린 트랜잭션은 이를 처리한 클러스터로 바로 연결됩니다.
+
+내부적으로 애플리케이션과 Elasticsearch는 각각 동일한 요청의 일부를 단일 공유 트레이스에 제공합니다. 뉴렐릭은 양쪽이 함께 속해 있음을 인식하고 서비스-클러스터 관계를 자동으로 구축합니다.
+
+<Callout variant="tip">
+  분산 추적은 APM을 Elasticsearch와 연관시키는 두 가지 방법 중 하나입니다. 전체 요청 수준의 세부 정보를 제공하지만, 추가 트레이스 데이터가 수집 볼륨에 추가됩니다. 클러스터가 관련 엔티티로 표시되기만 하면 되는 경우, 대신 APM 애플리케이션의 텔레메트리에 클러스터 이름으로 태그를 지정할 수 있습니다 ― 이는 모든 Elasticsearch 버전에서 작동하지만 엔드투엔드 트레이스 세부 정보는 생략합니다.
+</Callout>
+
+## 호환되는 계측 [#compatibility]
+
+이 상관관계는 다음을 포함하여 W3C Trace Context 전파를 지원하는 모든 애플리케이션에서 작동합니다:
+
+* OpenTelemetry SDK로 계측된 애플리케이션(모든 언어)
+* OpenTelemetry 자동 측정(자바, .NET, 파이썬, Node.js)
+* 뉴렐릭 APM 에이전트(Go, 자바, .NET, Node.js, 파이썬, 루비, PHP)([분산 추적](/docs/distributed-tracing/concepts/quick-start/) 활성화됨)
+
+계측 방식을 혼합할 수 있습니다. 예를 들어, 뉴렐릭 APM 에이전트를 사용하는 자바 서비스와 OpenTelemetry SDK를 사용하는 파이썬 서비스는 모두 동일한 Elasticsearch 클러스터를 호출할 수 있으며, 각각 뉴렐릭에서 해당 클러스터에 올바르게 연결된 것으로 나타납니다.
+
+## 필요한 사항 [#you-need]
+
+시작하기 전에 다음 사항을 확인하십시오:
+
+* 유효한 뉴렐릭 [라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* 네이티브 OTLP 트레이스 내보내기에는 이 버전이 필요하므로 Elasticsearch 9.4 이상
+* 이미 실행 중이며 Elasticsearch 노드에서 연결할 수 있는 OpenTelemetry 수집기(OTel Collector Contrib 또는 NRDOT). 아직 설치하지 않은 경우 [자체 호스팅 설치](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-install) 또는 [Kubernetes 설치](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install)를 따르십시오.
+* 위에 나열된 호환 가능한 계측 접근 방식 중 하나를 사용하고 [분산 추적이 활성화된](/docs/distributed-tracing/concepts/quick-start/)상태로 Elasticsearch에 requests를 보내는 계측된 애플리케이션
+* 수집기에서 뉴렐릭의 [OTLP 엔드포인트](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)로의 네트워크 액세스
+
+## 분산 추적 설정 [#configuration]
+
+설정은 두 부분으로 구성됩니다: Elasticsearch에서 추적을 켜고, 수집기에 트레이스 파이프라인을 추가하는 것입니다.
+
+추적을 켜면 Elasticsearch는 자체 OpenTelemetry 스팬을 내보내고, `traceparent` 헤더를 통해 애플리케이션의 트레이스와 결합하며, 각각에 `es.cluster.name`을(를) 기록합니다. 뉴렐릭은 공유된 트레이스를 사용하여 관계를 자동으로 연결합니다.
+
+배포와 일치하는 섹션을 확장하십시오.
+
+<CollapserGroup>
+  <Collapser id="host" title="자체 호스팅">
+    <Steps>
+      <Step>
+        ### Elasticsearch에서 추적 켜기 [#es-enable-tracing]
+
+        모든 노드의 `elasticsearch.yml`에 다음을 추가합니다. 그런 다음 (`ES_JAVA_OPTS` 또는 `jvm.options`을(를) 통해) `-Dtelemetry.otel.traces.enabled=true`을(를) 설정하고 각 노드를 다시 시작합니다:
+
+        ```yaml
+        telemetry.tracing.enabled: true
+        telemetry.export.endpoint: http://YOUR_COLLECTOR_HOST:4317   # localhost if the collector runs on this node
+        telemetry.tracing.sample_rate: 1.0                           # default 0.001; lower for high volume
+        ```
+      </Step>
+
+      <Step>
+        ### 수집기에 트레이스 파이프라인 추가 [#collector-traces]
+
+        이제 Elasticsearch가 전송하는 트레이스를 수신하고, 그렇지 않을 경우 클러스터가 자신을 호출하는 것처럼 보이게 만드는 스팬을 필터링하도록 수집기를 구성하십시오. `otlp` 수신기와 `filter/drop_rootless_es` 및 `transform/strip_es_host` 프로세서를 `traces` 파이프라인에 추가하십시오:
+
+        ```yaml
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+
+        processors:
+          # Drop Elasticsearch's own parentless spans (health checks, metrics-scrape calls) so the cluster isn't linked to itself
+          filter/drop_rootless_es:
+            error_mode: ignore
+            traces:
+              span:
+                - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+          # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+          transform/strip_es_host:
+            error_mode: ignore
+            trace_statements:
+              - context: span
+                statements:
+                  - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+                  - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+              exporters: [otlphttp]
+        ```
+      </Step>
+
+      <Step>
+        ### 수집기를 재시작하세요 [#restart-collector]
+
+        `<collector-service>`을(를) 수집기의 서비스 이름(예: `nrdot-collector` 또는 `otelcol-contrib`)으로 교체하십시오:
+
+        ```bash
+        sudo systemctl restart <collector-service>
+        ```
+      </Step>
+
+      <Step>
+        ### 스팬 도착 확인 [#verify-correlation]
+
+        Elasticsearch가 클러스터 이름으로 태그가 지정된 트레이스를 전송하고 있는지 확인하십시오:
+
+        ```sql
+        FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+        ```
+
+        `SINCE` 절은 쿼리가 얼마나 과거를 조회할지 설정합니다. 상황에 맞게 조정하십시오 ― 예를 들어, 이전에 추적을 활성화했고 더 긴 기간을 확인하려면 `SINCE 2 hours ago`을(를) 사용하십시오.
+      </Step>
+    </Steps>
+  </Collapser>
+
+  <Collapser id="k8s" title="Kubernetes">
+    <Steps>
+      <Step>
+        ### Elasticsearch 파드에서 추적 켜기 [#es-enable-tracing-k8s]
+
+        `elasticsearch.yml` (ConfigMap, Helm 값 또는 ECK `nodeSets`)에 다음을 추가합니다. 그런 다음 `ES_JAVA_OPTS`을(를) 통해 `-Dtelemetry.otel.traces.enabled=true`을(를) 설정하고 파드를 롤아웃합니다:
+
+        ```yaml
+        telemetry.tracing.enabled: true
+        telemetry.export.endpoint: http://YOUR_COLLECTOR_SVC.YOUR_NAMESPACE.svc.cluster.local:4317
+        telemetry.tracing.sample_rate: 1.0   # default 0.001; lower for high volume
+        ```
+      </Step>
+
+      <Step>
+        ### 수집기에 트레이스 파이프라인 추가 [#collector-traces-k8s]
+
+        이제 Elasticsearch가 전송하는 트레이스를 수신하고, 그렇지 않을 경우 클러스터가 자신을 호출하는 것처럼 보이게 만드는 스팬을 필터링하도록 수집기를 구성하십시오. 수집기 설정의 `traces` 파이프라인에 `otlp` 수신기와 `filter/drop_rootless_es` 및 `transform/strip_es_host` 프로세서를 추가하십시오. 수집기가 gRPC 포트 `4317`을(를) 노출하는지 확인하십시오:
+
+        ```yaml
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+
+        processors:
+          # Drop Elasticsearch's own parentless spans (health probes, metrics-scrape calls) so the cluster isn't linked to itself
+          filter/drop_rootless_es:
+            error_mode: ignore
+            traces:
+              span:
+                - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+          # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+          transform/strip_es_host:
+            error_mode: ignore
+            trace_statements:
+              - context: span
+                statements:
+                  - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+                  - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+              exporters: [otlphttp]
+        ```
+      </Step>
+
+      <Step>
+        ### 수집기 재배포 [#redeploy-collector]
+
+        업데이트된 구성을 적용한 다음, 수집기 파드가 이를 적용할 수 있도록 롤아웃하십시오. [수집기를 설치](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install) 할 때 사용한 것과 동일한 ConfigMap 파일, `Deployment` 이름 및 네임스페이스를 사용하십시오 — 예를 들어 매니페스트 기반 설치를 따른 경우 `nr-k8s-otel-collector-deployment` 입니다:
+
+        ```bash
+        kubectl apply -f <your-collector-config>.yaml -n <namespace>
+        kubectl rollout restart deployment/<collector-deployment> -n <namespace>
+        ```
+
+        Helm으로 수집기를 배포한 경우, `kubectl apply` 대신 업데이트된 값으로 `helm upgrade`을(를) 다시 실행하십시오.
+      </Step>
+
+      <Step>
+        ### 스팬 도착 확인 [#verify-correlation-k8s]
+
+        Elasticsearch가 클러스터 이름으로 태그가 지정된 트레이스를 전송하고 있는지 확인하십시오:
+
+        ```sql
+        FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+        ```
+
+        `SINCE` 절은 쿼리가 얼마나 과거를 조회할지 설정합니다. 상황에 맞게 조정하십시오 ― 예를 들어, 이전에 추적을 활성화했고 더 긴 기간을 확인하려면 `SINCE 2 hours ago`을(를) 사용하십시오.
+      </Step>
+    </Steps>
+  </Collapser>
+</CollapserGroup>
+
+## 트레이스 보기 [#view-traces]
+
+스팬이 전송되기 시작하면, 이를 쿼리하고 상관된 서비스 맵을 검사할 수 있습니다. 쿼리 예제와 뉴렐릭에서 서비스 맵을 찾는 위치는 [분산 트레이스 및 APM 상관관계 보기](/docs/opentelemetry/integrations/elasticsearch/find-and-query-data/#traces-correlation)를 참조하십시오.
+
+## 문제점 해결 [#troubleshooting]
+
+스팬이 표시되지 않거나, 클러스터가 자신과의 관계를 표시하거나, 애플리케이션이 클러스터에 연결되지 않는 경우, 문제 진단, 해결 가이드의 [APM 상관관계 및 분산 추적 섹션](/docs/opentelemetry/integrations/elasticsearch/troubleshooting/#correlation-troubleshooting)을 참조하십시오.

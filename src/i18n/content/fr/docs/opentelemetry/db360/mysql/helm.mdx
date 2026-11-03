@@ -1,0 +1,666 @@
+---
+title: Installer & configurer NRDOT pour le monitoring de MySQL avec Helm
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Kubernetes
+  - Helm
+metaDescription: Install and configure MySQL monitoring on Kubernetes using the mysql-otel Helm chart
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+Vous pouvez installer et configurer le monitoring MySQL sur Kubernetes à l&apos;aide du chart Helm `mysql-otel`. En option, le chart peut également exécuter un job de configuration qui crée l&apos;utilisateur de monitoring pour vous.
+
+<Callout variant="tip" title="Installation guidée">
+  Pour installer plutôt via l’UI de New Relic, accédez à <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; MySQL (Database 360)](https://onenr.io/0oQDYBNG1wy)** </DNT>. Cette page traite uniquement de l’installation manuelle.
+</Callout>
+
+<Callout variant="important">
+  Le chart déploie le collecteur en tant que déploiement Kubernetes qui accède à MySQL à distance sur le réseau. Par conséquent, il se connecte toujours via TCP (le monitoring par socket Unix n’est pas pris en charge), et il ne rapporte que les métriques MySQL (aucune métrique d’hôte ou d’infrastructure pour la machine sur laquelle MySQL s’exécute). En utilisant `mysql.*`, il monitore une instance MySQL par sortie ; pour monitorer plusieurs instances à partir d’une seule sortie, utilisez plutôt `mysqlMulti.*` (voir [Monitorer plusieurs instances à partir d’une seule sortie](#helm-multi) ci-dessous).
+</Callout>
+
+<Steps>
+  <Step>
+    ## Prérequis [#helm-prerequisites]
+
+    * Une [clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) New Relic valide.
+
+    * MySQL 5.7 ou version ultérieure.
+
+    * Helm 3.0 ou version ultérieure, et `kubectl` configuré pour accéder à votre cluster Kubernetes.
+
+    * Connectivité réseau depuis votre cluster Kubernetes vers l&apos;hôte MySQL (ou le point de terminaison RDS) et le port :
+
+      * Auto-hébergé : un chemin routé vers l’hôte MySQL (VPN, peering, ou réseau partagé), une résolution DNS s’il s’agit d’un nom d’hôte, et le pare-feu côté MySQL doit autoriser l’IP source réelle de la connexion (qui peut être un gateway NAT, et non l’IP du pod elle-même).
+      * AWS RDS : le peering VPC, un gateway de transit, ou un placement VPC partagé avec l’instance RDS, et le groupe de sécurité RDS doivent autoriser le port MySQL (`3306` par défaut) depuis la source de sortie du cluster.
+
+    * Soit un utilisateur de monitoring que vous avez déjà créé, soit des identifiants d’administrateur MySQL afin que le job de configuration du chart puisse en créer un pour vous. Voir [Configurer les identifiants de monitoring](#helm-credentials) ci-dessous.
+  </Step>
+
+  <Step>
+    ## Créer l’espace de nommage [#helm-namespace]
+
+    Créez l’espace de nommage dans lequel vous effectuerez l’installation. Il doit exister avant que vous ne créiez des secrets à l’étape suivante, car `helm install --create-namespace` ne crée l’espace de nommage que lors de l’étape d’installation finale :
+
+    ```bash
+    kubectl create namespace newrelic
+    ```
+
+    <Callout variant="tip">
+      Définissez-le comme espace de nommage par défaut pour votre contexte `kubectl` actuel afin de ne pas avoir à passer `-n` à chaque commande ci-dessous :
+
+      ```bash
+      kubectl config set-context --current --namespace=newrelic
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Configurez les identifiants de monitoring [#helm-credentials]
+
+    Décidez si vous souhaitez que la tâche de configuration du chart crée l’utilisateur de monitoring MySQL pour vous, et si ce n’est pas le cas, comment vous fournirez ses identifiants :
+
+    <CollapserGroup>
+      <Collapser id="helm-creds-inline" title="Aucun job de configuration : nom d’utilisateur et mot de passe simples">
+        Avec cette méthode, il n’y a pas de tâche de configuration, donc rien ici ne crée l’utilisateur de monitoring pour vous. Avant d&apos;installer le chart, créez-le vous-même à l&apos;aide de l&apos;étape **Configurer l&apos;utilisateur de base de données** de [MySQL auto-hébergé](/docs/opentelemetry/db360/mysql/hosted/#user) ou [MySQL sur RDS](/docs/opentelemetry/db360/mysql/rds/#user), ou exécutez le code SQL équivalent en tant qu&apos;utilisateur admin :
+
+        ```sql
+        CREATE USER IF NOT EXISTS 'newrelic'@'%' IDENTIFIED BY '<password>';
+        GRANT SELECT ON performance_schema.* TO 'newrelic'@'%';
+        FLUSH PRIVILEGES;
+        ```
+
+        Vous définirez le nom d’utilisateur et le mot de passe de monitoring directement dans `values.yaml` à l’étape suivante.
+      </Collapser>
+
+      <Collapser id="helm-creds-secret-nojob" title="Aucun job de configuration : identifiants basés sur des secrets">
+        Avec cette méthode, il n’y a pas non plus de tâche de configuration. Créez d’abord vous-même l’utilisateur de monitoring, exactement comme dans la méthode avec des identifiants en clair ci-dessus. La seule différence est l’endroit où se trouvent ses identifiants : au lieu de texte brut dans `values.yaml`, stockez-les dans un secret Kubernetes :
+
+        ```bash
+        kubectl create secret generic mysql-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        ```
+      </Collapser>
+
+      <Collapser id="helm-creds-setupjob" title="Job de configuration automatisé">
+        Avec cette méthode, le job de configuration du chart crée l’utilisateur de monitoring pour vous à l’aide des identifiants d’administration MySQL. Les identifiants de monitoring et d’administration doivent tous deux être fournis en tant que secrets Kubernetes : le job de configuration n’accepte jamais les identifiants d’administration en texte clair, et son activation nécessite également des identifiants de monitoring basés sur des secrets.
+
+        1. Créez un secret avec le nom d&apos;utilisateur et le mot de passe de monitoring. Il s&apos;agit de l&apos;identité que le job de configuration crée et avec laquelle le collecteur se connecte :
+
+           ```bash
+           kubectl create secret generic mysql-monitor-creds \
+             --from-literal=username=<MONITORING_USERNAME> \
+             --from-literal=password='<MONITORING_PASSWORD>' \
+             -n newrelic
+           ```
+
+        2. Le job de configuration n’accepte les identifiants d’administrateur que via un secret Kubernetes (aucun nom d’utilisateur / mot de passe en texte clair dans `values.yaml`). Puisque cet identifiant peut exécuter `CREATE USER` et accorder un accès étendu à `performance_schema`, créez-le en tant que secret distinct. Utilisez le compte `root` pour MySQL auto-hébergé, ou l’utilisateur maître RDS pour MySQL sur AWS RDS :
+
+           ```bash
+           kubectl create secret generic mysql-admin-creds \
+             --from-literal=username=<ADMIN_USERNAME> \
+             --from-literal=password='<ADMIN_PASSWORD>' \
+             -n newrelic
+           ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Configurez les valeurs Helm [#helm-configure]
+
+    Configurez `mysql.topology` pour correspondre à votre environnement :
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Valeur
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `self-hosted`
+          </td>
+
+          <td>
+            MySQL auto-hébergé, accessible via le réseau.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rds`
+          </td>
+
+          <td>
+            MySQL ou Aurora sur AWS RDS.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Utilisez le `values.yaml` qui correspond à la méthode d&apos;identification que vous avez choisie à l&apos;étape précédente :
+
+    <CollapserGroup>
+      <Collapser id="helm-values-inline" title="Aucun job de configuration : nom d’utilisateur et mot de passe simples">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        mysql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          username: <YOUR_MONITORING_USERNAME>
+          password: <YOUR_MONITORING_PASSWORD>
+
+        # No setup job runs, so create the monitoring user yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-secret-nojob" title="Aucun job de configuration : identifiants basés sur des secrets">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        mysql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: mysql-monitor-creds
+
+        # No setup job runs, so the monitoring user referenced by
+        # this secret must already exist - create it yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-setupjob" title="Job de configuration automatisé">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        mysql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: mysql-monitor-creds
+
+        setupJob:
+          enabled: true
+          mysqlAdmin:
+            existingSecret: mysql-admin-creds
+          # -- Also grants UPDATE on performance_schema.setup_consumers,
+          # needed for wait-time data. Optional.
+          enableWaitTimeMetrics: false
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `licenseKey`
+          </td>
+
+          <td>
+            Votre clé de licence New Relic.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `otlpEndpoint`
+          </td>
+
+          <td>
+            Le point de terminaison OTLP/gRPC de votre région, sous la forme d’un 
+
+            `host:port`
+
+             brut 
+
+            **sans schéma**
+
+            : 
+
+            `otlp.nr-data.net:4317`
+
+             (US) ou 
+
+            `otlp.eu01.nr-data.net:4317`
+
+             (EU). Pour plus d’informations, consultez la 
+
+            [documentation sur les points de terminaison OTLP New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+            .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mysql.server`
+
+             / 
+
+            `mysql.port`
+          </td>
+
+          <td>
+            Votre hôte MySQL (ou point de terminaison RDS) et votre port, accessibles depuis le cluster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mysql.database`
+          </td>
+
+          <td>
+            Facultatif. Restreignez le monitoring à une seule base de données. Laissez vide pour monitorer toutes les bases de données.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `additionalReceiverConfig.tls.*`
+          </td>
+
+          <td>
+            Facultatif. Le chart ne déclare pas de bloc 
+
+            `tls`
+
+            , et n’a pas de valeurs 
+
+            `mysql.tls.*`
+
+            . Les valeurs par défaut propres au Récepteur s’appliquent (
+
+            `insecure: false`
+
+            , 
+
+            `insecure_skip_verify: false`
+
+            ), lesquelles nécessitent une connexion chiffrée avec validation de certificat. Remplacez-les via 
+
+            `additionalReceiverConfig`
+
+            : définissez 
+
+            `additionalReceiverConfig.tls.insecure_skip_verify=true`
+
+             pour ignorer la validation de certificat (uniquement pour les tests avec des certificats auto-signés, car cela affaiblit la sécurité de la connexion), ou 
+
+            `additionalReceiverConfig.tls.ca_file`
+
+             pour pointer vers un bundle de CA monté dans le conteneur du collecteur. Une 
+
+            **instance Amazon RDS avec l’application de l’exigence Require SSL/TLS nécessite que `ca_file` soit défini sur le bundle de CA RDS d’Amazon**
+
+            . Le chart ne fournit délibérément aucun bundle par défaut, puisqu’un bundle codé en dur risque de devenir obsolète, à mesure qu’Amazon effectue la rotation des CA.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.image.repository`
+
+             / 
+
+            `setupJob.image.tag`
+          </td>
+
+          <td>
+            L&apos;image de la CLI 
+
+            `mysql`
+
+             utilisée par le job de configuration. Prend par défaut l&apos;image officielle et activement maintenue 
+
+            `mysql:8.4`
+
+            , de sorte que l&apos;activation du job de configuration ne nécessite aucun flag d&apos;image supplémentaire. Surchargez uniquement si vous avez besoin d&apos;une version différente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.enableWaitTimeMetrics`
+          </td>
+
+          <td>
+            Facultatif. Accorde également 
+
+            `UPDATE`
+
+             sur 
+
+            `performance_schema.setup_consumers`
+
+            , ce qui est nécessaire pour les données de temps d’attente.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Consultez le fichier [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/mysql-otel/values.yaml) du chart pour toutes les options de configuration disponibles, y compris `mysql.collectionInterval`, `mysql.explainMode`, les blocs `statementEvents`/`querySampleCollection`/`topQueryCollection`, et l’échappatoire `additionalReceiverConfig`.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## (Facultatif) Monitorer plusieurs instances à partir d’une seule sortie [#helm-multi]
+
+    Au lieu de `mysql.*`, définissez `mysqlMulti.enabled: true` pour monitorer plusieurs instances MySQL (auto-hébergées ou RDS) à partir d’un seul pod collecteur dans une seule sortie. Les deux modes sont mutuellement exclusifs : ne définissez pas `mysql.server` et `mysqlMulti.enabled: true` dans la même sortie.
+
+    Le mode multi-instance n’a pas de chemin nom d’utilisateur / mot de passe en clair : chaque instance a besoin de son propre secret Kubernetes avec des identifiants de monitoring. Décidez si vous souhaitez également que le job de configuration crée chaque utilisateur de monitoring pour vous :
+
+    <CollapserGroup>
+      <Collapser id="helm-multi-nojob" title="Aucune tâche de configuration">
+        Créez vous-même le secret de l&apos;utilisateur de monitoring de chaque instance avant l&apos;installation (répétez pour chaque instance, en faisant correspondre le `name` que vous lui attribuez dans `values.yaml`) :
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secret you created for it.
+        mysqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          databases:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              existingSecret: db1-monitor-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              existingSecret: db2-monitor-creds
+
+        # No admin credential is configured here since the setup
+        # job is disabled - create each instance's monitoring user
+        # yourself first.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-multi-setupjob" title="Job de configuration automatisé">
+        Chaque instance nécessite à la fois son propre secret d’utilisateur de monitoring, et son propre secret d’identifiants d’administrateur (à répéter par instance) :
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        kubectl create secret generic db1-admin-creds \
+          --from-literal=username=<ADMIN_USERNAME> \
+          --from-literal=password='<ADMIN_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secrets you created for it.
+        mysqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          databases:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              existingSecret: db1-monitor-creds
+              mysqlAdmin:
+                existingSecret: db1-admin-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              existingSecret: db2-monitor-creds
+              mysqlAdmin:
+                existingSecret: db2-admin-creds
+
+        setupJob:
+          enabled: true
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `mysqlMulti.enabled`
+          </td>
+
+          <td>
+            Définissez sur 
+
+            `true`
+
+             pour monitorer plusieurs instances à partir d’une seule sortie au lieu de 
+
+            `mysql.*`
+
+            . Par défaut 
+
+            `false`
+
+            .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mysqlMulti.topology`
+          </td>
+
+          <td>
+            `self-hosted`
+
+             ou 
+
+            `rds`
+
+            , même signification que 
+
+            `mysql.topology`
+
+            , partagé par chaque instance dans cette sortie.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mysqlMulti.databases`
+          </td>
+
+          <td>
+            Liste des instances à monitorer. Chaque entrée nécessite un 
+
+            `name`
+
+             unique, 
+
+            `server`
+
+             (
+
+            `port`
+
+             est défini par défaut sur 
+
+            `3306`
+
+            ), et 
+
+            `existingSecret`
+
+            ; 
+
+            `database`
+
+             restreint facultativement le monitoring à une base de données (même signification que 
+
+            `mysql.database`
+
+            ) ; ajoutez 
+
+            `mysqlAdmin.existingSecret`
+
+             par entrée uniquement lorsque 
+
+            `setupJob.enabled`
+
+             est 
+
+            `true`
+
+            .
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Les paramètres de scraping (intervalle de collecte, TLS, événements d’instruction, collecte d’échantillons de requêtes, collecte des requêtes principales) s’appliquent de manière identique à chaque instance dans `mysqlMulti.databases`. Il n’y a pas de surcharge par instance. Utilisez `additionalReceiverConfig` pour tout ce qui doit différer. La tâche de configuration s’exécute une fois par instance (`<release>-setup-<name>`) plutôt qu’une fois par sortie.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Installer le chart Helm [#helm-install]
+
+    1. Ajouter le dépôt Helm New Relic :
+
+       ```bash
+       helm repo add newrelic https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. Installez le chart à l&apos;aide de votre fichier `values.yaml` :
+
+       ```bash
+       helm upgrade --install mysql-otel newrelic/mysql-otel \
+         -n newrelic \
+         --create-namespace \
+         -f values.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## Vérifier l&apos;installation [#helm-verify]
+
+    1. Vérifiez que la tâche de configuration est terminée (si elle est activée), et que le pod du collecteur est en cours d’exécution :
+
+       ```bash
+       kubectl get jobs,pods -n newrelic --watch
+       ```
+
+    2. Exécutez cette requête dans le [générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/) pour confirmer que les données arrivent :
+
+       ```sql
+       SELECT count(*) FROM Metric
+       WHERE metricName LIKE 'mysql.%'
+       AND instrumentation.provider = 'opentelemetry'
+       SINCE 10 minutes ago
+       ```
+  </Step>
+
+  <Step>
+    ## Trouvez et utilisez vos données [#find]
+
+    Une fois vos données collectées, vous pouvez accéder à un monitoring complet de la base de données MySQL via l&apos;UI de New Relic.
+
+    Pour trouver votre entité de base de données MySQL dans New Relic :
+
+    1. Allez à <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>.
+    2. Dans la liste déroulante **<DNT>Entity type</DNT>**, sélectionnez <DNT>**MySQL instance**</DNT>, puis cliquez sur <DNT>**Apply**</DNT>.
+    3. Sélectionnez votre base de données MySQL dans la liste des entités.
+  </Step>
+</Steps>
+
+## Documentation associée [#related]
+
+<DocTiles>
+  <DocTile title="Introduction au monitoring MySQL avec NRDOT" path="/docs/opentelemetry/db360/mysql/introduction">
+    Découvrez toutes les méthodes d&apos;installation disponibles pour le monitoring de MySQL avec New Relic.
+  </DocTile>
+
+  <DocTile title="Installation via la CLI" path="/docs/opentelemetry/db360/mysql/cli">
+    Découvrez comment installer et configurer le monitoring MySQL avec une seule commande CLI New Relic.
+  </DocTile>
+
+  <DocTile title="Installation via Ansible" path="/docs/opentelemetry/db360/mysql/ansible">
+    Découvrez comment installer et configurer le monitoring MySQL à grande échelle avec le newrelic.newrelic_install rôle Ansible.
+  </DocTile>
+
+  <DocTile title="Installation via Chef" path="/docs/opentelemetry/db360/mysql/chef">
+    Découvrez comment installer et configurer le monitoring MySQL à grande échelle avec le cookbook Chef newrelic-install.
+  </DocTile>
+</DocTiles>

@@ -1,0 +1,101 @@
+---
+title: Dépanner le monitoring Linkerd avec OpenTelemetry
+metaDescription: 'Troubleshoot common issues with Linkerd metrics, traces, and logs not appearing in New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si vos métriques, traces ou logs Linkerd ne s’affichent pas dans New Relic, résolvez le problème qui correspond à ce que vous observez.
+
+<CollapserGroup>
+  <Collapser id="no-entity" title="L’entité Linkerd ne s’affiche pas">
+    Vérifiez que les métriques du proxy Linkerd atteignent New Relic :
+
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE linkerd_control_plane_ns IS NOT NULL
+      AND k8s.cluster.name = '<YOUR_CLUSTER>'
+    SINCE 5 minutes ago
+    ```
+
+    Si cela renvoie 0, vérifiez que les pods du collecteur sont en cours d’exécution et que les jobs de scraping Prometheus dans la configuration du collecteur ciblent les bons espaces de nommage.
+  </Collapser>
+
+  <Collapser id="no-deployment-entities" title="Entités de workload manquantes">
+    Les entités de workload nécessitent kube-state-metrics. Vérifiez qu’il envoie des données :
+
+    ```sql
+    SELECT uniques(k8s.deployment.name)
+    FROM Metric
+    WHERE metricName LIKE 'kube_deployment%'
+      AND k8s.cluster.name = '<YOUR_CLUSTER>'
+    SINCE 10 minutes ago
+    ```
+
+    Si c’est vide, confirmez que kube-state-metrics est en cours d’exécution et que la cible de scraping dans la configuration du collecteur pointe vers l’espace de nommage et le nom de service corrects.
+  </Collapser>
+
+  <Collapser id="no-metrics" title="Pas de métriques du tout dans New Relic">
+    ```bash
+    kubectl get pods -n newrelic
+    kubectl logs -n newrelic deployment/my-opentelemetry-collector | grep -E "error|warn|Failed" | tail -20
+    ```
+  </Collapser>
+
+  <Collapser id="no-traces" title="Aucune span/trace">
+    ```bash
+    # Verify Java agent loaded (for APM-instrumented app pods)
+    kubectl logs -n <YOUR_NAMESPACE> deployment/<YOUR_APP> | grep "javaagent"
+
+    # Verify Linkerd proxy routing for OTLP gRPC (must show appProtocol: grpc)
+    kubectl get svc -n newrelic my-opentelemetry-collector -o jsonpath='{.spec.ports}'
+    ```
+
+    Le port 4317 du Service du collecteur doit avoir `appProtocol: grpc`. Sans cela, Linkerd achemine le gRPC en tant que HTTP/1.1. Correction :
+
+    ```bash
+    kubectl patch svc -n newrelic my-opentelemetry-collector --type='json' \
+      -p='[{"op":"add","path":"/spec/ports/1/appProtocol","value":"grpc"}]'
+    ```
+  </Collapser>
+
+  <Collapser id="no-cp-ns-on-spans" title="linkerd_control_plane_ns manquant dans les spans">
+    Le Processeur `k8sattributes/traces` utilise `k8s.pod.ip` pour l’association de pods. Vérifiez que la variable d’environnement de l’API downward est définie sur les pods de votre application :
+
+    ```bash
+    kubectl exec -n <YOUR_NAMESPACE> deployment/<YOUR_APP> -- env | grep MY_POD_IP
+    ```
+
+    Si `MY_POD_IP` est manquant, ajoutez-le à la spécification de votre pod en tant que variable d’environnement `fieldRef` pointant vers `status.podIP`.
+  </Collapser>
+
+  <Collapser id="no-logs" title="Aucun log dans New Relic">
+    Le récepteur `filelog` lit les fichiers de log sous le montage hostPath `varlogpods`, filtrés sur le conteneur `linkerd-proxy` (Collecteur Otel Contrib) ou chaque conteneur (NRDOT). Vérifiez que le montage est présent et lisible :
+
+    ```bash
+    # OTel Collector Contrib (separate DaemonSet release for logs)
+    kubectl exec -n newrelic daemonset/my-opentelemetry-collector-logs -- ls /var/log/pods 2>/dev/null | head -5
+
+    # NRDOT (built-in, same DaemonSet as metrics/traces)
+    kubectl exec -n newrelic daemonset/nr-k8s-otel-collector-daemonset -- ls /var/log/pods 2>/dev/null | head -5
+    ```
+
+    Si le montage est lisible mais qu’aucun enregistrement de log `linkerd-proxy` ne s’affiche dans New Relic (Collecteur Otel Contrib), vérifiez que la condition `k8s.container.name != "linkerd-proxy"` de `filter/onlyproxy` correspond à vos pods. `add_metadata_from_filepath: true` sur l’opérateur `container` du Récepteur `filelog` est ce qui remplit `k8s.container.name` à partir du chemin du fichier de log.
+  </Collapser>
+</CollapserGroup>
+
+## Articles connexes [#related-articles]
+
+<DocTiles>
+  <DocTile title="Trouvez et interrogez vos données" path="/docs/opentelemetry/integrations/linkerd/find-data">
+    Présentation du dashboard et requêtes NRQL.
+  </DocTile>
+
+  <DocTile title="Tracing distribué Linkerd avec OpenTelemetry" path="/docs/opentelemetry/integrations/linkerd/distributed-tracing">
+    Activez l’exportation de trace du proxy et instrumentez vos pods d’application pour corréler les spans du maillage avec les traces APM.
+  </DocTile>
+
+  <DocTile title="Référence des métriques" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">
+    Liste complète des métriques et des attributs de ressource Linkerd collectés par le Collecteur Otel.
+  </DocTile>
+</DocTiles>

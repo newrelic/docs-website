@@ -1,0 +1,343 @@
+---
+title: 샘플링 설정
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Sampling
+  - APM agents
+metaDescription: 'Deep dive into APM agent sampling configuration including sampler types like adaptive and trace id ratio based, adaptive sampling targets, and sampling based on upstream sampling decisions.'
+freshnessValidatedDate: '2026-09-29T00:00:00.000Z'
+translationType: machine
+---
+
+APM 에이전트 샘플러는 주어진 서비스 내의 어떤 트랜잭션을 에이전트가 뉴렐릭으로 보낼지 제어합니다. 이 페이지에서는 적응형 및 트레이스 ID 비율 기반과 같은 샘플러 유형, 적응형 샘플링 타겟, 그리고 업스트림 샘플링 결정에 따라 샘플링을 설정하는 방법에 대해 다룹니다.
+
+이 가이드의 설정 예제는 YAML 형식(자바 에이전트)을 사용합니다. 에이전트별 구문 및 전체 파라미터 참조는 다음을 확인하십시오:
+
+* [자바 에이전트 분산 추적 설정](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file)
+* [Node.js 에이전트 분산 추적 설정](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration)
+* [파이썬 에이전트 분산 추적 설정](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+
+## 샘플링 작동 방식 [#how-sampling-works]
+
+### 샘플링 결정 단계
+
+샘플링 결정은 5단계로 이루어집니다:
+
+1. 요청이 서비스에 도착합니다.
+2. 에이전트는 샘플링 컨텍스트를 확인합니다: 이것이 루트 트랜잭션입니까, 아니면 업스트림 서비스가 이미 샘플링 결정을 내렸습니까?
+3. 에이전트는 컨텍스트와 설정에 따라 적절한 샘플러를 적용합니다.
+4. 에이전트가 샘플링 결정을 내립니다: 샘플링하거나 샘플링하지 않습니다.
+5. 에이전트는 분산 트레이스 컨텍스트 헤더를 통해 다운스트림 서비스에 결정을 전파합니다.
+
+## 샘플러 컨텍스트 [#sampling-contexts]
+
+APM 에이전트는 다양한 트레이스 시나리오를 처리하기 위해 세 가지 샘플링 컨텍스트를 사용합니다. 각 컨텍스트는 자체 샘플러 설정을 가질 수 있습니다.
+
+| 문맥                                                    | 적용되는 경우                               | 사용 사례                               |
+| ----------------------------------------------------- | ------------------------------------- | ----------------------------------- |
+| [뿌리](#root-context)                                   | 분산 트레이스는 현재 서비스에서 시작됩니다.              | 이 서비스에서 시작되는 트레이스에 대한 샘플링을 제어합니다    |
+| [원격 상위 샘플링됨](#remote-parent-sampled-context)          | 업스트림 서비스가 이미 이 트레이스를 샘플링했습니다.         | 업스트림 서비스가 샘플링한 트레이스에 대한 트레이싱 제어     |
+| [원격 상위가 샘플링되지 않음](#remote-parent-not-sampled-context) | 업스트림 서비스가 이 트레이스를 샘플링하지 *않기로* 결정했습니다. | 업스트림 서비스가 거부한 트레이스에 대한 샘플링을 제어하십시오. |
+
+<CollapserGroup>
+  <Collapser id="root-context" title="루트 문맥">
+    <DNT>**When it applies**</DNT>: 분산 트레이스는 현재 서비스에서 시작됩니다(이것은 분산 트레이스의 첫 번째 서비스입니다).
+
+    <DNT>**Example scenario**</DNT>: API 게이트웨이는 고객 requests의 진입점입니다. 이러한 고객이 시작한 트레이스의 20%를 캡처하도록 루트 샘플링을 설정하십시오.
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.2  # 20% of traces originating here
+    ```
+  </Collapser>
+
+  <Collapser id="remote-parent-sampled-context" title="원격 상위 샘플링된 컨텍스트">
+    <DNT>**When it applies**</DNT>: 업스트림 서비스가 이 분산 트레이스를 샘플링하기로 결정했습니다(업스트림 서비스가 분산 트레이스 컨텍스트에서 &quot;sampled&quot;라는 샘플링 결정을 전송함).
+
+    <DNT>**Common pattern**</DNT>: 업스트림 서비스가 분산 트레이스를 샘플링한 경우, 현재 서비스에서도 항상 샘플링합니다:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          always_on  # Always capture traces sampled by upstream
+    ```
+
+    <DNT>**Alternative pattern**</DNT>: 업스트림 서비스에서 이미 샘플링한 트레이스의 일정 비율을 샘플링합니다:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          trace_id_ratio_based:
+            ratio: 0.6  # Sample 60% of traces sampled by upstream
+    ```
+
+    <Callout variant="caution">
+      업스트림의 &quot;샘플링된&quot; 결정을 재정의하면 일부 서비스만 존재하는 단편화된 트레이스가 생성될 수 있습니다. 업스트림에서 샘플링된 트레이스를 삭제해야 하는 특정 요구 사항이 있는 경우에만 이 패턴을 사용하십시오.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="remote-parent-not-sampled-context" title="원격 상위가 샘플링되지 않은 컨텍스트">
+    <DNT>**When it applies**</DNT>: 업스트림 서비스가 이 분산 트레이스를 샘플링하지 *않기로* 결정했습니다(업스트림 서비스가 트레이스 컨텍스트에서 &quot;샘플링되지 않음&quot;이라는 샘플링 결정을 보냈습니다).
+
+    <DNT>**Common pattern**</DNT>: 업스트림 서비스가 분산 트레이스를 샘플링하지 *않은* 경우, 현재 서비스에서도 절대 샘플링하지 마십시오:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          always_off  # Don't sample traces that upstream rejected
+    ```
+
+    <DNT>**Alternative pattern**</DNT>: 업스트림이 샘플링하지 않기로 선택한 경우에도 일부 분산 트레이스를 샘플링합니다(주의해서 사용하십시오):
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          trace_id_ratio_based:
+            ratio: 0.05  # Sample 5% even if upstream said not to
+    ```
+
+    <Callout variant="caution">
+      업스트림의 &quot;샘플링되지 않음&quot; 결정을 재정의하면 일부 서비스만 존재하는 단편화된 트레이스가 생성될 수 있습니다. 업스트림에서 샘플링하지 않은 경우에도 다운스트림 서비스의 활동을 확인해야 하는 특정 요구 사항이 있는 경우에만 이 패턴을 사용하십시오.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## 샘플러 유형 [#sampler-types]
+
+APM 에이전트는 각각 다른 시나리오에 적합한 네 가지 샘플러 유형을 제공합니다.
+
+| 샘플러 유형                                         | 작동 원리                                 | 가장 좋은                       |
+| ---------------------------------------------- | ------------------------------------- | --------------------------- |
+| [적응형](#adaptive-sampler)                       | 트래픽 양에 관계없이 분당 고정된 수의 트레이스를 타겟으로 합니다. | 트래픽 급증에 관계없이 일관된 트레이스 수     |
+| [트레이스 ID 비율 기반](#trace-id-ratio-based-sampler) | 트레이스 ID를 기반으로 고정된 비율의 트레이스를 샘플링합니다.   | 트래픽 비율에 따른 서비스 전반의 결정론적 샘플링 |
+| [상시 가동](#always-on-sampler)                    | 모든 트랜잭션을 샘플링합니다.                      | 특정 컨텍스트에 대한 전체 트레이스 커버리지    |
+| [항상 꺼짐](#always-off-sampler)                   | 트랜잭션을 샘플링하지 않습니다                      | 특정 컨텍스트에 대해 샘플링을 완전히 비활성화   |
+
+<CollapserGroup>
+  <Collapser id="adaptive-sampler" title="적응형 샘플러">
+    <DNT>**How it works**</DNT>: 트래픽 양에 관계없이 분당 타겟 루트 트레이스 수를 샘플링하기 위해 서비스의 처리량에 동적으로 적응합니다. 업스트림 서비스에서 샘플링된 트랜잭션을 항상 샘플링하며, 이를 적응형 샘플링 타겟에 포함하지 않습니다.
+
+    <DNT>**Default behavior**</DNT>: APM 에이전트는 기본적으로 적응형 샘플러를 사용합니다. 대부분의 APM 에이전트의 기본 적응형 샘플링 타겟은 분당 10개의 트랜잭션입니다. 자세한 내용은 각 APM 에이전트의 설정 문서를 참조하십시오.
+
+    <DNT>**When to use**</DNT>:
+
+    * 일정한 트래픽 비율이 아니라 — 트래픽 변화와 관계없이 — 분당 일정한 수의 트랜잭션을 샘플링하고자 합니다.
+    * 매분마다 샘플링 간격을 두기 위해 동적 조정을 원하는 경우입니다.
+    * 업스트림 서비스에서 샘플링된 모든 트랜잭션을 샘플링하고 이를 적응형 샘플링 타겟에 포함하지 않으려고 합니다.
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root: adaptive
+    ```
+
+    <DNT>**How it adapts**</DNT>:
+
+    * 적은 트래픽(10 requests/분): 타겟에 도달하기 위해 모든 request를 샘플링합니다.
+    * 중간 트래픽(100 requests/분): 타겟에 도달하기 위해 약 5번째 요청마다 샘플링합니다
+    * 많은 트래픽(1,000 requests/분): 타겟에 도달하기 위해 약 50번째 request마다 샘플링합니다.
+
+    <Callout variant="tip">
+      적응형 샘플러는 업스트림 서비스에서 샘플링한 트레이스를 항상 샘플링합니다. 이러한 트레이스는 설정된 적응형 샘플링 타겟에 포함되지 않습니다.
+    </Callout>
+
+    ### 적응형 샘플링 타겟 [#adaptive-targets]
+
+    적응형 샘플링 타겟은 에이전트가 분당 캡처하려고 시도하는 트레이스 수를 제어합니다. 예측 가능한 동작을 위해서는 **글로벌** 타겟과 **컨텍스트별** 타겟을 이해하는 것이 중요합니다.
+
+    | 설정 속성                                                 | 범위                  |
+    | ----------------------------------------------------- | ------------------- |
+    | [`adaptive_sampling_target`](#global-sampling-target) | 글로벌 — 모든 컨텍스트에서 공유됨 |
+    | [`sampling_target`](#context-sampling-targets)        | 단일 컨텍스트             |
+
+    <CollapserGroup>
+      <Collapser
+        id="global-sampling-target"
+        title={<>전역 설정 <InlineCode>adaptive_sampling_target</InlineCode></>
+        }
+      >
+        `adaptive_sampling_target`은(는) 모든 컨텍스트에서 공유되며 **기본** 샘플링 타겟입니다. 컨텍스트는 자체적인 컨텍스트별 [`sampling_target`](#context-sampling-targets)(으)로 글로벌 `adaptive_sampling_target`을(를) 재정의할 수 있습니다.
+
+        `adaptive_sampling_target`은(는) 1에서 120 사이의 정수(포함)로 설정할 수 있습니다.
+
+        <DNT>**Configuration**</DNT>:
+
+        ```yaml
+        distributed_tracing:
+          sampler:
+            adaptive_sampling_target: 10  # Applied to all contexts without explicit override
+            root: adaptive
+        ```
+
+        <DNT>**Result**</DNT>: 에이전트는 현재 서비스에서 시작되는 트랜잭션을 분당 약 10개 캡처하려고 시도합니다.
+      </Collapser>
+
+      <Collapser
+        id="context-sampling-targets"
+        title={<>문맥별 설정 <InlineCode>sampling_target</InlineCode></>
+        }
+      >
+        각 샘플링 컨텍스트는 자체 `sampling_target`을(를) 사용하여 글로벌 타겟을 재정의할 수 있습니다.
+
+        `sampling_target`은(는) 1에서 120 사이의 정수(포함)로 설정할 수 있습니다.
+
+        <DNT>**Configuration**</DNT>:
+
+        ```yaml
+        distributed_tracing:
+          sampler:
+            adaptive_sampling_target: 10  # Global default
+            root:
+              adaptive:
+                sampling_target: 5  # Overrides global default to capture 5 traces/min
+        ```
+
+        <DNT>**Result**</DNT>: 에이전트는 현재 서비스에서 시작되는 트랜잭션을 분당 5개 캡처하려고 시도하며, 글로벌 기본값인 10을 재정의합니다.
+      </Collapser>
+    </CollapserGroup>
+
+    #### 적응형 샘플링 타겟을 늘려야 하는 이유
+
+    기본값인 10 트레이스/분은 분산 추적이 아닌 트랜잭션 추적을 위해 설계되었습니다. 분산 추적의 경우, 다음과 같은 이유로 더 높은 샘플링을 원하는 경우가 많습니다:
+
+    * <DNT>**Fill service map gaps**</DNT>: 드문 엔드포인트는 10/min으로 절대 샘플링되지 않을 수 있습니다.
+    * <DNT>**Improve trace diversity**</DNT>: 더 많은 트랜잭션 유형 및 코드 경로를 확인하십시오.
+  </Collapser>
+
+  <Collapser id="trace-id-ratio-based-sampler" title="트레이스 ID 비율 기반 샘플러">
+    <DNT>**How it works**</DNT>: 트레이스 ID를 기반으로 트레이스의 고정된 비율을 샘플링합니다. 샘플링 결정은 트레이스 ID를 기반으로 하므로, 동일한 비율 샘플러와 APM 언어 에이전트를 사용하는 모든 서비스에서 동일한 트레이스에 대해 동일한 결정이 내려집니다.
+
+    <DNT>**When to use**</DNT>:
+
+    * 일관된 비율의 트래픽 샘플링이 필요한 경우입니다.
+    * 결정론적 샘플링(동일한 APM 언어 에이전트를 사용하는 모든 서비스에서 동일한 분산 트레이스가 샘플링됨)을 원하는 경우입니다.
+    * 업스트림 서비스에서 샘플링된 트랜잭션이 항상 샘플링되고 적응형 샘플링 타겟에 계산되지 않는 적응형 샘플러의 동작을 피하고자 합니다.
+
+    모든 `trace_id_ratio_based` 샘플러는 0.0(초과)과 1.0(이하) 사이의 `ratio` 소수값을 제공해야 **합니다**. `ratio`은(는) 캡처할 트레이스의 백분율을 지정합니다.
+
+    <Callout variant="important">
+      `trace_id_ratio_based` 샘플러를 사용할 때 `ratio` 속성이 필요합니다. 비율이 설정되지 않은 경우, 대신 기본 적응형 샘플러가 사용됩니다.
+    </Callout>
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.1  # 10% of traces
+    ```
+
+    <DNT>**Important characteristic**</DNT>: 트레이스 ID가 트레이스 샘플링 여부를 결정합니다. 여러 서비스가 동일한 비율과 언어 에이전트를 사용하는 경우, 동일한 트레이스에 대해 일관된 결정을 내립니다.
+
+    <DNT>**Example**</DNT>: 루트 분산 트레이스의 10%와 업스트림에서 샘플링된 분산 트레이스의 50%를 샘플링합니다:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.1
+        remote_parent_sampled:
+          trace_id_ratio_based:
+            ratio: 0.5
+    ```
+  </Collapser>
+
+  <Collapser id="always-on-sampler" title="항상 켜짐 샘플러">
+    <DNT>**How it works**</DNT>: 이 컨텍스트와 일치하는 모든 트랜잭션을 샘플링합니다.
+
+    <DNT>**When to use**</DNT>:
+
+    * 특정 컨텍스트(`root`, `remote_parent_sampled`, `remote_parent_not_sampled`)에 대한 완전한 트레이스 커버리지가 필요합니다
+    * 업스트림 서비스의 샘플링 결정을 따르거나 재정의하고자 합니다
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          always_on  # Capture all upstream-sampled traces
+    ```
+
+    <Callout variant="caution">
+      `always_on`을(를) 사용하면 주어진 컨텍스트에 대한 모든 트랜잭션을 캡처하므로, 트래픽이 많은 서비스의 경우 상당한 데이터 볼륨이 생성될 수 있습니다.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="always-off-sampler" title="항상 꺼짐 샘플러">
+    <DNT>**How it works**</DNT>: 주어진 컨텍스트에 대해 트랜잭션을 전혀 샘플링하지 않습니다.
+
+    <DNT>**When to use**</DNT>:
+
+    * 샘플링하지 않겠다는 업스트림 서비스의 결정을 수용하고자 합니다
+    * 특정 컨텍스트에 대한 샘플링을 비활성화하려는 경우
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          always_off  # Don't sample if upstream did NOT sample
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 권장 설정
+
+선택할 수 있는 샘플러가 너무 많아서 서비스에 적합한 설정을 찾기 어려울 수 있습니다. 적합한 설정을 찾는 가장 좋은 방법은 현재 서비스의 트레이스 분포를 관찰하고, 원하는 트레이스 분포를 향해 조금씩 조정하는 것입니다.
+
+시작점으로 다음 설정을 권장합니다:
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      always_on
+    remote_parent_not_sampled:
+      always_off
+```
+
+이 설정은 `root` 컨텍스트에서 트레이스의 10%를 샘플링하고, `remote_parent_sampled` 컨텍스트에서는 모든 트레이스를 샘플링하며, `remote_parent_not_sampled` 컨텍스트에서는 트레이스를 샘플링하지 않습니다.
+
+일부 애플리케이션의 경우, 이 설정은 트레이스의 균형 잡힌 분배를 위한 합리적인 출발점입니다. 다른 애플리케이션의 경우 — 예를 들어 *대부분의* 트레이스가 업스트림 서비스에서 시작되는 경우 — 이 설정은 `remote_parent_sampled` 트레이스의 우선순위를 너무 높이고 `root` 트레이스의 우선순위를 너무 낮출 수 있습니다. 이 경우, 업스트림에서 샘플링된 트레이스의 일정 비율만 캡처하도록 `remote_parent_sampled` 설정을 수정해 보십시오:
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.2 # Sample 20% of sampled traces originating upstream, instead of all of them
+    remote_parent_not_sampled:
+      always_off
+```
+
+## 무엇 향후 계획 [#whats-next]
+
+이제 샘플링을 이해했으므로:
+
+* 에이전트에 대한 전체 샘플러 설정 참조를 확인하십시오: [자바](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file), [Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration), [파이썬](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+* 복사하여 붙여넣을 수 있는 설정이 포함된 실제 시나리오에 대해서는 [샘플러 설정 예시](/docs/apm/distributed-tracing/sampler-configuration-examples)를 참조하십시오.
+
+<Callout variant="tip">
+  샘플링 설정은 복잡할 수 있습니다. 단일 패턴으로 시작하여 실제 트레이스 볼륨과 요구 사항에 따라 반복하십시오. 지원 가능성 메트릭과 트레이스 쿼리를 사용하여 설정이 예상대로 작동하는지 확인하십시오.
+</Callout>

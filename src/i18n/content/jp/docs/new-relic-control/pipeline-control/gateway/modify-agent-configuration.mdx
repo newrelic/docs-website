@@ -5,7 +5,13 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-ゲートウェイがエージェントのテレメトリーデータを処理するには、エージェントのデータを New Relic に直接ではなくゲートウェイNew Relicにルーティングするようにエージェントを再設定する必要があります。 そのためには、New Relic NodeJS エージェントのサンプル構成に示すように、 `NEW_RELIC_HOST`設定を使用してゲートウェイを指すようにエンドポイントの詳細を変更します。
+ゲートウェイがエージェントのテレメトリーデータを処理できるようにするには、データを直接New Relicにルーティングするのではなく、ゲートウェイクラスタにルーティングするようにエージェントを再設定します。その方法はエージェントのタイプによって異なります：New Relic APMエージェントは`NEW_RELIC_HOST`を使用し、OpenTelemetryソースはOTLPエクスポーター設定を使用し、ログフォワーダーは独自の出力プラグイン設定を使用します。以下のセクションでは、各エージェントのタイプについて説明します。すべての例で、クラスタローカルのゲートウェイエンドポイントを使用しています。エージェントがクラスタの外部で実行されている場合は、実際のエンドポイントに置き換えてください。
+
+## New Relic APMエージェント
+
+`NEW_RELIC_HOST` APM専用であり、OpenTelemetryソース、infrastructureエージェント、またはログフォワーダーには影響しません。ゲートウェイエンドポイントはHTTPS経由で到達可能である必要があります。そのため、APMエージェントはゲートウェイポッドに直接接続するのではなく、クラスタ内のリバースプロキシ（NGINXまたはKong）、またはクラスタ外のALBを介して接続します。
+
+以下の例は、Node.jsエージェントの設定ファイルを示しています：
 
 ```js
 'use strict'
@@ -66,6 +72,93 @@ exports.config = {
   }
 }
 ```
+
+{/* [NEW SECTION START] */}
+
+## OpenTelemetry
+
+**最小バージョン：** opentelemetry-collector-contrib v0.104.0
+
+ゲートウェイのOTLP HTTPポートを指定する`otlphttp`エクスポーターを使用してください。この設定をKubernetes ConfigMapとしてデプロイしてください：
+
+```yaml
+exporters:
+  otlphttp:
+    endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local:4318
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      exporters: [otlphttp]
+    metrics:
+      exporters: [otlphttp]
+    logs:
+      exporters: [otlphttp]
+```
+
+<Callout variant="important">
+  `otlp`ではなく、`otlphttp`エクスポーターを使用してください。Helmチャートは内部で`otlp`を`otlp_grpc`に名前変更しますが、これはこのコレクターバージョンでは無効です。
+</Callout>
+
+## eBPF自動アタッチエージェント
+
+valuesファイルに`customOtlpEndpoint`を設定して、OTLP gRPC経由でテレメトリーを送信するようにeBPF APM自動アタッチエージェントを構成します：
+
+```yaml
+customOtlpEndpoint: "pipeline-control-gateway.newrelic.svc.cluster.local:4317"
+customOtlpEndpointTlsEnabled: false
+reportLogs: "true"
+```
+
+これにより、メトリクスとログの両方が、ポート4317のゲートウェイのOTLP gRPCレシーバーを介してルーティングされます。接続はクラスタ内にとどまるため、TLSは無効になっています。
+
+## インフラストラクチャー・エージェント
+
+**最小バージョン：**v1.62.0
+
+infrastructureエージェントには、ゲートウェイ経由でルーティングするものに応じて、2つの異なる設定パスがあります：
+
+* **すべてのテレメトリー（メトリクス、イベント、インベントリ、およびログ）：** Helm値で`collector_url`と`metric_url`を使用します。これにより、エージェントが収集するすべてのデータがゲートウェイ経由でルーティングされます。
+* **ログのみ：**`newrelic-infra.yml`で`logging_endpoint`を使用します。これにより、ログ転送のみがゲートウェイを介してルーティングされ、他のテレメトリーは引き続き直接New Relicに送信されます。
+
+### すべてのテレメトリーをゲートウェイ経由でルーティングする
+
+Helmのvaluesに`collector_url`と`metric_url`を設定します：
+
+```yaml
+newrelic-infrastructure:
+  common:
+    agentConfig:
+      collector_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+      metric_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+```
+
+### ログのみをゲートウェイ経由でルーティングする
+
+`/etc/newrelic-infra.yml`に`logging_endpoint`を設定し、ログ転送を有効にします：
+
+```yaml
+license_key: YOUR_LICENSE_KEY
+logging_endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1
+log:
+  forward: true
+```
+
+クラスタローカルエンドポイントには`http://`を使用します。cert-managerがデプロイされたクラスタ内のリバースプロキシ（NGINXまたはKong）経由でルーティングする場合にのみ`https://`を使用します。
+
+次に、転送するログファイルを`/etc/newrelic-infra/logging.d/logging.yml`で定義します：
+
+```yaml
+logs:
+  - name: my-app-logs
+    file: /var/log/my-app.log
+```
+
+変更を適用するには、Infrastructureエージェントを再起動します。
+
+{/* [NEW SECTION END] */}
 
 ## 互換性マトリックス: サポートされているエージェントとバージョン
 
@@ -198,6 +291,16 @@ exports.config = {
 
       <td>
         2.3.0以降
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [OpenTelemetry](https://opentelemetry.io/docs/collector/)
+      </td>
+
+      <td>
+        opentelemetry-collector-contrib v0.104.0以降
       </td>
     </tr>
 

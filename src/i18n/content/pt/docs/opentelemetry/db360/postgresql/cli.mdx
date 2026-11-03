@@ -1,0 +1,492 @@
+---
+title: Instale e configure o NRDOT para monitoramento do PostgreSQL com a CLI
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - CLI
+metaDescription: Install and configure the NRDOT Collector for PostgreSQL monitoring using the New Relic CLI
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+Você pode instalar e configurar o NRDOT Collector para monitoramento do PostgreSQL usando a CLI da New Relic. A CLI instala o coletor, cria a função de monitoramento e suas permissões e configura o coletor em um único comando.
+
+<Callout variant="tip" title="Instalação guiada">
+  Para instalar pela interface da New Relic, acesse <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; PostgreSQL (Database 360)](https://onenr.io/00jlEJKbdQW)**</DNT>. Esta página aborda apenas a instalação manual.
+</Callout>
+
+<Steps>
+  <Step>
+    ## Pré-requisitos [#prerequisites]
+
+    * Uma conta New Relic com uma [chave de licença](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys) válida.
+    * Um [ID de conta](/docs/accounts/accounts-billing/account-structure/account-id) da New Relic.
+    * PostgreSQL 14 ou posterior.
+    * Um host coletor Linux executando Debian/Ubuntu ou RHEL/CentOS, com `curl` e `systemd` instalados e o cliente `psql` disponível.
+    * `pg_stat_statements` deve ser carregado via `shared_preload_libraries`. O instalador verifica isso e falha se não estiver. Consulte os [Pré-requisitos no nível do servidor](#server-prereqs) abaixo.
+    * Para PostgreSQL auto-hospedado: acesso administrativo ao seu servidor PostgreSQL (o superusuário `postgres` ou equivalente).
+    * Para AWS RDS/Aurora PostgreSQL: conectividade de rede do host do coletor para o endpoint do RDS (acesso de entrada na porta do PostgreSQL no grupo de segurança do RDS) e o nome de usuário e a senha mestre do RDS.
+    * Conectividade de rede para o [endpoint OTLP da New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp) para sua região.
+
+    Para requisitos detalhados, consulte [Compatibilidade](/docs/opentelemetry/db360/postgresql/compatibility).
+  </Step>
+
+  <Step>
+    ## Pré-requisitos em nível de servidor [#server-prereqs]
+
+    `pg_stat_statements` não pode ser criado sem `shared_preload_libraries`, e esse parâmetro exige uma **reinicialização** do banco de dados, portanto, a CLI não pode configurá-lo para você. Defina esses parâmetros antes de executar a instalação:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Parâmetro
+          </th>
+
+          <th>
+            Valor
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `shared_preload_libraries`
+          </td>
+
+          <td>
+            `pg_stat_statements`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pg_stat_statements.track`
+          </td>
+
+          <td>
+            `ALL`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pg_stat_statements.max`
+          </td>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pg_stat_statements.save`
+          </td>
+
+          <td>
+            `on`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `track_activity_query_size`
+          </td>
+
+          <td>
+            `4096`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `track_functions`
+          </td>
+
+          <td>
+            `all`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * **Auto-hospedado**: defina-os em `postgresql.conf` e, em seguida, reinicie o PostgreSQL. Algumas distribuições precisam do pacote `postgresql-contrib` instalado para que `pg_stat_statements` esteja disponível.
+    * **AWS RDS ou Aurora**: defina-os no **grupo de parâmetros** do banco de dados, não em um arquivo de configuração. `track_activity_query_size` e `pg_stat_statements.max` são parâmetros estáticos: aplique-os com `apply_method: pending-reboot` e, em seguida, reinicie a instância. Para o Aurora, o nome da família do grupo de parâmetros deve corresponder exatamente à versão principal do seu mecanismo, por exemplo, `aurora-postgresql16`.
+  </Step>
+
+  <Step>
+    ## Instale e configure o NRDOT Collector [#cli-install]
+
+    <CollapserGroup>
+      <Collapser id="cli-host" title="PostgreSQL auto-hospedado">
+        Esta receita monitora uma ou mais instâncias do PostgreSQL a partir de um único coletor. Em vez de solicitar um único conjunto de host/porta/credencial, lê dois arquivos que você cria com antecedência: um arquivo de instâncias (YAML) listando cada instância a ser monitorada e os bancos de dados a serem monitorados em cada uma, e um arquivo de segredos (`KEY=VALUE`) com um login e senha de superusuário para cada uma, indexados para corresponder.
+
+        1. Crie o arquivo de instâncias. Adicione uma entrada por instância do PostgreSQL que você deseja que este coletor monitore; ainda assim, apenas uma entrada se você estiver executando apenas uma única instância. Cada instância requer pelo menos um banco de dados: o PostgreSQL não possui um modo de monitorar todos os bancos de dados:
+
+           ```bash
+           cat > ~/postgresql-instances.yml << 'EOF'
+           instances:
+             - host: localhost
+               port: 5432
+               login_name: newrelic
+               databases: [app1, app2]
+           EOF
+           ```
+
+        2. Crie o arquivo de segredos com uma função de superusuário (qualquer função de superusuário funciona; não precisa ser `postgres`) e senha para cada instância, indexado para corresponder à ordem do arquivo de instâncias:
+
+           ```bash
+           umask 077
+           cat > ~/postgresql-secrets.env << 'EOF'
+           NR_CLI_POSTGRES_SUPERUSER_USER_1=postgres
+           NR_CLI_POSTGRES_SUPERUSER_PASSWORD_1=YourSuperuserPassword1
+           EOF
+           chmod 600 ~/postgresql-secrets.env
+           ```
+
+        ```bash
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-postgresql
+        ```
+
+        <Callout variant="important">
+          Este instalador se conecta ao PostgreSQL via TCP usando uma senha, portanto, o superusuário de cada instância deve ter uma senha definida e `pg_hba.conf` deve permitir a autenticação de host baseada em senha (`md5` ou `scram-sha-256`) para conexões TCP. Uma nova instalação não tem senha definida em `postgres` por padrão. Defina uma primeiro:
+
+          ```bash
+          sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '<password>';"
+          ```
+
+          No RHEL/CentOS, o `pg_hba.conf` padrão frequentemente não permite qualquer autenticação de host baseada em senha. Verifique e atualize-o e, em seguida, recarregue o PostgreSQL antes de executar a instalação.
+        </Callout>
+
+        A CLI exibe prompts interativamente para as seguintes variáveis. Você também pode defini-las antecipadamente como variáveis de ambiente para executar de forma não interativa.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variável
+              </th>
+
+              <th>
+                Descrição
+              </th>
+
+              <th>
+                Padrão
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_CONFIG_PRESET`
+              </td>
+
+              <td>
+                Configuração NRDOT: 
+
+                `1`
+
+                 Básico, 
+
+                `2`
+
+                 Avançado.
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_INSTANCES_FILE`
+              </td>
+
+              <td>
+                **Obrigatório.**
+
+                 Caminho para o arquivo YAML de instâncias.
+              </td>
+
+              <td>
+                Nenhum
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_SECRETS_FILE`
+              </td>
+
+              <td>
+                **Obrigatório.**
+
+                 Caminho para o arquivo de segredos (
+
+                `KEY=VALUE`
+
+                , um par de login/senha de superusuário por instância).
+              </td>
+
+              <td>
+                Nenhum
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`
+              </td>
+
+              <td>
+                Colete planos de consulta para instruções de bloqueio/gravação também. Cria uma função auxiliar 
+
+                `SECURITY DEFINER`
+
+                 (
+
+                `otel.explain_statement`
+
+                ) em cada banco de dados monitorado, concedendo ao usuário de monitoramento 
+
+                `EXPLAIN`
+
+                 execução sem conceder acesso DML. Este é um recurso PREVIEW. 
+
+                `y`
+
+                /
+
+                `N`
+
+                .
+              </td>
+
+              <td>
+                `n`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          Para monitorar mais de uma instância do PostgreSQL a partir deste coletor, adicione mais entradas ao arquivo de instâncias e credenciais numeradas correspondentes (`_2`, `_3`, ...) ao arquivo de segredos. Uma instância que falha em suas verificações (ou não possui bancos de dados listados) é ignorada com um motivo registrado em vez de abortar toda a instalação; a instalação só falha totalmente se nenhuma das instâncias passar.
+        </Callout>
+      </Collapser>
+
+      <Collapser id="cli-rds" title="AWS RDS/Aurora PostgreSQL">
+        Esta receita monitora um ou mais endpoints do RDS PostgreSQL ou Aurora a partir de um único coletor, usando o mesmo padrão de arquivo de instâncias/arquivo de segredos que o auto-hospedado.
+
+        1. Crie o arquivo de instâncias, usando o endpoint do RDS ou Aurora como `host`; ainda será apenas uma entrada se você estiver monitorando apenas uma única instância. Cada instância requer pelo menos um banco de dados: o PostgreSQL não possui um modo de monitorar todos os bancos de dados:
+
+           ```bash
+           cat > ~/postgresql-instances.yml << 'EOF'
+           instances:
+             - host: mydb1.abcdefg12345.us-east-1.rds.amazonaws.com
+               port: 5432
+               login_name: newrelic
+               databases: [app1, app2]
+           EOF
+           ```
+
+        2. Crie o arquivo de segredos com o nome de usuário e a senha mestre do RDS para cada instância, indexado para corresponder à ordem do arquivo de instâncias:
+
+           ```bash
+           umask 077
+           cat > ~/postgresql-secrets.env << 'EOF'
+           NR_CLI_POSTGRES_ADMIN_USER_1=postgres
+           NR_CLI_POSTGRES_ADMIN_PASSWORD_1=YourMasterPassword1
+           EOF
+           chmod 600 ~/postgresql-secrets.env
+           ```
+
+        ```bash
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-postgresql-rds
+        ```
+
+        A CLI exibe prompts interativamente para as seguintes variáveis. Você também pode defini-las antecipadamente como variáveis de ambiente para executar de forma não interativa.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variável
+              </th>
+
+              <th>
+                Descrição
+              </th>
+
+              <th>
+                Padrão
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_CONFIG_PRESET`
+              </td>
+
+              <td>
+                Configuração NRDOT: 
+
+                `1`
+
+                 Básico, 
+
+                `2`
+
+                 Avançado.
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_INSTANCES_FILE`
+              </td>
+
+              <td>
+                **Obrigatório.**
+
+                 Caminho para o arquivo YAML de instâncias, usando endpoints do RDS ou Aurora como 
+
+                `host`
+
+                .
+              </td>
+
+              <td>
+                Nenhum
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_SECRETS_FILE`
+              </td>
+
+              <td>
+                **Obrigatório.**
+
+                 Caminho para o arquivo de segredos (
+
+                `KEY=VALUE`
+
+                , um par de nome de usuário/senha mestre do RDS por instância).
+              </td>
+
+              <td>
+                Nenhum
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`
+              </td>
+
+              <td>
+                Colete planos de consulta para instruções de bloqueio/gravação também. Cria uma função auxiliar 
+
+                `SECURITY DEFINER`
+
+                 (
+
+                `otel.explain_statement`
+
+                ) em cada banco de dados monitorado, concedendo ao usuário de monitoramento 
+
+                `EXPLAIN`
+
+                 execução sem conceder acesso DML. Este é um recurso PREVIEW. 
+
+                `y`
+
+                /
+
+                `N`
+
+                .
+              </td>
+
+              <td>
+                `n`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          Para monitorar mais de um endpoint do RDS PostgreSQL ou Aurora a partir deste coletor, adicione mais entradas ao arquivo de instâncias e credenciais numeradas correspondentes ao arquivo de segredos. Uma instância que falha em suas verificações (ou não tem bancos de dados listados) é ignorada com um motivo registrado em log, em vez de abortar toda a instalação.
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Encontre e use seus dados [#find]
+
+    Assim que seus dados estiverem sendo coletados, você poderá acessar o monitoramento abrangente do banco de dados PostgreSQL por meio da interface do New Relic.
+
+    Para encontrar a entidade de banco de dados PostgreSQL no New Relic:
+
+    1. Vá para <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>.
+    2. Na dropdown **<DNT>Entity type</DNT>**, selecione <DNT>**PostgreSQL instance**</DNT> e clique em <DNT>**Apply**</DNT>.
+    3. Selecione seu banco de dados PostgreSQL na lista de entidades.
+
+    Para confirmar que os dados estão chegando, execute esta consulta no [criador de consulta](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE metricName LIKE 'postgresql.%'
+    AND instrumentation.provider = 'opentelemetry'
+    SINCE 10 minutes ago
+    ```
+  </Step>
+</Steps>
+
+## Documentação relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Introdução ao monitoramento do PostgreSQL com NRDOT" path="/docs/opentelemetry/db360/postgresql/introduction">
+    Saiba mais sobre todos os métodos de instalação disponíveis para o monitoramento do PostgreSQL com o New Relic.
+  </DocTile>
+
+  <DocTile title="Instalação via Ansible" path="/docs/opentelemetry/db360/postgresql/ansible">
+    Saiba como instalar e configurar o monitoramento do PostgreSQL em escala com a newrelic.newrelic_install função Ansible.
+  </DocTile>
+
+  <DocTile title="Instalação via Chef" path="/docs/opentelemetry/db360/postgresql/chef">
+    Aprenda a instalar e configurar o monitoramento do PostgreSQL em escala com o cookbook do Chef newrelic-install.
+  </DocTile>
+
+  <DocTile title="Instalação do chart do Helm" path="/docs/opentelemetry/db360/postgresql/helm">
+    Saiba como instalar e configurar o monitoramento do PostgreSQL no Kubernetes com o chart do Helm postgresql-otel.
+  </DocTile>
+
+  <DocTile title="Instalação do Docker" path="/docs/opentelemetry/db360/postgresql/docker">
+    Saiba como executar o NRDOT Collector como um contêiner irmão de uma instância do PostgreSQL que já está em execução no Docker.
+  </DocTile>
+</DocTiles>

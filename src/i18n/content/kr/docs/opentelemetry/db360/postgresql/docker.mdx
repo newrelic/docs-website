@@ -1,0 +1,303 @@
+---
+title: 도커를 사용하여 PostgreSQL 모니터링을 위한 NRDOT 설치 및 구성
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Docker
+metaDescription: Set up PostgreSQL monitoring with the NRDOT Collector when PostgreSQL runs in a Docker container
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+도커에서 이미 실행 중인 PostgreSQL 인스턴스의 형제 컨테이너로 NRDOT Collector를 사용하여 PostgreSQL 모니터링을 설정하십시오.
+
+<Callout variant="tip" title="가이드 설치">
+  대신 뉴렐릭 UI를 통해 설치하려면 <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; PostgreSQL (Database 360)](https://onenr.io/00jlEJKbdQW)**</DNT>(으)로 이동하십시오. 이 페이지는 수동 설치만 다룹니다.
+</Callout>
+
+<Callout variant="tip">
+  이를 대규모로 자동화하거나 대신 Kubernetes에서 실행하시겠습니까? [Ansible 설치](/docs/opentelemetry/db360/postgresql/ansible), [Chef 설치](/docs/opentelemetry/db360/postgresql/chef) 또는 [Helm 차트 설치](/docs/opentelemetry/db360/postgresql/helm)를 참조하십시오.
+</Callout>
+
+<Steps>
+  <Step>
+    ## 전제 조건 [#prerequisites]
+
+    설치하기 전에 다음을 갖추고 있는지 확인하십시오:
+
+    * 호스트에 도커가 설치되어 있습니다.
+    * 이미 실행 중인 PostgreSQL 컨테이너(PostgreSQL 14 이상).
+    * New Relic [라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) .
+    * 수집기 컨테이너에서 [뉴렐릭 OTLP 엔드포인트](/docs/opentelemetry/best-practices/opentelemetry-otlp/)로의 네트워크 연결.
+
+    지원되는 PostgreSQL 버전, 필수 권한 및 권장 서버 파라미터에 대한 자세한 내용은 [호환성 및 전제 조건](/docs/opentelemetry/db360/postgresql/compatibility)을 참조하십시오.
+  </Step>
+
+  <Step>
+    ## 데이터베이스 사용자 및 권한 설정 [#user]
+
+    `docker exec`을(를) 사용하여 PostgreSQL 컨테이너에 대해 SQL을 실행하여 필요한 권한을 가진 모니터링 사용자를 생성하십시오. `<YOUR_POSTGRESQL_CONTAINER_NAME>`, `<YOUR_SUPERUSER>`, `<YOUR_DB_USERNAME>`, `<YOUR_DB_PASSWORD>`를 여러분의 값으로 바꾸십시오.
+
+    1. 슈퍼유저로 연결하여 모니터링 사용자를 생성하십시오:
+
+       ```bash
+       docker exec -i <YOUR_POSTGRESQL_CONTAINER_NAME> psql -U <YOUR_SUPERUSER> -d postgres -c "
+       CREATE USER <YOUR_DB_USERNAME> WITH LOGIN PASSWORD '<YOUR_DB_PASSWORD>';
+       "
+       ```
+
+    2. PostgreSQL 15 이상을 사용하는 경우 권한을 상속하도록 역할을 할당하십시오:
+
+       ```bash
+       docker exec -i <YOUR_POSTGRESQL_CONTAINER_NAME> psql -U <YOUR_SUPERUSER> -d postgres -c "
+       ALTER ROLE <YOUR_DB_USERNAME> INHERIT;
+       "
+       ```
+
+       <Callout variant="tip">
+         PostgreSQL 14를 사용하는 경우 모니터링 사용자가 기본적으로 권한을 상속하므로 이 단계를 건너뛸 수 있습니다.
+       </Callout>
+
+    3. 모니터할 모든 데이터베이스에 스키마와 권한을 적용하십시오. `<DB_NAMES>`을(를) 공백으로 구분된 데이터베이스 이름 목록으로 대체하십시오:
+
+       ```bash
+       for db in <DB_NAMES>; do
+         docker exec -i <YOUR_POSTGRESQL_CONTAINER_NAME> psql -U <YOUR_SUPERUSER> -d "$db" -c "
+         CREATE SCHEMA IF NOT EXISTS otel;
+         GRANT USAGE ON SCHEMA otel TO <YOUR_DB_USERNAME>;
+         GRANT USAGE ON SCHEMA public TO <YOUR_DB_USERNAME>;
+         GRANT SELECT ON ALL TABLES IN SCHEMA public TO <YOUR_DB_USERNAME>;
+         GRANT pg_monitor TO <YOUR_DB_USERNAME>;
+         CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+         "
+       done
+       ```
+
+    4. (선택 사항) 벡터 메트릭을 수집하려면 각 데이터베이스에 `pgvector` 확장을 생성하십시오:
+
+       ```bash
+       for db in <DB_NAMES>; do
+         docker exec -i <YOUR_POSTGRESQL_CONTAINER_NAME> psql -U <YOUR_SUPERUSER> -d "$db" -c "CREATE EXTENSION IF NOT EXISTS vector;"
+       done
+       ```
+
+       `l1`, `hamming` 및 `jaccard` 거리 함수에는 `pgvector` 버전 `0.7.0` 이상이 필요합니다.
+
+    5. (선택 사항) 연결 및 권한을 확인하려면 다음을 실행하십시오:
+
+       ```bash
+       docker exec -i <YOUR_POSTGRESQL_CONTAINER_NAME> psql -U <YOUR_DB_USERNAME> -d <YOUR_DATABASE_NAME> -c "SELECT * FROM pg_stat_statements LIMIT 1;"
+       ```
+
+       명령이 오류 없이 완료되면, 모니터링 사용자 및 권한이 올바른 것입니다.
+  </Step>
+
+  <Step>
+    ## NRDOT Collector 설정을 생성하십시오. [#configure]
+
+    이 설정은 `nrpostgresql` 수신기를 사용한 필수 PostgreSQL 모니터링에 중점을 둡니다. 현재 디렉터리에 `postgresql-config.yaml`을(를) 생성하려면 도커 호스트에서 다음을 실행하십시오:
+
+    ```bash
+    cat << 'EOF' > postgresql-config.yaml
+    receivers:
+      nrpostgresql:
+        endpoint: "<YOUR_POSTGRESQL_CONTAINER_NAME>:5432"
+        username: "<YOUR_DB_USERNAME>"
+        password: "<YOUR_DB_PASSWORD>"
+        databases:
+          - <YOUR_DATABASE_NAME>
+        collection_interval: 15s
+        events:
+          db.server.top_query:
+            enabled: true
+          db.server.query_sample:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+        top_query_collection:
+          max_rows_per_query: 1000
+          top_n_query: 200
+          collection_interval: 60s
+          allowed_comment_keys: [nr_service_guid]
+        query_sample_collection:
+          max_rows_per_query: 1000
+          allowed_comment_keys: [nr_service_guid]
+
+        resource_attributes:
+          db.system.version:
+            enabled: true
+        # Metrics needed for the out-of-the-box dashboard but disabled by default:
+        # see "Available metrics" below for the full default-on/default-off breakdown.
+        metrics:
+          postgresql.database.locks:
+            enabled: true
+          postgresql.deadlocks:
+            enabled: true
+          postgresql.function.calls:
+            enabled: true
+          postgresql.query.conflicts:
+            enabled: true
+          postgresql.sequential_scans:
+            enabled: true
+          postgresql.temp.io:
+            enabled: true
+          postgresql.temp_files:
+            enabled: true
+
+    processors:
+      batch:
+      batch/metrics:
+        send_batch_size: 8192
+        send_batch_max_size: 8192
+        timeout: 10s
+
+    exporters:
+      otlp/newrelic:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+        headers:
+          api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+      pipelines:
+        metrics:
+          receivers: [nrpostgresql]
+          processors: [batch/metrics]
+          exporters: [otlp/newrelic]
+        logs:
+          receivers: [nrpostgresql]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+    EOF
+    ```
+
+    ### 구성 매개변수 [#configuration-parameters]
+
+    | 매개변수                               | 설명                                                                                                             |
+    | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_POSTGRESQL_CONTAINER_NAME>` | 실행 중인 PostgreSQL 컨테이너의 이름(또는 도커 DNS 확인 가능한 호스트명)입니다.                                                           |
+    | `<YOUR_DB_USERNAME>`               | [데이터베이스 사용자 및 권한 구성](#user)에서 생성한 모니터링 사용자입니다.                                                                 |
+    | `<YOUR_DB_PASSWORD>`               | [데이터베이스 사용자 및 권한 구성](#user)에서 생성한 모니터링 사용자의 비밀번호입니다.                                                           |
+    | `databases`                        | 모니터할 데이터베이스 이름 목록입니다. 각각에는 `otel` 스키마와 권한이 적용되어야 합니다.                                                          |
+    | `<YOUR_NEWRELIC_OTLP_ENDPOINT>`    | 사용자의 뉴렐릭 OTLP 엔드포인트. 자세한 내용은 [뉴렐릭 OTLP 엔드포인트를](/docs/opentelemetry/best-practices/opentelemetry-otlp/) 참조하십시오. |
+    | `<YOUR_NEWRELIC_LICENSE_KEY>`      | 귀하의 New Relic [라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) .                         |
+  </Step>
+
+  <Step>
+    ## NRDOT Collector 컨테이너를 시작하십시오. [#start]
+
+    컨테이너 이름으로 `<YOUR_POSTGRESQL_CONTAINER_NAME>`을(를) 해석할 수 있도록 PostgreSQL 컨테이너와 동일한 도커 네트워크에서 수집기를 실행하십시오:
+
+    ```bash
+    docker run -d \
+      --name nrdot-collector \
+      --network <YOUR_DOCKER_NETWORK> \
+      -v "$PWD/postgresql-config.yaml:/etc/nrdot-collector/postgresql-config.yaml" \
+      newrelic/nrdot-collector:latest \
+      --config /etc/nrdot-collector/postgresql-config.yaml
+    ```
+
+    <Callout variant="tip">
+      `docker inspect <YOUR_POSTGRESQL_CONTAINER_NAME> --format '{{json .NetworkSettings.Networks}}'`을(를) 사용하여 PostgreSQL 컨테이너의 네트워크를 찾으십시오. 아직 공유 사용자 정의 네트워크에 없는 경우, 네트워크를 생성하고 두 컨테이너를 모두 연결하십시오:
+
+      ```bash
+      docker network create <YOUR_DOCKER_NETWORK>
+      docker network connect <YOUR_DOCKER_NETWORK> <YOUR_POSTGRESQL_CONTAINER_NAME>
+      ```
+    </Callout>
+
+    수집기 컨테이너가 실행 중인지 확인하십시오:
+
+    ```bash
+    docker ps --filter name=nrdot-collector
+    ```
+
+    실행 중이 아니면 로그에서 오류를 확인하십시오. 가장 일반적인 원인은 `postgresql-config.yaml`의 YAML 들여쓰기 문제 또는 연결할 수 없는 PostgreSQL 컨테이너입니다:
+
+    ```bash
+    docker logs nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      `postgresql-config.yaml`을(를) 변경한 후 변경 사항을 적용하려면 컨테이너를 다시 시작하십시오:
+
+      ```bash
+      docker restart nrdot-collector
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## 데이터 찾기 및 사용 [#find]
+
+    데이터가 수집되면 뉴렐릭 UI를 통해 포괄적인 PostgreSQL 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+    뉴렐릭에서 PostgreSQL 데이터베이스 엔티티를 찾으려면 다음을 수행하십시오:
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+    2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**PostgreSQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+    3. 엔티티 목록에서 PostgreSQL 데이터베이스를 선택하십시오.
+
+    데이터가 수신되는지 확인하려면 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)에서 다음 쿼리를 실행하십시오:
+
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE metricName LIKE 'postgresql.%'
+    AND instrumentation.provider = 'opentelemetry'
+    SINCE 10 minutes ago
+    ```
+  </Step>
+</Steps>
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="NRDOT를 사용한 PostgreSQL 모니터링 소개" path="/docs/opentelemetry/db360/postgresql/introduction">
+    뉴렐릭을 사용한 PostgreSQL 모니터링에 사용할 수 있는 모든 설치 방법에 대해 알아보십시오.
+  </DocTile>
+
+  <DocTile title="자체 호스팅 설치" path="/docs/opentelemetry/db360/postgresql/hosted">
+    물리적 서버, 가상 머신 및 독립형 설치에서 PostgreSQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="Ansible 설치" path="/docs/opentelemetry/db360/postgresql/ansible">
+    newrelic.newrelic_install을 사용하여 대규모로 PostgreSQL 모니터링을 설치하고 구성하는 방법을 알아보십시오. Ansible 역할을 사용하십시오.
+  </DocTile>
+
+  <DocTile title="Chef 설치" path="/docs/opentelemetry/db360/postgresql/chef">
+    newrelic-install Chef 쿡북을 사용하여 대규모로 PostgreSQL 모니터링을 설치하고 구성하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="Helm 차트 설치" path="/docs/opentelemetry/db360/postgresql/helm">
+    postgresql-otel Helm 차트를 사용하여 Kubernetes에서 PostgreSQL 모니터링을 설치하고 구성하는 방법을 알아봅니다.
+  </DocTile>
+</DocTiles>

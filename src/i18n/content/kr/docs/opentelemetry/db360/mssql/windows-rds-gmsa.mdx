@@ -1,0 +1,368 @@
+---
+title: 'Windows RDS의 MSSQL용 NRDOT 설치 및 구성: gMSA 인증'
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Windows
+  - RDS
+  - AWS
+metaDescription: Set up Microsoft SQL Server monitoring with the NRDOT Collector on Windows for AWS RDS SQL Server instances using gMSA authentication
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+그룹 관리 서비스 계정(gMSA)을 사용하여 AWS RDS for SQL Server 인스턴스를 모니터하려면 Windows 환경에서 NRDOT Collector를 사용하여 Microsoft SQL Server 모니터링을 설정하십시오. 자체 호스팅 환경에서 모니터하려면 [Windows 자체 호스팅 계측](/docs/opentelemetry/db360/mssql/windows-hosted-gmsa)을 참조하십시오.
+
+<Callout variant="tip" title="가이드 설치">
+  대신 뉴렐릭 UI를 통해 설치하려면 <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Microsoft SQL Server (Database 360)](https://onenr.io/00jlEJX6EQW)** </DNT>(으)로 이동하십시오. 화면의 지시에 따라 통합을 설정하십시오. 이 페이지에서는 수동 설치만 다룹니다.
+</Callout>
+
+이 페이지에서는 gMSA 인증을 다룹니다. 환경에서 다른 인증 방법을 사용하는 경우 [SQL Server 인증](/docs/opentelemetry/db360/mssql/windows-rds-sql) 또는 [Windows 도메인 인증](/docs/opentelemetry/db360/mssql/windows-rds-domain)을 참조하십시오.
+
+<Steps>
+  <Step>
+    ## 전제 조건 [#prerequisites-gmsa]
+
+    gMSA 인증을 사용하여 NRDOT로 Microsoft SQL Server를 모니터링하기 전에 다음을 확인하십시오:
+
+    * 유효한 [라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)가 있는 뉴렐릭 계정.
+
+    * 해당 리전의 [뉴렐릭 OTLP 엔드포인트](/docs/opentelemetry/best-practices/opentelemetry-otlp)에 대한 네트워크 연결.
+
+    * SQL Server 요구 사항:
+
+      * Amazon RDS의 SQL Server 2017 이상.
+      * RDS 마스터 사용자 자격 증명 또는 `rds_superuser` 역할을 가진 SQL Server 로그인을 위한 자격 증명
+      * 포트 `1433` 또는 사용자 지정 포트에서 연결을 허용하도록 구성된 RDS 보안 그룹
+      * SQL Server Management Studio(SSMS) 또는 `sqlcmd` 유틸리티.
+      * AWS Active Directory 서비스와 연결된 RDS 인스턴스.
+
+    * AWS RDS 콘솔의 연결 및 보안(Connectivity &amp; security)에서 찾을 수 있는 RDS SQL Server 엔드포인트 URL입니다. 자세한 내용은 [AWS RDS 문서를](https://docs.aws.amazon.com/AmazonRDS/latest/gettingstartedguide/connecting-console.html) 참조하십시오.
+
+    * gMSA를 지원하는 Active Directory 환경.
+
+    * gMSA 계정을 사용하도록 권한이 부여된 도메인 가입 Windows EC2 인스턴스
+  </Step>
+
+  <Step>
+    ## NRDOT Collector설치하세요 [#setup-gmsa]
+
+    PowerShell을 사용하여 NRDOT Collector를 다운로드하고 설치합니다:
+
+    ```powershell
+    [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'
+    $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name
+    $WebClient = New-Object System.Net.WebClient
+    $WebClient.Headers.Add("User-Agent", "Mozilla/5.0")
+    $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi")
+    Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait
+    Get-Service nrdot-collector -ErrorAction SilentlyContinue
+    ```
+  </Step>
+
+  <Step>
+    ## 모니터링 사용자 생성 [#create-user]
+
+    관리자 권한으로 SQL Server Management Studio(SSMS) 또는 `sqlcmd`을(를) 사용하여 RDS SQL Server 인스턴스에 연결하십시오.
+
+    SQL Server Management Studio(SSMS)에서 다음 스크립트를 실행하여 gMSA 계정에 대한 로그인을 생성하고 필요한 권한을 부여하십시오. 모든 `<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>`을(를) 실제 도메인 및 계정 이름으로 바꾸십시오.
+
+    ```sql
+    USE [master];
+    GO
+
+    CREATE LOGIN [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$] FROM WINDOWS;
+    GO
+
+    GRANT VIEW ANY DATABASE TO [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];
+    GRANT VIEW SERVER STATE TO [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];
+    GRANT VIEW ANY DEFINITION TO [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];
+    GO
+    -- Grant access to all databases 
+    DECLARE @name SYSNAME;
+    DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+      SELECT [name] FROM [master].[sys].[databases]
+      WHERE [name] NOT IN ('master','msdb','model','rdsadmin','distribution')
+      AND [state] = 0;
+    OPEN db_cursor;
+    FETCH NEXT FROM db_cursor INTO @name;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+      BEGIN TRY
+        EXEC('USE [' + @name + '];
+        IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$'')
+        BEGIN
+          CREATE USER [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$] FOR LOGIN [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];
+        END;
+        GRANT VIEW DATABASE STATE TO [<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$];');
+      END TRY
+      BEGIN CATCH
+        PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+      END CATCH
+      FETCH NEXT FROM db_cursor INTO @name;
+    END
+    CLOSE db_cursor;
+    DEALLOCATE db_cursor;
+    GO
+    ```
+
+    <Callout variant="tip">
+      데이터베이스 자격 증명과 같은 민감한 정보를 안전하게 관리하려면 [시크릿 관리](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management) 도구에 저장하십시오.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## gMSA 계정으로 실행 [#run-gmsa]
+
+    PowerShell을 사용하여 gMSA 계정으로 실행되도록 NRDOT Collector 서비스를 설정하십시오. `<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$`을(를) 도메인 및 gMSA 계정 이름으로 교체하십시오. gMSA 계정에 필요하므로 끝에 `$`을(를) 포함해야 합니다:
+
+    ```powershell
+    # Stop the NRDOT Collector service
+    Stop-Service nrdot-collector
+
+    # Configure service to use gMSA account
+    # Use cmd /c to avoid PowerShell treating $ as a variable
+    cmd /c 'sc config nrdot-collector obj= "<YOUR_DOMAIN>\<YOUR_GMSA_USERNAME>$" password= ""'
+
+    # Verify the configuration
+    Get-WmiObject Win32_Service -Filter "Name='nrdot-collector'" | Select Name, StartName
+
+    # Start the NRDOT Collector service 
+    Start-Service nrdot-collector
+    ```
+
+    <Callout variant="important">
+      gMSA 계정은 비밀번호가 필요하지 않습니다. 서비스를 구성할 때 비워 두십시오.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collector구성 [#configure-gmsa]
+
+    1. 관리자 권한으로 PowerShell에서 이름이 `mssql-config.yaml` 인 설정 파일을 생성하십시오:
+
+       ```powershell
+       New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+       ```
+
+    2. 이전 단계에서 생성한 `mssql-config.yaml` 파일에 다음 설정을 추가하십시오:
+
+    <Callout variant="tip" title="전체 설정">
+      이 설정은 RDS 환경을 위한 필수 데이터베이스 모니터링에 중점을 둡니다. 사용 가능한 모든 메트릭을 사용하여 포괄적인 모니터링을 활성화하려면 [설정 참조](/docs/opentelemetry/db360/mssql/config-reference/#rds-gmsa)를 참조하십시오.
+    </Callout>
+
+    <OtelConfig
+      inputOptions={[{"name":"server","label":"RDS 엔드포인트","codeLine":4,"defaultValue":"mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com","toolTip":"RDS SQL Server 엔드포인트를 입력하세요"},{"name":"port","label":"RDS 포트","codeLine":4,"defaultValue":"1433","toolTip":"RDS SQL Server 포트 번호를 입력하십시오. 기본값은 1433입니다."},{"name":"endpoint","label":"포트 번호가 포함된 뉴렐릭 OTLP 엔드포인트","codeLine":81,"defaultValue":"https://otlp.nr-data.net:4318","toolTip":"뉴렐릭 OTLP 엔드포인트를 입력하십시오. 자세한 내용은 https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/를 참조하십시오."},{"name":"licenseKey","label":"뉴렐릭 라이선스 키","codeLine":83,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"뉴렐릭 라이선스 키를 입력하십시오."}]}
+      config={`receivers:
+      nrsqlserver:
+       collection_interval: 15s
+       datasource: "server=<input1>;port=<input2>;integrated security=true;encrypt=true;TrustServerCertificate=true;"
+
+       # Enable comprehensive database metrics
+       metrics:
+         sqlserver.database.count:
+           enabled: true
+         sqlserver.database.io:
+           enabled: true
+         sqlserver.database.latency:
+           enabled: true
+         sqlserver.database.operations:
+           enabled: true
+         sqlserver.database.tempdb.space:
+           enabled: true
+         sqlserver.database.tempdb.version_store.size:
+           enabled: true
+         sqlserver.deadlock.rate:
+           enabled: true
+         sqlserver.os.wait.duration:
+           enabled: true
+         sqlserver.processes.blocked:
+           enabled: true
+         sqlserver.memory.grants.pending.count:
+           enabled: true
+         sqlserver.database.file.size:
+           enabled: true
+         sqlserver.memory.area:
+           enabled: true
+
+       # Enable query sample, top query, query plan, and top procedure log collection
+       events:
+         db.server.query_sample:
+           enabled: true
+         db.server.top_query:
+           enabled: true
+         db.server.query_plan:
+           enabled: true
+         db.server.top_procedure:
+           enabled: true
+
+       # Top query collection configuration
+       top_query_collection:
+         lookback_time: 60s
+         max_query_sample_count: 1000
+         top_query_count: 250
+         collection_interval: 60s
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       # Query sample collection configuration
+       query_sample_collection:
+         max_rows_per_query: 100
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       # Top stored procedure collection configuration
+       top_procedure_collection:
+         max_procedure_sample_count: 1000
+         top_procedure_count: 250
+         collection_interval: 60s
+
+       resource_attributes:
+         db.system.version:
+           enabled: true
+         sqlserver.db.edition:
+           enabled: true
+
+      processors:
+      memory_limiter:
+       check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+       limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+       spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+      exporters:
+      otlp:
+       endpoint: <input3>
+       headers:
+         api-key: <input4>
+       tls:
+         insecure: false
+       compression: gzip
+
+       sending_queue:
+         enabled: true
+         sizer: bytes
+         queue_size: 100_000_000
+         num_consumers: 10
+         batch:
+           sizer: bytes
+           max_size: 1_000_000
+           min_size: 0
+           flush_timeout: 5s
+
+      service:
+      telemetry:
+       metrics:
+         level: none
+
+      pipelines:
+       metrics:
+         receivers: [nrsqlserver]
+         processors: [memory_limiter]
+         exporters: [otlp]
+
+       logs:
+         receivers: [nrsqlserver]
+         processors: [memory_limiter]
+         exporters: [otlp]`}
+      fileName="mssql-config.yaml"
+      tipMdx={{ body: null }}
+      onChange={() => {}}
+    />
+
+    <Callout variant="tip">
+      `logs` 파이프라인은 수집기 디버그 또는 내부 에이전트 로그를 전달하지 않습니다. 이는 쿼리 텍스트, 실행 계획 및 샘플 데이터를 포함한 SQL Server 쿼리 텔레메트리를 전송합니다. `nrsqlserver` 수신기는 OpenTelemetry 로그 레코드로 발생하는 `db.server.query_sample`, `db.server.top_query`, `db.server.query_plan` 및 `db.server.top_procedure` 이벤트를 통해 이 텔레메트리를 캡처합니다.
+
+      `db.server.top_procedure` 이벤트에는 `sys.dm_exec_procedure_stats.total_spills`에 대한 지원이 도입된 SQL Server 2017 CU3 이상이 필요합니다. 이전 버전에서는 이 이벤트가 데이터를 내보내지 않고 오류를 로그에 기록합니다. 다른 이벤트는 영향을 받지 않습니다. `sys.dm_exec_procedure_stats`에 액세스하려면 `VIEW SERVER STATE` (또는 SQL Server 버전에 따라 `VIEW SERVER PERFORMANCE STATE`)이(가) 필요합니다. 또한 모든 사용자 데이터베이스에서 `OBJECT_NAME` 및 `OBJECT_SCHEMA_NAME`이(가) 올바르게 확인되려면 `VIEW ANY DEFINITION`이(가) 필요하며, 초기 세션을 설정하려면 `CONNECT SQL`이(가) 필요합니다. [모니터링 사용자 생성](#create-user)에서 생성된 gMSA 로그인에는 이미 3개의 권한이 모두 있습니다.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Windows 서비스 레지스트리 업데이트 [#update-registry-gmsa]
+
+    1. 다음 방법 중 하나를 사용하여 새 `mssql-config.yaml` 파일을 사용하도록 Windows 서비스 레지스트리를 업데이트하십시오:
+
+       * **PowerShell의 경우:** 다음 명령을 관리자 권한으로 실행하십시오:
+
+         ```powershell
+         Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+         ```
+
+       * **명령 프롬프트의 경우:** PowerShell을 사용할 수 없는 경우 명령 프롬프트를 대신 사용하고 다음 명령을 관리자로 실행하십시오:
+
+       ```bash
+       sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+       ```
+
+    2. NRDOT Collector 설정을 검증하여 형식이 올바르고 제대로 작동하는지 확인합니다:
+
+    ```bash
+    & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+    ```
+
+    <Callout variant="tip">
+      애플리케이션 성능을 데이터베이스 작업과 연관시키려면 데이터베이스 서비스 식별을 설정할 수 있습니다. 자세한 내용은 [데이터베이스 서비스 식별 설정을](/docs/opentelemetry/db360/capabilities/db-apm/) 참조하십시오.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collector를 다시 시작하십시오 [#restart-gmsa]
+
+    설정을 업데이트한 후, 도메인에 가입된 EC2 Windows 인스턴스에서 NRDOT Collector 서비스를 다시 시작하세요:
+
+    ```bash
+    net stop nrdot-collector
+    net start nrdot-collector
+    ```
+
+    Windows 서비스(`services.msc`)를 확인하여 서비스가 gMSA 계정으로 실행 중인지 확인하십시오. `Log On As` 열에 gMSA 계정이 표시되어야 합니다(예: `CORP\SQL-gMSA$`).
+  </Step>
+
+  <Step>
+    ## 데이터 찾기 및 사용 [#find-gmsa]
+
+    데이터가 수집되면 뉴렐릭 UI를 통해 포괄적인 SQL Server 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+    뉴렐릭에서 SQL Server 데이터베이스를 찾으려면 다음을 수행하세요.
+
+    1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+
+    2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**MSSQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+
+    3. 모임 목록에서 SQL Server 데이터베이스를 선택합니다.
+
+       NRDOT로 SQL Server 모니터링을 설정한 후 다음을 수행할 수 있습니다:
+
+       * [사용자 정의 대시보드를 만들어](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) 데이터베이스 지표를 시각화하세요.
+       * 중요한 데이터베이스 성능에 대한 [알림 설정](/docs/alerts/create-alert/create-alert-condition/alert-conditions/), 참조 값
+       * 뉴렐릭 쿼리 기능을 사용하여 [데이터 탐색](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/)
+  </Step>
+</Steps>
+
+## 관련 문서 [#related-docs]
+
+<DocTiles>
+  <DocTile title="APM-데이터베이스 상관관계 설정" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    뉴렐릭에서 애플리케이션 성능을 데이터베이스 작업과 연관시키는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="문제점 해결" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+    뉴렐릭에서 MSSQL Windows 모니터링 설정 문제를 해결하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="지표 참조" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+    NRDOT Collector가 수집하는 사용 가능한 메트릭에 대해 알아보십시오.
+  </DocTile>
+</DocTiles>

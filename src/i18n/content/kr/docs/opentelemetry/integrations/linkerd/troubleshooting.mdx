@@ -1,0 +1,101 @@
+---
+title: OpenTelemetry를 사용한 Linkerd 모니터링 문제 해결
+metaDescription: 'Troubleshoot common issues with Linkerd metrics, traces, and logs not appearing in New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Linkerd 메트릭, 트레이스 또는 로그가 뉴렐릭에 표시되지 않는 경우, 확인되는 현상과 일치하는 문제를 해결하십시오.
+
+<CollapserGroup>
+  <Collapser id="no-entity" title="Linkerd 엔티티가 표시되지 않음">
+    Linkerd 프록시 메트릭이 뉴렐릭에 도달하는지 확인하십시오:
+
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE linkerd_control_plane_ns IS NOT NULL
+      AND k8s.cluster.name = '<YOUR_CLUSTER>'
+    SINCE 5 minutes ago
+    ```
+
+    이 값이 0을 반환하면, 수집기 파드가 실행 중인지, 수집기 구성의 Prometheus 스크랩 작업이 올바른 네임스페이스를 타겟으로 하는지 확인하십시오.
+  </Collapser>
+
+  <Collapser id="no-deployment-entities" title="워크로드 엔티티 누락">
+    워크로드 엔티티에는 kube-state-metrics가 필요합니다. 데이터를 전송하고 있는지 확인하십시오:
+
+    ```sql
+    SELECT uniques(k8s.deployment.name)
+    FROM Metric
+    WHERE metricName LIKE 'kube_deployment%'
+      AND k8s.cluster.name = '<YOUR_CLUSTER>'
+    SINCE 10 minutes ago
+    ```
+
+    비어 있는 경우, kube-state-metrics가 실행 중인지, 수집기 구성의 스크랩 타겟이 올바른 네임스페이스와 서비스 이름을 가리키는지 확인하십시오.
+  </Collapser>
+
+  <Collapser id="no-metrics" title="뉴렐릭에 메트릭이 전혀 없음">
+    ```bash
+    kubectl get pods -n newrelic
+    kubectl logs -n newrelic deployment/my-opentelemetry-collector | grep -E "error|warn|Failed" | tail -20
+    ```
+  </Collapser>
+
+  <Collapser id="no-traces" title="스팬/트레이스 없음">
+    ```bash
+    # Verify Java agent loaded (for APM-instrumented app pods)
+    kubectl logs -n <YOUR_NAMESPACE> deployment/<YOUR_APP> | grep "javaagent"
+
+    # Verify Linkerd proxy routing for OTLP gRPC (must show appProtocol: grpc)
+    kubectl get svc -n newrelic my-opentelemetry-collector -o jsonpath='{.spec.ports}'
+    ```
+
+    수집기 서비스 포트 4317에는 `appProtocol: grpc`이(가) 있어야 합니다. 이것이 없으면 Linkerd는 gRPC를 HTTP/1.1로 라우팅합니다. 수정:
+
+    ```bash
+    kubectl patch svc -n newrelic my-opentelemetry-collector --type='json' \
+      -p='[{"op":"add","path":"/spec/ports/1/appProtocol","value":"grpc"}]'
+    ```
+  </Collapser>
+
+  <Collapser id="no-cp-ns-on-spans" title="스팬에서 linkerd_control_plane_ns 누락">
+    `k8sattributes/traces` 프로세서는 파드 연결을 위해 `k8s.pod.ip`을(를) 사용합니다. 앱 파드에 downward API 환경 변수가 설정되어 있는지 확인하십시오:
+
+    ```bash
+    kubectl exec -n <YOUR_NAMESPACE> deployment/<YOUR_APP> -- env | grep MY_POD_IP
+    ```
+
+    `MY_POD_IP`이(가) 누락된 경우, `status.podIP`을(를) 가리키는 `fieldRef` 환경 변수로 파드 사양에 추가하십시오.
+  </Collapser>
+
+  <Collapser id="no-logs" title="뉴렐릭에 로그 없음">
+    `filelog` 수신기는 `linkerd-proxy` 컨테이너(OTel Collector Contrib) 또는 모든 컨테이너(NRDOT)로 필터링된 `varlogpods` hostPath 마운트 아래의 로그 파일을 읽습니다. 마운트가 존재하고 읽을 수 있는지 확인하십시오:
+
+    ```bash
+    # OTel Collector Contrib (separate DaemonSet release for logs)
+    kubectl exec -n newrelic daemonset/my-opentelemetry-collector-logs -- ls /var/log/pods 2>/dev/null | head -5
+
+    # NRDOT (built-in, same DaemonSet as metrics/traces)
+    kubectl exec -n newrelic daemonset/nr-k8s-otel-collector-daemonset -- ls /var/log/pods 2>/dev/null | head -5
+    ```
+
+    마운트를 읽을 수 있지만 뉴렐릭(OTel Collector Contrib)에 `linkerd-proxy` 로그 레코드가 표시되지 않는 경우, `filter/onlyproxy`의 `k8s.container.name != "linkerd-proxy"` 조건이 파드와 일치하는지 확인하십시오. `filelog` 수신기의 `container` 연산자에 있는 `add_metadata_from_filepath: true`은(는) 로그 파일 경로에서 `k8s.container.name`을(를) 채우는 요소입니다.
+  </Collapser>
+</CollapserGroup>
+
+## 관련 기사 [#related-articles]
+
+<DocTiles>
+  <DocTile title="데이터 찾기 및 쿼리" path="/docs/opentelemetry/integrations/linkerd/find-data">
+    대시보드 살펴보기 및 NRQL 쿼리.
+  </DocTile>
+
+  <DocTile title="OpenTelemetry를 사용한 Linkerd 분산 추적" path="/docs/opentelemetry/integrations/linkerd/distributed-tracing">
+    프록시 트레이스 내보내기를 활성화하고 애플리케이션 파드를 계측하여 메시 스팬을 APM 트레이스와 연관시키십시오.
+  </DocTile>
+
+  <DocTile title="지표 참조" path="/docs/opentelemetry/integrations/linkerd/metrics-reference">
+    OTel Collector가 수집한 Linkerd 메트릭 및 리소스 속성의 전체 목록입니다.
+  </DocTile>
+</DocTiles>

@@ -1,0 +1,490 @@
+---
+title: プライベートロケーションでのKerberos（SPNEGO）認証のサポート
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+  - Kerberos
+  - Security
+  - Authentication
+metaDescription: 'Configure a Kerberos KDC, a SPNEGO-protected web server, and the New Relic synthetics job manager to support Kerberos authentication.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このドキュメントでは、Kerberos認証をサポートした状態でモニターを実行するように[外形監視ジョブマネージャー](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager)（SJM）を設定する方法について説明します。また、ジョブマネージャーを独自のレルムに向ける前に設定を検証できるように、Amazon Linux 2023 EC2インスタンス上でKerberosキー配布センター（KDC）とSPNEGOで保護されたWebアプリケーションを構築するためのオプションのウォークスルーも含まれています。
+
+## プレースホルダーの値 [#variables]
+
+始める前に、ご使用の環境の以下の値を確認してください。このドキュメントに表示されるプレースホルダーはすべて、ご自身の値に置き換えてください。
+
+<table>
+<thead>
+<tr>
+<th style={{ width: "200px" }}>
+プレースホルダー
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+例
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`<REALM_NAME>`
+</td>
+
+<td>
+Kerberosレルム（大文字である必要があります）
+</td>
+
+<td>
+`KERBTEST.LOCAL`
+</td>
+</tr>
+
+<tr>
+<td>
+`<EC2_PRIVATE_IP>`
+</td>
+
+<td>
+EC2インスタンスのプライベートIPv4アドレス
+</td>
+
+<td>
+`10.8.9.172`
+</td>
+</tr>
+
+<tr>
+<td>
+`<EC2_INTERNAL_HOSTNAME>`
+</td>
+
+<td>
+Webアプリの完全修飾ドメイン名（FQDN）
+</td>
+
+<td>
+`ip-X-X-X-X.ec2.internal`
+</td>
+</tr>
+
+<tr>
+<td>
+`<CLIENT_PRINCIPAL>`
+</td>
+
+<td>
+外形監視ワーカーに割り当てられたKerberos ID
+</td>
+
+<td>
+`synthetics-test`
+</td>
+</tr>
+
+<tr>
+<td>
+`<CLIENT_KEYTAB_PATH>`
+</td>
+
+<td>
+クライアントのキータブが保存されているホスト上のフルパス
+</td>
+
+<td>
+`/home/ec2-user/kerb-test/synthetics-test.keytab`
+</td>
+</tr>
+
+<tr>
+<td>
+`<PRIVATE_LOCATION_KEY>`
+</td>
+
+<td>
+New Relic プライベートロケーションキー
+</td>
+
+<td>
+`NRSP-us...`
+</td>
+</tr>
+</tbody>
+</table>
+
+## 要件と互換性 [#requirements]
+
+Kerberos認証は、キー配布センター（KDC）への直接ネットワークアクセス、内部DNS解決、および厳密に同期された時計に依存します。これらの制約により実行できる場所が制限されるため、開始する前に以下の要件を確認してください。
+
+以下の環境でKerberos認証をサポートしています：
+
+* Dockerコンテナ環境で外形監視ジョブマネージャーを実行するプライベートロケーション
+* Podmanコンテナ環境で外形監視ジョブマネージャーを実行するプライベートロケーション
+
+これらの環境では、Kerberos認証をサポートしていません：
+
+* 内部KDCへのネットワークルートを持たないパブリックロケーション
+* KubernetesおよびOpenShiftのジョブマネージャー環境
+
+ジョブマネージャーは、ブラウザモニタージョブにのみKerberos認証情報を提供します。スクリプト化されたAPIモニターおよびpingモニターは、Kerberos認証なしで実行されます。
+
+各ブラウザランタイムコンテナは（Chromeがリリースされる前に、`kinit`経由で）独自のKerberosチケットを取得するため、プライベートロケーションもこれらの要件を満たす必要があります：
+
+* ランタイムコンテナ内からTCPおよびUDPポート88でKDCにアクセスできるようにしてください。
+* ランタイムコンテナ内からKDCおよびターゲットアプリケーションのホスト名を解決してください。Dockerデプロイメントで、内部DNSがそれらを解決しない場合は、[`RUNTIME_EXTRA_HOSTS`](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration#mtls-docker)でマッピングしてください — この変数はDocker専用です。Podmanデプロイメントは内部DNSに依存します。
+* `chrony`などのサービスを使用して、プライベートロケーションホストのクロックとKDCのクロックの差を5分以内に保ってください。ランタイムコンテナはホストのカーネルクロックを共有するため、ホストを同期するだけで十分です。
+
+## パート1：Kerberosテストラボのセットアップ(オプション) [#host-setup]
+
+<Callout variant="tip">
+パート1では、ジョブ・マネージャーの設定をエンド・ツー・エンドで検証できるように、自己完結型のKerberosレルムと保護されたテスト・アプリケーションを構築します。これは本番環境のパスではなく、New Relicはお客様のKDCを管理しません。すでにKerberos KDCまたはActive Directoryドメインを実行している場合は、管理者にレルム名、KDCアドレス、およびクライアント・キータブを取得してもらい、[パート2](#sjm-configuration)に進んでください。
+</Callout>
+
+<CollapserGroup>
+<Collapser id="install-packages" title="ステップ1：Kerberosパッケージをインストールする">
+ホストEC2インスタンスにKerberos KDCサーバーと管理ツールをインストールしてください：
+
+```bash
+sudo dnf install -y krb5-server krb5-workstation
+```
+</Collapser>
+
+<Collapser
+  id="system-config"
+  title={<>ステップ2：システムKerberosの構成（<InlineCode>
+    /etc/krb5.conf
+  </InlineCode>）</>
+  }
+>
+レルムのrequestsをKDCに転送するように`/etc/krb5.conf`を設定します：
+
+```bash
+sudo tee /etc/krb5.conf > /dev/null <<'EOF'
+[libdefaults]
+    default_realm = <REALM_NAME>
+    dns_lookup_realm = false
+    dns_lookup_kdc = false
+    rdns = false
+
+[realms]
+    <REALM_NAME> = {
+        kdc = <EC2_PRIVATE_IP>
+        admin_server = <EC2_PRIVATE_IP>
+    }
+
+[domain_realm]
+    <EC2_INTERNAL_HOSTNAME> = <REALM_NAME>
+EOF
+```
+</Collapser>
+
+<Collapser
+  id="kdc-config"
+  title={<>ステップ3：KDCデーモン（<InlineCode>
+    kdc.conf
+  </InlineCode>）を構成する</>
+  }
+>
+KDCサービスのポートと暗号化ルールを定義します：
+
+```bash
+sudo tee /var/kerberos/krb5kdc/kdc.conf > /dev/null <<'EOF'
+[kdcdefaults]
+    kdc_ports = 88
+    kdc_tcp_ports = 88
+
+[realms]
+    <REALM_NAME> = {
+        acl_file = /var/kerberos/krb5kdc/kadm5.acl
+        dict_file = /usr/share/dict/words
+        admin_keytab = /var/kerberos/krb5kdc/kadm5.keytab
+        supported_enctypes = aes256-cts-hmac-sha1-96:normal aes128-cts-hmac-sha1-96:normal
+    }
+EOF
+```
+</Collapser>
+
+<Collapser id="init-db" title="ステップ4：マスターデータベースとKDCデーモンを初期化する">
+データベースを作成し、KDCバックグラウンドサービスを開始します：
+
+```bash
+# Create the Kerberos database (assign a master password when prompted)
+sudo kdb5_util create -r <REALM_NAME> -s
+
+# Grant admin permissions and enable KDC services on system boot
+echo "*/admin@<REALM_NAME> *" | sudo tee /var/kerberos/krb5kdc/kadm5.acl
+sudo systemctl enable --now krb5kdc kadmin
+```
+</Collapser>
+
+<Collapser id="keytab-generation" title="ステップ5：クライアントとサーバーのキータブの生成">
+クライアント（外形監視ワーカー）とターゲットWebサーバーのサービスプリンシパル名（SPN）の両方の非対話型資格情報を保持するキータブファイルを生成します：
+
+```bash
+mkdir -p /home/ec2-user/kerb-test
+
+# 1. Create client principal & keytab for synthetics runners
+sudo kadmin.local -q "addprinc -randkey <CLIENT_PRINCIPAL>@<REALM_NAME>"
+sudo kadmin.local -q "ktadd -k <CLIENT_KEYTAB_PATH> <CLIENT_PRINCIPAL>@<REALM_NAME>"
+sudo chmod 644 <CLIENT_KEYTAB_PATH>
+
+# 2. Create HTTP service principal name (SPN) keytab for the web server
+sudo kadmin.local -q "addprinc -randkey HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
+sudo kadmin.local -q "ktadd -k /home/ec2-user/kerb-test/http.keytab HTTP/<EC2_INTERNAL_HOSTNAME>@<REALM_NAME>"
+sudo chown 33:33 /home/ec2-user/kerb-test/http.keytab
+sudo chmod 644 /home/ec2-user/kerb-test/http.keytab
+```
+
+<Callout variant="important">
+クライアント・キータブのファイル・モードは見た目ほど重要ではありません：ここでの主な信頼境界はDockerソケット・アクセスです — SJM自体が`-v /var/run/docker.sock:/var/run/docker.sock:rw`を必要とし、そのアクセス権を持つ人は誰でも、パーミッション・ビットに関係なく、ホスト上の任意のファイルをrootとして読み取ることができます。上記で作成したように、クライアント・キータブはroot所有のままにし、パーミッションを`644`に保ちます — これにより、グループ読み取りビットを介してブラウザ・ランタイム・コンテナの実行ID（UID 2000、GID 0）と一致します。別のユーザーにchownしないでください。そうすると、そのグループの一致が壊れ、アクセスが完全にワールド読み取りビットに依存する可能性があります。HTTPサービス・キータブは、テストWebサーバー自身のIDです：ステップ6のコンテナ内でApacheが実行されるUIDとGID — `33`、Debian上の`www-data`ユーザー — を付与し、そのパーミッションも`644`に保ちます。ジョブ・マネージャーを設定するためにHTTPキータブは必要ありません。
+</Callout>
+</Collapser>
+
+<Collapser id="deploy-test-container" title="（オプション）ステップ6：テストWebコンテナのデプロイ">
+<Callout variant="tip">
+この手順は、セットアップを検証するために同じホスト上でテストWebサーバーを実行する場合にのみ必要です。SJMの設定には必要ありません。
+</Callout>
+
+`mod_auth_gssapi`で構成されたApacheコンテナをデプロイします：
+
+```bash
+mkdir -p ~/kerb-test/httpd-image && cd ~/kerb-test/httpd-image
+
+cat > kerb-test.conf <<'EOF'
+<Location /kerb-test>
+    AuthType GSSAPI
+    AuthName "Kerberos Login"
+    GssapiCredStore keytab:/etc/krb5-http.keytab
+    Require valid-user
+</Location>
+EOF
+
+cat > Dockerfile <<'EOF'
+FROM debian:bookworm-slim
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends apache2 libapache2-mod-auth-gssapi krb5-user && \
+    a2enmod auth_gssapi && \
+    mkdir -p /var/www/html/kerb-test && \
+    echo '<h1>Kerberos SSO worked</h1>' > /var/www/html/kerb-test/index.html && \
+    rm -rf /var/lib/apt/lists/*
+COPY kerb-test.conf /etc/apache2/conf-enabled/kerb-test.conf
+EXPOSE 80
+CMD ["apache2ctl", "-D", "FOREGROUND"]
+EOF
+
+docker build -t kerb-test-httpd .
+
+docker run -d --name kerb-test-httpd \
+  -p 8080:80 \
+  -v /etc/krb5.conf:/etc/krb5.conf:ro \
+  -v /home/ec2-user/kerb-test/http.keytab:/etc/krb5-http.keytab:ro \
+  kerb-test-httpd
+```
+</Collapser>
+
+<Collapser id="verify-handshake" title="ステップ7：ローカルDNSとKerberosハンドシェイクの検証">
+内部ドメインがホスト上でローカルに解決されることを確認し、Kerberos認証が正常に完了することを検証します：
+
+```bash
+# 1. Map internal hostname in /etc/hosts
+echo "<EC2_PRIVATE_IP> <EC2_INTERNAL_HOSTNAME>" | sudo tee -a /etc/hosts
+
+# 2. Verify unauthenticated challenge returns 401 Unauthorized
+curl -i http://<EC2_INTERNAL_HOSTNAME>:8080/kerb-test/
+
+# 3. Test ticket acquisition and end-to-end Kerberos SSO
+kinit -kt <CLIENT_KEYTAB_PATH> <CLIENT_PRINCIPAL>@<REALM_NAME>
+curl --negotiate -u : -i http://<EC2_INTERNAL_HOSTNAME>:8080/kerb-test/
+```
+
+テストが成功すると、`HTTP/1.1 200 OK` で応答し、保護されたWebページのコンテンツが表示されます。
+</Collapser>
+</CollapserGroup>
+
+## パート2：Kerberos用に外形監視ジョブマネージャーを設定する [#sjm-configuration]
+
+外形監視ブラウザランナーコンテナがKDCを自動的に解決し、Kerberosチケットを取得し、保護されたエンドポイントに対して認証できるようにするには、ジョブマネージャーを起動するコマンドに以下のKerberos環境変数とキータブボリュームマウントを追加してください。
+
+<Callout variant="caution">
+プライベートロケーションでKerberosを有効にすると、そのロケーションのすべてのブラウザーモニタージョブがキータブマウントとKerberos環境変数を受け取ります。ジョブマネージャーは、モニターごとやURLごとに認証情報をフィルタリングしません。Chromeは`KERBEROS_HOST_ALLOWLIST`のみに基づいてどのホストがKerberosチケットを受け取るかを決定するため、その許可リストはできるだけ絞り込んでください。
+</Callout>
+
+<Callout variant="important">
+4つの`KERBEROS_*`変数をすべて設定するか、どれも設定しないかのいずれかにしてください。一部のみを設定した場合、外形監視ジョブマネージャーは起動に失敗し、不完全なKerberos設定エラーをログに記録します。
+</Callout>
+
+### 標準コマンド（Kerberosなし） [#standard-sjm-command]
+
+```bash
+docker run -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+  -d --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock:rw \
+  newrelic/synthetics-job-manager
+```
+
+### 必須コマンド（Kerberosサポートを有効にした場合） [#kerberos-sjm-command]
+
+4つの`KERBEROS_*`環境変数（`-e`）とキータブのボリューム・マウント（`-v`）を、ジョブ・マネージャーを起動するためにすでに使用しているコマンドに追加します。
+
+<CollapserGroup>
+<Collapser id="kerberos-sjm-docker" title="Docker">
+```bash
+docker run -d \
+  --name sjm-container \
+  --restart unless-stopped \
+  -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+  -e KERBEROS_REALM=<REALM_NAME> \
+  -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+  -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+  -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+  -e RUNTIME_EXTRA_HOSTS=<EC2_INTERNAL_HOSTNAME>:<EC2_PRIVATE_IP> \
+  -v /var/run/docker.sock:/var/run/docker.sock:rw \
+  -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro \
+  newrelic/synthetics-job-manager
+```
+</Collapser>
+
+<Collapser id="kerberos-sjm-podman" title="ポッドマン">
+[「ジョブマネージャーのインストール」](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager)の`podman run`コマンドに、同じKerberos変数とキータブマウントを追加してください。PodmanはDockerソケットをマウントするのではなく、ポッドでジョブマネージャーを実行するため、既存の`CONTAINER_ENGINE`、`PODMAN_API_SERVICE_PORT`、および`PODMAN_POD_NAME`の設定を維持してください。
+
+```bash
+podman run -d \
+  --pod SYNTHETICS \
+  --restart unless-stopped \
+  -e PRIVATE_LOCATION_KEY=<PRIVATE_LOCATION_KEY> \
+  -e CONTAINER_ENGINE=PODMAN \
+  -e PODMAN_API_SERVICE_PORT=8000 \
+  -e PODMAN_POD_NAME=SYNTHETICS \
+  -e KERBEROS_REALM=<REALM_NAME> \
+  -e KERBEROS_KDC=<EC2_PRIVATE_IP> \
+  -e KERBEROS_HOST_ALLOWLIST=<EC2_INTERNAL_HOSTNAME> \
+  -e KERBEROS_KEYTAB_HOST_PATH=<CLIENT_KEYTAB_PATH> \
+  -v <CLIENT_KEYTAB_PATH>:<CLIENT_KEYTAB_PATH>:ro,Z \
+  newrelic/synthetics-job-manager
+```
+
+<Callout variant="tip">
+SELinuxホストでは、コンテナがキータブを読み取れるようにrelabelフラグを追加してください。ジョブマネージャーとそれがリリースするすべてのブラウザランタイムコンテナは同じポッド（`PODMAN_POD_NAME`）内で実行され、Podmanはポッド内のすべてのコンテナで1つのSELinuxラベルを共有します — そのため、複数のコンテナがキータブを読み取る場合でも、ここでは`:ro,Z`が機能します。キータブをこのポッド外のコンテナと共有する必要はないため、`:ro,Z`ではなく`:Z`を使用してください。詳しくは、[Podmanボリュームのドキュメント](https://docs.podman.io/en/latest/markdown/podman-run.1.html#volume-v-source-volume-host-dir-container-dir-options)を参照してください。
+</Callout>
+</Collapser>
+</CollapserGroup>
+
+## パート3：Kerberos認証のトラブルシューティング [#troubleshooting]
+
+ランタイムコンテナ内でKerberosの初期化が失敗した場合でも、コンテナのスタートアップパイプラインは引き続きブラウザをリリースし、モニターを実行します。その後、モニターはHTTP 401チャレンジまたはナビゲーションタイムアウトにより保護されたエンドポイントに対して失敗し、その結果に`KerberosInitWarning`の根本原因のタグを付けます。この失敗は通常のタイムアウトのように見えるため、モニタースクリプトを調査する前に、ジョブログで以下のエラーコードを確認してください。
+
+これらのコードは、[パート2](#sjm-configuration)のスタートアップ検証とは異なります — `KERBEROS_*`変数のうち一部のみを設定した場合、ジョブマネージャーは完全に起動に失敗し、これらのコードはジョブのログに一切表示されません。
+
+<table>
+<thead>
+<tr>
+<th style={{ width: "250px" }}>
+エラーコード
+</th>
+
+<th>
+原因
+</th>
+
+<th>
+すべきこと
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`KERBEROS_KDC_UNREACHABLE`
+</td>
+
+<td>
+ランタイムコンテナは、ネットワーク経由でKDCに到達できません。
+</td>
+
+<td>
+プライベートロケーションホストとKDC間のTCPおよびUDPポート88のファイアウォールルールを確認してください。
+</td>
+</tr>
+
+<tr>
+<td>
+`KERBEROS_BAD_CREDENTIAL`
+</td>
+
+<td>
+プリンシパルがキータブと一致しないか、キータブが破損しています。
+</td>
+
+<td>
+`klist -kt <CLIENT_KEYTAB_PATH>`を実行して、ホスト上のキータブを検証してください。
+</td>
+</tr>
+
+<tr>
+<td>
+`KERBEROS_CLOCK_SKEW`
+</td>
+
+<td>
+ホストのクロックがKDCのクロックと5分以上異なります。
+</td>
+
+<td>
+`chrony`などのサービスを使用して、NTPでホストの時計を同期してください。
+</td>
+</tr>
+
+<tr>
+<td>
+`KERBEROS_DNS_LOOKUP_FAILED`
+</td>
+
+<td>
+コンテナはKDCのホスト名またはレルムを解決できません。
+</td>
+
+<td>
+ジョブマネージャーコンテナの内部DNSリゾルバー設定を確認するか、`RUNTIME_EXTRA_HOSTS`でホストをマッピングしてください。
+</td>
+</tr>
+
+<tr>
+<td>
+`KERBEROS_CONFIG_INVALID`
+</td>
+
+<td>
+ランタイムコンテナがマウントされたキータブを読み取れないか、そこからプリンシパルを解析できませんでした（空の、または不正な形式のキータブ）。
+</td>
+
+<td>
+キータブがランタイムコンテナ内で読み取り可能であり、少なくとも1つのプリンシパルが含まれていることを確認してください：`klist -kt <CLIENT_KEYTAB_PATH>`。
+</td>
+</tr>
+
+<tr>
+<td>
+`KERBEROS_UNKNOWN_FAILURE`
+</td>
+
+<td>
+システム・レベルのGSSAPIまたは暗号化の失敗により、ハンドシェイクが停止しました。
+</td>
+
+<td>
+クライアントキータブの暗号化タイプ（`klist -kt -e <CLIENT_KEYTAB_PATH>`には各エントリのenctypeがリストされています）を、ステップ3でKDCに設定された`supported_enctypes`の値と比較してください。キータブが提供するものとKDCが受け入れるものとの間の不一致が、これらのエラーのほとんどの原因となります。
+</td>
+</tr>
+</tbody>
+</table>

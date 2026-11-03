@@ -1,37 +1,48 @@
 ---
-title: Alta contenção de bloqueio AppDomain.GetData() (.NET framework)
+title: Alta contenção de bloqueio de AppDomain.GetData() ou aumento de memória nativa
 type: troubleshooting
 tags:
   - Agents
   - NET agent
   - Troubleshooting
-metaDescription: Instructions and information about reducing AppDomain.GetData() lock contention for impacted .NET Framework applications
-freshnessValidatedDate: never
+metaDescription: 'Information about the .NET agent''s method cache, and how it relates to AppDomain.GetData() lock contention on .NET Framework and increased native memory on .NET and .NET Core.'
+freshnessValidatedDate: '2026-10-07T00:00:00.000Z'
 translationType: machine
 ---
 
 ## Problema
 
-Quando o agente .NET é anexado ao aplicativo de altas taxas de transferência <DNT>**.NET Framework**</DNT> , alguns clientes relataram observar alta contenção de threads. Ao revisar os dumps do processo e o rastreamento de pilha, muitos threads podem ser bloqueados por chamadas para `AppDomain.GetData()`.
+O agente .NET armazena em cache as informações do método necessárias para chamar o agente a partir de métodos instrumentados. Desde a versão 10.54.0, o agente usa esse cache para aplicativos do framework .NET e .NET ou .NET Core. Antes da versão 10.54.0, o agente o usava apenas para aplicativos do framework .NET.
 
-## Solução possível
+O cache pode causar estes sintomas:
 
-Na [versão 9.7 do agente .NET](/docs/release-notes/agent-release-notes/net-release-notes), foi introduzida uma nova variável de ambiente que desativa o uso do armazenamento `AppDomain` pelo agente .NET:
+* **.NET framework:** um aplicativo com altas taxas de transferência apresenta alta contenção de threads. Dumps de processo e stack trace mostram muitas threads bloqueadas em chamadas para `AppDomain.GetData()`.
+* **.NET ou .NET Core, versões do agente 10.54.0 a 10.56.0:** O aplicativo usa mais memória nativa do que usava com a versão 10.53.x do agente. O aumento cresce com o número de assemblies que o aplicativo carrega.
+
+## Causa
+
+O agente .NET precisa de informações de assinatura de método para instrumentar métodos. Para evitar uma chamada de reflexão toda vez que um método instrumentado é executado, o agente armazena essas informações em cache. O cache usa mais memória para economizar tempo de CPU. Em nossos testes, os aplicativos apresentaram maiores taxas de transferência máximas com o cache ativado.
+
+No .NET framework, o agente armazena parte desse cache no armazenamento `AppDomain`. As chamadas para `AppDomain.GetData()` adquirem um bloqueio global, o que pode causar contenção de thread em alguns aplicativos de altas taxas de transferência.
+
+No .NET e no .NET Core, as versões do agente 10.54.0 a 10.56.0 adicionam referências a métodos auxiliares do agente a cada módulo que o aplicativo carrega, incluindo módulos que não têm métodos instrumentados. O tempo de execução mantém uma cópia dos metadados de cada módulo alterado na memória nativa.
+
+## Antes de alterar as configurações do agente
+
+Os sintomas acima podem ter muitas causas. Entre em contato com o [suporte da New Relic](https://support.newrelic.com/) com um dump de thread ou medições de memória antes de alterar as configurações do agente. O suporte pode confirmar se o cache de método do agente é a causa.
+
+## Solução
+
+Caso utilize o agente .NET 10.54.0 a 10.56.0 no .NET ou .NET Core e observe o aumento de memória nativa descrito acima, [atualize o agente](/docs/apm/agents/net-agent/installation/update-net-agent/) para uma versão mais recente que a 10.56.0. Nessas versões, o agente adiciona essas referências apenas a `System.Private.CoreLib` e a módulos que têm métodos instrumentados.
+
+Se o suporte confirmar que o cache de método do agente é a causa e não for possível atualizar o agente, é possível desativar o cache com esta variável de ambiente:
 
 ```ini
 NEW_RELIC_DISABLE_APPDOMAIN_CACHING=true
 ```
 
+Essa configuração está disponível na versão 9.7 e superior do agente .NET e se aplica a aplicativos do framework .NET, .NET e .NET Core. É possível deixá-la ativada a longo prazo.
+
 <Callout variant="caution">
-  Embora essa variável de ambiente elimine a contenção de bloqueio de chamadas de agente para `AppDomain.GetData()`, a sobrecarga total do agente .NET aumenta quando essa variável de ambiente é habilitada. Em nossos testes, isso resultou em menos bloqueios, mas em taxas máximas de transferência de aplicação mais baixas com o agente .NET anexado a uma aplicação de teste.
+  Essa configuração não reduz o uso de heap gerenciado e não corrige requests lentos ou CPU alta. Com o cache desativado, o agente usa reflexão cada vez que um método instrumentado é executado, o que aumenta a sobrecarga do agente. Em nossos testes, os aplicativos tiveram taxas de transferência máximas menores com o cache desativado.
 </Callout>
-
-Estamos extremamente interessados em comentários de clientes que enfrentam esse problema e que tentam essa nova opção de configuração. Se você tentar esta opção de configuração, crie um problema em nosso [repositório GitHub para .NET](https://github.com/newrelic/newrelic-dotnet-agent) descrevendo sua experiência.
-
-## Causa
-
-O agente .NET precisa de acesso às informações de assinatura de métodos para métodos do instrumento. Por padrão para o aplicativo .NET framework , o agente carrega essas informações de método por meio de reflexão e as armazena em cache no `AppDomain` para uso futuro. Pretende-se que esta seja uma otimização geral, mas vários clientes experimentaram uma alta contenção de bloqueio de thread em torno desse comportamento e acreditam que é a causa raiz da lentidão ou da não resposta dos serviços.
-
-Depois de inspecionar o código-fonte da Microsoft, as chamadas para `AppDomain.GetData()` resultam de fato em um bloqueio global.
-
-Como o agente .NET não usa nenhum esquema de cache de informações de método para o aplicativo .NET Core e nenhum cliente relatou problemas semelhantes de contenção de bloqueio de thread, decidimos expor uma variável de ambiente para fazer o agente funcionar da mesma maneira no .NET aplicativo framework .

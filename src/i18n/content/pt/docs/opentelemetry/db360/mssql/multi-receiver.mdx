@@ -1,0 +1,224 @@
+---
+title: Configuração de múltiplos receptores para MSSQL com NRDOT
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-MSSQL
+  - nrdot-collector-Database
+  - NRDOT
+  - MSSQL
+  - Multi-receiver configuration
+metaDescription: Set up a multi-receiver configuration with the NRDOT Collector for MSSQL monitoring
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MSSQL-with-NRDOT
+flow:
+  prev:
+    - /docs/opentelemetry/db360/mssql/linux-rds
+    - /docs/opentelemetry/db360/mssql/linux-hosted
+    - /docs/opentelemetry/db360/mssql/windows-hosted-sql
+    - /docs/opentelemetry/db360/mssql/windows-hosted-domain
+    - /docs/opentelemetry/db360/mssql/windows-hosted-gmsa
+    - /docs/opentelemetry/db360/mssql/windows-rds-sql
+    - /docs/opentelemetry/db360/mssql/windows-rds-domain
+    - /docs/opentelemetry/db360/mssql/windows-rds-gmsa
+  next: null
+translationType: machine
+---
+
+Você pode configurar o NRDOT Collector para monitorar várias instâncias do MSSQL a partir de um coletor. Isso é útil se você tiver várias instâncias do MSSQL sendo executadas em hosts diferentes e quiser coletar métricas de todas elas usando uma única instância do NRDOT Collector.
+
+<Steps>
+  <Step>
+    ## Pré-requisitos [#prerequisites]
+
+    * O NRDOT está instalado e configurado para suas instâncias do MSSQL:
+
+      * [Linux RDS](/docs/opentelemetry/db360/mssql/linux-rds)
+
+      * [Linux hospedado](/docs/opentelemetry/db360/mssql/linux-hosted)
+
+      * Windows auto-hospedado:
+
+        * [Autenticação do SQL Server](/docs/opentelemetry/db360/mssql/windows-hosted-sql)
+        * [Autenticação de domínio do Windows](/docs/opentelemetry/db360/mssql/windows-hosted-domain)
+        * [gMSA](/docs/opentelemetry/db360/mssql/windows-hosted-gmsa)
+
+      * Windows RDS:
+
+        * [Autenticação do SQL Server](/docs/opentelemetry/db360/mssql/windows-rds-sql)
+        * [Autenticação de domínio do Windows](/docs/opentelemetry/db360/mssql/windows-rds-domain)
+        * [gMSA](/docs/opentelemetry/db360/mssql/windows-rds-gmsa)
+  </Step>
+
+  <Step>
+    ## Adicionar configuração de multirreceptor [#multi]
+
+    O exemplo a seguir mostra como configurar o NRDOT Collector para monitorar duas instâncias do MSSQL usando uma configuração de múltiplos receptores. A primeira instância, `nrsqlserver/1`, carrega a configuração completa e atua como âncora; a segunda instância, `nrsqlserver/2`, herda todas as configurações compartilhadas por meio da chave de mesclagem YAML e sobrescreve apenas seus próprios detalhes de conexão. Você pode adicionar mais receptores conforme necessário para instâncias adicionais.
+
+    ```yaml
+    receivers:
+      # Base SQL Server instance: defines the anchor all others inherit from.
+      nrsqlserver/1: &nrsqlserver-common
+        username: "<YOUR_DB1_USERNAME>"
+        password: "<YOUR_DB1_PASSWORD>"
+        server: "<YOUR_SERVER_1>"
+        port: 1433
+        collection_interval: 15s
+
+        metrics:
+          sqlserver.database.count:
+            enabled: true
+          sqlserver.database.io:
+            enabled: true
+          sqlserver.database.latency:
+            enabled: true
+          sqlserver.database.operations:
+            enabled: true
+          sqlserver.database.tempdb.space:
+            enabled: true
+          sqlserver.database.tempdb.version_store.size:
+            enabled: true
+          sqlserver.deadlock.rate:
+            enabled: true
+          sqlserver.os.wait.duration:
+            enabled: true
+          sqlserver.processes.blocked:
+            enabled: true
+          sqlserver.memory.grants.pending.count:
+            enabled: true
+          sqlserver.database.file.size:
+            enabled: true
+          sqlserver.memory.area:
+            enabled: true
+
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+          db.server.top_procedure:
+            enabled: true
+
+        top_query_collection:
+          lookback_time: 60s
+          max_query_sample_count: 1000
+          top_query_count: 250
+          collection_interval: 60s
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        query_sample_collection:
+          max_rows_per_query: 100
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        top_procedure_collection:
+          max_procedure_sample_count: 1000
+          top_procedure_count: 250
+          collection_interval: 60s
+
+        resource_attributes:
+          db.system.version:
+            enabled: true
+          sqlserver.db.edition:
+            enabled: true
+
+      # Second SQL Server instance: inherits all settings from nrsqlserver/1,
+      # overrides only the connection-specific fields.
+      # Additional SQL Server instances can be added here following the same pattern.
+      nrsqlserver/2:
+        <<: *nrsqlserver-common
+        username: "<YOUR_DB2_USERNAME>"
+        password: "<YOUR_DB2_PASSWORD>"
+        server: "<YOUR_SERVER_2>"
+        port: 1433
+
+    processors:
+      memory_limiter:
+        check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib: ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+    exporters:
+      otlp:
+        endpoint: https://otlp.nr-data.net:4318
+        headers:
+          api-key: <YOUR_LICENSE_KEY>
+        tls:
+          insecure: false
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+
+      # Metrics and logs pipelines for multiple SQL Server instances
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver/1, nrsqlserver/2]
+          processors: [memory_limiter]
+          exporters: [otlp]
+        logs:
+          receivers: [nrsqlserver/1, nrsqlserver/2]
+          processors: [memory_limiter]
+          exporters: [otlp]
+    ```
+
+    A chave de mesclagem `<<: *nrsqlserver-common` herda todas as configurações de `nrsqlserver/1`, incluindo seu catálogo de métricas, eventos, configurações de coleta de consulta/procedimento e atributos de recurso. Qualquer campo definido explicitamente após ela, como `username`, `password`, `server` e `port`, sobrescreve o valor herdado para essa instância específica do receptor.
+
+    <Callout variant="important">
+      Cada vez que você adicionar uma nova instância de receptor (por exemplo, `nrsqlserver/3`), adicione-a também à lista `receivers` em ambos os pipelines `metrics` e `logs` em `service.pipelines`. Um receptor definido no bloco `receivers`, mas ausente em `service.pipelines`, não coletará nenhum dado.
+    </Callout>
+
+    <Callout variant="tip">
+      Para ambientes Windows auto-hospedados e RDS usando autenticação de domínio ou gMSA, use o campo `datasource` em vez de `username`/`password`/`server`/`port`. Consulte [Instrumentação auto-hospedada do Windows (autenticação de domínio do Windows)](/docs/opentelemetry/db360/mssql/windows-hosted-domain) para o formato `datasource`.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Reiniciar o NRDOT Collector [#restart]
+
+    Reinicie o serviço <DNT>NRDOT Collector</DNT> para que as alterações de configuração entrem em vigor. O coletor carrega os parâmetros de configuração uma vez na inicialização e não oferece suporte a hot-reloading. Quaisquer alterações feitas na configuração enquanto o coletor está em execução permanecem inativas até que o processo seja reiniciado.
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+  </Step>
+</Steps>
+
+## Documentação relacionada [#related-docs]
+
+<DocTiles>
+  <DocTile title="Instrumentação do Linux para ambientes auto-hospedados" path="/docs/opentelemetry/db360/mssql/linux-hosted">
+    Saiba como configurar o monitoramento do MSSQL em ambientes Linux auto-hospedados com o New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentação do Windows para ambientes auto-hospedados" path="/docs/opentelemetry/db360/mssql/windows-hosted-sql">
+    Saiba como configurar o monitoramento do MSSQL em ambientes Windows auto-hospedados com o New Relic.
+  </DocTile>
+
+  <DocTile title="Configurar a correlação entre APM e banco de dados" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    Aprenda a correlacionar o desempenho do seu aplicativo com as operações de banco de dados no New Relic.
+  </DocTile>
+</DocTiles>

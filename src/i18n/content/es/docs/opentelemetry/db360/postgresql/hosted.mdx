@@ -1,0 +1,344 @@
+---
+title: Instale y configure NRDOT para el monitoreo de PostgreSQL con Self-hosted
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Self-hosted
+metaDescription: Set up PostgreSQL monitoring with NRDOT Collector on self-hosted environments
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+Configure el monitoreo de PostgreSQL usando el NRDOT Collector en entornos autohospedados, incluidos servidores físicos, máquinas virtuales e instalaciones independientes.
+
+<Callout variant="tip" title="Instalación guiada">
+  Para instalar a través de la UI de New Relic en su lugar, vaya a <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; PostgreSQL (Database 360)](https://onenr.io/00jlEJKbdQW)**</DNT>. Esta página solo cubre la instalación manual.
+</Callout>
+
+<Steps>
+  <Step>
+    ## Requisitos previos [#prerequisites]
+
+    Antes de instalar, asegúrese de tener:
+
+    * PostgreSQL 14 o posterior
+    * Una [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic.
+    * Acceso administrativo a su instancia de PostgreSQL.
+    * Conectividad de red entre el host donde instala el Collector NRDOT y su base de datos PostgreSQL.
+    * Conectividad de red a la [documentación de los extremos OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+    Para conocer las versiones de PostgreSQL compatibles, los permisos requeridos y los parámetros de servidor recomendados, consulte [Compatibilidad y requisitos previos](/docs/opentelemetry/db360/postgresql/compatibility).
+  </Step>
+
+  <Step>
+    ## Configurar NRDOT Collector [#setup]
+
+    Instale el NRDOT Collector en su sistema:
+
+    <CollapserGroup>
+      <Collapser title="Para la arquitectura AMD64" id="amd">
+        * Para sistemas Debian/Ubuntu, ejecute:
+
+```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+```
+
+        * Para sistemas RHEL/CentOS/OEL, ejecute:
+
+```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+```
+      </Collapser>
+
+      <Collapser title="Para la arquitectura ARM64" id="arm">
+        * Para sistemas Debian/Ubuntu, ejecute:
+
+```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+```
+
+        * Para sistemas RHEL/CentOS/OEL, ejecute:
+
+```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_aarch64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Configurar el usuario y los permisos de la base de datos [#database-user]
+
+    Cree un usuario de monitoreo con los privilegios necesarios para su instancia de PostgreSQL.
+
+    **Para crear el usuario de monitoreo y los permisos:**
+
+    1. Conéctese a su instancia de PostgreSQL como superusuario u otro usuario con los permisos requeridos:
+
+```shell
+    sudo -u postgres psql --dbname=postgres --port=5432
+```
+
+    2. Cree el usuario de monitoreo:
+
+```sql
+    CREATE USER <YOUR_DB_USERNAME> WITH LOGIN PASSWORD '<YOUR_DB_PASSWORD>';
+```
+
+    3. Otorgar la membresía del rol de usuario de monitoreo según sea necesario:
+
+    * Si usa PostgreSQL 15 o superior, asigne el rol para heredar privilegios:
+
+```sql
+      ALTER ROLE <YOUR_DB_USERNAME> INHERIT;
+```
+
+      <Callout variant="tip">
+        Si usa PostgreSQL 14, el usuario de monitoreo hereda los privilegios por defecto, por lo que puede omitir este paso.
+      </Callout>
+
+    * Cree el siguiente esquema y permisos en cada base de datos que desee monitorear:
+
+```sql
+      CREATE SCHEMA IF NOT EXISTS otel;
+      GRANT USAGE ON SCHEMA otel TO <YOUR_DB_USERNAME>;
+      GRANT USAGE ON SCHEMA public TO <YOUR_DB_USERNAME>;
+      GRANT SELECT ON ALL TABLES IN SCHEMA public TO <YOUR_DB_USERNAME>;
+      GRANT pg_monitor TO <YOUR_DB_USERNAME>;
+      CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+```
+
+    * (Opcional) Para recopilar métricas de vectores, cree la extensión `pgvector` en cada base de datos:
+
+```sql
+      CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+      Las funciones de distancia `l1`, `hamming` y `jaccard` requieren la versión `0.7.0` o superior de `pgvector`.
+
+    * (Opcional) Para verificar la conexión y los permisos, ejecute:
+
+```shell
+      psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> --command '\conninfo'
+      psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+        -c "SELECT * FROM pg_stat_database LIMIT 1;" && echo "pg_stat_database OK"
+      psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+        -c "SELECT * FROM pg_stat_activity LIMIT 1;" && echo "pg_stat_activity OK"
+      psql --username=<YOUR_DB_USERNAME> --host=localhost --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+        -c "SELECT * FROM pg_stat_statements LIMIT 1;" && echo "pg_stat_statements OK"
+```
+
+    Si cada comando se completa sin errores, el usuario de monitoreo, el host y el puerto son correctos.
+  </Step>
+
+  <Step>
+    ## Configurar el Colector NRDOT [#configure-collector]
+
+    Configure el NRDOT Collector con los ajustes específicos de PostgreSQL.
+
+    Esta configuración se centra en el monitoreo esencial de PostgreSQL solo con el receptor `nrpostgresql`.
+
+    <Callout variant="tip" title="configuración completa">
+      Esta configuración de línea de base captura métricas esenciales. Para ver el catálogo completo de métricas, consulte la [referencia de configuración](/docs/opentelemetry/db360/postgresql/config-reference/#hosted-full).
+    </Callout>
+
+    1. Cree un archivo de configuración llamado `postgresql-config.yaml`:
+
+```bash
+      sudo nano /etc/nrdot-collector/postgresql-config.yaml
+```
+
+    2. Agregue la siguiente configuración al archivo `postgresql-config.yaml` que creó en el paso anterior.
+
+    <OtelConfig
+      inputOptions={[{"name":"host","label":"Nombre de host/IP de PostgreSQL","codeLine":3,"defaultValue":"postgresql.example.com","toolTip":"Ingrese el nombre de host o la dirección IP de PostgreSQL"},{"name":"port","label":"Puerto de PostgreSQL","codeLine":3,"defaultValue":"5432","toolTip":"Ingrese el número de puerto de PostgreSQL. El valor predeterminado es 5432."},{"name":"username","label":"Nombre de usuario de la base de datos","codeLine":4,"defaultValue":"newrelic","toolTip":"Ingrese su nombre de usuario de la base de datos para la autenticación"},{"name":"password","label":"Contraseña de la base de datos","codeLine":5,"defaultValue":"YOUR_PASSWORD","toolTip":"Ingrese la contraseña que estableció para el usuario de monitoreo"},{"name":"database","label":"Nombre de la base de datos","codeLine":7,"defaultValue":"YOUR_DATABASE_NAME","toolTip":"Ingrese el nombre de la base de datos que desea monitorear"},{"name":"endpoint","label":"Extremo OTLP de New Relic","codeLine":54,"defaultValue":"https://otlp.nr-data.net:4318","toolTip":"Ingrese el extremo OTLP de New Relic. Para obtener más información, consulte https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/"},{"name":"licenseKey","label":"Clave de licencia de New Relic","codeLine":56,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"Ingrese su clave de licencia de New Relic"}]}
+      config={`receivers:
+      nrpostgresql:
+      endpoint: "<input1>:<input2>"
+      username: "<input3>"
+      password: "<input4>"
+      databases:
+       - <input5>
+      collection_interval: 15s
+      events:
+       db.server.top_query:
+         enabled: true
+       db.server.query_sample:
+         enabled: true
+       db.server.query_plan:
+         enabled: true
+      top_query_collection:
+       max_rows_per_query: 1000
+       top_n_query: 200
+       collection_interval: 60s
+       allowed_comment_keys: [nr_service_guid]
+      query_sample_collection:
+       max_rows_per_query: 1000
+       allowed_comment_keys: [nr_service_guid]
+      resource_attributes:
+       db.system.version:
+         enabled: true
+      # Metrics needed for the out-of-the-box dashboard but disabled by default:
+      # see "Available metrics" below for the full default-on/default-off breakdown.
+      metrics:
+       postgresql.database.locks:
+         enabled: true
+       postgresql.deadlocks:
+         enabled: true
+       postgresql.function.calls:
+         enabled: true
+       postgresql.query.conflicts:
+         enabled: true
+       postgresql.sequential_scans:
+         enabled: true
+       postgresql.temp.io:
+         enabled: true
+       postgresql.temp_files:
+         enabled: true
+      processors:
+      batch:
+      batch/metrics:
+      send_batch_size: 8192
+      send_batch_max_size: 8192
+      timeout: 10s
+      exporters:
+      otlp/newrelic:
+      endpoint: "<input6>"
+      headers:
+       api-key: "<input7>"
+      compression: gzip
+      sending_queue:
+       enabled: true
+       sizer: bytes
+       queue_size: 100_000_000
+       num_consumers: 10
+       batch:
+         sizer: bytes
+         max_size: 1_000_000
+         min_size: 0
+         flush_timeout: 5s
+      retry_on_failure:
+       enabled: true
+       initial_interval: 5s
+       max_interval: 30s
+       max_elapsed_time: 300s
+      service:
+      telemetry:
+      metrics:
+       level: none
+      pipelines:
+      metrics:
+       receivers: [nrpostgresql]
+       processors: [batch/metrics]
+       exporters: [otlp/newrelic]
+      logs:
+       receivers: [nrpostgresql]
+       processors: [batch]
+       exporters: [otlp/newrelic]`}
+      fileName="postgresql-config.yaml"
+      tipMdx={{ body: null }}
+      onChange={() => {}}
+    />
+
+    ### Parámetro de configuración
+
+    La siguiente tabla describe los parámetros de configuración clave para el receptor `nrpostgresql`:
+
+    | Parámetro                       | Descripción                                                                                                                                                                                                                                                                                     |
+    | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_DB_HOST>`                | Ingrese el nombre de host de su base de datos PostgreSQL.                                                                                                                                                                                                                                       |
+    | `<YOUR_DB_PORT>`                | Ingrese el puerto de su base de datos PostgreSQL.                                                                                                                                                                                                                                               |
+    | `<YOUR_DB_USERNAME>`            | Ingrese su nombre de usuario de la base de datos.                                                                                                                                                                                                                                               |
+    | `<YOUR_DB_PASSWORD>`            | Ingrese la contraseña de su base de datos.                                                                                                                                                                                                                                                      |
+    | `<YOUR_DATABASE_NAME>`          | Ingrese el nombre de la base de datos que desea monitorear.                                                                                                                                                                                                                                     |
+    | `databases`                     | Lista de bases de datos para las que se recopilan estadísticas. Predeterminado: `[]` (todas las bases de datos que no son plantillas). Solo se aplica a las métricas. Las muestras de consultas y las consultas principales ignoran esta lista y se filtran únicamente por `exclude_databases`. |
+    | `exclude_databases`             | Bases de datos excluidas de las estadísticas, las muestras de consultas y las consultas principales. Predeterminado: `[]`. Use esto para bases de datos internas a las que su usuario de monitoreo no puede acceder.                                                                            |
+    | `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Ingrese el extremo OTLP de New Relic. Para obtener más información, consulte [Extremos OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/).                                                                                                                              |
+    | `<YOUR_NEWRELIC_LICENSE_KEY>`   | Ingrese su [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) de New Relic.                                                                                                                                                                                      |
+    | `collection_interval`           | Ingrese el intervalo entre los raspados de métricas. Predeterminado: `15s`.                                                                                                                                                                                                                     |
+
+    <Callout variant="tip">
+      Tú también puedes:
+
+      [Configurar múltiples receptores](/docs/opentelemetry/db360/postgresql/multi-receiver): para monitorear múltiples instancias de PostgreSQL desde un recolector.
+      [Vincule su base de datos PostgreSQL con APM](/docs/opentelemetry/db360/capabilities/db-apm): para correlacionar el rendimiento de la aplicación con las operaciones de la base de datos. Esto le permite ver exactamente qué aplicaciones están generando cargas de trabajo de base de datos específicas.
+      [Planes de consulta para sentencias de escritura](/docs/opentelemetry/db360/postgresql/optional#query): para recopilar planes de consulta para sentencias de bloqueo o escritura sin otorgar acceso de escritura al usuario de monitoreo.
+      [Configurar la gestión de secretos](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management): para administrar de forma segura información confidencial, como las credenciales de bases de datos. Esto ayuda a mejorar la seguridad de su configuración de monitoreo al evitar la codificación rígida de datos sensibles en los archivos de configuración.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Valide la configuración de NRDOT Collector [#validate]
+
+    1. Actualice la ruta de configuración para que apunte a su nuevo archivo `postgresql-config.yaml`:
+
+```bash
+      sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/postgresql-config.yaml"|' /etc/nrdot-collector/nrdot-collector.conf
+```
+
+    2. Valide la configuración del NRDOT Collector para asegurarse de que tenga el formato correcto y funcione correctamente:
+
+```bash
+      sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/postgresql-config.yaml
+```
+  </Step>
+
+  <Step>
+    ## Reiniciar NRDOT Collector [#restart-collector]
+
+    Después de configurar el recolector, reinicie el servicio NRDOT Collector para aplicar los cambios:
+
+```bash
+    sudo systemctl restart nrdot-collector
+```
+
+    Para verificar que el recolector se esté ejecutando correctamente, verifique el estado del servicio:
+
+```bash
+    sudo systemctl status nrdot-collector
+```
+
+    <Callout variant="tip">
+      Reinicie siempre el NRDOT Collector después de realizar cambios de configuración para garantizar que los nuevos ajustes surtan efecto.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Encuentra y utiliza tus datos [#find-use-data]
+
+    Las muestras de consulta y las consultas principales llegan como log de evento (`event.name = 'db.server.query_sample'` / `'db.server.top_query'`, `db.system.name = 'postgresql'`). Las métricas llegan bajo el namespace `postgresql.*`.
+
+    Para encontrar su entidad de base de datos PostgreSQL en New Relic:
+
+    1. Vaya a <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>.
+    2. En el menú desplegable **<DNT>Entity type</DNT>**, seleccione <DNT>**PostgreSQL instance**</DNT> y luego haga clic en <DNT>**Apply**</DNT>.
+    3. Seleccione su base de datos PostgreSQL de la lista de entidades.
+  </Step>
+</Steps>
+
+## Documentación relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Vincule su base de datos PostgreSQL con APM" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    Aprenda a correlacionar el rendimiento de su aplicación con las operaciones de la base de datos.
+  </DocTile>
+
+  <DocTile title="Guía de solución de problemas" path="/docs/opentelemetry/db360/postgresql/troubleshooting">
+    Aprenda a solucionar problemas comunes con el monitoreo de PostgreSQL.
+  </DocTile>
+
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/db360/postgresql/metrics-reference">
+    Obtenga información sobre las métricas disponibles recopiladas por NRDOT Collector.
+  </DocTile>
+</DocTiles>

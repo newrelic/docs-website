@@ -1,0 +1,405 @@
+---
+title: Ansibleを使用したPostgreSQL監視用のNRDOTのインストールおよび設定
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Ansible
+metaDescription: Install and configure the NRDOT Collector for PostgreSQL monitoring using the newrelic.newrelic_install Ansible role
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+`newrelic.newrelic_install` Ansibleロールを使用して、PostgreSQL監視用のNRDOT Collectorをインストールして設定できます。このロールは、単一のプレイでコレクターをインストールし、監視ロールとその権限を作成し、コレクターを設定します。
+
+<Callout variant="tip" title="ガイド付きインストレーション">
+  代わりにNew Relic UIからインストールするには、<DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; PostgreSQL (Database 360)](https://onenr.io/00jlEJKbdQW)**</DNT>に移動してください。このページでは、手動インストレーションについてのみ説明します。
+</Callout>
+
+<Steps>
+  <Step>
+    ## 前提条件 [#prerequisites]
+
+    * 有効な[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)を持つNew Relicアカウント。
+    * New Relic [アカウントID](/docs/accounts/accounts-billing/account-structure/account-id)。
+    * PostgreSQL 14以降。
+    * Ansible Core 2.13または2.14、Python 3.10、および`ansible.windows`と`ansible.utils`のコレクション。
+    * Debian/UbuntuまたはRHEL/CentOSを実行しているLinuxコレクターホスト。
+    * `pg_stat_statements` `shared_preload_libraries`経由でロードする必要があり、これにはデータベースの再起動が必要です。プレイブックを実行する前に、[サーバーレベルの前提条件](/docs/opentelemetry/db360/postgresql/cli/#server-prereqs)を整えてください。
+    * セルフホスト型PostgreSQLの場合：パスワードが設定され、`pg_hba.conf`でパスワードベースのホスト認証が許可されている、PostgreSQLサーバーへの管理者アクセス権（`postgres`スーパーユーザーまたは同等の権限）。
+    * AWS RDS上のPostgreSQLまたはAuroraの場合：コレクターホストからRDSエンドポイントへのネットワーク接続、およびRDSマスターのユーザー名とパスワード。
+    * ご利用のリージョンの[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのネットワーク接続。
+
+    詳細な要件については、[互換性](/docs/opentelemetry/db360/postgresql/compatibility)をご覧ください。
+  </Step>
+
+  <Step>
+    ## 役割をインストールします [#ansible-install-role]
+
+    ```bash
+    ansible-galaxy install newrelic.newrelic_install
+    ```
+
+    必要なコレクションもインストールされていることを確認してください：
+
+    ```bash
+    ansible-galaxy collection install ansible.windows ansible.utils
+    ```
+  </Step>
+
+  <Step>
+    ## プレイブックを設定してください [#ansible-configure]
+
+    <CollapserGroup>
+      <Collapser id="ansible-host" title="セルフホスト型PostgreSQL">
+        このロールは、単一のコレクターから1つ以上のPostgreSQLインスタンスをモニターします。単一のホスト/ポート/認証情報のセットの代わりに、ターゲットホスト上にすでに存在している必要がある2つのファイルを読み取ります：モニターするすべてのインスタンスとそれぞれでモニターするデータベースをリストしたインスタンスファイル（YAML）、および、一致するようにインデックス付けされた、それぞれに対するスーパーユーザーのログインとパスワードを含むシークレットファイル（`KEY=VALUE`）です。正確なファイル形式については、「[CLIインストール](/docs/opentelemetry/db360/postgresql/cli/#cli-install)」ページを参照してください。
+
+        `playbook.yml`という名前のファイルを作成し、以下の内容をコピーします。`targets`を`postgresql-otel`に設定し、プレースホルダーの値を独自の値に置き換えます：
+
+        ```yaml
+        - name: Install New Relic NRDOT for PostgreSQL
+          hosts: all
+          roles:
+            - role: newrelic.newrelic_install
+          vars:
+            targets:
+              - postgresql-otel
+          environment:
+            NEW_RELIC_API_KEY: <API key>
+            NEW_RELIC_ACCOUNT_ID: <Account ID>
+            NEW_RELIC_REGION: <Region>
+            NR_CLI_POSTGRES_CONFIG_PRESET: <1 Basic, 2 Advanced, default 1>
+            NR_CLI_POSTGRES_INSTANCES_FILE: <path to the instances YAML file on the target host>
+            NR_CLI_POSTGRES_SECRETS_FILE: <path to the secrets file (KEY=VALUE per instance) on the target host>
+            NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER: <y or N, default N; PREVIEW feature, see table below>
+        ```
+
+        <Callout variant="important">
+          ロールはパスワードを使用してTCP経由でPostgreSQLに接続するため、各インスタンスのスーパーユーザーにはパスワードが設定されている必要があり、`pg_hba.conf`はTCP接続に対してパスワードベースのホスト認証（`md5`または`scram-sha-256`）を許可する必要があります：
+
+          ```bash
+          sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '<password>';"
+          ```
+
+          RHEL/CentOSでは、デフォルトの`pg_hba.conf`でパスワードベースのホスト認証がまったく許可されていないことがよくあります。それを確認して更新し、プレイブックを実行する前にPostgreSQLをリロードしてください。
+        </Callout>
+
+        <Callout variant="tip">
+          デバッグロギングを有効にするには、プレイブックの`vars`の下に`verbosity: "debug"`を追加します。
+        </Callout>
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                変数
+              </th>
+
+              <th>
+                説明
+              </th>
+
+              <th>
+                デフォルト
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOTの設定：
+
+                `1`
+
+                 Basic、
+
+                `2`
+
+                 Advanced。
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_INSTANCES_FILE`
+              </td>
+
+              <td>
+                **必須。**
+
+                ターゲットホストにすでに存在する、インスタンスYAMLファイルへのパス。
+              </td>
+
+              <td>
+                なし
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_SECRETS_FILE`
+              </td>
+
+              <td>
+                **必須。**
+
+                ターゲットホストにすでに存在する、シークレットファイル（
+
+                `KEY=VALUE`
+
+                、インスタンスごとに1つのスーパーユーザーのログイン/パスワードのペア）へのパス。
+              </td>
+
+              <td>
+                なし
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`
+              </td>
+
+              <td>
+                ロック/書き込みステートメントのクエリプランも収集します。各モニターデータベースに
+
+                `SECURITY DEFINER`
+
+                ヘルパー関数（
+
+                `otel.explain_statement`
+
+                ）を作成し、DMLアクセスを付与せずに監視ユーザー
+
+                `EXPLAIN`
+
+                に実行権限を付与します。これはプレビュー機能です。
+
+                `y`
+
+                /
+
+                `N`
+
+                。
+              </td>
+
+              <td>
+                `n`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          このコレクターから複数のPostgreSQLインスタンスをモニターするには、instancesファイルにさらにエントリーを追加し、secretsファイルに対応する番号付きの認証情報（`_2`、`_3`、...）を追加してください。チェックに失敗した（またはデータベースがリストされていない）インスタンスは、インストール全体を中止するのではなく、理由をログに記録してスキップされます。
+        </Callout>
+      </Collapser>
+
+      <Collapser id="ansible-rds" title="AWS RDS 上の PostgreSQL または Aurora">
+        このロールは、セルフホストと同じインスタンスファイル/シークレットファイルのパターンを使用して、単一のコレクターから1つ以上のRDS PostgreSQLまたはAuroraエンドポイントをモニターします（両方のファイルがターゲットホストにすでに存在している必要があります）。`playbook.yml`という名前のファイルを作成し、次のコンテンツをコピーします。`targets`を`postgresql-otel-rds`に設定し、プレースホルダーの値を独自の値に置き換えます：
+
+        ```yaml
+        - name: Install New Relic NRDOT for PostgreSQL on RDS
+          hosts: all
+          roles:
+            - role: newrelic.newrelic_install
+          vars:
+            targets:
+              - postgresql-otel-rds
+          environment:
+            NEW_RELIC_API_KEY: <API key>
+            NEW_RELIC_ACCOUNT_ID: <Account ID>
+            NEW_RELIC_REGION: <Region>
+            NR_CLI_POSTGRES_CONFIG_PRESET: <1 Basic, 2 Advanced, default 1>
+            NR_CLI_POSTGRES_INSTANCES_FILE: <path to the instances YAML file on the target host, using RDS or Aurora endpoints as host>
+            NR_CLI_POSTGRES_SECRETS_FILE: <path to the secrets file (KEY=VALUE per instance) on the target host>
+            NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER: <y or N, default N; PREVIEW feature, see table below>
+        ```
+
+        <Callout variant="tip">
+          デバッグロギングを有効にするには、プレイブックの`vars`の下に`verbosity: "debug"`を追加します。
+        </Callout>
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                変数
+              </th>
+
+              <th>
+                説明
+              </th>
+
+              <th>
+                デフォルト
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOTの設定：
+
+                `1`
+
+                 Basic、
+
+                `2`
+
+                 Advanced。
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_INSTANCES_FILE`
+              </td>
+
+              <td>
+                **必須。**
+
+                RDSまたはAuroraのエンドポイントを
+
+                `host`
+
+                として使用する、ターゲットホスト上にすでに存在するインスタンスYAMLファイルへのパス。
+              </td>
+
+              <td>
+                なし
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_SECRETS_FILE`
+              </td>
+
+              <td>
+                **必須。**
+
+                ターゲットホスト上にすでに存在するシークレットファイル（
+
+                `KEY=VALUE`
+
+                、インスタンスごとに1つのRDSマスターユーザー名/パスワードのペア）へのパス。
+              </td>
+
+              <td>
+                なし
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`
+              </td>
+
+              <td>
+                ロック/書き込みステートメントのクエリプランも収集します。各モニターデータベースに
+
+                `SECURITY DEFINER`
+
+                ヘルパー関数（
+
+                `otel.explain_statement`
+
+                ）を作成し、DMLアクセスを付与せずに監視ユーザー
+
+                `EXPLAIN`
+
+                に実行権限を付与します。これはプレビュー機能です。
+
+                `y`
+
+                /
+
+                `N`
+
+                。
+              </td>
+
+              <td>
+                `n`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          このコレクターから複数のRDS PostgreSQLまたはAuroraエンドポイントをモニターするには、インスタンスファイルにエントリを追加し、シークレットファイルに一致する番号付きの認証情報を追加してください。チェックに失敗した（またはデータベースがリストされていない）インスタンスは、インストール全体を中止するのではなく、理由をログに記録してスキップされます。
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## プレイブックを実行します [#ansible-run]
+
+    ```bash
+    ansible-playbook -i <inventory_file> <playbook_file>.yml
+    ```
+  </Step>
+
+  <Step>
+    ## データを探す、使う [#find]
+
+    データの収集が開始されると、New Relic UIから包括的なPostgreSQLデータベース監視にアクセスできます。
+
+    New RelicでPostgreSQLデータベースエンティティを見つけるには：
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>に移動します。
+    2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**PostgreSQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+    3. エンティティのリストからPostgreSQLデータベースを選択します。
+  </Step>
+</Steps>
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+  <DocTile title="NRDOTを使用したPostgreSQL監視の概要" path="/docs/opentelemetry/db360/postgresql/introduction">
+    New Relicを使用したPostgreSQL監視で利用可能なすべてのインストレーション方法をご覧ください。
+  </DocTile>
+
+  <DocTile title="CLIインストール" path="/docs/opentelemetry/db360/postgresql/cli">
+    単一のNew Relic CLIコマンドを使用して、PostgreSQLの監視をインストールおよび設定する方法について説明します。
+  </DocTile>
+
+  <DocTile title="Chefのインストール" path="/docs/opentelemetry/db360/postgresql/chef">
+    newrelic-install Chefクックブックを使用して、PostgreSQLの監視を大規模にインストールおよび設定する方法について説明します。
+  </DocTile>
+
+  <DocTile title="Helmチャートのインストール" path="/docs/opentelemetry/db360/postgresql/helm">
+    postgresql-otel Helmチャートを使用して、Kubernetes上でPostgreSQLの監視をインストールおよび設定する方法について説明します。
+  </DocTile>
+</DocTiles>

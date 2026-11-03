@@ -1,0 +1,953 @@
+---
+title: NerdGraphチュートリアル：Pathpointフローの作成と管理
+tags:
+  - APIs
+  - NerdGraph
+  - Pathpoint
+  - Business observability
+metaDescription: 'Use NerdGraph to create, read, update, duplicate, and delete Pathpoint flows, including their stages, levels, steps, signals, and KPIs.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
+</Callout>
+
+UIで構築する代わりに、[NerdGraph API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)を使用して、プログラムでPathpointフローを作成および管理できます。
+
+フローは、チェックアウト、認証、オンボーディングなどの1つのビジネスジャーニーを表します。これは、APIを通じて作成および管理する単位です。フローは[エンティティ](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic)であるため、それぞれに読み取り、更新、または削除に使用するエンティティ<DNT>GUID</DNT>があります。
+
+すべてのフローは4ティアの階層に従い、KPIはフローレベル、ステージレベル、またはその両方に関連付けられます：
+
+```
+Flow
+├── Flow KPIs
+└── Stages
+    ├── Stage KPIs
+    └── Levels
+        └── Steps
+            └── Signals (entity GUIDs, alert condition GUIDs, or a dynamic query)
+```
+
+Pathpoint自体の概要については、[Pathpointの利用開始](/docs/pathpoint/get-started-pathpoint)をご覧ください。
+
+## あなたが始める前に [#requirements]
+
+必要なもの:
+
+* アカウントでPathpointが有効になっていること。
+* requestsを認証するためのNew Relic <InlinePopover type="userKey" />。
+* [アカウントID](/docs/accounts/accounts-billing/account-structure/account-id)。
+
+## フローの操作 [#crud-operations]
+
+これらの例をインタラクティブに実行するには、[NerdGraph GraphiQLエクスプローラー](https://api.newrelic.com/graphiql)を開き、スキーマで`pathPoint`を検索します。例を実行する前に、プレースホルダーを自身の値に置き換えてください：`YOUR_ACCOUNT_ID`、`TARGET_ACCOUNT_ID`、`FLOW_GUID`、`SOURCE_FLOW_GUID`、`ENTITY_GUID`、`ANOTHER_ENTITY_GUID`、`ENTITY_NAME`、`ALERT_CONDITION_GUID`、およびステージ、レベル、ステップのID。
+
+### フローの作成 [#create-flow]
+
+ネストされたステージ、レベル、ステップ、およびシグナルを単一のミューテーションで渡すことにより、フローを作成します。
+
+<CollapserGroup>
+  <Collapser id="mutation-create-flow" title="3つのステップを含むフローの作成">
+    これにより、3つのステップを含む1つのステージ「Frontend」を持つ「Checkout flow」が作成されます。「Login page」は動的クエリでエンティティを照合し、「Cart service」はGUIDで特定の1つのエンティティをピン留めし、「Checkout errors」はアラート条件をピン留めします。
+
+    ```graphql
+    mutation {
+      pathPointCreate(
+        scope: { id: YOUR_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: {
+          name: "Checkout flow"
+          description: "End-to-end checkout journey"
+          category: "E-Commerce"
+          refreshInterval: FIVE_MINUTES
+          stages: [
+            {
+              name: "Frontend"
+              healthRollup: AUTOMATIC_ROLL_UP
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Login page"
+                      entitySearchQuery: {
+                        query: "domain = 'BROWSER' AND type = 'APPLICATION' AND name = 'Login'"
+                      }
+                    }
+                    {
+                      name: "Cart service"
+                      signals: [
+                        { guid: "ENTITY_GUID", name: "Cart service", type: ENTITY }
+                      ]
+                    }
+                    {
+                      name: "Checkout errors"
+                      signals: [
+                        {
+                          guid: "ALERT_CONDITION_GUID"
+                          name: "Checkout error rate"
+                          type: ALERT
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        guid
+        name
+        version
+        message
+        excludedKpis
+        stages {
+          totalCount
+          items {
+            id
+            name
+            levels {
+              items {
+                id
+                steps {
+                  items {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="mutation-create-flow-kpis" title="KPIを含むフローの作成">
+    トップレベルのKPIは、フロー全体に適用されます。ステージ（`stageKpis`）内のKPIは、そのステージにのみ適用されます。どちらも同じスキーマを使用します。
+
+    各KPIの`timeWindow`は、固定期間から構築された`relativeRange`、または生のNRQL時間式を保持する`customRange`のいずれかを受け取りますが、両方を受け取ることはありません。
+
+    ```graphql
+    mutation {
+      pathPointCreate(
+        scope: { id: YOUR_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: {
+          name: "Checkout flow"
+          refreshInterval: FIVE_MINUTES
+          kpis: [
+            {
+              name: "Order success rate"
+              category: "Revenue"
+              description: "Orders completed successfully"
+              query: {
+                from: "Transaction"
+                where: "transactionType = 'Web' AND name = 'checkout'"
+                select: { aggregationType: COUNT, alias: "orders" }
+                timeWindow: {
+                  relativeRange: { since: TWENTY_FOUR_HOURS, compareAgainst: SEVEN_DAYS }
+                }
+              }
+            }
+          ]
+          stages: [
+            {
+              name: "Payment"
+              stageKpis: [
+                {
+                  name: "Payment errors"
+                  category: "Reliability"
+                  query: {
+                    from: "TransactionError"
+                    select: { aggregationType: COUNT, alias: "errors" }
+                    timeWindow: { customRange: "SINCE 30 minutes ago" }
+                  }
+                }
+              ]
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Payment gateway"
+                      config: {
+                        healthRollup: WORST_STATUS_WINS
+                        thresholdType: FIXED
+                        thresholdValue: 1
+                      }
+                      entitySearchQuery: {
+                        query: "domain = 'APM' AND name = 'PaymentGateway'"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        guid
+        name
+        version
+        excludedKpis
+        kpis {
+          id
+          name
+          category
+          query {
+            from
+            where
+            select {
+              aggregationType
+              attribute
+              alias
+            }
+            timeWindow {
+              customRange
+              relativeRange {
+                since
+                compareAgainst
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="mutation-create-flow-health-rollup" title="ヘルスロールアップの計算">
+    フローとその各ステージは、2つの方法のいずれかでヘルスを計算します。これは、そのレベルの`healthRollup`フィールドで設定します。
+
+    フローレベルでは、フロー全体のヘルスがどのように導出されるかを`healthRollup`が制御します：
+
+    * <DNT>**Automatic rollup**</DNT> （`AUTOMATIC_ROLL_UP`、デフォルト）：ヘルスはフローのステージから自動的にロールアップされます。ステージに`isExcluded: true`を設定すると、フロー全体のヘルスから除外されます。そのステージ自体のレベル、ステップ、およびシグナルは引き続き評価され、UIに表示されます。ステージがフローのステータスに影響を与えなくなるだけであり、これは構築中または一時的にスコープ外のステージに役立ちます。デフォルトである`isExcluded: false`は、ステージが通常どおり参加することを意味します。
+    * <DNT>**Alert conditions**</DNT> （`ALERT_CONDITIONS`）：ヘルスは、ステージのロールアップからではなく、フローのKPIのアラート条件から取得されます。フローレベルの`kpis`と組み合わせます。
+
+    ステージレベルでも同じ2つの方法が適用され、ステージ自体の`healthRollup`フィールドで設定します。`AUTOMATIC_ROLL_UP`は、そのステージのレベルから、ステップとシグナルを通じてロールアップされます；その計算から除外するには、ステップ、シグナル、または`entitySearchQuery`に`isExcluded: true`を設定します。代わりに、`ALERT_CONDITIONS`はステージのヘルスを独自のKPI（`stageKpis`）の1つに結び付けます。これは、マーケティングキャンペーンステージのメール開封率KPIなど、ステップやシグナルのテレメトリーではなくビジネス成果をステータスに反映させる必要があるステージに適しています。
+
+    フローレベルとステージレベルの設定は独立しているため、フローで一方のメソッドを使用し、ステージで他方のメソッドを使用できます。
+
+    この例では、独自の全体的なヘルスに`AUTOMATIC_ROLL_UP`を使用する、2つのステージを持つ「Checkout flow」を作成します。「Revenue」は「Payment errors」KPIに結び付けられた`ALERT_CONDITIONS`を使用し、「Frontend」はヘルスから1つのシグナルを除外しつつ`AUTOMATIC_ROLL_UP`を使用します。
+
+    ```graphql
+    mutation {
+      pathPointCreate(
+        scope: { id: YOUR_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: {
+          name: "Checkout flow"
+          description: "End-to-end checkout pipeline"
+          refreshInterval: FIVE_MINUTES
+          healthRollup: AUTOMATIC_ROLL_UP
+          stages: [
+            {
+              name: "Revenue"
+              healthRollup: ALERT_CONDITIONS
+              related: { source: false, target: true }
+              stageKpis: [
+                {
+                  name: "Payment errors"
+                  category: "Reliability"
+                  query: {
+                    from: "TransactionError"
+                    select: { aggregationType: COUNT, alias: "errors" }
+                  }
+                }
+              ]
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Order service"
+                      config: { healthRollup: WORST_STATUS_WINS }
+                      entitySearchQuery: {
+                        query: "domain = 'APM' AND name = 'OrderService'"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+            {
+              name: "Frontend"
+              healthRollup: AUTOMATIC_ROLL_UP
+              related: { source: true, target: false }
+              levels: [
+                {
+                  steps: [
+                    {
+                      name: "Login page"
+                      config: {
+                        healthRollup: WORST_STATUS_WINS
+                        thresholdType: FIXED
+                        thresholdValue: 1
+                      }
+                      entitySearchQuery: {
+                        query: "domain = 'BROWSER' AND name = 'Login'"
+                      }
+                      signals: [
+                        {
+                          guid: "ENTITY_GUID"
+                          name: "ENTITY_NAME"
+                          type: ENTITY
+                          isExcluded: true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        guid
+        name
+        message
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+`pathPointCreate` アカウント`scope`が必要です。ペイロード内では、`name`のみが必要です。`stages`を含むその他のすべてはオプションです。ステップは3つの方法のいずれかでシグナルを取得し、それらを組み合わせることができます：
+
+* <DNT>**A dynamic query**</DNT> （`entitySearchQuery`）：クエリに一致するすべてのエンティティ。更新のたびに再評価されます。
+* <DNT>**A pinned entity**</DNT> （`type: ENTITY`）：GUIDによって識別される1つの特定のエンティティ。
+* <DNT>**A pinned alert condition**</DNT> （`type: ALERT`）：GUIDで識別される1つのアラート条件。
+
+この`type`フィールドはオプションです。シグナルを識別するには、GUIDで十分です。
+
+ステージは、ヘルスのロールアップとは無関係に、UIがステージ間のコネクタ矢印をどのように描画するかを制御するオプションの`related`ブロックも受け取ります。前のステージからの入力矢印を表示する場合は`source: true`を設定し、次のステージへの出力矢印を表示する場合は`target: true`を設定します。すべてのステージが順番に次のステージに接続されるフローでは、1番目のステージは`source: false, target: true`、最後のステージは`source: true, target: false`、その間のすべてのステージは両方に対して`true`になります。
+
+<Callout variant="important">
+  KPIの`accountId`は、デフォルトでフローのアカウントになります。異なるアカウントに設定した場合、KPIは作成されず、エラーも返されません。ミューテーションがスキップしたKPIを確認するには、レスポンスの`excludedKpis`フィールドを確認してください。
+</Callout>
+
+### フローを読み取る [#read-flow]
+
+エンティティGUIDでフローを読み取ると、完全な設定に加えて、フロー、各ステージ、各レベル、各ステップの現在の稼働ステータスを取得できます。`healthStatus`は読み取り時にのみ表示されます。
+
+ステージ、レベル、およびステップは、1ページあたり50個のアイテムを返します。`nextCursor`がnull以外で返された場合は、それを渡して次のページを取得します。
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      pathPoint {
+        flow(guid: "FLOW_GUID") {
+          guid
+          name
+          description
+          category
+          refreshInterval
+          healthRollup
+          healthStatus
+          version
+          message
+          kpis {
+            id
+            name
+            category
+            accountId
+            query {
+              from
+              where
+              select {
+                aggregationType
+                attribute
+                alias
+                threshold
+              }
+              timeWindow {
+                customRange
+                relativeRange {
+                  since
+                  compareAgainst
+                }
+              }
+            }
+            metricQuery
+          }
+          stages {
+            totalCount
+            nextCursor
+            items {
+              id
+              name
+              link
+              healthRollup
+              healthStatus
+              isExcluded
+              related {
+                source
+                target
+              }
+              levels {
+                totalCount
+                nextCursor
+                items {
+                  id
+                  healthStatus
+                  steps {
+                    totalCount
+                    nextCursor
+                    items {
+                      id
+                      name
+                      healthStatus
+                      isExcluded
+                      scopedAccounts
+                      config {
+                        healthRollup
+                        thresholdType
+                        thresholdValue
+                      }
+                      entitySearchQuery {
+                        query
+                        isExcluded
+                      }
+                      signals {
+                        guid
+                        name
+                        type
+                        isExcluded
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          metadata {
+            createdAt
+            createdBy {
+              name
+              email
+            }
+            updatedAt
+            updatedBy {
+              name
+              email
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+ツリー全体が必要ない場合は、リクエストするフィールドを減らしてください。たとえば、`name`と`healthStatus`を読み取るだけで、フローのステータスをポーリングするのに十分です。
+
+### フローを更新 [#update-flow]
+
+`pathPointUpdate` は差分ベースの操作です。送信したペイロードとフローの現在の状態を比較し、IDを含めたかどうかに応じて、各ステージ、レベル、ステップ、およびKPIに対してアクションを実行します：
+
+* <DNT>**ID included**</DNT>：既存のオブジェクトを更新します。
+* <DNT>**ID omitted**</DNT>：新しいオブジェクトを作成します。
+* <DNT>**Object left out of the payload entirely**</DNT>：フローから削除します。
+
+<Callout variant="caution">
+  省略は削除を意味するため、常に最初に[フローを読み取り](#read-flow)、返されたペイロードを変更して、意図した完全な状態を送信してください。部分的なペイロードを送信すると、省略したものはすべて削除されます。
+
+  `version`フィールドも必須です。これは、楽観的並行性制御に使用される、エポックミリ秒単位のフローの最終更新タイムスタンプです。これを省略したり、古い値を送信したりすると、更新は失敗します。
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="mutation-update-flow" title="既存のオブジェクトを保持したままステップを追加する">
+    1番目のステップには`id`が含まれているため、インプレースで更新されます。2番目には`id`がないため、新規として作成されます。
+
+    ```graphql
+    mutation {
+      pathPointUpdate(
+        guid: "FLOW_GUID"
+        pathpoint: {
+          name: "Checkout flow"
+          refreshInterval: FIVE_MINUTES
+          version: 1786624914316
+          stages: [
+            {
+              id: "STAGE_ID"
+              name: "Frontend"
+              healthRollup: AUTOMATIC_ROLL_UP
+              levels: [
+                {
+                  id: "LEVEL_ID"
+                  steps: [
+                    {
+                      id: "STEP_ID"
+                      name: "Cart service"
+                      signals: [
+                        { guid: "ENTITY_GUID", name: "Cart service", type: ENTITY }
+                      ]
+                    }
+                    {
+                      name: "Recommendation service"
+                      signals: [
+                        { guid: "ANOTHER_ENTITY_GUID", name: "Recommendation service", type: ENTITY }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        guid
+        name
+        version
+        message
+        stages {
+          totalCount
+          items {
+            id
+            name
+            levels {
+              items {
+                id
+                steps {
+                  items {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### フローの複製 [#duplicate-flow]
+
+構造のみ、またはフロー全体を複製できます：
+
+* `STRUCTURE`：シグナルやKPIを含まず、ステージ、レベル、ステップのみをコピーします。
+* `WHOLE_FLOW`：シグナルやKPIとともに構造をコピーします。
+
+入力で設定したプロパティは、ソースフローの値を上書きします。プロパティを省略すると、継承されます。
+
+<CollapserGroup>
+  <Collapser id="mutation-duplicate-flow" title="同じアカウント内のフロー全体の複製">
+    同じアカウント内で複製する場合、`scope`引数は必要ありません。`duplicateType: WHOLE_FLOW`を設定します。
+
+    ```graphql
+    mutation {
+      pathPointDuplicate(
+        sourceGuid: "SOURCE_FLOW_GUID"
+        pathpoint: {
+          name: "Checkout flow (copy)"
+          category: "E-Commerce"
+          refreshInterval: TEN_MINUTES
+          duplicateType: WHOLE_FLOW
+        }
+      ) {
+        guid
+        name
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="mutation-duplicate-flow-cross-account" title="フロー全体を別のアカウントに複製">
+    フローを別のアカウントにコピーするには、`scope`を追加し、その`id`をターゲットアカウントに設定します。ソースアカウント内で複製するには、`scope`を省略します。
+
+    別のアカウントに複製すると、ステージ、レベル、ステップ、シグナルのみがコピーされ、KPIはコピーされません。
+
+    ```graphql
+    mutation {
+      pathPointDuplicate(
+        sourceGuid: "SOURCE_FLOW_GUID"
+        scope: { id: TARGET_ACCOUNT_ID, type: ACCOUNT }
+        pathpoint: { name: "Checkout flow", duplicateType: WHOLE_FLOW }
+      ) {
+        guid
+        name
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="mutation-duplicate-flow-structure" title="フローの構造の複製">
+    シグナルやKPIを含めず、フローの形状のみをコピーするように`duplicateType: STRUCTURE`を設定します。
+
+    ```graphql
+    mutation {
+      pathPointDuplicate(
+        sourceGuid: "SOURCE_FLOW_GUID"
+        pathpoint: {
+          name: "Checkout flow (copy)"
+          category: "E-Commerce"
+          refreshInterval: TEN_MINUTES
+          duplicateType: STRUCTURE
+        }
+      ) {
+        guid
+        name
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### フローを削除 [#delete-flow]
+
+フローの削除はカスケードされます：フローとともに、そのすべてのステージ、レベル、ステップ、およびKPIが削除されます。シグナル自体、つまりフローが指していたエンティティとアラート条件は、アカウントに残ります。
+
+<Callout variant="caution">
+  フローの削除は元に戻せません。
+</Callout>
+
+```graphql
+mutation {
+  pathPointDelete(guid: "FLOW_GUID") {
+    guid
+    name
+  }
+}
+```
+
+## 部分的な失敗 [#partial-failures]
+
+個々のオブジェクトが失敗しても、作成または更新全体としては成功する場合があります。レスポンスの2つのフィールドで、それが発生したタイミングを確認できます：
+
+* `message`：失敗したステージ、レベル、またはステップの詳細。すべてが成功した場合は`null`です。
+* `excludedKpis`：作成されなかったKPIの名前。最も一般的な理由は、KPIの`accountId`がフローのアカウントと一致しなかったためです。
+
+部分的な成功を完全な成功として扱わないように、ミューテーションで両方のフィールドをリクエストしてください。
+
+## 制限 [#limits]
+
+APIで構築するかUIで構築するかにかかわらず、すべてのフローに以下の制限が適用されます：
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        制限
+      </th>
+
+      <th>
+        価値
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        フローあたりの最大ステージ数
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ステージあたりの最大レベル数
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        レベルあたりの最大ステップ数
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        1ページあたりに返される最大アイテム数
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## タイプリファレンス [#type-reference]
+
+これらの列挙型は、上記の操作に表示されます。各行には、受け入れられる値と、それに続いてそれらが制御する内容が記載されています：
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        イナム
+      </th>
+
+      <th>
+        価値観
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `PathPointRefreshInterval`
+      </td>
+
+      <td>
+        `ONE_MINUTE`
+
+        、
+
+        `FIVE_MINUTES`
+
+        、
+
+        `TEN_MINUTES`
+
+        、
+
+        `FIFTEEN_MINUTES`
+
+        、
+
+        `THIRTY_MINUTES`
+
+        。フロー、ステージ、レベル、およびステップのヘルスが更新される頻度。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointFlowHealthRollup`
+
+        , 
+
+        `PathPointStageHealthRollup`
+      </td>
+
+      <td>
+        `AUTOMATIC_ROLL_UP`
+
+        、
+
+        `ALERT_CONDITIONS`
+
+        。ヘルスが子オブジェクトからロールアップされるか、フローまたはステージのKPI全体で最悪のアラート条件から取得されるか。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointStepHealthRollup`
+      </td>
+
+      <td>
+        `WORST_STATUS_WINS`
+
+        、
+
+        `BEST_STATUS_WINS`
+
+        。ステップが最もヘルスの状態が悪いシグナルを取得するか、最もヘルスの状態が良いシグナルを取得するか。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointThresholdType`
+      </td>
+
+      <td>
+        `FIXED`
+
+        、
+
+        `PERCENTAGE`
+
+        。
+
+        `thresholdValue`
+
+        が絶対数であるか、シグナルの割合であるか。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointStatusValue`
+      </td>
+
+      <td>
+        `OPERATIONAL`
+
+        、
+
+        `DEGRADED`
+
+        、
+
+        `DISRUPTED`
+
+        、
+
+        `UNKNOWN`
+
+        。読み取り時に返される計算ヘルス。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointSignalType`
+      </td>
+
+      <td>
+        `ENTITY`
+
+        、
+
+        `ALERT`
+
+        。GUIDが、APMサービスやホストなどのモニター・エンティティを指すか、アラート条件を指すか。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointKpiNrqlAggregations`
+      </td>
+
+      <td>
+        `COUNT`
+
+        、
+
+        `SUM`
+
+        、
+
+        `AVERAGE`
+
+        、
+
+        `MAX`
+
+        、
+
+        `MIN`
+
+        、
+
+        `UNIQUE_COUNT`
+
+        、
+
+        `PERCENTILE`
+
+        、
+
+        `HISTOGRAM`
+
+        。KPIクエリが適用する集計。
+
+        `COUNT`
+
+        を除くすべての関数には
+
+        `attribute`
+
+        が必要です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointKpiTimeDuration`
+      </td>
+
+      <td>
+        `THIRTY_MINUTES`
+
+        、
+
+        `SIXTY_MINUTES`
+
+        、
+
+        `THREE_HOURS`
+
+        、
+
+        `SIX_HOURS`
+
+        、
+
+        `TWENTY_FOUR_HOURS`
+
+        、
+
+        `SEVEN_DAYS`
+
+        、
+
+        `THIRTY_DAYS`
+
+        。KPIの
+
+        `since`
+
+        および
+
+        `compareAgainst`
+
+        の期間。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PathPointDuplicateType`
+      </td>
+
+      <td>
+        `STRUCTURE`
+
+        、
+
+        `WHOLE_FLOW`
+
+        。ステージ、レベル、ステップのみをコピーするか、シグナルとKPIを含む構造をコピーするか。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 関連トピック [#related-topics]
+
+<DocTiles>
+  <DocTile title="Pathpointの使用を開始する" path="/docs/pathpoint/get-started-pathpoint">
+    Pathpointとは何か、およびそのアクセス方法をご覧ください。
+  </DocTile>
+
+  <DocTile title="フローの作成と管理" path="/docs/pathpoint/create-manage-flows">
+    UIでフローを構築および設定します。
+  </DocTile>
+
+  <DocTile title="NerdGraphの概要" path="/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph">
+    New RelicのGraphQL APIの使用方法をご覧ください。
+  </DocTile>
+</DocTiles>

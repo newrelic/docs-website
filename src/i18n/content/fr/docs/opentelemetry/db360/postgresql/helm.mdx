@@ -1,0 +1,838 @@
+---
+title: Installer & configurer NRDOT pour le monitoring de PostgreSQL avec Helm
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Kubernetes
+  - Helm
+metaDescription: Install and configure PostgreSQL monitoring on Kubernetes using the postgresql-otel Helm chart
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+Vous pouvez installer et configurer le monitoring de PostgreSQL sur Kubernetes à l’aide du chart Helm `postgresql-otel`. En option, le chart peut également exécuter un job de configuration qui crée le rôle de monitoring, ses privilèges, et l’extension `pg_stat_statements` pour vous.
+
+<Callout variant="tip" title="Installation guidée">
+  Pour installer plutôt via l’UI de New Relic, accédez à <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; PostgreSQL (Database 360)](https://onenr.io/00jlEJKbdQW)**</DNT>. Cette page traite uniquement de l’installation manuelle.
+</Callout>
+
+<Callout variant="important">
+  Le chart déploie le collecteur en tant que déploiement Kubernetes qui accède à PostgreSQL à distance via le réseau, il ne rapporte donc que les métriques PostgreSQL : pas de métriques d’hôte ou d’infrastructure pour la machine sur laquelle PostgreSQL s’exécute. Il monitore une *instance* PostgreSQL par sortie (plusieurs *bases de données* sur cette instance sont prises en charge), et il ne configure pas TLS ou les fournisseurs d’informations d’identification `db_auth` tels que l’authentification AWS IAM.
+</Callout>
+
+<Steps>
+  <Step>
+    ## Prérequis au niveau du serveur [#helm-server-prereqs]
+
+    PostgreSQL **14 ou version ultérieure** est requis. Avant d’installer ce chart (ou d’activer le job de configuration), les paramètres de serveur suivants doivent être en place. `pg_stat_statements` ne peut pas être créé sans `shared_preload_libraries`, et ce paramètre nécessite un **redémarrage**, donc rien de ce qui s’exécute dans votre cluster Kubernetes ne peut le faire pour vous.
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Valeur
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `shared_preload_libraries`
+          </td>
+
+          <td>
+            `pg_stat_statements`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pg_stat_statements.track`
+          </td>
+
+          <td>
+            `ALL`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pg_stat_statements.max`
+          </td>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pg_stat_statements.save`
+          </td>
+
+          <td>
+            `on`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `track_activity_query_size`
+          </td>
+
+          <td>
+            `4096`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `track_functions`
+          </td>
+
+          <td>
+            `all`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * **Auto-hébergé**: définissez-les dans `postgresql.conf`, puis redémarrez PostgreSQL. Certaines distributions nécessitent que le package `postgresql-contrib` soit installé pour que `pg_stat_statements` soit disponible.
+    * **AWS RDS ou Aurora**: définissez-les dans le **groupe de paramètres** de la base de données, et non dans un fichier de configuration. `track_activity_query_size` et `pg_stat_statements.max` sont des paramètres statiques ; appliquez-les avec `apply_method: pending-reboot`, puis redémarrez l’instance. Leur application immédiate échoue avec `InvalidParameterCombination`. Pour Aurora, le nom de la famille de groupes de paramètres doit correspondre exactement à la version majeure de votre moteur, par exemple `aurora-postgresql16`.
+  </Step>
+
+  <Step>
+    ## Prérequis [#helm-prerequisites]
+
+    * [Clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) New Relic valide.
+
+    * Helm 3.0 ou version ultérieure, et `kubectl` configuré pour accéder à votre cluster Kubernetes.
+
+    * Connectivité réseau depuis votre cluster Kubernetes vers l&apos;hôte PostgreSQL (ou le point de terminaison RDS) et le port :
+
+      * Auto-hébergé : un chemin routé vers l’hôte PostgreSQL (VPN, peering, ou réseau partagé), une résolution DNS s’il s’agit d’un nom d’hôte, et le `pg_hba.conf` côté PostgreSQL et le pare-feu doivent autoriser l’adresse IP source réelle de la connexion (qui peut être un gateway NAT, et non l’adresse IP du pod elle-même).
+      * AWS RDS : un peering de VPC, un gateway de transit ou un placement dans un VPC partagé avec l’instance RDS, et le groupe de sécurité RDS doit autoriser le port PostgreSQL (`5432` par défaut) depuis la source de sortie du cluster.
+
+    * Soit un rôle de monitoring que vous avez déjà créé avec ses autorisations par base de données, soit des identifiants d’administrateur PostgreSQL afin que le job de configuration du chart puisse les créer pour vous. Voir [Configurer les identifiants de monitoring](#helm-credentials) ci-dessous.
+  </Step>
+
+  <Step>
+    ## Créer l’espace de nommage [#helm-namespace]
+
+    Créez l’espace de nommage dans lequel vous effectuerez l’installation. Il doit exister avant que vous ne créiez des secrets à l’étape suivante, car `helm install --create-namespace` ne crée l’espace de nommage que lors de l’étape d’installation finale :
+
+    ```bash
+    kubectl create namespace newrelic
+    ```
+
+    <Callout variant="tip">
+      Définissez-le comme espace de nommage par défaut pour votre contexte `kubectl` actuel afin de ne pas avoir à passer `-n` à chaque commande ci-dessous :
+
+      ```bash
+      kubectl config set-context --current --namespace=newrelic
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Configurez les identifiants de monitoring [#helm-credentials]
+
+    Décidez si vous souhaitez que le job de configuration du chart crée le rôle de monitoring PostgreSQL pour vous, et si ce n’est pas le cas, comment vous fournirez ses identifiants :
+
+    <CollapserGroup>
+      <Collapser id="helm-creds-inline" title="Aucun job de configuration : nom d’utilisateur et mot de passe simples">
+        Avec cette méthode, il n’y a pas de tâche de configuration, donc rien ici ne crée le rôle de monitoring pour vous. Avant d’installer le chart, créez-le vous-même en tant que superutilisateur. Exécutez ceci une fois au niveau du cluster :
+
+        ```sql
+        CREATE USER newrelic WITH LOGIN PASSWORD '<password>';
+        ALTER ROLE newrelic INHERIT;   -- required on PG15+, a no-op on PG14
+        ```
+
+        Exécutez ensuite ceci dans **chaque** base de données que vous prévoyez de lister dans `postgresql.databases`:
+
+        ```sql
+        CREATE SCHEMA IF NOT EXISTS otel;
+        GRANT USAGE ON SCHEMA otel TO newrelic;
+        GRANT USAGE ON SCHEMA public TO newrelic;
+        GRANT SELECT ON ALL TABLES IN SCHEMA public TO newrelic;
+        GRANT pg_monitor TO newrelic;
+        CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+        ```
+
+        Pour plus de détails, reportez-vous à l’étape **Configurer l’utilisateur de la base de données et les droits** pour [PostgreSQL auto-hébergé](/docs/opentelemetry/db360/postgresql/hosted/#database-user) ou [PostgreSQL sur RDS](/docs/opentelemetry/db360/postgresql/rds/#database-user).
+
+        Vous définirez le nom d’utilisateur et le mot de passe de monitoring directement dans `values.yaml` à l’étape suivante.
+      </Collapser>
+
+      <Collapser id="helm-creds-secret-nojob" title="Aucun job de configuration : identifiants basés sur des secrets">
+        Avec cette méthode, il n’y a pas non plus de tâche de configuration. Créez d’abord vous-même le rôle de monitoring et ses droits par base de données, exactement comme dans la méthode des identifiants en clair ci-dessus. La seule différence est l’endroit où se trouvent ses informations d’identification : au lieu d’être en texte clair dans `values.yaml`, stockez-les dans un secret Kubernetes :
+
+        ```bash
+        kubectl create secret generic postgres-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        ```
+      </Collapser>
+
+      <Collapser id="helm-creds-setupjob" title="Job de configuration automatisé">
+        Avec cette méthode, le job de configuration du chart crée le rôle de monitoring pour vous, et, pour chaque base de données dans `postgresql.databases`, crée le schéma `otel`, accorde `USAGE`/`SELECT`/`pg_monitor`, et crée l’extension `pg_stat_statements`. Les identifiants de monitoring et d’administration doivent tous deux être fournis en tant que secrets Kubernetes : le job de configuration n’accepte jamais d’identifiants d’administration en texte clair, et son activation nécessite également des identifiants de monitoring basés sur des secrets.
+
+        1. Créez un secret avec le nom d&apos;utilisateur et le mot de passe de monitoring. Il s&apos;agit de l&apos;identité que le job de configuration crée et avec laquelle le collecteur se connecte :
+
+           ```bash
+           kubectl create secret generic postgres-monitor-creds \
+             --from-literal=username=<MONITORING_USERNAME> \
+             --from-literal=password='<MONITORING_PASSWORD>' \
+             -n newrelic
+           ```
+
+        2. Le job de configuration n’accepte les identifiants d’administrateur que via un secret Kubernetes (pas de nom d’utilisateur / mot de passe en texte clair dans `values.yaml`). Cet identifiant doit être un superutilisateur (auto-hébergé), ou un équivalent `rds_superuser` (RDS), puisqu’il nécessite `CREATE USER`, `CREATE SCHEMA`, et `CREATE EXTENSION`:
+
+           ```bash
+           kubectl create secret generic postgres-admin-creds \
+             --from-literal=username=<ADMIN_USERNAME> \
+             --from-literal=password='<ADMIN_PASSWORD>' \
+             -n newrelic
+           ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Configurez les valeurs Helm [#helm-configure]
+
+    Configurez `postgresql.topology` pour correspondre à votre environnement :
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Valeur
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `self-hosted`
+          </td>
+
+          <td>
+            PostgreSQL auto-hébergé, accessible via le réseau.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rds`
+          </td>
+
+          <td>
+            PostgreSQL ou Aurora sur AWS RDS.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    `postgresql.databases` est une **liste obligatoire, non vide**. Contrairement à MySQL ou SQL Server, PostgreSQL ne dispose pas de mode pour monitorer chaque base de données : une connexion cible une base de données à la fois, il faut donc indiquer au Récepteur lesquelles scraper.
+
+    Utilisez le `values.yaml` qui correspond à la méthode d&apos;identification que vous avez choisie à l&apos;étape précédente :
+
+    <CollapserGroup>
+      <Collapser id="helm-values-inline" title="Aucun job de configuration : nom d’utilisateur et mot de passe simples">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        postgresql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          username: <YOUR_MONITORING_USERNAME>
+          password: <YOUR_MONITORING_PASSWORD>
+          databases:
+            - <YOUR_DATABASE>
+            - <ANOTHER_DATABASE>
+
+        # No setup job runs, so create the monitoring role and its
+        # per-database grants yourself before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-secret-nojob" title="Aucun job de configuration : identifiants basés sur des secrets">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        postgresql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: postgres-monitor-creds
+          databases:
+            - <YOUR_DATABASE>
+            - <ANOTHER_DATABASE>
+
+        # No setup job runs, so the monitoring role referenced by
+        # this secret must already exist - create it yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-setupjob" title="Job de configuration automatisé">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        postgresql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: postgres-monitor-creds
+          databases:
+            - <YOUR_DATABASE>
+            - <ANOTHER_DATABASE>
+
+        setupJob:
+          enabled: true
+          image:
+            # -- psql-capable image. No default: the official postgres
+            # image bundles psql and is a reasonable choice.
+            repository: postgres
+            tag: "16"
+            pullPolicy: IfNotPresent
+          postgresAdmin:
+            existingSecret: postgres-admin-creds
+          # -- Also creates the otel.explain_statement SECURITY DEFINER
+          # function, so the receiver can EXPLAIN write/locking queries.
+          enableExplainPermissions: false
+          # -- Also creates the pgvector extension in each database.
+          enablePgvector: false
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `licenseKey`
+          </td>
+
+          <td>
+            Votre clé de licence New Relic.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `otlpEndpoint`
+          </td>
+
+          <td>
+            Le point de terminaison OTLP/gRPC de votre région, sous la forme d’un 
+
+            `host:port`
+
+             brut 
+
+            **sans schéma**
+
+            : 
+
+            `otlp.nr-data.net:4317`
+
+             (US) ou 
+
+            `otlp.eu01.nr-data.net:4317`
+
+             (EU). Pour plus d’informations, consultez la 
+
+            [documentation sur les points de terminaison OTLP New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+            .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresql.server`
+
+             / 
+
+            `postgresql.port`
+          </td>
+
+          <td>
+            Votre hôte (ou point de terminaison RDS) et port PostgreSQL, accessibles depuis le cluster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresql.databases`
+          </td>
+
+          <td>
+            **Liste requise, non vide**
+
+             de bases de données à monitorer.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresql.excludeDatabases`
+          </td>
+
+          <td>
+            Bases de données exclues des analyses de top-requête et d’échantillon de requête à l’échelle du cluster. La valeur par défaut est 
+
+            `[rdsadmin]`
+
+            , et n’est rendue que lorsque 
+
+            `topology`
+
+             est 
+
+            `rds`
+
+            ; sur RDS, l’utilisateur de monitoring ne peut jamais atteindre 
+
+            `rdsadmin`
+
+            , donc l’exclure évite les erreurs d’autorisation.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.image.repository`
+
+             / 
+
+            `setupJob.image.tag`
+          </td>
+
+          <td>
+            Une image compatible avec 
+
+            `psql`
+
+            utilisée par le job de configuration. Le chart n’inclut 
+
+            **aucune valeur par défaut**
+
+            , vous devez donc en fournir une lorsque le job de configuration est activé. L’image 
+
+            `postgres`
+
+             officielle intègre 
+
+            `psql`
+
+             et constitue un choix judicieux.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.enableExplainPermissions`
+          </td>
+
+          <td>
+            Facultatif. Crée également la fonction 
+
+            `otel.explain_statement`
+
+             
+
+            `SECURITY DEFINER`
+
+             et accorde 
+
+            `EXECUTE`
+
+             sur celle-ci, permettant au Récepteur d’exécuter 
+
+            `EXPLAIN`
+
+             sur les requêtes de verrouillage et d’écriture sans détenir de droits d’écriture. Le laisser 
+
+            `false`
+
+             est sans risque : le Récepteur se rabat sur 
+
+            `EXPLAIN`
+
+             en ligne, de sorte que ces instructions n’obtiennent tout simplement pas de plans de requête.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.enablePgvector`
+          </td>
+
+          <td>
+            Facultatif. Crée également l’extension 
+
+            `vector`
+
+             dans chaque base de données monitorée, pour les métriques vectorielles. Les fonctions de distance 
+
+            `l1`
+
+            , 
+
+            `hamming`
+
+            , et 
+
+            `jaccard`
+
+             nécessitent pgvector 0.7.0 ou une version ultérieure.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Vous n’avez généralement pas besoin de définir `postgresql.topQueryCollection.explainFunctionName`. La valeur par défaut du Récepteur est déjà `otel.explain_statement` (la fonction exacte que `setupJob.enableExplainPermissions` crée), et le chart omet la clé lorsqu’elle est vide, de sorte que les deux s’alignent sans configuration supplémentaire. Définissez-le uniquement pour pointer le Récepteur vers une fonction nommée différemment.
+    </Callout>
+
+    <Callout variant="tip">
+      Consultez le fichier [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/postgresql-otel/values.yaml) du chart pour toutes les options de configuration disponibles, y compris `postgresql.collectionInterval`, les bascules `metrics`, les blocs `topQueryCollection`/`querySampleCollection`, et l’échappatoire `additionalReceiverConfig`.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## (Facultatif) Monitorer plusieurs instances à partir d’une seule sortie [#helm-multi]
+
+    Au lieu de `postgresql.*`, définissez `postgresqlMulti.enabled: true` pour monitorer plusieurs instances PostgreSQL (auto-hébergées ou RDS) à partir d’un seul pod collecteur dans une seule sortie. Les deux modes sont mutuellement exclusifs : ne définissez pas `postgresql.server` et `postgresqlMulti.enabled: true` dans la même sortie.
+
+    Les entrées sont appelées `instances`, et non `databases`: chaque instance est un serveur PostgreSQL distinct, et chacune possède sa propre liste `databases` imbriquée (les bases de données individuelles à monitorer sur cette instance), de la même manière que `postgresql.databases` fonctionne en mode instance unique.
+
+    Le mode multi-instance n’a pas de chemin nom d’utilisateur / mot de passe en clair : chaque instance a besoin de son propre secret Kubernetes avec des identifiants de monitoring. Décidez si vous souhaitez également que la tâche de configuration crée chaque rôle de monitoring pour vous :
+
+    <CollapserGroup>
+      <Collapser id="helm-multi-nojob" title="Aucune tâche de configuration">
+        Créez vous-même le secret du rôle de monitoring de chaque instance avant l’installation (répétez pour chaque instance, en faisant correspondre le `name` que vous lui donnez dans `values.yaml`) :
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secret you created for it.
+        postgresqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          instances:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              port: 5432
+              existingSecret: db1-monitor-creds
+              databases:
+                - appdb1
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              port: 5432
+              existingSecret: db2-monitor-creds
+              databases:
+                - appdb2
+
+        # No admin credential is configured here since the setup
+        # job is disabled - create each instance's monitoring role
+        # yourself first.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-multi-setupjob" title="Job de configuration automatisé">
+        Chaque instance a besoin à la fois de son propre secret de rôle de monitoring, et de son propre secret d’identifiants d’administrateur (à répéter par instance) :
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        kubectl create secret generic db1-admin-creds \
+          --from-literal=username=<ADMIN_USERNAME> \
+          --from-literal=password='<ADMIN_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secrets you created for it.
+        postgresqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          instances:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              port: 5432
+              existingSecret: db1-monitor-creds
+              databases:
+                - appdb1
+              postgresAdmin:
+                existingSecret: db1-admin-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              port: 5432
+              existingSecret: db2-monitor-creds
+              databases:
+                - appdb2
+              postgresAdmin:
+                existingSecret: db2-admin-creds
+
+        setupJob:
+          enabled: true
+          image:
+            # -- psql-capable image. No default: the official postgres
+            # image bundles psql and is a reasonable choice.
+            repository: postgres
+            tag: "16"
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `postgresqlMulti.enabled`
+          </td>
+
+          <td>
+            Définissez sur 
+
+            `true`
+
+             pour monitorer plusieurs instances à partir d’une seule sortie au lieu de 
+
+            `postgresql.*`
+
+            . Par défaut 
+
+            `false`
+
+            .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresqlMulti.topology`
+          </td>
+
+          <td>
+            `self-hosted`
+
+             ou 
+
+            `rds`
+
+            , même signification que 
+
+            `postgresql.topology`
+
+            , partagé par chaque instance dans cette sortie.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresqlMulti.instances`
+          </td>
+
+          <td>
+            Liste des instances à monitorer. Chaque entrée nécessite un 
+
+            `name`
+
+             unique, 
+
+            `server`
+
+             (
+
+            `port`
+
+             est par défaut 
+
+            `5432`
+
+            ), 
+
+            `existingSecret`
+
+            , et une liste 
+
+            `databases`
+
+             
+
+            **requise, non vide**
+
+             de noms de bases de données sur cette instance ; ajoutez 
+
+            `postgresAdmin.existingSecret`
+
+             par entrée uniquement lorsque 
+
+            `setupJob.enabled`
+
+             est 
+
+            `true`
+
+            .
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      `setupJob.enableExplainPermissions` et `setupJob.enablePgvector` sont des bascules uniques partagées entre chaque base de données dans chaque instance ; elles ne peuvent pas être définies par instance. Les paramètres de scraping (intervalle de collecte, métriques, `topQueryCollection`/`querySampleCollection`) s’appliquent également de manière identique à chaque instance dans `postgresqlMulti.instances`; il n’y a aucune surcharge par instance. Utilisez `additionalReceiverConfig` pour tout ce qui doit différer. Le job de configuration s’exécute une fois par instance (`<release>-setup-<name>`) plutôt qu’une fois par sortie.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Installer le chart Helm [#helm-install]
+
+    1. Ajouter le dépôt Helm New Relic :
+
+       ```bash
+       helm repo add newrelic https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. Installez le chart à l&apos;aide de votre fichier `values.yaml` :
+
+       ```bash
+       helm upgrade --install postgresql-otel newrelic/postgresql-otel \
+         -n newrelic \
+         --create-namespace \
+         -f values.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## Vérifier l&apos;installation [#helm-verify]
+
+    1. Vérifiez que la tâche de configuration est terminée (si elle est activée), et que le pod du collecteur est en cours d’exécution :
+
+       ```bash
+       kubectl get jobs,pods -n newrelic --watch
+       ```
+
+    2. Exécutez cette requête dans le [générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/) pour confirmer que les données arrivent :
+
+       ```sql
+       SELECT count(*) FROM Metric
+       WHERE metricName LIKE 'postgresql.%'
+       AND instrumentation.provider = 'opentelemetry'
+       SINCE 10 minutes ago
+       ```
+  </Step>
+
+  <Step>
+    ## Trouvez et utilisez vos données [#find]
+
+    Une fois vos données collectées, vous pouvez accéder à un monitoring complet de la base de données PostgreSQL via l&apos;UI de New Relic.
+
+    Pour trouver votre entité de base de données PostgreSQL dans New Relic :
+
+    1. Allez à <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>.
+    2. Dans la liste déroulante **<DNT>Entity type</DNT>**, sélectionnez <DNT>**PostgreSQL instance**</DNT>, puis cliquez sur <DNT>**Apply**</DNT>.
+    3. Sélectionnez votre base de données PostgreSQL dans la liste des entités.
+  </Step>
+</Steps>
+
+## Documentation associée [#related]
+
+<DocTiles>
+  <DocTile title="Introduction au monitoring de PostgreSQL avec NRDOT" path="/docs/opentelemetry/db360/postgresql/introduction">
+    Découvrez toutes les méthodes d’installation disponibles pour le monitoring de PostgreSQL avec New Relic.
+  </DocTile>
+
+  <DocTile title="Installation via la CLI" path="/docs/opentelemetry/db360/postgresql/cli">
+    Découvrez comment installer et configurer le monitoring de PostgreSQL avec une seule commande CLI New Relic.
+  </DocTile>
+
+  <DocTile title="Installation via Ansible" path="/docs/opentelemetry/db360/postgresql/ansible">
+    Découvrez comment installer et configurer le monitoring PostgreSQL à grande échelle avec le newrelic.newrelic_install rôle Ansible.
+  </DocTile>
+
+  <DocTile title="Installation via Chef" path="/docs/opentelemetry/db360/postgresql/chef">
+    Découvrez comment installer et configurer le monitoring PostgreSQL à grande échelle avec le cookbook Chef newrelic-install.
+  </DocTile>
+</DocTiles>

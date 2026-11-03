@@ -1,0 +1,107 @@
+---
+title: 상세한 인사이트를 활성화하십시오.
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Optional configuration
+metaDescription: Optional configuration options for deeper insights into PostgreSQL monitoring with the NRDOT Collector
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+translationType: machine
+---
+
+PostgreSQL 인스턴스에 대한 심층적인 인사이트를 얻으려면 다음 옵션을 구성할 수 있습니다:
+
+* [TLS 활성화](#tls)
+* [쓰기 문에 대한 쿼리 계획](#query)
+
+## TLS 활성화 [#tls]
+
+`tls` 필드는 선택 사항이지만, 이를 생략하는 것이 TLS를 명시적으로 비활성화하는 것과 같지는 않습니다. 수신자의 기본 설정에서 이미 `insecure: false` 및 `insecure_skip_verify: true`를 설정하므로 연결이 암호화되지만(`sslmode=require`), `insecure_skip_verify: false`를 설정하고 `ca_file`를 제공하지 않으면 서버 인증서가 확인되지 않습니다. 대부분의 Amazon RDS 및 Aurora 인스턴스는 SSL/TLS를 강제 적용하므로, 일반적으로 해당 환경에 대한 확인을 추가하는 것이 좋습니다.
+
+```yaml
+receivers:
+  nrpostgresql:
+    endpoint: <YOUR_HOST>:<YOUR_PORT>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    collection_interval: 30s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+      ca_file: <PATH_TO_CA_CERTIFICATE>
+      cert_file: <PATH_TO_CLIENT_CERTIFICATE>
+      key_file: <PATH_TO_CLIENT_KEY>
+```
+
+<Callout variant="tip">
+  `cert_file`/`key_file`은(는) PostgreSQL 서버에서 상호 TLS(클라이언트 인증서 인증)를 요구하는 경우에만 필요하며, 대부분의 설정에서는 서버를 확인하기 위해 `ca_file`만 필요합니다. Amazon RDS/Aurora의 경우 적절한 [RDS CA 인증서 번들](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html)을 다운로드하여 `ca_file`에서 참조하십시오. 자체 서명된 인증서가 있는 인스턴스에 대해 테스트할 때만 `insecure_skip_verify: true` (기본값)을 유지하고, 프로덕션 환경에서는 절대 사용하지 마십시오.
+</Callout>
+
+## 쓰기 문에 대한 쿼리 계획 [#query]
+
+기본적으로 `EXPLAIN`은(는) 모니터링 사용자로 직접 실행되며, PostgreSQL은 계획 시점에 테이블 권한을 확인합니다. 이는 모니터링 사용자에게 쓰기 권한이 없는 한 행 잠금 또는 쓰기 문이 `permission denied` (으)로 실패한다는 것을 의미하지만, 모니터링 사용자는 절대 쓰기 권한을 가져서는 안 됩니다.
+
+모니터링 사용자에게 쓰기 액세스 권한을 부여하지 않고 잠금 또는 쓰기 문에 대한 쿼리 계획을 수집하려면 각 데이터베이스에 다음 함수를 생성하십시오:
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+### 실행 계획 수집 메커니즘 [#mechanics]
+
+* **속도 제한:** `top_query_collection.max_explain_each_interval` (기본값 `1000`)은(는) 스크레이프당 `EXPLAIN` 호출 수를 제한합니다.
+* **캐싱:** `query_plan_cache_size` / `query_plan_cache_ttl` (기본값 `1000` 항목/ `1h`)은 한 번 획득한 계획을 쿼리 ID를 키로 사용하여 캐시합니다.
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="자체 호스팅 환경에서의 계측" path="/docs/opentelemetry/db360/postgresql/hosted">
+    뉴렐릭을 사용하여 자체 호스팅 환경에서 PostgreSQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="지표 참조" path="/docs/opentelemetry/db360/postgresql/metrics-reference">
+    NRDOT Collector가 수집하는 사용 가능한 메트릭에 대해 알아보십시오.
+  </DocTile>
+
+  <DocTile title="문제 해결, 해결 가이드" path="/docs/opentelemetry/db360/postgresql/troubleshooting">
+    PostgreSQL 모니터링의 일반적인 문제를 해결하는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>

@@ -1,0 +1,355 @@
+---
+title: 'Instalar y configurar NRDOT para MSSQL en Windows RDS: autenticación de SQL'
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Windows
+  - RDS
+  - AWS
+metaDescription: Set up Microsoft SQL Server monitoring with the NRDOT Collector on Windows for AWS RDS SQL Server instances using SQL Server authentication
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+Configure el monitoreo de Microsoft SQL Server mediante el NRDOT Collector en entornos Windows para monitorear instancias de AWS RDS para SQL Server, usando la autenticación de SQL Server. Para monitorear en un entorno autohospedado, consulte la [instrumentación autohospedada de Windows](/docs/opentelemetry/db360/mssql/windows-hosted-sql).
+
+<Callout variant="tip" title="Instalación guiada">
+  Para instalar esto a través de la UI de New Relic en su lugar, vaya a <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Microsoft SQL Server (Database 360)](https://onenr.io/00jlEJX6EQW)** </DNT>. Siga las instrucciones en pantalla para configurar la integración. Esta página solo cubre la instalación manual.
+</Callout>
+
+Esta página cubre la autenticación de SQL Server. Si su entorno utiliza un método de autenticación diferente, consulte [Autenticación de dominio de Windows](/docs/opentelemetry/db360/mssql/windows-rds-domain) o [gMSA](/docs/opentelemetry/db360/mssql/windows-rds-gmsa).
+
+<Steps>
+  <Step>
+    ## Requisitos previos [#prerequisites]
+
+    Antes de monitorear Microsoft SQL Server con NRDOT, asegúrese de que el entorno cumpla con estos requisitos:
+
+    * Una cuenta de New Relic con una [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) válida.
+
+    * Conectividad de red al [extremo OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp) para su región.
+
+    * Requisitos de AWS RDS SQL Server:
+
+      * Autenticación de SQL Server habilitada en la instancia de RDS.
+      * Credenciales de usuario maestro de RDS o credenciales para un inicio de sesión de SQL Server con el rol `rds_superuser`.
+      * Grupo de seguridad de RDS configurado para permitir conexiones en el puerto `1433` o en un puerto personalizado.
+      * SQL Server Management Studio (SSMS) o la utilidad `sqlcmd`.
+
+    * La URL del extremo de su servidor SQL de RDS, que se puede encontrar en su consola de AWS RDS en Conectividad y seguridad. Para obtener más información, consulte la [documentación de AWS RDS](https://docs.aws.amazon.com/AmazonRDS/latest/gettingstartedguide/connecting-console.html).
+  </Step>
+
+  <Step>
+    ## Instalar NRDOT Collector [#install-sql]
+
+    Instale el Collector NRDOT en una instancia EC2 de Windows o en una máquina local de Windows que pueda conectarse a su instancia de RDS SQL Server.
+
+    <Callout variant="important">
+      Para el monitoreo de RDS, instale el Collector NRDOT en una instancia EC2 en la misma VPC que su instancia de RDS para obtener una conectividad de red óptima y una menor latencia.
+    </Callout>
+
+    Descarga e instala el NRDOT Collector usando PowerShell:
+
+    ```powershell
+    [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'
+    $NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name
+    $WebClient = New-Object System.Net.WebClient
+    $WebClient.Headers.Add("User-Agent", "Mozilla/5.0")
+    $WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi")
+    Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait
+    Get-Service nrdot-collector -ErrorAction SilentlyContinue
+    ```
+  </Step>
+
+  <Step>
+    ## Crear usuario de monitoreo [#user-sql]
+
+    Ejecute este script como usuario administrador para crear el usuario de monitoreo `newrelic` y otorgar los permisos necesarios para recopilar métricas de SQL Server.
+
+    <Callout variant="tip">
+      Ejecute este script utilizando el nombre de usuario maestro de RDS o un usuario con el rol `rds_superuser`. El script excluye automáticamente la base de datos `rdsadmin`, que está reservada por AWS.
+    </Callout>
+
+    En su SQL Server Management Studio (SSMS), ejecute el siguiente script para crear el usuario de monitoreo `newrelic`. Reemplace `<YOUR_PASSWORD>` con su contraseña deseada:
+
+    ```sql
+    USE [master];
+    GO
+    CREATE LOGIN [newrelic] WITH PASSWORD = '<YOUR_PASSWORD>';
+    GO
+
+    GRANT VIEW SERVER STATE TO [newrelic];
+    GRANT VIEW ANY DEFINITION TO [newrelic];
+    GRANT VIEW ANY DATABASE TO [newrelic];
+    GO
+
+    DECLARE @name SYSNAME;
+    DECLARE db_cursor CURSOR READ_ONLY FORWARD_ONLY FOR
+    SELECT [name]
+    FROM [master].[sys].[databases]
+    WHERE [name] NOT IN ('master', 'msdb', 'model', 'rdsadmin', 'distribution')
+    AND [state] = 0;
+    OPEN db_cursor;
+    FETCH NEXT FROM db_cursor INTO @name;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+      BEGIN TRY
+        EXEC('USE [' + @name + '];
+        IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''newrelic'')
+        BEGIN
+          CREATE USER [newrelic] FOR LOGIN [newrelic];
+        END;
+        GRANT VIEW DATABASE STATE TO [newrelic];');
+      END TRY
+      BEGIN CATCH
+        PRINT 'Error on ' + @name + ': ' + ERROR_MESSAGE();
+      END CATCH
+      FETCH NEXT FROM db_cursor INTO @name;
+    END
+    CLOSE db_cursor;
+    DEALLOCATE db_cursor;
+    GO
+    ```
+
+    <Callout variant="tip">
+      Para administrar información confidencial de forma segura, como las credenciales de la base de datos, almacénelas en herramientas de [administración de secretos](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management).
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Configurar el NRDOT Collector [#configure-sql]
+
+    Cree un nuevo archivo de configuración de NRDOT Collector para la configuración de RDS SQL Server.
+
+    1. Cree un archivo de configuración llamado `mssql-config.yaml` en PowerShell como administrador:
+
+       ```powershell
+       New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+       ```
+
+    2. Agregue la siguiente configuración al archivo `mssql-config.yaml` creado en el paso anterior:
+
+    <Callout variant="tip" title="configuración completa">
+      Esta configuración se centra en el monitoreo esencial de la base de datos para su entorno RDS. Para habilitar un monitoreo integral con todas las métricas disponibles, consulte la [referencia de configuración](/docs/opentelemetry/db360/mssql/config-reference/#rds-sql).
+    </Callout>
+
+    <OtelConfig
+      inputOptions={[{"name":"username","label":"Nombre de usuario de SQL Server","codeLine":4,"defaultValue":"newrelic","toolTip":"Ingrese su nombre de usuario de SQL Server"},{"name":"password","label":"Contraseña de SQL Server","codeLine":5,"defaultValue":"YOUR_PASSWORD","toolTip":"Ingrese la contraseña de SQL Server"},{"name":"server","label":"Extremo de RDS","codeLine":6,"defaultValue":"mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com","toolTip":"Ingrese su extremo de RDS SQL Server"},{"name":"port","label":"Puerto del servidor","codeLine":7,"defaultValue":"1433","toolTip":"Ingrese el número de puerto de SQL Server (predeterminado: 1433)"},{"name":"endpoint","label":"Extremo OTLP de New Relic con número de puerto","codeLine":84,"defaultValue":"https://otlp.nr-data.net:4318","toolTip":"Ingrese el extremo OTLP de New Relic para su región. Para obtener más información, consulte https://docs.newrelic.com/docs/data-apis/ingest-apis/otlp-endpoint-urls/"},{"name":"licenseKey","label":"Clave de licencia de New Relic","codeLine":86,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"Ingrese su clave de licencia de New Relic"}]}
+      config={`receivers:
+      nrsqlserver:
+       collection_interval: 15s
+       username: <input1>
+       password: <input2>
+       server: <input3>
+       port: <input4>
+
+       # Enable comprehensive database metrics
+       metrics:
+         sqlserver.database.count:
+           enabled: true
+         sqlserver.database.io:
+           enabled: true
+         sqlserver.database.latency:
+           enabled: true
+         sqlserver.database.operations:
+           enabled: true
+         sqlserver.database.tempdb.space:
+           enabled: true
+         sqlserver.database.tempdb.version_store.size:
+           enabled: true
+         sqlserver.deadlock.rate:
+           enabled: true
+         sqlserver.os.wait.duration:
+           enabled: true
+         sqlserver.processes.blocked:
+           enabled: true
+         sqlserver.memory.grants.pending.count:
+           enabled: true
+         sqlserver.database.file.size:
+           enabled: true
+         sqlserver.memory.area:
+           enabled: true
+
+       # Enable query sample, top query, query plan, and top procedure log collection
+       events:
+         db.server.query_sample:
+           enabled: true
+         db.server.top_query:
+           enabled: true
+         db.server.query_plan:
+           enabled: true
+         db.server.top_procedure:
+           enabled: true
+
+       # Top query collection configuration
+       top_query_collection:
+         lookback_time: 60s
+         max_query_sample_count: 1000
+         top_query_count: 250
+         collection_interval: 60s
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       # Query sample collection configuration
+       query_sample_collection:
+         max_rows_per_query: 100
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       # Top stored procedure collection configuration
+       top_procedure_collection:
+         max_procedure_sample_count: 1000
+         top_procedure_count: 250
+         collection_interval: 60s
+
+       resource_attributes:
+         db.system.version:
+           enabled: true
+         sqlserver.db.edition:
+           enabled: true
+
+      processors:
+      memory_limiter:
+       check_interval: \${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+       limit_mib:       \${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+       spike_limit_mib: \${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+      exporters:
+      otlp:
+       endpoint: <input5>
+       headers:
+         api-key: <input6>
+       tls:
+         insecure: false
+       compression: gzip
+
+       sending_queue:
+         enabled: true
+         sizer: bytes
+         queue_size: 100_000_000
+         num_consumers: 10
+         batch:
+           sizer: bytes
+           max_size: 1_000_000
+           min_size: 0
+           flush_timeout: 5s
+
+      service:
+      telemetry:
+       metrics:
+         level: none
+
+      pipelines:
+       metrics:
+         receivers: [nrsqlserver]
+         processors: [memory_limiter]
+         exporters: [otlp]
+
+       logs:
+         receivers: [nrsqlserver]
+         processors: [memory_limiter]
+         exporters: [otlp]`}
+      fileName="mssql-config.yaml"
+      tipMdx={{ body: null }}
+      onChange={() => {}}
+    />
+
+    <Callout variant="tip">
+      El pipeline `logs` no transporta registros de depuración del recolector ni logs internos del agente. Transmite telemetría de consultas de SQL Server, incluido el texto de la consulta, los planes de ejecución y los datos de muestra. El receptor `nrsqlserver` captura esta telemetría a través de los eventos `db.server.query_sample`, `db.server.top_query`, `db.server.query_plan` y `db.server.top_procedure` emitidos como registros de log de OpenTelemetry.
+
+      El evento `db.server.top_procedure` requiere SQL Server 2017 CU3 o posterior, que introdujo la compatibilidad con `sys.dm_exec_procedure_stats.total_spills`. En versiones anteriores, este evento no emite datos y registra un error. Otros eventos no se ven afectados. El acceso a `sys.dm_exec_procedure_stats` requiere `VIEW SERVER STATE` (o `VIEW SERVER PERFORMANCE STATE`, según la versión de SQL Server). Además, se requiere `VIEW ANY DEFINITION` para que `OBJECT_NAME` y `OBJECT_SCHEMA_NAME` se resuelvan correctamente en todas las bases de datos de usuario, y se necesita `CONNECT SQL` para configurar las sesiones iniciales. El usuario de monitoreo creado en [Crear usuario de monitoreo](#user-sql) ya tiene los 3 permisos.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Actualizar el registro del servicio de Windows [#registry-sql]
+
+    1. Actualice el registro de servicios de Windows para usar el nuevo archivo `mssql-config.yaml` mediante uno de los siguientes métodos:
+
+       * **Para PowerShell:** ejecute el siguiente comando como administrador:
+
+         ```powershell
+         Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+         ```
+
+       * **Para el símbolo del sistema:** si PowerShell no está disponible, use el símbolo del sistema en su lugar y ejecute el siguiente comando como administrador:
+
+       ```bash
+       sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+       ```
+
+    2. Valide la configuración del NRDOT Collector para asegurarse de que tenga el formato correcto y funcione correctamente.
+
+    ```bash
+    & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+    ```
+
+    <Callout variant="tip">
+      Para correlacionar el rendimiento de su aplicación con las operaciones de la base de datos, puede configurar la identificación del servicio de base de datos. Para obtener más información, consulte [configurar la identificación del servicio de base de datos](/docs/opentelemetry/db360/capabilities/db-apm/).
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Reiniciar NRDOT Collector [#restart-sql]
+
+    Después de actualizar su configuración, reinicie el servicio NRDOT Collector:
+
+    ```bash
+    net stop nrdot-collector
+    net start nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      Siempre reinicie el servicio NRDOT Collector después de realizar cambios de configuración para garantizar que los nuevos ajustes surtan efecto.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Encuentra y utiliza tus datos [#find-sql]
+
+    Una vez que sus datos se estén recopilando, puede acceder al monitoreo integral de bases de datos SQL Server a través de la UI de New Relic.
+
+    Para encontrar su entidad de base de datos SQL Server en New Relic:
+
+    1. Vaya a <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>.
+
+    2. En el menú desplegable **<DNT>Entity type</DNT>**, seleccione <DNT>**MSSQL instance**</DNT> y luego haga clic en <DNT>**Apply**</DNT>.
+
+    3. Seleccione su base de datos SQL Server de la lista de entidades.
+
+       Después de configurar el monitoreo de SQL Server con NRDOT, puede:
+
+       * [Crea dashboards personalizados](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) para visualizar las métricas de tu base de datos
+       * [Configura alertas](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) para umbrales críticos de rendimiento de la base de datos
+       * [Explore los datos](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) con las capacidades de consulta de New Relic
+  </Step>
+</Steps>
+
+## Documentación relacionada [#related-docs]
+
+<DocTiles>
+  <DocTile title="Configurar la correlación de APM y base de datos" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    Aprenda a correlacionar el rendimiento de la aplicación con las operaciones de la base de datos en New Relic.
+  </DocTile>
+
+  <DocTile title="Resolución de problemas" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+    Aprenda a solucionar problemas de la configuración de monitoreo de MSSQL Windows en New Relic.
+  </DocTile>
+
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+    Obtenga información sobre las métricas disponibles recopiladas por NRDOT Collector.
+  </DocTile>
+</DocTiles>

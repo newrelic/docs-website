@@ -1,0 +1,338 @@
+---
+title: Configure sampling
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Sampling
+  - APM agents
+metaDescription: Deep dive into APM agent sampling configuration including sampler types like adaptive and trace id ratio based, adaptive sampling targets, and sampling based on upstream sampling decisions.
+freshnessValidatedDate: 2026-09-29
+---
+
+APM agent samplers control which transactions within a given service your agent sends to New Relic. This page covers sampler types such as adaptive and trace ID ratio based, adaptive sampling targets, and how to configure sampling based on upstream sampling decisions.
+
+Configuration examples in this guide use YAML format (Java agent). For agent-specific syntax and the complete parameter reference, see:
+- [Java agent distributed tracing configuration](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file)
+- [Node.js agent distributed tracing configuration](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration)
+- [Python agent distributed tracing configuration](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+
+## How sampling works [#how-sampling-works]
+
+### Steps in a sampling decision
+
+A sampling decision happens in five steps:
+
+1. Request arrives at your service.
+2. Agent checks sampling context: is this a root transaction, or did an upstream service already make a sampling decision?
+3. Agent applies the appropriate sampler based on the context and your configuration.
+4. Agent makes a sampling decision: sample or don't sample.
+5. Agent propagates the decision to downstream services via distributed trace context headers.
+
+## Sampler contexts [#sampling-contexts]
+
+APM agents use three sampling contexts to handle different trace scenarios. Each context can have its own sampler configuration.
+
+| Context | When it applies | Use case |
+|---------|-----------------|----------|
+| [Root](#root-context) | The distributed trace originates from the current service | Control sampling for traces that start from this service |
+| [Remote parent sampled](#remote-parent-sampled-context) | An upstream service already sampled this trace | Control tracing for traces the upstream service sampled |
+| [Remote parent not sampled](#remote-parent-not-sampled-context) | An upstream service decided *not* to sample this trace | Control sampling for traces the upstream service rejected |
+
+<CollapserGroup>
+  <Collapser id="root-context" title="Root context">
+    <DNT>**When it applies**</DNT>: The distributed trace originates from the current service (this is the first service in the distributed trace).
+
+    <DNT>**Example scenario**</DNT>: Your API gateway is the entry point for customer requests. Configure root sampling to capture 20% of these customer-initiated traces.
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.2  # 20% of traces originating here
+    ```
+  </Collapser>
+
+  <Collapser id="remote-parent-sampled-context" title="Remote parent sampled context">
+    <DNT>**When it applies**</DNT>: An upstream service decided to sample this distributed trace (the upstream service sent a sampling decision of "sampled" in the distributed trace context).
+
+    <DNT>**Common pattern**</DNT>: If the upstream service sampled the distributed trace, always sample it in the current service too:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          always_on  # Always capture traces sampled by upstream
+    ```
+
+    <DNT>**Alternative pattern**</DNT>: Sample a percentage of the traces already sampled by the upstream service:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          trace_id_ratio_based:
+            ratio: 0.6  # Sample 60% of traces sampled by upstream
+    ```
+
+    <Callout variant="caution">
+      Overriding upstream "sampled" decisions can create fragmented traces where only some services are present. Use this pattern only when you have a specific need to drop traces that were sampled upstream.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="remote-parent-not-sampled-context" title="Remote parent not sampled context">
+    <DNT>**When it applies**</DNT>: An upstream service decided *not* to sample this distributed trace (the upstream service sent a sampling decision of "not sampled" in the trace context).
+
+    <DNT>**Common pattern**</DNT>: If the upstream service did *not* sample the distributed trace, never sample it in the current service:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          always_off  # Don't sample traces that upstream rejected
+    ```
+
+    <DNT>**Alternative pattern**</DNT>: Sample some distributed traces even if upstream chose to not sample them (use cautiously):
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          trace_id_ratio_based:
+            ratio: 0.05  # Sample 5% even if upstream said not to
+    ```
+
+    <Callout variant="caution">
+      Overriding upstream "not sampled" decisions can create fragmented traces where only some services are present. Use this pattern only when you have a specific need to see activity in a downstream service even when upstream didn't sample it.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Sampler types [#sampler-types]
+
+APM agents provide four sampler types, each appropriate for different scenarios.
+
+| Sampler type | How it works | Best for |
+|--------------|--------------|----------|
+| [Adaptive](#adaptive-sampler) | Targets a fixed number of traces per minute, regardless of traffic volume | Consistent number of traces regardless of traffic spikes |
+| [Trace ID ratio based](#trace-id-ratio-based-sampler) | Samples a fixed percentage of traces based on trace ID | Deterministic sampling across services as a percentage of traffic |
+| [Always-on](#always-on-sampler) | Samples all transactions | Complete trace coverage for a specific context |
+| [Always-off](#always-off-sampler) | Samples no transactions | Disabling sampling entirely for a specific context |
+
+<CollapserGroup>
+  <Collapser id="adaptive-sampler" title="Adaptive sampler">
+    <DNT>**How it works**</DNT>: Dynamically adapts to the throughput of the service to sample a target number of root traces per minute, regardless of traffic volume. Always samples transactions that were sampled by an upstream service and doesn't count those towards the adaptive sampling target.
+
+    <DNT>**Default behavior**</DNT>: APM agents default to using the adaptive sampler. Most APM agents have a default adaptive sampling target of 10 transactions per minute. See each APM agent's configuration docs for more details.
+
+    <DNT>**When to use**</DNT>:
+    * You want a consistent number of transactions sampled per minute - regardless of traffic changes - rather than a consistent percentage of traffic.
+    * You want dynamic adjustment to space out sampling throughout each minute.
+    * You want to sample all transactions that were sampled by the upstream service and not have those count towards the adaptive sampling target.
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root: adaptive
+    ```
+
+    <DNT>**How it adapts**</DNT>:
+    * Low traffic (10 requests/min): Samples every request to hit target
+    * Medium traffic (100 requests/min): Samples approximately every 5th request to hit target
+    * High traffic (1000 requests/min): Samples approximately every 50th request to hit target
+
+    <Callout variant="tip">
+      The adaptive sampler always samples traces that were sampled by an upstream service. These traces don't count towards the configured adaptive sampling target.
+    </Callout>
+
+    ### Adaptive sampling targets [#adaptive-targets]
+
+    Adaptive sampling targets control how many traces per minute the agent attempts to capture. Understanding **global** vs **per-context** targets is crucial for predictable behavior.
+
+    | Configuration Property | Scope |
+    |-----|-------|
+    | [`adaptive_sampling_target`](#global-sampling-target) | Global — shared by all contexts |
+    | [`sampling_target`](#context-sampling-targets) | Single context |
+
+    <CollapserGroup>
+      <Collapser id="global-sampling-target" title={<>Configure global <InlineCode>adaptive_sampling_target</InlineCode></>}>
+        The `adaptive_sampling_target` is shared by all contexts and is the **default** sampling target. A context may override
+        the global `adaptive_sampling_target` with its own, context-specific [`sampling_target`](#context-sampling-targets).
+
+        The `adaptive_sampling_target` can be set to any integer between 1 and 120, inclusive.
+
+        <DNT>**Configuration**</DNT>:
+
+        ```yaml
+        distributed_tracing:
+          sampler:
+            adaptive_sampling_target: 10  # Applied to all contexts without explicit override
+            root: adaptive
+        ```
+
+        <DNT>**Result**</DNT>: The agent attempts to capture approximately 10 transactions per minute that originate from the current service.
+      </Collapser>
+
+      <Collapser id="context-sampling-targets" title={<>Configure per-context <InlineCode>sampling_target</InlineCode></>}>
+        Each sampling context can override the global target with its own `sampling_target`.
+
+        The `sampling_target` can be set to any integer between 1 and 120, inclusive.
+
+        <DNT>**Configuration**</DNT>:
+
+        ```yaml
+        distributed_tracing:
+          sampler:
+            adaptive_sampling_target: 10  # Global default
+            root:
+              adaptive:
+                sampling_target: 5  # Overrides global default to capture 5 traces/min
+        ```
+
+        <DNT>**Result**</DNT>: The agent attempts to capture 5 transactions per minute that originate from the current service, overriding the global default of 10.
+      </Collapser>
+    </CollapserGroup>
+
+    #### Reasons to increase adaptive sampling targets
+
+    The default 10 traces/minute was designed for transaction tracing, not distributed tracing. For distributed tracing, you often want higher sampling to:
+
+    * <DNT>**Fill service map gaps**</DNT>: Rare endpoints might never get sampled at 10/min
+    * <DNT>**Improve trace diversity**</DNT>: See more transaction types and code paths
+  </Collapser>
+
+  <Collapser id="trace-id-ratio-based-sampler" title="Trace ID ratio based sampler">
+    <DNT>**How it works**</DNT>: Samples a fixed percentage of traces based on the trace ID.
+    Because the sampling decision is based on trace ID, the same trace will get the same decision across all services using the same ratio sampler and APM language agent.
+
+    <DNT>**When to use**</DNT>:
+    * You need a consistent percentage of traffic sampled.
+    * You want deterministic sampling (the same distributed traces are sampled across all services with the same APM language agent).
+    * You would like to avoid the behavior of the adaptive sampler where transactions that were sampled by the upstream service are always sampled and don't count towards the adaptive sampling target.
+
+    Every  `trace_id_ratio_based` sampler **must** supply a `ratio` decimal between 0.0 (exclusive) and 1.0 (inclusive).
+    The `ratio` specifies the percentage of traces to capture.
+
+    <Callout variant="important">
+      The `ratio` property is required when using the `trace_id_ratio_based` sampler. If a ratio is not set, the default
+      Adaptive sampler will be used instead.
+    </Callout>
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.1  # 10% of traces
+    ```
+
+    <DNT>**Important characteristic**</DNT>: The trace ID determines whether a trace is sampled. If multiple services use the same ratio and Language Agent, they'll make consistent decisions for the same trace.
+
+    <DNT>**Example**</DNT>: Sample 10% of root distributed traces and 50% of upstream-sampled distributed traces:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.1
+        remote_parent_sampled:
+          trace_id_ratio_based:
+            ratio: 0.5
+    ```
+  </Collapser>
+
+  <Collapser id="always-on-sampler" title="Always-on sampler">
+    <DNT>**How it works**</DNT>: Samples all transactions matching this context.
+
+    <DNT>**When to use**</DNT>:
+    * You need complete trace coverage for a specific context (`root`, `remote_parent_sampled`, `remote_parent_not_sampled`)
+    * You want to follow or override the upstream service's sampling decision
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          always_on  # Capture all upstream-sampled traces
+    ```
+
+    <Callout variant="caution">
+      Using `always_on` will capture every transaction for the given context, which can generate significant data volume for high-traffic services.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="always-off-sampler" title="Always-off sampler">
+    <DNT>**How it works**</DNT>: Samples none of the transactions for a given context.
+
+    <DNT>**When to use**</DNT>:
+    * You want to accept the upstream service's decision not to sample
+    * You want to disable sampling for a specific context
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          always_off  # Don't sample if upstream did NOT sample
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Suggested configuration
+
+With so many samplers to choose from, it can be hard to find the right configuration for your service. The best
+way to find the configuration that works for you is to observe the distribution of traces your service has today,
+and make small adjustments to work towards the distribution of traces that you want.
+
+We recommend this configuration as a starting point:
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      always_on
+    remote_parent_not_sampled:
+      always_off
+```
+
+This configuration samples 10% of traces from the `root` context, all traces from the `remote_parent_sampled` context,
+and no traces from the `remote_parent_not_sampled` context.
+
+For some applications, this configuration is a reasonable starting point for a balanced distribution of traces. For others - for example, those where
+*most* traces originate from an upstream service - this configuration may over-prioritize `remote_parent_sampled` traces
+and under-prioritize `root` traces. In that case, try modifying the `remote_parent_sampled` configuration to capture
+only a percentage of upstream-sampled traces:
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.2 # Sample 20% of sampled traces originating upstream, instead of all of them
+    remote_parent_not_sampled:
+      always_off
+```
+
+## What's next [#whats-next]
+
+Now that you understand sampling:
+
+* See the complete sampler configuration reference for your agent: [Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file), [Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration), [Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+* See [Sampler configuration examples](/docs/apm/distributed-tracing/sampler-configuration-examples) for real-world scenarios with copy-paste ready configurations
+
+<Callout variant="tip">
+  Sampling configuration can be complex. Start with a single pattern and iterate based on your actual trace volume and needs. Use supportability metrics and trace queries to verify your configuration is working as expected.
+</Callout>

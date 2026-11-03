@@ -1,0 +1,190 @@
+---
+title: Solucionar problemas del monitoreo de IBM MQ OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - IBM MQ
+  - Troubleshooting
+metaDescription: Troubleshoot common issues when monitoring IBM MQ with OpenTelemetry collectors on Linux hosts and Kubernetes.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Al realizar el monitoreo de IBM MQ con los recolectores de OpenTelemetry, es posible que encuentre problemas con el inicio del recolector, el flujo de datos o la síntesis de entidades. Esta guía le ayuda a diagnosticar y solucionar problemas comunes para los despliegues de host de Linux y de Kubernetes.
+
+## Collector no se inicia o no se mantiene en ejecución [#not-start]
+
+<CollapserGroup>
+  <Collapser id="linux-1" title="Para entornos autohospedados">
+    Valide el estado del recolector y revise los logs para identificar el problema:
+
+    ```bash
+    sudo systemctl status nrdot-collector.service --no-pager
+    sudo journalctl -u nrdot-collector.service -n 200 --no-pager
+    ```
+
+    **Problemas de configuración:**
+
+    * Errores de sintaxis YAML: compruebe la sangría y la sintaxis del archivo de configuración de su recolector
+    * Falta el archivo de entorno: asegúrese de que `/etc/nrdot-collector/ibmmq-env` exista
+    * Clave de licencia no válida: verá errores `401` o `403`. Verifique su clave de licencia de New Relic
+  </Collapser>
+
+  <Collapser id="k8s-1" title="Para entornos de Kubernetes">
+    Valide el estado del recolector y revise los logs para identificar el problema:
+
+    ```bash
+    kubectl -n ibmmq logs deploy/ibmmq-collector-opentelemetry-collector
+    ```
+
+    ### Causas y soluciones comunes
+
+    Busque estos patrones de error en sus logs:
+
+    **Problemas de configuración:**
+
+    * Errores de sintaxis YAML: compruebe la sangría y la sintaxis del archivo de configuración de su recolector
+    * Archivo de entorno faltante: asegúrese de que el secreto `newrelic-otlp-secret` exista en el namespace `ibmmq`
+    * Clave de licencia no válida: verá errores `401` o `403`. Verifique su clave de licencia de New Relic
+
+    **Problemas específicos de Kubernetes:**
+
+    * `CreateContainerConfigError`: falta el secreto `newrelic-otlp-secret`. Vuelva a ejecutar el paso [Crear secreto de credenciales de New Relic](/docs/opentelemetry/integrations/ibm-mq/kubernetes#create-secret)
+    * `spec.ports: Required value`: falta `service.enabled: false` en `values.yaml`
+    * `cannot list resource "pods" … forbidden`: falta RBAC. Asegúrese de que `clusterRole.create: true` esté configurado en los valores de Helm
+  </Collapser>
+</CollapserGroup>
+
+## No aparecen métricas de IBM MQ en New Relic [#no-data]
+
+Cuando su recolector se está ejecutando pero ninguna métrica de IBM MQ llega a New Relic, solucione los problemas de manera sistemática:
+
+<CollapserGroup>
+  <Collapser id="linux-2" title="Para entornos autohospedados">
+    1. Verifique que los exportadores de IBM MQ estén funcionando:
+
+    ```bash
+    curl -s http://<exporter-host>:9157/metrics | grep '^ibmmq_qmgr_status'
+    ```
+
+    Debería ver una línea por gestor de colas. Si no ve ningún resultado, el exportador no funciona correctamente.
+
+    2. Compruebe que el recolector esté en buen estado y descubriendo objetivos.
+
+    ```bash
+    curl http://127.0.0.1:13133
+    # Expected: {"status":"Server available", ...}
+    ```
+
+    `otelcol_receiver_accepted_metric_points` mayor que 0 confirma que el recolector encontró objetivos. `otelcol_exporter_send_failed_metric_points` debe permanecer en `0`.
+
+    3. Verificar problemas de descubrimiento de objetivos
+
+    * Verifique que las variables `IBMMQ_QMN_ENDPOINT` apunten a exportadores que funcionen
+    * Asegúrese de que el recolector pueda alcanzar cada extremo del exportador
+    * Compruebe que la configuración del objetivo estático sea correcta
+
+    4. Verifique si las métricas se están recopilando pero no aparecen en New Relic:
+
+    * **Región del extremo OTLP**: confirme que el extremo coincida con la región de la cuenta de New Relic (EE. UU. o UE)
+    * **Clave de licencia**: verifique que su clave de licencia sea válida y tenga los permisos correctos
+    * **Conectividad de red**: asegúrese de que el recolector pueda alcanzar el extremo OTLP de New Relic
+
+    Una región incorrecta descarta datos silenciosamente sin ningún error del lado del recolector.
+  </Collapser>
+
+  <Collapser id="k8s-2" title="Para entornos de Kubernetes">
+    1. Verifique que los exportadores de IBM MQ estén funcionando:
+
+    ```bash
+    curl -s http://<exporter-host>:9157/metrics | grep '^ibmmq_qmgr_status'
+    ```
+
+    Debería ver una línea por gestor de colas. Si no ve ningún resultado, el exportador no funciona correctamente.
+
+    2. Compruebe que el recolector esté en buen estado y descubriendo objetivos.
+
+    ```bash
+    kubectl -n ibmmq port-forward deploy/ibmmq-collector-opentelemetry-collector 8888:8888 &
+    curl -s http://localhost:8888/metrics | \
+      grep -E 'otelcol_(receiver_accepted|exporter_sent|exporter_send_failed)_metric_points'
+    kill %1 2>/dev/null
+    ```
+
+    `otelcol_receiver_accepted_metric_points` mayor que 0 confirma que el recolector encontró objetivos. `otelcol_exporter_send_failed_metric_points` debe permanecer en `0`.
+
+    3. Compruebe si `otelcol_receiver_accepted_metric_points` se mantiene en 0:
+
+    * Los pods del administrador de colas deben llevar las [anotaciones requeridas](/docs/opentelemetry/integrations/ibm-mq/kubernetes#pod-annotation-contract) en la **plantilla de pod**, con `prometheus.io/scrape` establecido exactamente en `"true"`
+    * Los pods deben ejecutarse en el namespace `ibmmq`
+    * Asegúrese de que se aplique `clusterRole.create: true` —sin él, `kubernetes_sd` devuelve `403 Forbidden`
+
+    4. Verifique si las métricas se están recopilando pero no aparecen en New Relic:
+
+    * **Región del extremo OTLP**: confirme que el extremo coincida con la región de la cuenta de New Relic (EE. UU. o UE)
+    * **Clave de licencia**: verifique que su clave de licencia sea válida y tenga los permisos correctos
+    * **Conectividad de red**: asegúrese de que el recolector pueda alcanzar el extremo OTLP de New Relic
+
+    Una región incorrecta descarta datos silenciosamente sin ningún error del lado del recolector.
+  </Collapser>
+</CollapserGroup>
+
+## No aparecen entidades de IBM MQ en New Relic [#no-entities]
+
+Si ve métricas de IBM MQ en New Relic pero no aparecen entidades `IBMMQ_MANAGER` o `IBMMQ_QUEUE`:
+
+1. Compruebe el orden de los procesadores: el procesador `transform/ibmmq-cleanup` **debe ejecutarse después de** `resourcedetection`. Si se invierte este orden, las métricas llegan a la propia entidad del recolector en lugar de a las entidades de IBM MQ, y los dashboards se quedan en blanco.
+
+2. Verifique las etiquetas requeridas: sus métricas deben incluir estas etiquetas:
+
+* **Etiqueta`qmgr` **: el exportador mq-metric-samples debe emitir esto con el nombre del administrador de colas (por ejemplo, `qmgr="QM1"`)
+* **Etiqueta`queue` **: para métricas a nivel de cola, debe contener el nombre de la cola
+* **Atributo`target.name` **: proviene de la variable de entorno `TARGET_NAME` y forma el GUID de la entidad
+
+3. Compruebe la consistencia de `TARGET_NAME`: nunca cambie el valor de `TARGET_NAME` después del despliegue inicial. Este valor se convierte en parte del GUID de cada entidad (`target.name:qmgr`), y cambiarlo crea nuevas entidades y deja huérfanas a las existentes, lo que rompe los dashboards y las alertas.
+
+## Visibilidad de datos [#data-visibility]
+
+<CollapserGroup>
+  <Collapser id="metrics-but-no-entity" title="Las métricas aparecen en NRDB, pero no aparece ninguna entidad IBMMQ_MANAGER">
+    Esto casi siempre es causado por alterar la forma de la métrica crítica para la entidad. La síntesis de la entidad utiliza como clave las métricas con guion bajo sin procesar (`ibmmq_*`), la etiqueta `qmgr` sin procesar y un atributo `target.name`. Verifique que:
+
+    * Los nombres de las métricas no tienen puntos. Debería ver `ibmmq_queue_depth`, no `ibmmq.queue.depth`.
+
+    * La etiqueta `qmgr` está presente y no se le ha cambiado el nombre. Asegúrese de que no se muestre como `ibmmq.queue_manager.name`.
+
+    * El `target.name` se establece en las métricas y asegúrese de que no se muestre como camelCase `targetName`. Si `targetName` todavía está presente y `transform/ibmmq-cleanup` no se está ejecutando o está desordenado:
+
+      ```sql
+      FROM Metric SELECT uniques(target.name), uniques(qmgr) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+      ```
+
+    El orden del procesador en la configuración del recolector es fundamental — `resourcedetection → transform/ibmmq-cleanup`. Si reordenó o eliminó `transform/ibmmq-cleanup`, las métricas de IBM MQ se enrutan a la propia entidad del recolector en lugar de a una entidad `IBMMQ_MANAGER`. Restaure el orden documentado del pipeline.
+  </Collapser>
+
+  <Collapser id="counters-flat" title="Las métricas de contador aparecen como líneas planas">
+    New Relic espera una temporalidad delta para los contadores; Prometheus emite una acumulativa. El procesador `cumulativetodelta/ibmmq` los convierte in situ. Si los contadores parecen planos, confirme que el procesador esté presente en cada pipeline de métricas.
+  </Collapser>
+
+  <Collapser id="new-stale-entities" title="Las entidades antiguas se volvieron obsoletas después de un redespliegue">
+    El valor `target.name` (establecido a través de la variable de entorno `TARGET_NAME` en Linux, o el reetiquetado `targetName` en Kubernetes) es el primer segmento de cada GUID de `IBMMQ_MANAGER` y `IBMMQ_QUEUE`. Cambiarlo después del despliegue crea entidades completamente nuevas y las antiguas se vuelven obsoletas, rompiendo los dashboards y las alertas que apuntan a los GUID antiguos. Elija un valor estable una vez y nunca lo cambie.
+
+    Si ya lo cambió, restaure el valor original de `TARGET_NAME` y reinicie el recolector. Las entidades nombradas correctamente reanudan el reporte; los duplicados creados con el nombre incorrecto dejan de recibir datos y desaparecen de la UI después de la ventana de reporte de la entidad de New Relic.
+  </Collapser>
+</CollapserGroup>
+
+## Documentación relacionada [#related-docs]
+
+<DocTiles>
+  <DocTile title="Instrumentación autohospedada para IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/host">
+    Aprenda a configurar su IBM MQ para el monitoreo autohospedado en New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentación de Kubernetes para IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    Aprenda a configurar el monitoreo de su IBM MQ para Kubernetes en New Relic.
+  </DocTile>
+
+  <DocTile title="Referencia de métricas" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    Conozca las métricas de IBM MQ recopiladas por New Relic.
+  </DocTile>
+</DocTiles>

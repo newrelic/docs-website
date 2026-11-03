@@ -1,0 +1,413 @@
+---
+title: Installez & configurez NRDOT pour le monitoring de PostgreSQL avec Chef
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Chef
+metaDescription: Install and configure the NRDOT Collector for PostgreSQL monitoring using the newrelic-install Chef cookbook
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+Vous pouvez installer et configurer le NRDOT Collector pour le monitoring de PostgreSQL à l&apos;aide du cookbook Chef `newrelic-install`. Le cookbook installe le collecteur, crée le rôle de monitoring et ses droits, et configure le collecteur lorsque vous exécutez la recette `newrelic-install::default`.
+
+<Callout variant="tip" title="Installation guidée">
+  Pour installer plutôt via l’UI de New Relic, accédez à <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; PostgreSQL (Database 360)](https://onenr.io/00jlEJKbdQW)**</DNT>. Cette page traite uniquement de l’installation manuelle.
+</Callout>
+
+<Steps>
+  <Step>
+    ## Prérequis [#prerequisites]
+
+    * Un compte New Relic avec une [clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys) valide.
+    * Un [ID de compte](/docs/accounts/accounts-billing/account-structure/account-id) New Relic.
+    * PostgreSQL 14 ou version ultérieure.
+    * Chef 15 ou version ultérieure.
+    * Un hôte collecteur Linux exécutant Debian/Ubuntu ou RHEL/CentOS.
+    * `pg_stat_statements` doit être chargé via `shared_preload_libraries`, ce qui nécessite un redémarrage de la base de données. Mettez en place les [prérequis au niveau du serveur](/docs/opentelemetry/db360/postgresql/cli/#server-prereqs) avant d’exécuter la recette.
+    * Pour PostgreSQL auto-hébergé : un accès administratif à votre serveur PostgreSQL (le superutilisateur `postgres` ou équivalent), avec un mot de passe défini et `pg_hba.conf` permettant l’authentification de l’hôte par mot de passe.
+    * Pour PostgreSQL ou Aurora sur AWS RDS : connectivité réseau depuis l&apos;hôte du collecteur vers le point de terminaison RDS, et le nom d&apos;utilisateur principal et le mot de passe RDS.
+    * Connectivité réseau vers le [point de terminaison OTLP New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp) pour votre région.
+
+    Pour connaître les prérequis détaillés, consultez la page [Compatibilité](/docs/opentelemetry/db360/postgresql/compatibility).
+  </Step>
+
+  <Step>
+    ## Télécharger le cookbook Chef [#chef-download-cookbook]
+
+    Téléchargez le `newrelic-install` [livre de recettes Chef](https://supermarket.chef.io/cookbooks/newrelic-install) depuis le Chef Supermarket dans votre répertoire chef-repo :
+
+    ```bash
+    knife supermarket install newrelic-install
+    ```
+  </Step>
+
+  <Step>
+    ## Remplacez les attributs par défaut [#chef-configure]
+
+    Remplacez les attributs par défaut dans `attributes/default.rb` par les détails de votre compte :
+
+    <CollapserGroup>
+      <Collapser id="chef-host" title="PostgreSQL auto-hébergé">
+        Ce cookbook monitore une ou plusieurs instances PostgreSQL à partir d’un seul collecteur. Au lieu d’un seul ensemble hôte/port/identifiants, il lit deux fichiers qui doivent déjà exister sur le nœud : un fichier d’instances (YAML) listant chaque instance à monitorer et les bases de données à monitorer sur chacune, et un fichier de secrets (`KEY=VALUE`) avec un identifiant et un mot de passe de superutilisateur pour chacune, indexés pour correspondre. Consultez la page [CLI install](/docs/opentelemetry/db360/postgresql/cli/#cli-install) pour connaître les formats de fichiers exacts.
+
+        ```ruby
+        default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+        default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+        default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+        default['newrelic_install']['targets'] = [
+          'nrdot-collector-postgresql'
+        ]
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_CONFIG_PRESET']         = <1 Basic, 2 Advanced, default 1>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_INSTANCES_FILE']        = <path to the instances YAML file on the node>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_SECRETS_FILE']          = <path to the secrets file (KEY=VALUE per instance) on the node>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER'] = <y or N, default N; PREVIEW feature, see table below>
+        # See all available targets at: https://github.com/newrelic/chef-install
+        ```
+
+        <Callout variant="important">
+          Le cookbook se connecte à PostgreSQL via TCP à l’aide d’un mot de passe, le superutilisateur de chaque instance doit donc avoir un mot de passe défini et `pg_hba.conf` doit autoriser l’authentification de l’hôte par mot de passe (`md5` ou `scram-sha-256`) pour les connexions TCP :
+
+          ```bash
+          sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '<password>';"
+          ```
+        </Callout>
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Attribut (sous 
+
+                `env`
+
+                )
+              </th>
+
+              <th>
+                Description
+              </th>
+
+              <th>
+                Défaut
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_CONFIG_PRESET`
+              </td>
+
+              <td>
+                Configuration NRDOT : 
+
+                `1`
+
+                 basique, 
+
+                `2`
+
+                 avancée.
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_INSTANCES_FILE`
+              </td>
+
+              <td>
+                **Obligatoire.**
+
+                 Chemin vers le fichier YAML de l’instance, déjà présent sur le nœud.
+              </td>
+
+              <td>
+                Aucun
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_SECRETS_FILE`
+              </td>
+
+              <td>
+                **Obligatoire.**
+
+                 Chemin d&apos;accès au fichier de secrets (
+
+                `KEY=VALUE`
+
+                , une paire identifiant/mot de passe superutilisateur par instance), déjà présent sur le nœud.
+              </td>
+
+              <td>
+                Aucun
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`
+              </td>
+
+              <td>
+                Collectez également les plans de requête pour les instructions de verrouillage/écriture. Crée une fonction d’assistance 
+
+                `SECURITY DEFINER`
+
+                 (
+
+                `otel.explain_statement`
+
+                ) dans chaque base de données monitorée, accordant l’exécution à l’utilisateur de monitoring 
+
+                `EXPLAIN`
+
+                 sans accorder d’accès DML. Il s’agit d’une fonctionnalité en APERÇU. 
+
+                `y`
+
+                /
+
+                `N`
+
+                .
+              </td>
+
+              <td>
+                `n`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          Aucune valeur d’attribut par défaut n’est fournie pour ces variables. Définissez explicitement celles pertinentes pour votre cible via `default['newrelic_install']['env'][...]`.
+        </Callout>
+
+        <Callout variant="tip">
+          Pour monitorer plus d’une instance PostgreSQL à partir de ce collecteur, ajoutez des entrées supplémentaires au fichier d’instances et des identifiants numérotés correspondants (`_2`, `_3`,…) au fichier de secrets. Une instance qui échoue à ses vérifications (ou qui n’a aucune base de données répertoriée) est ignorée avec une raison dans le log plutôt que d’annuler toute l’installation.
+        </Callout>
+      </Collapser>
+
+      <Collapser id="chef-rds" title="PostgreSQL ou Aurora sur AWS RDS">
+        Ce cookbook monitore un ou plusieurs points de terminaison RDS PostgreSQL ou Aurora depuis un seul collecteur, en utilisant le même modèle de fichier d&apos;instance / fichier de secrets que la version auto-hébergée (les deux fichiers doivent déjà exister sur le nœud).
+
+        ```ruby
+        default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+        default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+        default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+        default['newrelic_install']['targets'] = [
+          'nrdot-collector-postgresql-rds'
+        ]
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_CONFIG_PRESET']         = <1 Basic, 2 Advanced, default 1>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_INSTANCES_FILE']        = <path to the instances YAML file on the node, using RDS or Aurora endpoints as host>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_SECRETS_FILE']          = <path to the secrets file (KEY=VALUE per instance) on the node>
+        default['newrelic_install']['env']['NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER'] = <y or N, default N; PREVIEW feature, see table below>
+        # See all available targets at: https://github.com/newrelic/chef-install
+        ```
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Attribut (sous 
+
+                `env`
+
+                )
+              </th>
+
+              <th>
+                Description
+              </th>
+
+              <th>
+                Défaut
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_CONFIG_PRESET`
+              </td>
+
+              <td>
+                Configuration NRDOT : 
+
+                `1`
+
+                 basique, 
+
+                `2`
+
+                 avancée.
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_INSTANCES_FILE`
+              </td>
+
+              <td>
+                **Obligatoire.**
+
+                 Chemin d’accès au fichier YAML des instances, utilisant les points de terminaison RDS ou Aurora comme 
+
+                `host`
+
+                , déjà présent sur le nœud.
+              </td>
+
+              <td>
+                Aucun
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_SECRETS_FILE`
+              </td>
+
+              <td>
+                **Obligatoire.**
+
+                 Chemin d’accès au fichier des secrets (
+
+                `KEY=VALUE`
+
+                , une paire nom d’utilisateur / mot de passe maître RDS par instance), déjà présent sur le nœud.
+              </td>
+
+              <td>
+                Aucun
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_POSTGRES_ENABLE_EXPLAIN_HELPER`
+              </td>
+
+              <td>
+                Collectez également les plans de requête pour les instructions de verrouillage/écriture. Crée une fonction d’assistance 
+
+                `SECURITY DEFINER`
+
+                 (
+
+                `otel.explain_statement`
+
+                ) dans chaque base de données monitorée, accordant l’exécution à l’utilisateur de monitoring 
+
+                `EXPLAIN`
+
+                 sans accorder d’accès DML. Il s’agit d’une fonctionnalité en APERÇU. 
+
+                `y`
+
+                /
+
+                `N`
+
+                .
+              </td>
+
+              <td>
+                `n`
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          Aucune valeur d’attribut par défaut n’est fournie pour ces variables. Définissez explicitement celles pertinentes pour votre cible via `default['newrelic_install']['env'][...]`.
+        </Callout>
+
+        <Callout variant="tip">
+          Pour monitorer plus d’un point de terminaison RDS PostgreSQL ou Aurora depuis ce collecteur, ajoutez plus d’entrées au fichier des instances, et les identifiants numérotés correspondants au fichier des secrets. Une instance qui échoue à ses vérifications (ou qui n’a aucune base de données répertoriée) est ignorée avec une raison dans le log plutôt que d’annuler toute l’installation.
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Téléversez le cookbook Chef [#chef-upload-cookbook]
+
+    Téléversez le cookbook Chef `newrelic-install` sur votre serveur Chef :
+
+    ```bash
+    knife cookbook upload newrelic-install
+    ```
+  </Step>
+
+  <Step>
+    ## Mettez à jour la liste d’exécution [#chef-run-list]
+
+    Ajoutez la recette `newrelic-install` à la run list d&apos;un nœud :
+
+    ```json
+    "run_list": [
+      "recipe[newrelic-install]"
+    ]
+    ```
+  </Step>
+
+  <Step>
+    ## Trouvez et utilisez vos données [#find]
+
+    Une fois vos données collectées, vous pouvez accéder à un monitoring complet de la base de données PostgreSQL via l&apos;UI de New Relic.
+
+    Pour trouver votre entité de base de données PostgreSQL dans New Relic :
+
+    1. Allez à <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>.
+    2. Dans la liste déroulante **<DNT>Entity type</DNT>**, sélectionnez <DNT>**PostgreSQL instance**</DNT>, puis cliquez sur <DNT>**Apply**</DNT>.
+    3. Sélectionnez votre base de données PostgreSQL dans la liste des entités.
+  </Step>
+</Steps>
+
+## Documentation associée [#related]
+
+<DocTiles>
+  <DocTile title="Introduction au monitoring de PostgreSQL avec NRDOT" path="/docs/opentelemetry/db360/postgresql/introduction">
+    Découvrez toutes les méthodes d’installation disponibles pour le monitoring de PostgreSQL avec New Relic.
+  </DocTile>
+
+  <DocTile title="Installation via la CLI" path="/docs/opentelemetry/db360/postgresql/cli">
+    Découvrez comment installer et configurer le monitoring de PostgreSQL avec une seule commande CLI New Relic.
+  </DocTile>
+
+  <DocTile title="Installation via Ansible" path="/docs/opentelemetry/db360/postgresql/ansible">
+    Découvrez comment installer et configurer le monitoring PostgreSQL à grande échelle avec le newrelic.newrelic_install rôle Ansible.
+  </DocTile>
+
+  <DocTile title="Installation du chart Helm" path="/docs/opentelemetry/db360/postgresql/helm">
+    Apprenez à installer et configurer le monitoring PostgreSQL sur Kubernetes avec le chart Helm postgresql-otel.
+  </DocTile>
+</DocTiles>

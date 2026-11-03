@@ -1,0 +1,606 @@
+---
+title: Helm을 사용하여 MSSQL 모니터링을 위한 NRDOT 설치 및 구성
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Kubernetes
+  - Helm
+metaDescription: Install and configure Microsoft SQL Server monitoring on Kubernetes using the mssql-otel Helm chart
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+`mssql-otel` Helm 차트를 사용하여 Kubernetes에서 SQL Server 모니터링을 설치하고 구성할 수 있습니다. 선택적으로 차트는 모니터링 로그인을 생성하는 설정 작업을 실행할 수도 있습니다.
+
+<Callout variant="tip" title="가이드 설치">
+  대신 뉴렐릭 UI를 통해 설치하려면 <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Microsoft SQL Server (Database 360)](https://onenr.io/00jlEJX6EQW)** </DNT>(으)로 이동하십시오. 화면의 지시에 따라 통합을 설정하십시오. 이 페이지에서는 수동 설치만 다룹니다.
+</Callout>
+
+<Callout variant="important">
+  이 차트는 SQL Server 인증(사용자 이름/비밀번호)만 지원합니다. Windows 인증, Windows 도메인 인증 또는 gMSA는 지원하지 않습니다. 수집기는 Linux 또는 Windows에서 실행되든, 자체 호스팅되든, RDS에서 실행되든 관계없이 항상 네트워크를 통해 원격으로 SQL Server에 도달하므로 SQL 인증은 모든 경우에 동일하게 작동합니다. 또한 수집기가 SQL Server 호스트 자체가 아닌 Kubernetes 배포로 실행되므로 SQL Server 메트릭만 보고합니다(호스트/인프라 메트릭 없음).
+</Callout>
+
+<Steps>
+  <Step>
+    ## 전제 조건 [#helm-prerequisites]
+
+    * 유효한 뉴렐릭 [라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+
+    * Helm 3.0 이상 및 쿠버네티스 클러스터에 액세스하도록 구성된 `kubectl`.
+
+    * Kubernetes 클러스터에서 SQL Server 호스트(또는 RDS 엔드포인트) 및 포트로의 네트워크 연결:
+
+      * 자체 호스팅: SQL Server 호스트로 라우팅되는 경로(VPN, 피어링 또는 공유 네트워크)가 있어야 하며, SQL Server 측 방화벽은 연결의 소스 IP를 허용해야 합니다.
+      * AWS RDS: VPC 피어링, 전송 게이트웨이 또는 RDS 인스턴스와의 공유 VPC 배치, 그리고 RDS 보안 그룹은 클러스터의 이그레스 소스에서 SQL Server 포트(기본값 `1433`)를 허용해야 합니다.
+
+    * 이미 생성한 모니터링 로그인 또는 차트의 설정 작업에서 대신 생성할 수 있도록 하는 SQL Server 관리자 자격 증명(`sa` 또는 RDS 마스터 사용자와 같은 `sysadmin`역할 로그인) 중 하나입니다. 아래의 [모니터링 자격 증명 구성](#helm-credentials)을 참조하십시오.
+  </Step>
+
+  <Step>
+    ## 네임스페이스를 생성하십시오. [#helm-namespace]
+
+    설치할 네임스페이스를 생성하십시오. `helm install --create-namespace`은(는) 최종 설치 단계에서만 네임스페이스를 생성하므로, 다음 단계에서 시크릿을 생성하기 전에 해당 네임스페이스가 존재해야 합니다:
+
+    ```bash
+    kubectl create namespace newrelic
+    ```
+
+    <Callout variant="tip">
+      아래의 모든 명령어에서 `-n`을(를) 전달할 필요가 없도록 현재 `kubectl` 컨텍스트의 기본 네임스페이스로 설정하십시오:
+
+      ```bash
+      kubectl config set-context --current --namespace=newrelic
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## 모니터링 자격 증명 구성 [#helm-credentials]
+
+    차트의 설정 작업에서 SQL Server 모니터링 로그인을 생성할지 여부를 결정하고, 생성하지 않을 경우 자격 증명을 제공할 방법을 결정하십시오:
+
+    <CollapserGroup>
+      <Collapser id="helm-creds-inline" title="설정 작업 없음: 일반 사용자 이름 및 비밀번호">
+        이 방법에는 설정 작업이 없으므로, 여기서는 모니터링 로그인을 생성하지 않습니다. 이 차트는 SQL Server 인증만 지원하므로, 설치하기 전에 환경에 따라 [Linux 자체](/docs/opentelemetry/db360/mssql/linux-hosted/#user) 호스팅, [Windows 자체](/docs/opentelemetry/db360/mssql/windows-hosted-sql/#user-sql) 호스팅, [Linux RDS](/docs/opentelemetry/db360/mssql/linux-rds/#user) 또는 [Windows RDS 의](/docs/opentelemetry/db360/mssql/windows-rds-sql/#user-sql) **SQL Server 인증 모니터링 사용자** 생성 단계를 사용하여 모니터링 로그인을 직접 생성하십시오.
+
+        다음 단계에서 `values.yaml`에 모니터링 사용자 이름과 비밀번호를 직접 설정합니다.
+      </Collapser>
+
+      <Collapser id="helm-creds-secret-nojob" title="설정 작업 없음: 시크릿 기반 자격 증명">
+        이 방법에는 설정 작업도 없습니다. 먼저 위의 일반 자격 증명 방법과 정확히 동일하게 모니터링 로그인을 직접 생성하십시오. 유일한 차이점은 자격 증명이 저장되는 위치입니다: `values.yaml`에 일반 텍스트로 저장하는 대신 Kubernetes 시크릿에 저장하십시오:
+
+        ```bash
+        kubectl create secret generic mssql-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        ```
+      </Collapser>
+
+      <Collapser id="helm-creds-setupjob" title="자동화된 설정 작업">
+        이 방법을 사용하면, 차트의 설정 작업이 SQL Server 관리자 자격 증명을 사용하여 모니터링 로그인을 생성합니다. 모니터링 및 관리자 자격 증명은 모두 Kubernetes 시크릿으로 제공되어야 합니다: 설정 작업은 일반 텍스트 관리자 자격 증명을 절대 허용하지 않으며, 이를 활성화하려면 시크릿 기반 모니터링 자격 증명도 필요합니다.
+
+        1. 모니터링 사용자 이름과 비밀번호로 시크릿을 생성하십시오. 이것은 설정 작업이 생성하고 수집기가 연결하는 자격 증명입니다:
+
+           ```bash
+           kubectl create secret generic mssql-monitor-creds \
+             --from-literal=username=<MONITORING_USERNAME> \
+             --from-literal=password='<MONITORING_PASSWORD>' \
+             -n newrelic
+           ```
+
+        2. 설정 작업은 Kubernetes 시크릿을 통해서만 관리자 자격 증명을 허용합니다(`values.yaml`에 일반 텍스트 사용자 이름/비밀번호 없음). 이 자격 증명은 로그인을 생성하고 광범위한 `VIEW` 액세스 권한을 부여할 수 있으므로, 자체 시크릿으로 생성하십시오. 자체 호스팅 SQL Server의 경우 `sysadmin` 역할(또는 동등한 역할)의 로그인을 사용하거나, AWS RDS의 SQL Server의 경우 RDS 마스터 사용자를 사용하십시오:
+
+           ```bash
+           kubectl create secret generic mssql-admin-creds \
+             --from-literal=username=<ADMIN_USERNAME> \
+             --from-literal=password='<ADMIN_PASSWORD>' \
+             -n newrelic
+           ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Helm 값을 설정하십시오. [#helm-configure]
+
+    환경에 맞게 `mssql.topology`을(를) 설정하십시오:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            값
+          </th>
+
+          <th>
+            설명
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `self-hosted`
+          </td>
+
+          <td>
+            네트워크를 통해 연결되는 자체 호스팅 SQL Server(Linux 또는 Windows 호스트).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rds`
+          </td>
+
+          <td>
+            AWS RDS 기반 SQL Server.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    이전 단계에서 선택한 자격 증명 방법과 일치하는 `values.yaml`을(를) 사용하십시오:
+
+    <CollapserGroup>
+      <Collapser id="helm-values-inline" title="설정 작업 없음: 일반 사용자 이름 및 비밀번호">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        mssql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          username: <YOUR_MONITORING_USERNAME>
+          password: <YOUR_MONITORING_PASSWORD>
+
+        # No setup job runs, so create the monitoring login yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-secret-nojob" title="설정 작업 없음: 시크릿 기반 자격 증명">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        mssql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: mssql-monitor-creds
+
+        # No setup job runs, so the monitoring login referenced by
+        # this secret must already exist - create it yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-setupjob" title="자동화된 설정 작업">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        mssql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: mssql-monitor-creds
+
+        setupJob:
+          enabled: true
+          image:
+            # -- sqlcmd image. No default: see the chart's README for why
+            # (mcr.microsoft.com/mssql-tools:latest is freely pullable but
+            # stale and unmaintained).
+            repository: ""
+            tag: ""
+            pullPolicy: IfNotPresent
+          sqlAdmin:
+            existingSecret: mssql-admin-creds
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            매개변수
+          </th>
+
+          <th>
+            설명
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `licenseKey`
+          </td>
+
+          <td>
+            귀하의 뉴렐릭 라이선스 키입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `otlpEndpoint`
+          </td>
+
+          <td>
+            스킴이 포함된 전체 URL 형식의 해당 리전 OTLP/HTTP 엔드포인트: 
+
+            `https://otlp.nr-data.net:4318`
+
+             (US) 또는 
+
+            `https://otlp.eu01.nr-data.net:4318`
+
+             (EU). 자세한 내용은 
+
+            [뉴렐릭 OTLP 엔드포인트 문서를](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+             참조하십시오.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mssql.server`
+
+             / 
+
+            `mssql.port`
+          </td>
+
+          <td>
+            클러스터에서 접근할 수 있는 SQL Server 호스트(또는 RDS 엔드포인트) 및 포트.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mssql.tls.enabled`
+
+             / 
+
+            `mssql.tls.trustServerCertificate`
+          </td>
+
+          <td>
+            선택 사항입니다. SQL Server에 대한 연결을 암호화하도록 
+
+            `enabled: true`
+
+            을(를) 설정하고, 인증서 유효성 검사를 건너뛰도록 
+
+            `trustServerCertificate: true`
+
+            을(를) 설정하십시오(테스트 환경의 자체 서명된 인증서에 유용합니다).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.image.repository`
+
+             / 
+
+            `setupJob.image.tag`
+          </td>
+
+          <td>
+            설정 작업에서 사용되는 
+
+            `sqlcmd`
+
+            지원 이미지입니다. 기본값은 없습니다: Microsoft에서 무료로 가져올 수 있는 
+
+            `mcr.microsoft.com/mssql-tools:latest`
+
+            은(는) 2017년 버전이며 유지 관리되지 않으므로, 사용하기 전에 오래된 버전(패치되지 않은 CVE 포함)을 사용해도 괜찮은지 확인하거나 Microsoft의 
+
+            `mssql-tools18`
+
+             apt 패키지에서 직접 최신 이미지를 빌드하십시오. 설정 작업이 활성화된 경우, 시크릿 기반 자격 증명에만 필요합니다.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      `mssql.collectionInterval`, `mssql.maxConcurrentQueries` 및 `additionalReceiverConfig` 이스케이프 해치를 포함하여 사용 가능한 모든 설정 옵션은 차트의 [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/mssql-otel/values.yaml)을 참조하십시오.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## (선택 사항) 하나의 릴리스에서 여러 인스턴스 모니터 [#helm-multi]
+
+    `mssql.*` 대신, 하나의 릴리스로 단일 수집기 파드에서 여러 SQL Server 인스턴스(자체 호스팅 또는 RDS)를 모니터하도록 `mssqlMulti.enabled: true`을(를) 설정하십시오. 두 모드는 상호 배타적입니다. 동일한 릴리스에서 `mssql.server` 및 `mssqlMulti.enabled: true`을(를) 설정하지 마십시오.
+
+    다중 인스턴스 모드에는 일반 사용자 이름/비밀번호 경로가 없습니다: 모든 인스턴스에는 모니터링 자격 증명이 있는 자체 Kubernetes 시크릿이 필요합니다. 설정 작업에서 각 모니터링 로그인을 생성하도록 할지 여부도 결정하십시오:
+
+    <CollapserGroup>
+      <Collapser id="helm-multi-nojob" title="설정 작업 없음">
+        설치하기 전에 각 인스턴스의 모니터링-로그인 시크릿을 직접 생성하십시오(`values.yaml`에 지정한 `name`과(와) 일치하도록 인스턴스마다 반복):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secret you created for it.
+        mssqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          databases:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              existingSecret: db1-monitor-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              existingSecret: db2-monitor-creds
+
+        # No admin credential is configured here since the setup
+        # job is disabled - create each instance's monitoring login
+        # yourself first.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-multi-setupjob" title="자동화된 설정 작업">
+        각 인스턴스에는 자체 모니터링 로그인 시크릿과 자체 관리자 자격 증명 시크릿이 모두 필요합니다(인스턴스별로 반복):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        kubectl create secret generic db1-admin-creds \
+          --from-literal=username=<ADMIN_USERNAME> \
+          --from-literal=password='<ADMIN_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: https://otlp.nr-data.net:4318
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secrets you created for it.
+        mssqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          databases:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              existingSecret: db1-monitor-creds
+              sqlAdmin:
+                existingSecret: db1-admin-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              existingSecret: db2-monitor-creds
+              sqlAdmin:
+                existingSecret: db2-admin-creds
+
+        setupJob:
+          enabled: true
+          image:
+            repository: ""
+            tag: ""
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            매개변수
+          </th>
+
+          <th>
+            설명
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `mssqlMulti.enabled`
+          </td>
+
+          <td>
+            `mssql.*`
+
+             대신 하나의 릴리스에서 여러 인스턴스를 모니터하려면 
+
+            `true`
+
+             (으)로 설정하십시오. 기본값은 
+
+            `false`
+
+            입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mssqlMulti.topology`
+          </td>
+
+          <td>
+            `self-hosted`
+
+             또는 
+
+            `rds`
+
+            , 
+
+            `mssql.topology`
+
+            과(와) 동일한 의미이며, 이 릴리스의 모든 인스턴스에서 공유됩니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `mssqlMulti.databases`
+          </td>
+
+          <td>
+            모니터할 인스턴스 목록입니다. 각 항목에는 고유한 
+
+            `name`
+
+            , 
+
+            `server`
+
+             (
+
+            `port`
+
+            의 기본값은 
+
+            `1433`
+
+            임) 및 
+
+            `existingSecret`
+
+            이(가) 필요하며, 
+
+            `setupJob.enabled`
+
+            이(가) 
+
+            `true`
+
+            인 경우에만 항목당 
+
+            `sqlAdmin.existingSecret`
+
+            을(를) 추가하십시오.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      스크랩 설정(수집 간격, TLS, 메트릭)은 `mssqlMulti.databases`의 모든 인스턴스에 동일하게 적용됩니다. 인스턴스별 재정의는 없습니다. 달라야 하는 항목에는 `additionalReceiverConfig`을(를) 사용하십시오. 설정 작업은 릴리스당 한 번이 아니라 인스턴스(`<release>-setup-<name>`)당 한 번 실행됩니다.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Helm 차트를 설치하세요 [#helm-install]
+
+    1. 뉴클릭 Helm 다음을 추가하세요.
+
+       ```bash
+       helm repo add newrelic https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. `values.yaml` 파일을 사용하여 차트를 설치하십시오:
+
+       ```bash
+       helm upgrade --install mssql-otel newrelic/mssql-otel \
+         -n newrelic \
+         --create-namespace \
+         -f values.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## 설치를 확인하십시오 [#helm-verify]
+
+    1. 설정 작업이 완료되었고(활성화된 경우) 수집기 파드가 실행 중인지 확인하십시오:
+
+       ```bash
+       kubectl get jobs,pods -n newrelic --watch
+       ```
+
+    2. 데이터가 수신되는지 확인하려면 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)에서 이 쿼리를 실행하십시오:
+
+       ```sql
+       SELECT count(*) FROM Metric
+       WHERE metricName LIKE 'sqlserver.%'
+       AND instrumentation.provider = 'opentelemetry'
+       SINCE 10 minutes ago
+       ```
+  </Step>
+
+  <Step>
+    ## 데이터 찾기 및 사용 [#find]
+
+    데이터가 수집되면 뉴렐릭 UI를 통해 포괄적인 SQL Server 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+    뉴렐릭에서 SQL Server 데이터베이스를 찾으려면 다음을 수행하세요.
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+
+    2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**MSSQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+
+    3. 모임 목록에서 SQL Server 데이터베이스를 선택합니다.
+
+       NRDOT로 SQL Server 모니터링을 설정한 후 다음을 수행할 수 있습니다:
+
+       * [사용자 정의 대시보드를 만들어](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) 데이터베이스 지표를 시각화하세요.
+       * 중요한 데이터베이스 성능에 대한 [알림 설정](/docs/alerts/create-alert/create-alert-condition/alert-conditions/), 참조 값
+       * 뉴렐릭 쿼리 기능을 사용하여 [데이터 탐색](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/)
+  </Step>
+</Steps>
+
+## 관련 문서 [#related-docs]
+
+<DocTiles>
+  <DocTile title="지표 참조" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+    NRDOT Collector가 수집하는 사용 가능한 메트릭에 대해 알아보십시오.
+  </DocTile>
+
+  <DocTile title="문제점 해결" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+    뉴렐릭에서 MSSQL 모니터링 설정 문제를 해결하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="APM-데이터베이스 상관관계 설정" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    뉴렐릭에서 애플리케이션 성능을 데이터베이스 작업과 연관시키는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>

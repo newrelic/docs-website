@@ -1,0 +1,343 @@
+---
+title: Configure a amostragem
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Sampling
+  - APM agents
+metaDescription: 'Deep dive into APM agent sampling configuration including sampler types like adaptive and trace id ratio based, adaptive sampling targets, and sampling based on upstream sampling decisions.'
+freshnessValidatedDate: '2026-09-29T00:00:00.000Z'
+translationType: machine
+---
+
+Os amostradores do agente APM controlam quais transações dentro de um determinado serviço o seu agente envia para a New Relic. Esta página aborda tipos de amostradores, como adaptativos e baseados na proporção de ID de trace, destino de amostragem adaptativa e como configurar a amostragem com base em decisões de amostragem upstream.
+
+Os exemplos de configuração neste guia usam o formato YAML (agente Java). Para obter a sintaxe específica do agente e a referência completa do parâmetro, consulte:
+
+* [Configuração distributed tracing do agente Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file)
+* [Configuração de distributed tracing do agente Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration)
+* [Configuração distributed tracing do agente Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+
+## Como funciona a amostragem [#how-sampling-works]
+
+### Etapas em uma decisão de amostragem
+
+Uma decisão de amostragem ocorre em cinco etapas:
+
+1. O request chega ao seu serviço.
+2. O agente verifica o contexto de amostragem: esta é uma transação raiz ou um serviço upstream já tomou uma decisão de amostragem?
+3. O agente aplica o amostrador apropriado com base no contexto e na sua configuração.
+4. O agente toma uma decisão de amostragem: amostrar ou não amostrar.
+5. O agente propaga a decisão para serviços downstream via cabeçalhos de contexto do distributed trace.
+
+## Contextos do amostrador [#sampling-contexts]
+
+Os agentes APM usam três contextos de amostragem para lidar com diferentes cenários de trace. Cada contexto pode ter sua própria configuração de amostrador.
+
+| Contexto                                                       | Quando se aplica                                      | Caso de uso                                                          |
+| -------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------- |
+| [Raiz](#root-context)                                          | O distributed trace é originado do serviço atual      | Controlar a amostragem para trace que começam neste serviço          |
+| [Pai remoto amostrado](#remote-parent-sampled-context)         | Um serviço upstream já fez a amostragem deste trace   | Controlar o tracing para os trace que o serviço upstream amostrou    |
+| [Pai remoto não amostrado](#remote-parent-not-sampled-context) | Um serviço upstream decidiu *não* amostrar este trace | Controlar a amostragem para os trace que o serviço upstream rejeitou |
+
+<CollapserGroup>
+  <Collapser id="root-context" title="Contexto raiz">
+    <DNT>**When it applies**</DNT>: o distributed trace se origina do serviço atual (este é o primeiro serviço no distributed trace).
+
+    <DNT>**Example scenario**</DNT>: seu gateway de API é o ponto de entrada para requests de clientes. Configure a amostragem raiz para capturar 20% desses trace iniciados por clientes.
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.2  # 20% of traces originating here
+    ```
+  </Collapser>
+
+  <Collapser id="remote-parent-sampled-context" title="Contexto amostrado de pai remoto">
+    <DNT>**When it applies**</DNT>: um serviço upstream decidiu amostrar este distributed trace (o serviço upstream enviou uma decisão de amostragem de &quot;sampled&quot; no contexto do distributed trace).
+
+    <DNT>**Common pattern**</DNT>: se o serviço upstream amostrou o distributed trace, sempre o amostre no serviço atual também:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          always_on  # Always capture traces sampled by upstream
+    ```
+
+    <DNT>**Alternative pattern**</DNT>: fazer a amostragem de uma porcentagem do trace já amostrado pelo serviço upstream:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          trace_id_ratio_based:
+            ratio: 0.6  # Sample 60% of traces sampled by upstream
+    ```
+
+    <Callout variant="caution">
+      Substituir as decisões de &quot;amostragem&quot; upstream pode criar trace fragmentado, no qual apenas alguns serviços estão presentes. Recomenda-se usar este padrão apenas quando houver uma necessidade específica de descartar o trace que foi amostrado upstream.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="remote-parent-not-sampled-context" title="Contexto de pai remoto não amostrado">
+    <DNT>**When it applies**</DNT>: um serviço upstream decidiu *não* amostrar este distributed trace (o serviço upstream enviou uma decisão de amostragem de &quot;não amostrado&quot; no contexto do trace).
+
+    <DNT>**Common pattern**</DNT>: se o serviço upstream *não* amostrou o distributed trace, nunca o amostre no serviço atual:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          always_off  # Don't sample traces that upstream rejected
+    ```
+
+    <DNT>**Alternative pattern**</DNT>: amostrar alguns distributed trace mesmo se o upstream tiver escolhido não amostrá-los (use com cautela):
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          trace_id_ratio_based:
+            ratio: 0.05  # Sample 5% even if upstream said not to
+    ```
+
+    <Callout variant="caution">
+      Substituir as decisões upstream de &quot;não amostrado&quot; pode criar trace fragmentados onde apenas alguns serviços estão presentes. Use este padrão apenas quando tiver uma necessidade específica de ver a atividade em um serviço downstream, mesmo quando o upstream não a amostrou.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Tipos de amostrador [#sampler-types]
+
+Os agentes APM fornecem quatro tipos de amostradores, cada um apropriado para diferentes cenários.
+
+| Tipo de amostrador                                                | Como funciona                                                                               | Melhor para                                                              |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [Adaptativo](#adaptive-sampler)                                   | Tem como destino um número fixo de trace por minuto, independentemente do volume de tráfego | Número consistente de trace, independentemente de picos de tráfego       |
+| [Baseado na proporção de Trace ID](#trace-id-ratio-based-sampler) | Amostra uma porcentagem fixa de trace com base no ID do trace                               | Amostragem determinística entre serviços como uma porcentagem do tráfego |
+| [Sempre ativo](#always-on-sampler)                                | Amostra todas as transações                                                                 | Cobertura completa de trace para um contexto específico                  |
+| [Sempre desligado](#always-off-sampler)                           | Não amostra transações                                                                      | Desativar a amostragem totalmente para um contexto específico            |
+
+<CollapserGroup>
+  <Collapser id="adaptive-sampler" title="Amostrador adaptativo">
+    <DNT>**How it works**</DNT>: adapta-se dinamicamente às taxas de transferência do serviço para amostrar um número de destino de trace raiz por minuto, independentemente do volume de tráfego. Sempre amostra transações que foram amostradas por um serviço upstream e não as contabiliza para o destino de amostragem adaptativa.
+
+    <DNT>**Default behavior**</DNT>: o agente APM usa o amostrador adaptativo por padrão. A maioria do agente APM tem um destino de amostragem adaptativa padrão de 10 transações por minuto. Consulte a documentação de configuração de cada agente APM para obter mais detalhes.
+
+    <DNT>**When to use**</DNT>:
+
+    * Deseja-se um número consistente de transações amostradas por minuto — independentemente de alterações no tráfego — em vez de uma porcentagem consistente de tráfego.
+    * Você deseja um ajuste dinâmico para espaçar a amostragem ao longo de cada minuto.
+    * Você deseja amostrar todas as transações que foram amostradas pelo serviço upstream e não fazer com que elas contem para o destino de amostragem adaptativa.
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root: adaptive
+    ```
+
+    <DNT>**How it adapts**</DNT>:
+
+    * Tráfego baixo (10 requests/min): amostra cada request para atingir o destino
+    * Tráfego médio (100 requests/min): amostra aproximadamente a cada 5ª request para atingir o destino
+    * Alto tráfego (1000 requests/min): amostra aproximadamente a cada 50ª request para atingir o destino
+
+    <Callout variant="tip">
+      O amostrador adaptativo sempre amostra os trace que foram amostrados por um serviço upstream. Esses trace não contam para o destino de amostragem adaptativa configurado.
+    </Callout>
+
+    ### Destino de amostragem adaptativa [#adaptive-targets]
+
+    O destino de amostragem adaptativa controla quantos trace por minuto o agente tenta capturar. Entender o destino **global** versus **por contexto** é crucial para um comportamento previsível.
+
+    | Propriedade de configuração                           | Escopo                                        |
+    | ----------------------------------------------------- | --------------------------------------------- |
+    | [`adaptive_sampling_target`](#global-sampling-target) | Global — compartilhado por todos os contextos |
+    | [`sampling_target`](#context-sampling-targets)        | Contexto único                                |
+
+    <CollapserGroup>
+      <Collapser
+        id="global-sampling-target"
+        title={<>Configure global <InlineCode>adaptive_sampling_target</InlineCode></>
+        }
+      >
+        O `adaptive_sampling_target` é compartilhado por todos os contextos e é o destino de amostragem **padrão**. Um contexto pode substituir o `adaptive_sampling_target` global por seu próprio [`sampling_target`](#context-sampling-targets) específico do contexto.
+
+        O `adaptive_sampling_target` pode ser definido para qualquer número inteiro entre 1 e 120, inclusive.
+
+        <DNT>**Configuration**</DNT>:
+
+        ```yaml
+        distributed_tracing:
+          sampler:
+            adaptive_sampling_target: 10  # Applied to all contexts without explicit override
+            root: adaptive
+        ```
+
+        <DNT>**Result**</DNT>: o agente tenta capturar aproximadamente 10 transações por minuto que se originam do serviço atual.
+      </Collapser>
+
+      <Collapser
+        id="context-sampling-targets"
+        title={<>Configure por contexto <InlineCode>sampling_target</InlineCode></>
+        }
+      >
+        Cada contexto de amostragem pode substituir o destino global por seu próprio `sampling_target`.
+
+        O `sampling_target` pode ser definido para qualquer número inteiro entre 1 e 120, inclusive.
+
+        <DNT>**Configuration**</DNT>:
+
+        ```yaml
+        distributed_tracing:
+          sampler:
+            adaptive_sampling_target: 10  # Global default
+            root:
+              adaptive:
+                sampling_target: 5  # Overrides global default to capture 5 traces/min
+        ```
+
+        <DNT>**Result**</DNT>: o agente tenta capturar 5 transações por minuto que se originam do serviço atual, substituindo o padrão global de 10.
+      </Collapser>
+    </CollapserGroup>
+
+    #### Motivos para aumentar o destino de amostragem adaptativa
+
+    O padrão de 10 trace/minuto foi projetado para rastreamento de transação, não para distributed tracing. Para distributed tracing, geralmente é desejável uma amostragem maior para:
+
+    * <DNT>**Fill service map gaps**</DNT>: endpoint raros podem nunca ser amostrados a 10/min
+    * <DNT>**Improve trace diversity**</DNT>: veja mais tipos de transação e caminhos de código
+  </Collapser>
+
+  <Collapser id="trace-id-ratio-based-sampler" title="Amostrador baseado na proporção de Trace ID">
+    <DNT>**How it works**</DNT>: amostra uma porcentagem fixa de trace com base no ID do trace. Como a decisão de amostragem é baseada no ID do trace, o mesmo trace obterá a mesma decisão em todos os serviços que usam o mesmo amostrador de proporção e agente de linguagem do APM.
+
+    <DNT>**When to use**</DNT>:
+
+    * Você precisa de uma porcentagem consistente de tráfego amostrado.
+    * Você deseja uma amostragem determinística (os mesmos distributed trace são amostrados em todos os serviços com o mesmo agente de linguagem APM).
+    * Você gostaria de evitar o comportamento do amostrador adaptativo em que as transações que foram amostradas pelo serviço upstream são sempre amostradas e não contam para o destino de amostragem adaptativa.
+
+    Todo amostrador `trace_id_ratio_based` **deve** fornecer um decimal `ratio` entre 0,0 (exclusivo) e 1,0 (inclusivo). O `ratio` especifica a porcentagem de trace a ser capturada.
+
+    <Callout variant="important">
+      A propriedade `ratio` é obrigatória ao usar o amostrador `trace_id_ratio_based`. Se uma proporção não for definida, o amostrador Adaptativo padrão será usado em seu lugar.
+    </Callout>
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.1  # 10% of traces
+    ```
+
+    <DNT>**Important characteristic**</DNT>: o ID do trace determina se um trace é amostrado. Se vários serviços usarem a mesma proporção e agente de linguagem, eles tomarão decisões consistentes para o mesmo trace.
+
+    <DNT>**Example**</DNT>: amostre 10% dos distributed traces raiz e 50% dos distributed traces amostrados no upstream:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        root:
+          trace_id_ratio_based:
+            ratio: 0.1
+        remote_parent_sampled:
+          trace_id_ratio_based:
+            ratio: 0.5
+    ```
+  </Collapser>
+
+  <Collapser id="always-on-sampler" title="Amostrador sempre ativo">
+    <DNT>**How it works**</DNT>: amostra todas as transações que correspondem a este contexto.
+
+    <DNT>**When to use**</DNT>:
+
+    * É necessária uma cobertura completa de trace para um contexto específico (`root`, `remote_parent_sampled`, `remote_parent_not_sampled`)
+    * Deseja-se seguir ou substituir a decisão de amostragem do serviço upstream
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_sampled:
+          always_on  # Capture all upstream-sampled traces
+    ```
+
+    <Callout variant="caution">
+      O uso de `always_on` capturará cada transação para o contexto fornecido, o que pode gerar um volume de dados significativo para serviços de alto tráfego.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="always-off-sampler" title="Amostrador sempre inativo">
+    <DNT>**How it works**</DNT>: não amostra nenhuma das transações para um determinado contexto.
+
+    <DNT>**When to use**</DNT>:
+
+    * Deseja-se aceitar a decisão do serviço upstream de não amostrar
+    * Você deseja desativar a amostragem para um contexto específico
+
+    <DNT>**Configuration**</DNT>:
+
+    ```yaml
+    distributed_tracing:
+      sampler:
+        remote_parent_not_sampled:
+          always_off  # Don't sample if upstream did NOT sample
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Configuração sugerida
+
+Com tantos amostradores para escolher, pode ser difícil encontrar a configuração certa para o seu serviço. A melhor maneira de encontrar a configuração que funciona para o seu caso é observar a distribuição de trace que o seu serviço tem hoje e fazer pequenos ajustes para chegar à distribuição de trace desejada.
+
+Recomendamos esta configuração como ponto de partida:
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      always_on
+    remote_parent_not_sampled:
+      always_off
+```
+
+Esta configuração amostra 10% dos trace do contexto `root`, todos os trace do contexto `remote_parent_sampled` e nenhum trace do contexto `remote_parent_not_sampled`.
+
+Para alguns aplicativos, esta configuração é um ponto de partida razoável para uma distribuição equilibrada de trace. Para outros — por exemplo, aqueles em que a *maioria* do trace é originada de um serviço upstream —, esta configuração pode priorizar excessivamente o trace `remote_parent_sampled` e subpriorizar o trace `root`. Nesse caso, recomenda-se modificar a configuração `remote_parent_sampled` para capturar apenas uma porcentagem do trace amostrado upstream:
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.2 # Sample 20% of sampled traces originating upstream, instead of all of them
+    remote_parent_not_sampled:
+      always_off
+```
+
+## Qual é o próximo [#whats-next]
+
+Agora que você entende a amostragem:
+
+* Consulte a referência completa de configuração do amostrador para o seu agente: [Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file), [Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration), [Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+* Consulte [Exemplos de configuração do amostrador](/docs/apm/distributed-tracing/sampler-configuration-examples) para ver cenários do mundo real com configuração pronta para copiar e colar
+
+<Callout variant="tip">
+  A configuração de amostragem pode ser complexa. Comece com um único padrão e itere com base no seu volume real de trace e nas suas necessidades. Use métricas de suportabilidade e consultas de trace para verificar se a sua configuração está funcionando conforme o esperado.
+</Callout>

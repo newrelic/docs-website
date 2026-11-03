@@ -1,0 +1,316 @@
+---
+title: Automatice la instalación de Agent Control a escala
+metaDescription: 'Install Agent Control from Terraform, Ansible, Chef, Puppet, or a CI/CD pipeline without a person manually re-issuing a system identity every 12 hours.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cuando instala Agent Control a través de la [instalación guiada](/docs/new-relic-control/agent-control/setup), se crea una identidad del sistema y se le muestra un ID de cliente y un secreto de cliente. Ese secreto caduca 12 horas después de su emisión, lo cual funciona bien para una sola instalación. Automatizar instalaciones con Terraform, Ansible, Chef, Puppet o un pipeline de CI/CD es diferente. Cualquier ejecución que ocurra más de 12 horas después de la emisión de la credencial falla, porque la credencial ya ha caducado. Para solucionarlo, es necesario volver a la UI y ejecutar la instalación guiada de nuevo para obtener una nueva.
+
+Esta página cubre dos formas de automatizar la instalación sin ese paso manual. Ambas usan [`newrelic-auth-cli`](https://github.com/newrelic/newrelic-auth-rs), la misma herramienta de la que depende la [instalación guiada](/docs/new-relic-control/agent-control/setup), autenticada con una [clave de API de usuario](/docs/apis/intro-apis/new-relic-api-keys/) de New Relic.
+
+Se aplican dos reglas a los siguientes enfoques:
+
+* **Cada host u objetivo de instalación sigue obteniendo su propia identidad**, creada de cero para este.
+* **Una clave privada nunca sale de la máquina en la que se creó.** Si configura una identidad reutilizable que autoriza la creación de otras (el [enfoque de identidad reutilizable](#reusable-identity) que se describe más adelante en esta guía), la clave privada permanece en la máquina que controla la automatización. Solo se pasa a cualquier otro lugar un token de acceso de corta duración derivado de ella, nunca la clave en sí.
+
+La identidad que termina ejecutándose en cada host no caduca, independientemente del enfoque que utilice a continuación. Es la misma identidad sin fecha de caducidad que la instalación guiada crea para usted. Ninguno de los enfoques de esta página cambia lo que es esa identidad de tiempo de ejecución, solo cómo se crea.
+
+## Cree una credencial de corta duración para instalaciones ocasionales [#per-run]
+
+Si no realiza la instalación con la frecuencia suficiente como para justificar la administración de una identidad reutilizable, este es el camino más sencillo. Su canalización se autentica con su clave de API para crear una credencial desechable, la usa una vez para ejecutar el comando `newrelic install` normal y el instalador genera la identidad de larga duración en la que realmente se ejecuta el Control del agente. Nunca ve ni almacena esa identidad de larga duración por su cuenta. El instalador la escribe directamente en el host.
+
+Ansible, Chef y Puppet utilizan el mismo comando de instalación a través de su propio rol, cookbook o módulo oficial mantenido por New Relic, y cada uno de ellos le pasa variables de entorno arbitrarias directamente. Cree primero la credencial y, a continuación, pásela a la tarea de instalación como variables de entorno, de la misma manera que pasaría la clave de licencia.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux">
+      Linux
+    </TabsBarItem>
+
+    <TabsBarItem id="ansible">
+      Ansible
+    </TabsBarItem>
+
+    <TabsBarItem id="chef">
+      Chef
+    </TabsBarItem>
+
+    <TabsBarItem id="puppet">
+      Puppet
+    </TabsBarItem>
+
+    <TabsBarItem id="windows">
+      Windows
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux">
+      ```bash
+      #!/bin/bash
+      set -e
+
+      # Set these from your CI secrets store. NEW_RELIC_API_KEY should be a User API
+      # key (NRAK-...). It's used once below and never written to disk.
+      : "${NEW_RELIC_API_KEY:?}" "${NEW_RELIC_ACCOUNT_ID:?}" "${NEW_RELIC_ORGANIZATION:?}" \
+        "${NEW_RELIC_REGION:?}" "${NR_CLI_FLEET_ID:?}"
+
+      # 1. Download the latest auth CLI. GitHub's /releases/latest/download/ redirect
+      #    always resolves to the newest release, so there's no version to update here.
+      curl -sS -L \
+        "https://github.com/newrelic/newrelic-auth-rs/releases/latest/download/newrelic-auth-cli_amd64.tar.gz" \
+        -o /tmp/newrelic-auth-cli.tar.gz
+      tar -xzf /tmp/newrelic-auth-cli.tar.gz -C /tmp
+      /tmp/newrelic-auth-cli --version >&2
+
+      # 2. Create a fresh, throwaway credential for this install only. NR_AUTH_API_KEY
+      #    is the env var newrelic-auth-cli itself reads, same value as
+      #    NEW_RELIC_API_KEY above, just under the name this specific tool expects.
+      BOOTSTRAP=$(NR_AUTH_API_KEY="$NEW_RELIC_API_KEY" /tmp/newrelic-auth-cli create-bootstrap-identity secret \
+        --name "bootstrap-$(hostname)-$(date +%s)" \
+        --organization-id "$NEW_RELIC_ORGANIZATION" \
+        --environment "$NEW_RELIC_REGION")
+
+      NEW_RELIC_AUTH_CLIENT_ID=$(echo "$BOOTSTRAP" | jq -r '.client_id')
+      NEW_RELIC_AUTH_CLIENT_SECRET=$(echo "$BOOTSTRAP" | jq -r '.identity_type.L1.client_secret')
+
+      # 3. Install the New Relic CLI, then Agent Control. The installer generates
+      #    this host's long-lived identity itself and writes it locally.
+      curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash
+
+      sudo NEW_RELIC_CLI_SKIP_CORE=1 \
+          NEW_RELIC_REGION="${NEW_RELIC_REGION}" \
+          NEW_RELIC_ACCOUNT_ID="${NEW_RELIC_ACCOUNT_ID}" \
+          NEW_RELIC_ORGANIZATION="${NEW_RELIC_ORGANIZATION}" \
+          NEW_RELIC_API_KEY="${NEW_RELIC_API_KEY}" \
+          NEW_RELIC_AUTH_CLIENT_ID="${NEW_RELIC_AUTH_CLIENT_ID}" \
+          NEW_RELIC_AUTH_CLIENT_SECRET="${NEW_RELIC_AUTH_CLIENT_SECRET}" \
+          NR_CLI_FLEET_ID="${NR_CLI_FLEET_ID}" \
+          /usr/local/bin/newrelic install -y -n agent-control
+
+      rm -f /tmp/newrelic-auth-cli.tar.gz /tmp/newrelic-auth-cli
+      ```
+
+      Nada de esto necesita ejecutarse como un usuario privilegiado o una cuenta de servicio con acceso permanente. La clave de API solo toca este script, para esta instalación.
+    </TabsPageItem>
+
+    <TabsPageItem id="ansible">
+      Si realiza la instalación en muchos hosts en una ejecución de playbook, cree la credencial desechable una vez en el controlador de Ansible y, a continuación, pásela a cada tarea de host en esa ejecución a través del rol [`newrelic.newrelic_install`](https://galaxy.ansible.com/ui/standalone/roles/newrelic/newrelic_install/). Cada host termina con una identidad propia, distinta y de larga duración. Solo la credencial desechable que se utiliza para autorizar las instalaciones se comparte entre los hosts en esa ejecución, y se descarta cuando esta finaliza.
+
+      ```yaml
+      # site.yml
+      ---
+      - name: Create a throwaway bootstrap credential for this run
+        hosts: localhost
+        gather_facts: false
+        tasks:
+          - name: Download the latest newrelic-auth-cli
+            ansible.builtin.get_url:
+              # GitHub's /releases/latest/download/ redirect always resolves to the
+              # newest release, so there's no version variable to keep in sync here.
+              url: "https://github.com/newrelic/newrelic-auth-rs/releases/latest/download/newrelic-auth-cli_amd64.tar.gz"
+              dest: /tmp/newrelic-auth-cli.tar.gz
+              mode: "0644"
+
+          - name: Extract newrelic-auth-cli
+            ansible.builtin.unarchive:
+              src: /tmp/newrelic-auth-cli.tar.gz
+              dest: /tmp/
+              remote_src: true
+
+          - name: Record the newrelic-auth-cli version used for this run
+            ansible.builtin.command:
+              cmd: /tmp/newrelic-auth-cli --version
+            register: nr_auth_cli_version
+            changed_when: false
+
+          - name: Show the newrelic-auth-cli version used for this run
+            ansible.builtin.debug:
+              msg: "{{ nr_auth_cli_version.stdout }}"
+
+          - name: Create the bootstrap credential
+            ansible.builtin.command:
+              cmd: >
+                /tmp/newrelic-auth-cli create-bootstrap-identity secret
+                --name "ansible-bootstrap-{{ ansible_date_time.epoch }}"
+                --organization-id {{ newrelic_organization }}
+                --environment {{ newrelic_region }}
+            environment:
+              NR_AUTH_API_KEY: "{{ newrelic_api_key }}"
+            register: bootstrap_output
+            no_log: true
+
+          - name: Save the bootstrap credential for the install play below
+            ansible.builtin.set_fact:
+              nr_bootstrap_client_id: "{{ (bootstrap_output.stdout | from_json).client_id }}"
+              nr_bootstrap_client_secret: "{{ (bootstrap_output.stdout | from_json).identity_type.L1.client_secret }}"
+            no_log: true
+
+      - name: Install Agent Control
+        hosts: all
+        become: true
+        roles:
+          - role: newrelic.newrelic_install
+            vars:
+              targets:
+                - agent-control
+        environment:
+          NEW_RELIC_API_KEY: "{{ newrelic_api_key }}"
+          NEW_RELIC_ACCOUNT_ID: "{{ newrelic_account_id }}"
+          NEW_RELIC_REGION: "{{ newrelic_region }}"
+          NEW_RELIC_ORGANIZATION: "{{ newrelic_organization }}"
+          NEW_RELIC_AUTH_CLIENT_ID: "{{ hostvars['localhost']['nr_bootstrap_client_id'] }}"
+          NEW_RELIC_AUTH_CLIENT_SECRET: "{{ hostvars['localhost']['nr_bootstrap_client_secret'] }}"
+          NR_CLI_FLEET_ID: "{{ newrelic_fleet_id }}"
+      ```
+
+      El rol valida que `NEW_RELIC_API_KEY` y `NEW_RELIC_ACCOUNT_ID` estén configurados en el bloque `environment:` de la ejecución y falla si faltan, pero también pasa cualquier otra variable en ese mismo bloque directamente al comando de instalación, que es lo que le transfiere la credencial de arranque y el ID de su organización. Nada en `newrelic_api_key` ni en la credencial de arranque se escribe en un archivo en ninguna parte de esta ejecución, y `no_log: true` mantiene a ambos fuera de los propios logs de Ansible.
+    </TabsPageItem>
+
+    <TabsPageItem id="chef">
+      El recurso `newrelic_install` del libro de recetas [`chef-install`](https://github.com/newrelic/chef-install) acepta un hash `env` que se pasa directamente al comando de instalación subyacente, que es el mismo mecanismo que utilizan los ejemplos de Linux y Ansible. Cree la credencial de arranque en la receta antes de declarar el recurso y, a continuación, pase la salida a través de `env`:
+
+      ```ruby
+      require 'json'
+
+      # GitHub's /releases/latest/download/ redirect always resolves to the newest
+      # release, so there's no version to keep in sync with this recipe.
+      newrelic_auth_cli_url = 'https://github.com/newrelic/newrelic-auth-rs/releases/latest/download/newrelic-auth-cli_amd64.tar.gz'
+      system("curl -sS -L '#{newrelic_auth_cli_url}' -o /tmp/newrelic-auth-cli.tar.gz && tar -xzf /tmp/newrelic-auth-cli.tar.gz -C /tmp")
+      Chef::Log.info("newrelic-auth-cli version: #{`/tmp/newrelic-auth-cli --version`.strip}")
+
+      bootstrap = JSON.parse(`NR_AUTH_API_KEY=#{node['newrelic']['api_key']} /tmp/newrelic-auth-cli create-bootstrap-identity secret \
+        --name "chef-bootstrap-#{node.name}-#{Time.now.to_i}" \
+        --organization-id #{node['newrelic']['organization']} \
+        --environment #{node['newrelic']['region']}`)
+
+      newrelic_install 'agent-control' do
+        action                 :install
+        new_relic_api_key      node['newrelic']['api_key']
+        new_relic_account_id   node['newrelic']['account_id']
+        new_relic_region       node['newrelic']['region']
+        targets                ['agent-control']
+        env(
+          'NEW_RELIC_ORGANIZATION' => node['newrelic']['organization'],
+          'NEW_RELIC_AUTH_CLIENT_ID' => bootstrap['client_id'],
+          'NEW_RELIC_AUTH_CLIENT_SECRET' => bootstrap.dig('identity_type', 'L1', 'client_secret'),
+          'NR_CLI_FLEET_ID' => node['newrelic']['fleet_id']
+        )
+      end
+      ```
+
+      Esto funciona porque una receta de Chef se evalúa de arriba a abajo como Ruby simple. Para cuando se declara `newrelic_install`, `bootstrap` ya contiene los valores reales, no algo calculado más tarde.
+    </TabsPageItem>
+
+    <TabsPageItem id="puppet">
+      La clase `newrelic_installer::install` del módulo [`puppet-install`](https://github.com/newrelic/puppet-install) también pasa su hash `environment_variables` directamente al comando de instalación, pero Puppet compila los parámetros de recursos de un catálogo antes de aplicar cualquiera de ellos, por lo que un parámetro de clase no puede contener un valor creado por un recurso anterior en la misma ejecución de la manera en que puede hacerlo la receta de Ruby simple de Chef. Para este caso específico, envuelva la misma secuencia de creación e instalación de la pestaña de Linux en un script, inclúyalo como un archivo de módulo y ejecútelo con los valores conocidos pasados como variables de entorno:
+
+      ```puppet
+      # Save the Linux tab's script as files/agent-control-automated-install.sh
+      # in this module, then:
+
+      class profile::agent_control_install (
+        String $newrelic_api_key,
+        String $newrelic_account_id,
+        String $newrelic_organization,
+        String $newrelic_region      = 'US',
+        String $newrelic_fleet_id    = '',
+      ) {
+        file { '/opt/newrelic-agent-control-install.sh':
+          ensure => file,
+          mode   => '0700',
+          source => 'puppet:///modules/profile/agent-control-automated-install.sh',
+        }
+        -> exec { 'run newrelic-agent-control-install':
+          command     => '/opt/newrelic-agent-control-install.sh',
+          path        => ['/usr/bin', '/bin', '/usr/local/bin'],
+          environment => [
+            "NEW_RELIC_API_KEY=${newrelic_api_key}",
+            "NEW_RELIC_ACCOUNT_ID=${newrelic_account_id}",
+            "NEW_RELIC_ORGANIZATION=${newrelic_organization}",
+            "NEW_RELIC_REGION=${newrelic_region}",
+            "NR_CLI_FLEET_ID=${newrelic_fleet_id}",
+            'NEW_RELIC_CLI_SKIP_CORE=1',
+          ],
+          unless      => 'test -f /etc/newrelic-agent-control/keys/agent-control-identity.key',
+          logoutput   => true,
+        }
+      }
+      ```
+
+      Si administra una flota de hosts que necesitan su propia identidad reutilizable en lugar de una nueva por ejecución, el segundo enfoque de esta página (un token pasado a través del mismo hash `environment_variables`) se adapta al modelo de Puppet de manera más directa que una credencial de arranque por ejecución, ya que un token, a diferencia de una credencial recién creada, puede provenir de Hiera como un valor conocido en el momento de la compilación.
+    </TabsPageItem>
+
+    <TabsPageItem id="windows">
+      El mismo formato que en Linux, utilizando la compilación de Windows de `newrelic-auth-cli` y `install.ps1` en lugar de `install.sh`.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Configurar una identidad reutilizable para instalaciones a escala o desde Terraform [#reusable-identity]
+
+Un recurso de Terraform que administra el control del agente en un host o clúster necesita algo estable en los ciclos `plan` y `apply`, no una credencial desechable nueva en cada ejecución. Lo mismo ocurre con cualquier canalización que instale muchos hosts a lo largo del tiempo en lugar de un host una vez. Para ello, configure una identidad “principal” reutilizable una sola vez y utilícela para autorizar todas las instalaciones posteriores, sin mover nunca la clave privada a ningún lado.
+
+<Callout variant="important">
+  Esta sección explica cómo llamar a `newrelic-auth-cli` directamente. Si está configurando esto con Terraform específicamente, consulte también [Configuración de Agent Control con Terraform](/docs/infrastructure-as-code/terraform/agent-control).
+</Callout>
+
+### Paso 1: Cree la identidad principal, una vez
+
+Solo repite este paso si necesita una segunda identidad principal, nunca por instalación. `create-bootstrap-identity key` genera un par de claves de forma local, envía solo la mitad pública a New Relic y otorga automáticamente a la nueva identidad permiso para crear otras identidades, por lo que no hay un paso independiente para ello.
+
+```bash
+# GitHub's /releases/latest/download/ redirect always resolves to the newest release,
+# so there's no version to update here.
+curl -sS -L \
+  "https://github.com/newrelic/newrelic-auth-rs/releases/latest/download/newrelic-auth-cli_amd64.tar.gz" \
+  -o /tmp/newrelic-auth-cli.tar.gz
+tar -xzf /tmp/newrelic-auth-cli.tar.gz -C /tmp
+/tmp/newrelic-auth-cli --version >&2
+
+NR_AUTH_API_KEY="$NEW_RELIC_API_KEY" /tmp/newrelic-auth-cli create-bootstrap-identity key \
+  --name "terraform-parent" \
+  --organization-id "$NEW_RELIC_ORGANIZATION" \
+  --environment "$NEW_RELIC_REGION" \
+  --output-platform local-file \
+  --output-local-filepath /path/to/store/parent-private-key.pem
+```
+
+`newrelic-auth-cli` lee la clave de API de `NR_AUTH_API_KEY` aquí, el mismo patrón de variable de entorno que usan los otros comandos en esta página, en lugar de un indicador `--api-key`. Un valor pasado directamente en la línea de comando permanece visible en la salida de `ps` y en el historial del shell mientras se ejecute el proceso, y esta clave no caduca, por lo que vale la pena evitarlo en este paso en particular.
+
+Imprime el `client_id` de la identidad (la clave privada se escribe directamente en la ruta que le indicó, no se imprime). Mueva ese archivo de clave privada a cualquier almacén de secretos que controle la automatización y no deje una copia en la máquina que lo creó.
+
+### Paso 2: Para cada instalación, genere un token de corta duración a partir del principal
+
+La clave privada del principal permanece local. Lo que va al host objetivo es un token de portador que caduca en aproximadamente una hora:
+
+```bash
+TOKEN=$(/tmp/newrelic-auth-cli authenticate \
+  --client-id "$PARENT_CLIENT_ID" \
+  --environment "$NEW_RELIC_REGION" \
+  --private-key-path "$PARENT_PRIVATE_KEY_PATH" \
+  --output-token-format PLAIN)
+```
+
+Pase ese token, no la clave privada, al paso de instalación configurando `NEW_RELIC_AUTH_TOKEN`. Esto funciona de la misma manera independientemente de qué herramienta de la sección [Crear una credencial de corta duración para instalaciones ocasionales](#per-run) anterior en esta guía esté impulsando la instalación, `environment:` de Ansible, `env` de Chef y `environment_variables` de Puppet lo transmiten exactamente igual que transmiten un secreto de cliente:
+
+```bash
+sudo NEW_RELIC_CLI_SKIP_CORE=1 \
+    NEW_RELIC_REGION="${NEW_RELIC_REGION}" \
+    NEW_RELIC_ACCOUNT_ID="${NEW_RELIC_ACCOUNT_ID}" \
+    NEW_RELIC_ORGANIZATION="${NEW_RELIC_ORGANIZATION}" \
+    NEW_RELIC_AUTH_TOKEN="${TOKEN}" \
+    NR_CLI_FLEET_ID="${NR_CLI_FLEET_ID}" \
+    /usr/local/bin/newrelic install -y -n agent-control
+```
+
+En Windows, `install.ps1` toma el mismo valor que `-AuthParentToken`. El paso de instalación usa ese token una vez para crear su propia identidad secundaria localmente en el host objetivo, y es en eso en lo que realmente se ejecuta el control del agente. La identidad principal y su clave privada nunca tocan ese host.
+
+**Cada host sigue obteniendo una identidad propia recién creada. Lo que es reutilizable aquí es solo la identidad principal que autoriza la creación de estas.**
+
+### Almacenar y rotar la identidad principal
+
+La clave privada de la identidad principal no caduca, así que trátela como cualquier otra credencial de larga duración que otorgue acceso a la cuenta. Guárdela en un administrador de secretos (HashiCorp Vault, AWS Secrets Manager o cualquier otro que la organización ya utilice), no en un disco donde una persona o un trabajo cron pueda leerla casualmente.
+
+No hay un comando de rotación in situ para una identidad principal. Rotar una significa repetir el paso 1 para crear una nueva identidad principal, apuntar la automatización hacia ella y, solo entonces, dejar de usar la anterior. Tampoco hay forma de desactivar o eliminar una identidad principal en la plataforma aún, por lo que retirar la anterior significa que la automatización deja de presentar su clave, no que la identidad en sí desaparezca. Si desea una cadencia de rotación, una rotación anual es un valor predeterminado razonable para una credencial como esta.
