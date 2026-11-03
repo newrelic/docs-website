@@ -1,0 +1,161 @@
+---
+title: Upgrade your OCI log forwarding integration
+tags:
+  - Logs
+  - Forward logs
+  - Oracle Cloud integrations
+  - OCI
+  - Upgrade
+metaDescription: Upgrade a running New Relic OCI log forwarding integration to the latest log-forwarder function and template, using Resource Manager, Terraform, or manual setup.
+freshnessValidatedDate: 2026-11-03
+---
+
+If your OCI log forwarding integration is already running, use this guide to move it to the latest version. The integration has two parts that are released independently, and a release can change either or both:
+
+* **Log-forwarder function**: the code that sends logs to New Relic. It's published to Docker Hub as `docker.io/newrelic/oci-log-forwarder` and released as `function-<version>` on the [oci-log-integration releases page](https://github.com/newrelic/oci-log-integration/releases).
+* **Integration template**: the Resource Manager stack or Terraform module around the function. Template releases use plain version numbers on the same releases page. Terraform module versions are the `terraform-provider-newrelic` [release tags](https://github.com/newrelic/terraform-provider-newrelic/releases).
+
+The release notes say whether a release changed the function, the template, or both.
+
+On Resource Manager and Terraform, the function updates itself on every apply. You only need the steps in this guide to take a newer template, or to move off the earlier setup described below.
+
+## Which upgrade path applies to you [#which-path]
+
+Check the settings on your stack or module:
+
+* **Function image**: you're on the current generation. The function image comes from Docker Hub, and the integration keeps a private copy of it in your own tenancy. Follow [Upgrade a current deployment](#upgrade-current).
+* **Docker Image Version**: you're on the earlier generation, where the function was pulled directly from a New Relic-owned registry. Follow [Move an earlier deployment to the current setup](#migrate-earlier) first. That's a one-time change, after which the normal upgrade steps apply.
+
+## Upgrade a current deployment [#upgrade-current]
+
+<CollapserGroup>
+  <Collapser id="current-orm" title="Resource Manager">
+    The function updates itself: every apply checks which image the `latest` tag points to and brings in the newer one if it has changed. Running **Plan** and then **Apply** on your stack is enough.
+
+    Use the following steps when a release changes the template itself.
+
+    1. Download `oci-log-integration.zip` from the release you want on the [releases page](https://github.com/newrelic/oci-log-integration/releases) to your own machine. Resource Manager accepts a local file, not a URL.
+    2. In the OCI Console, go to <DNT>**Developer Services > Resource Manager > Stacks**</DNT>.
+    3. Select the compartment the integration was installed into, then open your logs stack.
+    4. Choose <DNT>**Actions (⋯) > Edit**</DNT>.
+    5. Under <DNT>**Stack configuration**</DNT>, upload the zip, replacing the existing configuration. Click <DNT>**Next**</DNT>.
+    6. On <DNT>**Configure variables**</DNT>, leave your New Relic account, region, payload, and networking settings as they are. Click <DNT>**Next**</DNT>.
+    7. Review the summary and click <DNT>**Save changes**</DNT>.
+    8. On the stack's page, click <DNT>**Plan**</DNT>, wait for the job to finish, and read the output to confirm the changes are what you expect.
+    9. Click <DNT>**Apply**</DNT> and confirm. Wait for the job to reach **Succeeded**.
+
+    To hold the function on one specific version instead, set <DNT>**Function image**</DNT> on the **Configure variables** step to that version's full reference, for example `docker.io/newrelic/oci-log-forwarder:1.3.0`.
+
+    Only change the payload setting if you've added new log groups or compartments to instrument, because that's what produces a new payload. It doesn't need to change for a function or template upgrade.
+  </Collapser>
+  <Collapser id="current-terraform" title="Terraform">
+    The function updates itself here too: the module re-checks what the `latest` tag points to on every plan, so a plain `terraform apply` brings in a newer function. To take a newer module, move both module blocks to the same release and apply them in order.
+
+    Before upgrading, compare your module blocks against the current reference example, either the [Terraform Registry OCI guide](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide#oci) or the `examples/modules/cloud-integrations/oci` directory in the [terraform-provider-newrelic repository](https://github.com/newrelic/terraform-provider-newrelic/tree/main/examples/modules/cloud-integrations/oci). Adopt any differences: new variables, changed defaults, or a newer `?ref=`.
+
+    ```hcl
+    module "oci_policy_setup" {
+      source = "github.com/newrelic/terraform-provider-newrelic//examples/modules/cloud-integrations/oci/policy-setup?ref=v3.101.6"
+    }
+
+    module "oci_logs_integration" {
+      source = "github.com/newrelic/terraform-provider-newrelic//examples/modules/cloud-integrations/oci/logs-integration?ref=v3.101.6"
+    }
+    ```
+
+    To apply the upgrade:
+
+    1. Set `?ref=` to the same release on both module blocks. `?ref=` is the query parameter at the end of each module's `source` URL in the previous code block. Edit that line directly in your `.tf` file for both the `oci_policy_setup` and `oci_logs_integration` blocks. Use `v3.101.4` or later: that's the first release in which the module copies the function image into your own Container Registry.
+    2. Check your installed New Relic Terraform provider version separately. Run `terraform version`; it lists the resolved provider version (for example, `+ provider registry.terraform.io/newrelic/newrelic v3.99.2`). The current template needs `v3.99.2` or later, and an older provider fails the apply rather than warning you.
+    3. Run the following commands from the policy module's directory first, because it can contain permission changes the logs module depends on.
+    4. Repeat the commands from the logs module's directory.
+
+    ```bash
+    terraform init -upgrade
+    terraform plan
+    terraform apply
+    ```
+  </Collapser>
+  <Collapser id="current-manual" title="Manual setup">
+    Nothing updates the function for you. Choose the version you want, copy that image into your own Container Registry, and point your function at the copy.
+
+    1. Open the [Docker Hub tags page](https://hub.docker.com/r/newrelic/oci-log-forwarder/tags) and note the highest version number listed.
+    2. Pull that version, then tag and push it into your own Container Registry repository under the same version number. Don't tag your copy `latest`: nothing keeps it in sync, and a version number records exactly what you deployed.
+    3. In the OCI Console, go to <DNT>**Developer Services > Functions**</DNT> and select your function application.
+    4. Select your logs function, open the <DNT>**Details**</DNT> tab, and click <DNT>**Edit**</DNT>.
+    5. Change the image to the version you just pushed and click <DNT>**Save Changes**</DNT>.
+  </Collapser>
+</CollapserGroup>
+
+## Move an earlier deployment to the current setup [#migrate-earlier]
+
+The function now runs from a copy of the image held in your own tenancy instead of pulling from a New Relic registry, so this is a one-time migration rather than a version bump.
+
+**What changes.** Your configuration gains a <DNT>**Function image**</DNT> setting carrying the full image reference, plus optional Container Registry username and auth token settings. <DNT>**Docker Image Version**</DNT> is retired and has no effect. On the first apply, the integration creates a private Container Registry repository in your tenancy and copies the function image into it. The repository is named `newrelic-logs/oci-log-forwarder`, or `newrelic-logs-tf/oci-log-forwarder` on Terraform.
+
+**What to check first.** Whatever runs the apply needs outbound access to Docker Hub and to your own tenancy's Container Registry, on top of the OCI endpoints it already reaches. The integration also needs a Container Registry credential to push the image. If you leave the auth token setting empty, it creates one for the user running the apply and reuses that token on later applies.
+
+<Callout variant="important">
+  OCI allows each user two auth tokens. Before you start, check how many the user who will run the apply already has: in the OCI Console, open the Profile menu (top-right corner), then go to <DNT>**User Settings > Tokens and keys**</DNT> and look in the **Auth Tokens** section. If that user already has two, leaving the auth token setting empty fails the apply with an error asking for an existing token. Either delete an unused token first, or fill in the auth token and username settings yourself with an existing token.
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="migrate-orm" title="Resource Manager">
+    1. Download `oci-log-integration.zip` from the latest release on the [releases page](https://github.com/newrelic/oci-log-integration/releases).
+    2. In the OCI Console, go to <DNT>**Developer Services > Resource Manager > Stacks**</DNT> and open your logs stack.
+    3. Choose <DNT>**Actions (⋯) > Edit**</DNT>, upload the zip under <DNT>**Stack configuration**</DNT> to replace the existing configuration, then click <DNT>**Next**</DNT>.
+    4. On <DNT>**Configure variables**</DNT>, leave the new **Function image** setting at its default unless you want to hold a specific version. **Docker Image Version** no longer appears.
+    5. Leave the Container Registry username and auth token settings empty, unless the user running the stack already has two OCI auth tokens.
+    6. Click <DNT>**Next**</DNT>, review the summary, then click <DNT>**Save changes**</DNT>.
+    7. Click <DNT>**Plan**</DNT>. The output should show the new Container Registry repository being created and the function being updated.
+    8. Click <DNT>**Apply**</DNT> and confirm. This first apply takes longer than usual because it copies the function image into your tenancy.
+  </Collapser>
+  <Collapser id="migrate-terraform" title="Terraform">
+    1. Move `?ref=` on both module blocks to `v3.101.4` or later, the first release in which the module copies the function image into your own Container Registry.
+
+       ```hcl
+       module "oci_policy_setup" {
+         source = "github.com/newrelic/terraform-provider-newrelic//examples/modules/cloud-integrations/oci/policy-setup?ref=v3.101.4"
+       }
+
+       module "oci_logs_integration" {
+         source = "github.com/newrelic/terraform-provider-newrelic//examples/modules/cloud-integrations/oci/logs-integration?ref=v3.101.4"
+       }
+       ```
+
+    2. Remove the `image_version` variable from your configuration.
+    3. Add `user_ocid` if it isn't already set. The module uses it to create the Container Registry credential that pushes the image.
+    4. Run `terraform init -upgrade`, `terraform plan`, and `terraform apply` from the policy module's directory, then from the logs module's directory.
+  </Collapser>
+  <Collapser id="migrate-manual" title="Manual setup">
+    The guided setup in New Relic always reflects the current manual steps, so use it as the reference for what your tenancy should look like.
+
+    1. In New Relic, open the OCI integration setup and choose the manual path. Work through the steps and compare each against what you have, to spot anything new that needs adding, including any changes to the IAM policy or dynamic group.
+    2. Pull the version you want from `docker.io/newrelic/oci-log-forwarder`, then tag and push it into your own Container Registry repository under that version number.
+    3. In the OCI Console, go to <DNT>**Developer Services > Functions**</DNT>, select your function application and your logs function, open the <DNT>**Details**</DNT> tab, click <DNT>**Edit**</DNT>, point the image at the version you just pushed, and click <DNT>**Save Changes**</DNT>.
+  </Collapser>
+</CollapserGroup>
+
+## Upgrade the function and the template together [#upgrade-together]
+
+Update the template and function code together in one pass, even if only one of them changed in the release. That keeps your deployment in the combination the release was tested as. Function releases stay compatible with the templates already in use, so the function moving forward first carries no risk.
+
+To find the latest version of each, check the [oci-log-integration releases page](https://github.com/newrelic/oci-log-integration/releases). It lists the current function and template version numbers and what changed in each.
+
+## Verify after upgrading [#verify]
+
+Confirm logs are still arriving within a few minutes of the upgrade:
+
+```sql
+SELECT count(*) FROM Log WHERE instrumentation.provider = 'oci' SINCE 10 minutes ago
+```
+
+If counts drop to zero, check the function's execution logs: in the OCI Console, go to <DNT>**Developer Services > Functions > [function name] > Logs**</DNT>.
+
+A brief slowdown on the first invocation after an upgrade is normal while the new image is pulled, and it isn't a sign that the upgrade failed. To confirm which version you landed on, check the image tag in your Container Registry repository.
+
+## Related articles [#related-articles]
+
+* [Install and configure OCI log forwarding](/docs/logs/forward-logs/oci-log-forwarding): Set up OCI log forwarding for the first time.
+* [Monitor your OCI log forwarder](/docs/logs/forward-logs/oci-log-forwarder-observability): Enable self-observability metrics on the log forwarder function.
+* [Troubleshooting](/docs/infrastructure/oci/troubleshoot): Fixes for not seeing data during setup.
