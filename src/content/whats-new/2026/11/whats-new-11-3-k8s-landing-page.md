@@ -1,7 +1,7 @@
 ---
 title: 'A new landing page for Kubernetes monitoring'
 summary: 'Kubernetes monitoring now opens on a fleet-wide triage view that ranks problems across every cluster.'
-releaseDate: '2026-11-03'
+releaseDate: '2026-11-04'
 learnMoreLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/explore-k8s/'
 ---
 
