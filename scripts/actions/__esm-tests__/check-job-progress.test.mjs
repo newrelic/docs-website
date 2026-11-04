@@ -90,6 +90,20 @@ test('calculates correct sums', () => {
   });
 });
 
+// 665 of the 827 finished machine-translation batches on 2026-11-01 downloaded
+// no files. Without an entry their job was never updated, so it stayed in
+// progress and its batch status was checked again every day.
+test('includes finished jobs that downloaded no files', () => {
+  const slugStatuses = [{ ok: true, slug: 'file1.txt', jobId: '1' }];
+
+  const { jobStatuses } = aggregateStatuses(slugStatuses, ['1', '2']);
+
+  expect(jobStatuses).toStrictEqual({
+    1: { successes: 1, failures: 0 },
+    2: { successes: 0, failures: 0 },
+  });
+});
+
 test('updates translation record to COMPLETED for failed slug', async () => {
   updateTranslations.returns([{ id: 0 }]);
   getTranslationsJobsRecords.returns([{ translation_id: 0 }]);

@@ -180,12 +180,16 @@ const logErroredStatuses = (erroredStatuses) => {
 
 /**
  * @param {SlugStatus[]} slugStatuses
+ * @param {string[]} [jobIds] - jobs whose batch is finished, including ones
+ *   that downloaded no files, so they're updated too
  * @returns {AggregateResults}
  */
-const aggregateStatuses = (slugStatuses) => {
+const aggregateStatuses = (slugStatuses, jobIds = []) => {
   let totalFailures = 0;
   let totalSuccesses = 0;
-  const jobStatuses = {};
+  const jobStatuses = Object.fromEntries(
+    jobIds.map((jobId) => [jobId, { successes: 0, failures: 0 }])
+  );
 
   slugStatuses.forEach(({ ok, jobId }) => {
     if (!(jobId in jobStatuses)) {
@@ -369,7 +373,10 @@ const main = async () => {
 
     await updateTranslationRecords(PROJECT_ID, slugStatuses);
 
-    const results = aggregateStatuses(slugStatuses);
+    const results = aggregateStatuses(
+      slugStatuses,
+      batchesToDeserialize.map(prop('jobId'))
+    );
 
     console.log(
       `Final results --- ${results.totalSuccesses} files completed, ${results.totalFailures} files errored.`
