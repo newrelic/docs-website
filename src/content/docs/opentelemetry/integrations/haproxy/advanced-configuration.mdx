@@ -1,0 +1,137 @@
+---
+title: Advanced configuration for HAProxy monitoring
+metaDescription: "Advanced, optional configuration for self-hosted HAProxy monitoring with NRDOT and the OpenTelemetry Collector Contrib, including optional metrics and reduced data ingest."
+tags:
+  - OpenTelemetry
+  - HAProxy
+  - NRDOT
+  - OTel Collector Contrib
+  - Advanced configuration
+freshnessValidatedDate: never
+---
+
+This page covers optional configuration for HAProxy monitoring beyond the minimum setup: optional metrics, reduced data ingest, and whole-host monitoring. The examples are for HAProxy running on self-hosted Linux hosts.
+
+## Collect optional metrics [#optional-metrics]
+
+To collect additional metrics, add a `metrics` block to the `haproxy` receiver in your collector configuration file. These include average connection, request, and response times, server downtime, and failed health checks. This example enables 10 optional metrics:
+
+```yaml
+receivers:
+  haproxy:
+    endpoint: http://localhost:8404/stats
+    collection_interval: 15s
+    metrics:
+      haproxy.connections.average_time:
+        enabled: true
+      haproxy.requests.average_time:
+        enabled: true
+      haproxy.responses.average_time:
+        enabled: true
+      haproxy.active:
+        enabled: true
+      haproxy.backup:
+        enabled: true
+      haproxy.downtime:
+        enabled: true
+      haproxy.failed_checks:
+        enabled: true
+      haproxy.weight:
+        enabled: true
+      haproxy.sessions.total:
+        enabled: true
+      haproxy.connections.total:
+        enabled: true
+```
+
+## Reduce data ingest [#reduce-ingest]
+
+<Callout variant="tip">
+  The optimized configuration below collects the default metrics every 60 seconds and removes metric descriptions, units, and extra resource attributes. This lowers the volume of data you send to New Relic.
+</Callout>
+
+To reduce data ingest volume, use a 60-second interval and add optimization processors. This configuration replaces the contents of your collector configuration file (`/etc/nrdot-collector/haproxy-config.yaml` for NRDOT, or `/etc/otelcol-contrib/config.yaml` for OpenTelemetry Collector Contrib):
+
+```yaml
+receivers:
+  haproxy:
+    endpoint: http://localhost:8404/stats
+    collection_interval: 60s
+
+processors:
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+
+  transform/metadata_nullify:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(description, "") where description != ""
+          - set(unit, "") where unit != ""
+
+  resource/remove_attributes:
+    attributes:
+      - key: os.description
+        action: delete
+      - key: telemetry.sdk.version
+        action: delete
+      - key: telemetry.sdk.language
+        action: delete
+      - key: telemetry.sdk.name
+        action: delete
+      - key: host.arch
+        action: delete
+
+  batch:
+    send_batch_size: 2048
+    timeout: 30s
+
+exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    metrics:
+      receivers: [haproxy]
+      processors: [resourcedetection, transform/metadata_nullify, resource/remove_attributes, batch]
+      exporters: [otlphttp]
+```
+
+## Monitor the whole host [#whole-host]
+
+The install steps configure the collector to monitor HAProxy only. To also monitor the whole server (CPU usage, memory, disk space, and system logs), start from the NRDOT collector's [default configuration](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/config.yaml) instead and add the HAProxy receiver configuration to it.
+
+## Restart the collector [#restart]
+
+After you change the configuration, restart the collector:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart nrdot-collector   # or otelcol-contrib
+```
+
+## Verify your changes [#verify]
+
+```sql
+FROM Metric SELECT uniques(metricName)
+WHERE metricName LIKE 'haproxy.%'
+SINCE 10 minutes ago
+```
+
+If you enabled the optional metrics, the results include names such as `haproxy.downtime` and `haproxy.failed_checks`.
+
+## Related articles [#related-articles]
+
+For more information about HAProxy monitoring, see:
+
+- [HAProxy metrics reference](/docs/opentelemetry/integrations/haproxy/metrics-reference)
+- [HAProxy troubleshooting](/docs/opentelemetry/integrations/haproxy/troubleshooting)
