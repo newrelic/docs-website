@@ -1,0 +1,433 @@
+---
+title: OCIインテグレーションのアンインストール
+metaDescription: How to remove the resources created by the OCI integration and unlink your account from New Relic.
+tags:
+  - Integrations
+  - Oracle Cloud integrations
+  - Update or uninstall
+freshnessValidatedDate: '2026-10-27T00:00:00.000Z'
+translationType: machine
+---
+
+New Relic による OCI の監視を停止する場合は、このガイドを使用してください。このガイドでは、インテグレーションによって OCI テナンシに作成されたリソースを削除し、その後 New Relic からアカウントの接続を解除する手順を説明します。
+
+New Relicでアカウントのリンクを解除する前に、OCIリソースを削除してください。リンクを解除すると、コンパートメントとスタックのOCIDを保存しているレコードが削除されますが、リソースを見つけるためにはこれらのOCIDが必要です。
+
+インストゥルメントされたデータタイプに応じて、[メトリクスリソースのアンインストール](#metrics)および[ログリソースのアンインストール](#logs)を進めてください。その後、何も残っていないことを確認し、New Relicでアカウントのリンクを解除してください。名前で何かを検索する必要がある場合は、リソース名のリファレンスを使用してください。
+
+## メトリクスリソースのアンインストール [#metrics]
+
+メトリクスリソースの削除方法は、作成した方法によって異なります。設定に合ったオプションを選択してください：
+
+<CollapserGroup>
+<Collapser id="metrics-orm" title="Oracle Resource Manager（ORM）で削除">
+Oracle Resource Managerスタックを使用してインテグレーションをセットアップした場合、Terraformはすべてのリソースを作成し、スタックの状態で追跡します。スタックを破棄すると、正しい依存関係の順序ですべてが削除されます。
+
+1. OCIコンソールで、<DNT>**Developer Services &gt; Resource Manager &gt; Stacks**</DNT>に移動します。
+2. リージョンを選択し、New Relicメトリクススタックを開きます。
+3. <DNT>**Destroy**</DNT>を選択し、ジョブが<DNT>**Succeeded**</DNT>に達するまで待ちます。
+4. <DNT>**Delete stack**</DNT>を選択します。
+5. そのリージョンのロギングスタックについて、ステップ2～4を繰り返します。
+6. インストゥルメントされたすべてのリージョンについて、ステップ1～5を繰り返します。
+7. ホームリージョンに切り替えて、同じ方法でポリシースタックとWIFセットアップスタックを破棄します。
+
+<Callout variant="tip">
+すべてのスタックが正常に破棄された場合、作業は完了です — [「何も残っていないことの確認」](#verify-nothing-is-left)にスキップしてください。スタックが見つからない、ドリフトしている、または破棄ジョブが失敗した場合のみ、手動での削除を使用してください。
+</Callout>
+</Collapser>
+
+<Collapser id="metrics-terraform" title="Terraformで破棄する">
+Resource Manager経由ではなく、ご自身でNew RelicのTerraform設定を適用した場合は、これを使用してください。
+
+元の作業ディレクトリとそのステート — ローカルの`terraform.tfstate`ファイル、または構成したリモートバックエンドへのアクセス — が必要です。Terraformは、ステートに記述されている内容のみを破棄できます。
+
+1. 適用した設定に移動して初期化し、ワークスペースを使用した場合は選択します：
+
+   ```shell
+   cd <path-to-your-newrelic-oci-configuration>
+   terraform init
+   terraform workspace select <workspace>
+   ```
+
+2. ステートが引き続きリソースを記述していることを確認します：
+
+   ```shell
+   terraform state list
+   ```
+
+   何も返されない場合、または想定よりもリソースが極端に少ない場合、状態が失われているか、不完全です。代わりにOCIコンソールで手動で削除してください — 不完全な状態から破棄するとリソースが残り、引き続きコストが発生します。
+
+3. 適用した際と同じ変数値を指定して、各設定を破棄します：
+
+   ```shell
+   terraform destroy -var-file=<your-vars-file>.tfvars
+   ```
+
+   確定する前にプランを確認してください。変数の値が異なると、実行時に誤ったリージョンが指定されたり、リソースの解決に失敗したりして、リソースが孤立する可能性があります。
+
+4. 依存関係の逆順で作業を進めてください。インストゥルメントされた各リージョンについて、まずロギング設定を破棄し、次にメトリクスを破棄してください。すべてのリージョンがクリアされた後にのみ、ホーム・リージョンでポリシー設定を破棄し、次にワークロード・アイデンティティ・フェデレーション設定を破棄してください。
+
+<Callout variant="important">
+個別のリソースを削除するために`terraform destroy -target`を使用しないでください。依存関係グラフをスキップするため、この設定ではVCNゲートウェイとコネクタ・ハブが取り残されてしまいます — これら2つはコストがかかり続ける原因となります。
+</Callout>
+
+<Callout variant="tip">
+すべての破棄が正常に完了した場合は、[何も残っていないことの確認](#verify-nothing-is-left)に進んでください。いずれかの実行が途中でエラーになった場合は、もう一度実行してください — 依存リソースがまだ終了中の場合、OCIが削除を拒否することがあります — その後、残っているものをOCIコンソールで手動で削除してください。
+</Callout>
+</Collapser>
+
+<Collapser id="metrics-manual" title="OCIコンソールで手動で削除してください。">
+以下のいずれかに該当する場合は、次の手順を実行してください：
+
+* Resource ManagerやTerraform経由ではなく、手動でインテグレーションを設定しました。
+* Resource Managerのスタックレコードがすでに存在しないか、その破棄ジョブが失敗しました。
+* Terraformのステートファイルが欠落しているか、不完全であるか、または実際にデプロイされているものから乖離しています。
+* どちらのオプションから破棄を実行しても、リソースが残りました。
+
+手順を順番に進めてください — 後続の手順は前の手順に依存します。
+
+すべてのリソースはNew Relicコンパートメントに存在します。Resource ManagerまたはTerraformによって作成された場合は`newrelic_compartment_ORM_DO_NOT_REMOVE_<id>`という名前になり、手動で作成した場合は`newrelic_compartment_DO_NOT_REMOVE`という名前になります。完全な名前ではなくプレフィックスで照合してください — [リソース名のリファレンス](#resource-name-reference)を参照してください。
+
+<Steps>
+<Step>
+#### Service Connector Hubを削除する [#connector-hubs]
+
+これは、データのフローを停止し、継続的なコストの発生を停止する手順です。最初に実行してください。
+
+1. OCIコンソールで、<DNT>**Analytics &amp; AI &gt; Messaging &gt; Connectors**</DNT>に移動します。
+2. コンパートメントをNew Relicコンパートメントに設定します。
+3. ターゲットがNew Relic関数であるすべてのコネクタを削除してください — メトリクス用に1つ、ログを有効にした場合はロギング用に1つあります。
+4. インストゥルメントされたすべてのリージョンについて繰り返してください。
+</Step>
+
+<Step>
+#### 関数と関数アプリケーションを削除する [#functions]
+
+1. <DNT>**Developer Services &gt; Functions &gt; Applications**</DNT>に移動します。
+2. `newrelic-<prefix>-<region>-metrics-function-app`を開いて関数`newrelic-<prefix>-<region>-metrics-function`を削除し、その後アプリケーションを削除してください。
+3. ログを有効にした場合は、同じ方法でロギング関数とそのアプリケーションを削除してください。
+4. インストゥルメントされたすべてのリージョンに対して繰り返してください。
+</Step>
+
+<Step>
+#### コンテナレジストリのリポジトリを削除します。 [#container-registry]
+
+関数は保持しているイメージから実行されるため、関数の後にリポジトリを削除してください。
+
+1. <DNT>**Developer Services &gt; Containers &amp; Artifacts &gt; Container Registry**</DNT>に移動します。
+2. コンパートメントをNew Relicコンパートメントに設定します。
+3. New Relicメトリクス関数イメージを保持するリポジトリ`newrelic-<prefix>/oci-metrics-forwarder`を削除します。
+4. インストゥルメントされたすべてのリージョンに対して繰り返してください。
+</Step>
+
+<Step>
+#### VCN、サブネット、およびゲートウェイを削除してください [#vcn]
+
+1. <DNT>**Networking &gt; Virtual cloud networks**</DNT>に移動します。
+2. `newrelic-<prefix>-<region>-metrics-vcn`を開きます。
+3. NATゲートウェイ、サービス・ゲートウェイ、および`NRMetricsInternetGateway`という名前のインターネット・ゲートウェイを削除してください。
+4. プライベートサブネット`newrelic-<prefix>-<region>-metrics-vcn-private-subnet`を削除します。
+5. VCNを削除します。
+6. ロギングVCNおよびインストゥルメントされたすべてのリージョンに対して繰り返します。
+</Step>
+
+<Step>
+#### ボールト、キー、およびシークレットを削除します。 [#vault]
+
+1. ホームリージョンの<DNT>**Identity &amp; Security &gt; Vault**</DNT>に移動してください。
+2. `newrelic_vault_ORM_DO_NOT_REMOVE_<id>`を開きます。
+3. 両方のシークレットの削除をスケジュールします：`newrelic_ingest_api_key_ORM_DO_NOT_REMOVE_<id>`および`newrelic_user_api_key_ORM_DO_NOT_REMOVE_<id>`。
+4. キー`newrelic_key_ORM_DO_NOT_REMOVE_<id>`の削除をスケジュールします。
+5. ボールトの削除をスケジュールします。
+
+<Callout variant="important">
+OCIは、ボールト、キー、およびシークレットの削除を即座に行うのではなく、スケジュールします。最小待機期間は7日です。
+</Callout>
+</Step>
+
+<Step>
+#### 動的グループとポリシーを削除する [#iam]
+
+1. <DNT>**Identity &amp; Security &gt; Domains &gt; Dynamic groups**</DNT>に移動します。
+
+2. `newrelic_dynamic_group_ORM_DO_NOT_REMOVE_<id>`を削除します。
+
+3. <DNT>**Identity &amp; Security &gt; Policies**</DNT>に移動し、存在する場合は次の3つを削除します：
+
+   * `newrelic_metrics_policy_ORM_DO_NOT_REMOVE_<id>`
+   * `newrelic_logs_policy_ORM_DO_NOT_REMOVE_<id>`
+   * `newrelic_common_policy_ORM_DO_NOT_REMOVE_<id>`
+</Step>
+
+<Step>
+#### ワークロードIDフェデレーションリソースを削除します [#wif]
+
+これらは、認証を設定したときに作成したものです。これらを削除すると、テナンシに対するNew Relicの認証機能が永久に取り消されます。
+
+1. <DNT>**Identity &amp; Security &gt; Domains**</DNT>に移動し、使用したアイデンティティ・ドメインを開いてください。
+
+2. <DNT>**Integrated applications**</DNT>で、非アクティブ化してから削除します：
+
+   * `newrelic-ida-app-orm`
+   * `newrelic-token-exchange-app-orm`
+
+3. <DNT>**Users**</DNT>の下で、`newrelic-wif-svc-user-orm`を削除します。
+
+4. <DNT>**Groups**</DNT>の下で、`newrelic-svc-user-group-orm`を削除します。
+
+5. <DNT>**Settings &gt; Identity propagation trust**</DNT>の下で、New Relicのトラスト設定を削除します。
+
+6. <DNT>**Identity &amp; Security &gt; Policies**</DNT>に移動して`newrelic-svc-user-policy-orm`を削除します。
+</Step>
+
+<Step>
+#### New Relicコンパートメントを削除します。 [#compartment]
+
+コンパートメントを削除するには空である必要があるため、これを最後に実行してください。
+
+1. <DNT>**Identity &amp; Security &gt; Compartments**</DNT>に移動します。
+2. New Relicコンパートメントを開き、リソースが含まれていないことを確認してください。
+3. <DNT>**Delete**</DNT>を選択します。
+</Step>
+</Steps>
+</Collapser>
+</CollapserGroup>
+
+## ログ・リソースのアンインストール [#logs]
+
+ログリソースの削除方法は、作成方法によって異なります。設定に一致するオプションを選択してください：
+
+<CollapserGroup>
+<Collapser id="logs-orm" title="Oracle Resource Manager（ORM）で削除">
+ガイド付きセットアップウィザードとOCI Resource Managerスタックを使用してオンボーディングした場合：
+
+1. OCIコンソールで、<DNT>**Developer Services &gt; Resource Manager &gt; Stacks**</DNT>に移動します。
+2. ロギング・インテグレーション・スタックをデプロイしたコンパートメント（例：`newrelic-compartment`）を選択してください。コンパートメントを覚えていない場合は、使用されたコンパートメントが記録されている元のデプロイメント・ジョブのログ — <DNT>**Resource Manager &gt; Jobs &gt; (your deployment job) &gt; Logs**</DNT> — を確認してください。
+3. `oci-log-integration`という名前のスタック（またはカスタムスタック名）を選択します。
+4. <DNT>**Terraform Actions**</DNT>を選択し、次に<DNT>**Destroy**</DNT>を選択します。
+5. 破棄ジョブを確認してください。リソースマネージャーは、Service Connector Hubインスタンス（監査コネクタを含む）、OCIフォワーダー関数とそのアプリケーション、スタックが作成したロググループとObject Storageバケット、および関連するIAMポリシーと動的グループを自動的に削除します。
+6. 破棄ジョブが正常に完了したら、<DNT>**Edit Stack**</DNT>、次に<DNT>**Delete Stack**</DNT>を選択して、スタック定義を削除してください。
+
+<Callout variant="tip">
+次に、[残存リソースがないことの確認](#verify-nothing-is-left)、[ログのティアダウンの確認](#logs-verify)、および[New Relicでのアカウントのリンク解除](#unlink)に従ってください。破棄ジョブが失敗した場合、またはスタックが見つからない場合は、[プロビジョニング解除の問題のトラブルシューティング](#logs-troubleshooting)を参照するか、OCIコンソールで手動で削除してください。
+</Callout>
+</Collapser>
+
+<Collapser id="logs-terraform" title="TerraformまたはOpenTofuによる破棄">
+Resource Manager経由ではなく、独自のTerraformまたはOpenTofuモジュールを使用してインテグレーションをデプロイした場合は、これを使用してください。
+
+1. OCI Terraformワークスペースからプラン・チェックを実行し、削除される内容を確認します：
+
+   ```shell
+   terraform plan -destroy
+   ```
+
+2. このインテグレーションのTerraform設定が含まれるフォルダーに移動し、破棄してください：
+
+   ```shell
+   terraform destroy -auto-approve
+   ```
+
+3. OCIがプロビジョニングされたすべてのリソースを破棄したことを確認してください：`oci_service_connector_hub`、`oci_functions_function`、`oci_identity_policy`、および`oci_identity_dynamic_group`。
+
+4. アカウントをリンクするために`newrelic` Terraformプロバイダーを使用した場合は、設定から`newrelic_cloud_oci_integrations`リソースブロックを削除して再適用してください。それ以外の場合は、[New Relicでのアカウントのリンク解除](#unlink)に従ってください。
+
+<Callout variant="tip">
+その後、[「残存リソースがないことの確認」](#verify-nothing-is-left)、[「ログのティアダウンの確認」](#logs-verify)、および[「New Relicでのアカウントのリンク解除」](#unlink)の手順に従ってください。破棄の実行が途中でエラーになったり、リソースが残ってしまったりした場合は、[「プロビジョニング解除の問題のトラブルシューティング」](#logs-troubleshooting)を参照するか、OCIコンソールで手動で削除してください。
+</Callout>
+</Collapser>
+
+<Collapser id="logs-manual" title="OCIコンソールで手動で削除してください。">
+ステップ・バイ・ステップのセットアップ・ガイドに従ってロギング・リソースを手動で作成した場合は、これらの手順を実行してください。依存関係のロックを回避するために、順番に進めてください。
+
+1. **サービスコネクタを削除します。**インテグレーションを手動で作成したときに使用したコンパートメント（たとえば、`newrelic-compartment`）を選択し、<DNT>**Analytics &amp; AI &gt; Messaging &gt; Service Connector Hub**</DNT>に移動して、New Relic関数にストリーミングするすべてのコネクタを削除します — たとえば、`newrelic-logs-*`や`newrelic-logs-*-audit`などです。
+2. **OCI関数とアプリケーションを削除します。**同じコンパートメントを選択した状態で、<DNT>**Developer Services &gt; Functions**</DNT>に移動し、関数`oci-log-forwarder`を削除してから、その親関数アプリケーションを削除します。
+3. **シークレットを削除し、専用の場合はボールトも削除します。**<DNT>**Identity &amp; Security &gt; Vault**</DNT>に移動し、そこに保存されているNew Relic取り込みキーシークレットの削除をスケジュールします。このインテグレーション専用にボールトを作成した場合は、ボールトも削除します。既存のボールトを再利用した場合は、シークレットのみを削除します。
+4. **IAMポリシーと動的グループを削除します。**<DNT>**Identity &amp; Security &gt; Identities &gt; Policies**</DNT>に移動して動的グループのアクセスを許可するインテグレーションポリシー（通常はルートコンパートメントの下に作成されます）を削除し、次に<DNT>**Identity &amp; Security &gt; Dynamic Groups**</DNT>に移動してフォワーダ動的グループを削除します。
+
+<Callout variant="tip">
+次に、[「何も残っていないことの確認」](#verify-nothing-is-left)、[「ログのティアダウンの確認」](#logs-verify)、および[「New Relicでのアカウントのリンク解除」](#unlink)に従います。
+</Callout>
+</Collapser>
+</CollapserGroup>
+
+## 何も残っていないことを確認してください [#verify-nothing-is-left]
+
+リソース・マネージャまたはTerraformによって作成されたリソースには、フリーフォーム・タグが付与されます。OCIコンソールで<DNT>**Governance &amp; Administration &gt; Search**</DNT>に移動し、次の各構造化クエリを実行します：
+
+```sql
+query all resources where (freeformTags.key = 'newrelic-orm-terraform' && freeformTags.value = 'true')
+```
+
+```sql
+query all resources where (freeformTags.key = 'newrelic-terraform' && freeformTags.value = 'true')
+```
+
+2つの異なるタグキーが使用されています：メトリクスとポリシースタックのタグ`newrelic-orm-terraform`、およびロギングスタックのタグ`newrelic-terraform`。インストゥルメントされたすべてのリージョンで、両方を実行します。
+
+<Callout variant="important">
+結果が空であっても、テナンシがクリーンであるとは限りません。これらのクエリでは以下は見つかりません：
+
+* どちらの設定方法でもタグが追加されない、[ワークロードID連携のステップ](#wif)のワークロードID連携リソース。
+* 手動で作成した、Terraformのタグがまったく付いていないものすべて。
+
+[「リソース名リファレンス」](#resource-name-reference)を使用して、代わりに名前でそれらを確認してください。
+</Callout>
+
+## ログの破棄の確認 [#logs-verify]
+
+正常にティアダウンされたことを確認するには、両方のプラットフォームを確認します：
+
+* **インバウンドのログボリュームなし** — New Relicで<DNT>**Logs**</DNT>を開き、`oracle.tenantid = '<YOUR_TENANCY_OCID>'`をクエリしてください。ティアダウンのタイムスタンプ以降に、新しいログイベントが到着しないことを確認してください。
+* **関数呼び出しゼロ** — OCIコンソールの<DNT>**Metrics**</DNT>で、ログフォワーダー関数の`FunctionInvocationCount`が0に低下していることを確認します。
+* **孤立したIAMリソースがないこと** — <DNT>**Identity &amp; Security**</DNT>の下に`newrelic`を参照する動的グループやポリシーが残っていないことを確認してください。
+
+## プロビジョニング解除の問題のトラブルシューティング [#logs-troubleshooting]
+
+ティアダウンが正常に完了しない場合は、発生している現象を以下のいずれかの原因と照らし合わせてください：
+
+<CollapserGroup>
+<Collapser id="logs-ts-409" title="OCIリソース・マネージャが409競合エラーまたはアクティブ・ロック・エラーを返す">
+スタックの破棄が`HTTP 409 Conflict: Resource is being used by another process`で失敗します。これは通常、アクティブなService Connector Hubバッチまたはファンクション実行が、基盤となるコンパートメントまたはサブネット・リソースのロックを保持していることを意味します。<DNT>**Analytics &amp; AI &gt; Messaging &gt; Service Connector Hub**</DNT>でコネクタを選択して<DNT>**Deactivate**</DNT>を選択し、アクティブなファンクション呼出しがドレインされるまで2～3分待ってから、ORMの<DNT>**Destroy**</DNT>アクションを再実行します。
+</Collapser>
+
+<Collapser id="logs-ts-iam" title="IAMポリシーの削除が`AuthorizationFailed`またはスコープ・ロックで失敗する">
+`oci_identity_policy`または`oci_identity_dynamic_group`の削除時にスタックの破棄が失敗します。これは通常、破棄ジョブを実行しているユーザーまたはサービス・プリンシパルにテナンシ・レベルのポリシー管理権限がないことを意味します — たとえば、テナンシ・ルートにデプロイされたポリシーには`manage policies in tenancy`が必要です。ティアダウンを実行するユーザーが`Administrators`グループに属しているか、以下のテナンシ・ルート権限を直接持っていることを確認してください：
+
+```
+Allow group <Admin_Group> to manage policies in tenancy
+Allow group <Admin_Group> to manage dynamic-groups in tenancy
+```
+
+それでも解決しない場合は、OCIコンソールの<DNT>**Identity &amp; Security &gt; Identities &gt; Policies**</DNT>でポリシー・ステートメントを手動で削除し、破棄操作を再実行して状態をクリアしてください。
+</Collapser>
+
+<Collapser id="logs-ts-partial" title="スタックを削除しても、New Relicにログボリュームの一部や過去のメトリクスカードが引き続き表示されます">
+これは通常、セカンダリコネクタ — 監査コネクタ、またはORMスタックの外部で作成された手動ログコネクタ — がまだアクティブであることを意味します。アクティブなコネクタを検索するには、テナンシ全体でOCI Searchクエリを実行してください：
+
+```sql
+query serviceconnector resources
+```
+
+ターゲットが<DNT>**Functions**</DNT>で、`oci-log-forwarder`を指しているコネクタをすべて削除します。
+</Collapser>
+
+<Collapser id="logs-ts-vault" title="VaultシークレットがOCIによって即座に削除されず、「Pending Deletion」と表示されます">
+これは想定されるOCIの動作であり、エラーではありません。誤ったキーの破棄を防ぐため、OCI Vaultシークレットは完全に削除される前に最低7日間の保持期間を必須としています — しかし、削除をスケジュールするとすぐにOCIは読み取り用のシークレットのペイロードを無効にするため、ログフォワーダーも保持期間中はそれを使用できません。
+</Collapser>
+</CollapserGroup>
+
+## New Relicでアカウントのリンクを解除します。 [#unlink]
+
+OCIリソースがなくなったら：
+
+1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Infrastructure &gt; Oracle Cloud Infrastructure**</DNT>に移動します。
+2. リンクされたアカウントを選択します。
+3. <DNT>**Unlink this account**</DNT>を選択し、確認します。
+
+これにより、そのアカウントのすべてのOCI監視が無効になり、それに依存していたダッシュボード、アラート、およびタグに影響します。この操作を元に戻すことはできません。
+
+## リソース名のリファレンス [#resource-name-reference]
+
+`<id>` デプロイ時に生成される短いランダムなサフィックスであるため、完全な名前ではなくプレフィックスで照合してください。`<prefix>`のデフォルトは`newrelic`です。
+
+<table>
+<thead>
+<tr>
+<th>
+スタック
+</th>
+
+<th>
+範囲
+</th>
+
+<th>
+タグ・キー
+</th>
+
+<th>
+資力
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+ポリシー
+</td>
+
+<td>
+テナンシ
+</td>
+
+<td>
+`newrelic-orm-terraform`
+</td>
+
+<td>
+コンパートメント、KMSボールト、KMSキー、インジェスト・シークレット、ユーザー・シークレット、動的グループ、およびメトリクス、ログ、共通ポリシー — すべて名前付き `newrelic_*_ORM_DO_NOT_REMOVE_<id>`
+</td>
+</tr>
+
+<tr>
+<td>
+指標
+</td>
+
+<td>
+リージョンごと
+</td>
+
+<td>
+`newrelic-orm-terraform`
+</td>
+
+<td>
+サービス・コネクタ・ハブ、`newrelic-<prefix>-<region>-metrics-function-app`、`newrelic-<prefix>-<region>-metrics-function`、`newrelic-<prefix>-<region>-metrics-vcn`、およびそのNATゲートウェイ、サービス・ゲートウェイ、`NRMetricsInternetGateway`、プライベート・サブネット
+</td>
+</tr>
+
+<tr>
+<td>
+ログ
+</td>
+
+<td>
+リージョンごと
+</td>
+
+<td>
+`newrelic-terraform`
+</td>
+
+<td>
+Service Connector Hub、ロギング関数アプリケーション、ロギング関数、ロググループ、ログ、VCN、およびゲートウェイ
+</td>
+</tr>
+
+<tr>
+<td>
+アイデンティティ・フェデレーション
+</td>
+
+<td>
+テナンシ
+</td>
+
+<td>
+なし
+</td>
+
+<td>
+`newrelic-ida-app-orm`、`newrelic-token-exchange-app-orm`、`newrelic-wif-svc-user-orm`、`newrelic-svc-user-group-orm`、`newrelic-svc-user-policy-orm`、およびアイデンティティ伝播トラスト設定
+</td>
+</tr>
+</tbody>
+</table>
+
+## 関連記事 [#related-articles]
+
+* [OCIインテグレーションの概要](/docs/infrastructure/oci/introduction)：OCIインテグレーションの役割、機能、およびアカウントの接続方法について説明します。
+* [トラブルシューティング](/docs/infrastructure/oci/troubleshoot): セットアップ中にデータが表示されない問題、および信頼設定の競合に対する修正。
