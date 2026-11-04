@@ -1,0 +1,552 @@
+---
+title: "Install & configure NRDOT for MSSQL monitoring with Azure SQL Database"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Linux
+  - Windows
+  - Azure SQL Database
+  - Azure
+metaDescription: Set up Microsoft SQL Server monitoring with the NRDOT Collector on Linux or Windows for Azure SQL Database
+freshnessValidatedDate: 2026-10-26
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+---
+
+Monitor your Azure SQL Database performance with database metrics, query analysis, and system health data using the New Relic Distribution of OpenTelemetry (NRDOT) collector on Linux or Windows.
+
+<Callout variant="important">
+  Azure SQL Database doesn't support gMSA or Windows Domain authentication. Use a SQL Server login, as described on this page.
+</Callout>
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+* A New Relic account with a valid [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+* Network connectivity to the [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp) for your region.
+* Azure SQL Database requirements:
+  * An Azure SQL logical server and database.
+  * The server admin login and password (or another account that can create logins and manage server roles in `master`).
+  * Network access from the collector host to the server on port `1433`, through a server firewall rule, a virtual network rule, or a private endpoint. If the server uses a private endpoint, the server name must resolve to the private IP address from the collector host.
+* Collector host requirements:
+  * Linux: a host (for example, an Azure VM) with the `sqlcmd` utility installed.
+  * Windows: a host (for example, an Azure VM) with PowerShell, administrator access, and either `sqlcmd` or SQL Server Management Studio (SSMS).
+
+</Step>
+
+<Step>
+
+## Install NRDOT Collector [#setup]
+
+Install the NRDOT Collector on a host that can reach your Azure SQL server. Select your operating system:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux">Linux</TabsBarItem>
+    <TabsBarItem id="windows">Windows</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux">
+
+For Debian/Ubuntu on AMD64:
+
+```bash
+NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+```
+
+For other distributions and architectures, refer to the [Linux RDS installation step](/docs/opentelemetry/db360/mssql/linux-rds#setup) and the [nrdot-collector-releases](https://github.com/newrelic/nrdot-collector-releases/releases) page.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="windows">
+
+Run PowerShell as Administrator:
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'
+$NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name
+$WebClient = New-Object System.Net.WebClient
+$WebClient.Headers.Add("User-Agent", "Mozilla/5.0")
+$WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi")
+Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait
+Get-Service nrdot-collector -ErrorAction SilentlyContinue
+```
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+</Step>
+
+<Step>
+
+## Create monitoring user and grant permissions [#user]
+
+Azure SQL Database doesn't allow `GRANT VIEW SERVER STATE` and similar instance-level grants. Instead, you add the login to built-in server roles in `master`, then create a user in each database you want to monitor.
+
+1. Create a file named `nr-grant-permission-master.sql` and replace `<YOUR_PASSWORD>` with your desired password:
+
+    ```sql
+    CREATE LOGIN [newrelic] WITH PASSWORD = '<YOUR_PASSWORD>';
+    GO
+    ALTER SERVER ROLE [##MS_ServerStateReader##] ADD MEMBER [newrelic];
+    ALTER SERVER ROLE [##MS_DefinitionReader##] ADD MEMBER [newrelic];
+    ALTER SERVER ROLE [##MS_DatabaseConnector##] ADD MEMBER [newrelic];
+    GO
+    ```
+
+2. Run it against the `master` database as the server admin. Replace `<YOUR-SERVER>` with your server name (for example, `myserver.database.windows.net`):
+
+    ```bash
+    sqlcmd -S <YOUR-SERVER> -d master -U <YOUR_ADMIN_USER> -P '<YOUR_ADMIN_PASSWORD>' -C -i nr-grant-permission-master.sql
+    ```
+
+3. Create a file named `nr-grant-permission-db.sql`:
+
+    ```sql
+    CREATE USER [newrelic] FOR LOGIN [newrelic];
+    GO
+    GRANT VIEW DATABASE STATE TO [newrelic];
+    GO
+    ```
+
+4. Run it against **each** database you want to monitor. Replace `<YOUR_DATABASE>` with the database name:
+
+    ```bash
+    sqlcmd -S <YOUR-SERVER> -d <YOUR_DATABASE> -U <YOUR_ADMIN_USER> -P '<YOUR_ADMIN_PASSWORD>' -C -i nr-grant-permission-db.sql
+    ```
+
+   The following table shows why each role is needed:
+
+   | Role or permission | Used for |
+   | --- | --- |
+   | `##MS_ServerStateReader##` | Server-level dynamic management views, such as `sys.dm_exec_query_stats` and `sys.dm_exec_procedure_stats` |
+   | `##MS_DefinitionReader##` | Resolving object and schema names for top procedures and index statistics |
+   | `##MS_DatabaseConnector##` | Connecting to databases to collect index physical statistics |
+   | `VIEW DATABASE STATE` | Database-scoped dynamic management views, such as `sys.dm_db_resource_stats` |
+
+5. (Optional) Verify the server roles from the `master` database:
+
+    ```bash
+    sqlcmd -S <YOUR-SERVER> -d master -U <YOUR_ADMIN_USER> -P '<YOUR_ADMIN_PASSWORD>' -C -Q "SELECT r.name AS [Role], l.name AS [Login] FROM sys.server_role_members rm JOIN sys.server_principals r ON rm.role_principal_id = r.principal_id JOIN sys.sql_logins l ON rm.member_principal_id = l.principal_id WHERE l.name = 'newrelic';"
+    ```
+
+    The output lists all three roles.
+
+6. (Optional) Verify the database permissions by connecting as the monitoring user:
+
+    ```bash
+    sqlcmd -S <YOUR-SERVER> -d <YOUR_DATABASE> -U newrelic -P '<YOUR_PASSWORD>' -C -Q "SELECT TOP 1 * FROM sys.dm_db_resource_stats; SELECT TOP 1 * FROM sys.dm_exec_query_stats;"
+    ```
+
+    A permission error means a grant is missing.
+
+<Callout variant="tip">
+  To securely manage sensitive information, such as database credentials, store them in [secret management](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management) tools.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Configure NRDOT Collector [#configure-collector]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux">Linux</TabsBarItem>
+    <TabsBarItem id="windows">Windows</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux">
+
+1. Create the configuration file:
+
+   ```bash
+   sudo nano /etc/nrdot-collector/mssql-config.yaml
+   ```
+
+    </TabsPageItem>
+
+    <TabsPageItem id="windows">
+
+1. Create the configuration file in PowerShell as Administrator:
+
+   ```powershell
+   New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+   ```
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+2. Add the following configuration. Replace `<YOUR_PASSWORD>`, `<YOUR-SERVER>`, `<YOUR_DATABASE>`, `<YOUR_LICENSE_KEY>`, and the OTLP endpoint with your values:
+
+    ```yaml
+    receivers:
+      nrsqlserver:
+        collection_interval: 15s
+        # datasource replaces username, password, server, and port.
+        datasource: "sqlserver://newrelic:<YOUR_PASSWORD>@<YOUR-SERVER>:1433?database=<YOUR_DATABASE>"
+
+        metrics:
+          sqlserver.database.io:
+            enabled: true
+          sqlserver.database.latency:
+            enabled: true
+          sqlserver.database.operations:
+            enabled: true
+          sqlserver.database.tempdb.space:
+            enabled: true
+          sqlserver.database.tempdb.version_store.size:
+            enabled: true
+          sqlserver.deadlock.rate:
+            enabled: true
+          sqlserver.os.wait.duration:
+            enabled: true
+          sqlserver.processes.blocked:
+            enabled: true
+          sqlserver.memory.grants.pending.count:
+            enabled: true
+          sqlserver.database.file.size:
+            enabled: true
+          sqlserver.memory.area:
+            enabled: true
+
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+          db.server.top_procedure:
+            enabled: true
+
+        top_query_collection:
+          lookback_time: 60s
+          max_query_sample_count: 1000
+          top_query_count: 250
+          collection_interval: 60s
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        query_sample_collection:
+          max_rows_per_query: 100
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        top_procedure_collection:
+          max_procedure_sample_count: 1000
+          top_procedure_count: 250
+          collection_interval: 60s
+
+        resource_attributes:
+          db.system.version:
+            enabled: true
+          sqlserver.db.edition:
+            enabled: true
+
+    processors:
+      memory_limiter:
+        check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+    exporters:
+      otlp:
+        endpoint: https://otlp.nr-data.net:4318
+        headers:
+          api-key: <YOUR_LICENSE_KEY>
+        tls:
+          insecure: false
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter]
+          exporters: [otlp]
+        logs:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter]
+          exporters: [otlp]
+    ```
+
+<Callout variant="tip">
+  * The `datasource` value is a connection URL. If your password contains characters other than letters, digits, and `- . _ ~ ! $ * + ,`, URL-encode them.
+  * The collector connects to the single database named in `database=`. To monitor several databases on the same server, use a separate receiver for each, as described in [Monitor multiple databases on the same server](#multiple-databases).
+  * Always-On, failover-cluster, and some latch and tempdb metrics aren't available on Azure SQL Database and return no data.
+  * The `logs` pipeline carries SQL Server query telemetry (query text, execution plans, and samples), not collector debug logs.
+</Callout>
+
+### Monitor multiple databases on the same server [#multiple-databases]
+
+Azure SQL Database doesn't support cross-database queries, so each receiver connects to one database. To monitor several databases on the same server, define one receiver per database. The first receiver carries the full configuration and acts as the anchor; the others inherit it through the YAML merge key (`<<`) and override only `datasource`.
+
+1. Create the monitoring user in every database you want to monitor, as described in [Create monitoring user and grant permissions](#user). The `newrelic` login in `master` is shared, so you create it only once.
+
+2. Add the following configuration. Replace `<YOUR_PASSWORD>`, `<YOUR-SERVER>`, `<YOUR_DATABASE_1>`, `<YOUR_DATABASE_2>`, `<YOUR_LICENSE_KEY>`, and the OTLP endpoint with your values:
+
+    ```yaml
+    receivers:
+      # First database: defines the anchor that the others inherit from.
+      nrsqlserver/db1: &nrsqlserver-common
+        collection_interval: 15s
+        # datasource replaces username, password, server, and port.
+        datasource: "sqlserver://newrelic:<YOUR_PASSWORD>@<YOUR-SERVER>:1433?database=<YOUR_DATABASE_1>"
+
+        metrics:
+          sqlserver.database.io:
+            enabled: true
+          sqlserver.database.latency:
+            enabled: true
+          sqlserver.database.operations:
+            enabled: true
+          sqlserver.database.tempdb.space:
+            enabled: true
+          sqlserver.database.tempdb.version_store.size:
+            enabled: true
+          sqlserver.deadlock.rate:
+            enabled: true
+          sqlserver.os.wait.duration:
+            enabled: true
+          sqlserver.processes.blocked:
+            enabled: true
+          sqlserver.memory.grants.pending.count:
+            enabled: true
+          sqlserver.database.file.size:
+            enabled: true
+          sqlserver.memory.area:
+            enabled: true
+
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+          db.server.top_procedure:
+            enabled: true
+
+        top_query_collection:
+          lookback_time: 60s
+          max_query_sample_count: 1000
+          top_query_count: 250
+          collection_interval: 60s
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        query_sample_collection:
+          max_rows_per_query: 100
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+
+        top_procedure_collection:
+          max_procedure_sample_count: 1000
+          top_procedure_count: 250
+          collection_interval: 60s
+
+        resource_attributes:
+          db.system.version:
+            enabled: true
+          sqlserver.db.edition:
+            enabled: true
+
+      # Second database: inherits every setting above and overrides only the database.
+      # Add more databases the same way (nrsqlserver/db3, ...).
+      nrsqlserver/db2:
+        <<: *nrsqlserver-common
+        datasource: "sqlserver://newrelic:<YOUR_PASSWORD>@<YOUR-SERVER>:1433?database=<YOUR_DATABASE_2>"
+
+    processors:
+      memory_limiter:
+        check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+        limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+        spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+    exporters:
+      otlp:
+        endpoint: https://otlp.nr-data.net:4318
+        headers:
+          api-key: <YOUR_LICENSE_KEY>
+        tls:
+          insecure: false
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver/db1, nrsqlserver/db2]
+          processors: [memory_limiter]
+          exporters: [otlp]
+        logs:
+          receivers: [nrsqlserver/db1, nrsqlserver/db2]
+          processors: [memory_limiter]
+          exporters: [otlp]
+    ```
+
+<Callout variant="important">
+  Add every new receiver, such as `nrsqlserver/db3`, to the `receivers` list in both the `metrics` and `logs` pipelines. A receiver that's defined but not listed in a pipeline doesn't collect any data.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Update NRDOT Collector configuration [#update]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux">Linux</TabsBarItem>
+    <TabsBarItem id="windows">Windows</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux">
+
+1. Edit the service configuration file:
+
+    ```bash
+    sudo nano /etc/nrdot-collector/nrdot-collector.conf
+    ```
+
+2. Point the configuration path to your new file:
+
+    ```bash
+    OTELCOL_CONFIG="/etc/nrdot-collector/mssql-config.yaml"
+    ```
+
+3. (Optional) Validate the configuration:
+
+    ```bash
+    sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mssql-config.yaml
+    ```
+
+    </TabsPageItem>
+
+    <TabsPageItem id="windows">
+
+1. Point the Windows service to your new configuration file. Run in PowerShell as Administrator:
+
+    ```powershell
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+    ```
+
+2. (Optional) Validate the configuration:
+
+    ```powershell
+    & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+    ```
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+</Step>
+
+<Step>
+
+## Restart NRDOT Collector [#restart]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux">Linux</TabsBarItem>
+    <TabsBarItem id="windows">Windows</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux">
+
+```bash
+sudo systemctl restart nrdot-collector
+```
+
+Check the collector log for permission or connection errors:
+
+```bash
+sudo journalctl -u nrdot-collector -n 50 --no-pager
+```
+
+    </TabsPageItem>
+
+    <TabsPageItem id="windows">
+
+```powershell
+net stop nrdot-collector
+net start nrdot-collector
+```
+
+Check the Windows Application event log for permission or connection errors:
+
+```powershell
+Get-EventLog -LogName Application -Source nrdot-collector -Newest 20
+```
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find]
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MSSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your Azure SQL Database from the list of entities.
+
+</Step>
+
+</Steps>
+
+## Related documentation [#related-docs]
+
+<DocTiles>
+  <DocTile title="Set up APM-database correlation" path="/docs/opentelemetry/db360/capabilities/db-apm">Learn how to correlate your application performance with database operations in New Relic.</DocTile>
+  <DocTile title="Troubleshooting" path="/docs/opentelemetry/db360/mssql/troubleshooting">Learn how to troubleshoot your MSSQL monitoring setup in New Relic.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/db360/mssql/metrics-reference">Learn about the available metrics collected by the NRDOT Collector.</DocTile>
+</DocTiles>
