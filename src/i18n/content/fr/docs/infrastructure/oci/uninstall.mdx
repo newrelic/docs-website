@@ -1,0 +1,433 @@
+---
+title: Désinstaller l’intégration OCI
+metaDescription: How to remove the resources created by the OCI integration and unlink your account from New Relic.
+tags:
+  - Integrations
+  - Oracle Cloud integrations
+  - Update or uninstall
+freshnessValidatedDate: '2026-10-27T00:00:00.000Z'
+translationType: machine
+---
+
+Utilisez ce guide lorsque vous souhaitez arrêter le monitoring d&apos;OCI avec New Relic. Il vous explique comment supprimer les ressources que l&apos;intégration a créées dans votre location OCI, puis déconnecter votre compte de New Relic.
+
+Supprimez vos ressources OCI avant de dissocier le compte dans New Relic. La dissociation supprime l&apos;enregistrement qui stocke les OCID de votre compartiment et de votre stack, et vous en avez besoin pour trouver les ressources.
+
+Suivez les étapes de [Désinstaller les ressources de métriques](#metrics), et de [Désinstaller les ressources de log](#logs) pour les types de données que vous avez instrumentés. Ensuite, vérifiez qu’il ne reste rien, dissociez le compte dans New Relic, et utilisez la référence du nom de la ressource si vous avez besoin de trouver quoi que ce soit par son nom.
+
+## Désinstaller les ressources de métriques [#metrics]
+
+La façon dont vous supprimez les ressources de métriques dépend de la façon dont vous les avez créées. Sélectionnez l’option qui correspond à votre configuration :
+
+<CollapserGroup>
+<Collapser id="metrics-orm" title="Supprimer avec Oracle Resource Manager (ORM)">
+Si vous avez configuré l’intégration via la stack Oracle Resource Manager, Terraform a créé chaque ressource, et en assure le suivi dans l’état de la stack. La destruction des stack supprime tout dans l’ordre de dépendance correct.
+
+1. Dans la console OCI, accédez à <DNT>**Developer Services &gt; Resource Manager &gt; Stacks**</DNT>.
+2. Sélectionnez votre région, puis ouvrez la stack de métriques New Relic.
+3. Sélectionnez <DNT>**Destroy**</DNT> et attendez que la tâche atteigne <DNT>**Succeeded**</DNT>.
+4. Sélectionnez <DNT>**Delete stack**</DNT>.
+5. Répétez les étapes 2 à 4 pour la stack de logging dans cette région.
+6. Répétez les étapes 1 à 5 pour chaque région que vous avez instrumentée.
+7. Passez à votre région d’origine et détruisez la stack de politiques et la stack de configuration WIF de la même manière.
+
+<Callout variant="tip">
+Si chaque stack a été détruite avec succès, vous avez terminé ; passez à [Vérifier qu&apos;il ne reste rien](#verify-nothing-is-left). N&apos;utilisez la suppression manuelle que si une stack est manquante, a dérivé, ou si sa tâche de destruction a échoué.
+</Callout>
+</Collapser>
+
+<Collapser id="metrics-terraform" title="Détruire avec Terraform">
+Utilisez ceci si vous avez appliqué la configuration Terraform de New Relic vous-même plutôt que via Resource Manager.
+
+Vous avez besoin du répertoire de travail d&apos;origine et de son état (le fichier `terraform.tfstate` local), ou d&apos;un accès au backend distant avec lequel vous l&apos;avez configuré. Terraform ne peut détruire que ce que son état décrit.
+
+1. Accédez à la configuration que vous avez appliquée, initialisez-la, et sélectionnez l&apos;espace de travail si vous en avez utilisé un :
+
+   ```shell
+   cd <path-to-your-newrelic-oci-configuration>
+   terraform init
+   terraform workspace select <workspace>
+   ```
+
+2. Confirmez que l’état décrit toujours vos ressources :
+
+   ```shell
+   terraform state list
+   ```
+
+   Si cela ne renvoie rien, ou beaucoup moins de ressources que prévu, l&apos;état a disparu, ou est incomplet. Supprimez plutôt manuellement dans la console OCI : la destruction à partir d&apos;un état partiel laisse des ressources résiduelles, et vous coûte toujours de l&apos;argent.
+
+3. Détruisez chaque configuration, en fournissant les mêmes valeurs de variables avec lesquelles vous l’avez appliquée :
+
+   ```shell
+   terraform destroy -var-file=<your-vars-file>.tfvars
+   ```
+
+   Passez en revue le plan avant de confirmer. Des valeurs de variables différentes peuvent diriger l’exécution vers la mauvaise région, ou ne pas parvenir à résoudre les ressources, les laissant ainsi orphelines.
+
+4. Travaillez dans l’ordre inverse de dépendance. Pour chaque région que vous avez instrumentée, détruisez d’abord la configuration de logging, puis les métriques. Seulement une fois que chaque région est nettoyée, détruisez la configuration de politique, puis la configuration de fédération d’identités de workload, toutes deux dans votre région d’origine.
+
+<Callout variant="important">
+N’utilisez pas `terraform destroy -target` pour cibler des ressources individuelles. Cela ignore le graphe de dépendance, et sur cette configuration cela isole les gateways VCN et les hubs de connecteur, les deux éléments qui continuent de vous coûter de l’argent.
+</Callout>
+
+<Callout variant="tip">
+Si chaque destruction s&apos;est terminée proprement, passez à [Vérifier qu&apos;il ne reste rien](#verify-nothing-is-left). Si une exécution a échoué en cours de route, relancez-la une fois (OCI rejette parfois une suppression pendant qu&apos;une ressource dépendante est encore en cours d&apos;arrêt), puis supprimez ce qu&apos;il reste manuellement dans la console OCI.
+</Callout>
+</Collapser>
+
+<Collapser id="metrics-manual" title="Supprimez manuellement dans la console OCI">
+Utilisez ces étapes si l&apos;une des conditions suivantes s&apos;applique :
+
+* Vous avez configuré l&apos;intégration manuellement plutôt que via Resource Manager ou Terraform.
+* L’enregistrement de la stack Resource Manager n’existe plus, ou sa tâche de destruction a échoué.
+* Votre fichier d’état Terraform est manquant, incomplet, ou a dérivé de ce qui est réellement déployé.
+* Une exécution de destruction à partir de l’une ou l’autre des options a laissé des ressources.
+
+Suivez les étapes dans l&apos;ordre : les étapes suivantes dépendent des précédentes.
+
+Toutes les ressources se trouvent dans le compartiment New Relic. Il est nommé `newrelic_compartment_ORM_DO_NOT_REMOVE_<id>` lorsque Resource Manager ou Terraform l’a créé, et `newrelic_compartment_DO_NOT_REMOVE` si vous l’avez créé manuellement. Effectuez la correspondance sur le préfixe plutôt que sur le nom complet : voir [Référence des noms de ressources](#resource-name-reference).
+
+<Steps>
+<Step>
+#### Supprimez les hubs de connecteur de service [#connector-hubs]
+
+C’est l’étape qui arrête le flux de données et met fin au coût récurrent. Faites-le en premier.
+
+1. Dans la console OCI, accédez à <DNT>**Analytics &amp; AI &gt; Messaging &gt; Connectors**</DNT>.
+2. Définissez le compartiment sur le compartiment New Relic.
+3. Supprimez chaque connecteur dont la cible est une fonction New Relic : il y en a un pour les métriques et, si vous avez activé le log, un pour le logging.
+4. Répétez pour chaque région que vous avez instrumentée.
+</Step>
+
+<Step>
+#### Supprimez les fonctions et les applications de fonction [#functions]
+
+1. Allez à <DNT>**Developer Services &gt; Functions &gt; Applications**</DNT>.
+2. Ouvrez `newrelic-<prefix>-<region>-metrics-function-app`, et supprimez la fonction `newrelic-<prefix>-<region>-metrics-function`, puis supprimez l’application.
+3. Si vous avez activé les log, supprimez la fonction de logging, et son application de la même manière.
+4. Répétez pour chaque région instrumentée.
+</Step>
+
+<Step>
+#### Supprimer le référentiel du registre de conteneurs [#container-registry]
+
+Supprimez le référentiel après la fonction, car la fonction s&apos;exécute à partir de l&apos;image qu&apos;il contient.
+
+1. Allez à <DNT>**Developer Services &gt; Containers &amp; Artifacts &gt; Container Registry**</DNT>.
+2. Définissez le compartiment sur le compartiment New Relic.
+3. Supprimez le référentiel qui contient l’image de la fonction de métriques New Relic, `newrelic-<prefix>/oci-metrics-forwarder`.
+4. Répétez pour chaque région instrumentée.
+</Step>
+
+<Step>
+#### Supprimez le VCN, le sous-réseau, et les gateways [#vcn]
+
+1. Allez à <DNT>**Networking &gt; Virtual cloud networks**</DNT>.
+2. Ouvrez `newrelic-<prefix>-<region>-metrics-vcn`.
+3. Supprimez le gateway NAT, le gateway de service, et le gateway internet nommé `NRMetricsInternetGateway`.
+4. Supprimez le sous-réseau privé `newrelic-<prefix>-<region>-metrics-vcn-private-subnet`.
+5. Supprimez le VCN.
+6. Répétez pour le VCN de logging, et pour chaque région instrumentée.
+</Step>
+
+<Step>
+#### Supprimer le coffre, la clé, et les secrets [#vault]
+
+1. Accédez à <DNT>**Identity &amp; Security &gt; Vault**</DNT> dans votre région d’origine.
+2. Ouvrez `newrelic_vault_ORM_DO_NOT_REMOVE_<id>`.
+3. Planifiez la suppression pour les deux secrets : `newrelic_ingest_api_key_ORM_DO_NOT_REMOVE_<id>`, et `newrelic_user_api_key_ORM_DO_NOT_REMOVE_<id>`.
+4. Planifiez la suppression de la clé `newrelic_key_ORM_DO_NOT_REMOVE_<id>`.
+5. Planifiez la suppression du coffre-fort.
+
+<Callout variant="important">
+OCI planifie la suppression des coffres, des clés, et des secrets plutôt que de les supprimer immédiatement. La période d&apos;attente minimale est de 7 jours.
+</Callout>
+</Step>
+
+<Step>
+#### Supprimez le groupe dynamique et les politiques [#iam]
+
+1. Allez à <DNT>**Identity &amp; Security &gt; Domains &gt; Dynamic groups**</DNT>.
+
+2. Supprimer `newrelic_dynamic_group_ORM_DO_NOT_REMOVE_<id>`.
+
+3. Accédez à <DNT>**Identity &amp; Security &gt; Policies**</DNT>, et supprimez ces trois éléments, s’ils sont présents :
+
+   * `newrelic_metrics_policy_ORM_DO_NOT_REMOVE_<id>`
+   * `newrelic_logs_policy_ORM_DO_NOT_REMOVE_<id>`
+   * `newrelic_common_policy_ORM_DO_NOT_REMOVE_<id>`
+</Step>
+
+<Step>
+#### Supprimez les ressources de la fédération d&apos;identité de workload [#wif]
+
+Vous les avez créés lorsque vous avez configuré l’authentification. Leur suppression révoque définitivement la capacité de New Relic à s’authentifier sur votre location.
+
+1. Accédez à <DNT>**Identity &amp; Security &gt; Domains**</DNT>, et ouvrez le domaine d&apos;identité que vous avez utilisé.
+
+2. Sous <DNT>**Integrated applications**</DNT>, désactivez, puis supprimez :
+
+   * `newrelic-ida-app-orm`
+   * `newrelic-token-exchange-app-orm`
+
+3. Sous <DNT>**Users**</DNT>, supprimez `newrelic-wif-svc-user-orm`.
+
+4. Sous <DNT>**Groups**</DNT>, supprimez `newrelic-svc-user-group-orm`.
+
+5. Sous <DNT>**Settings &gt; Identity propagation trust**</DNT>, supprimez les configurations d’approbation New Relic.
+
+6. Allez dans <DNT>**Identity &amp; Security &gt; Policies**</DNT> et supprimez `newrelic-svc-user-policy-orm`.
+</Step>
+
+<Step>
+#### Supprimer le compartiment New Relic [#compartment]
+
+Un compartiment doit être vide avant que vous ne puissiez le supprimer, faites-le donc en dernier.
+
+1. Allez à <DNT>**Identity &amp; Security &gt; Compartments**</DNT>.
+2. Ouvrez le compartiment New Relic, et confirmez qu’il ne contient aucune ressource.
+3. Sélectionnez <DNT>**Delete**</DNT>.
+</Step>
+</Steps>
+</Collapser>
+</CollapserGroup>
+
+## Désinstaller les ressources de log [#logs]
+
+La façon dont vous supprimez les ressources de log dépend de la façon dont vous les avez créées. Sélectionnez l’option qui correspond à votre configuration :
+
+<CollapserGroup>
+<Collapser id="logs-orm" title="Supprimer avec Oracle Resource Manager (ORM)">
+Si vous avez effectué l’intégration à l’aide de l’assistant de configuration guidée, et d’une stack OCI Resource Manager :
+
+1. Dans la console OCI, accédez à <DNT>**Developer Services &gt; Resource Manager &gt; Stacks**</DNT>.
+2. Sélectionnez le compartiment dans lequel vous avez déployé la stack d’intégration de logging (par exemple, `newrelic-compartment`). Si vous ne vous souvenez pas du compartiment, consultez le log du job de déploiement initial (<DNT>**Resource Manager &gt; Jobs &gt; (your deployment job) &gt; Logs**</DNT>) qui indique le compartiment utilisé.
+3. Sélectionnez la stack nommée `oci-log-integration` (ou le nom personnalisé de votre stack).
+4. Sélectionnez <DNT>**Terraform Actions**</DNT>, puis sélectionnez <DNT>**Destroy**</DNT>.
+5. Confirmez la tâche de destruction. Resource Manager supprime automatiquement les instances Service Connector Hub (y compris les connecteurs d’audit), la fonction de transfert OCI et son application, les groupes de logs et les buckets Object Storage créés par la stack, ainsi que les stratégies IAM et les groupes dynamiques associés.
+6. Une fois que la tâche de destruction est terminée avec succès, sélectionnez <DNT>**Edit Stack**</DNT>, puis <DNT>**Delete Stack**</DNT>, pour supprimer la définition de la stack.
+
+<Callout variant="tip">
+Ensuite, suivez [Vérifier qu’il ne reste rien](#verify-nothing-is-left), [Vérifier le démantèlement des log](#logs-verify), et [Dissocier le compte dans New Relic](#unlink). Si la tâche de destruction échoue, ou si la stack est manquante, consultez [Dépanner les problèmes de déprovisionnement](#logs-troubleshooting), ou supprimez-la manuellement dans la console OCI.
+</Callout>
+</Collapser>
+
+<Collapser id="logs-terraform" title="Détruire avec Terraform ou OpenTofu">
+Utilisez ceci si vous avez déployé l’intégration avec vos propres modules Terraform, ou OpenTofu plutôt que via Resource Manager.
+
+1. Depuis votre espace de travail OCI Terraform, exécutez une vérification de plan pour examiner ce qu’il va supprimer :
+
+   ```shell
+   terraform plan -destroy
+   ```
+
+2. Accédez au dossier contenant la configuration Terraform pour cette intégration, puis détruisez-la :
+
+   ```shell
+   terraform destroy -auto-approve
+   ```
+
+3. Confirmez qu’OCI a détruit chaque ressource provisionnée : `oci_service_connector_hub`, `oci_functions_function`, `oci_identity_policy`, et `oci_identity_dynamic_group`.
+
+4. Si vous avez utilisé le fournisseur Terraform `newrelic` pour lier le compte, supprimez le bloc de ressources `newrelic_cloud_oci_integrations` de votre configuration, et réappliquez ; sinon, suivez [Dissocier le compte dans New Relic](#unlink).
+
+<Callout variant="tip">
+Ensuite, suivez [Vérifier qu’il ne reste rien](#verify-nothing-is-left), [Vérifier le démantèlement des log](#logs-verify), et [Dissocier le compte dans New Relic](#unlink). Si une exécution de destruction échoue en cours de route, ou laisse des ressources derrière elle, consultez [Résoudre les problèmes de déprovisionnement](#logs-troubleshooting), ou supprimez-les manuellement dans la console OCI.
+</Callout>
+</Collapser>
+
+<Collapser id="logs-manual" title="Supprimez manuellement dans la console OCI">
+Utilisez ces étapes si vous avez créé les ressources de logging manuellement, en suivant le guide de configuration étape par étape. Traitez-les dans l’ordre pour éviter les verrous de dépendance.
+
+1. **Supprimez les connecteurs de service.** Sélectionnez le compartiment que vous avez utilisé lorsque vous avez créé manuellement l’intégration (par exemple, `newrelic-compartment`), accédez à <DNT>**Analytics &amp; AI &gt; Messaging &gt; Service Connector Hub**</DNT> et supprimez chaque connecteur qui transmet des données à la fonction New Relic, par exemple, `newrelic-logs-*` et `newrelic-logs-*-audit`.
+2. **Supprimez la fonction et l’application OCI.** Avec le même compartiment sélectionné, accédez à <DNT>**Developer Services &gt; Functions**</DNT>, supprimez la fonction `oci-log-forwarder`, puis supprimez son application de fonction parente.
+3. **Supprimez le secret, et le coffre s’il est dédié.** Accédez à <DNT>**Identity &amp; Security &gt; Vault**</DNT>, et programmez la suppression du secret de la clé d’ingestion New Relic qui y est stocké. Si vous avez créé un coffre spécifiquement pour cette intégration, supprimez également le coffre ; si vous avez réutilisé un coffre existant, supprimez uniquement le secret.
+4. **Supprimez les politiques IAM, et le groupe dynamique.** Accédez à <DNT>**Identity &amp; Security &gt; Identities &gt; Policies**</DNT>, et supprimez la politique d’intégration qui accorde l’accès au groupe dynamique (généralement créée sous le compartiment racine), puis accédez à <DNT>**Identity &amp; Security &gt; Dynamic Groups**</DNT>, et supprimez le groupe dynamique du forwarder.
+
+<Callout variant="tip">
+Ensuite, suivez [Vérifier qu’il ne reste rien](#verify-nothing-is-left), [Vérifier le démantèlement des log](#logs-verify), et [Dissocier le compte dans New Relic](#unlink).
+</Callout>
+</Collapser>
+</CollapserGroup>
+
+## Vérifier qu’il ne reste rien [#verify-nothing-is-left]
+
+Les ressources créées par Resource Manager ou Terraform portent un tag à format libre. Dans la console OCI, accédez à <DNT>**Governance &amp; Administration &gt; Search**</DNT> et exécutez chacune de ces requêtes structurées :
+
+```sql
+query all resources where (freeformTags.key = 'newrelic-orm-terraform' && freeformTags.value = 'true')
+```
+
+```sql
+query all resources where (freeformTags.key = 'newrelic-terraform' && freeformTags.value = 'true')
+```
+
+Deux clés de tag différentes sont utilisées : le tag `newrelic-orm-terraform` des stack de métriques et de politiques, et les tag `newrelic-terraform` du stack de logging. Exécutez les deux, dans chaque région que vous avez instrumentée.
+
+<Callout variant="important">
+Un résultat vide ne signifie pas que votre location est propre. Ces requêtes ne trouveront pas :
+
+* Les ressources de fédération d’identité de workload issues de l’ [étape de fédération d’identité de workload](#wif), qu’aucune méthode de configuration ne dote d’un tag.
+* Tout ce que vous avez créé manuellement, qui ne porte aucun tag Terraform du tout.
+
+Vérifiez-les plutôt par leur nom, en utilisant la [Référence du nom de ressource](#resource-name-reference).
+</Callout>
+
+## Vérifier le démantèlement des log [#logs-verify]
+
+Pour confirmer une suppression propre, vérifiez les deux plateformes :
+
+* **Aucun volume de log entrant** : dans New Relic, ouvrez <DNT>**Logs**</DNT> et exécutez la requête `oracle.tenantid = '<YOUR_TENANCY_OCID>'`. Confirmez qu’aucun nouvel événement de log n’arrive après votre horodatage de suppression.
+* **Zéro invocation de fonction** : dans la console OCI, sous <DNT>**Metrics**</DNT>, confirmez que `FunctionInvocationCount` pour la fonction de redirecteur de logs tombe à 0.
+* **Aucune ressource IAM orpheline** — confirmez qu’aucun groupe dynamique, ou aucune politique faisant référence à `newrelic` ne reste sous <DNT>**Identity &amp; Security**</DNT>.
+
+## Dépanner les problèmes de déprovisionnement [#logs-troubleshooting]
+
+Si la suppression ne s’effectue pas correctement, faites correspondre ce que vous observez à l’une de ces causes :
+
+<CollapserGroup>
+<Collapser id="logs-ts-409" title="OCI Resource Manager renvoie une erreur de conflit 409 ou de verrouillage actif">
+La destruction de la stack échoue avec `HTTP 409 Conflict: Resource is being used by another process`. Cela signifie généralement qu’une exécution de fonction ou de lot Service Connecteur Hub active maintient un verrou sur les ressources de compartiment ou de sous-réseau sous-jacentes. Dans <DNT>**Analytics &amp; AI &gt; Messaging &gt; Service Connector Hub**</DNT>, sélectionnez le connecteur et sélectionnez <DNT>**Deactivate**</DNT>, attendez 2 - 3 minutes que les appels de fonction actifs se terminent, puis réexécutez l’action ORM <DNT>**Destroy**</DNT>.
+</Collapser>
+
+<Collapser id="logs-ts-iam" title="La suppression de la politique IAM échoue avec `AuthorizationFailed`, ou un verrou d'étendue">
+La destruction de la stack échoue lors de la suppression de `oci_identity_policy` ou de `oci_identity_dynamic_group`. Cela signifie généralement que l’utilisateur ou le principal de service exécutant le travail de destruction ne dispose pas des droits de gestion des stratégies au niveau de la location ; par exemple, les stratégies déployées à la racine de la location nécessitent `manage policies in tenancy`. Confirmez que l’utilisateur effectuant le démantèlement appartient au groupe `Administrators`, ou possède directement ces droits à la racine de la location :
+
+```
+Allow group <Admin_Group> to manage policies in tenancy
+Allow group <Admin_Group> to manage dynamic-groups in tenancy
+```
+
+Si cela ne résout pas le problème, supprimez manuellement l’instruction de stratégie dans la console OCI sous <DNT>**Identity &amp; Security &gt; Identities &gt; Policies**</DNT>, puis réexécutez l’opération de destruction pour effacer l’état.
+</Collapser>
+
+<Collapser id="logs-ts-partial" title="Vous supprimez une stack, mais New Relic affiche toujours un volume de log partiel ou des cartes de métriques historiques">
+Cela signifie généralement qu’un connecteur secondaire (un connecteur d’audit, ou un connecteur de log manuel créé en dehors de la stack ORM) est toujours actif. Exécutez une requête OCI Search dans la location pour trouver les connecteurs actifs :
+
+```sql
+query serviceconnector resources
+```
+
+Supprimez tout connecteur dont la cible est <DNT>**Functions**</DNT> pointant vers `oci-log-forwarder`.
+</Collapser>
+
+<Collapser id="logs-ts-vault" title="Un secret de coffre-fort affiche « Pending Deletion » au lieu qu’OCI le supprime immédiatement">
+Il s’agit d’un comportement attendu d’OCI, et non d’une erreur. Les secrets OCI Vault imposent une période de rétention minimale obligatoire de 7 jours avant la suppression définitive, pour éviter la destruction accidentelle des clés, mais OCI désactive la charge du secret en lecture dès que vous planifiez la suppression, de sorte que le redirecteur de logs ne peut pas l’utiliser non plus pendant la fenêtre de rétention.
+</Collapser>
+</CollapserGroup>
+
+## Dissociez le compte dans New Relic [#unlink]
+
+Une fois vos ressources OCI supprimées :
+
+1. Allez à <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Infrastructure &gt; Oracle Cloud Infrastructure**</DNT>.
+2. Sélectionnez votre compte lié.
+3. Sélectionnez <DNT>**Unlink this account**</DNT>, puis confirmez.
+
+Cela désactive tout le monitoring OCI pour ce compte, et affecte tous les dashboards, toutes les alertes, et tous les tags qui en dépendaient. Vous ne pouvez pas annuler cette action.
+
+## Référence de nom de ressource [#resource-name-reference]
+
+`<id>` est un court suffixe aléatoire généré au moment de déployer, donc effectuez une correspondance sur le préfixe, plutôt que sur le nom complet. La valeur par défaut de `<prefix>` est `newrelic`.
+
+<table>
+<thead>
+<tr>
+<th>
+Stack
+</th>
+
+<th>
+Portée
+</th>
+
+<th>
+Clé de tag
+</th>
+
+<th>
+Ressources
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+Politique
+</td>
+
+<td>
+Location
+</td>
+
+<td>
+`newrelic-orm-terraform`
+</td>
+
+<td>
+Compartiment, coffre KMS, clé KMS, secret d’ingestion, secret d’utilisateur, groupe dynamique, et les métriques, les logs, et les politiques communes, tous nommés `newrelic_*_ORM_DO_NOT_REMOVE_<id>`
+</td>
+</tr>
+
+<tr>
+<td>
+Métriques
+</td>
+
+<td>
+Par région
+</td>
+
+<td>
+`newrelic-orm-terraform`
+</td>
+
+<td>
+Hub de connecteur de service, `newrelic-<prefix>-<region>-metrics-function-app`, `newrelic-<prefix>-<region>-metrics-function`, `newrelic-<prefix>-<region>-metrics-vcn`, plus son gateway NAT, son gateway de service, `NRMetricsInternetGateway`, et son sous-réseau privé
+</td>
+</tr>
+
+<tr>
+<td>
+Logs
+</td>
+
+<td>
+Par région
+</td>
+
+<td>
+`newrelic-terraform`
+</td>
+
+<td>
+Hub de connecteur de service, application de fonction de logging, fonction de logging, groupe de log, log, VCN, et gateways
+</td>
+</tr>
+
+<tr>
+<td>
+Fédération d&apos;identité
+</td>
+
+<td>
+Location
+</td>
+
+<td>
+aucun
+</td>
+
+<td>
+`newrelic-ida-app-orm`, `newrelic-token-exchange-app-orm`, `newrelic-wif-svc-user-orm`, `newrelic-svc-user-group-orm`, `newrelic-svc-user-policy-orm`, et les configuration d’approbation de propagation d’identité
+</td>
+</tr>
+</tbody>
+</table>
+
+## Articles connexes [#related-articles]
+
+* [Introduction à l’intégration OCI](/docs/infrastructure/oci/introduction): ce que fait l’intégration OCI, ses capacités, et comment connecter votre compte.
+* [Dépannage](/docs/infrastructure/oci/troubleshoot): solutions en cas d’absence de données et de conflits de configuration de confiance lors de l’installation.
