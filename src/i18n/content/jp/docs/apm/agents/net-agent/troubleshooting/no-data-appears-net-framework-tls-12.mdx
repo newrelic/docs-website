@@ -1,0 +1,160 @@
+---
+title: データが表示されない：TLS 1.2を使用していない.NET フレームワークアプリケーション
+type: troubleshooting
+tags:
+  - Agents
+  - NET agent
+  - Troubleshooting
+metaDescription: 'Troubleshooting for the New Relic .NET agent: No data appears because a .NET Framework application is not configured to use TLS 1.2.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## 問題
+
+.NET Frameworkアプリケーション用の.NETエージェントをインストールしましたが、New Relicにデータが表示されません。エージェントのログには、次のようなエラーが含まれています：
+
+* ```
+  NewRelic ERROR: Unable to connect to the New Relic service at collector.newrelic.com:443 : System.Net.WebException: 
+  The request was aborted: Could not create SSL/TLS secure channel.
+  ```
+* ```
+  NewRelic ERROR: Unable to connect to the New Relic service at collector.newrelic.com:443 : System.Net.WebException: 
+  The underlying connection was closed: An unexpected error occurred on a send. ---> System.IO.IOException: 
+  Received an unexpected EOF or 0 bytes from the transport stream.
+  ```
+* ```
+  NewRelic ERROR: Unable to connect to the New Relic service at collector.newrelic.com:443 : System.Net.WebException: 
+  The underlying connection was closed: An unexpected error occurred on a receive. ---> System.ComponentModel.Win32Exception: 
+  The client and server cannot communicate, because they do not possess a common algorithm.
+  ```
+
+## 解決
+
+New RelicにはTLS 1.2以降が必要です。.NETエージェントは、アプリケーションが使用するように構成されているTLSプロトコルを使用するため、アプリケーションでTLS 1.2を使用するようにすることが解決策となります。
+
+### アプリケーションが使用するプロトコルを確認する
+
+.NETエージェントのバージョン10.6.0以降、エージェントがNew Relicに接続する際、アプリケーションが使用するように構成されているプロトコルが`INFO`レベルでログに記録されます。例を以下に示します。
+
+```
+Current TLS Configuration (System.Net.ServicePointManager.SecurityProtocol): Ssl3, Tls
+```
+
+* `SystemDefault`、または`Tls12`を含むリストは、アプリケーションがTLS 1.2用に構成されていることを意味します。接続が引き続き失敗する場合は、[WindowsでTLS 1.2が有効になっていること](#schannel)を確認してください。
+* `Ssl3, Tls`のように、`Tls12`が含まれていないリストは、アプリケーションがTLS 1.2用に構成されていないことを意味します。以下のいずれかの修正方法を使用してください。
+
+### 問題を修正する
+
+状況に合った修正方法を選択してください：
+
+<CollapserGroup>
+<Collapser id="target-framework" title=".NET Framework 4.7以上をターゲットにしてください（推奨）。">
+.NET フレームワークは、ホストサーバーにインストールされている最新バージョンではなく、アプリケーションがターゲットとするフレームワークのバージョンに基づいて、デフォルトのTLSプロトコルを選択します。以前のバージョンをターゲットとするアプリケーションは、.NET フレームワーク 4.8がインストールされているサーバー上であっても、それらのレガシーなデフォルトを保持します。
+
+| ターゲットフレームワーク | デフォルトのTLSプロトコル      |
+| ------------ | ------------------- |
+| 4.7以降        | TLS 1.2を含む、OSのデフォルト |
+| 4.6～4.6.2    | TLS 1.0、1.1、および1.2  |
+| 4.5.2以前      | SSL 3.0およびTLS 1.0のみ |
+
+ASP.NETアプリケーションの場合、ターゲットフレームワークは、コンパイルされたプロジェクトのプロパティではなく、`web.config`の`httpRuntime`要素によって決定されます。`httpRuntime`に`targetFramework`属性がない場合、またはアプリケーションに`web.config`ファイルが含まれていない場合、ASP.NETは.NETフレームワーク4.0のターゲット動作を使用してアプリケーションを実行します。この状態は、レガシープロジェクトテンプレートからアップグレードされたアプリケーションで頻繁に発生します。この問題を解決するには、`targetFramework`を4.7以降に設定します。
+
+```xml
+<configuration>
+  <system.web>
+    <httpRuntime targetFramework="4.8" />
+  </system.web>
+</configuration>
+```
+
+<Callout variant="caution">
+`targetFramework`を設定すると、.NET フレームワーク 4.5以降に導入されたASP.NETの動作の更新も有効になります。この設定の変更をデプロイする前に、アプリケーションの機能を十分にテストしてください。
+</Callout>
+
+コンソールアプリケーションやWindowsサービスなどの他のアプリケーションの場合は、.NET Framework 4.7以降をターゲットにするようにアプリケーションを再ビルドしてください。
+</Collapser>
+
+<Collapser id="strongcrypto" title="Windowsレジストリで、すべての.NETフレームワークアプリケーションに対してTLS 1.2を有効にする">
+アプリケーションを変更できない場合は、この修正方法を使用してください。これらのレジストリエントリは、ターゲットのフレームワークのバージョンに関係なく、サーバー上のすべての.NET FrameworkアプリケーションでTLS 1.2の使用を強制します：
+
+* `SystemDefaultTlsVersions` .NETフレームワークがOSのデフォルトのTLSプロトコルを使用するようにします。
+* `SchUseStrongCrypto` TLS 1.1および1.2を有効にし、弱い暗号を無効にします。
+
+両方のレジストリキーで両方の値を設定します。`WOW6432Node`キーは、32ビットのIISアプリケーションプールなどの32ビットアプリケーションに適用されます。
+
+<Callout variant="caution">
+これらはマシン全体の設定であり、サーバー上のすべての.NET フレームワークアプリケーションに影響を与えます。弱い暗号のみをサポートするレガシーサーバーに接続するアプリケーションは、接続を失う可能性があります。これらの手順に注意深く従ってください。誤ったレジストリの変更は、動作上の問題を引き起こす可能性があります。変更を行う前に、レジストリのバックアップを作成してください。
+</Callout>
+
+1. 以下の内容をコピーしてファイルに貼り付けてください。
+
+   ```ini
+   Windows Registry Editor Version 5.00
+
+   [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\.NETFramework\v4.0.30319]
+   "SystemDefaultTlsVersions"=dword:00000001
+   "SchUseStrongCrypto"=dword:00000001
+
+   [HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v4.0.30319]
+   "SystemDefaultTlsVersions"=dword:00000001
+   "SchUseStrongCrypto"=dword:00000001
+   ```
+
+2. `.reg`拡張子を付けてファイルを保存します。
+
+3. スクリプトを実行します。
+
+4. アプリケーションを再起動します。IISの場合は、`iisreset`を実行します。.NET Frameworkは、アプリケーションの起動時にのみこれらの値を読み取ります。
+</Collapser>
+
+<Collapser id="schannel" title="WindowsでTLS 1.2を有効にする（Windows Server 2008 R2のみ）">
+Windows Server 2012以降では、TLS 1.2がデフォルトで有効になっています。Windows Server 2008 R2の場合、またはセキュリティポリシーによってTLS 1.2が無効になっている場合は、New Relicエンドポイントへのアウトバウンド接続を確保するために、<DNT>**Client**</DNT>ロールのプロトコルを有効にしてください。
+
+このレジストリキーパス内の既存の設定を確認してください。`"Enabled"`が`0`に設定されている場合、または`"DisabledByDefault"`が`1`に設定されている場合、TLS 1.2は無効になります：
+
+```
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client
+```
+
+<Callout variant="caution">
+以下の手順に注意して従ってください。レジストリの変更を誤ると、運用上の問題が発生する可能性があります。変更を加える前に、レジストリのバックアップを作成してください。
+</Callout>
+
+1. 以下の内容をコピーしてファイルに貼り付けてください。
+
+   ```ini
+   Windows Registry Editor Version 5.00
+
+   [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2]
+
+   [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client]
+   "DisabledByDefault"=dword:00000000
+   "Enabled"=dword:00000001
+   ```
+
+2. `.reg`拡張子を付けてファイルを保存します。
+
+3. スクリプトを実行します。
+
+4. サーバーを再起動します。
+</Collapser>
+
+<Collapser id="app-code" title="アプリケーションコードにTLSバージョンをハードコードしないでください">
+アプリケーションで`System.Net.ServicePointManager.SecurityProtocol`を設定した場合、その値はアプリケーションとエージェントの両方に対して、上記のすべての修正を上書きします。コード内で検索してください。
+
+Microsoftは、このプロパティをまったく設定せず、OSに選択させることを推奨しています。アプリケーションが.NET Framework 4.7以降をターゲットにしている場合は、明示的な行を削除してください。コードの更新でプロトコルを明示的に含める必要がある場合は、既存の値を上書きするのではなくTLS 1.2を追加し、アプリケーションの起動時にできるだけ早く割り当てを実行してください：
+
+```cs
+System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12;
+```
+</Collapser>
+</CollapserGroup>
+
+## 原因
+
+.NETエージェントはアプリケーションのプロセス内で実行され、アプリケーションが使用するのと同じ.NETネットワーキングクラスを使用してNew Relicに接続します。アプリケーションと同じTLSプロトコルを使用するため、エージェント単独で異なるTLSバージョンを構成することはできません。
+
+古い.NET FrameworkのデフォルトにはTLS 1.2が含まれていないため、古いフレームワークのバージョンをターゲットとするアプリケーション、または`httpRuntime targetFramework`のないASP.NETアプリケーションは、New Relicに接続できません。.NET（旧.NET Core）で構築されたアプリケーションは、OSのTLS設定を使用するため、影響を受けません。
+
+.NET フレームワーク・アプリケーションのTLSの設定について詳しくは、[.NET フレームワークを使用したMicrosoftのTransport Layer Security（TLS）のベストプラクティス](https://learn.microsoft.com/en-us/dotnet/framework/network-programming/tls)をご覧ください。
