@@ -3,11 +3,13 @@
 import AdmZip from 'adm-zip';
 import vfile from 'vfile';
 import toVfile from 'to-vfile';
+import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
 import fetch from 'node-fetch';
 
 import deserializedHtml from './deserialize-html.mjs';
+import { configuration } from './configuration.js';
 import createDirectories from './utils/create-directories.js';
 import { getAccessToken } from './utils/vendor-request.mjs';
 import { LOCALE_IDS } from './utils/constants.js';
@@ -19,6 +21,17 @@ import {
 const { writeSync } = toVfile;
 // the MDX compiler the site builds with
 const { sync: compileMDX } = createRequire(import.meta.url)('@mdx-js/mdx');
+const { frontmatter } = createRequire(import.meta.url)('../utils/frontmatter');
+
+// locales the English page sends for human translation (`translate:`)
+const humanLocales = (englishPath) => {
+  try {
+    const { attributes } = frontmatter(fs.readFileSync(englishPath, 'utf8'));
+    return Array.isArray(attributes.translate) ? attributes.translate : [];
+  } catch {
+    return [];
+  }
+};
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 const defaultTrackingMetadata = {
@@ -191,6 +204,19 @@ const deserializeHtmlToMdx = (locale) => {
     const localeKey = Object.keys(LOCALE_IDS).find(
       (key) => LOCALE_IDS[key] === locale
     );
+
+    // a page can switch a locale to human translation after a machine job for
+    // it was sent, or while that job is stuck. Its file must not replace the
+    // human translation.
+    if (
+      configuration.TRANSLATION.TYPE === 'machine' &&
+      humanLocales(completePath).includes(localeKey)
+    ) {
+      console.log(
+        `Skipped ${contentPath} (${locale}): the page is human-translated for this locale`
+      );
+      return { ok: true, skipped: true, slug: completePath, locale };
+    }
 
     try {
       const localePath = path.join(
