@@ -1,0 +1,311 @@
+---
+title: CLIを使用したMySQL監視用NRDOTのインストールと設定
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - CLI
+metaDescription: Install and configure the NRDOT Collector for MySQL monitoring using the New Relic CLI
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+New Relic CLIを使用して、MySQL監視用のNRDOT Collectorをインストールおよび設定できます。CLIは単一のコマンドで、コレクターをインストールし、監視ユーザーを作成し、コレクターを設定します。
+
+<Callout variant="tip" title="ガイド付きインストレーション">
+代わりにNew Relic UIからインストールするには、<DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; MySQL (Database 360)](https://onenr.io/0oQDYBNG1wy)** </DNT>に移動してください。このページでは、手動インストレーションについてのみ説明します。
+</Callout>
+
+<Steps>
+<Step>
+## 前提条件 [#prerequisites]
+
+* 有効な[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)を持つNew Relicアカウント。
+* New Relic [アカウントID](/docs/accounts/accounts-billing/account-structure/account-id)。
+* MySQL 5.7以降。
+* `curl`と`systemd`がインストールされ、`mysql`クライアントが利用可能な、Debian/UbuntuまたはRHEL/CentOSを実行しているLinuxコレクターホスト。
+* セルフホスト型MySQLの場合：MySQLサーバーへの管理者アクセス権（`root`アカウントまたは同等のもの）。
+* AWS RDS/Aurora MySQLの場合：コレクターホストからRDSエンドポイントへのネットワーク接続（RDSセキュリティグループのMySQLポートへのインバウンドアクセス）、およびRDSマスターのユーザー名とパスワード。
+* ご利用のリージョンの[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのネットワーク接続。
+
+詳細な要件については、[「互換性と前提条件」](/docs/opentelemetry/db360/mysql/compatibility)を参照してください。
+</Step>
+
+<Step>
+## NRDOT Collectorのインストールと設定 [#cli-install]
+
+<CollapserGroup>
+<Collapser id="cli-host" title="セルフホスト型MySQL">
+このレシピは、1つのコレクターから1つ以上のMySQLインスタンスをモニターします。単一のホスト/ポート/認証情報のセットの入力を求める代わりに、事前に作成した2つのファイルを読み込みます：モニターするすべてのインスタンスをリストしたインスタンスファイル（YAML）と、それぞれのアドミンログインとパスワードが含まれ、一致するようにインデックス付けされたシークレットファイル（`KEY=VALUE`）です。
+
+1. インスタンスファイルを作成します。このコレクターでモニターするMySQLインスタンスごとに1つのエントリを追加してください；単一のインスタンスのみを実行している場合は、1つのエントリのみを追加してください：
+
+   ```bash
+   cat > ~/mysql-instances.yml << 'EOF'
+   instances:
+     - host: localhost
+       port: 3306
+       login_name: newrelic
+   EOF
+   ```
+
+2. インスタンスファイルの順序と一致するようにインデックスを付けた、各インスタンスのアドミンログイン（任意のフルアドミンユーザーを使用できます；`root`である必要はありません）とパスワードを含むシークレットファイルを作成します：
+
+   ```bash
+   umask 077
+   cat > ~/mysql-secrets.env << 'EOF'
+   NR_CLI_MYSQL_ADMIN_USER_1=root
+   NR_CLI_MYSQL_ADMIN_PASSWORD_1=YourRootPassword1
+   EOF
+   chmod 600 ~/mysql-secrets.env
+   ```
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-mysql
+```
+
+<Callout variant="important">
+このインストーラはパスワードを使用してTCP経由でMySQLに接続するため、シークレットファイルの管理者アカウントはパスワードベースの認証を使用する必要があります。一部のDebian/Ubuntuインストールでは、`root`@`localhost`はデフォルトで`auth_socket`プラグイン（パスワードなし、ローカルソケットのみ）になりますが、これはここでは機能しません。まず、これをrootとしてローカルで実行して切り替えてください：
+
+```bash
+mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '<password>';"
+```
+
+`Access denied`で失敗した場合、`mysql-server`パッケージは、`/etc/mysql/debian.cnf`に既知の管理者資格情報を持つ`debian-sys-maint`アカウントも作成します。代わりにそれを使用してください：
+
+```bash
+mysql --defaults-file=/etc/mysql/debian.cnf -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '<password>';"
+```
+</Callout>
+
+CLIは、以下の変数について対話的にプロンプトを表示します。非対話的に実行するために、事前に環境変数として設定することもできます。
+
+<table>
+<thead>
+<tr>
+<th>
+変数
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MYSQL_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MYSQL_INSTANCES_FILE`
+</td>
+
+<td>
+必須。インスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MYSQL_SECRETS_FILE`
+</td>
+
+<td>
+必須。シークレットファイルへのパス（`KEY=VALUE`、インスタンスごとに1つの管理者ログイン/パスワードのペア）。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+このコレクターから複数のMySQLインスタンスをモニターするには、インスタンスファイルにエントリーを追加し、シークレットファイルに一致する番号付きの認証情報（`_2`、`_3`、...）を追加します。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由がログに記録されてスキップされます。インストールが完全に失敗するのは、どのインスタンスもパスしなかった場合のみです。
+</Callout>
+</Collapser>
+
+<Collapser id="cli-rds" title="AWS RDS/Aurora MySQL">
+このレシピは、セルフホスト型と同じインスタンスファイル/シークレットファイルのパターンを使用して、単一のコレクターから1つ以上のRDS MySQLまたはAuroraエンドポイントをモニターします。
+
+1. RDSエンドポイントを`host`として使用して、インスタンスファイルを作成します。単一のRDSインスタンスのみを監視する場合は、エントリは1つだけです：
+
+   ```bash
+   cat > ~/mysql-instances.yml << 'EOF'
+   instances:
+     - host: mydb1.abcdefg12345.us-east-1.rds.amazonaws.com
+       port: 3306
+       login_name: newrelic
+   EOF
+   ```
+
+2. 各インスタンスのRDSマスターユーザー名とパスワードを含むシークレットファイルを作成し、インスタンスファイルの順序と一致するようにインデックスを付けます：
+
+   ```bash
+   umask 077
+   cat > ~/mysql-secrets.env << 'EOF'
+   NR_CLI_MYSQL_ADMIN_USER_1=admin
+   NR_CLI_MYSQL_ADMIN_PASSWORD_1=YourMasterPassword1
+   EOF
+   chmod 600 ~/mysql-secrets.env
+   ```
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-mysql-rds
+```
+
+CLIは、以下の変数について対話的にプロンプトを表示します。非対話的に実行するために、事前に環境変数として設定することもできます。
+
+<table>
+<thead>
+<tr>
+<th>
+変数
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MYSQL_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MYSQL_INSTANCES_FILE`
+</td>
+
+<td>
+必須。RDSエンドポイントを`host`として使用する、インスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MYSQL_SECRETS_FILE`
+</td>
+
+<td>
+必須。シークレットファイルへのパス（`KEY=VALUE`、インスタンスごとに1つのRDSマスターユーザー名/パスワードのペア）。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+このコレクターから複数のRDS MySQLまたはAuroraエンドポイントをモニターするには、インスタンスファイルにさらにエントリを追加し、secretsファイルに対応する番号付きの認証情報を追加してください。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由をログに記録してスキップされます。
+</Callout>
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+## データを探す、使う [#find]
+
+データの収集が開始されると、New Relic UIから包括的なMySQLデータベース監視にアクセスできます。
+
+New RelicでMySQLデータベースエンティティを見つけるには：
+
+1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>に移動します。
+2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**MySQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+3. エンティティのリストからMySQLデータベースを選択します。
+
+データが到着していることを確認するには、[クエリビルダー](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)で次のクエリを実行します：
+
+```sql
+SELECT count(*) FROM Metric
+WHERE metricName LIKE 'mysql.%'
+AND instrumentation.provider = 'opentelemetry'
+SINCE 10 minutes ago
+```
+</Step>
+</Steps>
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+<DocTile title="NRDOTを使用したMySQLモニタリングの概要" path="/docs/opentelemetry/db360/mysql/introduction">
+New Relicを使用したMySQL監視で利用可能なすべてのインストレーション方法についてご確認ください。
+</DocTile>
+
+<DocTile title="Ansibleのインストール" path="/docs/opentelemetry/db360/mysql/ansible">
+newrelic.newrelic\_installを使用して、MySQL監視を大規模にインストールおよび設定する方法をご確認ください。Ansibleロール。
+</DocTile>
+
+<DocTile title="Chefのインストール" path="/docs/opentelemetry/db360/mysql/chef">
+newrelic-install Chefクックブックを使用して、MySQL監視を大規模にインストールおよび設定する方法について説明します。
+</DocTile>
+
+<DocTile title="Helmチャートのインストール" path="/docs/opentelemetry/db360/mysql/helm">
+mysql-otel Helmチャートを使用して、KubernetesでMySQL監視をインストールおよび構成する方法について説明します。
+</DocTile>
+
+<DocTile title="Dockerのインストール" path="/docs/opentelemetry/db360/mysql/docker">
+Dockerですでに実行されているMySQLインスタンスのシブリングコンテナとして、NRDOT Collectorを実行する方法について説明します。
+</DocTile>
+</DocTiles>
