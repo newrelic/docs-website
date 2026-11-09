@@ -1,5 +1,5 @@
 ---
-title: 'Change Tracking for GitHub Copilot is now in Preview'
+title: 'Change Tracking for GitHub Copilot'
 summary: 'Link deployments to pull requests and trigger automated GitHub Copilot fix workflows when regressions occur.'
 releaseDate: '2026-11-09'
 learnMoreLink: 'https://docs.newrelic.com/docs/agentic-ai/autopilot/change-tracking-for-github-copilot/'
