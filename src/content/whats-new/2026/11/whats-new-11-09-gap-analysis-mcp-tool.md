@@ -22,26 +22,28 @@ Each monitored area reports one of four states:
 
 | State | Meaning |
 |---|---|
-| Not Implemented | No implementation or instrumentation found in the repository. |
+| Not Implemented | No instrumentation found in the repository. |
 | Implemented & Working | Found and correctly configured to report to New Relic. |
 | Implemented & Broken | Found instrumentation, but no matching entity name detected in New Relic, suggesting a configuration or linkage mismatch. |
-| Dismissed | Previously dismissed with a `dismissed` label on the corresponding GitHub Issue; suppressed from repeat alerting. |
+| Dismissed | Previously dismissed with a `dismissed` label on the corresponding GitHub Issue and suppressed from repeat alerting. |
 
 ## Get started
 
+Follow these steps to enable gap analysis in your repository:
+
 1. Install the New Relic GitHub App from the GitHub Marketplace and opt in to gap analysis during setup.
 2. Link your APM entities to the repository by specifying `NEW_RELIC_METADATA_REPOSITORY_URL` or adding `repository.url` in your New Relic config to establish a `BUILT_FROM` relationship.
-3. Ensure your MCP client has access to the New Relic MCP server. This tool requires OAuth authentication and is not available with an API key.
+3. Ensure your MCP client has access to the New Relic MCP server. This tool requires OAuth authentication and isn't available with an API key.
 
 ## Limitations
 
 Keep the following constraints in mind when using this tool:
 
-- Supports single-service repositories only; not monorepos with multiple services.
-- When using Autopilot, supports GitHub.com repositories only.
+- Supports single-service repositories only, not monorepos with multiple services.
+- Supports GitHub.com repositories only when using Autopilot.
 - Detects APM instrumentation for Python only.
-- Checks for the Change Tracking GitHub Action only; other deployment marker methods appear as not detected.
+- Checks for the Change Tracking GitHub Action only and does not detect other deployment marker methods.
 - Does not analyze Terraform, Helm, Kubernetes manifests, or mobile SDKs.
-- Results vary by AI model and harness.
+- Varies by AI model and harness.
 
 [Learn more](https://docs.newrelic.com/docs/agentic-ai/mcp/tool-reference/#gap-analysis)
