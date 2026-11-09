@@ -1,0 +1,82 @@
+---
+title: Monitorez votre redirecteur de logs OCI
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Enable log monitoring in New Relic
+  - OCI
+  - Oracle Cloud Infrastructure
+  - Observability
+metaDescription: Enable self-observability metrics on your OCI log forwarder function and import a dashboard to monitor its health.
+freshnessValidatedDate: '2026-10-27T00:00:00.000Z'
+translationType: machine
+---
+
+Lorsque vous [intégrez votre compte OCI](/docs/infrastructure/oci/introduction/#ui-install) pour envoyer des logs à New Relic, OCI est votre source de données, et New Relic est la destination. Entre les deux, une fonction New Relic (le redirecteur de logs) récupère les logs d’OCI, et les transmet à New Relic. Si cette fonction rencontre un problème, par exemple un secret qu’elle ne peut pas lire, un lot qu’elle ne peut pas décoder, ou une livraison qu’elle ne peut pas terminer, vos logs OCI cessent de circuler, mais rien dans OCI, ni dans New Relic, ne vous indique pourquoi.
+
+Pour détecter ce type de défaillance avant qu&apos;elle ne vous coûte des données de log, le redirecteur de logs peut émettre des métriques sur son propre état de santé. Ce document couvre :
+
+1. [Activez les métriques d’auto-observabilité](#enable-metrics) sur la fonction du redirecteur de logs, afin qu’elle commence à remonter des signaux tels que le nombre d’invocations, les erreurs de remise, et la latence du pipeline, le genre de détail qui vous indique où une défaillance s’est produite dans le pipeline.
+2. [Importez un dashboard préconçu](#observability-dashboard) qui transforme ces signaux en graphiques, afin que vous puissiez repérer une anomalie d’un coup d’œil au lieu de fouiller dans les données de métriques brutes.
+
+## Prérequis [#prerequisites]
+
+Avant de commencer, assurez-vous d&apos;avoir :
+
+* La fonction de redirecteur de logs OCI que vous avez déjà déployée avec Resource Manager, Terraform, ou une [configuration manuelle](/docs/infrastructure/oci/introduction/#ui-install)
+* Votre ID de compte New Relic, à utiliser lorsque vous importez le dashboard
+
+## Activer les métriques d’auto-observabilité [#enable-metrics]
+
+Dans les [variables de configuration](/docs/infrastructure/oci/introduction/#ui-install) de la fonction de log, au même endroit où vous définissez `VAULT_REGION`, `SECRET_OCID`, et les autres variables de logging, ajoutez :
+
+* **`FORWARDER_METRICS_TIER`**: contrôle quelles métriques d&apos;auto-observabilité le redirecteur émet. Consultez les [niveaux de métriques](#metric-tiers) pour savoir ce que chaque paramètre collecte.
+
+Si vous configurez l&apos;intégration avec Resource Manager ou Terraform, `FORWARDER_METRICS_TIER` est la seule variable que vous devez ajouter : `TENANCY_NAME` et `COMPARTMENT_NAME` sont résolues automatiquement.
+
+Si vous configurez l’intégration manuellement, ajoutez également :
+
+* **`TENANCY_NAME`**: identifie votre location OCI par son nom d’affichage, en ajoutant un tag aux métriques du forwarder, afin que vous puissiez différencier les locations si vous en monitorez plus d’une.
+* **`COMPARTMENT_NAME`**: identifie, par nom d’affichage, le compartiment où vous avez déployé la fonction de log, permettant le tag des métriques pour les répartitions par compartiment. Si vous avez déployé dans le compartiment racine de la location, utilisez la même valeur que `TENANCY_NAME`.
+
+<Callout variant="important">
+New Relic facture ces métriques d’auto-observabilité lors de l’ingestion, comme toute autre donnée de métrique.
+</Callout>
+
+### Niveaux de métriques [#metric-tiers]
+
+`FORWARDER_METRICS_TIER` vous permet de trouver un compromis entre la visibilité et le coût. Il accepte l’une des valeurs suivantes :
+
+* **`none`**: désactive entièrement les métriques d&apos;auto-observabilité.
+* **`basic`** (par défaut) : collecte les métriques de santé principales : nombres d’invocations, enregistrements reçus, livrés, et abandonnés, durée de livraison, et retard du pipeline.
+* **`advanced`**: collecte tout ce qui se trouve dans `basic`, ainsi que des métriques d’optimisation plus approfondies : les volumes d’octets, le nombre d’erreurs de décodage et de sérialisation, le comportement de traitement par lots, les catégories d’erreurs de remise, la durée d’exécution de la fonction, les échecs de récupération de secrets, et le taux d’accès au cache client.
+
+## Importer le dashboard d’observabilité [#observability-dashboard]
+
+<Callout variant="important">
+Définissez `FORWARDER_METRICS_TIER` sur `basic`, ou `advanced` avant d’importer le dashboard. Si vous le définissez sur `none`, le dashboard n’aura aucune donnée à afficher.
+</Callout>
+
+Pour importer le dashboard :
+
+1. Ouvrez le fichier [`oci-log-forwarder-metrics-dashboard-template.json`](https://github.com/newrelic/oci-log-integration/blob/develop/docs/oci-log-forwarder-metrics-dashboard-template.json) dans le référentiel GitHub `oci-log-integration`, et copiez son contenu.
+2. Dans le JSON copié, trouvez et remplacez chaque occurrence de `YOUR_ACCOUNT_ID` par votre ID de compte New Relic.
+3. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Dashboards**</DNT>.
+4. Dans le coin supérieur droit, cliquez sur <DNT>**Import dashboard**</DNT>.
+5. Collez le JSON modifié.
+6. Choisissez le compte et les paramètres d’autorisation pour le dashboard, puis cliquez sur <DNT>**Save**</DNT>.
+
+Le dashboard se remplit une fois que la fonction de log a traité au moins une invocation avec les métriques activées.
+
+## Dépannage avec le dashboard [#troubleshoot]
+
+Si les log OCI cessent d’arriver dans New Relic, vérifiez d’abord ce dashboard. Un pic d’échecs de récupération de secrets, ou d’erreurs de distribution, indique un problème dans le pipeline du forwarder, tel que le hub du connecteur de service, les groupes de log, ou la fonction, plutôt que dans OCI, ou New Relic lui-même. Après que vous avez résolu le problème sous-jacent, par exemple une politique, ou une permission de coffre de clés, les log reprennent sans rien redéployer.
+
+Si vous ne voyez aucune donnée de log du tout, et que vous n’avez pas encore confirmé que l’intégration de base fonctionne, commencez plutôt par nos [procédures standard de dépannage de log](/docs/logs/log-management/troubleshooting/no-log-data-appears-ui/).
+
+## Prochaines étapes [#what-next]
+
+Continuez à explorer votre intégration OCI :
+
+* Consultez la [liste complète des métriques que New Relic collecte depuis OCI](/docs/infrastructure/oci/metrics-reference).
+* Consultez le [dépannage général de l’intégration OCI](/docs/infrastructure/oci/troubleshoot) si l’intégration de base elle-même ne fonctionne pas.

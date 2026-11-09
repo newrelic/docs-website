@@ -31,18 +31,7 @@ const serializeAttributeValue = (state, attribute) => {
   if (attribute.type === 'mdxJsxAttributeValueExpression') {
     const root = attributeProcessor.parse(attribute.value);
     const { children } = attributeProcessor.runSync(root);
-    const childrenWithRefactoredMdxTextExpression = children[0].children.map(
-      (child) => {
-        if (child.type === 'mdxTextExpression') {
-          return { ...child, value: `{${child.value}}` };
-        }
-        return child;
-      }
-    );
-    return serializeComponent(state, {
-      ...children[0],
-      children: childrenWithRefactoredMdxTextExpression,
-    });
+    return serializeComponent(state, children[0]);
   }
 
   throw new Error('Unable to handle attribute');

@@ -1,0 +1,623 @@
+---
+title: CLIを使用したMSSQL監視用のNRDOTのインストールおよび構成
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - CLI
+metaDescription: Install and configure the NRDOT Collector for Microsoft SQL Server monitoring using the New Relic CLI
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+New Relic CLIを使用して、SQL Server監視用のNRDOT Collectorをインストールおよび構成できます。CLIは単一のコマンドで、コレクターをインストールし、監視IDを作成または承認し、コレクターを構成します。
+
+<Callout variant="tip" title="ガイド付きインストレーション">
+代わりにNew Relic UIからこれをインストールするには、<DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Microsoft SQL Server (Database 360)](https://onenr.io/00jlEJX6EQW)** </DNT>に移動してください。画面上の指示に従って、インテグレーションをセットアップします。このページでは、手動インストレーションについてのみ説明します。
+</Callout>
+
+<Steps>
+<Step>
+## 前提条件 [#prerequisites]
+
+* 有効な[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)を持つNew Relicアカウント。
+
+* New Relic [アカウントID](/docs/accounts/accounts-billing/account-structure/account-id)。
+
+* Microsoft SQL Server 2017以降。
+
+* **セルフホスト型SQL Server：**
+
+  * **SQL Server認証：**LinuxまたはWindowsのコレクターホスト、および`sysadmin`サーバーロール（または同等のもの）のログインとそのパスワード。
+  * **Windows認証またはgMSA：**Windowsコレクターホスト、アドミニストレーターのPowerShellセッション、および必要な権限を持つWindowsアカウントまたはgMSA。
+
+* **AWS RDS上のSQL Server：**
+
+  * RDSエンドポイントへのネットワーク接続を持つLinuxまたはWindowsコレクターホスト（RDSセキュリティグループ内のSQL Serverポートでインバウンドアクセスが許可されていること）、およびRDSマスターのユーザー名とパスワード。
+  * **Windowsドメイン認証またはgMSA：**AWS Managed Microsoft Active Directoryドメインにすでに参加しているWindowsコレクターホストおよびRDSインスタンス。
+
+* **Linuxコレクターホスト：**`curl`ユーティリティ、`systemd`、および`sqlcmd`ユーティリティがインストールされ、`PATH`で利用可能であること（または`/opt/mssql-tools18/bin`か`/opt/mssql-tools/bin`の配下にあること）。
+
+* **Windowsコレクター・ホスト：**`PATH`にインストールされ、利用可能な`sqlcmd.exe`ユーティリティ。
+
+* ターゲットリージョンに対応する[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのネットワーク接続。
+</Step>
+
+<Step>
+## NRDOT Collectorのインストールと設定 [#cli-install]
+
+<CollapserGroup>
+<Collapser id="cli-host-sql" title="セルフホスト型 - SQL Server認証">
+このレシピは、単一のコレクターから1つ以上のSQL Serverインスタンスをモニターします。単一のホスト/ポート/資格情報セットの入力を求める代わりに、事前に作成した次の2つのファイルを読み込みます：モニターするすべてのインスタンスをリストした**インスタンス・ファイル**（YAML）、およびそれぞれに一致するようにインデックス付けされた、管理者ログインとパスワードを含む**シークレット・ファイル**（`KEY=VALUE`）です。
+
+1. インスタンスファイルを作成します。このコレクターでモニターするSQL Serverインスタンスごとに1つのエントリを追加するか、単一のインスタンスのみを実行している場合は1つのエントリのみを追加します：
+
+   ```bash
+   cat > ~/mssql-instances.yml << 'EOF'
+   instances:
+     - host: localhost
+       port: 1433
+       login_name: newrelic
+   EOF
+   ```
+
+2. 各インスタンスのadminログインとパスワードを含むシークレットファイルを作成し、インスタンスファイルの順序と一致するようにインデックスを付けます。adminログインは、`sysadmin`ロール（または同等のもの）のメンバーである必要があります：
+
+   ```bash
+   umask 077
+   cat > ~/mssql-secrets.env << 'EOF'
+   NR_CLI_MSSQL_ADMIN_USER_1=<YOUR_ADMIN_USERNAME>
+   NR_CLI_MSSQL_ADMIN_PASSWORD_1=<YOUR_ADMIN_PASSWORD>
+   EOF
+   chmod 600 ~/mssql-secrets.env
+   ```
+
+**Linux：**
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-mssql
+```
+
+**Windows**（アドミニストレーターのPowerShellセッションで実行）：
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $WebClient = New-Object System.Net.WebClient; $WebClient.DownloadFile("https://download.newrelic.com/install/newrelic-cli/scripts/install.ps1", "$env:TEMP\install.ps1"); & PowerShell.exe -ExecutionPolicy Bypass -File $env:TEMP\install.ps1; $env:NEW_RELIC_API_KEY='INSERT_YOUR_API_KEY'; $env:NEW_RELIC_ACCOUNT_ID='INSERT_YOUR_ACCOUNT_ID'; $env:NEW_RELIC_REGION='INSERT_YOUR_REGION'; & 'C:\Program Files\New Relic\New Relic CLI\newrelic.exe' install -n nrdot-collector-mssql
+```
+
+CLIは、以下の変数について対話的にプロンプトを表示します。非対話的に実行するために、事前に環境変数として設定することもできます。
+
+<table>
+<thead>
+<tr>
+<th>
+変数
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MSSQL_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_INSTANCES_FILE`
+</td>
+
+<td>
+必須。インスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_SECRETS_FILE`
+</td>
+
+<td>
+必須。シークレットファイルへのパス（`KEY=VALUE`、インスタンスごとに1つの管理者ログイン/パスワードのペア）。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+このコレクターから複数のSQL Serverインスタンスをモニターするには、インスタンス・ファイルにさらにエントリーを追加し、シークレット・ファイルに一致する番号付きの資格情報（`_2`、`_3`、…）を追加します。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由がログに記録されてスキップされます。インスタンスが1つもパスしなかった場合にのみ、インストールは完全に失敗します。
+</Callout>
+</Collapser>
+
+<Collapser id="cli-host-winauth" title="セルフホスト型 — Windows認証またはgMSA">
+このメソッドは、Windowsコレクターホストでのみサポートされています。SQLログインの代わりにWindows認証（`integrated security=true`）を使用し、単一のコレクターから1つ以上のSQL Serverインスタンスをモニターします。コレクターは1つのログオンアカウントを持つ1つのWindowsサービスであり、そのアカウントとして**すべて**のインスタンスに接続します。そのため、マルチインスタンスインストールでは常に1つの認証モードと1つのWindows IDが使用され、リストされたすべてのインスタンスで付与されます。
+
+1. インスタンスファイルを作成します。このコレクターでモニターするSQL Serverインスタンスごとに1つのエントリを追加するか、単一のインスタンスのみを実行している場合は1つのエントリのみを追加します。`host`と`port`のみが必要です（`login_name`やシークレットファイルは不要です）：
+
+   ```yaml
+   instances:
+     - host: sql01.contoso.com
+       port: 1433
+     - host: sql02.contoso.com
+       port: 1433
+   ```
+
+   これをコレクターホストの任意の場所（たとえば`C:\mssql-instances.yml`）に保存してください。名前付きインスタンスの場合は、`host\INSTANCE`ではなく`host`とその静的TCPポートを使用してください。
+
+このコマンドを実行する前に、以下を準備してください：
+
+* ステップ1のインスタンスファイル
+* WindowsアカウントとgMSAアカウントのどちらを使用しているか
+* Windows認証の場合：コレクターがSQL Serverと同じホストで実行されるか、別のホストで実行されるか
+* 権限を付与するWindowsアカウント（またはgMSAアカウント）（コレクターがSQL Serverと同じホストで実行されている場合は不要）
+* BasicメトリクスとAdvancedメトリクスのどちらを希望するか
+
+これをアドミニストレーターのPowerShellセッションで実行してください：
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $WebClient = New-Object System.Net.WebClient; $WebClient.DownloadFile("https://download.newrelic.com/install/newrelic-cli/scripts/install.ps1", "$env:TEMP\install.ps1"); & PowerShell.exe -ExecutionPolicy Bypass -File $env:TEMP\install.ps1; $env:NEW_RELIC_API_KEY='INSERT_YOUR_API_KEY'; $env:NEW_RELIC_ACCOUNT_ID='INSERT_YOUR_ACCOUNT_ID'; $env:NEW_RELIC_REGION='INSERT_YOUR_REGION'; & 'C:\Program Files\New Relic\New Relic CLI\newrelic.exe' install -n nrdot-collector-mssql-winauth
+```
+
+CLIは、以下の変数について対話的にプロンプトを表示します。非対話的に実行するために、事前に環境変数として設定することもできます。
+
+<table>
+<thead>
+<tr>
+<th>
+変数
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MSSQL_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_AUTH_MODE`
+</td>
+
+<td>
+SQL Server認証：
+
+* `1` Windows認証用
+* `2` gMSA用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_WINAUTH_LOCATION`
+</td>
+
+<td>
+Windows認証のみ：
+
+* `1` コレクターがSQL Serverと同じホストで実行される場合（インストールするユーザーのIDが使用され、サービスは`LocalSystem`のままになるため、ドメインアカウントは必要ありません）
+* `2` 別のホストで実行されている場合
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_INSTANCES_FILE`
+</td>
+
+<td>
+必須。インスタンスYAMLファイルへのパス（インスタンスごとに`host`/`port`）。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_WIN_ACCOUNT`
+</td>
+
+<td>
+権限を付与するWindowsアカウント、`DOMAIN\username`。`NR_CLI_MSSQL_AUTH_MODE`が`1`であり、かつ`NR_CLI_MSSQL_WINAUTH_LOCATION`が`2`である場合にのみ必須です；gMSAまたは同一ホストフローの場合は空白のままにしてください。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_WIN_PASSWORD`
+</td>
+
+<td>
+そのWindowsアカウントのパスワードです。`NR_CLI_MSSQL_AUTH_MODE`が`1`で、`NR_CLI_MSSQL_WINAUTH_LOCATION`が`2`の場合にのみ必須です；gMSAまたは同一ホストフローの場合は空白のままにしてください。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_GMSA_ACCOUNT`
+</td>
+
+<td>
+gMSAアカウント、`DOMAIN\gMSAName$`。gMSAのみ；Windows認証の場合は空白のままにします。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+このコレクターから複数のSQL Serverインスタンスをモニターするには、インスタンスファイルにさらにエントリを追加します。ファイル内の**すべて**のインスタンスに対して1つの認証モードと1つのWindows IDが使用されます；インスタンスごとに異なるIDはサポートされていません。無効なホストまたはポート、重複する`host:port`、またはバージョンチェックや権限設定に失敗したインスタンスは、インストール全体を中止するのではなく、理由がログに記録されてスキップされます。同一ホストのフロー（`NR_CLI_MSSQL_WINAUTH_LOCATION` `1`）は、このマシンのインスタンスに対してのみ機能します。異なるホストのフロー、またはgMSAを使用して、他のホストのインスタンスを一覧表示してください。
+</Callout>
+</Collapser>
+
+<Collapser id="cli-rds-sql" title="AWS RDS - SQL Server認証">
+このレシピは、セルフホストと同じインスタンスファイル/シークレットファイルのパターンを使用して、単一のコレクターから1つ以上のRDS SQL Serverエンドポイントをモニターします。
+
+1. RDSエンドポイントを`host`として使用し、単一のRDSインスタンスのみを監視している場合はエントリを1つだけ記述して、インスタンスファイルを作成します：
+
+   ```bash
+   cat > ~/mssql-instances.yml << 'EOF'
+   instances:
+     - host: mydb1.abcdefg12345.us-east-1.rds.amazonaws.com
+       port: 1433
+       login_name: newrelic
+   EOF
+   ```
+
+2. 各インスタンスのRDSマスターユーザー名とパスワードを含むシークレットファイルを作成し、インスタンスファイルの順序と一致するようにインデックスを付けます：
+
+   ```bash
+   umask 077
+   cat > ~/mssql-secrets.env << 'EOF'
+   NR_CLI_MSSQL_ADMIN_USER_1=admin
+   NR_CLI_MSSQL_ADMIN_PASSWORD_1=YourMasterPassword1
+   EOF
+   chmod 600 ~/mssql-secrets.env
+   ```
+
+**Linux：**
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-mssql-rds
+```
+
+**Windows**（アドミニストレーターのPowerShellセッションで実行）：
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $WebClient = New-Object System.Net.WebClient; $WebClient.DownloadFile("https://download.newrelic.com/install/newrelic-cli/scripts/install.ps1", "$env:TEMP\install.ps1"); & PowerShell.exe -ExecutionPolicy Bypass -File $env:TEMP\install.ps1; $env:NEW_RELIC_API_KEY='INSERT_YOUR_API_KEY'; $env:NEW_RELIC_ACCOUNT_ID='INSERT_YOUR_ACCOUNT_ID'; $env:NEW_RELIC_REGION='INSERT_YOUR_REGION'; & 'C:\Program Files\New Relic\New Relic CLI\newrelic.exe' install -n nrdot-collector-mssql-rds
+```
+
+CLIは、以下の変数について対話的にプロンプトを表示します。非対話的に実行するために、事前に環境変数として設定することもできます。
+
+<table>
+<thead>
+<tr>
+<th>
+変数
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MSSQL_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_INSTANCES_FILE`
+</td>
+
+<td>
+必須。RDSエンドポイントを`host`として使用する、インスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_SECRETS_FILE`
+</td>
+
+<td>
+必須。シークレットファイルへのパス（`KEY=VALUE`、インスタンスごとに1つのRDSマスターユーザー名/パスワードのペア）。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+このコレクターから複数のRDS SQL Serverエンドポイントをモニターするには、インスタンスファイルにさらにエントリを追加し、シークレットファイルに対応する番号付きの認証情報を追加してください。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由をログに記録してスキップされます。
+</Callout>
+</Collapser>
+
+<Collapser id="cli-rds-winauth" title="AWS RDS - Windowsドメイン認証またはgMSA">
+このメソッドはWindowsコレクターホストでのみサポートされており、RDSインスタンスがすでにAWS Managed Microsoft ADドメインに参加している必要があります。単一のコレクターから1つ以上のRDS SQL Serverエンドポイントをモニターします。コレクターは1つのログオンアカウントを持つ1つのWindowsサービスであり、そのアカウントとして**すべて**のエンドポイントに接続します。そのため、マルチインスタンスインストールでは常に1つの認証モードと1つのWindows IDが使用され、リストされたすべてのエンドポイントで付与されます。上記のセルフホストメソッドとは異なり、ここには&quot;同一ホスト&quot;オプションはありません：ドメインアカウント（またはgMSA）が常に必要です。
+
+1. 各RDSエンドポイントを`host`として使用してインスタンスファイルを作成します。単一のRDSインスタンスのみを監視している場合は、エントリを1つだけにします：
+
+   ```yaml
+   instances:
+     - host: mydb1.xxxxxxxxxx.us-east-1.rds.amazonaws.com
+       port: 1433
+     - host: mydb2.xxxxxxxxxx.us-east-1.rds.amazonaws.com
+       port: 1433
+   ```
+
+   これをコレクターホスト上の任意の場所、たとえば`C:\mssql-instances.yml`に保存してください。
+
+このコマンドを実行する前に、以下を準備してください：
+
+* ステップ1のインスタンスファイル
+* Windowsドメインアカウントを使用しているか、gMSAアカウントを使用しているか
+* 権限を付与するドメインアカウント（またはgMSAアカウント）
+* BasicメトリクスとAdvancedメトリクスのどちらを希望するか
+
+これをアドミニストレーターのPowerShellセッションで実行してください：
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $WebClient = New-Object System.Net.WebClient; $WebClient.DownloadFile("https://download.newrelic.com/install/newrelic-cli/scripts/install.ps1", "$env:TEMP\install.ps1"); & PowerShell.exe -ExecutionPolicy Bypass -File $env:TEMP\install.ps1; $env:NEW_RELIC_API_KEY='INSERT_YOUR_API_KEY'; $env:NEW_RELIC_ACCOUNT_ID='INSERT_YOUR_ACCOUNT_ID'; $env:NEW_RELIC_REGION='INSERT_YOUR_REGION'; & 'C:\Program Files\New Relic\New Relic CLI\newrelic.exe' install -n nrdot-collector-mssql-rds-winauth
+```
+
+CLIは、以下の変数について対話的にプロンプトを表示します。非対話的に実行するために、事前に環境変数として設定することもできます。
+
+<table>
+<thead>
+<tr>
+<th>
+変数
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MSSQL_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_AUTH_MODE`
+</td>
+
+<td>
+SQL Server認証：
+
+* `1` Windowsドメイン認証用
+* `2` gMSA用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_INSTANCES_FILE`
+</td>
+
+<td>
+必須。RDSエンドポイントを`host`として使用する、インスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_WIN_ACCOUNT`
+</td>
+
+<td>
+権限を付与するWindowsドメインアカウント、`DOMAIN\username`。Windowsドメイン認証のみ；gMSAの場合は空白のままにします。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_WIN_PASSWORD`
+</td>
+
+<td>
+そのドメインアカウントのパスワードです。Windowsドメイン認証のみ；gMSAの場合は空白のままにします。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_GMSA_ACCOUNT`
+</td>
+
+<td>
+gMSAアカウント、`DOMAIN\gMSAName$`。gMSAのみ；Windowsドメイン認証の場合は空白のままにしてください。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+このコレクターから複数のRDS SQL Serverエンドポイントをモニターするには、インスタンスファイルにさらにエントリを追加します。ファイル内の**すべて**のエンドポイントに対して、1つの認証モードと1つのWindows IDが使用されます。無効なホストまたはポート、重複する`host:port`、またはバージョンチェックや権限設定に失敗したエンドポイントは、インストール全体を中止するのではなく、理由をログに記録してスキップされます。
+</Callout>
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+## データを探す、使う [#find]
+
+データの収集が開始されると、New Relic UIを通じて包括的なSQL Serverデータベース監視にアクセスできます。
+
+New Relic で SQL Server データベース エンティティを見つけるには:
+
+1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>に移動します。
+
+2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**MSSQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+
+3. エンティティのリストから SQL Server データベースを選択します。
+
+   NRDOTを使用してSQL Serverの監視をセットアップした後、次のことができます：
+
+   * データベースのメトリクスを視覚化する[カスタムダッシュボードを作成する](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/)
+   * クリティカルデータベースパフォーマンス閾値の[アラートを設定する](/docs/alerts/create-alert/create-alert-condition/alert-conditions/)
+   * New Relicのクエリ機能を使用して、[データを探索](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/)します
+</Step>
+</Steps>
+
+## 関連ドキュメント [#related-docs]
+
+<DocTiles>
+<DocTile title="APMとデータベースの相関を設定する" path="/docs/opentelemetry/db360/capabilities/db-apm">
+New Relicでアプリケーションパフォーマンスとデータベース操作を関連付ける方法について説明します。
+</DocTile>
+
+<DocTile title="トラブルシューティング" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+New RelicでMSSQL監視セットアップをトラブルシューティングする方法について説明します。
+</DocTile>
+
+<DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+</DocTile>
+</DocTiles>
