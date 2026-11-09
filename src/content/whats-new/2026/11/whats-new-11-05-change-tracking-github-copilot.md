@@ -1,7 +1,7 @@
 ---
 title: 'Change Tracking for GitHub Copilot is now in Preview'
 summary: 'Link deployments to pull requests and trigger automated GitHub Copilot fix workflows when regressions occur.'
-releaseDate: '2026-11-05'
+releaseDate: '2026-11-09'
 learnMoreLink: 'https://docs.newrelic.com/docs/agentic-ai/autopilot/change-tracking-for-github-copilot/'
 ---
 
@@ -13,12 +13,14 @@ This feature is in Preview. To access it, you must be a New Relic Organization M
 
 After a deployment, Autopilot checks service health at six checkpoints: 10 minutes, 30 minutes, 1 hour, 2 hours, 24 hours, and 72 hours. At each checkpoint it reports one of three results: regression, no regression, or inconclusive.
 
-When a regression is detected, we automatically open a GitHub Issue that describes what regressed, the supporting evidence, where to investigate, and acceptance criteria for a fix. If your organization has GitHub Copilot Enterprise, Copilot picks up the issue and starts work automatically.
+When Autopilot detects a regression, we automatically open a GitHub Issue that describes what regressed, the supporting evidence, where to investigate, and acceptance criteria for a fix. If your organization has GitHub Copilot Enterprise, Copilot picks up the issue and starts work automatically.
 
 ## Get started
 
+Follow these steps to set up Change Tracking for GitHub Copilot:
+
 1. Configure a GitHub Fine-Grained Personal Access Token (PAT) with read and write access to pull requests, issues, and contents.
-2. In New Relic, click **Ask AI**, click **...**, then click **Configure**. Under **External MCP connections**, connect GitHub with your token and organization name, then turn on **Enable deployment monitoring**.
+2. Click **Ask AI** in New Relic, click **...**, then click **Configure**. Under **External MCP connections**, connect GitHub with your token and organization name, then turn on **Enable deployment monitoring**.
 3. Include `watchpoint_monitoring: "true"` in the custom attributes of your Change Tracking deployment mutation to trigger deployment monitoring.
 
 [Learn more](https://docs.newrelic.com/docs/agentic-ai/autopilot/change-tracking-for-github-copilot/)
