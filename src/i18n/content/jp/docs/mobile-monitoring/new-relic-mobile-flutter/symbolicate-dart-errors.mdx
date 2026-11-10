@@ -1,0 +1,256 @@
+---
+title: Flutter Dartエラーのシンボル化
+tags:
+  - Flutter
+  - Mobile monitoring
+  - New Relic Mobile Flutter
+  - Errors
+metaDescription: 'Generate, store, and upload Flutter debug symbol files so New Relic can show human-readable Dart stack traces in the browser.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+`--split-debug-info`（`--obfuscate`の有無にかかわらず）を使用してFlutterアプリをビルドする場合、アプリが報告するDartのスタックトレースには、関数名、ファイル名、行番号の代わりにメモリアドレスが含まれます。そのビルドに一致するデバッグシンボルファイルを提供すると、New Relicはブラウザでこれらのスタックトレースをシンボル化できます。ブラウザ内でのシンボル化は、処理された例外にのみ適用されます。
+
+このページでは、以下について説明します：
+
+* シンボリケーションが必要な場合
+* シンボルファイルの生成方法
+* New Relic UIでスタックトレースをシンボル化する方法
+* Flutter CLIを使用してローカルでシンボル化する方法
+* リリースした任意のバージョンのエラーをシンボル化できるようにシンボルファイルを保存する方法
+
+<Callout variant="important">
+シンボリケーションは完全にブラウザ内で実行されます。New Relicは、シンボルファイルやシンボリケーションされたスタックトレースをアップロード、保存、または保持しません。結果はエラー間でも共有されません：開いたエラーごとに個別にシンボルファイルをアップロードし、ページをリロードしたり、後で戻ってきたりするたびに再度アップロードします。毎回ファイルが必要になるため、[すべてのリリースでシンボルファイルを保持してください](#store-symbols)。
+</Callout>
+
+## シンボリケーションが必要な場合 [#when]
+
+この表は、リリースのビルド方法に基づいて、シンボリケーションが必要になるタイミングを示しています：
+
+| リリースのビルド方法                                           | Dartのスタックトレースの表示内容                | シンボリケーションが必要ですか？ |
+| ---------------------------------------------------- | --------------------------------- | ---------------- |
+| `flutter build` なし `--split-debug-info`              | 読みやすい関数名とファイル名                    | いいえ              |
+| `flutter build --split-debug-info=<dir>`             | メモリアドレス（`abs`、`virt`）と `build_id` | はい               |
+| `flutter build --obfuscate --split-debug-info=<dir>` | メモリアドレス、および名前が表示される箇所の難読化された名前    | はい               |
+
+シンボル化されていないDartのスタックトレースは次のようになります：
+
+```
+*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+pid: 24564, tid: 532322394208, name 1.ui
+os: android arch: arm64 comp: yes sim: no
+build_id: '7a3ef930539e62583fa36f07eb2df79c'
+isolate_dso_base: 7887a27000, vm_dso_base: 7887a27000
+isolate_instructions: 7887b1da40, vm_instructions: 7887b07000
+ #00 abs 0000007887d2ea63 virt 0000000000307a63 _kDartIsolateSnapshotInstructions+0x211023
+ #01 abs 0000007887d39077 virt 0000000000312077 _kDartIsolateSnapshotInstructions+0x21b637
+ #02 abs 0000007887b2d2cf virt 00000000001062cf _kDartIsolateSnapshotInstructions+0xf88f
+ #03 abs 0000007887d38eeb virt 0000000000311eeb _kDartIsolateSnapshotInstructions+0x21b4ab
+```
+
+New Relic UIでは、これらの各行はスタックトレース内の個別の行として表示され、`unparsed`というラベルが付けられます。
+
+### スタックトレースヘッダーを理解する [#header]
+
+トレースの最初の6行はスタックフレームではありません。これらは、Dartランタイムがすべてのシンボル化されていないトレースの先頭に書き込む、プロセスとビルドに関するメタデータです：
+
+| 折れ線グラフ                                      | その意味                                                                                                                                                  |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `*** *** *** ...`                           | シンボル化されていないDartスタックトレースの開始を示します。                                                                                                                      |
+| `pid: 24564, tid: 532322394208, name 1.ui`  | エラーが発生したプロセスID、スレッドID、およびスレッド名。`1.ui`はFlutterのUIスレッドです。New Relic UIでは、これは<DNT>**Thread**</DNT>列にも表示されます。                                              |
+| `os: android arch: arm64 comp: yes sim: no` | デバイスのOSとCPUアーキテクチャー。`comp: yes`はコードが事前コンパイルされたこと（リリースビルド）を意味し、`sim: no`はシミュレーターではなく物理デバイスで実行されたことを意味します。[適切なシンボルファイルを選択する](#match)には、`arch`を使用してください。 |
+| `build_id: '7a3ef930...'`                   | エラーを生成したビルドのユニークID。アップロードするシンボルファイルは、同じビルドIDを持つ必要があります。                                                                                               |
+| `isolate_dso_base`, `vm_dso_base`           | アプリのコンパイル済みDartコードがデバイスにロードされたメモリアドレス。                                                                                                                |
+| `isolate_instructions`, `vm_instructions`   | コンパイルされたDart命令が開始されるメモリアドレス。                                                                                                                          |
+
+アプリを実行するたびにアドレス値は変わるため、同じエラーが2回発生しても異なる値が表示されることがあります。シンボリケーションは、ビルドIDとこれらのアドレスを使用して、各フレーム（`#00`、`#01`、...）のソースの場所を特定します。
+
+ヘッダー行はコード位置ではないため、シンボル化されることはありません。シンボルファイルをアップロードする前後で`unparsed`というラベルが付けられたままであり、エラーをエクスポートする際にも変更されずに含まれます。その下にある番号付きフレームのみが変更されます。
+
+## Flutterのシンボルファイルを理解する [#symbol-files]
+
+Flutterアプリはコンパイルされたコードの複数のレイヤーで構成されており、各レイヤーには独自のデバッグシンボルファイルがあります。各ファイルは自身のレイヤーからのエラーのみをシンボリケーションするため、Flutterリリースでは複数のシンボルファイルが生成されます：
+
+| ファイル                                 | プラットフォーム    | シンボル化されるもの                                                        | 作成される場所                                                                                                                  | New Relicでの使用方法                                                                                                                          |
+| ------------------------------------ | ----------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `.symbols` （Dartデバッグ情報）              | Android、iOS | FlutterコードからのDartエラー                                              | に渡すディレクトリ `--split-debug-info`                                                                                           | このページで説明されているように、ブラウザでアップロードします                                                                                                          |
+| `mapping.txt` （R8/ProGuardマッピング）     | Android     | Androidのクラッシュにおける難読化されたJavaおよびKotlinコード                           | `build/app/outputs/mapping/release/`                                                                                     | [ProGuardまたはDexGuardの設定](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-proguard-or-dexguard-android-apps) |
+| `native-debug-symbols.zip` （ELFシンボル） | Android     | Flutterエンジン（`libflutter.so`）を含む、ネイティブ（C/C++）フレーム                  | `build/app/outputs/native-debug-symbols/release/`                                                                        | [ネイティブクラッシュレポート](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-native-crash-reporting)                |
+| `.dSYM`                              | iOS         | ネイティブiOSのクラッシュ：`Runner`、Flutterエンジン、`App.framework`、およびネイティブプラグイン | `build/ios/Release-iphoneos/` `flutter build ios`の後、または`build/ios/archive/Runner.xcarchive/dSYMs/`の後 `flutter build ipa` | [dSYMファイルをアップロードする](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps)                                |
+
+New Relicは、Dartエラーをシンボリケートするために`.symbols`ファイルのみを使用します。dSYM、`mapping.txt`、または`native-debug-symbols.zip`をDartエラーにアップロードしても、シンボリケートされません。ただし、リリースが報告するあらゆる種類のエラーをシンボリケートできるように、リリースごとにそれらをすべて保持してください。
+
+## シンボルファイルの生成 [#generate]
+
+リリースをビルドする際、Flutterはシンボルファイルを作成します。すでに出荷されたビルドに対して、後からこれらを作成することはできません。
+
+<Steps>
+<Step>
+### 〜を使用したビルド `--split-debug-info` [#build]
+
+リリースビルドコマンドに`--split-debug-info`を追加してください。異なるリリースのシンボルファイルが互いに上書きされないように、バージョンごとに別々の出力ディレクトリを使用することをお勧めします：
+
+```sh
+# Android App Bundle
+flutter build appbundle --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+
+# Android APK
+flutter build apk --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+
+# iOS (App Store / TestFlight archive)
+flutter build ipa --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+
+# iOS (app bundle only)
+flutter build ios --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+```
+
+`--obfuscate` はオプションですが、使用する場合は`--split-debug-info`も使用する必要があります。
+</Step>
+
+<Step>
+### 出力ファイルの検索 [#output]
+
+ビルドは、`--split-debug-info`に渡したディレクトリ（たとえば`build/symbols/1.4.2+57/`）に`.symbols`ファイルを書き込みます。Flutterはそれらを他の場所に配置しないため、フラグを省略したり、そのディレクトリを削除したりすると、ファイルは失われます。ビルドがコンパイルされた各CPUアーキテクチャーにつき1つのファイルがあります：
+
+| プラットフォーム | ファイル                                                                               |
+| -------- | ---------------------------------------------------------------------------------- |
+| Android  | `app.android-arm64.symbols`、 `app.android-arm.symbols` 、 `app.android-x64.symbols` |
+| iOS      | `app.ios-arm64.symbols`                                                            |
+
+単一のApp BundleまたはAPKには複数のアーキテクチャーのコードが含まれているため、Androidビルドは複数のファイルを生成します。各デバイスはそのうちの1つだけを実行するため、すべてを保持してください。`--target-platform`（たとえば`--target-platform android-arm64`）を使用してビルドすると、リストしたプラットフォームのファイルのみが取得されます。
+
+Flutterのリリースビルドはシミュレーターではなく、物理的なarm64デバイスでのみ実行されるため、iOSビルドは`app.ios-arm64.symbols`のみを生成します。これは、そのiOSビルドからのすべてのDartエラーに対してアップロードするファイルです。
+
+Androidビルドは`mapping.txt`と`native-debug-symbols.zip`も作成し、iOSビルドはdSYMファイルも作成します。これらはDartのエラーには使用されません。[「Flutterのシンボルファイルについて」](#symbol-files)を参照してください。
+</Step>
+</Steps>
+
+## New Relicでスタックトレースをシンボリケートする [#symbolicate]
+
+<Steps>
+<Step>
+### エラーを開く [#open-error]
+
+いずれかの場所からDartエラーを開いてください：
+
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Errors Inbox**</DNT>、次にエラーを選択します。
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Mobile &gt; (select your app) &gt; Handled exceptions**</DNT>、次にエラーを選択します。
+
+<DNT>**Stack trace**</DNT>セクションまでスクロールします。
+
+エラーの`appVersion`と`appBuild`を確認してください。これらにより、どのリリースのシンボルファイルが必要かがわかります。
+</Step>
+
+<Step>
+### 一致するシンボルファイルをアップロードする [#upload]
+
+スタックトレースの上にある<DNT>**Not seeing what you expected?**</DNT>バナーでは、オンデマンドのシンボル化を利用できます。<DNT>**Upload .symbols file**</DNT>をクリックし、エラーの[ビルドIDとアーキテクチャー](#match)に一致する`.symbols`ファイルを選択します。
+
+<img title="Unsymbolicated Flutter Dart stack trace" alt="Screenshot of an unsymbolicated Flutter Dart stack trace showing unparsed frames and the Upload .symbols file button" src="/images/flutter_screenshot-crop_symbolicate-upload.webp" />
+
+<figcaption>
+シンボリケーション前は、すべての行に`unparsed`というラベルが付けられます。
+</figcaption>
+</Step>
+
+<Step>
+### 結果を確認またはエクスポートする [#export]
+
+シンボリケーションが完了すると、バナーが<DNT>**Symbolicated your trace**</DNT>に変わり、解決されたフレーム数（例：<DNT>**Symbolicated 4 of 4 unresolved frames**</DNT>）が報告されます。解決された各フレームには、ファイル、行番号、関数が表示されるようになります（例：`main.dart line 81 in ._testFetch()`）。
+
+最初の6行（[スタックトレースヘッダー](#header)）は、`unparsed`というラベルのままです。これは想定された動作です：これらはプロセスとビルドに関するメタデータであり、コードの場所ではありません。
+
+<img title="Symbolicated Flutter Dart stack trace" alt="Screenshot of a Flutter Dart stack trace after symbolication, showing file names, line numbers, and functions" src="/images/flutter_screenshot-crop_symbolicate-result.webp" />
+
+<figcaption>
+シンボル化後、番号付きフレームはファイル、行、および関数に解決されます。ヘッダー行は`unparsed`のままです。
+</figcaption>
+
+結果はページが開いている間のみ保持されます。保持するには、<DNT>**Export handled exception details**</DNT>をクリックします。エクスポートにはシンボル化されたフレームが含まれるため、チケットに添付したり、チームと共有したりできます。
+
+別のエラーをシンボル化するには、そのエラーを開き、シンボルファイルを再度アップロードしてください。1つのエラーの結果は、他のエラーには引き継がれません。
+</Step>
+</Steps>
+
+## 適切なシンボルファイルを見つける [#match]
+
+各シンボルファイルは、1つのビルドと1つのCPUアーキテクチャーにのみ属します。これらを使用して、正しいファイルを選択します：
+
+1. **リリース：**エラーの`appVersion`および`appBuild`を、そのリリース用に保存したシンボルフォルダーと一致させてください。
+
+2. **アーキテクチャー：**スタックトレースヘッダーの`arch`行目をファイル名と一致させます。たとえば、Androidでの`arch: arm64`は`app.android-arm64.symbols`を意味します。最新のAndroidスマートフォンのほとんどは`arm64`です。古いデバイスや低価格のデバイスは`arm`である場合があります。
+
+3. **ビルドID：**スタックトレース内の`build_id`は、シンボルファイル内のビルドIDと一致する必要があります。Androidのシンボルファイルの場合、macOSまたはLinuxで`file`コマンドを使用してビルドIDを読み取ることができます。これは`BuildID`の値です：
+
+   ```sh
+   file app.android-arm64.symbols
+   # app.android-arm64.symbols: ELF 64-bit LSB shared object, ARM aarch64, ..., BuildID[md5/uuid]=7a3ef930539e62583fa36f07eb2df79c, with debug_info, not stripped
+   ```
+
+   iOSシンボルファイルでは`file`の出力に`BuildID`が表示されないため、iOSの場合は、リリースと、ファイルをアップロードする際にNew Relicが実行するチェックを頼りにしてください。
+
+   {/* iOS .symbols files have no .note.gnu.build-id section (verified with llvm-readelf, 2026-10-07). App Exp tested iOS in the UI: symbolication and the mismatch check work the same as Android. */}
+
+New Relicは、AndroidとiOSの両方のエラーについて、ビルドIDを確認します。異なるビルドのシンボルファイルをアップロードした場合、New Relicはフレームをシンボル化できず、ファイルのビルドIDがトレースのビルドと一致しないというメッセージとともに<DNT>**We couldn&apos;t symbolicate this trace**</DNT>が表示されます。エラーが発生した正確なビルドのファイルをアップロードしてください。
+
+<img title="Symbol file build ID mismatch" alt="Screenshot of the error shown when the uploaded .symbols file's build ID doesn't match the stack trace" src="/images/flutter_screenshot-crop_symbolicate-build-id-mismatch.webp" />
+
+<figcaption>
+一致しないシンボルファイルを使用すると、フレームは解決されません。
+</figcaption>
+
+<Callout variant="caution">
+再ビルドで同じビルドIDが生成されるのは、ソースコード、依存関係、Flutterのバージョン、およびビルドフラグがすべて完全に同じである場合のみです。少しでも違いがあると新しいビルドIDが生成され、新しいシンボルファイルは一致しなくなります。実際に出荷したビルドのシンボルファイルを保存してください。後から再作成できるとは限らないため、ご注意ください。
+</Callout>
+
+## 次を使用してローカルでシンボリケートする `flutter symbolize` [#symbolize-locally]
+
+New Relic UIを使用できない場合、またはスクリプトで多くのトレースをシンボル化したい場合は、代わりにFlutter CLIを使用できます：
+
+1. ヘッダー行（`*** *** ***`、`pid`、`os`/`arch`、`build_id`、`isolate_dso_base`、および`isolate_instructions`）を含めてエラーからスタックトレースをコピーし、たとえば`trace.txt`などのファイルに保存してください。
+
+2. 一致するシンボルファイルを使用して`flutter symbolize`を実行します：
+
+   ```sh
+   flutter symbolize \
+     --input=trace.txt \
+     --debug-info=build/symbols/1.4.2+57/app.android-arm64.symbols \
+     --output=trace-symbolicated.txt
+   ```
+
+   長い`--debug-info`オプションを使用してください。Flutterのグローバルオプションの中で、`-d`は&quot;device&quot;を意味するため、短い形式は混同されやすくなります。
+
+## ベストプラクティス：すべてのリリースでシンボルを保存する [#store-symbols]
+
+New Relicはシンボルファイルを保持しないため、ご自身で保存する必要があります。エラーが発生した後ではなく、各リリースをビルドする際に保存してください：すでに出荷したビルド用に再作成することはできません。
+
+* 内部ビルド、ベータビルド、およびストアビルドを含め、**配布するすべてのビルドのシンボルファイルを保持してください。**
+* `.symbols`ファイルだけでなく、**すべての種類のシンボルファイルを保持してください。**[「Flutterシンボルファイルについて」](#symbol-files)を参照してください。
+* 各ビルドの**すべてのアーキテクチャーを保持**してください。
+* エラーに対して適切なファイルを見つけられるように、アプリが報告する`appVersion`および`appBuild`属性に合わせて、**バージョンとビルド番号でラベル付けしてください**。
+* **そのバージョンが使用されている間は、それらを保持してください。**ユーザーは何ヶ月も古いバージョンを使い続けることがよくあります。
+* **アクセスを制限します。**シンボルファイルはコードの構造を明らかにします。ソースコードと同じアクセス制御で保存してください。
+
+どこに保存するかは任意です。たとえば、CIシステムのビルドアーティファクト、ストレージバケット、アーティファクトリポジトリなどです。CIビルドアーティファクトを使用する場合は、CIシステムがそれらを保持する期間を確認してください。多くのシステムでは、一定時間後に自動的に削除されるためです。
+
+## トラブルシューティング [#troubleshooting]
+
+<CollapserGroup>
+<Collapser id="still-addresses" title="ファイルをアップロードした後もスタックトレースにアドレスが表示される">
+<DNT>**We couldn&apos;t symbolicate this trace**</DNT>が表示される場合、ファイルのビルドIDがエラーと一致していません。以下を確認してください：
+
+* ファイルは同じリリース（`appVersion`および`appBuild`）からのものです。
+* ファイルはデバイスのアーキテクチャー（ヘッダーの`arch`）と一致します。
+* 別のビルドアーティファクトではなく、`--split-debug-info`ディレクトリから`.symbols`ファイルをアップロードしました。
+</Collapser>
+
+<Collapser id="lost-symbols" title="そのリリースのシンボルファイルがありません">
+そのビルドからのエラーをシンボル化することはできません。将来のエラーをシンボル化できるように、[すべてのリリースのシンボルのアーカイブ](#store-symbols)を開始してください。
+</Collapser>
+</CollapserGroup>
+
+## 制限 [#limitations]
+
+* シンボル化はDartエラーに適用されます。ネイティブAndroid（Java/Kotlin）およびiOSのクラッシュでは、[Android](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-crash-reporting)および[iOS](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps)のシンボル化ワークフローを使用します。
+* 結果は保存されず、エラー間で共有されることもありません。エラーを表示するたびに、各エラーのシンボルファイルをアップロードする必要があります。
