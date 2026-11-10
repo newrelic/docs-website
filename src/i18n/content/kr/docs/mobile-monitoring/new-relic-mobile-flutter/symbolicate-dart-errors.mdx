@@ -1,0 +1,256 @@
+---
+title: 플러터 Dart 오류 심볼화
+tags:
+  - Flutter
+  - Mobile monitoring
+  - New Relic Mobile Flutter
+  - Errors
+metaDescription: 'Generate, store, and upload Flutter debug symbol files so New Relic can show human-readable Dart stack traces in the browser.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+`--split-debug-info` (`--obfuscate` 사용 여부와 관계없이)을 사용하여 플러터 앱을 빌드하는 경우, 앱에서 보고하는 Dart 스택 추적에는 함수 이름, 파일 이름 및 줄 번호 대신 메모리 주소가 포함됩니다. 해당 빌드와 일치하는 디버그 심볼 파일을 제공하면 뉴렐릭은 브라우저에서 이러한 스택 추적을 심볼화할 수 있습니다. 브라우저 내 심볼리케이션은 처리된 예외에만 적용됩니다.
+
+이 페이지에서는 다음을 설명합니다:
+
+* 심볼리케이션이 필요한 경우
+* 심볼 파일을 생성하는 방법
+* 뉴렐릭 UI에서 스택 추적을 심볼화하는 방법
+* 플러터 CLI를 사용하여 로컬에서 심볼화하는 방법
+* 배포한 모든 릴리스의 오류를 심볼화할 수 있도록 심볼 파일을 저장하는 방법
+
+<Callout variant="important">
+심볼리케이션은 전적으로 브라우저에서 실행됩니다. 뉴렐릭은 심볼 파일이나 심볼리케이션된 스택 추적을 업로드, 저장 또는 보관하지 않습니다. 결과 또한 오류 간에 공유되지 않습니다. 여는 각 오류에 대해 심볼 파일을 개별적으로 업로드해야 하며, 페이지를 새로 고치거나 나중에 다시 접속할 때마다 다시 업로드해야 합니다. 매번 파일이 필요하므로 [모든 릴리스의 심볼 파일을 보관하십시오](#store-symbols).
+</Callout>
+
+## 심볼리케이션이 필요한 경우 [#when]
+
+이 표는 릴리스를 빌드하는 방법에 따라 심볼화가 필요한 경우를 보여줍니다:
+
+| 릴리스를 빌드하는 방법                                         | Dart 스택 추적의 형태                     | 심볼리케이션이 필요하십니까? |
+| ---------------------------------------------------- | ---------------------------------- | --------------- |
+| `flutter build` 없이 `--split-debug-info`              | 읽기 쉬운 함수 및 파일 이름                   | 아니요             |
+| `flutter build --split-debug-info=<dir>`             | 메모리 주소(`abs`, `virt`) 및 `build_id` | 네               |
+| `flutter build --obfuscate --split-debug-info=<dir>` | 메모리 주소 및 이름이 표시되는 곳의 난독화된 이름       | 네               |
+
+심볼리케이션되지 않은 Dart 스택 추적은 다음과 같습니다:
+
+```
+*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+pid: 24564, tid: 532322394208, name 1.ui
+os: android arch: arm64 comp: yes sim: no
+build_id: '7a3ef930539e62583fa36f07eb2df79c'
+isolate_dso_base: 7887a27000, vm_dso_base: 7887a27000
+isolate_instructions: 7887b1da40, vm_instructions: 7887b07000
+ #00 abs 0000007887d2ea63 virt 0000000000307a63 _kDartIsolateSnapshotInstructions+0x211023
+ #01 abs 0000007887d39077 virt 0000000000312077 _kDartIsolateSnapshotInstructions+0x21b637
+ #02 abs 0000007887b2d2cf virt 00000000001062cf _kDartIsolateSnapshotInstructions+0xf88f
+ #03 abs 0000007887d38eeb virt 0000000000311eeb _kDartIsolateSnapshotInstructions+0x21b4ab
+```
+
+뉴렐릭 UI에서 이러한 각 줄은 스택 추적의 고유한 행으로 표시되며 `unparsed`(으)로 레이블이 지정됩니다.
+
+### 스택 추적 헤더 이해하기 [#header]
+
+트레이스의 처음 6줄은 스택 프레임이 아닙니다. 이는 Dart 런타임이 심볼리케이션되지 않은 모든 트레이스의 최상단에 작성하는 프로세스 및 빌드에 대한 메타데이터입니다:
+
+| 선                                           | 의미                                                                                                                                                                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `*** *** *** ...`                           | 심볼화되지 않은 Dart 스택 추적의 시작을 표시합니다.                                                                                                                                    |
+| `pid: 24564, tid: 532322394208, name 1.ui`  | 오류가 발생한 프로세스 ID, 스레드 ID 및 스레드 이름입니다. `1.ui`은(는) 플러터의 UI 스레드입니다. 뉴렐릭 UI에서 이는 <DNT>**Thread**</DNT> 열에도 나타납니다.                                                       |
+| `os: android arch: arm64 comp: yes sim: no` | 기기의 운영 시스템 및 CPU 아키텍처입니다. `comp: yes`은(는) 코드가 미리 컴파일되었음(릴리스 빌드)을 의미하며, `sim: no`은(는) 시뮬레이터가 아닌 물리적 기기에서 실행되었음을 의미합니다. `arch`을(를) 사용하여 [올바른 심볼 파일을 선택](#match)하십시오. |
+| `build_id: '7a3ef930...'`                   | 오류를 발생시킨 빌드의 고유 ID입니다. 업로드하는 심볼 파일은 동일한 빌드 ID를 가져야 합니다.                                                                                                            |
+| `isolate_dso_base`, `vm_dso_base`           | 앱의 컴파일된 Dart 코드가 기기에 로드된 메모리 주소입니다.                                                                                                                                |
+| `isolate_instructions`, `vm_instructions`   | 컴파일된 Dart 명령이 시작되는 메모리 주소입니다.                                                                                                                                      |
+
+주소 값은 앱이 실행될 때마다 변경되므로 동일한 오류가 두 번 발생해도 다른 값이 표시될 수 있습니다. 심볼화는 빌드 ID와 이러한 주소를 사용하여 각 프레임(`#00`, `#01`, ...)의 소스 위치를 찾습니다.
+
+헤더 라인은 코드 위치가 아니므로 절대 심볼화되지 않습니다. 심볼 파일을 업로드하기 전과 후에 `unparsed` 레이블이 유지되며, 오류를 내보낼 때 변경되지 않고 포함됩니다. 그 아래에 있는 번호가 매겨진 프레임만 변경됩니다.
+
+## 플러터 심볼 파일 이해 [#symbol-files]
+
+플러터 앱은 컴파일된 코드의 여러 계층으로 구성되며, 각 계층에는 고유한 종류의 디버그 심볼 파일이 있습니다. 각 파일은 자체 계층의 오류만 심볼화하므로, 플러터 릴리스는 여러 심볼 파일을 생성합니다:
+
+| 파일                                  | 플랫폼        | 심볼리케이션 대상                                                   | 생성 위치                                                                                                                       | 뉴렐릭에서 사용하는 방법                                                                                                                             |
+| ----------------------------------- | ---------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `.symbols` (Dart 디버그 정보)            | 안드로이드, iOS | 플러터 코드의 Dart 오류                                             | 전달할 디렉터리 `--split-debug-info`                                                                                               | 이 페이지에 설명된 대로 브라우저에서 업로드하십시오.                                                                                                             |
+| `mapping.txt` (R8/ProGuard 매핑)      | Android    | 안드로이드 크래시의 난독화된 자바 및 코틀린 코드                                 | `build/app/outputs/mapping/release/`                                                                                        | [ProGuard 또는 DexGuard 구성](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-proguard-or-dexguard-android-apps) |
+| `native-debug-symbols.zip` (ELF 심볼) | Android    | 플러터 엔진(`libflutter.so`)을 포함한 네이티브(C/C++) 프레임                | `build/app/outputs/native-debug-symbols/release/`                                                                           | [네이티브 충돌 보고](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-native-crash-reporting)                     |
+| `.dSYM`                             | iOS        | 네이티브 iOS 크래시: `Runner`, 플러터 엔진, `App.framework` 및 네이티브 플러그인 | `build/ios/Release-iphoneos/` `flutter build ios` 이후, 또는 `build/ios/archive/Runner.xcarchive/dSYMs/` 이후 `flutter build ipa` | [dSYM 파일 업로드](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps)                                       |
+
+뉴렐릭은 Dart 오류를 심벌화하기 위해 `.symbols` 파일만 사용합니다. Dart 오류에 dSYM, `mapping.txt` 또는 `native-debug-symbols.zip`를 업로드해도 심벌화되지 않습니다. 하지만 릴리스에서 보고하는 모든 종류의 오류를 심벌화할 수 있도록 각 릴리스에 대해 모두 보관하십시오.
+
+## 심볼 파일 생성 [#generate]
+
+플러터는 릴리스를 빌드할 때 심볼 파일을 생성합니다. 이미 배포한 빌드에 대해서는 나중에 생성할 수 없습니다.
+
+<Steps>
+<Step>
+### 다음으로 빌드 `--split-debug-info` [#build]
+
+릴리스 빌드 명령에 `--split-debug-info`을(를) 추가합니다. 다른 릴리스의 심볼 파일이 서로 덮어쓰지 않도록 각 버전마다 별도의 출력 디렉터리를 사용하는 것을 권장합니다:
+
+```sh
+# Android App Bundle
+flutter build appbundle --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+
+# Android APK
+flutter build apk --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+
+# iOS (App Store / TestFlight archive)
+flutter build ipa --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+
+# iOS (app bundle only)
+flutter build ios --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+```
+
+`--obfuscate` 은(는) 선택 사항이지만, 이를 사용할 경우 `--split-debug-info`도 함께 사용해야 합니다.
+</Step>
+
+<Step>
+### 출력 파일을 찾으십시오 [#output]
+
+빌드는 `.symbols` 파일을 `--split-debug-info`에 전달한 디렉터리(예: `build/symbols/1.4.2+57/`)에 기록합니다. 플러터는 이를 다른 곳에 두지 않으므로, 플래그를 생략하거나 해당 디렉터리를 삭제하면 파일이 사라집니다. 빌드가 컴파일된 각 CPU 아키텍처마다 하나의 파일이 있습니다:
+
+| 플랫폼     | 파일                                                                                 |
+| ------- | ---------------------------------------------------------------------------------- |
+| Android | `app.android-arm64.symbols`, `app.android-arm.symbols` , `app.android-x64.symbols` |
+| iOS     | `app.ios-arm64.symbols`                                                            |
+
+단일 App Bundle 또는 APK에는 여러 아키텍처를 위한 코드가 포함되어 있으므로 안드로이드 빌드는 여러 파일을 생성합니다. 각 기기는 그중 하나만 실행하므로 모두 보관하십시오. `--target-platform` (예: `--target-platform android-arm64`)으로 빌드하면 나열한 플랫폼에 대한 파일만 생성됩니다.
+
+플러터 릴리스 빌드는 시뮬레이터가 아닌 물리적 arm64 기기에서만 실행되므로, iOS 빌드는 `app.ios-arm64.symbols`만 생성합니다. 이는 해당 iOS 빌드의 모든 Dart 오류에 대해 업로드할 파일입니다.
+
+안드로이드 빌드는 `mapping.txt` 및 `native-debug-symbols.zip`도 생성하며, iOS 빌드 또한 dSYM 파일을 생성합니다. Dart 오류에는 사용되지 않습니다. [플러터 심볼 파일 이해하기](#symbol-files)를 참조하십시오.
+</Step>
+</Steps>
+
+## 뉴렐릭에서 스택 추적 심볼리케이션 [#symbolicate]
+
+<Steps>
+<Step>
+### 오류 열기 [#open-error]
+
+두 위치 중 한 곳에서 Dart 오류를 엽니다:
+
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Errors Inbox**</DNT>, 그런 다음 오류를 선택합니다.
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Mobile &gt; (select your app) &gt; Handled exceptions**</DNT>, 그런 다음 오류를 선택합니다.
+
+<DNT>**Stack trace**</DNT> 섹션으로 스크롤합니다.
+
+오류의 `appVersion` 및 `appBuild`을(를) 확인하십시오. 이를 통해 어떤 릴리스의 심볼 파일이 필요한지 알 수 있습니다.
+</Step>
+
+<Step>
+### 일치하는 심볼 파일을 업로드하십시오. [#upload]
+
+스택 추적 위에서 <DNT>**Not seeing what you expected?**</DNT> 배너는 온디맨드 심볼화를 제공합니다. <DNT>**Upload .symbols file**</DNT>을(를) 클릭하고 오류의 [빌드 ID 및 아키텍처](#match)와 일치하는 `.symbols` 파일을 선택합니다.
+
+<img title="Unsymbolicated Flutter Dart stack trace" alt="Screenshot of an unsymbolicated Flutter Dart stack trace showing unparsed frames and the Upload .symbols file button" src="/images/flutter_screenshot-crop_symbolicate-upload.webp" />
+
+<figcaption>
+심볼화 전에 모든 행에는 `unparsed` 레이블이 지정됩니다.
+</figcaption>
+</Step>
+
+<Step>
+### 결과 검토 또는 내보내기 [#export]
+
+심볼화가 완료되면 배너가 <DNT>**Symbolicated your trace**</DNT> (으)로 변경되고 해결된 프레임 수(예: <DNT>**Symbolicated 4 of 4 unresolved frames**</DNT>)를 보고합니다. 이제 해결된 각 프레임에는 파일, 줄 번호 및 함수가 표시됩니다(예: `main.dart line 81 in ._testFetch()`).
+
+처음 6개 행([스택 추적 헤더](#header))은 `unparsed` 레이블이 유지됩니다. 이는 예상된 결과입니다. 해당 항목은 코드 위치가 아니라 프로세스 및 빌드에 대한 메타데이터입니다.
+
+<img title="Symbolicated Flutter Dart stack trace" alt="Screenshot of a Flutter Dart stack trace after symbolication, showing file names, line numbers, and functions" src="/images/flutter_screenshot-crop_symbolicate-result.webp" />
+
+<figcaption>
+심볼리케이션을 거치면 번호가 매겨진 프레임이 파일, 줄 및 함수로 해석됩니다. 헤더 행은 `unparsed` 상태로 유지됩니다.
+</figcaption>
+
+결과는 페이지가 열려 있는 동안에만 유지됩니다. 유지하려면 <DNT>**Export handled exception details**</DNT>을(를) 클릭하십시오. 내보낸 파일에는 심볼화된 프레임이 포함되어 있으므로, 지원 티켓에 첨부하거나 팀과 공유할 수 있습니다.
+
+다른 오류를 심볼화하려면 해당 오류를 열고 심볼 파일을 다시 업로드하십시오. 하나의 오류에서 발생한 결과는 다른 오류로 이어지지 않습니다.
+</Step>
+</Steps>
+
+## 올바른 심볼 파일을 찾으십시오. [#match]
+
+각 심볼 파일은 정확히 하나의 빌드 및 하나의 CPU 아키텍처에 속합니다. 올바른 파일을 선택하려면 다음을 사용하십시오:
+
+1. **릴리스:** 오류의 `appVersion` 및 `appBuild`을(를) 해당 릴리스에 대해 저장한 심볼 폴더와 일치시키십시오.
+
+2. **아키텍처:** 스택 추적 헤더의 `arch` 줄을 파일 이름과 일치시키십시오. 예를 들어, 안드로이드에서 `arch: arm64`은(는) `app.android-arm64.symbols`을(를) 의미합니다. 대부분의 최신 안드로이드 휴대폰은 `arm64`입니다. 구형 또는 저가형 기기는 `arm`일 수 있습니다.
+
+3. **빌드 ID:** 스택 추적의 `build_id`은(는) 심볼 파일 내부의 빌드 ID와 일치해야 합니다. 안드로이드 심볼 파일의 경우 macOS 또는 Linux에서 `file` 명령을 사용하여 빌드 ID를 읽을 수 있습니다. `BuildID` 값입니다:
+
+   ```sh
+   file app.android-arm64.symbols
+   # app.android-arm64.symbols: ELF 64-bit LSB shared object, ARM aarch64, ..., BuildID[md5/uuid]=7a3ef930539e62583fa36f07eb2df79c, with debug_info, not stripped
+   ```
+
+   iOS 심볼 파일은 `file` 출력에 `BuildID`을(를) 표시하지 않으므로, iOS의 경우 릴리스와 파일을 업로드할 때 뉴렐릭이 수행하는 확인에 의존하십시오.
+
+   {/* iOS .symbols files have no .note.gnu.build-id section (verified with llvm-readelf, 2026-10-07). App Exp tested iOS in the UI: symbolication and the mismatch check work the same as Android. */}
+
+뉴렐릭은 안드로이드 및 iOS 오류 모두에 대해 빌드 ID를 확인합니다. 다른 빌드의 심볼 파일을 업로드하면 뉴렐릭은 프레임을 심볼화할 수 없으며 파일의 빌드 ID가 트레이스의 빌드와 일치하지 않는다는 메시지와 함께 <DNT>**We couldn&apos;t symbolicate this trace**</DNT>이(가) 표시됩니다. 오류를 발생시킨 정확한 빌드의 파일을 업로드하십시오.
+
+<img title="Symbol file build ID mismatch" alt="Screenshot of the error shown when the uploaded .symbols file's build ID doesn't match the stack trace" src="/images/flutter_screenshot-crop_symbolicate-build-id-mismatch.webp" />
+
+<figcaption>
+일치하지 않는 심볼 파일을 사용하면 프레임이 해결되지 않습니다.
+</figcaption>
+
+<Callout variant="caution">
+소스 코드, 종속성, 플러터 버전 및 빌드 플래그가 모두 정확히 동일한 경우에만 다시 빌드 시 동일한 빌드 ID가 생성됩니다. 어떠한 차이라도 새로운 빌드 ID를 생성하며, 새로운 심볼 파일은 일치하지 않습니다. 실제로 배포한 빌드의 심볼 파일을 저장하십시오. 다시 생성할 수 있을 것이라 기대하지 마십시오.
+</Callout>
+
+## 다음을 사용하여 로컬에서 심볼화 `flutter symbolize` [#symbolize-locally]
+
+뉴렐릭 UI를 사용할 수 없거나 스크립트에서 많은 트레이스를 심벌화하려는 경우, 대신 플러터 CLI를 사용할 수 있습니다:
+
+1. 헤더 줄(`*** *** ***`, `pid`, `os`/`arch`, `build_id`, `isolate_dso_base` 및 `isolate_instructions`)을 포함하여 오류에서 스택 추적을 복사하고 `trace.txt`과(와) 같은 파일에 저장하십시오.
+
+2. 일치하는 심볼 파일과 함께 `flutter symbolize`을(를) 실행합니다:
+
+   ```sh
+   flutter symbolize \
+     --input=trace.txt \
+     --debug-info=build/symbols/1.4.2+57/app.android-arm64.symbols \
+     --output=trace-symbolicated.txt
+   ```
+
+   긴 `--debug-info` 옵션을 사용합니다. 플러터의 전역 옵션 중 `-d`은(는) &quot;기기&quot;를 의미하므로 짧은 형식은 혼동하기 쉽습니다.
+
+## 모범 사례: 모든 릴리스의 심볼 저장 [#store-symbols]
+
+뉴렐릭은 심볼 파일을 보관하지 않으므로 직접 저장해야 합니다. 오류가 발생한 후가 아니라 각 릴리스를 빌드할 때 저장하십시오: 이미 배포한 빌드에 대해서는 다시 생성할 수 없습니다.
+
+* 내부, 베타 및 스토어 빌드를 포함하여 **배포하는 모든 빌드의 심볼 파일을 보관하십시오.**
+* **`.symbols` 파일뿐만 아니라 모든 종류의 심볼 파일을 보관하십시오.** [플러터 심볼 파일 이해하기](#symbol-files)를 참조하십시오.
+* 각 빌드에 대해 **모든 아키텍처를 유지** 하십시오.
+* 오류에 대한 올바른 파일을 찾을 수 있도록 앱에서 보고하는 `appVersion` 및 `appBuild` 속성과 일치하게 **버전 및 빌드 번호로 레이블을 지정하십시오**.
+* **해당 버전이 사용되는 동안 계속 보관하십시오.** 사용자는 종종 수개월 동안 이전 버전을 계속 사용합니다.
+* **액세스를 제한하십시오.** 심볼 파일은 코드 구조를 나타냅니다. 소스 코드와 동일한 액세스 제어를 사용하여 저장하십시오.
+
+CI 시스템의 빌드 아티팩트, 스토리지 버킷 또는 아티팩트 저장소 등 저장 위치는 사용자가 결정할 수 있습니다. CI 빌드 아티팩트를 사용하는 경우 설정된 시간이 지나면 자동으로 삭제되는 경우가 많으므로 CI 시스템에서 아티팩트를 보관하는 기간을 확인하십시오.
+
+## 문제점 해결 [#troubleshooting]
+
+<CollapserGroup>
+<Collapser id="still-addresses" title="파일을 업로드한 후에도 스택 추적에 여전히 주소가 표시됩니다">
+<DNT>**We couldn&apos;t symbolicate this trace**</DNT>이(가) 표시되면 파일의 빌드 ID가 오류와 일치하지 않는 것입니다. 다음을 확인하십시오:
+
+* 파일은 동일한 릴리스(`appVersion` 및 `appBuild`)에서 가져온 것입니다.
+* 파일이 디바이스 아키텍처(헤더의 `arch`)와 일치합니다.
+* 다른 빌드 아티팩트가 아닌 `--split-debug-info` 디렉터리에서 `.symbols` 파일을 업로드했습니다.
+</Collapser>
+
+<Collapser id="lost-symbols" title="해당 릴리스의 심볼 파일이 없습니다.">
+해당 빌드의 오류는 심볼리케이션할 수 없습니다. 향후 오류를 심볼리케이션할 수 있도록 [모든 릴리스에 대한 심볼 보관](#store-symbols)을 시작하십시오.
+</Collapser>
+</CollapserGroup>
+
+## 제한 사항 [#limitations]
+
+* 심볼화는 Dart 오류에 적용됩니다. 네이티브 안드로이드(자바/코틀린) 및 iOS 크래시는 [안드로이드](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-crash-reporting) 및 [iOS](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) 심볼화 워크플로우를 사용합니다.
+* 결과는 오류 간에 저장되거나 공유되지 않습니다. 오류를 볼 때마다 각 오류에 대한 심볼 파일을 업로드해야 합니다.
