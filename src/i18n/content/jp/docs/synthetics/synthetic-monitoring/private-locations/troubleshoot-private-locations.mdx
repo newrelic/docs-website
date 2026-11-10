@@ -81,6 +81,70 @@ New Relicの外形監視の[プライベート](/docs/synthetics/new-relic-synth
   WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES MAX
   ```
 
+## Podmanでの共有メモリのサイズ設定により、Browserモニターがクラッシュします [#shm]
+
+Podmanベースのプライベートロケーションで実行されているBrowserモニターは、次のようなエラーで断続的に失敗する場合があります：
+
+```log
+NoSuchSessionError: invalid session id: session deleted as the browser has closed the connection, disconnected: Unable to receive message from renderer
+```
+
+これは通常、スクリプトやネットワークの問題ではなく、共有メモリ（`/dev/shm`）の不足によって引き起こされるChromeレンダラープロセスのクラッシュです。Chromeはレンダリングにおいて共有メモリに大きく依存しており、特にログインフロー中にオリジン間でリダイレクトするページでは、Firefoxよりも早くメモリを消費する傾向があります—新しいオリジンごとに、同じ`/dev/shm`プールを利用する追加のレンダラープロセスが起動するためです。
+
+### Podmanのポッドが共有メモリを割り当てる方法
+
+外形監視ジョブマネージャーが`--pod`を使用してPodmanで実行される場合、そのポッドに参加しているすべてのコンテナは単一のIPCネームスペースを共有します。ポッド自体は、ポッドを作成したときのサイズ（デフォルトでは64 MiB）で`/dev/shm`を1回マウントします。そのサイズは`podman pod create`時に設定され、後から個々のコンテナが変更または上書きすることはできません。
+
+つまり、ポッドの`/dev/shm`マウントがコンテナごとの設定よりも優先されるため、コンテナがポッドに参加した後は、共有メモリの問題を解決するための以下の一般的な方法は**機能しません**：
+
+* ...の代わりに `podman run` で `--shm-size` を渡しています `podman pod create`
+* `-v /dev/shm:/dev/shm` をオンにしたバインドマウント `podman run`
+
+### 診断
+
+何か変更を加える前に、以下のチェックを実行して原因を確認してください：
+
+1. ポッドのcreateコマンドで`--shm-size`の値を確認してください：
+
+   ```shell
+   podman pod inspect YOUR_POD_NAME --format '{{.CreateCommand}}'
+   ```
+
+   これにより、ポッドを作成した正確な`podman pod create`コマンドが出力されます。その出力から`--shm-size`を探してください。それが見つからない場合、設定しようとした内容に関係なく、ポッドはデフォルトの64 MiBで実行されています—これは、再作成する前に同じ名前の以前のポッドを完全に削除しなかった場合、またはその後ポッド内のコンテナを再起動しなかった場合に発生する可能性があります。
+
+2. ブラウザランタイムコンテナのIDを確認してください：
+
+   ```shell
+   podman ps --filter pod=YOUR_POD_NAME --filter ancestor=newrelic/synthetics-node-browser-runtime --format '{{.ID}}'
+   ```
+
+   次のステップで、このIDを`YOUR_BROWSER_RUNTIME_CONTAINER_ID`として使用してください。
+
+3. 理想的には失敗した実行中またはその直前に取得された、そのコンテナ内で実際に利用可能な共有メモリを確認してください：
+
+   ```shell
+   podman exec YOUR_BROWSER_RUNTIME_CONTAINER_ID df -h /dev/shm
+   ```
+
+   出力を設定したサイズと比較してください：
+
+   * `Size` が引き続き `64M` を示している場合、サイズ変更は反映されていません。次のセクションの説明に従ってポッドを再作成してください。
+   * `Size`に設定した値が表示されている場合（たとえば、`--shm-size=2g`で作成されたポッドの場合は`2.0G`）、`Used`列と`Avail`列を確認してください。`Avail`がゼロに近い場合、プールは枯渇しています—ポッド内のすべてのコンテナはこの同じ共有割り当てを利用するため、同じプライベートロケーションで複数のモニターが同時に実行されている場合は、`--shm-size`のサイズを大きくするか、同時に実行する数を減らしてください。`Avail`にまだ余裕がある場合、プールはこの特定のクラッシュの原因ではないため、他の場所（たとえば、`HEAVY_WORKER_MEMORY`）を確認してください。
+
+### 修理
+
+既存のポッドを削除し、より大きな`--shm-size`で再作成してから、外形監視ジョブマネージャーを再起動して新しいポッドに再参加させます：
+
+```shell
+podman pod stop YOUR_POD_NAME
+podman pod rm YOUR_POD_NAME
+podman pod create --network slirp4netns --name YOUR_POD_NAME --add-host=podman.service:HOST_IP_ADDRESS --shm-size=2g
+```
+
+インストールドキュメントで使用されている値である`2g`から始めてください。ステップ3のチェックでプールがまだ枯渇していることが示された場合は、同時実行数を減らす前にさらに増やし（たとえば、`4g`に）、変更ごとに`df -h /dev/shm`を再確認してください。
+
+次に、[Podmanの開始手順](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-update)の`podman run`コマンドを使用して、外形監視ジョブ・マネージャーを再度開始してください — ポッドを削除すると、その中で実行されていたコンテナも削除されます。
+
 ## CPU使用率のトラブルシューティング [#cpu-usage]
 
 CPUの需要が高くなる可能性のある期間を特定する。
@@ -102,7 +166,7 @@ CPUの需要が高くなる可能性のある期間を特定する。
 ## ネットワークトラブルシューティング [#network]
 
 <DNT>
-  **Network access is red:**
+**Network access is red:**
 </DNT>
 
 外形監視ジョブマネージャーはNew Relicに対してパブリックネットワークへのアクセスを確認するチェックを行います。 パブリック ネットワーク アクセスが利用できない場合、 [外形監視ジョブ マネージャーの<DNT>**Overview**</DNT>ページ](/docs/synthetics/new-relic-synthetics/pages/synthetics-overview-page-view-monitors-performance)の<DNT>**Network Access**</DNT>アイコンが赤色になりますが、それ以外の場合、外形監視ジョブ マネージャーは完全に機能します。 これが想定される動作であれば、このエラーは無視しても問題ありません。
@@ -114,7 +178,7 @@ CPUの需要が高くなる可能性のある期間を特定する。
 ```
 
 <DNT>
-  **New Relic access is red:**
+**New Relic access is red:**
 </DNT>
 
 実行するジョブのリストを取得し、 New Relicユーザー インターフェースで表示できる結果を公開するには、外形監視 Job Manager が`https://synthetics-horde.nr-data.net`にアクセスできる必要があります。 ファイアウォールルールで直接アクセスが許可されていない場合は、 [プロキシアクセスを設定](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#environment-variables)できます。必要に応じて、DNS エンドポイント`synthetics-horde.nr-data.net` 「許可」リストに追加します。
