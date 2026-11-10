@@ -81,6 +81,70 @@ Requête utile pour identifier l&apos;utilisation actuelle :
   WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES MAX
   ```
 
+## Les moniteurs Browser plantent en raison du dimensionnement de la mémoire partagée sur Podman. [#shm]
+
+Les moniteurs Browser s’exécutant sur un site privé basé sur Podman peuvent échouer par intermittence avec une erreur comme celle-ci :
+
+```log
+NoSuchSessionError: invalid session id: session deleted as the browser has closed the connection, disconnected: Unable to receive message from renderer
+```
+
+Il s’agit généralement d’un plantage du processus de rendu de Chrome causé par une mémoire partagée insuffisante (`/dev/shm`), et non d’un problème de script, ou de réseau. Chrome s’appuie fortement sur la mémoire partagée pour le rendu, et a tendance à l’épuiser plus rapidement que Firefox, en particulier sur les pages qui redirigent vers d’autres origines lors des flux de connexion : chaque nouvelle origine lance des processus de rendu supplémentaires qui puisent dans le même pool `/dev/shm`.
+
+### Comment les pod Podman allouent la mémoire partagée
+
+Lorsque le gestionnaire de jobs Synthetics s’exécute dans Podman avec `--pod`, chaque conteneur joint à ce pod partage un seul espace de nommage IPC. Le pod lui-même monte `/dev/shm` une seule fois, à la taille avec laquelle vous avez créé le pod (64 MiB par défaut). Vous définissez cette taille lors de `podman pod create`, et un conteneur individuel ne peut ni la modifier, ni la remplacer par la suite.
+
+Cela signifie que les tentatives courantes suivantes pour résoudre les problèmes de mémoire partagée **ne fonctionnent pas** une fois qu’un conteneur a rejoint un pod, car le montage `/dev/shm` du pod a la priorité sur les paramètres par conteneur :
+
+* Passer `--shm-size` sur `podman run` au lieu de `podman pod create`
+* Effectuer un montage lié avec `-v /dev/shm:/dev/shm` sur `podman run`
+
+### Diagnostiquer
+
+Avant de modifier quoi que ce soit, exécutez ces vérifications pour confirmer la cause :
+
+1. Vérifiez la valeur `--shm-size` dans la commande de création du pod :
+
+   ```shell
+   podman pod inspect YOUR_POD_NAME --format '{{.CreateCommand}}'
+   ```
+
+   Cela affiche la commande `podman pod create` exacte qui a créé le pod. Recherchez `--shm-size` dans cette sortie. S’il est manquant, le pod s’exécute sur la valeur par défaut de 64 MiB, indépendamment de ce que vous aviez l’intention de définir ; cela peut se produire si vous n’avez pas complètement supprimé un pod précédent avec le même nom avant de le recréer, ou si vous n’avez pas redémarré un conteneur dans le pod par la suite.
+
+2. Trouvez l’ID du conteneur du runtime du navigateur :
+
+   ```shell
+   podman ps --filter pod=YOUR_POD_NAME --filter ancestor=newrelic/synthetics-node-browser-runtime --format '{{.ID}}'
+   ```
+
+   Utilisez cet ID comme `YOUR_BROWSER_RUNTIME_CONTAINER_ID` à l’étape suivante.
+
+3. Vérifiez la mémoire partagée réellement disponible dans ce conteneur, idéalement capturée pendant, ou immédiatement avant une exécution en échec :
+
+   ```shell
+   podman exec YOUR_BROWSER_RUNTIME_CONTAINER_ID df -h /dev/shm
+   ```
+
+   Comparez la sortie à la taille que vous avez configurée :
+
+   * Si `Size` affiche toujours `64M`, le redimensionnement n’a jamais pris effet ; recréez le pod comme décrit dans la section suivante.
+   * Si `Size` affiche votre valeur configurée (par exemple, `2.0G` pour un pod créé avec `--shm-size=2g`), vérifiez les colonnes `Used`, et `Avail`. Si `Avail` est proche de zéro, le pool est épuisé : chaque conteneur du pod puise dans cette même allocation partagée, donc si plusieurs moniteurs s’exécutent simultanément sur le même site privé, augmentez la taille de `--shm-size`, ou réduisez le nombre d’exécutions simultanées. Si `Avail` a encore de la marge, le pool n’est pas la cause de ce plantage particulier, et vous devriez chercher ailleurs (par exemple, `HEAVY_WORKER_MEMORY`).
+
+### Réparer
+
+Supprimez le pod existant et recréez-le avec un `--shm-size` plus grand, puis redémarrez le gestionnaire de tâches Synthetics pour qu&apos;il rejoigne le nouveau pod :
+
+```shell
+podman pod stop YOUR_POD_NAME
+podman pod rm YOUR_POD_NAME
+podman pod create --network slirp4netns --name YOUR_POD_NAME --add-host=podman.service:HOST_IP_ADDRESS --shm-size=2g
+```
+
+Commencez par `2g`, la valeur utilisée par la documentation d’installation. Si la vérification de l’étape 3 montre toujours que le pool est épuisé, augmentez-le davantage (par exemple, à `4g`) avant de réduire la simultanéité, et revérifiez `df -h /dev/shm` après chaque modification.
+
+Ensuite, redémarrez le gestionnaire de jobs Synthetics en utilisant la commande `podman run` de la [procédure de démarrage de Podman](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-update) : la suppression du pod supprime également les conteneurs qui s’y exécutaient.
+
 ## Dépannage d&apos;utilisation du processeur [#cpu-usage]
 
 Identifier les périodes potentielles de forte demande de CPU :
@@ -102,7 +166,7 @@ Identifier les périodes potentielles de forte demande de CPU :
 ## Dépannage réseau [#network]
 
 <DNT>
-  **Network access is red:**
+**Network access is red:**
 </DNT>
 
 Le Synthetics Job Manager effectue une vérification auprès de New Relic pour vérifier l&apos;accès au réseau public. Si l&apos;accès au réseau public n&apos;est pas disponible, l&apos;icône <DNT>**Network Access**</DNT> sur la [page <DNT>**Overview**</DNT> du Synthetics Job Manager](/docs/synthetics/new-relic-synthetics/pages/synthetics-overview-page-view-monitors-performance) passera au rouge, mais le Synthetics Job Manager restera par ailleurs entièrement fonctionnel. Si c&apos;est le comportement attendu, vous pouvez ignorer cette erreur sans risque.
@@ -114,7 +178,7 @@ Vous pouvez également voir des entrées log comme celles-ci :
 ```
 
 <DNT>
-  **New Relic access is red:**
+**New Relic access is red:**
 </DNT>
 
 Le gestionnaire de tâches Synthetics doit avoir accès à `https://synthetics-horde.nr-data.net` pour récupérer la liste des tâches à exécuter et publier les résultats que vous pouvez consulter dans votre interface utilisateur New Relic. Si vos règles de pare-feu n&apos;autorisent pas l&apos;accès direct, vous pouvez [configurer un accès proxy](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration/#environment-variables). Si nécessaire, ajoutez le point de terminaison DNS `synthetics-horde.nr-data.net` à votre liste d&apos;autorisation.
