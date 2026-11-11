@@ -1,0 +1,188 @@
+---
+title: OCIログ転送インテグレーションのアップグレード
+tags:
+  - Logs
+  - Forward logs
+  - Oracle Cloud integrations
+  - OCI
+  - Upgrade
+metaDescription: 'Upgrade a running New Relic OCI log forwarding integration to the latest log-forwarder function and template, using Resource Manager, Terraform, or manual setup.'
+freshnessValidatedDate: '2026-11-03T00:00:00.000Z'
+translationType: machine
+---
+
+OCIログ転送インテグレーションは、Oracleクラウドインフラストラクチャ（OCI）テナンシからNew Relicにログを送信します。時間の経過とともに、New Relicは機能の追加、問題の修正、セキュリティアップデートを提供するインテグレーションの新しいバージョンをリリースします。ログが届かなくなったり、既存のインテグレーションでその他の問題が発生したりした場合、新しいバージョンに修正が含まれている可能性があります。インテグレーションは独自のテナンシで実行されるため、デプロイしたものをアップグレードすることで新しいバージョンを受け取ります。このガイドでは、そのプロセスについて説明します：
+
+* 現在ご使用の構成をご確認ください。
+* 必要に応じて、以前の構成から現在の構成に移行してください。
+* Resource Manager、Terraform、または手動設定を使用してアップグレードしてください。
+* ログが引き続き到着していることを確認してください。
+
+初めて転送を設定する場合は、[OCIログ転送のインストールと構成](/docs/logs/forward-logs/oci-log-forwarding)をご覧ください。
+
+## アップグレードのタイミング [#when-to-upgrade]
+
+ログが送信されている間は、アップグレードは必須ではありません。リリースがご自身に関連するかどうかを判断するには、[oci-log-integrationのリリースページ](https://github.com/newrelic/oci-log-integration/releases)で各新バージョンのリリースノートをお読みください。対応が必要になる場合があるため、特に破壊的変更がないか確認してください。
+
+## セットアップの確認 [#which-setup]
+
+デプロイメントでは、2つの設定のいずれかを使用します。Resource ManagerスタックまたはTerraformモジュールの設定を確認してください：
+
+* **Current setup** \[現在のセットアップ]で、**Function image** \[関数イメージ]設定を使用する場合：適用すると、インテグレーションはDocker Hubから関数イメージをご自身のテナンシ内のプライベートなContainer Registryリポジトリにコピーし、関数はそのコピーから実行されます。関数は実行時にNew Relicがホストするレジストリに依存しないため、その可用性はそのレジストリに依存しません。インテグレーションは、適用時にのみDocker Hubを使用します。バージョンを固定できます。
+* **以前の設定**で、**New Relic Owned Registry** \[New Relic所有のレジストリ]設定を使用する場合：関数は、独自のテナンシ内のコピーからではなく、設定したバージョンのNew Relic所有のレジストリから直接プルします。New Relicは、この設定を廃止しました。
+
+以前の設定を使用している場合は、まず[現在の設定への1回限りの移行](#migrate-previous)を行ってください。その後は、すべてのアップグレードで[通常のアップグレード](#upgrade-current)手順に従います。
+
+## 関数とテンプレートについて理解します。 [#what-you-upgrade]
+
+インテグレーションは2つの部分で構成されています。これらは独立してバージョン管理およびリリースされ、リリースによっていずれか一方または両方が変更される可能性があります：
+
+* **ログフォワーダー関数**：New Relicにログを送信するコードです。New Relicはこれを`docker.io/newrelic/oci-log-forwarder`としてDocker Hubに公開し、[oci-log-integrationのリリース・ページ](https://github.com/newrelic/oci-log-integration/releases)で各リリースに`function-<version>`と命名します。
+* **インテグレーションテンプレート**: 関数に関する設定であり、Resource Manager \[リソースマネージャー]スタックとその変数、またはTerraformモジュールです。テンプレートのリリースでは、同じリリースページでプレーンなバージョン番号を使用し、`oci-log-integration.zip`ファイルが含まれます。Terraformモジュールのバージョンは、`terraform-provider-newrelic`の[リリースタグ](https://github.com/newrelic/terraform-provider-newrelic/releases)です。
+
+各部分の更新方法は、使用する方法によって異なります：
+
+* **Resource ManagerとTerraformが関数を更新します。**applyを実行するたびに、Docker Hub上で`latest`タグが指すイメージを確認し、より新しいイメージを取り込みます。
+* **新しいテンプレートの適用は、意図的なステップです。**リリースによってテンプレートが変更された場合にのみテンプレートを更新し、同時に関数も更新してください。これにより、デプロイメントはNew Relicがリリース用にテストした組み合わせに保たれます。関数のリリースはすでに使用されているテンプレートとの互換性を維持するため、新しいテンプレートよりも先に新しい関数を適用できます。
+* **手動セットアップでは、自動的に更新されるものはありません。**ご自身でバージョンを選択し、イメージをコピーします。
+
+## 始める前に [#before-you-start]
+
+アップグレードする前に：
+
+* インテグレーションを実行するResource Managerスタック、Terraform設定、またはFunctionsアプリケーションを編集できることを確認してください。
+* 現在実行中のバージョンを確認し、最新リリースと比較してください：**Function image** \[関数イメージ] の値またはイメージタグ、およびTerraformモジュールの `?ref=` の値です。
+
+## 以前のセットアップから現在のセットアップに移行する [#migrate-previous]
+
+これは1回限りの移行であり、バージョンの引き上げではありません。
+
+**変更点。**設定に、完全なイメージ参照を持つ**Function image** \[関数イメージ]設定と、オプションのコンテナレジストリのユーザー名および認証トークン設定が追加されます。New Relicは**New Relic Owned Registry** \[New Relic所有のレジストリ]を廃止したため、影響はありません。最初の適用時に、インテグレーションは`newrelic-logs/oci-log-forwarder`（Terraformでは`newrelic-logs-tf/oci-log-forwarder`）という名前のプライベートなコンテナレジストリのリポジトリを作成し、そこに関数イメージをコピーします。
+
+**最初に確認すること。**applyを実行するものは何であれ、すでに到達しているOCIエンドポイントに加えて、Docker Hubおよびご自身のテナンシのコンテナ・レジストリへのアウトバウンド・アクセスが必要です。また、インテグレーションがイメージをプッシュするには、コンテナ・レジストリの資格情報も必要です。認証トークンの設定を空のままにすると、applyを実行しているユーザー用にトークンが作成され、以降のapplyで再利用されます。
+
+<Callout variant="important">
+OCIでは、各ユーザーが保持できる認証トークンの数が制限されており、現在は2つです。applyを実行するユーザーがすでに上限に達しており、auth token \[認証トークン] の設定を空のままにした場合、applyは失敗し、既存のトークンを要求するエラーが発生します。まず未使用のトークンを削除するか、auth token \[認証トークン] および username \[ユーザー名] の設定に既存のトークンとそのユーザー名を入力してください。OCIのUser Settings \[ユーザー設定] で現在の制限を確認してください。
+</Callout>
+
+<CollapserGroup>
+<Collapser id="migrate-orm" title="Resource Manager [リソースマネージャー]">
+以下の手順に従って、スタックを現在のセットアップに移行してください。
+
+1. [リリースページ](https://github.com/newrelic/oci-log-integration/releases)の最新のテンプレートリリースから`oci-log-integration.zip`をダウンロードしてください。
+2. ログのスタックを編集し、既存のものを置き換える新しいスタック設定としてzipをアップロードしてください。
+3. 変数ページでは、特定のバージョンを保持したい場合を除き、**Function image** \[関数イメージ]はデフォルトのままにしてください。Container Registry \[コンテナレジストリ]のユーザー名と認証トークンは空のままにしてください（上のメモを参照）。
+4. スタックを保存し、**Plan** \[プラン]を実行してください。出力には、適用によって新しいコンテナレジストリのリポジトリが作成され、関数が更新されることが示されるはずです。
+5. **Apply** \[適用]を実行します。この最初の適用は、関数イメージをテナンシにコピーするため、通常よりも時間がかかります。
+</Collapser>
+
+<Collapser id="migrate-terraform" title="テラフォーム">
+モジュールを現在の設定に移行するには、次の手順に従ってください。現在のリファレンス例については、[Terraform RegistryのOCIガイド](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide#oci)をご覧ください。
+
+1. 両方のモジュールブロックの`?ref=`を、モジュールが関数イメージを独自のコンテナレジストリにコピーする最初のリリースである`v3.101.4`以降に変更してください。この例のバージョンは単なるサンプルです。希望するリリースを使用してください。
+
+   ```hcl
+   module "oci_policy_setup" {
+     source = "https://github.com/newrelic/terraform-provider-newrelic/tree/main/examples/modules/cloud-integrations/oci/policy-setup?ref=v3.101.4"
+   }
+
+   module "oci_logs_integration" {
+     source = "https://github.com/newrelic/terraform-provider-newrelic/tree/main/examples/modules/cloud-integrations/oci/logs-integration?ref=v3.101.4"
+   }
+   ```
+
+2. 設定から`image_version`変数を削除してください。
+
+3. まだ設定されていない場合は、`user_ocid`を追加してください。モジュールはこれを使用して、イメージをプッシュするコンテナ・レジストリの認証情報を作成します。
+
+4. ポリシー・モジュールのディレクトリから、`terraform init -upgrade`、`terraform plan`、および`terraform apply`を実行してください。ログ・モジュールが依存する権限の変更がポリシー・モジュールに含まれている可能性があるため、これを最初に実行してください。
+
+5. ログ・モジュールのディレクトリから、同じ3つのコマンドを実行します。
+</Collapser>
+
+<Collapser id="migrate-manual" title="手動セットアップ">
+New Relicのガイド付き設定には現在の手動手順が表示されるため、これを使用してテナンシと比較し、IAMポリシーや動的グループへの変更など、新しい点がないか確認してください。
+
+1. 関数イメージ用に、テナンシ内にコンテナ・レジストリのリポジトリ（例：`newrelic-logs/oci-log-forwarder`）を作成してください。
+2. `docker.io/newrelic/oci-log-forwarder`から目的のバージョンをプルし、同じバージョン番号でタグを付けて、そのリポジトリにプッシュします。
+3. ログ関数を編集し、そのイメージをプッシュしたバージョンに設定してください。
+</Collapser>
+</CollapserGroup>
+
+## 現在のセットアップでデプロイメントをアップグレードします。 [#upgrade-current]
+
+スタックまたはモジュールに**Function image** \[関数イメージ]設定がある場合は、これらの手順を使用してください。インテグレーションの設定に使用した方法を選択してください。
+
+<CollapserGroup>
+<Collapser id="current-orm" title="Resource Manager [リソースマネージャー]">
+新しい関数を取り込むには、スタックで**Plan** \[プラン]を実行し、次に**Apply** \[適用]を実行してください。
+
+リリースによってテンプレートが変更された場合は、次の操作も行ってください：
+
+1. [リリースページ](https://github.com/newrelic/oci-log-integration/releases)から、希望するテンプレートリリースの`oci-log-integration.zip`をダウンロードしてください。Resource Manager \[リソースマネージャー]はURLではなくローカルファイルを受け入れます。
+2. ログのスタックを編集し、既存のものを置き換える新しいスタック設定としてzipをアップロードしてください。
+3. New Relicアカウント、リージョン、ペイロード、およびネットワークの既存の変数値を保持してください。
+4. スタックを保存し、**Plan** \[プラン]を実行してください。出力を読み、変更が想定どおりであることを確認してください。
+5. **Apply** \[適用]を実行し、ジョブが成功するのを待ちます。
+
+関数を特定のバージョンに保持するには、**Function image** \[関数イメージ]をそのバージョンの完全な参照（たとえば`docker.io/newrelic/oci-log-forwarder:1.3.0`）に設定します。計装するログ・グループまたはコンパートメントを追加した場合にのみ、ペイロード設定を変更してください。
+</Collapser>
+
+<Collapser id="current-terraform" title="テラフォーム">
+新しい関数を取得するには、`terraform apply`を実行してください。
+
+新しいモジュールを適用するには、両方のモジュールブロックを同じリリースに移動し、順番に適用してください。その前に、モジュール・ブロックを[Terraform Registry OCIガイド](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide#oci)の現在のリファレンス例と比較してください。新しい変数、変更されたデフォルト値、またはより新しい`?ref=`などの相違点を適用してください。
+
+```hcl
+module "oci_policy_setup" {
+  source = "https://github.com/newrelic/terraform-provider-newrelic/tree/main/examples/modules/cloud-integrations/oci/policy-setup?ref=v3.101.6"
+}
+
+module "oci_logs_integration" {
+  source = "https://github.com/newrelic/terraform-provider-newrelic/tree/main/examples/modules/cloud-integrations/oci/logs-integration?ref=v3.101.6"
+}
+```
+
+アップグレードを適用するには：
+
+1. 両方のモジュールブロックで、`?ref=`を同じリリースに設定してください。これは各モジュールの`source` URLの末尾にあるクエリパラメーターであり、`v3.101.6`は単なるサンプルです。`v3.101.4`以降を使用してください。
+
+2. `terraform version`を使用して、New Relic Terraformプロバイダのバージョンを確認してください。これにより、解決されたプロバイダのバージョン（例：`+ provider registry.terraform.io/newrelic/newrelic v3.99.2`）がリストされます。現在のテンプレートには`v3.99.2`以降が必要であり、古いプロバイダを使用すると、警告が表示されるのではなく、applyが失敗します。
+
+3. ログモジュールが依存する権限の変更が含まれている可能性があるため、まずはポリシーモジュールのディレクトリから次のコマンドを実行してください。
+
+   ```bash
+   terraform init -upgrade
+   terraform plan
+   terraform apply
+   ```
+
+4. ログ・モジュールのディレクトリから、同じ3つのコマンドを実行します。
+</Collapser>
+
+<Collapser id="current-manual" title="手動セットアップ">
+バージョンを選択し、そのイメージをご自身のコンテナ・レジストリにコピーして、関数をそのコピーに指定してください。
+
+1. [リリースページ](https://github.com/newrelic/oci-log-integration/releases)からバージョンを選択し、[Docker Hubのタグページ](https://hub.docker.com/r/newrelic/oci-log-forwarder/tags)で一致するタグを確認してください。
+2. そのバージョンをプルし、同じバージョン番号でタグを付けてコンテナレジストリのリポジトリにプッシュしてください。コピーに`latest`というタグを付けないでください。同期を維持するものは何もなく、バージョン番号にはデプロイしたものが正確に記録されます。
+3. ログ関数を編集し、そのイメージをプッシュしたバージョンに設定してください。
+</Collapser>
+</CollapserGroup>
+
+## アップグレード後の確認 [#verify]
+
+アップグレードから数分以内に、ログが引き続き届いていることを確認してください：
+
+```sql
+SELECT count(*) FROM Log WHERE instrumentation.provider = 'oci' SINCE 10 minutes ago
+```
+
+カウントがゼロに低下した場合は、OCI Console \[OCIコンソール]で関数の実行ログを確認してください。
+
+関数が新しいイメージをプルするため、アップグレード後の初回呼び出し時に一時的な速度低下が発生するのは正常です。どのバージョンが適用されたかを確認するには、コンテナ・レジストリのリポジトリにあるイメージ・タグを確認してください。
+
+## 関連記事 [#related-articles]
+
+* [OCIログ転送のインストールと構成](/docs/logs/forward-logs/oci-log-forwarding): 初めてOCIログ転送をセットアップします。
+* [OCIログフォワーダーをモニターする](/docs/logs/forward-logs/oci-log-forwarder-observability)：ログフォワーダー関数で自己オブザーバビリティ・メトリクスを有効にします。
+* [トラブルシューティング](/docs/infrastructure/oci/troubleshoot): セットアップ中にデータが表示されない場合の修正方法。
