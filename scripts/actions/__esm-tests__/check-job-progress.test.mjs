@@ -6,9 +6,11 @@ import { test } from 'uvu';
 const updateTranslations = sinon.stub();
 const getTranslationsJobsRecords = sinon.stub();
 const getJobs = sinon.stub();
+const getTranslations = sinon.stub();
 const updateJob = sinon.stub();
 
 const {
+  getPendingFileUris,
   aggregateStatuses,
   updateTranslationRecords,
   updateJobRecords,
@@ -18,6 +20,7 @@ const {
     getJobs,
     updateJob,
     getTranslationsJobsRecords,
+    getTranslations,
     updateTranslations,
     StatusEnum: {
       PENDING: 'PENDING',
@@ -384,6 +387,7 @@ test('does not stop the run for a batch whose files were all cancelled', async (
       getJobs,
       updateJob,
       getTranslationsJobsRecords,
+      getTranslations,
       updateTranslations,
       StatusEnum: { IN_PROGRESS: 'IN_PROGRESS', COMPLETED: 'COMPLETED' },
     },
@@ -398,6 +402,27 @@ test('does not stop the run for a batch whose files were all cancelled', async (
   const status = await getBatchStatus({ batchUid: 'b1', jobId: 7 });
 
   expect(status).toMatchObject({ batchUid: 'b1', jobId: 7, fileUris: [] });
+});
+
+// the vendor lists every file the job was sent with, including ones already
+// received, whose records were deleted. Downloading those again rewrote old
+// translations and kept the job from ever completing.
+test('lists only the files a job is still waiting for', async () => {
+  getTranslationsJobsRecords
+    .withArgs({ job_id: 7 })
+    .resolves([{ translation_id: 1 }, { translation_id: 2 }]);
+  getTranslations
+    .withArgs({ id: [1, 2], status: 'IN_PROGRESS' })
+    .resolves([{ slug: 'src/content/docs/b.mdx' }]);
+
+  expect(await getPendingFileUris(7)).toEqual(['src/content/docs/b.mdx']);
+});
+
+test('lists no files for a job with no records left', async () => {
+  getTranslationsJobsRecords.withArgs({ job_id: 8 }).resolves([]);
+
+  expect(await getPendingFileUris(8)).toEqual([]);
+  expect(getTranslations.called).toBe(false);
 });
 
 test.run();

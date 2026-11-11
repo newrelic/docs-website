@@ -7,6 +7,7 @@ import {
   getJobs,
   updateJob,
   getTranslationsJobsRecords,
+  getTranslations,
   updateTranslations,
   StatusEnum,
 } from './translation_workflow/database.js';
@@ -160,6 +161,25 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
     // otherwise, something wrong happened, stop the script
     throw error;
   }
+};
+
+/**
+ * Files of a job still waiting to be received. Records of files already
+ * received are deleted after each run, but the vendor keeps listing those
+ * files in the batch. Downloading them again rewrote old translations, and the
+ * job's counts never matched its records, so it was never completed.
+ * @param {number} jobId
+ * @returns {Promise<string[]>}
+ */
+const getPendingFileUris = async (jobId) => {
+  const ids = (await getTranslationsJobsRecords({ job_id: jobId })).map(
+    prop('translation_id')
+  );
+  if (!ids.length) return [];
+
+  return (
+    await getTranslations({ id: ids, status: StatusEnum.IN_PROGRESS })
+  ).map(prop('slug'));
 };
 
 /**
@@ -334,18 +354,37 @@ const main = async () => {
       status: 'IN_PROGRESS',
       project_id: PROJECT_ID,
     });
-    const batchUids = inProgressJobs.map((job) => {
-      return { batchUid: job.batch_uid, jobId: job.id };
-    });
+    const pending = Object.fromEntries(
+      await Promise.all(
+        inProgressJobs.map(async (job) => [
+          job.id,
+          new Set(await getPendingFileUris(job.id)),
+        ])
+      )
+    );
+    // a job with nothing left to receive is done, whatever the vendor says
+    const emptyJobIds = inProgressJobs
+      .map(prop('id'))
+      .filter((id) => !pending[id].size);
+    log(`${emptyJobIds.length} jobs have no files left to receive`);
+
+    const batchUids = inProgressJobs
+      .filter((job) => pending[job.id].size)
+      .map((job) => {
+        return { batchUid: job.batch_uid, jobId: job.id };
+      });
 
     // get the status for all of the batch translation jobs
     // Use rate limiting to avoid exceeding API limits (400 requests per 10 seconds)
     const batchStatuses = await processWithRateLimit(batchUids, getBatchStatus);
 
     // filter out any jobs that aren't ready to be brought back into the site
-    const batchesToDeserialize = batchStatuses.filter(
-      (batch) => batch && batch.done
-    );
+    const batchesToDeserialize = batchStatuses
+      .filter((batch) => batch && batch.done)
+      .map((batch) => ({
+        ...batch,
+        fileUris: batch.fileUris.filter((uri) => pending[batch.jobId].has(uri)),
+      }));
 
     log(`${batchesToDeserialize.length} batches ready to be deserialized`);
     log(`batchUids: ${batchesToDeserialize.map(prop('batchUid')).join(', ')}`);
@@ -374,10 +413,10 @@ const main = async () => {
 
     await updateTranslationRecords(PROJECT_ID, slugStatuses);
 
-    const results = aggregateStatuses(
-      slugStatuses,
-      batchesToDeserialize.map(prop('jobId'))
-    );
+    const results = aggregateStatuses(slugStatuses, [
+      ...batchesToDeserialize.map(prop('jobId')),
+      ...emptyJobIds,
+    ]);
 
     console.log(
       `Final results --- ${results.totalSuccesses} files completed, ${results.totalFailures} files errored.`
@@ -433,6 +472,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
 export {
   getBatchStatus,
+  getPendingFileUris,
   aggregateStatuses,
   updateTranslationRecords,
   updateJobRecords,
