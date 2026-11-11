@@ -1,0 +1,350 @@
+---
+title: Guía de migración
+metaDescription: 'Key considerations, configuration mapping, entity continuity, and rollback steps when migrating from a standalone Infrastructure Agent to Agent Control on Linux, Windows, and Kubernetes.'
+freshnessValidatedDate: '2026-10-02T00:00:00.000Z'
+translationType: machine
+---
+
+Esta guía cubre las preguntas y los problemas más comunes al pasar de una instalación de agente independiente a agentes administrados por Control de agentes y control de flota.
+
+## Antes de comenzar: la brecha de monitoreo
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="gap-host">En el host</TabsBarItem> <TabsBarItem id="gap-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="gap-host">
+      <Callout variant="caution">
+        **La instalación del Control de agentes elimina el agente de infraestructura independiente.**
+
+        El paquete del sistema operativo que instala Control de agentes elimina o detiene el agente de infraestructura instalado previamente. A partir de ese momento, el host no tiene ningún agente en ejecución hasta que Control de agentes se conecta a control de flota, recibe la configuración de despliegue e inicia correctamente el agente de infraestructura como un subagente administrado.
+      </Callout>
+
+      **No instale Control de agentes en un host hasta que se cumpla todo lo siguiente:**
+
+      1. control de flota tiene un despliegue con un agente de infraestructura dirigido a ese host cuya configuración tiene ajustes similares a los archivos `newrelic-infra.yml` y `integrations.d/` existentes. Consulte la [migración de configuración](#configuration-migration) para saber cómo traducir cada pieza.
+      2. Primero validó la configuración de despliegue en al menos un host que no es de producción.
+      3. Control de agentes puede acceder al extremo de control de flota y al registro de OCI desde el host objetivo. Revise las reglas del firewall y la configuración del proxy con anticipación.
+      4. Tiene listos los pasos de reversión en caso de que el despliegue no se inicie. Consulte [Reversión](#rollback).
+
+      El intervalo entre la instalación de Control de agentes y el primer inicio exitoso del agente administrado suele ser de unos pocos segundos cuando todo está configurado correctamente.
+    </TabsPageItem>
+
+    <TabsPageItem id="gap-k8s">
+      <Callout variant="caution">
+        **La migración requiere desinstalar los agentes existentes antes de instalar Control de agentes.**
+
+        A diferencia de los hosts donde el instalador de Control de agentes reemplaza el agente existente, en Kubernetes, primero debe desinstalar manualmente los agentes antiguos. Se produce una interrupción en el monitoreo desde el momento en que ejecuta `helm uninstall` hasta que Control de agentes se conecta al control de flota y aplica la configuración remota.
+      </Callout>
+
+      **No desinstale los agentes existentes hasta que se cumpla todo lo siguiente:**
+
+      1. Ha guardado los valores existentes de Helm: `helm get values RELEASE_NAME --namespace NAMESPACE`. Estos son el punto de reversión.
+      2. control de flota tiene configuraciones remotas listas para cada tipo de agente que está migrando. Consulte la [migración de configuración](#configuration-migration) para saber cómo asignar los valores de Helm a las configuraciones de control de flota.
+      3. El Control de agentes puede alcanzar el extremo del control de flota y el registro OCI desde los nodos del clúster. Revise las políticas de red y las reglas de salida con anticipación.
+      4. Tiene listos los pasos de reversión en caso de que el despliegue no se inicie. Consulte [Reversión](#rollback).
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Migrar un sistema previamente instrumentado
+
+<Callout variant="important">
+  Agent Control no admite la migración automática de agentes existentes. La migración siempre es un proceso manual: desinstale el agente existente, instale Agent Control y, a continuación, vuelva a crear la configuración como una configuración remota de control de flota.
+</Callout>
+
+<Callout variant="caution" title="Brecha de monitoreo en hosts de Linux y Windows">
+  Instalar Control de agentes en un host **elimina el agente de infraestructura independiente**. Espere una pérdida temporal de telemetría desde el momento en que se detiene el agente antiguo hasta que Control de agentes se conecta al control de flota e inicia el agente administrado. Prepare y valide la configuración de despliegue del control de flota en un host que no sea de producción antes de migrar la producción. Para obtener todos los detalles, incluidos los pasos de reversión, consulte la [guía de migración de hosts](/docs/new-relic-control/agent-control/migration-guide).
+</Callout>
+
+### Proceso general de migración
+
+Independientemente de la plataforma, la migración sigue estos cuatro pasos:
+
+1. **Tome nota de su configuración existente.** Guarde una copia de todos los archivos de configuración del agente y las configuraciones de integración antes de desinstalar nada. Las recreará como configuraciones remotas de Fleet Control.
+2. **Desinstale el agente existente.** Agent Control no puede coexistir con una instalación de agente independiente del mismo tipo.
+3. **Instale Agent Control y conéctese a una flota.** Siga la guía de instalación específica de la plataforma y seleccione una flota existente o cree una nueva.
+4. **Vuelva a crear la configuración en Fleet Control.** Cree una configuración remota para la flota con los ajustes anteriores. Agent Control lo aplicará automáticamente.
+
+<Callout variant="important" title="La configuración remota siempre gana">
+  Fleet Control es la fuente autorizada para la configuración del agente. Cualquier configuración del agente, versiones, valores de charts y límites de recursos, debe definirse en la configuración remota de Fleet Control, no en el archivo de instalación local. Si ambos existen, la configuración remota tiene prioridad y sobrescribirá cualquier valor local.
+</Callout>
+
+<Callout variant="tip" title="Mejores practicas">
+  Para garantizar la continuidad de los datos, use el mismo nombre de entidad (nombre de clúster o nombre de host) y la misma cuenta de New Relic durante la instalación del Control de agentes. Los GUID de entidad están vinculados a estos atributos, no a cómo se administra el agente. Consulte [continuidad de entidades y dashboards](/docs/new-relic-control/agent-control/migration-guide#entity-continuity-and-dashboards) para obtener más detalles. Puede mantener cualquier agente o componente que aún no sea compatible con el Control de agentes en su lugar hasta que el soporte esté disponible.
+</Callout>
+
+### Kubernetes
+
+Si su clúster de Kubernetes ya está instrumentado con New Relic, puede realizar la transición de sus agentes para que sean administrados por Agent Control. El proceso de migración elimina las instalaciones de agentes existentes y las reemplaza con instalaciones gestionadas por Agent Control, configuradas centralmente a través de control de flota.
+
+Agent Control puede desplegar y administrar los siguientes agentes del chart de Helm `nri-bundle`:
+
+* `newrelic-infrastructure`, `nri-kube-events` y `kube-state-metrics`: administrados como el tipo **agente de infraestructura**
+* `newrelic-prometheus-configurator`: administrado como el tipo de agente **Prometheus**
+* `newrelic-logging`: gestionado como el tipo de agente **Fluent Bit**
+* `nr-k8s-otel-collector`: administrado como el tipo de agente **OpenTelemetry Collector**
+
+1. **Recupere su configuración existente.** Si instaló agentes usando Helm, recupere la configuración de instalación del clúster:
+
+```sh
+# Find releases in the namespace
+helm list --namespace <namespace-name>
+
+# Get the values for a specific release
+helm get values <release-name> --namespace <namespace-name>
+```
+
+Si tiene el archivo de configuración original guardado de la instalación, utilícelo directamente. Si instrumentó el clúster mediante manifiestos de Kubernetes (kubectl o Kustomize), tome nota de las opciones establecidas para cada agente —las recreará como configuraciones remotas de Fleet Control.
+
+2. **Desinstale sus agentes antiguos.** Antes de instalar Agent Control, elimine los agentes antiguos de su clúster. Para una instalación de Helm:
+
+```shell
+helm uninstall <release-name> -n <namespace>
+```
+
+Por ejemplo, para desinstalar el `nri-bundle`:
+
+```shell
+helm uninstall nri-bundle -n newrelic
+```
+
+3. **Instale Agent Control.** Inicie la [instalación guiada de Agent Control](/docs/new-relic-control/agent-control/setup/) y descargue el `values.yaml` generado. Este archivo contiene solo la configuración del supervisor de Agent Control (credenciales, ID de flota y qué tipos de agentes administrar) — **no agregue valores de chart específicos del agente aquí**. Esos pertenecen a la configuración remota de control de flota.
+
+```shell
+helm upgrade --install agent-control-bootstrap -n newrelic newrelic/agent-control-bootstrap --create-namespace --values my_values.yaml
+```
+
+4. **Vuelva a crear la configuración de su agente en Fleet Control.** Después de que Agent Control se conecte a Fleet Control, [cree la configuración](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration) para cada uno de los agentes antiguos con los ajustes anteriores.
+
+5. **Cree un nuevo despliegue** agregando las configuraciones remotas recién creadas a su flota. Agent Control aplicará automáticamente la nueva configuración a su clúster. Siga estos pasos en [crear y ejecutar su primer despliegue](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment).
+
+6. **Verifique que los datos estén fluyendo.** Vaya a **Infrastructure &gt; Kubernetes** en la UI de New Relic. El clúster debería aparecer en un plazo de 1-2 minutos después de que se aplique la configuración remota. Si no aparece, consulte la [resolución de problemas de Control de agentes](/docs/new-relic-control/agent-control/troubleshooting).
+
+### Linux
+
+<Callout variant="important">
+  Agent Control no admite la migración automática de agentes existentes en Linux. Si ya tiene el New Relic Infrastructure Agent instalado en su host Linux, debe desinstalarlo manualmente antes de instalar Agent Control. Agent Control distribuye agentes mediante paquetes compatibles con OCI a través de Fleet Control — no reemplaza ni hereda la instalación existente del paquete `newrelic-infra`.
+</Callout>
+
+1. **Tome nota de su configuración existente**
+
+Antes de desinstalar, guarde una copia de:
+
+* Configuración del agente: `/etc/newrelic-infra/newrelic-infra.yml`
+* Cualquier configuración de integración en el host: `/etc/newrelic-infra/integrations.d/`
+
+Volverá a crearlas como configuraciones remotas del control de flota en el paso 4. Para saber cómo se asigna cada archivo de configuración y ajuste al formato del control de flota, consulte [Migración de configuración](/docs/new-relic-control/agent-control/migration-guide#configuration-migration).
+
+2. **Desinstale el agente de infraestructura existente**
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux-uninstall-debian">Debian, Ubuntu</TabsBarItem> <TabsBarItem id="linux-uninstall-suse">SLES</TabsBarItem> <TabsBarItem id="linux-uninstall-redhat">Amazon Linux, CentOS, RHEL</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux-uninstall-debian">
+      ```bash
+      sudo apt-get remove newrelic-infra -y
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="linux-uninstall-suse">
+      ```bash
+      sudo zypper -n remove newrelic-infra
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="linux-uninstall-redhat">
+      ```bash
+      sudo yum remove newrelic-infra -y
+      ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+3. **Instale Agent Control.** Siga la [guía de instalación de Linux](/docs/new-relic-control/agent-control/setup/). Asegúrese de seleccionar o crear una flota de tipo **Host - Linux**.
+
+4. **Vuelva a crear la configuración de su agente en Fleet Control.** Después de que Control de agentes se conecte a control de flota, [cree la configuración](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration) para cada uno de los agentes antiguos con los ajustes anteriores. Use los archivos de configuración guardados del paso 1 como referencia. Consulte [Migración de la configuración](/docs/new-relic-control/agent-control/migration-guide#configuration-migration) para saber cómo se asigna cada ajuste al formato de control de flota.
+
+5. **Cree un nuevo despliegue** para agregar la configuración remota recién creada a la flota. El control del agente aplicará automáticamente la nueva configuración al host, descargará e instalará los paquetes de OCI para cada agente. Siga estos pasos en [Crear y ejecutar el primer despliegue](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment).
+
+6. **Verifique que los datos estén fluyendo.** Vaya a **Infrastructure &gt; Hosts** en la UI de New Relic. Su host debería aparecer en 1-2 minutos. Si no aparece, consulte la [resolución de problemas de Control de agentes](/docs/new-relic-control/agent-control/troubleshooting).
+
+Los dashboards personalizados y las alertas que hacen referencia a datos del agente de infraestructura seguirán funcionando siempre que utilice la misma cuenta y el mismo nombre de host. Los GUID de entidad se derivan del nombre de host y la cuenta, no de cómo se administra el agente. Para obtener una explicación detallada y los pasos de reversión, consulte la [guía de migración de hosts](/docs/new-relic-control/agent-control/migration-guide).
+
+### Windows
+
+<Callout variant="important">
+  Agent Control no admite la migración automática de agentes existentes en Windows. Si ya tiene instalado el agente de infraestructura de New Relic en su host de Windows, debe desinstalarlo manualmente antes de instalar Agent Control. Los agentes de APM no son administrados por Agent Control y pueden permanecer instalados.
+</Callout>
+
+1. **Tome nota de su configuración existente**
+
+Antes de desinstalar, guarde una copia de:
+
+* Configuración del agente: `C:\Program Files\New Relic\newrelic-infra\newrelic-infra.yml`
+* Cualquier configuración de integración en el host: `C:\Program Files\New Relic\newrelic-infra\integrations.d\`
+
+Volverá a crearlas como configuraciones remotas del control de flota en el paso 4. Para saber cómo se asigna cada archivo de configuración y ajuste al formato del control de flota, consulte [Migración de configuración](/docs/new-relic-control/agent-control/migration-guide#configuration-migration).
+
+2. **Desinstale el agente de infraestructura existente**
+
+Abra **Add or Remove Programs** y desinstale el agente de infraestructura de New Relic. Alternativamente, use el desinstalador MSI desde PowerShell:
+
+```powershell
+# Replace {PRODUCT_CODE} with the GUID from Add/Remove Programs
+msiexec /x {PRODUCT_CODE} /quiet
+```
+
+3. **Instale Agent Control.** Siga la [guía de instalación de Windows](/docs/new-relic-control/agent-control/setup/). Asegúrese de seleccionar o crear una flota de tipo **Host - Windows**.
+
+4. **Vuelva a crear la configuración de su agente en Fleet Control.** Después de que Control de agentes se conecte a control de flota, [cree la configuración](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration) para cada uno de los agentes antiguos con los ajustes anteriores. Use los archivos de configuración guardados del paso 1 como referencia. Consulte [Migración de la configuración](/docs/new-relic-control/agent-control/migration-guide#configuration-migration) para saber cómo se asigna cada ajuste al formato de control de flota.
+
+5. **Cree un nuevo despliegue** para agregar la configuración remota recién creada a la flota. El control del agente aplicará automáticamente la nueva configuración al host, descargará e instalará los paquetes de OCI para cada agente. Siga estos pasos en [Crear y ejecutar el primer despliegue](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment).
+
+6. **Verifique que los datos estén fluyendo.** Vaya a **Infrastructure &gt; Hosts** en la UI de New Relic. Su host debería aparecer en 1-2 minutos. Si no aparece, consulte la [resolución de problemas de Control de agentes](/docs/new-relic-control/agent-control/troubleshooting).
+
+Los dashboards personalizados y las alertas que hacen referencia a datos del agente de infraestructura seguirán funcionando siempre que utilice la misma cuenta y el mismo nombre de host. Los GUID de entidad se derivan del nombre de host y la cuenta, no de cómo se administra el agente. Para obtener una explicación detallada y los pasos de reversión, consulte la [guía de migración de hosts](/docs/new-relic-control/agent-control/migration-guide).
+
+## Continuidad de entidades y dashboards
+
+**Los dashboards, alertas y workloads existentes siguen funcionando sin ningún cambio.**
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="entity-host">En el host</TabsBarItem> <TabsBarItem id="entity-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="entity-host">
+      Los GUID de entidad de New Relic se derivan de atributos estables (principalmente el nombre de host, CloudInstanceId, el ID de la cuenta y la identidad de la integración) y no de cómo se instaló el agente o de qué supervisa su proceso. Cuando Control de agentes inicia el agente de infraestructura en el mismo host con la misma configuración, el agente reporta los mismos atributos de siempre. New Relic resuelve esos atributos en los mismos GUID de entidad que antes, por lo que:
+
+      * La entidad de host en la UI de infraestructura es la misma entidad.
+      * Las entidades de integración en el host (MySQL, NGINX, etc.) mantienen sus GUID.
+      * Cualquier widget de dashboard, condición de alerta o workload que consulte o filtre por esas entidades sigue funcionando.
+      * El historial de señales doradas se conserva. No hay brechas ni duplicaciones en la línea de tiempo de la métrica de la entidad, siempre que la migración se realice sin una superposición o brecha prolongada en la ejecución del agente.
+    </TabsPageItem>
+
+    <TabsPageItem id="entity-k8s">
+      Los GUID de entidad de New Relic para Kubernetes se derivan del nombre del clúster y el ID de la cuenta, no de cómo se instalan o administran los agentes. Cuando el Control de agentes despliega el agente de infraestructura en el mismo clúster usando el mismo nombre de clúster, la entidad del clúster y todas las entidades de workload se resuelven en los mismos GUID que antes, por lo que:
+
+      * La entidad del clúster en la UI de Kubernetes es la misma entidad.
+      * Las entidades de workload y namespace mantienen sus GUID.
+      * Cualquier widget de dashboard, condición de alerta o workload que consulte o filtre por esas entidades sigue funcionando.
+      * El historial de señales doradas se conserva, siempre que el intervalo entre la desinstalación de los agentes antiguos y el inicio de los agentes administrados por el Control de agentes sea breve.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Migración de configuración
+
+No almacene secretos como claves de licencia, claves de API o contraseñas en texto sin formato en las configuraciones de control de flota. En su lugar, haga referencia a ellos como variables de entorno utilizando el prefijo `nr-env:`:
+
+```yaml
+license_key: ${nr-env:NEW_RELIC_LICENSE_KEY}
+```
+
+Control de agentes expone automáticamente `NEW_RELIC_LICENSE_KEY` a los subagentes, por lo que no es necesario establecer `license_key` explícitamente; el ejemplo anterior se muestra como referencia. Utilice el mismo patrón para cualquier otro secreto. Consulte la [documentación de interpolación de variables](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/VARIABLE_INTERPOLATION.md#nr-env--environment-variables) para conocer la sintaxis completa y otras fuentes compatibles.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="config-host">En el host</TabsBarItem> <TabsBarItem id="config-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="config-host">
+      **Configuración principal del agente de infraestructura**
+
+      La configuración principal del agente de infraestructura (`newrelic-infra.yml`) se asigna directamente al bloque `content` de la configuración del subagente del agente de infraestructura en control de flota. Cualquier clave aceptada por `newrelic-infra.yml` se acepta allí. Los campos como `display_name`, `custom_attributes` y `log` se transfieren sin cambios.
+
+      Cuando Control de agentes administra el agente de infraestructura, escribe la configuración efectiva en el disco en cada actualización de configuración remota. El agente lee desde esa ruta. La antigua configuración `newrelic-infra.yml` permanece en el disco después de la migración, pero no se utilizará.
+
+      <Callout variant="tip">
+        No elimine `newrelic-infra.yml` ni los archivos `integrations.d/` hasta que haya confirmado que los agentes administrados informan los datos correctamente. Mantener los originales en el disco es lo que hace posible el [procedimiento de reversión](#rollback).
+      </Callout>
+
+      **Integracion on-host**
+
+      Cada configuración de integración también debe crearse en control de flota seleccionando el tipo de agente correcto.
+    </TabsPageItem>
+
+    <TabsPageItem id="config-k8s">
+      **Tipos de agente y mapeo de charts de Helm**
+
+      Control de agentes administra los agentes del chart de Helm `nri-bundle` como tipos de agente distintos en control de flota. Cada tipo de agente tiene su propia configuración remota:
+
+      | Componente nri-bundle                                              | Tipo de agente del control de flota |
+      | ------------------------------------------------------------------ | ----------------------------------- |
+      | `newrelic-infrastructure`, `nri-kube-events`, `kube-state-metrics` | Agente de infraestructura           |
+      | `newrelic-prometheus-configurator`                                 | Prometeo                            |
+      | `newrelic-logging`                                                 | Fluent Bit                          |
+      | `nr-k8s-otel-collector`                                            | Recolector OpenTelemetry            |
+
+      **Traducción de valores de Helm a la configuración del control de flota**
+
+      Los valores de Helm que recuperó con `helm get values` se convierten en el cuerpo de la configuración remota de control de flota para cada tipo de agente. Por ejemplo, una sección `values.yaml` para el agente de infraestructura:
+
+      ```yaml
+      newrelic-infrastructure:
+        customAttributes:
+          environment: production
+        resources:
+          limits:
+            memory: 300Mi
+      ```
+
+      se convierte en una configuración remota de control de flota para el tipo **agente de infraestructura** con esas mismas claves bajo el bloque de configuración del agente. Consulte la documentación de cada agente para conocer las claves aceptadas.
+
+      **Secretos y clave de licencia**
+
+      No almacene secretos como texto sin formato en las configuraciones del control de flota. El Control de agentes propaga automáticamente la clave de licencia a todos los subagentes administrados; no es necesario establecerla en la configuración remota. Para otros secretos (claves de API, contraseñas), use referencias de variables de entorno a través del prefijo `nr-env:`. Consulte la [documentación de interpolación de variables](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/VARIABLE_INTERPOLATION.md#nr-env--environment-variables) para obtener más detalles.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Reversión
+
+Si Control de agentes no funciona como se espera después de la instalación, puede volver de forma segura a los agentes independientes en cualquier momento.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="rollback-linux">Linux</TabsBarItem> <TabsBarItem id="rollback-windows">Windows</TabsBarItem> <TabsBarItem id="rollback-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="rollback-linux">
+      1. Desinstalar el Control de agentes:
+         ```bash
+         sudo sh /usr/lib/newrelic-agent-control/uninstall.sh
+         ```
+         El script detiene el servicio, detecta el administrador de paquetes y purga todos los archivos de Control de agentes.
+      2. Vuelva a instalar el paquete del agente de infraestructura si se eliminó. Los archivos `newrelic-infra.yml` y `integrations.d/` se conservan en el host siempre que no los haya eliminado antes de la migración.
+    </TabsPageItem>
+
+    <TabsPageItem id="rollback-windows">
+      1. Abra PowerShell con privilegios de administrador y desinstale el Control de agentes:
+         ```powershell
+         PowerShell.exe -ExecutionPolicy Bypass -File "C:\Program Files\New Relic\newrelic-agent-control\uninstall.ps1"
+         ```
+         El script detiene el servicio, elimina el registro del servicio y elimina los archivos de Control de agentes.
+      2. Vuelva a instalar el agente de infraestructura utilizando el instalador MSI si se eliminó. Los archivos `newrelic-infra.yml` y `integrations.d\` se conservan en el host siempre que no los haya eliminado antes de la migración.
+    </TabsPageItem>
+
+    <TabsPageItem id="rollback-k8s">
+      1. Desinstalar el Control de agentes:
+         ```shell
+         helm uninstall agent-control-bootstrap -n newrelic
+         ```
+      2. Vuelva a instalar los agentes anteriores usando los valores de Helm que guardó antes de la migración:
+         ```shell
+         helm upgrade --install nri-bundle newrelic/nri-bundle -n newrelic --values saved-values.yaml
+         ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+**La continuidad de la entidad se conserva en la reversión.** Debido a que los GUID de entidad se derivan del nombre de host o del nombre del clúster y la cuenta (no de cómo se administra el agente), la entidad de host o clúster y todas las entidades de integración son las mismas que informaban antes. Los Dashboards, las alertas y las workloads vuelven a funcionar de inmediato sin interrupciones ni historial duplicado visible en la UI.

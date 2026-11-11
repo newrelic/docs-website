@@ -90,6 +90,27 @@ export default {
       };
     },
   },
+  // non-comment MDX expressions, e.g. `{'{errors}'}`. Sent as text they came
+  // back HTML-encoded and brace-escaped (`\{&apos;{errors}&apos;}`), so they
+  // are carried verbatim instead.
+  mdxExpression: {
+    deserialize: (_state, node) => ({
+      type: node.tagName === 'span' ? 'mdxTextExpression' : 'mdxFlowExpression',
+      value: Buffer.from(node.properties.dataValue, 'base64').toString(),
+    }),
+    serialize: (_state, node) => ({
+      type: 'element',
+      tagName: node.type === 'mdxTextExpression' ? 'span' : 'div',
+      properties: {
+        'data-type': 'mdxExpression',
+        'data-value': Buffer.from(node.value).toString('base64'),
+        class: 'notranslate',
+      },
+      // never read back, but an empty inline element makes rehype-remark
+      // collapse the whitespace that follows it
+      children: [u('text', `{${node.value}}`)],
+    }),
+  },
   frontmatter: {
     deserialize: (_state, node) => {
       const data = deserializeJSValue(node.properties.dataValue);

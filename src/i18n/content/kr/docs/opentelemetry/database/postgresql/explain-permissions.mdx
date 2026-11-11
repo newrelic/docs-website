@@ -1,0 +1,85 @@
+---
+title: PostgreSQL 모니터링을 위한 EXPLAIN plan 권한
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Advanced configuration
+metaDescription: Collect EXPLAIN plans for write statements without granting write access to the PostgreSQL monitoring user
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [사전 출시 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) 에 따라 미리보기의 일부로 제공됩니다.
+</Callout>
+
+기본적으로 `EXPLAIN`은(는) 모니터링 사용자로 직접 실행되며, PostgreSQL은 계획 시점에 테이블 권한을 확인합니다 ― 따라서 모니터링 사용자에게 쓰기 권한(절대 가져서는 안 됨)이 없는 한 행 잠금 또는 쓰기 문은 `permission denied` (으)로 실패합니다.
+
+## EXPLAIN 헬퍼 함수를 생성합니다. [#explain]
+
+모니터링 사용자에게 쓰기 액세스 권한을 부여하지 않고 잠금 또는 쓰기 문에 대한 쿼리 계획을 수집하려면 각 데이터베이스에 다음 함수를 생성하십시오:
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+### 실행 계획 수집 메커니즘
+
+* **속도 제한:** `top_query_collection.max_explain_each_interval` (기본값 `1000`)은(는) 스크랩당 `EXPLAIN`을(를) 제한합니다.
+* **캐싱:** `query_plan_cache_size` / `query_plan_cache_ttl` (기본값 `1000` 항목/ `1h`)은 한 번 획득한 계획을 쿼리 ID를 키로 사용하여 캐시합니다.
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="자체 호스팅 환경에서의 계측" path="/docs/opentelemetry/database/postgresql/hosted">
+    뉴렐릭을 사용하여 자체 호스팅 환경에서 PostgreSQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="지표 참조" path="/docs/opentelemetry/database/postgresql/metrics-reference">
+    NRDOT Collector가 수집하는 사용 가능한 메트릭에 대해 알아보십시오.
+  </DocTile>
+
+  <DocTile title="문제 해결, 해결 가이드" path="/docs/opentelemetry/database/postgresql/troubleshooting">
+    PostgreSQL 모니터링의 일반적인 문제를 해결하는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>

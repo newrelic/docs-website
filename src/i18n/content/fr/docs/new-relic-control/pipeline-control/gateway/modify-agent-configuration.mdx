@@ -5,7 +5,13 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-Pour que le gateway traite les données télémétriques de vos agents, vous devez reconfigurer vos agents pour acheminer leurs données vers votre (vos) cluster(s) de gateway au lieu de directement vers New Relic. Pour ce faire, modifiez les détails du point de terminaison pour qu&apos;ils pointent vers le gateway à l&apos;aide du paramètre `NEW_RELIC_HOST`, comme indiqué dans l&apos;exemple de configuration de l&apos;agent New Relic NodeJS :
+Pour que le gateway traite les données télémétriques de vos agents, reconfigurez-les pour acheminer les données vers votre cluster de gateway au lieu de directement vers New Relic. La façon de procéder dépend du type d’agent : les agents New Relic APM utilisent `NEW_RELIC_HOST`, les sources OpenTelemetry utilisent les paramètres de l’exportateur OTLP, et les redirecteurs de logs utilisent leur propre configuration de plug-in de sortie. Les sections ci-dessous couvrent chaque type d’agent. Tous les exemples utilisent le point de terminaison de gateway local au cluster. Remplacez-le par votre point de terminaison réel si les agents s’exécutent en dehors du cluster.
+
+## Agents New Relic APM
+
+`NEW_RELIC_HOST` est uniquement APM, et n’a aucun effet sur les sources OpenTelemetry, l’agent d’infrastructure, ou les redirecteurs de logs. Le point de terminaison du gateway doit être accessible via HTTPS, afin que les agents APM se connectent via le proxy inverse dans le cluster (NGINX, ou Kong), ou l’ALB hors du cluster, et non directement au pod du gateway.
+
+L’exemple suivant montre un fichier de configuration d’agent Node.js :
 
 ```js
 'use strict'
@@ -66,6 +72,93 @@ exports.config = {
   }
 }
 ```
+
+{/* [NEW SECTION START] */}
+
+## OpenTelemetry Collector
+
+**Version minimale :** opentelemetry-collector-contrib v0.104.0
+
+Utilisez l’exportateur `otlphttp` pointant vers le port HTTP OTLP du gateway. Déployez cette configuration en tant que ConfigMap Kubernetes :
+
+```yaml
+exporters:
+  otlphttp:
+    endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local:4318
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      exporters: [otlphttp]
+    metrics:
+      exporters: [otlphttp]
+    logs:
+      exporters: [otlphttp]
+```
+
+<Callout variant="important">
+  Utilisez l’exportateur `otlphttp`, et non `otlp`. Le chart Helm renomme `otlp` en `otlp_grpc` en interne, ce qui est invalide pour cette version du collecteur.
+</Callout>
+
+## Agent auto-attach eBPF
+
+Configurez l’agent auto-attach APM eBPF pour envoyer la télémétrie via OTLP gRPC en définissant `customOtlpEndpoint` dans votre fichier de valeurs :
+
+```yaml
+customOtlpEndpoint: "pipeline-control-gateway.newrelic.svc.cluster.local:4317"
+customOtlpEndpointTlsEnabled: false
+reportLogs: "true"
+```
+
+Cela achemine à la fois les métriques et les logs via le récepteur gRPC OTLP du gateway sur le port 4317. TLS est désactivé car la connexion reste au sein du cluster.
+
+## Agent d&apos;infrastructure
+
+**Version minimale :** v1.62.0
+
+L&apos;agent d&apos;infrastructure dispose de deux chemins de configuration distincts en fonction de ce que vous souhaitez acheminer via le gateway :
+
+* **Toute la télémétrie (métriques, événements, inventaire, et logs) :** utilisez `collector_url` et `metric_url` dans vos valeurs Helm. Cela achemine tout ce que l’agent collecte via le gateway.
+* **Logs uniquement :** utilisez `logging_endpoint` dans `newrelic-infra.yml`. Cela achemine uniquement le transfert de logs via le gateway tandis que les autres données de télémétrie continuent d’aller directement vers New Relic.
+
+### Acheminez toute la télémétrie via le gateway
+
+Définissez `collector_url` et `metric_url` dans vos valeurs Helm :
+
+```yaml
+newrelic-infrastructure:
+  common:
+    agentConfig:
+      collector_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+      metric_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+```
+
+### Acheminez uniquement les logs via le gateway
+
+Définissez `logging_endpoint` dans `/etc/newrelic-infra.yml`, et activez le transfert de logs :
+
+```yaml
+license_key: YOUR_LICENSE_KEY
+logging_endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1
+log:
+  forward: true
+```
+
+Utilisez `http://` pour le point de terminaison local au cluster. Utilisez `https://` uniquement lors du routage via un proxy inverse interne au cluster (NGINX ou Kong) avec cert-manager déployé.
+
+Définissez ensuite les fichiers de log à transférer dans `/etc/newrelic-infra/logging.d/logging.yml`:
+
+```yaml
+logs:
+  - name: my-app-logs
+    file: /var/log/my-app.log
+```
+
+Redémarrez l’agent d’infrastructure pour appliquer les modifications.
+
+{/* [NEW SECTION END] */}
 
 ## Matrice de compatibilité : Agents et versions pris en charge
 
@@ -206,6 +299,16 @@ Le tableau suivant répertorie les agents APM New Relic, les agents Infrastructu
 
       <td>
         2.3.0 et versions ultérieures
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)
+      </td>
+
+      <td>
+        opentelemetry-collector-contrib v0.104.0 et versions ultérieures
       </td>
     </tr>
 

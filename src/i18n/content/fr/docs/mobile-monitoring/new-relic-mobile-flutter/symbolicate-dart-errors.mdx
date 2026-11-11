@@ -1,0 +1,256 @@
+---
+title: Symboliser les erreurs Flutter Dart
+tags:
+  - Flutter
+  - Mobile monitoring
+  - New Relic Mobile Flutter
+  - Errors
+metaDescription: 'Generate, store, and upload Flutter debug symbol files so New Relic can show human-readable Dart stack traces in the browser.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si vous compilez votre application Flutter avec `--split-debug-info` (avec, ou sans `--obfuscate`), les traces d’appels Dart que votre application signale contiennent des adresses mémoire au lieu de noms de fonctions, de noms de fichiers, et de numéros de ligne. New Relic peut symboliser ces traces d’appels dans votre navigateur, lorsque vous fournissez le fichier de symboles de débogage correspondant pour cette compilation. La symbolisation dans le navigateur s’applique uniquement aux exceptions gérées.
+
+Cette page explique :
+
+* Quand vous avez besoin de la symbolication
+* Comment générer les fichiers de symboles
+* Comment symboliser une trace d’appels dans l’UI de New Relic
+* Comment symboliser localement avec la CLI Flutter
+* Comment stocker les fichiers de symboles, afin que vous puissiez symboliser les erreurs de toute sortie que vous avez publiée
+
+<Callout variant="important">
+La symbolication s’exécute entièrement dans votre navigateur. New Relic ne télécharge, ne stocke, ni ne conserve vos fichiers de symboles, ou les traces d’appels symboliquées. Le résultat n’est pas non plus partagé entre les erreurs : vous téléchargez le fichier de symboles séparément pour chaque erreur que vous ouvrez, et à nouveau chaque fois que vous rechargez la page, ou y revenez plus tard. Comme vous aurez besoin du fichier à chaque fois, [conservez les fichiers de symboles pour chaque sortie](#store-symbols).
+</Callout>
+
+## Quand vous avez besoin de la symbolication [#when]
+
+Ce tableau montre quand la symbolication est nécessaire, en fonction de la façon dont vous générez votre sortie :
+
+| Comment vous construisez votre sortie                | À quoi ressemble la trace d’appels Dart                         | Symbolisation nécessaire ? |
+| ---------------------------------------------------- | --------------------------------------------------------------- | -------------------------- |
+| `flutter build` sans `--split-debug-info`            | Noms de fonctions et de fichiers lisibles                       | Non                        |
+| `flutter build --split-debug-info=<dir>`             | Adresses mémoire (`abs`, `virt`), et un `build_id`              | Oui                        |
+| `flutter build --obfuscate --split-debug-info=<dir>` | Adresses mémoire, et noms obfusqués là où des noms apparaissent | Oui                        |
+
+Une trace d’appels Dart non symbolisée ressemble à ceci :
+
+```
+*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+pid: 24564, tid: 532322394208, name 1.ui
+os: android arch: arm64 comp: yes sim: no
+build_id: '7a3ef930539e62583fa36f07eb2df79c'
+isolate_dso_base: 7887a27000, vm_dso_base: 7887a27000
+isolate_instructions: 7887b1da40, vm_instructions: 7887b07000
+ #00 abs 0000007887d2ea63 virt 0000000000307a63 _kDartIsolateSnapshotInstructions+0x211023
+ #01 abs 0000007887d39077 virt 0000000000312077 _kDartIsolateSnapshotInstructions+0x21b637
+ #02 abs 0000007887b2d2cf virt 00000000001062cf _kDartIsolateSnapshotInstructions+0xf88f
+ #03 abs 0000007887d38eeb virt 0000000000311eeb _kDartIsolateSnapshotInstructions+0x21b4ab
+```
+
+Dans l&apos;UI de New Relic, chacune de ces lignes apparaît comme une ligne distincte dans la trace d’appels, étiquetée `unparsed`.
+
+### Comprendre l’en-tête de la trace d’appels [#header]
+
+Les six premières lignes de la trace ne sont pas des frames de stack. Il s’agit de métadonnées sur le processus, et la compilation que le runtime Dart écrit en haut de chaque trace non symbolisée :
+
+| Doubler                                     | Ce que cela signifie                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `*** *** *** ...`                           | Marque le début d’une trace d’appels Dart non symbolisée.                                                                                                                                                                                                                                                           |
+| `pid: 24564, tid: 532322394208, name 1.ui`  | L’ID du processus, l’ID du thread, et le nom du thread où l’erreur s’est produite. `1.ui` est le thread de l’UI de Flutter. Dans l’UI de New Relic, cela apparaît également dans la colonne <DNT>**Thread**</DNT>.                                                                                                  |
+| `os: android arch: arm64 comp: yes sim: no` | Le système d’exploitation, et l’architecture CPU de l’appareil. `comp: yes` signifie que le code a été compilé à l’avance (une version de sortie), et `sim: no` signifie qu’il a été exécuté sur un appareil physique, et non sur un simulateur. Utilisez `arch` pour [choisir le bon fichier de symboles](#match). |
+| `build_id: '7a3ef930...'`                   | L’ID unique du build qui a produit l’erreur. Le fichier de symboles que vous téléversez doit avoir le même ID de build.                                                                                                                                                                                             |
+| `isolate_dso_base`, `vm_dso_base`           | L’adresse mémoire où le code Dart compilé de l’application a été chargé sur l’appareil.                                                                                                                                                                                                                             |
+| `isolate_instructions`, `vm_instructions`   | L’adresse mémoire où commencent les instructions Dart compilées.                                                                                                                                                                                                                                                    |
+
+Les valeurs d’adresse changent à chaque exécution de l’application, deux occurrences de la même erreur peuvent donc afficher des valeurs différentes. La symbolication utilise l’ID de build et ces adresses pour trouver l’emplacement source de chaque frame (`#00`, `#01`, …).
+
+Les lignes d’en-tête ne sont pas des emplacements de code, donc elles ne sont jamais symboliquées. Elles restent étiquetées `unparsed` avant, et après que vous téléversiez un fichier de symboles, et elles sont incluses sans modification lorsque vous exportez l’erreur. Seuls les cadres numérotés en dessous d’elles changent.
+
+## Comprendre les fichiers de symboles Flutter [#symbol-files]
+
+Une application Flutter est composée de plusieurs couches de code compilé, et chaque couche possède son propre type de fichier de symboles de débogage. Chaque fichier ne symbolique les erreurs que de sa propre couche, donc une sortie Flutter produit plusieurs fichiers de symboles :
+
+| Déposer                                    | plateforme   | Ce qu’elle symbolise                                                                        | Où il est créé                                                                                                                    | Comment l’utiliser dans New Relic                                                                                                                 |
+| ------------------------------------------ | ------------ | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.symbols` (informations de débogage Dart) | Android, iOS | Erreurs Dart provenant de votre code Flutter                                                | Le répertoire que vous passez à `--split-debug-info`                                                                              | Importez dans le navigateur, comme décrit sur cette page                                                                                          |
+| `mapping.txt` (modélisation R8/ProGuard)   | Android      | Code Java et Kotlin obfusqué dans les plantages Android                                     | `build/app/outputs/mapping/release/`                                                                                              | [Configurer ProGuard ou DexGuard](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-proguard-or-dexguard-android-apps) |
+| `native-debug-symbols.zip` (symboles ELF)  | Android      | Cadres natifs (C/C++), y compris le moteur Flutter (`libflutter.so`)                        | `build/app/outputs/native-debug-symbols/release/`                                                                                 | [Rapports de crash natifs](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-native-crash-reporting)               |
+| `.dSYM`                                    | iOS          | Plantages iOS natifs : `Runner`, le moteur Flutter, `App.framework`, et les plug-ins natifs | `build/ios/Release-iphoneos/` après `flutter build ios`, ou `build/ios/archive/Runner.xcarchive/dSYMs/` après `flutter build ipa` | [Télécharger les fichiers dSYM](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps)                             |
+
+New Relic n’utilise que les fichiers `.symbols` pour symboliser les erreurs Dart. Téléverser un dSYM, `mapping.txt`, ou `native-debug-symbols.zip` vers une erreur Dart ne la symbolisera pas. Conservez-les tous pour chaque sortie, cependant, afin que vous puissiez symboliser chaque type d’erreur que la sortie signale.
+
+## Générer les fichiers de symboles [#generate]
+
+Flutter crée des fichiers de symboles lorsque vous générez votre sortie. Vous ne pouvez pas les créer plus tard pour un build que vous avez déjà publié.
+
+<Steps>
+<Step>
+### Compiler avec `--split-debug-info` [#build]
+
+Ajoutez `--split-debug-info` à votre commande de build de sortie. Nous recommandons un répertoire de sortie distinct pour chaque version afin que les fichiers de symboles de différentes sorties ne s’écrasent jamais les uns les autres :
+
+```sh
+# Android App Bundle
+flutter build appbundle --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+
+# Android APK
+flutter build apk --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+
+# iOS (App Store / TestFlight archive)
+flutter build ipa --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+
+# iOS (app bundle only)
+flutter build ios --release --obfuscate --split-debug-info=build/symbols/1.4.2+57
+```
+
+`--obfuscate` est facultatif, mais si vous l’utilisez, vous devez également utiliser `--split-debug-info`.
+</Step>
+
+<Step>
+### Trouvez les fichiers de sortie [#output]
+
+Le build écrit les fichiers `.symbols` dans le répertoire que vous avez passé à `--split-debug-info`, par exemple `build/symbols/1.4.2+57/`. Flutter ne les place nulle part ailleurs, donc si vous omettez l’indicateur, ou supprimez ce répertoire, les fichiers sont perdus. Il y a un fichier pour chaque architecture CPU pour laquelle le build a été compilé :
+
+| plateforme | Fichiers                                                                          |
+| ---------- | --------------------------------------------------------------------------------- |
+| Android    | `app.android-arm64.symbols`, `app.android-arm.symbols`, `app.android-x64.symbols` |
+| iOS        | `app.ios-arm64.symbols`                                                           |
+
+Un build Android produit plusieurs fichiers, car un seul App Bundle ou APK contient du code pour plusieurs architectures. Chaque appareil n’exécute qu’un seul d’entre eux, conservez-les donc tous. Si vous compilez avec `--target-platform` (par exemple, `--target-platform android-arm64`), vous n’obtenez que les fichiers pour les plateformes que vous avez listées.
+
+Un build iOS ne produit que `app.ios-arm64.symbols`, car les builds de sortie Flutter ne s’exécutent que sur des appareils arm64 physiques, et non sur le simulateur. Il s’agit du fichier à téléverser pour chaque erreur Dart provenant de ce build iOS.
+
+Un build Android crée également `mapping.txt` et `native-debug-symbols.zip`, et un build iOS crée également des fichiers dSYM. Ils ne sont pas utilisés pour les erreurs Dart. Consultez [Comprendre les fichiers de symboles Flutter](#symbol-files).
+</Step>
+</Steps>
+
+## Symboliser une trace d’appels dans New Relic [#symbolicate]
+
+<Steps>
+<Step>
+### Ouvrez l’erreur [#open-error]
+
+Ouvrez l’erreur Dart depuis l’un ou l’autre emplacement :
+
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Errors Inbox**</DNT>, puis sélectionnez l’erreur.
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Mobile &gt; (select your app) &gt; Handled exceptions**</DNT>, puis sélectionnez l’erreur.
+
+Faites défiler jusqu’à la section <DNT>**Stack trace**</DNT>.
+
+Notez les éléments `appVersion` et `appBuild` de l’erreur. Ceux-ci vous indiquent les fichiers de symboles de la sortie dont vous avez besoin.
+</Step>
+
+<Step>
+### Importez le fichier de symboles correspondant [#upload]
+
+Au-dessus de la trace d’appels, la bannière <DNT>**Not seeing what you expected?**</DNT> propose une symbolication à la demande. Cliquez sur <DNT>**Upload .symbols file**</DNT>, et sélectionnez le fichier `.symbols` qui correspond à l’ [ID de build, et à l’architecture](#match) de l’erreur.
+
+<img title="Unsymbolicated Flutter Dart stack trace" alt="Screenshot of an unsymbolicated Flutter Dart stack trace showing unparsed frames and the Upload .symbols file button" src="/images/flutter_screenshot-crop_symbolicate-upload.webp" />
+
+<figcaption>
+Avant la symbolication, chaque ligne est étiquetée `unparsed`.
+</figcaption>
+</Step>
+
+<Step>
+### Passez en revue, ou exportez le résultat [#export]
+
+Lorsque la symbolisation est terminée, la bannière se change en <DNT>**Symbolicated your trace**</DNT>, et indique combien de frames ont été résolues, par exemple <DNT>**Symbolicated 4 of 4 unresolved frames**</DNT>. Chaque frame résolue affiche désormais le fichier, le numéro de ligne, et la fonction, par exemple `main.dart line 81 in ._testFetch()`.
+
+Les six premières lignes (l’ [en-tête de la trace d’appels](#header)) restent étiquetées `unparsed`. C’est attendu : ce sont des métadonnées sur le processus et le build, et non des emplacements de code.
+
+<img title="Symbolicated Flutter Dart stack trace" alt="Screenshot of a Flutter Dart stack trace after symbolication, showing file names, line numbers, and functions" src="/images/flutter_screenshot-crop_symbolicate-result.webp" />
+
+<figcaption>
+Après la symbolication, les cadres numérotés correspondent à des fichiers, des lignes et des fonctions. Les lignes d’en-tête restent `unparsed`.
+</figcaption>
+
+Le résultat ne reste disponible que tant que la page est ouverte. Pour le conserver, cliquez sur <DNT>**Export handled exception details**</DNT>. L&apos;export inclut les cadres symbolisés, vous pouvez donc le joindre à un ticket ou le partager avec votre équipe.
+
+Pour symboliser une autre erreur, ouvrez-la et téléversez à nouveau le fichier de symboles. Le résultat d’une erreur ne s’applique pas aux autres.
+</Step>
+</Steps>
+
+## Trouver le bon fichier de symboles [#match]
+
+Chaque fichier de symboles appartient à exactement un build et une architecture CPU. Utilisez-les pour choisir le bon fichier :
+
+1. **Sortie :** faites correspondre les `appVersion` et `appBuild` de l’erreur au dossier de symboles que vous avez enregistré pour cette sortie.
+
+2. **Architecture :** faites correspondre la ligne `arch` dans l’en-tête de la trace d’appels au nom de fichier. Par exemple, `arch: arm64` sur Android signifie `app.android-arm64.symbols`. La plupart des téléphones Android modernes sont `arm64`. Les appareils plus anciens ou à bas coût peuvent être `arm`.
+
+3. **ID de build :** le `build_id` dans la trace d’appels doit correspondre à l’ID de build à l’intérieur du fichier de symboles. Pour les fichiers de symboles Android, vous pouvez lire l’ID de build avec la commande `file` sur macOS, ou Linux. Il s’agit de la valeur `BuildID` :
+
+   ```sh
+   file app.android-arm64.symbols
+   # app.android-arm64.symbols: ELF 64-bit LSB shared object, ARM aarch64, ..., BuildID[md5/uuid]=7a3ef930539e62583fa36f07eb2df79c, with debug_info, not stripped
+   ```
+
+   Les fichiers de symboles iOS n’affichent pas de `BuildID` dans la sortie `file`, donc pour iOS, fiez-vous à la sortie, et à la vérification que New Relic effectue lorsque vous téléversez le fichier.
+
+   {/* iOS .symbols files have no .note.gnu.build-id section (verified with llvm-readelf, 2026-10-07). App Exp tested iOS in the UI: symbolication and the mismatch check work the same as Android. */}
+
+New Relic vérifie l’ID de build pour vous, pour les erreurs Android et iOS. Si vous téléversez un fichier de symboles provenant d’un build différent, New Relic ne peut symboliquer aucune trame, et vous voyez <DNT>**We couldn&apos;t symbolicate this trace**</DNT>, avec un message indiquant que l’ID de build du fichier ne correspond pas au build de la trace. Téléversez le fichier du build exact qui a produit l’erreur.
+
+<img title="Symbol file build ID mismatch" alt="Screenshot of the error shown when the uploaded .symbols file's build ID doesn't match the stack trace" src="/images/flutter_screenshot-crop_symbolicate-build-id-mismatch.webp" />
+
+<figcaption>
+Avec un fichier de symboles inadéquat, aucun cadre n’est résolu.
+</figcaption>
+
+<Callout variant="caution">
+Une nouvelle compilation produit le même identifiant de build uniquement si le code source, les dépendances, la version de Flutter, et les options de compilation sont tous exactement identiques. Toute différence produit un nouvel identifiant de build, et les nouveaux fichiers de symboles ne correspondront pas. Sauvegardez les fichiers de symboles du build que vous avez réellement livré. Ne comptez pas les recréer.
+</Callout>
+
+## Symboliquer localement avec `flutter symbolize` [#symbolize-locally]
+
+Si vous ne pouvez pas utiliser l’UI de New Relic, ou si vous souhaitez symboliser de nombreuses traces dans un script, vous pouvez utiliser la CLI Flutter à la place :
+
+1. Copiez la trace d’appels de l’erreur, y compris les lignes d’en-tête (`*** *** ***`, `pid`, `os`/`arch`, `build_id`, `isolate_dso_base`, et `isolate_instructions`), et enregistrez-la dans un fichier, par exemple `trace.txt`.
+
+2. Exécutez `flutter symbolize` avec le fichier de symboles correspondant :
+
+   ```sh
+   flutter symbolize \
+     --input=trace.txt \
+     --debug-info=build/symbols/1.4.2+57/app.android-arm64.symbols \
+     --output=trace-symbolicated.txt
+   ```
+
+   Utilisez l’option longue `--debug-info`. Parmi les options globales de Flutter, `-d` signifie &quot;device&quot;, ce qui rend la forme courte facile à confondre.
+
+## Bonne pratique : stocker les symboles pour chaque sortie [#store-symbols]
+
+New Relic ne conserve pas vos fichiers de symboles, c’est pourquoi vous devez les stocker vous-même. Sauvegardez-les lorsque vous générez chaque sortie, et non après l’apparition d’une erreur : vous ne pouvez pas les recréer pour un build que vous avez déjà livré.
+
+* **Conservez les fichiers de symboles pour chaque build que vous distribuez,** y compris les builds internes, bêta, et de store.
+* **Conservez tous les types de fichiers de symboles,** pas seulement les fichiers `.symbols`. Consultez [Comprendre les fichiers de symboles Flutter](#symbol-files).
+* **Conservez toutes les architectures** pour chaque build.
+* **Étiquetez-les par version, et numéro de build**, en faisant correspondre les attributs `appVersion`, et `appBuild` que votre application signale, pour que vous puissiez trouver les bons fichiers pour une erreur.
+* **Conservez-les tant que cette version est en cours d’utilisation.** Les utilisateurs restent souvent sur d’anciennes versions pendant des mois.
+* **Restreignez l’accès.** Les fichiers de symboles révèlent la structure de votre code. Stockez-les avec les mêmes contrôles d’accès que votre code source.
+
+L’endroit où vous les stockez vous appartient, par exemple les artefacts de build de votre système CI, un bucket de stockage, ou un référentiel d’artefacts. Si vous utilisez des artefacts de build CI, vérifiez combien de temps votre système CI les conserve, car beaucoup les suppriment automatiquement après un délai défini.
+
+## Dépannage [#troubleshooting]
+
+<CollapserGroup>
+<Collapser id="still-addresses" title="La trace d’appels affiche toujours des adresses après que j’ai téléversé un fichier">
+Si vous voyez <DNT>**We couldn&apos;t symbolicate this trace**</DNT>, l’identifiant de build du fichier ne correspond pas à l’erreur. Vérifiez que :
+
+* Le fichier provient de la même sortie (`appVersion` et `appBuild`).
+* Le fichier correspond à l’architecture de l’appareil (`arch` dans l’en-tête).
+* Vous avez téléversé un fichier `.symbols` à partir du répertoire `--split-debug-info`, et non un artefact de build différent.
+</Collapser>
+
+<Collapser id="lost-symbols" title="Je n’ai pas les fichiers de symboles pour cette sortie">
+Vous ne pouvez pas symboliquer les erreurs de ce build. Commencez à [archiver les symboles pour chaque sortie](#store-symbols) afin que les erreurs futures puissent être symboliquées.
+</Collapser>
+</CollapserGroup>
+
+## Limites [#limitations]
+
+* La symbolisation s’applique aux erreurs Dart. Les plantages natifs Android (Java/Kotlin), et iOS utilisent les workflows de symbolication [Android](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-crash-reporting), et [iOS](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps).
+* Les résultats ne sont pas sauvegardés, ni partagés entre les erreurs. Vous devez téléverser le fichier de symboles pour chaque erreur, à chaque fois que vous la consultez.

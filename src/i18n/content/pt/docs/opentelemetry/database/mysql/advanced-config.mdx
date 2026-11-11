@@ -1,0 +1,133 @@
+---
+title: Configuração avançada para monitoramento do MySQL com NRDOT
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Advanced configuration
+metaDescription: 'Advanced, optional configuration options for MySQL monitoring with the NRDOT Collector'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Visualização">
+  Ainda estamos trabalhando nesse recurso, mas adoraríamos que você experimentasse!
+
+  Atualmente, esse recurso é fornecido como parte de uma prévia, de acordo com nossas [políticas de pré-lançamento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+É possível configurar as seguintes opções para obter insights mais profundos sobre as instâncias do MySQL:
+
+* [Planos de consulta para instruções de gravação](#query)
+* [Habilitar o rastreamento da duração da espera de bloqueio](#lock)
+
+## Planos de consulta para instruções de gravação [#query]
+
+Definir `explain_mode` como `procedure` permite que o NRDOT Collector colete planos de `EXPLAIN` para instruções de gravação sem conceder privilégios DML ao usuário de monitoramento. Quando configurado, o receptor procura um procedimento `SQL SECURITY DEFINER` chamado `<schema>.explain_statement`. Se esse procedimento não existir ou se o usuário de monitoramento não tiver privilégios de execução sobre ele, o receptor reverterá para o modo `inline`. Nesse estado, as instruções de gravação falham ao coletar planos de consulta, e o log do coletor exibe o seguinte aviso: `unable to execute explain statement`.
+
+Para definir o `explain_mode` como `procedure`, é necessário executar o seguinte como uma conta privilegiada (por exemplo, `root`) uma vez por esquema:
+
+```sql
+DELIMITER //
+CREATE DEFINER = 'root'@'%' PROCEDURE <YOUR_SCHEMA>.explain_statement(IN q TEXT)
+SQL SECURITY DEFINER
+BEGIN
+  SET @nr_explain_sql = CONCAT('EXPLAIN FORMAT=JSON ', q);
+  PREPARE nr_explain_stmt FROM @nr_explain_sql;
+  EXECUTE nr_explain_stmt;
+  DEALLOCATE PREPARE nr_explain_stmt;
+END//
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE <YOUR_SCHEMA>.explain_statement TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+A etapa `GRANT EXECUTE` é necessária para mais do que executar a instrução `CALL`. Sem esse privilégio, o usuário de monitoramento não pode visualizar o procedimento em `information_schema.ROUTINES`, que o receptor usa para verificar a existência. Omitir `GRANT EXECUTE` produz o mesmo resultado que um procedimento ausente, fazendo com que o receptor reverta para o modo `inline` em ambos os casos.
+
+<Callout variant="tip">
+  Esta configuração é stateful por esquema. A criação ou restauração de um banco de dados, ou a exclusão de um procedimento, desativa silenciosamente a coleta de planos de instrução de gravação para esse esquema e aciona um fallback para o modo `inline`. As rotinas armazenadas `SQL SECURITY DEFINER` aplicam os privilégios do definidor ao SQL dinâmico executado por meio de instruções `PREPARE`/`EXECUTE` dentro delas. Isso permite que um usuário de monitoramento apenas de `SELECT`recupere planos para instruções para as quais não possui privilégios de execução direta.
+</Callout>
+
+## Habilitar o rastreamento da duração da espera de bloqueio [#lock]
+
+O consumidor `events_waits_current` fornece informações sobre a duração da espera de bloqueio, mas requer configuração específica da plataforma:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Plataforma
+      </th>
+
+      <th>
+        Método
+      </th>
+
+      <th>
+        Persistente entre reinicializações?
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        MySQL autogerenciado
+      </td>
+
+      <td>
+        `performance-schema-consumer-events-waits-current=ON`
+
+         em 
+
+        `[mysqld]`
+
+         (
+
+        `my.cnf`
+
+        )
+      </td>
+
+      <td>
+        Sim
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AWS RDS
+      </td>
+
+      <td>
+        `UPDATE performance_schema.setup_consumers SET ENABLED='YES' WHERE NAME='events_waits_current';`
+      </td>
+
+      <td>
+        **Não**
+
+        : é redefinido na reinicialização/failover. Executar novamente após cada reinicialização, ou conceder ao usuário receptor este 
+
+        `UPDATE`
+
+         para que possa reativar o consumidor automaticamente na reconexão.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Documentação relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Compatibilidade e pré-requisitos" path="/docs/opentelemetry/database/mysql/compatibility">
+    Saiba mais sobre as versões suportadas do MySQL, os requisitos de rede e os parâmetros de servidor recomendados.
+  </DocTile>
+
+  <DocTile title="Instrumentação em ambientes auto-hospedados" path="/docs/opentelemetry/database/mysql/hosted">
+    Saiba como configurar o monitoramento do MySQL em ambientes auto-hospedados com o New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentação em ambientes RDS" path="/docs/opentelemetry/database/mysql/rds">
+    Saiba como configurar o monitoramento do MySQL em ambientes RDS com o New Relic.
+  </DocTile>
+</DocTiles>
