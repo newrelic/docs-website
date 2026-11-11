@@ -128,6 +128,8 @@ const fetchTranslatedFilesZip = (locale) => {
       console.log(
         `Error encountered downloading files from vendor. Response code received: ${response.status}`
       );
+      // the vendor names the file it rejected; one such file blocks its chunk
+      console.log(await response.text().catch(() => ''));
       console.log(
         `The following files were not downloaded for ${locale}: ${JSON.stringify(
           fileUris,
