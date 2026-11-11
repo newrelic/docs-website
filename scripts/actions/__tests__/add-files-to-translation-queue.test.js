@@ -268,4 +268,33 @@ describe('add-files-to-translation-queue tests', () => {
       ]);
     });
   });
+
+  describe('addFilesToTranslationQueue', () => {
+    // templates and archives/ pages were queued in Aug and Sep 2026; their
+    // translations had nowhere to go and failed every day
+    test('only queues docs pages', async () => {
+      setup();
+      const {
+        addFilesToTranslationQueue,
+      } = require('../add-files-to-translation-queue');
+      const database = require('../translation_workflow/database');
+      database.getTranslations.mockResolvedValue([]);
+      require('../../utils/frontmatter').frontmatter.mockReturnValue({
+        attributes: {},
+      });
+
+      await addFilesToTranslationQueue(
+        [
+          'src/content/docs/page.mdx',
+          'templates/release-notes-template.mdx',
+          'src/content/archives/style-guide.mdx',
+        ],
+        {}
+      );
+
+      const slugs = database.addTranslation.mock.calls.map(([t]) => t.slug);
+      expect(new Set(slugs)).toEqual(new Set(['src/content/docs/page.mdx']));
+      expect(slugs).toHaveLength(5);
+    });
+  });
 });

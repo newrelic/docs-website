@@ -99,8 +99,9 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
     // filter out any files that have been manually cancelled
     // on the vendor's platform
     const files = batchData.files.filter((file) => file.status !== 'CANCELED');
-    const locale =
-      files[0].targetLocales.length && files[0].targetLocales[0].localeId;
+    // a batch whose files were all cancelled has no file to read the locale
+    // from; that threw and stopped the whole run (2026-11-06 to 08)
+    const locale = files[0]?.targetLocales?.[0]?.localeId;
 
     if (!locale) {
       log(`Unable to determine locale for batch ${batchUid}`, 'warn');

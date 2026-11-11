@@ -178,6 +178,8 @@ const extractFiles = (locale) => {
         const slug = filepath.replace(`.mdx`, '');
         return {
           path: slug,
+          // the file's path in the repo, as it was sent for translation
+          fileUri: entry.entryName.replace(`${locale}/`, ''),
           html: zip.readAsText(entry, 'utf8'),
         };
       });
@@ -199,7 +201,16 @@ const deserializeHtmlToMdx = (locale) => {
    * @param {HtmlFile} file
    * @returns {Promise<SlugStatus>}
    */
-  return async ({ path: contentPath, html }) => {
+  return async ({ path: contentPath, fileUri, html }) => {
+    // only docs pages are translated. Other files (templates, the old style
+    // guide under archives/) were queued before they were excluded; written,
+    // they land at junk paths. Skip them, but report them as done so their
+    // record and job complete instead of being downloaded again every day.
+    if (fileUri && !fileUri.startsWith('src/content/docs/')) {
+      console.log(`Skipped ${fileUri} (${locale}): not a docs page`);
+      return { ok: true, skipped: true, slug: fileUri, locale };
+    }
+
     const completePath = `${path.join('src/content/docs', contentPath)}.mdx`;
     const localeKey = Object.keys(LOCALE_IDS).find(
       (key) => LOCALE_IDS[key] === locale

@@ -359,4 +359,45 @@ test('only completes translation records of the job the file came from', async (
   });
 });
 
+// a batch whose files were all cancelled at the vendor has no file to read
+// the locale from. That used to throw and stop the whole run, so no machine
+// translations came back on 2026-11-06, 07 and 08.
+test('does not stop the run for a batch whose files were all cancelled', async () => {
+  const vendorRequest = sinon.stub();
+  vendorRequest
+    .onFirstCall()
+    .resolves({
+      translationJobUid: 'job-1',
+      files: [
+        {
+          status: 'CANCELED',
+          fileUri: 'src/content/docs/a.mdx',
+          targetLocales: [],
+        },
+      ],
+    })
+    .onSecondCall()
+    .resolves({ jobStatus: 'COMPLETED' });
+
+  const { getBatchStatus } = await esmock.strict('../check-job-progress.mjs', {
+    '../translation_workflow/database.js': {
+      getJobs,
+      updateJob,
+      getTranslationsJobsRecords,
+      updateTranslations,
+      StatusEnum: { IN_PROGRESS: 'IN_PROGRESS', COMPLETED: 'COMPLETED' },
+    },
+    '../utils/vendor-request.mjs': { vendorRequest },
+    '../utils/translation-monitoring.js': {
+      trackTranslationError: async () => {},
+      trackTranslationEvent: async () => {},
+      TRACKING_TARGET: {},
+    },
+  });
+
+  const status = await getBatchStatus({ batchUid: 'b1', jobId: 7 });
+
+  expect(status).toMatchObject({ batchUid: 'b1', jobId: 7, fileUris: [] });
+});
+
 test.run();

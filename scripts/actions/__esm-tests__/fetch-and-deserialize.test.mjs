@@ -134,9 +134,14 @@ test('reports a translation that does not compile as errored without writing it'
 // a page that switches a locale to human translation (`translate: [jp]`) can
 // still have an older machine job for it. Its download used to overwrite the
 // human translation, e.g. agentic-ai/mcp/overview.mdx in #26455.
-const receive = async ({ type, translate, locale }) => {
+const receive = async ({
+  type,
+  translate,
+  locale,
+  file = 'src/content/docs/page.mdx',
+}) => {
   const zip = new AdmZip();
-  zip.addFile(`${locale}/src/content/docs/page.mdx`, Buffer.from('<p>x</p>'));
+  zip.addFile(`${locale}/${file}`, Buffer.from('<p>x</p>'));
   let writes = 0;
   const english = `---\ntitle: Page\n${
     translate
@@ -166,7 +171,7 @@ const receive = async ({ type, translate, locale }) => {
 
   const statuses = await fetchAndDeserializeFiles({
     locale,
-    fileUris: ['src/content/docs/page.mdx'],
+    fileUris: [file],
   });
   return { statuses, writes };
 };
@@ -207,6 +212,29 @@ test('writes human translations for the locales the page lists', async () => {
   });
 
   expect(writes).toEqual(1);
+});
+
+// templates and the old style guide (archives/) were queued in Aug and Sep
+// 2026, before `templates` was excluded. Their files come back as
+// `<locale>/templates/...`, which isn't a docs page: written, they ended up
+// at junk paths such as kr/docs/ko-KR/archives/..., and their records never
+// completed, so their jobs were downloaded again every day.
+test('does not write files that are not docs pages, and completes their record', async () => {
+  const { statuses, writes } = await receive({
+    type: 'machine',
+    locale: 'ko-KR',
+    file: 'templates/release-notes-template.mdx',
+  });
+
+  expect(writes).toEqual(0);
+  expect(statuses).toEqual([
+    {
+      ok: true,
+      skipped: true,
+      slug: 'templates/release-notes-template.mdx',
+      locale: 'ko-KR',
+    },
+  ]);
 });
 
 test.run();

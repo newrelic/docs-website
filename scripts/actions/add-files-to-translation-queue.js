@@ -116,8 +116,10 @@ const getLocalizedFileData = (mdxFile) => {
 
 const addFilesToTranslationQueue = async (fileNames, options) => {
   const machineTranslation = options.machineTranslation || false;
+  // only docs pages are translated; anything else (templates, archives/)
+  // can't be written back to a docs path when it returns
   const allLocalizedFileData = fileNames
-    .filter(Boolean)
+    .filter((fileName) => fileName && fileName.startsWith('src/content/docs/'))
     .flatMap(getLocalizedFileData);
 
   console.log(`\n Processing Results:`);
