@@ -1,0 +1,242 @@
+---
+title: .NET MAUI C# エラーをシンボル化する
+tags:
+  - .NET MAUI
+  - Mobile monitoring
+  - New Relic Mobile .NET MAUI
+  - Errors
+metaDescription: 'Generate, store, and upload .NET MAUI .pdb and .dll files so New Relic can show source file names and line numbers in C# stack traces in the browser.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+AndroidおよびiOS向けの.NET MAUIアプリのリリースビルドにはデバッグ情報が含まれていないため、アプリが報告するC#のスタックトレースにはメソッド名は表示されますが、ソースファイルや行番号は表示されません。そのビルドの対応する`.pdb`および`.dll`ファイルを提供すると、New Relicはブラウザ上でこれらのスタックトレースをシンボル化できます。ブラウザ内でのシンボル化は、処理された例外にのみ適用されます。
+
+このページでは、以下について説明します：
+
+* シンボル化されたC#のスタックトレースとシンボル化されていないC#のスタックトレースの比較
+* `.pdb`ファイルと`.dll`ファイルを生成する方法と見つける場所
+* New Relic UIでスタックトレースをシンボル化する方法
+* New Relic UIでネイティブiOSのクラッシュを見つける場所と、それらをシンボリケートする方法
+* 出荷したすべてのリリースのエラーをシンボル化できるように、これらのファイルを保存する方法
+
+<Callout variant="important">
+シンボル化は完全にブラウザ内で実行されます。New Relicは、`.pdb`や`.dll`ファイル、またはシンボル化されたスタックトレースをアップロード、保存、または保持しません。また、結果はエラー間で共有されません：開いたエラーごとに個別にファイルをアップロードし、ページをリロードしたり後で戻ってきたりするたびに再度アップロードします。毎回ファイルが必要になるため、[リリースごとにファイルを保管してください](#store-symbols)。
+</Callout>
+
+## シンボル化によって追加されるもの [#before-after]
+
+シンボリケーションを行う前は、各フレームのファイルと行番号が表示される場所に`<unknown>`が表示されます：
+
+```
+<unknown> in NewRelicMaui.MainPage.OnHandledExceptionClicked(Object sender, EventArgs e)()
+```
+
+シンボリケーションを行った後は、フレームにソースファイルと行番号が表示されます：
+
+```
+MainPage.xaml.cs line 41 in NewRelicMaui.MainPage.OnHandledExceptionClicked()
+```
+
+各フレームの横にある<DNT>**Thread**</DNT>列には、そのフレームが属するクラス（たとえば`NewRelicMaui.MainPage`など）が表示されます。
+
+<Callout variant="caution">
+行番号はメソッドが開始する場所（最初のステートメント）であり、例外をスローした正確な行ではありません。New Relicが.NET MAUIアプリから受信するスタックトレースには、メソッド内の行を特定するILオフセットが含まれていません。行番号を使用してソース内のメソッドを見つけ、そのメソッドを調べて原因を探してください。
+</Callout>
+
+## .NET MAUIシンボルファイルについて [#symbol-files]
+
+.NET MAUIアプリにはマネージドC#コードとネイティブプラットフォームコードの両方が含まれており、それぞれに独自のデバッグシンボルファイルがあります。各ファイルは、独自のコードからのエラーのみをシンボル化します：
+
+| ファイル                             | プラットフォーム    | シンボル化されるもの             | 作成される場所                                                              | New Relicでの使用方法                                                                                           |
+| -------------------------------- | ----------- | ---------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `.pdb` +`.dll`（ポータブルPDBとそのアセンブリ） | Android、iOS | アプリおよびクラスライブラリからのC#エラー | `bin/Release/<target framework>/`、[「出力ファイルを見つける」](#output)を参照してください。 | このページで説明されているように、ブラウザでアップロードします                                                                           |
+| `.dSYM`                          | iOS         | ネイティブiOSクラッシュ          | `bin/Release/net10.0-ios/ios-arm64/<YourApp>.app.dSYM`               | [dSYMファイルをアップロードする](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) |
+
+New Relicは、C#エラーをシンボル化するために`.pdb`および`.dll`ファイルのみを使用します。C#エラーにdSYMをアップロードしても、シンボル化されません。ただし、リリースが報告するあらゆる種類のエラーをシンボリケートできるように、リリースごとにそれらをすべて保持してください。
+
+{/* Verified 2026-10-07 on a .NET 10 Release iOS build: NewRelicMaui.app.dSYM is next to the dll/pdb in bin/Release/net10.0-ios/ios-arm64/. mapping.txt is omitted on purpose: the MAUI Android SDK's default ProGuard rules include -dontobfuscate, so Java/Kotlin code isn't obfuscated in typical MAUI apps. */}
+
+## `.pdb`を生成し、 `.dll` [#generate]
+
+<Steps>
+<Step>
+### リリースビルドのポータブルPDBを有効にする [#enable-pdb]
+
+アプリの`.csproj`で、Releaseビルドがポータブルデバッグシンボルを生成することを確認してください：
+
+```xml
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <DebugType>portable</DebugType>
+  <DebugSymbols>true</DebugSymbols>
+</PropertyGroup>
+```
+
+ビルドにより、アセンブリと同じ場所にポータブルPDBが生成されます。これらはAPK、AAB、またはIPAにパッケージ化されないため、アプリのサイズは増加しません。
+
+コードをシンボル化したいクラスライブラリプロジェクトに、同じ設定を追加してください。
+</Step>
+
+<Step>
+### リリースを構築する [#build]
+
+```sh
+# Android
+dotnet publish -f net10.0-android -c Release
+
+# iOS
+dotnet publish -f net10.0-ios -c Release
+```
+
+プロジェクトのターゲットフレームワーク（たとえば、`net9.0-android`）を使用してください。
+</Step>
+
+<Step>
+### 出力ファイルの検索 [#output]
+
+スタックトレースに表示される各アセンブリについて、その`.dll`と一致する`.pdb`が必要です。これらはビルド出力フォルダー内にあり、プロジェクト名が付けられています：
+
+| プラットフォーム | 場所                                                                                                  |
+| -------- | --------------------------------------------------------------------------------------------------- |
+| Android  | `bin/Release/net10.0-android/`                                                                      |
+| iOS      | `bin/Release/net10.0-ios/ios-arm64/` （`ios-arm64`は物理デバイス用のフォルダーです。`iossimulator-arm64`は使用しないでください）。 |
+
+たとえば、アプリプロジェクトが`NewRelicMaui`の場合、`NewRelicMaui.dll`と`NewRelicMaui.pdb`が必要です。フレームがどのアセンブリから来ているかを見つけるには、フレーム内のネームスペースを確認します：`NewRelicMaui.MainPage.OnHandledExceptionClicked`は`NewRelicMaui.dll`にあります。フレームが`MyApp.Core`などの独自のクラスライブラリから来ている場合は、`MyApp.Core.dll`と`MyApp.Core.pdb`を使用してください。
+
+`dotnet publish` APK、AAB、またはIPAを`publish/`サブフォルダーに配置します。`.dll`ファイルと`.pdb`ファイルは、その上のフォルダーの、表に示されている場所にあります。
+
+これらのファイルのコピーは、`obj/Release/`の下にもあります。互いに一致するように、表内の同じフォルダーから`.dll`と`.pdb`を常に一緒にアップロードしてください。
+
+<Callout variant="caution">
+iOSでは、アプリバンドル（`NewRelicMaui.app/`）またはIPAの内部から`.dll`を取得しないでください。リリースビルドではそのコピーがトリミングおよびストリップされるため、どの`.pdb`とも一致しなくなり、バンドルには`.pdb`が含まれなくなります。
+</Callout>
+
+{/* Verified 2026-10-07 on .NET 10 Release builds. Android: bin/, obj/, obj/<rid>/linked/ and Obfuscar output all had the same MVID. iOS: bin/Release/net10.0-ios/ios-arm64/ dll+pdb are a matched pair; the .app copy (and obj/<rid>/linked|stripped) has a different MVID and is IL-stripped. App Exp confirmed in the UI that an iOS error symbolicates with the bin/Release/net10.0-ios/ios-arm64/ pair. */}
+</Step>
+</Steps>
+
+## New Relicでスタックトレースをシンボリケートする [#symbolicate]
+
+<Steps>
+<Step>
+### エラーを開く [#open-error]
+
+どちらかの場所からC#のエラーを開きます：
+
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Errors Inbox**</DNT>、次にエラーを選択します。
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Mobile &gt; (select your app) &gt; Handled exceptions**</DNT>、次にエラーを選択します。
+
+<DNT>**Stack trace**</DNT>セクションまでスクロールします。
+
+エラーの`appVersion`と`appBuild`を確認してください。これらにより、どのリリースのファイルが必要かがわかります。
+</Step>
+
+<Step>
+### `.pdb` をアップロードし、 `.dll` [#upload]
+
+スタックトレースの上にある<DNT>**Not seeing what you expected?**</DNT>バナーでは、オンデマンドのシンボル化を利用できます。<DNT>**Upload .pdb and .dll files**</DNT>をクリックし、スタックトレース内のアセンブリの`.pdb`と`.dll`の両方を選択します。スタックトレースに複数のアセンブリ（アプリやクラスライブラリなど）のフレームが含まれている場合は、それぞれの`.pdb`と`.dll`を選択します。両方のファイルが必要です：`.dll`はアセンブリとそのメソッドを識別し、`.pdb`は各メソッドをソースファイルと行にマッピングします。
+
+<img title="Unsymbolicated .NET MAUI C# stack trace" alt="Screenshot of an unsymbolicated .NET MAUI C# stack trace with the Upload .pdb and .dll files button" src="/images/maui_screenshot-crop_symbolicate-upload.webp" />
+
+<figcaption>
+シンボリケーション前、フレームにはソースファイルと行番号が表示されるはずの場所に`<unknown>`が表示されます。
+</figcaption>
+
+選択したファイルがボタンの横に表示されます。両方がリストされていることを確認し（間違っているものは<DNT>**×**</DNT>で削除します）、<DNT>**Symbolicate**</DNT>をクリックします。
+</Step>
+
+<Step>
+### 結果を確認またはエクスポートする [#export]
+
+シンボリケーションが完了すると、バナーが<DNT>**Symbolicated your trace**</DNT>に変わり、解決されたフレーム数（例：<DNT>**Symbolicated 1 of 1 unresolved frame**</DNT>）が報告されます。また、フレームは例外をスローした正確な行ではなく、メソッドの先頭に解決されることも通知されます。
+
+<img title="Symbolicated .NET MAUI C# stack trace" alt="Screenshot of a .NET MAUI C# stack trace after symbolication, showing MainPage.xaml.cs line 41" src="/images/maui_screenshot-crop_symbolicate-result.webp" />
+
+<figcaption>
+シンボル化後、フレームにはソースファイルとメソッドが開始する行が表示されます。
+</figcaption>
+
+結果はページが開いている間のみ保持されます。保持するには、<DNT>**Export handled exception details**</DNT>をクリックします。エクスポートにはシンボル化されたフレームが含まれるため、チケットに添付したり、チームと共有したりできます。
+
+別のエラーをシンボリケートするには、そのエラーを開いてファイルを再度アップロードしてください。1つのエラーの結果は、他のエラーには引き継がれません。
+</Step>
+</Steps>
+
+## ネイティブiOSクラッシュのシンボル化 [#native-ios-crashes]
+
+Objective-C、Swift、またはiOSランタイムでのクラッシュなどのネイティブiOSのクラッシュはC#のエラーではないため、`.pdb`および`.dll`ファイルは適用されません。これらのクラッシュでは、代わりにiOSの`.dSYM`ファイルが使用されます。
+
+New Relic UIでネイティブiOSクラッシュを見つけるには、<DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Mobile &gt; (select your app) &gt; Crashes**</DNT>に移動して、クラッシュを選択します。そのビルドのdSYMがNew Relicで利用できない場合、スタックトレースには読み取り可能なメソッド名ではなくマシンコード（メモリアドレス）が表示され、クラッシュレポートには警告が表示されます `We were unable to locate your dsym.`
+
+<img title="Unsymbolicated native iOS crash stack trace" alt="Screenshot of the Stack trace section of a .NET MAUI native iOS crash on the Crashes page, showing memory addresses such as 0x108d84944 instead of method names" src="/images/maui_screenshot-crop_native-ios-crash.webp" />
+
+<figcaption>
+dSYMがない場合、ネイティブiOSフレームにはメソッド名ではなくメモリアドレスが表示されます。
+</figcaption>
+
+修正するには：
+
+1. 「[.NET MAUIシンボルファイルを理解する](#symbol-files)」で説明されているように、クラッシュしたビルドの`.dSYM`を見つけます。それをクラッシュの`appVersion`と`appBuild`に一致させます。
+2. [dSYMファイルのアップロード](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps)の手順に従って、New Relicにアップロードしてください。
+
+## 適切なファイルを見つける [#match]
+
+`.dll` と `.pdb` のペアは、それを生成したビルドからのスタックトレースに対してのみ正しい結果を提供します：
+
+1. **リリース：**エラーの`appVersion`と`appBuild`を、そのリリース用に保存したファイルと照合してください。
+2. **プラットフォーム：**AndroidのエラーにはAndroidファイルを、iOSのエラーにはiOSファイルを使用してください。
+3. **アセンブリ：**[「出力ファイルを見つける」](#output)で説明されているように、スタックフレーム内のネームスペースとアセンブリ名を照合してください。
+4. **同じビルド：**`.pdb`を、`.dll`を生成したビルドと一致させてください。異なるビルドのファイルを混在させないでください。
+
+<Callout variant="caution">
+スタックトレースにはアセンブリIDが含まれていないため、ファイルが別のビルドからのものであるかどうかをNew Relicが常に判断できるわけではありません。アプリの別のバージョンのファイルでも結果が生成される場合がありますが、コードが変更されている場合は、行番号が誤った場所を指す可能性があります。メソッドの上にコメント行を1行追加しただけでも、その行番号は移動します。結果を利用する前に、ファイルがエラーの`appVersion`および`appBuild`と一致していることを確認してください。
+</Callout>
+
+## ベストプラクティス：すべてのリリースでシンボルを保存する [#store-symbols]
+
+New Relicは`.pdb`ファイルと`.dll`ファイルを保持しないため、ご自身で保存する必要があります。エラーが発生した後ではなく、各リリースをビルドする際に保存してください。
+
+* **配布するすべてのビルドのファイルを保管してください。**これには、AndroidとiOSの両方の内部ビルド、ベータ版、ストアビルドが含まれます。
+* iOSのdSYMを含め、**すべての種類のシンボルファイルを保持してください。**[「.NET MAUIシンボルファイルを理解する」](#symbol-files)を参照してください。
+* メインアプリのアセンブリだけでなく、**独自のクラスライブラリを含めてください**。
+* エラーの適切なファイルを見つけられるように、アプリが報告する`appVersion`および`appBuild`属性と一致させて、**プラットフォーム、バージョン、ビルド番号でラベル付けしてください**。
+* **そのバージョンが使用されている間は、それらを保持してください。**ユーザーは何ヶ月も古いバージョンを使い続けることがよくあります。
+* **アクセスを制限します。**PDBにより、ソースファイルのパスとコード構造が明らかになります。ソースコードと同じアクセス制御で保存してください。
+
+どこに保存するかは任意です。たとえば、CIシステムのビルドアーティファクト、ストレージバケット、アーティファクトリポジトリなどです。CIビルドアーティファクトを使用する場合は、CIシステムがそれらを保持する期間を確認してください。多くのシステムでは、一定時間後に自動的に削除されるためです。
+
+<Callout variant="caution">
+再ビルドで同一のファイルが生成されるのは、ソースコード、依存関係、SDKバージョン、およびビルド設定がすべて完全に同じである場合のみです。実際にリリースしたビルドのファイルを保存してください。それらを再作成できるとは限らないため、ご注意ください。
+</Callout>
+
+## トラブルシューティング [#troubleshooting]
+
+<CollapserGroup>
+<Collapser id="still-unknown" title="ファイルをアップロードした後もフレームに<unknown>が表示されます">
+以下を確認します：
+
+* フレームを含むアセンブリをアップロードしました。アセンブリ名は通常、フレーム内のネームスペースの先頭と一致します。
+* `.pdb`と`.dll`の両方をアップロードしており、両方とも同じビルドのものです。
+* `.pdb`はポータブルPDBです。古いWindows専用（フル）PDBはサポートされていません。
+</Collapser>
+
+<Collapser id="wrong-line" title="行番号は、スローした行を指していません。">
+これは想定された動作です。スタックトレースにはメソッド内の位置が含まれていないため、フレームはメソッドの最初の行に解決されます。[シンボリケーションによって追加されるもの](#before-after)をご覧ください。
+
+行がまったく別のメソッドを指している場合、ファイルはおそらく別のビルドからのものです。[「適切なファイルを見つける」](#match)を参照してください。
+</Collapser>
+
+<Collapser id="partial" title="一部のフレームのみがシンボル化されています。">
+各アセンブリには独自の`.dll`と`.pdb`が必要です。複数のペアを一度にアップロードできるため、スタックトレースに表示されるすべてのアセンブリを含めてください。.NET、MAUI、サードパーティのNuGetパッケージなど、アップロードしなかったアセンブリのフレームはシンボル化されないままになります。
+</Collapser>
+
+<Collapser id="no-pdb" title=".pdbが見つかりませんビルド出力内のファイル">
+[「ポータブルPDBを有効にする」](#enable-pdb)に示されているように、Release設定で`DebugType`が`portable`に設定されていることを確認し、再ビルドします。新しいファイルは新しいビルドからのエラーにのみ一致し、すでに出荷されたリリースからのエラーには一致しません。
+</Collapser>
+</CollapserGroup>
+
+## 制限 [#limitations]
+
+* フレームは、スローした正確な行ではなく、メソッドの先頭に解決されます。
+* シンボリケーションはC#エラーに適用されます。ネイティブAndroid（Java/Kotlin）およびiOSのクラッシュでは、[Android](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-crash-reporting)および[iOS](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps)のシンボリケーションワークフローを使用します。
+* 結果は保存されず、エラー間で共有されることもありません。エラーを表示するたびに、エラーごとにファイルをアップロードする必要があります。
