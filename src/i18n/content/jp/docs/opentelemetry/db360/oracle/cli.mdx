@@ -1,0 +1,376 @@
+---
+title: CLIを使用したOracle監視用NRDOTのインストールと設定
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - CLI
+metaDescription: Install and configure the NRDOT Collector for Oracle Database monitoring using the New Relic CLI
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Oracle-Database-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/oracle/introduction
+  next: null
+translationType: machine
+---
+
+New Relic CLIを使用して、Oracleデータベース監視用のNRDOT Collectorをインストールおよび設定できます。CLIは、単一のコマンドでコレクターをインストールし、監視データベースユーザーを作成し、コレクターを設定します。
+
+<Callout variant="tip" title="ガイド付きインストレーション">
+代わりにNew Relic UIからインストールするには、<DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Oracle (Database 360)](https://onenr.io/0kjnebKW7Ro)** </DNT>に移動してください。このページでは、手動インストレーションについてのみ説明します。
+</Callout>
+
+<Steps>
+<Step>
+## 前提条件 [#prerequisites]
+
+* 有効な[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)を持つNew Relicアカウント。
+* New Relic [アカウントID](/docs/accounts/accounts-billing/account-structure/account-id)。
+* Oracleデータベース19c以降。
+* セルフホスト型Oracleの場合：`curl`および`systemd`がインストールされたOracle Linux 7、8、または9、およびSSHユーザーがパスワードプロンプトなしで`sudo su - oracle`を実行できるOracleデータベースホストへのSSHアクセス（エージェント転送付き）。
+* AWS RDS上のOracleの場合：`curl`および`systemd`がインストールされ、コレクターホストからRDS Oracleエンドポイントへのネットワーク接続がある、Debian/UbuntuまたはCentOS/RHEL/OELを実行するコレクターホスト。
+* Oracle Autonomous データベース（ADB）の場合：Debian/UbuntuまたはCentOS/RHEL/OELを実行し、`curl`、`systemd`、およびOracle Instant Client（`sqlplus`）がインストールされ、`PATH`にあるコレクターホスト；各インスタンスのエグレスIPがそのADBアクセス制御リストで許可されていること；および、各インスタンスのOracle Walletがダウンロードされ、コレクターホスト上の独自のディレクトリに解凍されていること。
+</Step>
+
+<Step>
+## NRDOT Collectorのインストールと設定 [#install]
+
+<CollapserGroup>
+<Collapser id="cli-host" title="セルフホスト型Oracleデータベース">
+このレシピは、単一のコレクターから1つ以上のOracle データベースインスタンス（それぞれSSH経由で到達可能）をモニターします。単一のホスト/コンテナ/資格情報セットの入力を求める代わりに、モニターするすべてのインスタンスをリストしたインスタンスファイル（YAML）と、オプションで、監視ユーザーのパスワードを自動生成する代わりに特定のパスワードを固定するためのシークレットファイルを読み込みます。
+
+このコマンドを実行する前に、以下を準備してください：
+
+* 各`ssh_user`がパスワードプロンプトなしで`sudo su - oracle`を実行できる、リストされたすべてのOracle データベースホストへのSSHアクセス（エージェント転送付き）
+* インスタンスごとのコンテナタイプ（すべてのPDBのCDB、または単一のPDB名）
+* インスタンスごとのCDBまたはPDBサービス名
+* BasicメトリクスとAdvancedメトリクスのどちらを希望するか
+
+1. インスタンスファイルを作成します。このコレクターでモニターするOracle データベースインスタンスごとに1つのエントリを追加します；単一のインスタンスのみを監視する場合は、1つのエントリのみです：
+
+   ```bash
+   cat > ~/oracle-instances.yml << 'EOF'
+   instances:
+     - host: dbhost1.example.com
+       port: 1521
+       ssh_user: opc
+       container_type: 1
+       pdb_name:
+       service: ORCLCDB
+       login_name: newrelic
+   EOF
+   ```
+
+   `container_type` CDBの場合は`1`（すべてのPDBをモニターし、共通の`c##<login_name>`ユーザーを作成します）、単一のPDBの場合は`2`（その場合のみ`pdb_name`が必要です）です。`c##`プレフィックスを付けずに`login_name`を入力してください：CDBモードではレシピによって自動的に追加されます。
+
+2. （オプション）レシピに自動生成させる代わりに、インスタンスごとに固定の監視ユーザーパスワードを設定するシークレットファイルを作成します。セルフホスト型Oracleでは、ここで管理者資格情報は必要ありません。監視ユーザーは、SSHおよびOS認証のSYSDBAアクセスを介して作成されます：
+
+   ```bash
+   umask 077
+   cat > ~/oracle-secrets.env << 'EOF'
+   NR_CLI_ORACLE_LOGIN_PASSWORD_1=SomeFixedPassword1
+   EOF
+   chmod 600 ~/oracle-secrets.env
+   ```
+
+   代わりにすべてのインスタンスのランダムなパスワードを自動生成するには、secretsファイルのパスを空白のままにします（または存在しないファイルを指定します）。
+
+インスタンスファイルにリストされているすべてのOracleデータベースホストへのSSHアクセス（エージェント転送付き）を持つホストから、これを実行します：
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle
+```
+
+CLIは、以下の変数について対話的にプロンプトを表示します。非対話的に実行するために、事前に環境変数として設定することもできます。
+
+<table>
+<thead>
+<tr>
+<th>
+変数
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_ORACLE_INSTANCES_FILE`
+</td>
+
+<td>
+必須。インスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_SECRETS_FILE`
+</td>
+
+<td>
+オプション。インスタンスごとに`NR_CLI_ORACLE_LOGIN_PASSWORD_<i>`を固定するシークレットファイル（`KEY=VALUE`）へのパス。すべてのインスタンスのランダムなパスワードを自動生成するには、未設定のままにします。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+このコレクターから複数のOracle データベース・インスタンスをモニターするには、インスタンスファイルにさらにエントリを追加します。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由がログに記録されてスキップされます。すでに監視ユーザーが存在するインスタンスに対して再実行すると、それを再利用するか新しいユーザーを作成するかを尋ねる対話的なプロンプトが表示されます（この1つのステップは完全にはスクリプト化できません）。
+</Callout>
+</Collapser>
+
+<Collapser id="cli-rds" title="AWS RDS上のOracleデータベース">
+このレシピは、インスタンスファイルとシークレットファイルを使用して、単一のコレクターから1つ以上のRDS Oracleエンドポイントをモニターします。
+
+このコマンドを実行する前に、以下を準備してください：
+
+* すべてのインスタンスのRDS Oracleエンドポイント、リスナーポート、およびDBサービス名
+* すべてのインスタンスのRDSマスター・ユーザー名とパスワード
+* BasicメトリクスとAdvancedメトリクスのどちらを希望するか
+
+1. インスタンスファイルを作成します（このコレクターにモニターさせるRDS Oracleエンドポイントごとに1つのエントリ。単一のインスタンスのみを監視している場合でも1つのエントリ）：
+
+   ```bash
+   cat > ~/oracle-instances.yml << 'EOF'
+   instances:
+     - host: rds-orders.abcdef123.us-east-1.rds.amazonaws.com
+       port: 1521
+       service: ORDERSDB
+       login_name: newrelic
+   EOF
+   ```
+
+2. インスタンスファイルの順序と一致するようにインデックス付けされた、各インスタンスのRDSマスターユーザー名とパスワードを含むシークレットファイルを作成します。オプションで、インスタンスごとに固定の監視ユーザーパスワードを設定することもできます。自動生成する場合は省略してください：
+
+   ```bash
+   umask 077
+   cat > ~/oracle-secrets.env << 'EOF'
+   NR_CLI_ORACLE_ADMIN_USER_1=admin
+   NR_CLI_ORACLE_ADMIN_PASSWORD_1=YourMasterPassword1
+   EOF
+   chmod 600 ~/oracle-secrets.env
+   ```
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle-rds
+```
+
+CLIは、以下の変数について対話的にプロンプトを表示します。非対話的に実行するために、事前に環境変数として設定することもできます。
+
+<table>
+<thead>
+<tr>
+<th>
+変数
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_ORACLE_INSTANCES_FILE`
+</td>
+
+<td>
+必須。インスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_SECRETS_FILE`
+</td>
+
+<td>
+必須。シークレットファイルへのパス（`KEY=VALUE`、インスタンスごとに1つのRDSマスターユーザー名/パスワードのペア；オプションで、自動生成する代わりに監視パスワードを固定するための`NR_CLI_ORACLE_LOGIN_PASSWORD_<i>`）。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+このコレクターから複数のRDS Oracleエンドポイントをモニターするには、インスタンスファイルにエントリを追加し、シークレットファイルに一致する番号付きの資格情報を追加します。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由がログに記録されてスキップされます。
+</Callout>
+</Collapser>
+
+<Collapser id="cli-adb" title="Oracle Autonomous データベース（ADB）">
+このレシピは、インスタンス・ファイルとシークレット・ファイルを使用して、単一のコレクターから1つ以上のOracle Autonomous データベース（ADB）インスタンスをモニターします。各インスタンスは、ダウンロードした独自のウォレットを使用して、相互TLS（ADBのデフォルト）経由で接続します。インスタンス間で1つのウォレット・ディレクトリを共有しないでください。
+
+このコマンドを実行する前に、以下を準備してください：
+
+* 各インスタンス：その接続文字列（`host`、`port`、`service`、ADBコンソールの**Database connection &gt; Connection strings**から）
+* 各インスタンスについて：コレクターホスト上の独自のディレクトリに解凍された、ダウンロード済みのOracle Wallet（ADBコンソールの**Database connection &gt; Download wallet**）
+* すべてのインスタンスのADB管理者（`ADMIN`）のユーザー名とパスワード
+
+1. インスタンスファイルを作成します。このコレクターでモニターするADBインスタンスごとに1つのエントリを追加します；単一のインスタンスのみを監視する場合は、1つのエントリのみを追加します：
+
+   ```bash
+   cat > ~/adb-instances.yml << 'EOF'
+   instances:
+     - host: adb1.adb.us-ashburn-1.oraclecloud.com
+       port: 1522
+       service: myadb1_high
+       login_name: newrelic
+       wallet_dir: /home/opc/wallet1
+   EOF
+   ```
+
+   `wallet_dir` は、そのインスタンスのウォレットが展開されたディレクトリです（`cwallet.sso`と`sqlnet.ora`が含まれている必要があります）；ウォレット・ディレクトリが欠落しているか無効なインスタンスは、インストール全体を失敗させるのではなく、スキップされます。
+
+2. 各インスタンスのADB管理者ユーザー名とパスワードを含むsecretsファイルを作成し、インスタンスファイルの順序と一致するようにインデックスを付けます。オプションで、インスタンスごとに固定の監視ユーザーパスワードを設定することもできます。自動生成する場合は省略してください：
+
+   ```bash
+   umask 077
+   cat > ~/adb-secrets.env << 'EOF'
+   NR_CLI_ORACLE_ADMIN_USER_1=ADMIN
+   NR_CLI_ORACLE_ADMIN_PASSWORD_1=YourAdminPassword1
+   EOF
+   chmod 600 ~/adb-secrets.env
+   ```
+
+`PATH`に`sqlplus`（Oracle Instant Client）があり、リストされているすべてのADBインスタンスへのネットワーク接続（mTLS）があるホストから、これを実行します：
+
+```bash
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-oracle-adb
+```
+
+CLIは、以下の変数について対話的にプロンプトを表示します。非対話的に実行するために、事前に環境変数として設定することもできます。
+
+<table>
+<thead>
+<tr>
+<th>
+変数
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_ORACLE_INSTANCES_FILE`
+</td>
+
+<td>
+必須。インスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_SECRETS_FILE`
+</td>
+
+<td>
+必須。シークレットファイルへのパス（`KEY=VALUE`、インスタンスごとに1つのADB管理者ユーザー名/パスワードのペア；オプションで、自動生成する代わりに監視パスワードを設定するための`NR_CLI_ORACLE_LOGIN_PASSWORD_<i>`：ADBでは、少なくとも1つの大文字、1つの小文字、および1つの数字を含む12～30文字が必要です）。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+ADB用の`NR_CLI_ORACLE_CONFIG_PRESET`はありません：これはフルマネージド・サービスであり、ホスト・レベルのメトリクスを収集するためのホストが存在しないためです。
+</Callout>
+
+<Callout variant="tip">
+このコレクターから複数のADBインスタンスをモニターするには、インスタンスファイルにエントリを追加し、シークレットファイルに一致する番号付きの資格情報を追加します。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由がログに記録されてスキップされます。
+</Callout>
+</Collapser>
+</CollapserGroup>
+</Step>
+</Steps>
+
+New RelicでOracleデータベースのエンティティを見つけるには、[「データの検索と使用」](/docs/opentelemetry/db360/oracle/introduction/#find)をご覧ください。

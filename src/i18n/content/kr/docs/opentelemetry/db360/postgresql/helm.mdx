@@ -1,0 +1,838 @@
+---
+title: Helm을 사용하여 PostgreSQL 모니터링을 위한 NRDOT 설치 및 구성
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Kubernetes
+  - Helm
+metaDescription: Install and configure PostgreSQL monitoring on Kubernetes using the postgresql-otel Helm chart
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+`postgresql-otel` Helm 차트를 사용하여 Kubernetes에서 PostgreSQL 모니터링을 설치하고 구성할 수 있습니다. 선택적으로 차트는 모니터링 역할, 해당 권한 및 `pg_stat_statements` 확장을 생성하는 설정 작업을 실행할 수도 있습니다.
+
+<Callout variant="tip" title="가이드 설치">
+  대신 뉴렐릭 UI를 통해 설치하려면 <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; PostgreSQL (Database 360)](https://onenr.io/00jlEJKbdQW)**</DNT>(으)로 이동하십시오. 이 페이지는 수동 설치만 다룹니다.
+</Callout>
+
+<Callout variant="important">
+  차트는 네트워크를 통해 원격으로 PostgreSQL에 연결하는 Kubernetes 배포로 수집기를 배포하므로 PostgreSQL 메트릭만 보고합니다: PostgreSQL이 실행되는 머신에 대한 호스트 또는 인프라 메트릭은 없습니다. 릴리스당 하나의 PostgreSQL *인스턴스*를 모니터링하며(해당 인스턴스의 여러 *데이터베이스*가 지원됩니다), TLS 또는 AWS IAM 인증과 같은 `db_auth` 자격 증명 공급자를 구성하지 않습니다.
+</Callout>
+
+<Steps>
+  <Step>
+    ## 서버 수준 전제 조건 [#helm-server-prereqs]
+
+    PostgreSQL **14 이상**이 필요합니다. 이 차트를 설치(또는 설정 작업을 활성화)하기 전에 다음 서버 파라미터가 준비되어 있어야 합니다. `shared_preload_libraries` 없이 `pg_stat_statements`을(를) 생성할 수 없으며, 해당 파라미터는 **재시작**이 필요하므로 Kubernetes 클러스터 내에서 실행 중인 어떤 것도 이 작업을 대신 수행할 수 없습니다.
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            매개변수
+          </th>
+
+          <th>
+            값
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `shared_preload_libraries`
+          </td>
+
+          <td>
+            `pg_stat_statements`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pg_stat_statements.track`
+          </td>
+
+          <td>
+            `ALL`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pg_stat_statements.max`
+          </td>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pg_stat_statements.save`
+          </td>
+
+          <td>
+            `on`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `track_activity_query_size`
+          </td>
+
+          <td>
+            `4096`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `track_functions`
+          </td>
+
+          <td>
+            `all`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * **자체 호스팅**: `postgresql.conf`에서 이를 설정한 다음 PostgreSQL을 다시 시작하십시오. 일부 배포판에서는 `pg_stat_statements`을(를) 사용하기 위해 `postgresql-contrib` 패키지를 설치해야 합니다.
+    * **AWS RDS 또는 Aurora**: 구성 파일이 아닌 DB **파라미터 그룹**에서 이를 설정하십시오. `track_activity_query_size` 및 `pg_stat_statements.max`은(는) 정적 파라미터이며, `apply_method: pending-reboot`(으)로 적용한 다음 인스턴스를 재부팅하십시오. 즉시 적용하면 `InvalidParameterCombination`(으)로 실패합니다. Aurora의 경우 파라미터 그룹 패밀리 이름이 엔진의 메이저 버전과 정확히 일치해야 합니다(예: `aurora-postgresql16`).
+  </Step>
+
+  <Step>
+    ## 전제 조건 [#helm-prerequisites]
+
+    * 유효한 뉴렐릭 [라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+
+    * Helm 3.0 이상 및 쿠버네티스 클러스터에 액세스하도록 구성된 `kubectl`.
+
+    * 쿠버네티스 클러스터에서 PostgreSQL 호스트(또는 RDS 엔드포인트) 및 포트로의 네트워크 연결:
+
+      * 자체 호스팅: PostgreSQL 호스트로 라우팅되는 경로(VPN, 피어링 또는 공유 네트워크), 호스트명인 경우 DNS 확인이 필요하며, PostgreSQL 측 `pg_hba.conf` 및 방화벽은 연결의 실제 소스 IP(파드 IP 자체가 아닌 NAT 게이트웨이일 수 있음)를 허용해야 합니다.
+      * AWS RDS: RDS 인스턴스와의 VPC 피어링, 트랜짓 게이트웨이 또는 공유 VPC 배치가 필요하며, RDS 보안 그룹은 클러스터의 이그레스 소스에서 오는 PostgreSQL 포트(기본값 `5432`)를 허용해야 합니다.
+
+    * 데이터베이스별 권한을 가진 이미 생성된 모니터링 역할이거나, 차트의 설정 작업에서 이를 생성할 수 있도록 하는 PostgreSQL 관리자 자격 증명입니다. 아래의 [모니터링 자격 증명 구성](#helm-credentials)을 참조하십시오.
+  </Step>
+
+  <Step>
+    ## 네임스페이스를 생성하십시오. [#helm-namespace]
+
+    설치할 네임스페이스를 생성하십시오. `helm install --create-namespace`은(는) 최종 설치 단계에서만 네임스페이스를 생성하므로, 다음 단계에서 시크릿을 생성하기 전에 해당 네임스페이스가 존재해야 합니다:
+
+    ```bash
+    kubectl create namespace newrelic
+    ```
+
+    <Callout variant="tip">
+      아래의 모든 명령어에서 `-n`을(를) 전달할 필요가 없도록 현재 `kubectl` 컨텍스트의 기본 네임스페이스로 설정하십시오:
+
+      ```bash
+      kubectl config set-context --current --namespace=newrelic
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## 모니터링 자격 증명 구성 [#helm-credentials]
+
+    차트의 설정 작업이 PostgreSQL 모니터링 역할을 생성하도록 할지, 그렇지 않은 경우 자격 증명을 어떻게 제공할지 결정하십시오:
+
+    <CollapserGroup>
+      <Collapser id="helm-creds-inline" title="설정 작업 없음: 일반 사용자 이름 및 비밀번호">
+        이 방법에는 설정 작업이 없으므로, 여기에는 모니터링 역할을 생성하는 항목이 없습니다. 차트를 설치하기 전에 슈퍼유저로 직접 생성하십시오. 클러스터 수준에서 이를 한 번 실행하십시오:
+
+        ```sql
+        CREATE USER newrelic WITH LOGIN PASSWORD '<password>';
+        ALTER ROLE newrelic INHERIT;   -- required on PG15+, a no-op on PG14
+        ```
+
+        그런 다음 `postgresql.databases`에 나열할 **모든** 데이터베이스에서 다음을 실행하십시오:
+
+        ```sql
+        CREATE SCHEMA IF NOT EXISTS otel;
+        GRANT USAGE ON SCHEMA otel TO newrelic;
+        GRANT USAGE ON SCHEMA public TO newrelic;
+        GRANT SELECT ON ALL TABLES IN SCHEMA public TO newrelic;
+        GRANT pg_monitor TO newrelic;
+        CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+        ```
+
+        자세한 내용은 [자체 호스팅 PostgreSQL](/docs/opentelemetry/db360/postgresql/hosted/#database-user) 또는 [RDS의 PostgreSQL](/docs/opentelemetry/db360/postgresql/rds/#database-user) 에 **대한 데이터베이스 사용자 및 권한 구성** 단계를 참조하십시오.
+
+        다음 단계에서 `values.yaml`에 모니터링 사용자 이름과 비밀번호를 직접 설정합니다.
+      </Collapser>
+
+      <Collapser id="helm-creds-secret-nojob" title="설정 작업 없음: 시크릿 기반 자격 증명">
+        이 방법에는 설정 작업도 없습니다. 위의 일반 자격 증명 방법과 정확히 동일하게 먼저 모니터링 역할과 데이터베이스별 권한을 직접 생성하십시오. 유일한 차이점은 자격 증명이 저장되는 위치입니다: `values.yaml`에 일반 텍스트로 저장하는 대신 Kubernetes 시크릿에 저장하십시오:
+
+        ```bash
+        kubectl create secret generic postgres-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        ```
+      </Collapser>
+
+      <Collapser id="helm-creds-setupjob" title="자동화된 설정 작업">
+        이 방법을 사용하면 차트의 설정 작업이 모니터링 역할을 생성하고, `postgresql.databases`의 모든 데이터베이스에 대해 `otel` 스키마를 생성하며, `USAGE`/`SELECT`/`pg_monitor`을(를) 부여하고, `pg_stat_statements` 확장을 생성합니다. 모니터링 및 관리자 자격 증명은 모두 Kubernetes 시크릿으로 제공되어야 합니다: 설정 작업은 일반 텍스트 관리자 자격 증명을 절대 허용하지 않으며, 이를 활성화하려면 시크릿 기반 모니터링 자격 증명도 필요합니다.
+
+        1. 모니터링 사용자 이름과 비밀번호로 시크릿을 생성하십시오. 이것은 설정 작업이 생성하고 수집기가 연결하는 자격 증명입니다:
+
+           ```bash
+           kubectl create secret generic postgres-monitor-creds \
+             --from-literal=username=<MONITORING_USERNAME> \
+             --from-literal=password='<MONITORING_PASSWORD>' \
+             -n newrelic
+           ```
+
+        2. 설정 작업은 Kubernetes 시크릿을 통해서만 관리자 자격 증명을 허용합니다(`values.yaml`에 일반 텍스트 사용자 이름/비밀번호 없음). 이 자격 증명은 `CREATE USER`, `CREATE SCHEMA` 및 `CREATE EXTENSION`가 필요하므로 슈퍼유저(자체 호스팅) 또는 `rds_superuser` 동급(RDS)이어야 합니다:
+
+           ```bash
+           kubectl create secret generic postgres-admin-creds \
+             --from-literal=username=<ADMIN_USERNAME> \
+             --from-literal=password='<ADMIN_PASSWORD>' \
+             -n newrelic
+           ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Helm 값을 설정하십시오. [#helm-configure]
+
+    환경에 맞게 `postgresql.topology`을(를) 설정하십시오:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            값
+          </th>
+
+          <th>
+            설명
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `self-hosted`
+          </td>
+
+          <td>
+            네트워크를 통해 연결되는 자체 호스팅 PostgreSQL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rds`
+          </td>
+
+          <td>
+            AWS RDS의 PostgreSQL 또는 Aurora.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    `postgresql.databases` 은(는) **비어 있지 않은 필수 목록**입니다. MySQL 또는 SQL Server와 달리 PostgreSQL에는 모든 데이터베이스 모니터 모드가 없습니다. 연결은 한 번에 하나의 데이터베이스를 타겟으로 하므로 수신자에게 스크랩할 대상을 알려주어야 합니다.
+
+    이전 단계에서 선택한 자격 증명 방법과 일치하는 `values.yaml`을(를) 사용하십시오:
+
+    <CollapserGroup>
+      <Collapser id="helm-values-inline" title="설정 작업 없음: 일반 사용자 이름 및 비밀번호">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        postgresql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          username: <YOUR_MONITORING_USERNAME>
+          password: <YOUR_MONITORING_PASSWORD>
+          databases:
+            - <YOUR_DATABASE>
+            - <ANOTHER_DATABASE>
+
+        # No setup job runs, so create the monitoring role and its
+        # per-database grants yourself before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-secret-nojob" title="설정 작업 없음: 시크릿 기반 자격 증명">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        postgresql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: postgres-monitor-creds
+          databases:
+            - <YOUR_DATABASE>
+            - <ANOTHER_DATABASE>
+
+        # No setup job runs, so the monitoring role referenced by
+        # this secret must already exist - create it yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-setupjob" title="자동화된 설정 작업">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        postgresql:
+          topology: <self-hosted|rds>
+          server: <YOUR_DB_HOST>
+          port: <YOUR_DB_PORT>
+          existingSecret: postgres-monitor-creds
+          databases:
+            - <YOUR_DATABASE>
+            - <ANOTHER_DATABASE>
+
+        setupJob:
+          enabled: true
+          image:
+            # -- psql-capable image. No default: the official postgres
+            # image bundles psql and is a reasonable choice.
+            repository: postgres
+            tag: "16"
+            pullPolicy: IfNotPresent
+          postgresAdmin:
+            existingSecret: postgres-admin-creds
+          # -- Also creates the otel.explain_statement SECURITY DEFINER
+          # function, so the receiver can EXPLAIN write/locking queries.
+          enableExplainPermissions: false
+          # -- Also creates the pgvector extension in each database.
+          enablePgvector: false
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            매개변수
+          </th>
+
+          <th>
+            설명
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `licenseKey`
+          </td>
+
+          <td>
+            귀하의 뉴렐릭 라이선스 키입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `otlpEndpoint`
+          </td>
+
+          <td>
+            해당 리전의 OTLP/gRPC 엔드포인트, 
+
+            **스킴이 없는**
+
+             순수 
+
+            `host:port`
+
+             형태: 
+
+            `otlp.nr-data.net:4317`
+
+             (US) 또는 
+
+            `otlp.eu01.nr-data.net:4317`
+
+             (EU). 자세한 내용은 
+
+            [뉴렐릭 OTLP 엔드포인트 문서를](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+             참조하십시오.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresql.server`
+
+             / 
+
+            `postgresql.port`
+          </td>
+
+          <td>
+            클러스터에서 접근할 수 있는 PostgreSQL 호스트(또는 RDS 엔드포인트) 및 포트입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresql.databases`
+          </td>
+
+          <td>
+            모니터할 데이터베이스의 
+
+            **필수이며 비어 있지 않은 목록**
+
+             입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresql.excludeDatabases`
+          </td>
+
+          <td>
+            클러스터 전체 상위 쿼리 및 쿼리 샘플 스캔에서 제외된 데이터베이스입니다. 기본값은 
+
+            `[rdsadmin]`
+
+            이며 
+
+            `topology`
+
+            이(가) 
+
+            `rds`
+
+            일 때만 렌더링됩니다, RDS에서 모니터링 사용자는 
+
+            `rdsadmin`
+
+            에 접근할 수 없으므로 이를 제외하면 권한 오류를 방지할 수 있습니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.image.repository`
+
+             / 
+
+            `setupJob.image.tag`
+          </td>
+
+          <td>
+            설정 작업에서 사용되는 
+
+            `psql`
+
+            지원 이미지입니다. 차트에는 
+
+            **기본값**
+
+            이 제공되지 않으므로 설정 작업이 활성화될 때 값을 제공해야 합니다. 공식 
+
+            `postgres`
+
+             이미지는 
+
+            `psql`
+
+            을(를) 번들로 제공하며 합리적인 선택입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.enableExplainPermissions`
+          </td>
+
+          <td>
+            선택 사항입니다. 또한 
+
+            `otel.explain_statement`
+
+             
+
+            `SECURITY DEFINER`
+
+             함수를 생성하고 이에 대해 
+
+            `EXECUTE`
+
+            을(를) 부여하여, 수신자가 쓰기 권한을 보유하지 않고도 잠금 및 쓰기 쿼리에 대해 
+
+            `EXPLAIN`
+
+            을(를) 실행할 수 있도록 합니다. 이를 
+
+            `false`
+
+             상태로 두어도 안전합니다: 수신자가 인라인 
+
+            `EXPLAIN`
+
+            (으)로 대체되므로 해당 문은 단순히 쿼리 계획을 가져오지 않습니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.enablePgvector`
+          </td>
+
+          <td>
+            선택 사항입니다. 또한 벡터 메트릭을 위해 각 모니터되는 데이터베이스에 
+
+            `vector`
+
+             확장을 생성합니다. 
+
+            `l1`
+
+            , 
+
+            `hamming`
+
+             및 
+
+            `jaccard`
+
+             거리 함수에는 pgvector 0.7.0 이상이 필요합니다.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      일반적으로 `postgresql.topQueryCollection.explainFunctionName`을(를) 설정할 필요가 없습니다. 수신기의 자체 기본값은 이미 `otel.explain_statement` (`setupJob.enableExplainPermissions`이(가) 생성하는 정확한 함수)이며, 차트는 비어 있을 때 키를 생략하므로 추가 설정 없이 두 가지가 일치합니다. 수신기가 다른 이름의 함수를 가리키도록 할 때만 이를 설정하십시오.
+    </Callout>
+
+    <Callout variant="tip">
+      `postgresql.collectionInterval`, `metrics` 토글, `topQueryCollection`/`querySampleCollection` 블록 및 `additionalReceiverConfig` 이스케이프 해치를 포함하여 사용 가능한 모든 설정 옵션에 대해서는 차트의 [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/postgresql-otel/values.yaml)을 참조하십시오.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## (선택 사항) 하나의 릴리스에서 여러 인스턴스 모니터 [#helm-multi]
+
+    단일 릴리스의 단일 수집기 파드에서 여러 PostgreSQL 인스턴스(자체 호스팅 또는 RDS)를 모니터하려면 `postgresql.*` 대신 `postgresqlMulti.enabled: true`을(를) 설정하십시오. 두 모드는 상호 배타적입니다. 동일한 릴리스에서 `postgresql.server` 및 `postgresqlMulti.enabled: true`을(를) 설정하지 마십시오.
+
+    항목은 `databases`이(가) 아니라 `instances`(으)로 불립니다: 각 인스턴스는 별도의 PostgreSQL 서버이며, `postgresql.databases`이(가) 단일 인스턴스 모드에서 작동하는 것과 동일한 방식으로 각각 고유한 중첩된 `databases` 목록(해당 인스턴스에서 모니터링할 개별 데이터베이스)을 가집니다.
+
+    다중 인스턴스 모드에는 일반 사용자 이름/비밀번호 경로가 없습니다: 모든 인스턴스에는 모니터링 자격 증명이 있는 자체 Kubernetes 시크릿이 필요합니다. 설정 작업이 각 모니터링 역할을 생성하도록 할지 여부도 결정하십시오:
+
+    <CollapserGroup>
+      <Collapser id="helm-multi-nojob" title="설정 작업 없음">
+        설치하기 전에 각 인스턴스의 모니터링 역할 시크릿을 직접 생성하십시오(`values.yaml`에서 부여한 `name`과(와) 일치하도록 인스턴스별로 반복):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secret you created for it.
+        postgresqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          instances:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              port: 5432
+              existingSecret: db1-monitor-creds
+              databases:
+                - appdb1
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              port: 5432
+              existingSecret: db2-monitor-creds
+              databases:
+                - appdb2
+
+        # No admin credential is configured here since the setup
+        # job is disabled - create each instance's monitoring role
+        # yourself first.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-multi-setupjob" title="자동화된 설정 작업">
+        각 인스턴스에는 자체 모니터링 역할 시크릿과 자체 관리자 자격 증명 시크릿이 모두 필요합니다(인스턴스당 반복):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        kubectl create secret generic db1-admin-creds \
+          --from-literal=username=<ADMIN_USERNAME> \
+          --from-literal=password='<ADMIN_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secrets you created for it.
+        postgresqlMulti:
+          enabled: true
+          topology: <self-hosted|rds>
+          instances:
+            - name: db1
+              server: <YOUR_DB_1_HOST>
+              port: 5432
+              existingSecret: db1-monitor-creds
+              databases:
+                - appdb1
+              postgresAdmin:
+                existingSecret: db1-admin-creds
+            - name: db2
+              server: <YOUR_DB_2_HOST>
+              port: 5432
+              existingSecret: db2-monitor-creds
+              databases:
+                - appdb2
+              postgresAdmin:
+                existingSecret: db2-admin-creds
+
+        setupJob:
+          enabled: true
+          image:
+            # -- psql-capable image. No default: the official postgres
+            # image bundles psql and is a reasonable choice.
+            repository: postgres
+            tag: "16"
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            매개변수
+          </th>
+
+          <th>
+            설명
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `postgresqlMulti.enabled`
+          </td>
+
+          <td>
+            `postgresql.*`
+
+             대신 하나의 릴리스에서 여러 인스턴스를 모니터하려면 
+
+            `true`
+
+             (으)로 설정하십시오. 기본값은 
+
+            `false`
+
+            입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresqlMulti.topology`
+          </td>
+
+          <td>
+            `self-hosted`
+
+             또는 
+
+            `rds`
+
+            , 
+
+            `postgresql.topology`
+
+            과(와) 동일한 의미이며, 이 릴리스의 모든 인스턴스에서 공유됩니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `postgresqlMulti.instances`
+          </td>
+
+          <td>
+            모니터할 인스턴스 목록입니다. 각 항목에는 고유한 
+
+            `name`
+
+            , 
+
+            `server`
+
+             (
+
+            `port`
+
+            의 기본값은 
+
+            `5432`
+
+            ), 
+
+            `existingSecret`
+
+             및 해당 인스턴스의 
+
+            **필수이며 비어 있지 않은**
+
+             
+
+            `databases`
+
+             데이터베이스 이름 목록이 필요하며, 
+
+            `setupJob.enabled`
+
+            이(가) 
+
+            `true`
+
+            인 경우에만 항목당 
+
+            `postgresAdmin.existingSecret`
+
+            을(를) 추가하십시오.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      `setupJob.enableExplainPermissions` 그리고 `setupJob.enablePgvector`은(는) 모든 인스턴스의 모든 데이터베이스에서 공유되는 단일 토글이며, 인스턴스별로 설정할 수 없습니다. 스크랩 설정(수집 간격, 메트릭, `topQueryCollection`/`querySampleCollection`)도 마찬가지로 `postgresqlMulti.instances`의 모든 인스턴스에 동일하게 적용되며, 인스턴스별 재정의는 없습니다. 달라야 하는 항목에는 `additionalReceiverConfig`을(를) 사용하십시오. 설정 작업은 릴리스당 한 번이 아니라 인스턴스당 한 번(`<release>-setup-<name>`) 실행됩니다.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Helm 차트를 설치하세요 [#helm-install]
+
+    1. 뉴클릭 Helm 다음을 추가하세요.
+
+       ```bash
+       helm repo add newrelic https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. `values.yaml` 파일을 사용하여 차트를 설치하십시오:
+
+       ```bash
+       helm upgrade --install postgresql-otel newrelic/postgresql-otel \
+         -n newrelic \
+         --create-namespace \
+         -f values.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## 설치를 확인하십시오 [#helm-verify]
+
+    1. 설정 작업이 완료되었고(활성화된 경우) 수집기 파드가 실행 중인지 확인하십시오:
+
+       ```bash
+       kubectl get jobs,pods -n newrelic --watch
+       ```
+
+    2. 데이터가 수신되는지 확인하려면 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)에서 이 쿼리를 실행하십시오:
+
+       ```sql
+       SELECT count(*) FROM Metric
+       WHERE metricName LIKE 'postgresql.%'
+       AND instrumentation.provider = 'opentelemetry'
+       SINCE 10 minutes ago
+       ```
+  </Step>
+
+  <Step>
+    ## 데이터 찾기 및 사용 [#find]
+
+    데이터가 수집되면 뉴렐릭 UI를 통해 포괄적인 PostgreSQL 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+    뉴렐릭에서 PostgreSQL 데이터베이스 엔티티를 찾으려면 다음을 수행하십시오:
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+    2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**PostgreSQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+    3. 엔티티 목록에서 PostgreSQL 데이터베이스를 선택하십시오.
+  </Step>
+</Steps>
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="NRDOT를 사용한 PostgreSQL 모니터링 소개" path="/docs/opentelemetry/db360/postgresql/introduction">
+    뉴렐릭을 사용한 PostgreSQL 모니터링에 사용할 수 있는 모든 설치 방법에 대해 알아보십시오.
+  </DocTile>
+
+  <DocTile title="CLI 설치" path="/docs/opentelemetry/db360/postgresql/cli">
+    단일 뉴렐릭 CLI 명령으로 PostgreSQL 모니터링을 설치하고 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="Ansible 설치" path="/docs/opentelemetry/db360/postgresql/ansible">
+    newrelic.newrelic_install을 사용하여 대규모로 PostgreSQL 모니터링을 설치하고 구성하는 방법을 알아보십시오. Ansible 역할을 사용하십시오.
+  </DocTile>
+
+  <DocTile title="Chef 설치" path="/docs/opentelemetry/db360/postgresql/chef">
+    newrelic-install Chef 쿡북을 사용하여 대규모로 PostgreSQL 모니터링을 설치하고 구성하는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>

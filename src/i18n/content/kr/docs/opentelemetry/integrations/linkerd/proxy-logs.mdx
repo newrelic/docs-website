@@ -1,0 +1,114 @@
+---
+title: Linkerd 프록시 로그 수집
+metaDescription: 'Optionally collect linkerd-proxy sidecar container logs and send them to New Relic, for NRDOT and OpenTelemetry Collector Contrib.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+이는 설치 중 수집된 메트릭 및 트레이스와는 별개로 `linkerd-proxy` 사이드카 컨테이너 자체의 로그를 뉴렐릭에 추가합니다. 이는 애플리케이션의 로그가 아닌 프록시 컨테이너에만 범위가 지정됩니다.
+
+<CollapserGroup>
+  <Collapser id="collect-logs-nrdot" title="NRDOT 수집기">
+    NRDOT 차트는 노드의 `/var/log/pods`에서 `linkerd-proxy`를 포함한 모든 컨테이너의 로그를 이미 수집하는 기본 활성화된(`receivers.filelog.enabled: true`) `filelog` 수신기를 제공합니다. `values.yaml`에 추가할 내용이 없습니다.
+  </Collapser>
+
+  <Collapser id="collect-logs-otelcol" title="OpenTelemetry Collector 기여">
+    `mode: daemonset`에 **두 번째** Helm 릴리스를 설치합니다. 다음을 `filelog-values.yaml`(으)로 저장합니다. `<YOUR_CLUSTER_NAME>` 및 `<YOUR_NR_INGEST_LICENSE_KEY>`을(를) 설정한 다음 설치합니다:
+
+    **적용 전 사용자 지정:**
+
+    | 들                  | 위치                     | 설정할 항목                                              |
+    | ------------------ | ---------------------- | --------------------------------------------------- |
+    | `extraEnvs`        | `K8S_CLUSTER_NAME`     | 귀하의 쿠버네티스 클러스터 이름                                   |
+    | `extraEnvs`        | `NEWRELIC_LICENSE_KEY` | 귀하의 뉴렐릭 수집 볼륨 키                                     |
+    | `filter/onlyproxy` | 프로세서                   | `linkerd-proxy` 컨테이너의 로그 레코드를 제외한 모든 로그 레코드를 삭제합니다. |
+    | `resource/cluster` | 프로세서                   | 모든 로그 레코드에 `k8s.cluster.name`을(를) 첨부합니다.            |
+
+    ```yaml
+    mode: daemonset
+    image:
+      repository: otel/opentelemetry-collector-contrib
+
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 10001
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+
+    extraVolumes:
+      - name: varlogpods
+        hostPath:
+          path: /var/log/pods
+    extraVolumeMounts:
+      - name: varlogpods
+        mountPath: /var/log/pods
+        readOnly: true
+
+    extraEnvs:
+      - name: K8S_CLUSTER_NAME
+        value: "<YOUR_CLUSTER_NAME>"
+      - name: NEWRELIC_LICENSE_KEY
+        value: "<YOUR_NR_INGEST_LICENSE_KEY>"
+
+    config:
+      receivers:
+        filelog:
+          include: [/var/log/pods/*/*/*.log]
+          include_file_path: true
+          start_at: end
+          operators:
+            - type: container
+              add_metadata_from_filepath: true
+
+      processors:
+        filter/onlyproxy:
+          error_mode: ignore
+          logs:
+            log_record:
+              - 'resource.attributes["k8s.container.name"] != "linkerd-proxy"'
+        resource/cluster:
+          attributes:
+            - key: k8s.cluster.name
+              value: "${env:K8S_CLUSTER_NAME}"
+              action: insert
+        batch: {}
+
+      exporters:
+        otlp_http/newrelic:
+          endpoint: "https://otlp.nr-data.net:4318"
+          headers:
+            api-key: "${env:NEWRELIC_LICENSE_KEY}"
+
+      service:
+        pipelines:
+          logs:
+            receivers: [filelog]
+            processors: [filter/onlyproxy, resource/cluster, batch]
+            exporters: [otlp_http/newrelic]
+    ```
+
+    ```bash
+    helm upgrade my-opentelemetry-collector-logs open-telemetry/opentelemetry-collector \
+      -f filelog-values.yaml -n newrelic --create-namespace --install
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="NRDOT 및 Helm을 사용한 Linkerd 모니터링 설치 및 구성" path="/docs/opentelemetry/integrations/linkerd/nrdot-helm">
+    NRDOT Collector 및 Helm을 사용한 메트릭 기본 설치 및 설정.
+  </DocTile>
+
+  <DocTile title="OpenTelemetry를 사용한 Linkerd 분산 추적" path="/docs/opentelemetry/integrations/linkerd/distributed-tracing">
+    프록시 트레이스 내보내기를 활성화하고 애플리케이션 파드를 계측합니다.
+  </DocTile>
+
+  <DocTile title="데이터 찾기 및 쿼리" path="/docs/opentelemetry/integrations/linkerd/find-data">
+    대시보드 안내, NRQL 쿼리 및 문제 진단, 해결 단계.
+  </DocTile>
+</DocTiles>

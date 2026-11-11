@@ -1,0 +1,192 @@
+---
+title: Listar e excluir source maps do React Native
+tags:
+  - Mobile monitoring
+  - New Relic Mobile React Native
+  - Configuration
+metaDescription: 'How to search for, list, and delete uploaded React Native source maps in New Relic using NerdGraph or NRQL.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Ao [fazer o upload de um source map do React Native](/docs/mobile-monitoring/new-relic-monitoring-react-native/react-native-agent-js-error-reporting), a resposta do upload contém um ID de entidade (`guid`) exclusivo para esse source map. É possível usar este ID para verificar ou excluir o arquivo.
+
+Caso não haja um registro do `guid` de um mapa de origem, use a [API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) do New Relic ou o NRQL para pesquisar, listar e excluir os mapas de origem carregados, conforme descrito abaixo.
+
+<Callout variant="important">
+  Consultar e excluir source maps com o NerdGraph requer uma [chave de API de usuário](/docs/apis/intro-apis/new-relic-api-keys/#user-key). Inclua-a no cabeçalho `Api-Key` da solicitação do NerdGraph.
+</Callout>
+
+## Encontrar o GUID de um mapa de origem [#find-guid]
+
+Para executar tarefas de gerenciamento, como exclusão, é necessário primeiro obter o identificador (`guid`) exclusivo da entidade de mapa de origem. Pesquise por ele usando a consulta `entitySearch` no NerdGraph.
+
+<Callout variant="tip">
+  Ao consultar source maps no NerdGraph, prefixe os atributos de metadados de mapeamento com `tags.`, com exceção dos campos `name` e `type`.
+</Callout>
+
+```graphql
+{
+  actor {
+    entitySearch(
+      query: "type = 'REACT_NATIVE_SOURCEMAP' and tags.applicationId = '<YOUR_APPLICATION_ID>' and tags.appVersion = '12424.0392' and tags.jsBundleId = '87124712' and name = 'app.min.js.map'"
+    ) {
+      results {
+        entities {
+          name
+          guid
+          tags {
+            key
+            values
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Localize a string `guid` na resposta para usar em operações de gerenciamento subsequentes:
+
+```json
+{
+  "data": {
+    "actor": {
+      "entitySearch": {
+        "results": {
+          "entities": [
+            {
+              "guid": "<YOUR_ENTITY_GUID>",
+              "name": "app.min.js.map"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+## Exclua um mapa de origem [#delete]
+
+Assim que a entidade `guid` for obtida, use a mutação `entityManagementDelete` no NerdGraph para remover o mapa de origem:
+
+```graphql
+mutation {
+  entityManagementDelete(id: "<YOUR_ENTITY_GUID>") {
+    id
+  }
+}
+```
+
+A resposta retorna o `id` da entidade excluída:
+
+```json
+{
+  "data": {
+    "entityManagementDelete": {
+      "id": "<YOUR_ENTITY_GUID>"
+    }
+  }
+}
+```
+
+<Callout variant="important">
+  As alterações não são refletidas imediatamente em todos os sistemas. Após uma exclusão ou um novo upload, pode levar alguns minutos para que os dados sejam sincronizados com `entitySearch`. Durante essa janela de sincronização, um ID de source map excluído ainda pode aparecer temporariamente nos resultados da pesquisa.
+</Callout>
+
+## Listar mapas de origem [#list]
+
+É possível auditar e visualizar os source maps carregados usando o NerdGraph ou o NRQL. Filtre os arquivos usando os seguintes atributos de mapeamento:
+
+* `jsBundleId`
+* `appVersion`
+* `applicationId`
+* `name`
+* `type` (ou `EntityType`)
+* `accountId`
+
+### Diferenças de sintaxe: NerdGraph vs. NRQL [#syntax-differences]
+
+A principal diferença funcional entre consultar com NerdGraph e NRQL é o namespace de atributo:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Interface
+      </th>
+
+      <th>
+        Requisito de prefixo de atributo
+      </th>
+
+      <th>
+        Restrição de escopo
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        NerdGraph
+      </td>
+
+      <td>
+        Requer o prefixo `tags.` para campos de metadados (por exemplo, `tags.jsBundleId`).
+      </td>
+
+      <td>
+        Pesquisa global em entidades acessíveis, a menos que se inclua `accountId` no filtro.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        NRDB (NRQL)
+      </td>
+
+      <td>
+        Usa nomes de atributos brutos diretamente (por exemplo, `jsBundleId`).
+      </td>
+
+      <td>
+        Restrito ao contexto da conta de destino.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Listar com NerdGraph [#list-nerdgraph]
+
+O `accountId` deve ser incluído no filtro para definir o escopo da pesquisa para uma conta específica:
+
+```graphql
+{
+  actor {
+    entitySearch(
+      query: "type = 'REACT_NATIVE_SOURCEMAP' and tags.applicationId = '<YOUR_APPLICATION_ID>' and tags.appVersion = '12424.0392' and tags.jsBundleId = '87124712' and name = 'app.min.js.map' and accountId = <YOUR_ACCOUNT_ID>"
+    ) {
+      results {
+        entities {
+          name
+          guid
+          tags {
+            key
+            values
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Lista com NRQL [#list-nrql]
+
+Selecione o contexto de ID da conta específico usado durante o upload inicial do arquivo e, em seguida, execute a seguinte consulta no namespace `Entity`:
+
+```sql
+FROM Entity SELECT * WHERE type = 'REACT_NATIVE_SOURCEMAP' AND name = 'app.min.js.map' AND jsBundleId = '87124712' AND appVersion = '12424.0392'
+```

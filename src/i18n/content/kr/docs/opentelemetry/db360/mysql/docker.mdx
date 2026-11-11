@@ -1,0 +1,259 @@
+---
+title: 도커를 사용한 MySQL 모니터링을 위한 NRDOT 설치 및 구성
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Docker
+metaDescription: Set up MySQL and MariaDB monitoring with the NRDOT Collector when MySQL runs in a Docker container
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+도커에서 이미 실행 중인 MySQL 인스턴스의 형제 컨테이너로 NRDOT Collector를 사용하여 MySQL 모니터링을 설정하십시오.
+
+<Callout variant="tip" title="가이드 설치">
+  대신 뉴렐릭 UI를 통해 설치하려면 <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; MySQL (Database 360)](https://onenr.io/0oQDYBNG1wy)** </DNT>(으)로 이동하십시오. 이 페이지는 수동 설치만 다룹니다.
+</Callout>
+
+<Callout variant="tip">
+  대규모로 이를 자동화하거나 대신 Kubernetes에서 실행하고자 하십니까? [Ansible 설치](/docs/opentelemetry/db360/mysql/ansible), [Chef 설치](/docs/opentelemetry/db360/mysql/chef) 또는 [Helm 차트 설치](/docs/opentelemetry/db360/mysql/helm)를 참조하십시오.
+</Callout>
+
+<Steps>
+  <Step>
+    ## 전제 조건 [#prerequisites]
+
+    설치하기 전에 다음을 갖추고 있는지 확인하십시오:
+
+    * 호스트에 도커가 설치되어 있습니다.
+    * 이미 실행 중인 MySQL 컨테이너(MySQL 5.7 이상).
+    * New Relic [라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) .
+    * 수집기 컨테이너에서 [뉴렐릭 OTLP 엔드포인트](/docs/opentelemetry/best-practices/opentelemetry-otlp/)로의 네트워크 연결.
+
+    지원되는 MySQL 버전, 필수 권한 및 `performance_schema` 요구 사항은 [호환성 및 전제 조건](/docs/opentelemetry/db360/mysql/compatibility)을 참조하십시오.
+  </Step>
+
+  <Step>
+    ## 데이터베이스 사용자 구성 [#user]
+
+    `docker exec`을(를) 사용하여 MySQL 컨테이너에서 SQL을 실행하여 필요한 권한을 가진 모니터링 사용자를 생성하십시오. `<YOUR_MYSQL_CONTAINER_NAME>`, `<YOUR_MYSQL_ROOT_PASSWORD>`, `<YOUR_DB_USERNAME>`, `<YOUR_DB_PASSWORD>`를 여러분의 값으로 바꾸십시오.
+
+    * 메트릭 수집에 필요한 최소 권한을 가진 모니터링 사용자를 생성하려면 다음을 실행하십시오:
+
+      ```bash
+      docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u root -p'<YOUR_MYSQL_ROOT_PASSWORD>' -e "CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>'; GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%'; FLUSH PRIVILEGES;"
+      ```
+
+    * 쿼리 샘플 및 상위 쿼리도 수집하려면 대신 전체 권한 세트를 부여하십시오:
+
+      ```bash
+      docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u root -p'<YOUR_MYSQL_ROOT_PASSWORD>' -e "CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>'; GRANT SELECT, PROCESS, REPLICATION CLIENT ON *.* TO '<YOUR_DB_USERNAME>'@'%'; GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%'; FLUSH PRIVILEGES;"
+      ```
+
+    * (선택 사항) 뉴렐릭 플랫폼에서 대기 시간 데이터를 보려면 모니터링 사용자에게 다음 권한을 부여하십시오:
+
+      ```bash
+      docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u root -p'<YOUR_MYSQL_ROOT_PASSWORD>' -e "GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%'; FLUSH PRIVILEGES;"
+      ```
+
+    * (선택 사항) 연결 및 권한을 확인하려면 다음을 실행하십시오:
+
+      ```bash
+      docker exec -i <YOUR_MYSQL_CONTAINER_NAME> mysql -u '<YOUR_DB_USERNAME>' -p'<YOUR_DB_PASSWORD>' -e "SELECT 1;"
+      ```
+
+      명령이 오류 없이 완료되면 모니터링 사용자와 비밀번호가 올바른 것입니다.
+  </Step>
+
+  <Step>
+    ## NRDOT Collector 설정을 생성하십시오. [#configure]
+
+    이 설정은 `nrmysql` 리시버를 사용한 필수 MySQL 모니터링에 중점을 둡니다. 현재 디렉터리에 `mysql-config.yaml`을(를) 생성하려면 도커 호스트에서 다음을 실행하십시오:
+
+    ```bash
+    cat << 'EOF' > mysql-config.yaml
+    receivers:
+      nrmysql:
+        endpoint: "<YOUR_MYSQL_CONTAINER_NAME>:3306"
+        transport: tcp
+        username: "<YOUR_DB_USERNAME>"
+        password: "<YOUR_DB_PASSWORD>"
+        allow_native_passwords: true
+        collection_interval: 15s
+        initial_delay: 1s
+        explain_mode: procedure
+        statement_events:
+          digest_text_limit: 4096
+          time_limit: 24h
+          limit: 500
+        query_sample_collection:
+          max_rows_per_query: 100
+          allowed_comment_keys: [nr_service_guid]
+        top_query_collection:
+          lookback_time: 60
+          max_query_sample_count: 5000
+          top_query_count: 200
+          collection_interval: 60s
+          query_plan_cache_size: 1000
+          query_plan_cache_ttl: 1h
+          allowed_comment_keys: [nr_service_guid]
+        events:
+          db.server.query_sample:
+            enabled: true
+          db.server.top_query:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+        resource_attributes:
+          db.system.version:
+            enabled: true
+        metrics:
+          mysql.query.count:
+            enabled: true
+          mysql.query.slow.count:
+            enabled: true
+          mysql.commands:
+            enabled: true
+          mysql.innodb.data_file.io:
+            enabled: true
+
+    processors:
+      batch:
+
+    exporters:
+      otlp/newrelic:
+        endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+        headers:
+          api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+        compression: gzip
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [nrmysql]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+        logs:
+          receivers: [nrmysql]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+    EOF
+    ```
+
+    ### 구성 매개변수
+
+    | 매개변수                            | 설명                                                                                                             |
+    | ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+    | `<YOUR_MYSQL_CONTAINER_NAME>`   | 실행 중인 MySQL 컨테이너의 이름(또는 도커 DNS로 해석 가능한 호스트명)                                                                   |
+    | `<YOUR_DB_USERNAME>`            | [데이터베이스 사용자 구성](#user)에서 생성한 모니터링 사용자입니다.                                                                      |
+    | `<YOUR_DB_PASSWORD>`            | [데이터베이스 사용자 구성](#user)에서 생성한 모니터링 사용자의 비밀번호입니다.                                                                |
+    | `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | 사용자의 뉴렐릭 OTLP 엔드포인트. 자세한 내용은 [뉴렐릭 OTLP 엔드포인트를](/docs/opentelemetry/best-practices/opentelemetry-otlp/) 참조하십시오. |
+    | `<YOUR_NEWRELIC_LICENSE_KEY>`   | 귀하의 New Relic [라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) .                         |
+  </Step>
+
+  <Step>
+    ## NRDOT Collector 컨테이너를 시작하십시오. [#start]
+
+    수집기가 컨테이너 이름으로 `<YOUR_MYSQL_CONTAINER_NAME>`을(를) 확인할 수 있도록 MySQL 컨테이너와 동일한 도커 네트워크에서 수집기를 실행하십시오:
+
+    ```bash
+    docker run -d \
+      --name nrdot-collector \
+      --network <YOUR_DOCKER_NETWORK> \
+      -v "$PWD/mysql-config.yaml:/etc/nrdot-collector/mysql-config.yaml" \
+      newrelic/nrdot-collector:latest \
+      --config /etc/nrdot-collector/mysql-config.yaml
+    ```
+
+    <Callout variant="tip">
+      `docker inspect <YOUR_MYSQL_CONTAINER_NAME> --format '{{json .NetworkSettings.Networks}}'`을(를) 사용하여 MySQL 컨테이너의 네트워크를 찾으십시오. 아직 공유 사용자 정의 네트워크에 없는 경우, 네트워크를 생성하고 두 컨테이너를 모두 연결하십시오:
+
+      ```bash
+      docker network create <YOUR_DOCKER_NETWORK>
+      docker network connect <YOUR_DOCKER_NETWORK> <YOUR_MYSQL_CONTAINER_NAME>
+      ```
+    </Callout>
+
+    수집기 컨테이너가 실행 중인지 확인하십시오:
+
+    ```bash
+    docker ps --filter name=nrdot-collector
+    ```
+
+    실행 중이 아니면 로그에서 오류를 확인하십시오. 가장 일반적인 원인은 `mysql-config.yaml`의 YAML 들여쓰기 문제 또는 연결할 수 없는 MySQL 컨테이너입니다:
+
+    ```bash
+    docker logs nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      `mysql-config.yaml`을(를) 변경한 후 변경 사항을 적용하려면 컨테이너를 다시 시작하십시오:
+
+      ```bash
+      docker restart nrdot-collector
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## 데이터 찾기 및 사용 [#find]
+
+    데이터가 수집되면 뉴렐릭 UI를 통해 포괄적인 MySQL 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+    뉴렐릭에서 MySQL 데이터베이스 엔티티를 찾으려면 다음을 수행하십시오:
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+    2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**MySQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+    3. 엔티티 목록에서 MySQL 데이터베이스를 선택하십시오.
+
+    데이터가 수신되는지 확인하려면 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)에서 다음 쿼리를 실행하십시오:
+
+    ```sql
+    SELECT count(*) FROM Metric
+    WHERE metricName LIKE 'mysql.%'
+    AND instrumentation.provider = 'opentelemetry'
+    SINCE 10 minutes ago
+    ```
+  </Step>
+</Steps>
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="NRDOT을 사용한 MySQL 모니터링 소개" path="/docs/opentelemetry/db360/mysql/introduction">
+    뉴렐릭을 통한 MySQL 모니터링에 사용 가능한 모든 설치 방법에 대해 알아보십시오.
+  </DocTile>
+
+  <DocTile title="자체 호스팅 설치" path="/docs/opentelemetry/db360/mysql/hosted">
+    물리 서버, 가상 머신 및 독립형 설치에서 MySQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="Ansible 설치" path="/docs/opentelemetry/db360/mysql/ansible">
+    대규모로 MySQL 모니터링을 설치하고 구성하는 방법을 알아보려면 newrelic.newrelic_install Ansible 역할을 사용하십시오.
+  </DocTile>
+
+  <DocTile title="Chef 설치" path="/docs/opentelemetry/db360/mysql/chef">
+    newrelic-install Chef 쿡북을 사용하여 대규모로 MySQL 모니터링을 설치하고 구성하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="Helm 차트 설치" path="/docs/opentelemetry/db360/mysql/helm">
+    mysql-otel Helm 차트를 사용하여 Kubernetes에서 MySQL 모니터링을 설치하고 구성하는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>

@@ -1,0 +1,185 @@
+---
+title: Installez et configurez le transfert de logs OCI
+metaDescription: Install and configure the New Relic OCI integration to forward Oracle Cloud Infrastructure service and audit logs to New Relic.
+tags:
+  - Logs
+  - Forward logs
+  - Oracle Cloud integrations
+  - OCI
+freshnessValidatedDate: '2026-10-27T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: oracle-cloud
+flow:
+  prev: /docs/infrastructure/oci/introduction
+  next: null
+translationType: machine
+---
+
+Utilisez ce guide pour envoyer le log de service et d’audit OCI à New Relic. Pour envoyer également des métriques, consultez [Monitorer les métriques et le log OCI](/docs/infrastructure/oci/install-metrics-and-logs). Pour envoyer uniquement des métriques, consultez [Monitorer les métriques OCI](/docs/infrastructure/oci/install-metrics).
+
+## Compatibilité et exigences [#requirements]
+
+Avant de commencer, assurez-vous d&apos;avoir :
+
+* Un compte New Relic avec des permissions de monitoring d’infrastructure dans une région prise en charge (US, EU, ou JP)
+* Une [clé de licence d’ingestion](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) New Relic valide et une [clé utilisateur](/docs/apis/intro-apis/new-relic-api-keys/#user-api-key)
+* Une location OCI avec un domaine de gestion des identités et des accès (IAM), et un accès administratif temporaire à ce domaine et au compartiment racine, suffisant pour terminer la configuration de la fédération d’identités de workload (WIF), le mécanisme que New Relic utilise pour s’authentifier sans stocker d’identifiants à long terme. Vous pouvez révoquer cet accès une fois la configuration terminée.
+* L&apos;OCID de votre location OCI et votre région principale (par exemple, `us-ashburn-1`)
+* Une clé de signature d’API OCI (uniquement si vous déployez avec Terraform)
+
+## Installation guidée [#ui-install]
+
+L&apos;installation guidée est disponible sur <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Integrations &amp; Agents &gt; Oracle Cloud Infrastructure**</DNT>. L’interface utilisateur vous guide pour connecter votre compte OCI, puis pour instrumenter les groupes de log que vous souhaitez monitorer.
+
+<Steps>
+<Step>
+### Choisissez le type de données de log
+
+Suivez ces étapes :
+
+1. Sélectionnez <DNT>**Logs**</DNT> (pour les enregistrements détaillés d’événements et d’audit).
+2. Cliquez sur <DNT>**Continue**</DNT>.
+</Step>
+
+<Step>
+### Choisissez votre méthode d’intégration et configurez l’intégration
+
+Sélectionnez votre méthode d&apos;intégration préférée pour ingérer les log OCI dans New Relic en fonction des besoins de votre organisation :
+
+<CollapserGroup>
+<Collapser id="orm" title="Monitorer OCI avec Oracle Resource Manager">
+Exécute les stacks Oracle Resource Manager pour provisionner ce dont l’intégration a besoin, au lieu de créer vous-même chaque élément à la main dans la console OCI. Suivez les instructions à l’écran pour établir la connexion.
+</Collapser>
+
+<Collapser id="manual" title="Intégrer manuellement votre compte OCI">
+Dans la console OCI, créez les politiques et les connecteurs de service requis. L&apos;installation guidée vous accompagne dans ces étapes dans l&apos;ordre : créer un compartiment, créer un groupe dynamique, configurer un secret de coffre de clés, créer une politique, configurer un réseau, configurer la fonction de log, configurer un connecteur de log d&apos;audit (facultatif), configurer le connecteur de log, configurer WIF, et créer la connexion.
+
+Vous aurez besoin des informations suivantes pour terminer le processus :
+
+* Nommez le compartiment dédié `newrelic_compartment_DO_NOT_REMOVE`. Créez-le dans votre région d’origine OCI.
+
+* Lors de la création du groupe dynamique dans le compartiment racine sous le domaine par défaut, ajoutez les règles `resource.type = 'serviceconnector'` et `resource.type = 'fnfunc'`.
+
+* Créez un coffre de clés pour stocker en toute sécurité votre clé de licence New Relic et votre clé utilisateur pour l’authentification.<br />
+
+  1. **Créez un coffre de clés**. Dans la console OCI, localisez et accédez aux **services Key Management and Vault** et créez un coffre dans le compartiment que vous avez créé précédemment, en le nommant (par exemple, `newrelic-vault`) et en choisissant un coffre standard ou privé virtuel en fonction de vos exigences de sécurité.<br />
+  2. **Créez une clé de chiffrement principale**. Dans le coffre-fort, créez une clé principale nommée (par exemple) `newrelic-encryption-key`, en utilisant l’algorithme `AES` et une longueur de clé de `256`bits.<br />
+  3. **Créez des secrets pour vos clés API**. Créez un secret pour votre clé de licence d’ingestion New Relic, nommé (par exemple) `newrelic-ingest-key`, en sélectionnant la clé principale que vous venez de créer, et en collant votre clé de licence d’ingestion comme contenu du secret (texte brut). Répétez l’opération pour créer un second secret pour votre clé utilisateur New Relic, nommé (par exemple) `newrelic-user-key`, en collant votre clé utilisateur comme contenu du secret (texte brut).
+
+* Créez une application sans serveur et déployez la fonction New Relic qui traite et transfère votre log OCI.<br />
+
+  1. **Créez une application sans serveur pour le logging**
+
+     * Accédez au service <DNT>**Functions**</DNT> sous <DNT>**Developer Services**</DNT> dans la console OCI.
+
+     * Créer une nouvelle application avec cette configuration :
+
+       * **Nom**: un nom descriptif (par exemple, `newrelic-logging-function-app`)
+       * **Compartiment**: votre compartiment New Relic désigné
+       * **VCN**: le VCN créé pour l’intégration New Relic
+       * **Subnet**: le sous-réseau privé, pour une connectivité sécurisée
+       * **Forme**: `GENERIC_X86`, pour la forme de l’application
+
+     * Enregistrez la configuration de l’application.
+
+  2. **Configurez les variables d&apos;environnement pour le logging**
+
+     * Dans les paramètres de l’application, accédez à la section de configuration et ajoutez ces variables :
+
+       * `VAULT_REGION`: la région où vous avez créé votre coffre de clés
+       * `DEBUG_ENABLED`: `false` pour un usage en production (ou `true` pour le débogage)
+       * `NEW_RELIC_REGION`: votre région New Relic (`US`, `EU`, ou `JP`)
+       * `SECRET_OCID`: l’OCID du secret de votre clé de licence New Relic provenant du coffre-fort de clés
+       * `CLIENT_TTL`: `30` secondes, pour l’intervalle d’actualisation de la clé de licence
+
+     * Facultativement, pour activer les [métriques d’auto-observabilité sur le redirecteur de logs](/docs/logs/forward-logs/oci-log-forwarder-observability), ajoutez également
+
+       * `FORWARDER_METRICS_TIER`: contrôle quelles métriques d’auto-observabilité le forwarder émet. La valeur par défaut est `basic`. Consultez les [niveaux de métriques](/docs/logs/forward-logs/oci-log-forwarder-observability/#metric-tiers) pour savoir ce que chaque paramètre collecte.
+       * `TENANCY_NAME`: identifie votre location OCI par son nom d’affichage, en ajoutant un tag aux métriques du forwarder afin que vous puissiez différencier les locations si vous en monitorez plusieurs.
+       * `COMPARTMENT_NAME`: identifie, par son nom d’affichage, le compartiment où vous avez déployé la fonction de log, en ajoutant un tag aux métriques pour des répartitions par compartiment. Si vous avez déployé dans le compartiment racine de la location, utilisez la même valeur que `TENANCY_NAME`.
+
+     * Une fois que vous avez activé les métriques du redirecteur, [importez le dashboard d’observabilité](/docs/logs/forward-logs/oci-log-forwarder-observability/#observability-dashboard) pour les visualiser.
+
+     * Enregistrez les variables de configuration.
+
+  3. **Déployer la fonction de logging**
+
+     * Créez une nouvelle fonction dans l’application avec ces spécifications :
+
+       * **Function name**: un nom descriptif (par exemple, `newrelic-logging-function`)
+       * **Source de l’image**: l’image Docker de logging de New Relic, que vous copiez dans un référentiel privé de votre registre de conteneurs
+       * **Memory allocation**: au moins 128 Mo
+       * **Délai d’expiration**: 300 secondes, pour un temps de traitement adéquat
+
+     * Pour l’image Docker, récupérez une version spécifique de l’image du redirecteur de logs New Relic depuis Docker Hub (pas :latest, consultez la page de tag de Docker Hub pour la version actuelle), et poussez-la dans votre propre registre de conteneurs sous ce même tag de version.
+
+     * Ajoutez un tag à l&apos;image et poussez-la vers un référentiel privé dans votre espace de nommage dans la même région que la fonction, et référencez-la dans la configuration de votre fonction.
+
+     * Terminez le processus de création et de déploiement de la fonction.
+
+     * Pour mettre à niveau ultérieurement, poussez à nouveau la nouvelle image, et mettez à jour la fonction pour l’utiliser.
+
+  4. **(Facultatif) Activez le logging de la fonction**
+
+     * Accédez aux paramètres de monitoring de votre application de fonction.
+     * Activez les logs d’invocation de fonction en sélectionnant ou en créant un groupe de logs approprié, en configurant les politiques de rétention et d’accès des logs, et en activant la collecte de logs pour la fonction.
+     * Pour plus d’informations, consultez la documentation Oracle sur [l’exportation de fichiers de log de fonction](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsexportingfunctionlogfiles.htm).
+</Collapser>
+
+<Collapser id="terraform" title="Automatiser avec Terraform">
+Terraform est la méthode de configuration recommandée pour les log.<br /> Pour les étapes d’intégration détaillées, consultez le [guide d’intégration cloud OCI](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide#oci).<br />
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+### Instrumentez vos groupes de log
+
+Une fois que vous avez créé la connexion, la page OCI dans New Relic affiche une vue du log avec un contrôle **Add instrumentation** :
+
+1. Cliquez sur **Add instrumentation**, filtré par défaut sur l’onglet **Not instrumented**.
+2. Développez un compartiment pour voir ses groupes de log individuels, et sélectionnez ceux que vous souhaitez monitorer. Vous pouvez également activer **Enable audit logs** pour inclure les log d’audit OCI.
+3. Confirmez votre sélection. New Relic affiche un résumé du nombre de compartiments et de groupes de log que vous êtes sur le point d’instrumenter. Ensuite, cliquez sur **Deploy to OCI**.
+4. Une fois le déploiement terminé dans OCI, le compartiment se déplace vers l’onglet **Instrumented**, et ses données apparaissent à <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Infrastructure &gt; OCI**</DNT>.
+
+Les données peuvent mettre jusqu’à 30 minutes à apparaître. Si vous ne les voyez pas après cela, vérifiez l’état du déploiement dans la console OCI.
+
+Pour instrumenter des groupes de log supplémentaires ultérieurement, retournez sur la page OCI dans New Relic, et répétez ces étapes.
+</Step>
+
+<Step>
+### Trouvez et utilisez vos données
+
+Une fois que vos données commencent à apparaître dans <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Infrastructure &gt; OCI**</DNT>, confirmez que l’intégration fonctionne et utilisez-la :
+
+1. Vérifiez que votre compte OCI apparaît dans la liste des intégrations.
+
+2. Confirmez que vous recevez le log en vérifiant l’un de ces emplacements :
+
+   * L’ [interface utilisateur des logs](https://one.newrelic.com/launcher/logger.log-launcher): allez dans <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Logs**</DNT>, et confirmez que vos logs OCI apparaissent.
+
+   * Les [outils de requête NRQL](/docs/chart-builder/use-chart-builder/choose-data/use-advanced-nrql-mode-specify-data): exécutez une requête NRQL comme ceci :
+
+     ```sql
+     SELECT * FROM Log
+     ```
+
+3. [Créez des conditions d’alerte](/docs/alerts/create-alert/create-alert-condition/alert-conditions) pour recevoir des notifications proactives concernant les problèmes dans vos logs.
+
+4. [Créez des dashboard personnalisés](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) pour visualiser vos données de log OCI et monitorer les tendances.
+
+Si vous ne voyez pas de données après 30 minutes, consultez [dépannage](/docs/infrastructure/oci/troubleshoot).
+</Step>
+</Steps>
+
+## Articles connexes [#related-articles]
+
+* [Introduction à l’intégration OCI](/docs/infrastructure/oci/introduction): aperçu de l’intégration OCI, et de ses options de configuration.
+* [Monitorer votre redirecteur de logs OCI](/docs/logs/forward-logs/oci-log-forwarder-observability): activez les métriques d&apos;auto-observabilité sur la fonction du redirecteur de logs et importez un dashboard pour monitorer son état de santé.
+* [Désinstaller l’intégration OCI](/docs/infrastructure/oci/uninstall): supprimez les ressources créées par l’intégration, et dissociez votre compte.
+* [Dépannage](/docs/infrastructure/oci/troubleshoot): solutions en cas d’absence de données et de conflits de configuration de confiance lors de l’installation.

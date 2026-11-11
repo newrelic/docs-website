@@ -1,0 +1,146 @@
+---
+title: Configure el agente de React Native para EAS Build
+tags:
+  - Mobile monitoring
+  - New Relic Mobile React Native
+  - Install configure
+metaDescription: 'How to configure the New Relic React Native agent''s Expo config plugin to automatically upload source maps, dSYMs, and Android mapping files from EAS Build.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si compila la aplicación de React Native con [EAS Build](https://docs.expo.dev/build/introduction/), la Generación Nativa Continua (CNG) de Expo regenera las carpetas `android/` y `ios/` desde cero en cada paso de `expo prebuild` —tanto a nivel local como en los servidores de compilación de EAS. Esto significa que un archivo `newrelic.properties` agregado manualmente o una fase de compilación de Xcode <DNT>**Run Script**</DNT> agregada a mano se elimina en la siguiente compilación.
+
+El [plug-in de configuración](https://docs.expo.dev/guides/config-plugins/) de `newrelic-react-native-agent` resuelve esto al regenerar la configuración de compilación de New Relic en cada precompilación, de modo que [la carga del archivo de mapeo y del mapa de origen de Android](#android) y [la carga de dSYM y del mapa de origen de iOS](#ios) sigan funcionando en las compilaciones de EAS. El plug-in lee las credenciales de las variables de entorno en el momento de la compilación y nunca las confirma en el repositorio.
+
+<Callout variant="tip">
+  Esta página asume que ya ha instalado el agente de React Native y ha agregado el plug-in de configuración a `app.json` o `app.config.js`, como se describe en [Integrar con Expo](/docs/mobile-monitoring/new-relic-monitoring-react-native/monitor-your-react-native-application#optional-expo-integration). Requiere una versión reciente de `newrelic-react-native-agent` —consulte las [versiones de GitHub](https://github.com/newrelic/newrelic-react-native-agent/releases) del paquete si las opciones del plug-in a continuación aún no están disponibles.
+</Callout>
+
+## Antes de que empieces [#prerequisites]
+
+Obtenga lo siguiente de la misma cuenta de New Relic:
+
+* Una [clave de API de usuario](/docs/apis/intro-apis/new-relic-api-keys/#user-key).
+* El [token de la aplicación](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token) de Android y/o iOS (el mismo token que pasa a `NewRelic.startAgent()`). Si distribuye en ambas plataformas, necesitará un token por plataforma.
+
+## Establecer variables de entorno de EAS [#eas-environment-variables]
+
+Registre la clave de API de usuario y los tokens de la aplicación como [variables de entorno de EAS](https://docs.expo.dev/eas/environment-variables/), con alcance a los entornos con los que compila:
+
+```shell
+eas env:create --environment production --name NEWRELIC_USER_API_KEY --value <YOUR_USER_API_KEY> --visibility sensitive
+eas env:create --environment production --name NEWRELIC_ANDROID_APP_TOKEN --value <YOUR_ANDROID_APP_TOKEN> --visibility sensitive
+eas env:create --environment production --name NEWRELIC_IOS_APP_TOKEN --value <YOUR_IOS_APP_TOKEN> --visibility sensitive
+```
+
+<Callout variant="important">
+  No emplee `--visibility secret`. EAS reserva las variables de visibilidad secreta para su propio sistema de credenciales, por lo que EAS nunca las expone como `process.env` a los scripts de compilación —el plug-in de configuración no las verá y omitirá silenciosamente la escritura del archivo de propiedades de Android o de las credenciales de la fase de compilación de iOS. Emplee `plaintext` o `sensitive` en su lugar.
+
+  EAS Build resuelve las variables `plaintext`/`sensitive` antes de ejecutar `prebuild`, ya sea que la compilación se ejecute en los servidores de EAS o de forma local con `eas build --local`.
+</Callout>
+
+## Android: carga automática de archivos de mapeo y mapas de origen [#android]
+
+Sin configuración adicional, el plug-in lee la clave de API de usuario de `NEWRELIC_USER_API_KEY` y el token de la aplicación de Android de `NEWRELIC_ANDROID_APP_TOKEN`, y los escribe en `android/app/newrelic.properties` en cada precompilación:
+
+```js
+{
+  "name": "my app",
+  "plugins": ["newrelic-react-native-agent"]
+}
+```
+
+Esas propiedades son las que leen las tareas de Gradle `newrelicMapUploadRelease` y `newrelicReactNativeSourceMapUploadRelease` del agente para autenticar la carga del archivo de mapeo de ProGuard/R8 y el mapa de origen de React Native después de cada compilación de lanzamiento. Para obtener más información sobre cómo funciona esa carga (y cómo realizar la carga manualmente si es necesario), consulte [Reporte de errores de JavaScript de React Native](/docs/mobile-monitoring/new-relic-monitoring-react-native/react-native-agent-js-error-reporting#automatic-upload-android).
+
+Si solo se configura una de las dos variables de entorno, el plug-in sigue escribiendo esa única propiedad, y la tarea de Gradle registra cuál falta en lugar de hacer fallar la compilación. Si no se configura ninguna, el plug-in deja `newrelic.properties` sin cambios y ambas tareas omiten la carga con un mensaje de log.
+
+### Utilice nombres de variables de entorno personalizados (Android) [#android-custom-env-vars]
+
+Para obtener la clave y el token de variables de entorno con nombres diferentes, páselos explícitamente:
+
+```js
+{
+  "name": "my app",
+  "plugins": [
+    [
+      "newrelic-react-native-agent",
+      {
+        "android": {
+          "apiKeyEnvName": "MY_NR_USER_API_KEY",
+          "appTokenEnvName": "MY_NR_ANDROID_APP_TOKEN"
+        }
+      }
+    ]
+  ]
+}
+```
+
+## iOS: carga automática de dSYM y source map [#ios]
+
+A diferencia de Android, los scripts de carga de dSYM y source map de React Native (`run-symbol-tool` y `upload-react-native-sourcemap`, de la carpeta [`dsym-upload-tools`](https://github.com/newrelic/newrelic-ios-agent-spm/tree/main/dsym-upload-tools)) no se incluyen dentro del CocoaPod `NewRelicAgent`, y normalmente requieren una fase de compilación <DNT>**Run Script**</DNT> agregada a mano en Xcode —lo que no sobrevive a que `expo prebuild` regenere `ios/`. En cambio, en cada precompilación, el plug-in:
+
+* Copia ambos scripts en `ios/dsym-upload-tools`.
+* Agrega una fase de compilación <DNT>**Run Script**</DNT> llamada “Upload dSYMs and Source Maps to New Relic” (después de “Bundle React Native code and images”) que los invoca, leyendo las credenciales de las variables de entorno en el momento de la compilación —el script generado solo hace referencia a las credenciales por su nombre y nunca las escribe en un archivo.
+* Asegúrese de que la fase “Bundle React Native code and images” exporte `SOURCEMAP_FILE`, ya que la plantilla predeterminada de Expo no lo establece y, de lo contrario, Expo no generaría el mapa de origen.
+
+Sin configuración adicional, la fase de compilación lee el token de la aplicación de iOS de `NEWRELIC_IOS_APP_TOKEN` y la clave de API de usuario de `NEWRELIC_USER_API_KEY` (compartida con el [valor predeterminado de Android](#android)):
+
+```js
+{
+  "name": "my app",
+  "plugins": ["newrelic-react-native-agent"]
+}
+```
+
+Para obtener información sobre lo que hacen estos scripts y cómo funciona la carga de dSYM fuera de Expo, consulte [Cargar dSYMs](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps).
+
+<Callout variant="tip">
+  Ambos script solo se ejecutan para compilaciones de <DNT>**Release**</DNT> y omiten las compilaciones de simulador de forma predeterminada. Para probar la ruta de carga de source map en un simulador, configure `NEWRELIC_SOURCEMAP_ALLOW_SIMULATOR=true`.
+</Callout>
+
+### Utilice nombres de variables de entorno personalizados (iOS) [#ios-custom-env-vars]
+
+Para obtener el token y la clave de variables de entorno con nombres diferentes, páselos explícitamente:
+
+```js
+{
+  "name": "my app",
+  "plugins": [
+    [
+      "newrelic-react-native-agent",
+      {
+        "ios": {
+          "appTokenEnvName": "MY_NR_IOS_APP_TOKEN",
+          "apiKeyEnvName": "MY_NR_USER_API_KEY"
+        }
+      }
+    ]
+  ]
+}
+```
+
+## Verificar la carga [#verify-upload]
+
+Después de ejecutar una compilación de EAS, revise los registros de compilación de cada plataforma:
+
+* **Android**: busque las tareas de Gradle `newrelicMapUploadRelease` y `newrelicReactNativeSourceMapUploadRelease` en el log. Una ejecución exitosa indica que el archivo de mapeo y el source map se encontraron y cargaron, sin advertencias de configuración faltante.
+* **iOS**: busque el paso del script de ejecución “Upload dSYMs and Source Maps to New Relic”. Si falta una credencial, registra cuál es y omite esa carga (por ejemplo, `NEWRELIC_IOS_APP_TOKEN not set, skipping...`) en lugar de fallar la compilación. Cuando las credenciales están presentes, registra que está procesando los dSYM y el source map y cargándolos en New Relic.
+
+Una vez que una compilación se realiza correctamente, confirme que el source map realmente llegó a New Relic consultando [Listar y eliminar source maps de React Native](/docs/mobile-monitoring/new-relic-monitoring-react-native/list-delete-react-native-source-maps).
+
+## Solucionar problemas [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="eas-env-not-picked-up" title="El plug-in no reconoce mis variables de entorno">
+    Confirme que las variables de entorno de EAS estén configuradas con `--visibility plaintext` o `--visibility sensitive`, no con `--visibility secret`. EAS nunca expone variables de visibilidad secreta como `process.env` a los scripts de compilación, por lo que el plug-in de configuración no puede leerlas. Ejecute `eas env:list --environment <your-environment>` para comprobarlo.
+  </Collapser>
+
+  <Collapser id="eas-changes-not-applied" title="Mis cambios en app.json/app.config.js no aparecen en la compilación">
+    El plug-in de configuración solo se ejecuta durante `expo prebuild`. Si realiza pruebas localmente, ejecute `expo prebuild --clean` para regenerar `android/` y `ios/` con los cambios del plug-in. EAS Build ejecuta `prebuild` automáticamente como parte de la compilación, por lo que esto solo afecta a las pruebas locales.
+  </Collapser>
+
+  <Collapser id="eas-build-succeeds-no-upload" title="La compilación se realiza correctamente, pero no veo que se realicen cargas">
+    Una compilación exitosa no garantiza una carga exitosa —tanto las tareas de Gradle de Android como el script de ejecución de iOS se omiten silenciosamente (sin hacer fallar la compilación) cuando falta una variable de entorno requerida. Revise el log de compilación para buscar los mensajes de omisión descritos en [Verificar la carga](#verify-upload), y vuelva a comprobar que los nombres de las variables coincidan con lo que configuró para [Android](#android-custom-env-vars) o [iOS](#ios-custom-env-vars).
+  </Collapser>
+</CollapserGroup>

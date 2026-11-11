@@ -12,7 +12,7 @@ translationType: machine
 O agente Java New Relic é [compatível com Scala](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent#other) e suporta chamada de API, anotações e [instrumentação personalizada](/docs/java/custom-instrumentation-with-the-java-agent) New Relic. Todas as informações abaixo são complementares às [instruções de instalação do agente Java](/docs/java/java-agent-manual-installation) da New Relic.
 
 <Callout variant="tip">
-  Para Heroku, consulte [agente Java com Scala no Heroku](/docs/agents/java-agent/heroku/java-agent-scala-heroku).
+Para Heroku, consulte [agente Java com Scala no Heroku](/docs/agents/java-agent/heroku/java-agent-scala-heroku).
 </Callout>
 
 ## Estrutura Scala [#frameworks]
@@ -28,7 +28,7 @@ A API do agente New Relic Scala permite controlar, personalizar e estender a fun
 * Crie uma transação se ainda não tiver sido iniciada
 
 <Callout variant="important">
-  Para obter melhores resultados ao usar a API, certifique-se de ter a versão mais recente do agente Java. A API New Relic Scala requer agente Java 7.1.0 ou mais alto.
+Para obter melhores resultados ao usar a API, certifique-se de ter a versão mais recente do agente Java. A API New Relic Scala requer agente Java 7.1.0 ou mais alto.
 </Callout>
 
 ### Use a API Scala
@@ -36,27 +36,33 @@ A API do agente New Relic Scala permite controlar, personalizar e estender a fun
 Para acessar a classe API adicione as seguintes informações ao seu arquivo de configuração Scala:
 
 <CollapserGroup>
-  <Collapser
-    id="build-scala"
-    title={<><strong>Configurar usando o arquivo project/build.scala</strong></>}
-  >
-    Adicione a seguinte linha (substituindo `S.V` pela versão Scala e `X.Y.Z` pela [versão do agente Java](/docs/agents/java-agent/installation/update-java-agent#procedures) que você usa) ao método appDependencies no arquivo `project/build.scala` do seu aplicativo:
+<Collapser
+  id="build-scala"
+  title={<>Configurar usando o arquivo <InlineCode>
+    project/build.scala
+  </InlineCode></>
+  }
+>
+Adicione a seguinte linha (substituindo `S.V` pela versão Scala e `X.Y.Z` pela [versão do agente Java](/docs/agents/java-agent/installation/update-java-agent#procedures) que você usa) ao método `appDependencies` no arquivo `project/build.scala` do seu aplicativo:
 
-    ```scala
-    "com.newrelic.agent.java" % "newrelic-scala-api_S.V" % "X.Y.Z"
-    ```
-  </Collapser>
+```scala
+"com.newrelic.agent.java" % "newrelic-scala-api_S.V" % "X.Y.Z"
+```
+</Collapser>
 
-  <Collapser
-    id="build.sbt"
-    title={<><strong>Configurar usando o arquivo project/build.sbt</strong></>}
-  >
-    Adicione a seguinte linha (substituindo `S.V` pela versão Scala e `X.Y.Z` pela[versão do agente Java](/docs/agents/java-agent/installation/update-java-agent#procedures) que você usa) ao arquivo `project/build.sbt` do seu aplicativo:
+<Collapser
+  id="build.sbt"
+  title={<>Configurar usando o arquivo <InlineCode>
+    project/build.sbt
+  </InlineCode></>
+  }
+>
+Adicione a seguinte linha (substituindo `S.V` pela versão Scala e `X.Y.Z` pela[versão do agente Java](/docs/agents/java-agent/installation/update-java-agent#procedures) que você usa) ao arquivo `project/build.sbt` do seu aplicativo:
 
-    ```scala
-    libraryDependencies += "com.newrelic.agent.java" % "newrelic-scala-api_S.V" % "X.Y.Z"
-    ```
-  </Collapser>
+```scala
+libraryDependencies += "com.newrelic.agent.java" % "newrelic-scala-api_S.V" % "X.Y.Z"
+```
+</Collapser>
 </CollapserGroup>
 
 As versões do Scala suportadas são 2.10, 2.11, 2.12 e 2.13. O usuário Scala 3.0 pode usar o jar 2.13. O jar é implantado no Maven Central e também está no arquivo zip de instalação do agente Java New Relic. Você pode chamar a API quando o agente Java não estiver em execução. Os métodos de API subjacentes são apenas stubs; a implementação é incluída quando o agente Java está em execução.
@@ -200,6 +206,46 @@ implicit val ec: ExecutionContext = ???
 x.foreach(println) // prints 3 on completion of Future
 ```
 
+### Futuros
+
+A New Relic lida com futuros Scala quando eles são enviados ao executor, o que pode levar a um resultado diferente do esperado. Os exemplos nesta seção esclarecem como isso funciona, para que você saiba o que esperar.
+
+Este exemplo está chamando um bloco de transação, que toma um futuro como seu parâmetro e o encadeia para um segundo futuro:
+
+```scala
+def chainFutures(f: Future[Unit]) = txn {
+     f.flatMap( _ => Future{ Thread.sleep(2000) })
+}
+
+val f = Future { Thread.sleep(5000) } // future is submitted here
+chainFutures(f)
+```
+
+A partir deste exemplo, você pode esperar que `chainFutures` produza uma transação com duração de 7 segundos. Em vez disso, a interface do usuário do New Relic mostra a transação sendo concluída imediatamente.
+
+O futuro `f` no exemplo é enviado pelo método `Future.apply()` quando ele é construído, antes da transação existir. Como `f` é enviado fora da transação, quaisquer saltos de thread feitos durante sua execução não são vinculados. O futuro downstream, `Future{ Thread.sleep(2000) }`, também não é rastreado, porque é enviado em um retorno de chamada depois que o contexto da transação já foi eliminado.
+
+Há algumas coisas que você pode fazer para que sua transação capture o momento de ambos os futuros.
+
+* Embora você não consiga alterar quando `f` é enviado, você pode cronometrá-lo usando o método `asyncTrace` . Isso acontece `f` a partir do momento em que a transação é iniciada (mas não rastreará os threadhops feitos por `f`).
+* Você pode usar um token para vincular o retorno de chamada à transação, a fim de preservar o contexto da transação durante os threadhops.
+* Você pode adicionar outro `asyncTrace` para cronometrar o segundo futuro.
+
+Com este exemplo, a interface do usuário do New Relic mostra uma transação com duração de cerca de 7 segundos, com dois segmentos chamados “primeiro futuro” e “segundo futuro”:
+
+```scala
+def chainFutures(f: Future[Unit]) = txn {
+  val t = NewRelic.getAgent.getTransaction.getToken
+  asyncTrace("future one" )(f)                                  //asyncTrace times the first future
+    .flatMap(_ => {
+      t.linkAndExpire()                                         //token links across potential threadhops
+      asyncTrace("future two"){ Future { Thread.sleep(2000) } } //asyncTrace times the second future
+    })
+}
+val f = Future { Thread.sleep(5000) } 
+chainFutures(f)
+```
+
 ## Instrumento Scala com a API do agente Java [#using-the-java-api]
 
 Instrumento Scala para usar a classe ou [anotações](/docs/agents/java-agent/java-agent-api/java-agent-api-instrument-using-annotation) da API New Relic.
@@ -207,27 +253,29 @@ Instrumento Scala para usar a classe ou [anotações](/docs/agents/java-agent/ja
 1. Adicione as seguintes informações ao seu arquivo de configuração Scala:
 
    <CollapserGroup>
-     <Collapser
-       id="build-scala"
-       title={<><strong>Configurar usando o arquivo project/build.scala</strong></>}
-     >
-       Adicione a seguinte linha (substituindo `X.Y.Z` pela [versão do agente Java](/docs/agents/java-agent/installation/update-java-agent#procedures) que você usa) ao método appDependencies no arquivo `project/build.scala` do seu aplicativo:
+   <Collapser
+     id="build-scala"
+     title={<><strong>Configurar usando o arquivo project/build.scala</strong></>
+     }
+   >
+   Adicione a seguinte linha (substituindo `X.Y.Z` pela [versão do agente Java](/docs/agents/java-agent/installation/update-java-agent#procedures) que você usa) ao método appDependencies no arquivo `project/build.scala` do seu aplicativo:
 
-       ```scala
-       "com.newrelic.agent.java" % "newrelic-api" % "X.Y.Z"
-       ```
-     </Collapser>
+   ```scala
+   "com.newrelic.agent.java" % "newrelic-api" % "X.Y.Z"
+   ```
+   </Collapser>
 
-     <Collapser
-       id="build.sbt"
-       title={<><strong>Configurar usando o arquivo project/build.sbt</strong></>}
-     >
-       Adicione a seguinte linha (substituindo `X.Y.Z` pela [versão do agente Java](/docs/agents/java-agent/installation/update-java-agent#procedures) que você usa) ao arquivo `project/build.sbt` do seu aplicativo:
+   <Collapser
+     id="build.sbt"
+     title={<><strong>Configurar usando o arquivo project/build.sbt</strong></>
+     }
+   >
+   Adicione a seguinte linha (substituindo `X.Y.Z` pela [versão do agente Java](/docs/agents/java-agent/installation/update-java-agent#procedures) que você usa) ao arquivo `project/build.sbt` do seu aplicativo:
 
-       ```scala
-       libraryDependencies += "com.newrelic.agent.java" % "newrelic-api" % "X.Y.Z"
-       ```
-     </Collapser>
+   ```scala
+   libraryDependencies += "com.newrelic.agent.java" % "newrelic-api" % "X.Y.Z"
+   ```
+   </Collapser>
    </CollapserGroup>
 
 2. Importe a classe NewRelic e utilize-a em seu aplicativo:

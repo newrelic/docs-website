@@ -1,0 +1,242 @@
+---
+title: .NET MAUI C# 오류 심볼화
+tags:
+  - .NET MAUI
+  - Mobile monitoring
+  - New Relic Mobile .NET MAUI
+  - Errors
+metaDescription: 'Generate, store, and upload .NET MAUI .pdb and .dll files so New Relic can show source file names and line numbers in C# stack traces in the browser.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+안드로이드 및 iOS용 .NET MAUI 앱의 릴리스 빌드에는 디버그 정보가 포함되지 않으므로, 앱에서 보고하는 C# 스택 추적에는 메서드 이름은 표시되지만 소스 파일이나 줄 번호는 표시되지 않습니다. 해당 빌드에서 일치하는 `.pdb` 및 `.dll` 파일을 제공하면 뉴렐릭은 브라우저에서 이러한 스택 추적을 기호화할 수 있습니다. 브라우저 내 기호화는 처리된 예외에만 적용됩니다.
+
+이 페이지에서는 다음을 설명합니다:
+
+* 심볼화된 C# 스택 추적과 심볼화되지 않은 C# 스택 추적 비교
+* `.pdb` 및 `.dll` 파일을 생성하는 방법 및 찾는 위치
+* 뉴렐릭 UI에서 스택 추적을 심볼화하는 방법
+* 뉴렐릭 UI에서 네이티브 iOS 크래시를 찾는 위치와 이를 심볼화하는 방법
+* 배포한 모든 릴리스의 오류를 기호화할 수 있도록 이러한 파일을 저장하는 방법
+
+<Callout variant="important">
+심볼리케이션은 전적으로 브라우저에서 실행됩니다. 뉴렐릭은 `.pdb` 또는 `.dll` 파일이나 심볼리케이션된 스택 추적을 업로드, 저장 또는 보관하지 않습니다. 또한 결과는 오류 간에 공유되지 않습니다. 열어보는 각 오류에 대해 파일을 별도로 업로드해야 하며, 페이지를 다시 로드하거나 나중에 다시 돌아올 때마다 다시 업로드해야 합니다. 매번 파일이 필요하므로 [모든 릴리스마다 파일을 보관하십시오](#store-symbols).
+</Callout>
+
+## 심볼리케이션이 추가하는 내용 [#before-after]
+
+심볼리케이션 이전에는 각 프레임의 파일 및 줄 번호가 있어야 할 위치에 `<unknown>`이(가) 표시됩니다:
+
+```
+<unknown> in NewRelicMaui.MainPage.OnHandledExceptionClicked(Object sender, EventArgs e)()
+```
+
+심볼리케이션 후, 프레임에 소스 파일과 줄 번호가 표시됩니다:
+
+```
+MainPage.xaml.cs line 41 in NewRelicMaui.MainPage.OnHandledExceptionClicked()
+```
+
+각 프레임 옆의 <DNT>**Thread**</DNT> 열은 프레임이 속한 클래스를 보여줍니다(예: `NewRelicMaui.MainPage`).
+
+<Callout variant="caution">
+줄 번호는 예외를 발생시킨 정확한 줄이 아니라 메서드가 시작되는 곳(첫 번째 문장)입니다. 뉴렐릭이 .NET MAUI 앱에서 수신하는 스택 추적에는 메서드 내부의 줄을 정확히 찾아내는 IL 오프셋이 포함되지 않습니다. 줄 번호를 사용하여 소스에서 메서드를 찾은 다음 해당 메서드에서 원인을 찾아보십시오.
+</Callout>
+
+## .NET MAUI 심볼 파일 이해 [#symbol-files]
+
+.NET MAUI 앱에는 관리형 C# 코드와 네이티브 플랫폼 코드가 모두 포함되어 있으며, 각각 고유한 종류의 디버그 기호 파일이 있습니다. 각 파일은 자체 코드의 오류만 기호화합니다:
+
+| 파일                                     | 플랫폼        | 심볼리케이션 대상                 | 생성 위치                                                           | 뉴렐릭에서 사용하는 방법                                                                                       |
+| -------------------------------------- | ---------- | ------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `.pdb` + `.dll` (이식 가능한 PDB 및 해당 어셈블리) | 안드로이드, iOS | 앱 및 클래스 라이브러리에서 발생한 C# 오류 | `bin/Release/<target framework>/`, [출력 파일 찾기](#output)를 참조하십시오. | 이 페이지에 설명된 대로 브라우저에서 업로드하십시오.                                                                       |
+| `.dSYM`                                | iOS        | 네이티브 iOS 충돌 수             | `bin/Release/net10.0-ios/ios-arm64/<YourApp>.app.dSYM`          | [dSYM 파일 업로드](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) |
+
+뉴렐릭은 C# 오류를 심볼화하는 데 `.pdb` 및 `.dll` 파일만 사용합니다. C# 오류에 dSYM을 업로드해도 심볼화되지 않습니다. 하지만 릴리스에서 보고하는 모든 종류의 오류를 심벌화할 수 있도록 각 릴리스에 대해 모두 보관하십시오.
+
+{/* Verified 2026-10-07 on a .NET 10 Release iOS build: NewRelicMaui.app.dSYM is next to the dll/pdb in bin/Release/net10.0-ios/ios-arm64/. mapping.txt is omitted on purpose: the MAUI Android SDK's default ProGuard rules include -dontobfuscate, so Java/Kotlin code isn't obfuscated in typical MAUI apps. */}
+
+## `.pdb`을(를) 생성하고 `.dll` [#generate]
+
+<Steps>
+<Step>
+### 릴리스 빌드용 이식 가능한 PDB를 활성화하십시오. [#enable-pdb]
+
+앱의 `.csproj`에서 릴리스 빌드가 이식 가능한 디버그 심볼을 생성하는지 확인해 주십시오:
+
+```xml
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <DebugType>portable</DebugType>
+  <DebugSymbols>true</DebugSymbols>
+</PropertyGroup>
+```
+
+빌드는 어셈블리 옆에 이식 가능한 PDB를 생성합니다. 이러한 파일은 APK, AAB 또는 IPA에 패키징되지 않으므로 앱 크기를 증가시키지 않습니다.
+
+코드를 기호화하려는 모든 클래스 라이브러리 프로젝트에 동일한 설정을 추가하십시오.
+</Step>
+
+<Step>
+### 릴리스 빌드하기 [#build]
+
+```sh
+# Android
+dotnet publish -f net10.0-android -c Release
+
+# iOS
+dotnet publish -f net10.0-ios -c Release
+```
+
+프로젝트의 타겟 프레임워크를 사용하십시오(예: `net9.0-android`).
+</Step>
+
+<Step>
+### 출력 파일을 찾으십시오 [#output]
+
+스택 추적에 나타나는 각 어셈블리에 대해 해당 `.dll` 및 일치하는 `.pdb`이(가) 필요합니다. 해당 파일은 빌드 출력 폴더에 있으며 프로젝트 이름을 따서 명명됩니다:
+
+| 플랫폼     | 위치                                                                                                          |
+| ------- | ----------------------------------------------------------------------------------------------------------- |
+| Android | `bin/Release/net10.0-android/`                                                                              |
+| iOS     | `bin/Release/net10.0-ios/ios-arm64/` (`ios-arm64`은(는) 물리적 디바이스용 폴더입니다. `iossimulator-arm64`을(를) 사용하지 마십시오.) |
+
+예를 들어, 앱 프로젝트가 `NewRelicMaui`인 경우 `NewRelicMaui.dll` 및 `NewRelicMaui.pdb`이(가) 필요합니다. 프레임이 어느 어셈블리에서 왔는지 찾으려면 프레임의 네임스페이스를 확인하십시오. `NewRelicMaui.MainPage.OnHandledExceptionClicked`은(는) `NewRelicMaui.dll`에 있습니다. 프레임이 `MyApp.Core`와(과) 같은 자체 클래스 라이브러리에서 온 경우 `MyApp.Core.dll` 및 `MyApp.Core.pdb`을(를) 사용하십시오.
+
+`dotnet publish` APK, AAB 또는 IPA를 `publish/` 하위 폴더에 배치합니다. `.dll` 및 `.pdb` 파일은 그 상위 폴더 내, 표에 명시된 위치에 있습니다.
+
+`obj/Release/`에서도 이러한 파일의 사본을 찾을 수 있습니다. 서로 일치하도록 항상 테이블의 동일한 폴더에서 `.dll`와(과) `.pdb`을(를) 함께 업로드하십시오.
+
+<Callout variant="caution">
+iOS에서는 앱 번들(`NewRelicMaui.app/`) 또는 IPA 내부에서 `.dll`을(를) 가져오지 마십시오. 릴리스 빌드는 해당 복사본을 다듬고 제거하므로 더 이상 `.pdb`과(와) 일치하지 않으며 번들에는 `.pdb`이(가) 포함되지 않습니다.
+</Callout>
+
+{/* Verified 2026-10-07 on .NET 10 Release builds. Android: bin/, obj/, obj/<rid>/linked/ and Obfuscar output all had the same MVID. iOS: bin/Release/net10.0-ios/ios-arm64/ dll+pdb are a matched pair; the .app copy (and obj/<rid>/linked|stripped) has a different MVID and is IL-stripped. App Exp confirmed in the UI that an iOS error symbolicates with the bin/Release/net10.0-ios/ios-arm64/ pair. */}
+</Step>
+</Steps>
+
+## 뉴렐릭에서 스택 추적 심볼리케이션 [#symbolicate]
+
+<Steps>
+<Step>
+### 오류 열기 [#open-error]
+
+두 위치 중 한 곳에서 C# 오류를 엽니다:
+
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Errors Inbox**</DNT>, 그런 다음 오류를 선택합니다.
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Mobile &gt; (select your app) &gt; Handled exceptions**</DNT>, 그런 다음 오류를 선택합니다.
+
+<DNT>**Stack trace**</DNT> 섹션으로 스크롤합니다.
+
+오류의 `appVersion` 및 `appBuild`을(를) 확인하십시오. 이 정보는 어떤 릴리스의 파일이 필요한지 알려줍니다.
+</Step>
+
+<Step>
+### `.pdb`을(를) 업로드하고 `.dll` [#upload]
+
+스택 추적 상단의 <DNT>**Not seeing what you expected?**</DNT> 배너는 온디맨드 기호화를 제공합니다. <DNT>**Upload .pdb and .dll files**</DNT>을(를) 클릭하고 스택 추적의 어셈블리에 대해 `.pdb` 및 `.dll`을(를) 모두 선택하십시오. 스택 추적에 앱 및 클래스 라이브러리와 같이 둘 이상의 어셈블리에서 가져온 프레임이 포함된 경우, 각각에 대해 `.pdb` 및 `.dll`을(를) 선택하십시오. 두 파일이 모두 필요합니다. `.dll`은(는) 어셈블리와 해당 메서드를 식별하고, `.pdb`은(는) 각 메서드를 소스 파일 및 줄에 매핑합니다.
+
+<img title="Unsymbolicated .NET MAUI C# stack trace" alt="Screenshot of an unsymbolicated .NET MAUI C# stack trace with the Upload .pdb and .dll files button" src="/images/maui_screenshot-crop_symbolicate-upload.webp" />
+
+<figcaption>
+심볼화하기 전에 프레임은 소스 파일과 줄 번호가 있어야 할 위치에 `<unknown>`을(를) 표시합니다.
+</figcaption>
+
+선택한 파일이 버튼 옆에 표시됩니다. 두 파일이 모두 목록에 있는지 확인한 후(<DNT>**×**</DNT>을(를) 사용하여 잘못된 파일 제거), <DNT>**Symbolicate**</DNT>을(를) 클릭하십시오.
+</Step>
+
+<Step>
+### 결과 검토 또는 내보내기 [#export]
+
+심볼리케이션이 완료되면 배너가 <DNT>**Symbolicated your trace**</DNT> (으)로 변경되며 해결된 프레임 수(예: <DNT>**Symbolicated 1 of 1 unresolved frame**</DNT>)를 보고합니다. 또한 프레임은 예외가 발생한 정확한 줄이 아니라 메서드의 시작 부분으로 확인된다는 점을 알려줍니다.
+
+<img title="Symbolicated .NET MAUI C# stack trace" alt="Screenshot of a .NET MAUI C# stack trace after symbolication, showing MainPage.xaml.cs line 41" src="/images/maui_screenshot-crop_symbolicate-result.webp" />
+
+<figcaption>
+기호화 후 프레임에는 소스 파일과 메서드가 시작되는 줄이 표시됩니다.
+</figcaption>
+
+결과는 페이지가 열려 있는 동안에만 유지됩니다. 유지하려면 <DNT>**Export handled exception details**</DNT>을(를) 클릭하십시오. 내보낸 파일에는 심볼화된 프레임이 포함되어 있으므로, 지원 티켓에 첨부하거나 팀과 공유할 수 있습니다.
+
+다른 오류를 심볼화하려면 해당 오류를 열고 파일을 다시 업로드하십시오. 한 오류의 결과는 다른 오류에 적용되지 않습니다.
+</Step>
+</Steps>
+
+## 네이티브 iOS 크래시 심볼리케이션 [#native-ios-crashes]
+
+오브젝티브-C, 스위프트 또는 iOS 런타임의 크래시와 같은 네이티브 iOS 크래시는 C# 오류가 아니므로 `.pdb` 및 `.dll` 파일이 적용되지 않습니다. 이러한 크래시는 대신 iOS `.dSYM` 파일을 사용합니다.
+
+뉴렐릭 UI에서 네이티브 iOS 크래시를 찾으려면 <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Mobile &gt; (select your app) &gt; Crashes**</DNT>(으)로 이동한 다음 크래시를 선택하십시오. 해당 빌드의 dSYM을 뉴렐릭에서 사용할 수 없는 경우, 스택 추적에는 읽을 수 있는 메서드 이름 대신 기계어 코드(메모리 주소)가 표시되며 크래시 보고서에는 경고가 표시됩니다. `We were unable to locate your dsym.`
+
+<img title="Unsymbolicated native iOS crash stack trace" alt="Screenshot of the Stack trace section of a .NET MAUI native iOS crash on the Crashes page, showing memory addresses such as 0x108d84944 instead of method names" src="/images/maui_screenshot-crop_native-ios-crash.webp" />
+
+<figcaption>
+dSYM이 없으면 네이티브 iOS 프레임에 메서드 이름 대신 메모리 주소가 표시됩니다.
+</figcaption>
+
+이를 해결하려면:
+
+1. [.NET MAUI 심볼 파일 이해하기](#symbol-files)에 설명된 대로 크래시가 발생한 빌드의 `.dSYM`을(를) 찾으십시오. 이를 크래시의 `appVersion` 및 `appBuild`와(과) 일치시키십시오.
+2. [dSYM 파일 업로드](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps)를 따라 뉴렐릭에 업로드하십시오.
+
+## 올바른 파일 찾기 [#match]
+
+`.dll` 및 `.pdb` 쌍은 해당 쌍을 생성한 빌드의 스택 추적에 대해서만 올바른 결과를 제공합니다:
+
+1. **릴리스:** 오류의 `appVersion` 및 `appBuild`을(를) 해당 릴리스에 대해 저장한 파일과 일치시키십시오.
+2. **플랫폼:** 안드로이드 오류에는 안드로이드 파일을 사용하고 iOS 오류에는 iOS 파일을 사용하십시오.
+3. **어셈블리:** [출력 파일 찾기](#output)에 설명된 대로 스택 프레임의 네임스페이스를 어셈블리 이름과 일치시키십시오.
+4. **동일한 빌드:** `.pdb`을(를) `.dll`을(를) 생성한 빌드와 일치시키십시오. 다른 빌드의 파일을 혼합하지 마십시오.
+
+<Callout variant="caution">
+스택 추적에는 어셈블리 ID가 포함되어 있지 않기 때문에 뉴렐릭은 파일이 다른 빌드에서 왔는지 항상 알 수는 없습니다. 앱의 다른 버전에서 가져온 파일도 결과를 생성할 수 있으며, 코드가 변경된 경우 줄 번호가 잘못된 위치를 가리킬 수 있습니다. 메서드 위에 주석 줄을 하나만 추가해도 줄 번호가 이동합니다. 결과에 의존하기 전에 파일이 오류의 `appVersion` 및 `appBuild`과(와) 일치하는지 확인하십시오.
+</Callout>
+
+## 모범 사례: 모든 릴리스의 심볼 저장 [#store-symbols]
+
+뉴렐릭은 사용자의 `.pdb` 및 `.dll` 파일을 보관하지 않으므로 직접 저장해야 합니다. 오류가 발생한 후가 아니라 각 릴리스를 빌드할 때 저장하십시오.
+
+* **배포하는 모든 빌드의 파일을 보관하십시오.** 여기에는 안드로이드 및 iOS용 내부, 베타, 스토어 빌드가 포함됩니다.
+* iOS dSYM을 포함하여 **모든 종류의 심볼 파일을 보관하십시오.** [.NET MAUI 심볼 파일 이해하기](#symbol-files)를 참조하십시오.
+* 메인 앱 어셈블리뿐만 아니라 **자체 클래스 라이브러리도 포함하십시오**.
+* 오류 발생 시 올바른 파일을 찾을 수 있도록 앱에서 보고하는 `appVersion` 및 `appBuild` 속성과 일치하게 **플랫폼, 버전 및 빌드 번호별로 레이블을 지정하십시오**.
+* **해당 버전이 사용되는 동안 계속 보관하십시오.** 사용자는 종종 수개월 동안 이전 버전을 계속 사용합니다.
+* **액세스를 제한하십시오.** PDB는 소스 파일 경로와 코드 구조를 노출합니다. 소스 코드와 동일한 액세스 제어를 사용하여 저장하십시오.
+
+CI 시스템의 빌드 아티팩트, 스토리지 버킷 또는 아티팩트 저장소 등 저장 위치는 사용자가 결정할 수 있습니다. CI 빌드 아티팩트를 사용하는 경우 설정된 시간이 지나면 자동으로 삭제되는 경우가 많으므로 CI 시스템에서 아티팩트를 보관하는 기간을 확인하십시오.
+
+<Callout variant="caution">
+소스 코드, 종속성, SDK 버전 및 빌드 설정이 모두 정확히 동일한 경우에만 다시 빌드 시 동일한 파일이 생성됩니다. 실제로 배포한 빌드의 파일을 저장하십시오. 해당 파일을 다시 생성할 수 있을 것이라고 기대하지 마십시오.
+</Callout>
+
+## 문제점 해결 [#troubleshooting]
+
+<CollapserGroup>
+<Collapser id="still-unknown" title="파일을 업로드한 후에도 프레임에 여전히 <unknown>이 표시됩니다">
+다음을 확인하십시오:
+
+* 프레임이 포함된 어셈블리를 업로드했습니다. 어셈블리 이름은 일반적으로 프레임에 있는 네임스페이스의 시작 부분과 일치합니다.
+* `.pdb` 및 `.dll`을(를) 모두 업로드했으며, 두 파일 모두 동일한 빌드에서 생성된 것입니다.
+* `.pdb`은(는) 포터블 PDB입니다. 이전의 Windows 전용(전체) PDB는 지원되지 않습니다.
+</Collapser>
+
+<Collapser id="wrong-line" title="줄 번호가 예외를 발생시킨 줄을 가리키지 않습니다">
+이는 예상된 동작입니다. 스택 추적에는 메서드 내부의 위치가 포함되지 않으므로 프레임은 해당 메서드의 첫 번째 줄로 확인됩니다. [심볼리케이션 추가 내용](#before-after)을 참조하십시오.
+
+해당 줄이 완전히 다른 메서드를 가리키는 경우 파일이 다른 빌드에서 생성된 것일 수 있습니다. [올바른 파일 찾기](#match)를 참조하십시오.
+</Collapser>
+
+<Collapser id="partial" title="일부 프레임만 심볼화됩니다">
+각 어셈블리에는 자체 `.dll` 및 `.pdb`이(가) 필요합니다. 한 번에 여러 쌍을 업로드할 수 있으므로 스택 추적에 나타나는 모든 어셈블리를 포함하십시오. .NET, MAUI 및 타사 NuGet 패키지를 포함하여 업로드하지 않은 어셈블리의 프레임은 심볼화되지 않은 상태로 유지됩니다.
+</Collapser>
+
+<Collapser id="no-pdb" title="빌드 출력에서 .pdb 파일을 찾을 수 없습니다">
+[이식 가능한 PDB 활성화](#enable-pdb)에 표시된 대로 릴리스 설정에 대해 `DebugType`이(가) `portable` (으)로 설정되어 있는지 확인한 다음 다시 빌드하십시오. 새 파일은 이미 배포한 릴리스의 오류가 아니라 새 빌드의 오류와만 일치합니다.
+</Collapser>
+</CollapserGroup>
+
+## 제한 사항 [#limitations]
+
+* 프레임은 예외를 발생시킨 정확한 줄이 아니라 해당 메서드의 시작 부분으로 확인됩니다.
+* 심볼화는 C# 오류에 적용됩니다. 네이티브 안드로이드(자바/Kotlin) 및 iOS 크래시는 [안드로이드](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-crash-reporting) 및 [iOS](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) 심볼화 워크플로우를 사용합니다.
+* 결과는 오류 간에 저장되거나 공유되지 않습니다. 오류를 확인할 때마다 각 오류에 대한 파일을 업로드해야 합니다.

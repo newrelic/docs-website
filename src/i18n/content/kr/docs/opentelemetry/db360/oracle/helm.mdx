@@ -1,0 +1,599 @@
+---
+title: Helm을 사용한 오라클 모니터링용 NRDOT 설치 및 구성
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - Kubernetes
+  - Helm
+metaDescription: Install and configure Oracle Database monitoring on Kubernetes using the oracle-otel Helm chart
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Oracle-Database-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/oracle/introduction
+  next: null
+translationType: machine
+---
+
+`oracle-otel` Helm 차트를 사용하여 Kubernetes에 오라클 데이터베이스 모니터링을 설치하고 설정할 수 있습니다. 선택적으로, 차트는 모니터링 데이터베이스 사용자를 생성하는 설정 작업을 실행할 수도 있습니다.
+
+<Callout variant="tip" title="가이드 설치">
+  대신 뉴렐릭 UI를 통해 설치하려면 <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Oracle (Database 360)](https://onenr.io/0kjnebKW7Ro)**</DNT>(으)로 이동하십시오. 이 페이지는 수동 설치만 다룹니다.
+</Callout>
+
+<Steps>
+  <Step>
+    ## 전제 조건 [#prerequisites]
+
+    * 유효한 뉴렐릭 [라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+    * Helm 3.0 이상 및 쿠버네티스 클러스터에 액세스하도록 구성된 `kubectl`.
+    * 쿠버네티스 클러스터에서 오라클 데이터베이스 호스트 및 리스너 포트로의 네트워크 연결.
+    * 이미 생성한 모니터링 데이터베이스 사용자 또는 차트의 설정 작업에서 사용자를 생성할 수 있도록 하는 오라클 데이터베이스 관리자 자격 증명(RDS 마스터 사용자, `SYS` 또는 `ADMIN`)입니다. 아래의 [모니터링 자격 증명 구성](#credentials)을 참조하십시오.
+  </Step>
+
+  <Step>
+    ## 네임스페이스를 생성하십시오. [#namespace]
+
+    설치할 네임스페이스를 생성하십시오. `helm install --create-namespace`은(는) 최종 설치 단계에서만 네임스페이스를 생성하므로, 다음 단계에서 시크릿을 생성하기 전에 해당 네임스페이스가 존재해야 합니다:
+
+    ```bash
+    kubectl create namespace newrelic
+    ```
+
+    <Callout variant="tip">
+      아래의 모든 명령어에서 `-n`을(를) 전달할 필요가 없도록 현재 `kubectl` 컨텍스트의 기본 네임스페이스로 설정하십시오:
+
+      ```bash
+      kubectl config set-context --current --namespace=newrelic
+      ```
+    </Callout>
+  </Step>
+
+  <Step>
+    ## 모니터링 자격 증명 구성 [#credentials]
+
+    차트의 설정 작업이 오라클 데이터베이스 모니터링 사용자를 생성하도록 할지, 그렇지 않은 경우 자격 증명을 어떻게 제공할지 결정하십시오:
+
+    <CollapserGroup>
+      <Collapser id="helm-creds-inline" title="설정 작업 없음: 일반 사용자 이름 및 비밀번호">
+        이 방법에는 설정 작업이 없으므로, 여기서는 모니터링 사용자를 생성해 주지 않습니다. 차트를 설치하기 전에 직접 생성하십시오: 환경에 따라 [On-host CDB](/docs/opentelemetry/db360/oracle/host-cdb) 또는 [On-host](/docs/opentelemetry/db360/oracle/host-pdb) PDB **의 데이터베이스** **사용자 구성** 및 모니터링 권한 부여 단계를 따르십시오.
+
+        다음 단계에서 `values.yaml`에 모니터링 사용자 이름과 비밀번호를 직접 설정합니다.
+      </Collapser>
+
+      <Collapser id="helm-creds-secret-nojob" title="설정 작업 없음: 시크릿 기반 자격 증명">
+        이 방법에는 설정 작업도 없습니다. 위의 일반 자격 증명 방법과 정확히 동일하게 먼저 모니터링 사용자를 직접 생성하십시오. 유일한 차이점은 자격 증명이 있는 위치입니다: `values.yaml`에 일반 텍스트로 저장하는 대신 Kubernetes 시크릿에 저장하십시오:
+
+        ```bash
+        kubectl create secret generic oracle-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        ```
+      </Collapser>
+
+      <Collapser id="helm-creds-setupjob" title="자동화된 설정 작업">
+        이 방법을 사용하면 차트의 설정 작업이 데이터베이스 관리자 자격 증명을 사용하여 모니터링 사용자를 생성합니다. 모니터링 및 관리자 자격 증명은 모두 Kubernetes 시크릿으로 제공되어야 합니다: 설정 작업은 일반 텍스트 관리자 자격 증명을 절대 허용하지 않으며, 이를 활성화하려면 시크릿 기반 모니터링 자격 증명도 필요합니다.
+
+        1. 모니터링 사용자 이름과 비밀번호로 시크릿을 생성하십시오. 이것은 설정 작업이 생성하고 수집기가 연결하는 자격 증명입니다:
+
+           ```bash
+           kubectl create secret generic oracle-monitor-creds \
+             --from-literal=username=<MONITORING_USERNAME> \
+             --from-literal=password='<MONITORING_PASSWORD>' \
+             -n newrelic
+           ```
+
+        2. 설정 작업은 Kubernetes 시크릿을 통해서만 관리자 자격 증명을 허용합니다(`values.yaml`에 일반 텍스트 사용자 이름/비밀번호 없음). 이 자격 증명은 사용자를 생성하고 광범위한 데이터베이스 액세스 권한을 부여할 수 있으므로, 자체 시크릿으로 생성하십시오:
+
+           ```bash
+           kubectl create secret generic oracle-admin-creds \
+             --from-literal=username=<ADMIN_USERNAME> \
+             --from-literal=password='<ADMIN_PASSWORD>' \
+             -n newrelic
+           ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Helm 값을 설정하십시오. [#configure]
+
+    환경에 맞게 `oracle.topology`을(를) 설정하십시오:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            값
+          </th>
+
+          <th>
+            설명
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `cdb`
+          </td>
+
+          <td>
+            온호스트, 멀티테넌트 CDB. 이 CDB 하위의 모든 PDB가 모니터됩니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pdb`
+          </td>
+
+          <td>
+            온호스트, 단일 PDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rds`
+          </td>
+
+          <td>
+            AWS RDS의 오라클 데이터베이스.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `adb`
+          </td>
+
+          <td>
+            오라클 자율운영 데이터베이스.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    이전 단계에서 선택한 자격 증명 방법과 일치하는 `values.yaml`을(를) 사용하십시오:
+
+    <CollapserGroup>
+      <Collapser id="helm-values-inline" title="설정 작업 없음: 일반 사용자 이름 및 비밀번호">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        oracle:
+          topology: <cdb|pdb|rds|adb>
+          endpoint: <YOUR_DB_HOST>:<YOUR_DB_PORT>
+          service: <YOUR_SERVICE_NAME>
+          username: <YOUR_MONITORING_USERNAME>
+          password: <YOUR_MONITORING_PASSWORD>
+
+        # No setup job runs, so create the monitoring user yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-secret-nojob" title="설정 작업 없음: 시크릿 기반 자격 증명">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        oracle:
+          topology: <cdb|pdb|rds|adb>
+          endpoint: <YOUR_DB_HOST>:<YOUR_DB_PORT>
+          service: <YOUR_SERVICE_NAME>
+          existingSecret: oracle-monitor-creds
+
+        # No setup job runs, so the monitoring user referenced by
+        # this secret must already exist - create it yourself
+        # before installing the chart.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-values-setupjob" title="자동화된 설정 작업">
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        oracle:
+          topology: <cdb|pdb|rds|adb>
+          endpoint: <YOUR_DB_HOST>:<YOUR_DB_PORT>
+          service: <YOUR_SERVICE_NAME>
+          existingSecret: oracle-monitor-creds
+
+        setupJob:
+          enabled: true
+          image:
+            # -- Oracle Instant Client + sqlplus image. No default: pulling from container-registry.oracle.com requires accepting Oracle's license terms first. See README.
+            repository: ""
+            tag: ""
+            pullPolicy: IfNotPresent
+          oracleAdmin:
+            existingSecret: oracle-admin-creds
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            매개변수
+          </th>
+
+          <th>
+            설명
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `licenseKey`
+          </td>
+
+          <td>
+            귀하의 뉴렐릭 라이선스 키입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `otlpEndpoint`
+          </td>
+
+          <td>
+            스킴이 없는 기본 
+
+            `host:port`
+
+             형태의 사용자 리전 OTLP/gRPC 엔드포인트: 
+
+            `otlp.nr-data.net:4317`
+
+             (US) 또는 
+
+            `otlp.eu01.nr-data.net:4317`
+
+             (EU). 자세한 내용은 
+
+            [뉴렐릭 OTLP 엔드포인트 문서를](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+
+             참조하십시오.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracle.endpoint`
+          </td>
+
+          <td>
+            클러스터에서 접근 가능한 오라클 데이터베이스 호스트(또는 RDS 엔드포인트) 및 리스너 포트.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracle.service`
+          </td>
+
+          <td>
+            수집기 연결을 위한 CDB, PDB, RDS 또는 ADB 서비스 이름입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `setupJob.image.repository`
+
+             / 
+
+            `setupJob.image.tag`
+          </td>
+
+          <td>
+            설정 작업에 사용되는 오라클 Instant Client+ 
+
+            `sqlplus`
+
+             이미지. 기본값은 없습니다: 
+
+            `container-registry.oracle.com`
+
+            에서 가져오려면 먼저 오라클의 라이선스 약관에 동의해야 하므로 자체 이미지를 제공해야 합니다. 설정 작업이 활성화된 경우, 시크릿 기반 자격 증명에만 필요합니다.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      사용 가능한 모든 설정 옵션은 차트의 [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/oracle-otel/values.yaml)을 참조하십시오.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## (선택 사항) 하나의 릴리스에서 여러 인스턴스 모니터 [#multi]
+
+    `oracle.*` 대신, 단일 릴리스의 단일 수집기 파드에서 여러 오라클 데이터베이스 인스턴스를 모니터하도록 `oracleMulti.enabled: true`을(를) 설정하십시오. 두 모드는 상호 배타적입니다: 동일한 릴리스에서 `oracle.endpoint` 및 `oracleMulti.enabled: true`을(를) 설정하지 마십시오. 릴리스의 모든 인스턴스는 동일한 `oracleMulti.topology` (`cdb`, `pdb`, `rds` 또는 `adb`)을(를) 공유해야 합니다: 토폴로지 혼합(예: RDS 인스턴스와 자체 호스팅 CDB)은 단일 릴리스에서 지원되지 않습니다, 대신 각 토폴로지에 대해 별도의 릴리스를 사용하십시오.
+
+    다중 인스턴스 모드에는 일반 사용자 이름/비밀번호 경로가 없습니다: 모든 인스턴스에는 모니터링 자격 증명이 있는 자체 Kubernetes 시크릿이 필요합니다. 설정 작업에서 각 모니터링 사용자를 생성하도록 할지 여부도 결정하십시오:
+
+    <CollapserGroup>
+      <Collapser id="helm-multi-nojob" title="설정 작업 없음">
+        설치하기 전에 각 인스턴스의 모니터링-사용자 시크릿을 직접 생성하십시오(`values.yaml`에서 지정한 `name`과(와) 일치하도록 인스턴스별로 반복):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secret you created for it.
+        oracleMulti:
+          enabled: true
+          topology: <cdb|pdb|rds|adb>
+          collectionInterval: 15s
+          databases:
+            - name: db1
+              endpoint: <YOUR_DB_1_HOST>:<YOUR_DB_1_PORT>
+              service: <YOUR_DB_1_SERVICE_NAME>
+              existingSecret: db1-monitor-creds
+            - name: db2
+              endpoint: <YOUR_DB_2_HOST>:<YOUR_DB_2_PORT>
+              service: <YOUR_DB_2_SERVICE_NAME>
+              existingSecret: db2-monitor-creds
+
+        # No admin credential is configured here since the setup
+        # job is disabled - create each instance's monitoring user
+        # yourself first.
+        setupJob:
+          enabled: false
+        ```
+      </Collapser>
+
+      <Collapser id="helm-multi-setupjob" title="자동화된 설정 작업">
+        각 인스턴스에는 자체 모니터링 사용자 시크릿과 자체 관리자 자격 증명 시크릿이 모두 필요합니다(인스턴스당 반복):
+
+        ```bash
+        kubectl create secret generic db1-monitor-creds \
+          --from-literal=username=<MONITORING_USERNAME> \
+          --from-literal=password='<MONITORING_PASSWORD>' \
+          -n newrelic
+        kubectl create secret generic db1-admin-creds \
+          --from-literal=username=<ADMIN_USERNAME> \
+          --from-literal=password='<ADMIN_PASSWORD>' \
+          -n newrelic
+        # Repeat for every instance (db2-monitor-creds, db2-admin-creds, ...)
+        ```
+
+        ```yaml
+        licenseKey: <YOUR_LICENSE_KEY>
+        otlpEndpoint: otlp.nr-data.net:4317
+
+        # EDIT the two example entries below (or add more) to match
+        # your real instances - each `name` must be unique within
+        # this release and match the Secrets you created for it.
+        oracleMulti:
+          enabled: true
+          topology: <cdb|pdb|rds|adb>
+          collectionInterval: 15s
+          databases:
+            - name: db1
+              endpoint: <YOUR_DB_1_HOST>:<YOUR_DB_1_PORT>
+              service: <YOUR_DB_1_SERVICE_NAME>
+              existingSecret: db1-monitor-creds
+              oracleAdmin:
+                existingSecret: db1-admin-creds
+            - name: db2
+              endpoint: <YOUR_DB_2_HOST>:<YOUR_DB_2_PORT>
+              service: <YOUR_DB_2_SERVICE_NAME>
+              existingSecret: db2-monitor-creds
+              oracleAdmin:
+                existingSecret: db2-admin-creds
+
+        setupJob:
+          enabled: true
+          image:
+            repository: ""
+            tag: ""
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            매개변수
+          </th>
+
+          <th>
+            설명
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `oracleMulti.enabled`
+          </td>
+
+          <td>
+            `oracle.*`
+
+             대신 하나의 릴리스에서 여러 인스턴스를 모니터하려면 
+
+            `true`
+
+             (으)로 설정하십시오. 기본값은 
+
+            `false`
+
+            입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracleMulti.topology`
+          </td>
+
+          <td>
+            `cdb`
+
+            , 
+
+            `pdb`
+
+            , 
+
+            `rds`
+
+             또는 
+
+            `adb`
+
+             (
+
+            `oracle.topology`
+
+            와(과) 동일한 의미)이며, 이 릴리스의 모든 인스턴스에서 공유됩니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracleMulti.collectionInterval`
+          </td>
+
+          <td>
+            모든 항목에 대한 기본 스크랩 간격입니다. 기본값은 
+
+            `15s`
+
+            입니다. 해당 항목 고유의 
+
+            `collectionInterval`
+
+            을(를) 사용하여 특정 인스턴스에 대해 이를 재정의하십시오.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `oracleMulti.databases`
+          </td>
+
+          <td>
+            모니터할 인스턴스 목록입니다. 각 항목에는 고유한 
+
+            `name`
+
+            , 
+
+            `endpoint`
+
+             (
+
+            `host:port`
+
+            ), 
+
+            `service`
+
+             및 
+
+            `existingSecret`
+
+            이(가) 필요하며, 
+
+            `setupJob.enabled`
+
+            이(가) 
+
+            `true`
+
+            인 경우에만 항목당 
+
+            `oracleAdmin.existingSecret`
+
+            을(를) 추가하십시오.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      다른 NRDOT Helm 차트와 달리, 오라클에서는 인스턴스당 `collectionInterval`을(를) 재정의할 수 있습니다. 다른 모든 스크랩 설정은 여전히 모든 인스턴스에 동일하게 적용됩니다. 달라야 하는 다른 모든 항목에는 `additionalReceiverConfig`을(를) 사용하십시오. 설정 작업은 릴리스당 한 번이 아니라 인스턴스(`<release>-setup-<name>`)당 한 번 실행됩니다.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Helm 차트를 설치하세요 [#install]
+
+    1. 뉴클릭 Helm 다음을 추가하세요.
+
+       ```bash
+       helm repo add newrelic https://helm-charts.newrelic.com
+       helm repo update
+       ```
+
+    2. `values.yaml` 파일을 사용하여 차트를 설치하십시오:
+
+       ```bash
+       helm upgrade --install oracle-otel newrelic/oracle-otel \
+         -n newrelic \
+         --create-namespace \
+         -f values.yaml
+       ```
+  </Step>
+
+  <Step>
+    ## 설치를 확인하십시오 [#verify]
+
+    1. 설정 작업이 완료되었고 수집기 파드가 실행 중인지 확인하십시오:
+
+       ```bash
+       kubectl get jobs,pods -n newrelic --watch
+       ```
+
+    2. 데이터가 수신되는지 확인하려면 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)에서 이 쿼리를 실행하십시오:
+
+       ```sql
+       SELECT count(*) FROM Metric
+       WHERE metricName LIKE 'oracledb.%'
+       AND instrumentation.provider = 'opentelemetry'
+       SINCE 10 minutes ago
+       ```
+  </Step>
+</Steps>
+
+뉴렐릭에서 오라클 데이터베이스 엔티티를 찾으려면 [데이터 찾기 및 사용](/docs/opentelemetry/db360/oracle/introduction/#find)을 참조하십시오.

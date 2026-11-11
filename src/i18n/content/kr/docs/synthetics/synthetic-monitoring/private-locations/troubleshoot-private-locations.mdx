@@ -81,6 +81,70 @@ Synthetics 작업 관리자당 권장 메모리 할당:
   WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES MAX
   ```
 
+## Podman의 공유 메모리 크기 조정으로 인해 브라우저 모니터가 충돌합니다. [#shm]
+
+Podman 기반 프라이빗 로케이션에서 실행되는 브라우저 모니터는 다음과 같은 오류가 발생하며 간헐적으로 실패할 수 있습니다:
+
+```log
+NoSuchSessionError: invalid session id: session deleted as the browser has closed the connection, disconnected: Unable to receive message from renderer
+```
+
+이는 스크립트나 네트워크 문제가 아니라, 일반적으로 공유 메모리(`/dev/shm`) 부족으로 인해 발생하는 Chrome 렌더러 프로세스 충돌입니다. Chrome은 렌더링 시 공유 메모리에 크게 의존하며 Firefox보다 이를 더 빨리 소모하는 경향이 있습니다. 특히 로그인 흐름 중에 출처 간에 리디렉션되는 페이지에서 더욱 그렇습니다 ― 각각의 새로운 출처는 동일한 `/dev/shm` 풀에서 가져오는 추가 렌더러 프로세스를 가동합니다.
+
+### Podman 파드가 공유 메모리를 할당하는 방법
+
+신세틱스 작업 관리자가 `--pod`과(와) 함께 Podman에서 실행될 때, 해당 파드에 연결된 모든 컨테이너는 단일 IPC 네임스페이스를 공유합니다. 파드 자체는 파드를 생성할 때 지정한 크기(기본값 64 MiB)로 `/dev/shm`을(를) 한 번 마운트합니다. 해당 크기는 `podman pod create` 시점에 설정하며, 이후 개별 컨테이너가 이를 변경하거나 재정의할 수 없습니다.
+
+이는 파드의 `/dev/shm` 마운트가 컨테이너별 설정보다 우선하기 때문에 컨테이너가 파드에 추가된 후에는 공유 메모리 문제를 해결하기 위한 다음과 같은 일반적인 시도가 **작동하지 않음**을 의미합니다:
+
+* 대신 `podman run`에 `--shm-size`을(를) 전달합니다 `podman pod create`
+* `-v /dev/shm:/dev/shm`을(를) 사용한 바인드 마운트 `podman run`
+
+### 진단
+
+변경 사항을 적용하기 전에 다음 검사를 실행하여 원인을 확인하십시오:
+
+1. 파드의 create 명령어에서 `--shm-size` 값을 확인하십시오:
+
+   ```shell
+   podman pod inspect YOUR_POD_NAME --format '{{.CreateCommand}}'
+   ```
+
+   이것은 파드를 생성한 정확한 `podman pod create` 명령을 출력합니다. 해당 출력에서 `--shm-size`을(를) 찾으십시오. 누락된 경우, 설정하려던 값과 관계없이 파드가 64 MiB 기본값으로 실행 중입니다 — 이는 파드를 다시 생성하기 전에 동일한 이름의 이전 파드를 완전히 제거하지 않았거나, 그 후에 파드 내의 컨테이너를 다시 시작하지 않은 경우에 발생할 수 있습니다.
+
+2. 브라우저 런타임 컨테이너의 ID를 찾습니다:
+
+   ```shell
+   podman ps --filter pod=YOUR_POD_NAME --filter ancestor=newrelic/synthetics-node-browser-runtime --format '{{.ID}}'
+   ```
+
+   다음 단계에서 이 ID를 `YOUR_BROWSER_RUNTIME_CONTAINER_ID` (으)로 사용하십시오.
+
+3. 이상적으로는 실패한 실행 중 또는 직전에 캡처된, 해당 컨테이너 내에서 실제로 사용 가능한 공유 메모리를 확인하십시오:
+
+   ```shell
+   podman exec YOUR_BROWSER_RUNTIME_CONTAINER_ID df -h /dev/shm
+   ```
+
+   출력을 구성한 크기와 비교하십시오:
+
+   * `Size`이(가) 여전히 `64M`을(를) 표시하는 경우, 크기 조정이 적용되지 않은 것입니다 — 다음 섹션에 설명된 대로 파드를 다시 생성하십시오.
+   * `Size`에 구성된 값(예: `--shm-size=2g`로 생성된 파드의 경우 `2.0G`)이 표시되면 `Used` 및 `Avail` 열을 확인하십시오. `Avail`가 0에 가까우면 풀이 고갈된 것입니다 ― 파드의 모든 컨테이너는 이 동일한 공유 할당에서 가져오므로, 동일한 프라이빗 로케이션에서 여러 모니터가 동시에 실행되는 경우 `--shm-size` 크기를 더 크게 하거나 한 번에 실행되는 수를 줄이십시오. `Avail`에 여전히 여유가 있다면 풀이 이 특정 충돌의 원인이 아니므로 다른 곳(예: `HEAVY_WORKER_MEMORY`)을 살펴보아야 합니다.
+
+### 고치다
+
+기존 파드를 제거하고 더 큰 `--shm-size`(으)로 다시 생성한 다음, 신세틱스 작업 관리자를 다시 시작하여 새 파드에 다시 연결되도록 하십시오:
+
+```shell
+podman pod stop YOUR_POD_NAME
+podman pod rm YOUR_POD_NAME
+podman pod create --network slirp4netns --name YOUR_POD_NAME --add-host=podman.service:HOST_IP_ADDRESS --shm-size=2g
+```
+
+설치 문서에서 사용하는 값인 `2g`부터 시작하십시오. 3단계의 확인 결과 풀이 여전히 고갈된 것으로 나타나면, 동시성을 줄이기 전에 값을 더 늘리고(예: `4g`로) 각 변경 후에 `df -h /dev/shm`을(를) 다시 확인하십시오.
+
+그런 다음 [Podman 시작 절차](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#podman-update)의 `podman run` 명령을 사용하여 신세틱스 작업 관리자를 다시 시작합니다 ― 파드를 제거하면 해당 파드에서 실행 중이던 컨테이너도 제거됩니다.
+
 ## CPU 사용 문제 해결 [#cpu-usage]
 
 CPU 수요가 높은 잠재적 기간 식별:

@@ -1,0 +1,242 @@
+---
+title: Correlate APM with Elasticsearch using distributed tracing
+tags:
+  - OpenTelemetry
+  - Elasticsearch
+  - Integrations
+  - Distributed tracing
+  - APM
+metaDescription: "Set up distributed tracing to automatically correlate your APM applications with the Elasticsearch cluster they call, with no per-application changes."
+freshnessValidatedDate: never
+---
+
+By default, New Relic monitors your APM application and your Elasticsearch cluster as two separate, unconnected items: Nothing shows you that the app actually calls that cluster.
+
+This page closes that gap using Elasticsearch's native OpenTelemetry distributed tracing. Elasticsearch exports its own trace spans through the same OpenTelemetry collector (NRDOT or OTel Collector Contrib) you already use for metrics, with no per-application changes. The result: a slow transaction leads you straight to the cluster that served it.
+
+Under the hood, your application and Elasticsearch each contribute their part of the same request to a single, shared trace. New Relic recognizes that both sides belong together and builds the service-to-cluster relationship for you automatically.
+
+<Callout variant="tip">
+Distributed tracing is one of two ways to correlate APM with Elasticsearch. It gives you full request-level detail, but the extra trace data adds to your ingest volume. If you only need the cluster to show up as a related entity, you can tag your APM application's telemetry with your cluster's name instead — this works on any Elasticsearch version, but skips the end-to-end trace detail.
+</Callout>
+
+## Compatible instrumentation [#compatibility]
+
+This correlation works with any application that supports W3C Trace Context propagation, including:
+
+* OpenTelemetry SDK instrumented applications (any language)
+* OpenTelemetry auto-instrumentation (Java, .NET, Python, Node.js)
+* New Relic APM agents (Go, Java, .NET, Node.js, Python, Ruby, PHP) with [distributed tracing](/docs/distributed-tracing/concepts/quick-start/) enabled
+
+You can mix instrumentation approaches. For example, a Java service using a New Relic APM agent and a Python service using the OpenTelemetry SDK can both call the same Elasticsearch cluster, and each appears correctly linked to it in New Relic.
+
+## You need [#you-need]
+
+Before you begin, make sure you have:
+
+* A valid New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* Elasticsearch 9.4 or later, since native OTLP trace export requires this version
+* An OpenTelemetry collector (OTel Collector Contrib or NRDOT) already running and reachable from your Elasticsearch nodes. If you haven't installed one yet, follow the [self-hosted installation](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-install) or [Kubernetes installation](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install).
+* Instrumented applications sending requests to Elasticsearch, using any of the compatible instrumentation approaches listed above, with [distributed tracing enabled](/docs/distributed-tracing/concepts/quick-start/)
+* Network access from the collector to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+## Configure distributed tracing [#configuration]
+
+Configuration has two parts: turn on tracing in Elasticsearch, and add a traces pipeline to your collector.
+
+Once you turn on tracing, Elasticsearch emits its own OpenTelemetry spans, joins your application's trace through the `traceparent` header, and stamps `es.cluster.name` on each one. New Relic uses that shared trace to wire up the relationship automatically.
+
+Expand the section that matches your deployment.
+
+<CollapserGroup>
+  <Collapser
+    id="host"
+    title="Self-hosted"
+  >
+
+<Steps>
+
+<Step>
+
+### Turn on tracing in Elasticsearch [#es-enable-tracing]
+
+Add the following to `elasticsearch.yml` on every node. Then set `-Dtelemetry.otel.traces.enabled=true` (via `ES_JAVA_OPTS` or `jvm.options`) and restart each node:
+
+```yaml
+telemetry.tracing.enabled: true
+telemetry.export.endpoint: http://YOUR_COLLECTOR_HOST:4317   # localhost if the collector runs on this node
+telemetry.tracing.sample_rate: 1.0                           # default 0.001; lower for high volume
+```
+
+</Step>
+
+<Step>
+
+### Add a traces pipeline to your collector [#collector-traces]
+
+Now configure the collector to receive the traces Elasticsearch sends, and to filter out spans that would otherwise make the cluster appear to call itself. Add the `otlp` receiver and the `filter/drop_rootless_es` and `transform/strip_es_host` processors to a `traces` pipeline:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  # Drop Elasticsearch's own parentless spans (health checks, metrics-scrape calls) so the cluster isn't linked to itself
+  filter/drop_rootless_es:
+    error_mode: ignore
+    traces:
+      span:
+        - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+  # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+  transform/strip_es_host:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+          - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+      exporters: [otlphttp]
+```
+
+</Step>
+
+<Step>
+
+### Restart the collector [#restart-collector]
+
+Replace `<collector-service>` with your collector's service name (for example, `nrdot-collector` or `otelcol-contrib`):
+
+```bash
+sudo systemctl restart <collector-service>
+```
+
+</Step>
+
+<Step>
+
+### Verify spans are arriving [#verify-correlation]
+
+Confirm Elasticsearch is sending traces tagged with your cluster name:
+
+```sql
+FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+```
+
+The `SINCE` clause sets how far back the query looks. Adjust it to fit your situation — for example, `SINCE 2 hours ago` if you enabled tracing earlier and want to check a longer window.
+
+</Step>
+
+</Steps>
+
+  </Collapser>
+
+  <Collapser
+    id="k8s"
+    title="Kubernetes"
+  >
+
+<Steps>
+
+<Step>
+
+### Turn on tracing in the Elasticsearch pods [#es-enable-tracing-k8s]
+
+Add the following to `elasticsearch.yml` (ConfigMap, Helm values, or ECK `nodeSets`). Then set `-Dtelemetry.otel.traces.enabled=true` via `ES_JAVA_OPTS` and roll out the pods:
+
+```yaml
+telemetry.tracing.enabled: true
+telemetry.export.endpoint: http://YOUR_COLLECTOR_SVC.YOUR_NAMESPACE.svc.cluster.local:4317
+telemetry.tracing.sample_rate: 1.0   # default 0.001; lower for high volume
+```
+
+</Step>
+
+<Step>
+
+### Add a traces pipeline to your collector [#collector-traces-k8s]
+
+Now configure the collector to receive the traces Elasticsearch sends, and to filter out spans that would otherwise make the cluster appear to call itself. Add the `otlp` receiver and the `filter/drop_rootless_es` and `transform/strip_es_host` processors to a `traces` pipeline in your collector config. Make sure the collector exposes gRPC port `4317`:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  # Drop Elasticsearch's own parentless spans (health probes, metrics-scrape calls) so the cluster isn't linked to itself
+  filter/drop_rootless_es:
+    error_mode: ignore
+    traces:
+      span:
+        - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+  # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+  transform/strip_es_host:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+          - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+      exporters: [otlphttp]
+```
+
+</Step>
+
+<Step>
+
+### Redeploy the collector [#redeploy-collector]
+
+Apply the updated config, then roll out the collector pods so they pick it up. Use the same ConfigMap file, `Deployment` name, and namespace you used when you [installed the collector](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install) — for example, `nr-k8s-otel-collector-deployment` if you followed the manifest-based installation:
+
+```bash
+kubectl apply -f <your-collector-config>.yaml -n <namespace>
+kubectl rollout restart deployment/<collector-deployment> -n <namespace>
+```
+
+If you deployed the collector with Helm, re-run `helm upgrade` with your updated values instead of `kubectl apply`.
+
+</Step>
+
+<Step>
+
+### Verify spans are arriving [#verify-correlation-k8s]
+
+Confirm Elasticsearch is sending traces tagged with your cluster name:
+
+```sql
+FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+```
+
+The `SINCE` clause sets how far back the query looks. Adjust it to fit your situation — for example, `SINCE 2 hours ago` if you enabled tracing earlier and want to check a longer window.
+
+</Step>
+
+</Steps>
+
+  </Collapser>
+</CollapserGroup>
+
+## View your traces [#view-traces]
+
+Once spans are flowing, you can query them and inspect the correlated service map. See [View distributed traces and APM correlation](/docs/opentelemetry/integrations/elasticsearch/find-and-query-data/#traces-correlation) for query examples and where to find the service map in New Relic.
+
+## Troubleshooting [#troubleshooting]
+
+If you don't see spans, if the cluster shows a relationship to itself, or if applications aren't linking to the cluster, see the [APM correlation and distributed tracing section](/docs/opentelemetry/integrations/elasticsearch/troubleshooting/#correlation-troubleshooting) of the troubleshooting guide.

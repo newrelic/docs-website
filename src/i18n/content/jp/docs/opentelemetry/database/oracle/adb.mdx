@@ -1,0 +1,388 @@
+---
+title: ADB監視のためのNRDOT Collectorのインストールと設定
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - ADB
+  - Autonomous Database
+metaDescription: Set up Oracle Autonomous Database monitoring using NRDOT Collector
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Oracle-Database-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/database/oracle/introduction
+  next: null
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/)に従ってプレビューの一部として提供されています。
+</Callout>
+
+New Relic Distribution of OpenTelemetry（NRDOT）コレクターを使用したデータベース監視、クエリ分析、およびシステムヘルスメトリクスにより、Oracle Autonomous Database（ADB）のパフォーマンスに関する包括的なインサイトを取得します。
+
+<Callout variant="tip" title="ガイド付きインストレーション">
+  代わりにNew Relic UIからインストールするには、<DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Integrations &amp; Agents &gt; Oracle (OpenTelemetry)** </DNT>にアクセスしてください。このページでは、CLIでのインストール手順のみを説明します。
+</Callout>
+
+## 前提条件 [#prerequisites]
+
+始める前に、次のものがあることを確認してください。
+
+* 有効なNew Relic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* サポートされているアーキテクチャー: AMD64 および ARM64 を搭載した Linux
+* [New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのネットワーク接続
+* Oracleデータベース `19c` 以降
+
+### プレビューに登録 [#enroll]
+
+このインテグレーションは、New Relicパブリックプレビュープログラムの一部として利用可能です。[Previews &amp; Trials](https://one.newrelic.com/admin-portal/promotion-management/home)ページからオプトインするには、組織の管理者に連絡してください。
+
+<Steps>
+  <Step>
+    ## NRDOT Collectorをインストールする [#installation]
+
+    Linux 環境に適したインストレーション配布方法を選択します。
+
+    <CollapserGroup>
+      <Collapser title="AMD64向けアーキテクチャー" id="amd">
+        * Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+          ```
+
+        * RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+          ```
+      </Collapser>
+
+      <Collapser title="ARM64用アーキテクチャー" id="arm">
+        * Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+          ```
+
+        * RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+          ```bash
+          NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_aarch64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+          ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## データベースユーザーを構成する [#database-user]
+
+    ADB Oracleデータベースインスタンスに必要な権限を持つ監視ユーザーを作成します。ターゲットADB内でSYSとして以下のステートメントを実行し、ローカル監視ユーザーを作成します：
+
+    ```sql
+    CREATE USER <USER_NAME> IDENTIFIED BY "<YOUR_PASSWORD>";
+    GRANT CREATE SESSION TO <USER_NAME>;
+    ```
+  </Step>
+
+  <Step>
+    ## Autonomous Databaseの監視権限の付与 [#grant-privileges]
+
+    ADB内でadminとしてこれらのコマンドを実行します。これにより、監視ツールがメトリクスを収集し、イベントを追跡し、データベースインスタンスを見つけるために必要な基本的なアクセス権が付与されます。
+
+    ```sql
+    GRANT SELECT ON SYS.V_$INSTANCE   TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$DATABASE   TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$CONTAINERS TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$DATAFILE   TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$PDBS       TO <USER_NAME>; 
+    GRANT SELECT ON SYS.V_$SYSSTAT                    TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$SYSMETRIC                  TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$SESSION                    TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$RESOURCE_LIMIT             TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$OSSTAT                     TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$SGAINFO                    TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$ROWCACHE                   TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$PARAMETER                  TO <USER_NAME>;
+    GRANT SELECT ON SYS.DBA_TABLESPACE_USAGE_METRICS  TO <USER_NAME>;
+    GRANT SELECT ON SYS.DBA_TABLESPACES               TO <USER_NAME>;
+    GRANT SELECT ON SYS.DBA_DATA_FILES                TO <USER_NAME>;
+    GRANT SELECT ON SYS.DBA_FREE_SPACE                TO <USER_NAME>;
+    GRANT SELECT ON SYS.DBA_RECYCLEBIN                TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$SQL            TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$SQL_PLAN_STATISTICS_ALL       TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$LOCK           TO <USER_NAME>;
+    GRANT SELECT ON SYS.V_$SESSION_EVENT  TO <USER_NAME>;
+    GRANT SELECT ON SYS.DBA_PROCEDURES    TO <USER_NAME>;
+    GRANT SELECT ON SYS.DBA_OBJECTS       TO <USER_NAME>;
+    ```
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorを構成する [#configure-collector]
+
+    ADB固有の設定でNRDOT Collectorを設定します。以下の内容で設定ファイル（例：`adb-config.yaml`）を作成します：
+
+    <OtelConfig
+      inputOptions={[{"name":"username","label":"データベースユーザー名","codeLine":3,"defaultValue":"newrelic","toolTip":"認証用のデータベースユーザー名を入力してください"},{"name":"password","label":"データベースパスワード","codeLine":3,"defaultValue":"YOUR_PASSWORD","toolTip":"監視ユーザーに設定したパスワードを入力してください。"},{"name":"host","label":"Oracle ADBホスト名","codeLine":3,"defaultValue":"adb.example.oraclecloud.com","toolTip":"Oracle Autonomous データベースのホスト名を入力してください"},{"name":"port","label":"Oracle ADBポート","codeLine":3,"defaultValue":"1522","toolTip":"Oracle Autonomous データベースのポート番号を入力してください。"},{"name":"service","label":"サービス名","codeLine":3,"defaultValue":"YOUR_SERVICE_NAME","toolTip":"Oracle ADBサービス名を入力してください"},{"name":"endpoint","label":"New Relic OTLPエンドポイント","codeLine":134,"defaultValue":"https://otlp.nr-data.net:4318","toolTip":"New Relic OTLPエンドポイントを入力します。詳細については、https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/ を参照してください。"},{"name":"licenseKey","label":"New Relicライセンスキー","codeLine":136,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"New Relicライセンスキーを入力してください。"}]}
+      config={`receivers:
+      nroracledb/adb:
+      datasource: "oracle://<input1>:<input2>@<input3>:<input4>/<input5>?ssl=true&ssl%20verify=true"
+      collection_interval: 10s
+      events:
+       db.server.query_sample:
+         enabled: true
+       db.server.top_query:
+         enabled: true
+       db.server.session.wait_sample:
+         enabled: true
+
+      top_query_collection:
+       max_query_sample_count: 1000
+       top_query_count: 200
+       collection_interval: 60s
+       allowed_comment_keys:
+         - nr_service_guid
+
+      query_sample_collection:
+       max_rows_per_query: 100
+       allowed_comment_keys:
+         - nr_service_guid
+
+      session_wait_event_collection:
+       max_rows_per_query: 100
+
+      metrics:
+       oracledb.cpu_time:
+         enabled: true
+       oracledb.executions:
+         enabled: true
+       oracledb.parse_calls:
+         enabled: true
+       oracledb.hard_parses:
+         enabled: true
+       oracledb.logical_reads:
+         enabled: true
+       oracledb.physical_reads:
+         enabled: true
+       oracledb.physical_reads_direct:
+         enabled: true
+       oracledb.physical_writes:
+         enabled: true
+       oracledb.physical_writes_direct:
+         enabled: true
+       oracledb.physical_read_io_requests:
+         enabled: true
+       oracledb.physical_write_io_requests:
+         enabled: true
+       oracledb.physical_io.cache_writes:
+         enabled: true
+       oracledb.physical_io.requests:
+         enabled: true
+         attributes:
+           - disk.io.direction
+           - disk.io.block_size
+       oracledb.physical_io.transferred:
+         enabled: true
+         attributes:
+           - disk.io.direction
+           - disk.io.type
+       oracledb.sqlnet.io.transferred:
+         enabled: true
+         attributes:
+           - network.io.direction
+           - destination.type
+       oracledb.consistent_gets:
+         enabled: true
+       oracledb.db_block_gets:
+         enabled: true
+       oracledb.data_dictionary.hit_ratio:
+         enabled: true
+       oracledb.pga_memory:
+         enabled: true
+       oracledb.enqueue_deadlocks:
+         enabled: true
+       oracledb.exchange_deadlocks:
+         enabled: true
+       oracledb.sessions.usage:
+         enabled: true
+         attributes:
+           - session_type
+           - session_status
+       oracledb.logons:
+         enabled: true
+       oracledb.user_commits:
+         enabled: true
+       oracledb.user_rollbacks:
+         enabled: true
+       oracledb.tablespace_size.limit:
+         enabled: true
+         attributes:
+           - tablespace_name
+       oracledb.tablespace_size.usage:
+         enabled: true
+         attributes:
+           - tablespace_name
+       oracledb.storage.usage:
+         enabled: true
+       oracledb.storage.utilization:
+         enabled: true
+       oracledb.recycle_bin.limit:
+         enabled: true
+       oracledb.queries_parallelized:
+         enabled: true
+       oracledb.ddl_statements_parallelized:
+         enabled: true
+       oracledb.dml_statements_parallelized:
+         enabled: true
+       oracledb.parallel_operations_not_downgraded:
+         enabled: true
+       oracledb.parallel_operations_downgraded_1_to_25_pct:
+         enabled: true
+       oracledb.parallel_operations_downgraded_25_to_50_pct:
+         enabled: true
+       oracledb.parallel_operations_downgraded_50_to_75_pct:
+         enabled: true
+       oracledb.parallel_operations_downgraded_75_to_99_pct:
+         enabled: true
+       oracledb.parallel_operations_downgraded_to_serial:
+         enabled: true
+
+      processors:
+      batch:
+      resource/add_event_name:
+      attributes:
+       - key: host.address
+         value: YOUR_DB_HOST
+         action: upsert
+
+      exporters:
+      otlphttp/newrelic:
+      endpoint: <input6>
+      headers:
+       api-key: <input7>
+      compression: gzip
+      retry_on_failure:
+       enabled: true
+       initial_interval: 5s
+       max_interval: 30s
+       max_elapsed_time: 300s
+
+      service:
+      telemetry:
+      metrics:
+       level: none
+      pipelines:
+      metrics/oracledb:
+       receivers: [nroracledb/adb]
+       processors: [resource/add_event_name, batch]
+       exporters: [otlphttp/newrelic]
+      logs/oracledb:
+       receivers: [nroracledb/adb]
+       processors: [resource/add_event_name, batch]
+       exporters: [otlphttp/newrelic]`}
+      fileName="adb-config.yaml"
+      tipMdx={{ body: null }}
+      onChange={() => {}}
+    />
+
+    <CollapserGroup>
+      <Collapser title="サポートされていないADBメトリクス" id="unsupported">
+        次のメトリクスは、**ADBではサポートされていません**：
+
+        * `oracledb.database.cpu.utilization`
+        * `oracledb.database.wait.utilization`
+        * `oracledb.host.cpu.utilization`
+        * `oracledb.execution.utilization`
+        * `oracledb.parse.rate`
+        * `oracledb.parse.utilization`
+        * `oracledb.sort.ratio`
+        * `oracledb.sql_service.response.duration`
+        * `oracledb.buffer_cache.utilization`
+        * `oracledb.library_cache.utilization`
+        * `oracledb.shared_pool.utilization`
+        * `oracledb.redo_allocation.utilization`
+        * `oracledb.processes.limit`
+        * `oracledb.processes.usage`
+        * `oracledb.sessions.limit`
+        * `oracledb.transactions.limit`
+        * `oracledb.transactions.usage`
+        * `oracledb.dml_locks.limit`
+        * `oracledb.dml_locks.usage`
+        * `oracledb.enqueue_locks.limit`
+        * `oracledb.enqueue_locks.usage`
+        * `oracledb.enqueue_resources.limit`
+        * `oracledb.enqueue_resources.usage`
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="tip">
+      もできます。
+
+      * [複数のレシーバーを構成する](/docs/opentelemetry/database/oracle/multi-receiver)：1つのコレクターから複数のOracleデータベースインスタンスをモニターします。
+      * [SQL Query Receiverの設定](/docs/opentelemetry/database/capabilities/sql-query-receiver/): Oracleデータベースからカスタムメトリックを収集します。
+      * [OracleデータベースをAPMとリンクする](/docs/opentelemetry/database/capabilities/db-apm)：アプリケーションパフォーマンスとデータベース操作を関連付けます。これにより、どのアプリケーションが特定のデータベースワークロードを生成しているかを正確に確認できます。
+      * [シークレット管理の設定](/docs/opentelemetry/database/capabilities/db-apm/#secret-management): データベースの認証情報などの機密情報を安全に管理するためです。これにより、設定ファイルに機密データをハードコーディングすることを回避し、監視設定のセキュリティを強化できます。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## NRDOT Collectorを再起動します [#restart-collector]
+
+    コレクターを設定した後、NRDOT Collectorサービスを再起動して変更を適用します：
+
+    ```bash
+    sudo systemctl restart nrdot-collector
+    ```
+
+    コレクターが正常に実行されていることを確認するには、サービスステータスを確認します：
+
+    ```bash
+    sudo systemctl status nrdot-collector
+    ```
+
+    <Callout variant="tip">
+      新しい設定を確実に適用するために、設定を変更した後は常にNRDOT Collectorを再起動してください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ## データを探す、使う [#find-use-data]
+
+    Oracle ADBインテグレーションを設定した後、New Relicでデータベースのパフォーマンスの監視と分析を開始できます：
+
+    1. **[one.newrelic.com](https://one.newrelic.com) &gt; All Entities**に移動します。
+    2. **Oracle**でフィルタリングして、データベースエンティティを見つけます。
+    3. Oracle ADBエンティティを選択して、ダッシュボード、メトリクス、およびログを表示します。
+
+    Oracleデータベースの監視について詳しくは、[データベース監視のドキュメント](/docs/database-monitoring/oracle-monitoring/)を参照してください。
+  </Step>
+</Steps>
+
+## 関連記事 [#related-articles]
+
+<DocTiles>
+  <DocTile title="トラブルシューティング" path="/docs/opentelemetry/database/oracle/troubleshooting">
+    New RelicでOracle ADB監視設定をトラブルシューティングする方法を学びます。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/database/oracle/metrics-reference">
+    NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+  </DocTile>
+
+  <DocTile title="RDS計装" path="/docs/opentelemetry/database/oracle/rds">
+    New RelicでRDS監視用にOracleデータベースを設定する方法を学びます。
+  </DocTile>
+</DocTiles>

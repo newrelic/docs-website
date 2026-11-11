@@ -1,0 +1,107 @@
+---
+title: Habilitar insights detalhados
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Optional configuration
+metaDescription: Optional configuration options for deeper insights into PostgreSQL monitoring with the NRDOT Collector
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+translationType: machine
+---
+
+Você pode configurar as seguintes opções para obter insights mais profundos sobre suas instâncias do PostgreSQL:
+
+* [Habilitar TLS](#tls)
+* [Planos de consulta para instruções de gravação](#query)
+
+## Habilitar TLS [#tls]
+
+O campo `tls` é opcional, mas omiti-lo não é o mesmo que desativar o TLS explicitamente: a configuração padrão do receptor já define `insecure: false` e `insecure_skip_verify: true`, portanto, as conexões são criptografadas (`sslmode=require`), mas o certificado do servidor não é verificado, a menos que você defina `insecure_skip_verify: false` e forneça um `ca_file`. A maioria das instâncias do Amazon RDS e do Aurora exige SSL/TLS, portanto, você normalmente desejará adicionar essa verificação para esses ambientes.
+
+```yaml
+receivers:
+  nrpostgresql:
+    endpoint: <YOUR_HOST>:<YOUR_PORT>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    collection_interval: 30s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+      ca_file: <PATH_TO_CA_CERTIFICATE>
+      cert_file: <PATH_TO_CLIENT_CERTIFICATE>
+      key_file: <PATH_TO_CLIENT_KEY>
+```
+
+<Callout variant="tip">
+  `cert_file`/`key_file` são necessários apenas se o seu servidor PostgreSQL exigir TLS mútuo (autenticação de certificado de cliente); a maioria das configurações precisa apenas de `ca_file` para verificar o servidor. Para o Amazon RDS/Aurora, baixe o [pacote de certificados de CA do RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html) apropriado e referencie-o em `ca_file`. Deixe `insecure_skip_verify: true` (o padrão) apenas para testes em instâncias com certificados autoassinados, nunca em produção.
+</Callout>
+
+## Planos de consulta para instruções de gravação [#query]
+
+Por padrão, `EXPLAIN` é executado diretamente como o usuário de monitoramento, e o PostgreSQL verifica os privilégios de tabela em tempo de planejamento. Isso significa que instruções de bloqueio de linha ou de gravação falham com `permission denied`, a menos que o usuário de monitoramento tenha acesso de gravação, o que ele nunca deve ter.
+
+Para coletar planos de consulta para instruções de bloqueio ou gravação sem conceder acesso de gravação ao usuário de monitoramento, deve-se criar a seguinte função em cada banco de dados:
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+### Mecânica de coleta do plano de execução [#mechanics]
+
+* **Limitação de taxa:** `top_query_collection.max_explain_each_interval` (padrão `1000`) limita o número de chamadas de `EXPLAIN` por coleta.
+* **Cache:** `query_plan_cache_size` / `query_plan_cache_ttl` (padrão `1000` entradas / `1h`) armazena um plano em cache uma vez obtido, identificado pelo ID da consulta.
+
+## Documentação relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Instrumentação em ambientes auto-hospedados" path="/docs/opentelemetry/db360/postgresql/hosted">
+    Saiba como configurar o monitoramento do PostgreSQL em ambientes auto-hospedados com o New Relic.
+  </DocTile>
+
+  <DocTile title="Referência de métricas" path="/docs/opentelemetry/db360/postgresql/metrics-reference">
+    Saiba mais sobre as métricas disponíveis coletadas pelo NRDOT Collector.
+  </DocTile>
+
+  <DocTile title="Guia de solução de problemas" path="/docs/opentelemetry/db360/postgresql/troubleshooting">
+    Saiba como solucionar problemas comuns com o monitoramento do PostgreSQL.
+  </DocTile>
+</DocTiles>
