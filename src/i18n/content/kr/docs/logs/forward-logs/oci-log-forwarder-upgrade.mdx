@@ -1,0 +1,188 @@
+---
+title: OCI 로그 포워딩 통합을 업그레이드하십시오.
+tags:
+  - Logs
+  - Forward logs
+  - Oracle Cloud integrations
+  - OCI
+  - Upgrade
+metaDescription: 'Upgrade a running New Relic OCI log forwarding integration to the latest log-forwarder function and template, using Resource Manager, Terraform, or manual setup.'
+freshnessValidatedDate: '2026-11-03T00:00:00.000Z'
+translationType: machine
+---
+
+OCI 로그 포워딩 통합은 오라클 클라우드 인프라(Oracle Cloud Infrastructure, OCI) 테넌시의 로그를 뉴렐릭으로 전송합니다. 뉴렐릭은 시간이 지남에 따라 기능을 추가하고, 문제를 해결하며, 보안 업데이트를 제공하는 새로운 버전의 통합을 출시합니다. 로그가 더 이상 수신되지 않거나 기존 통합에 다른 문제가 발생하는 경우, 최신 버전에 해결책이 포함되어 있을 수 있습니다. 통합은 자체 테넌시에서 실행되므로, 배포한 항목을 업그레이드하여 새 버전을 수신할 수 있습니다. 이 가이드에서는 해당 프로세스를 안내합니다:
+
+* 어떤 설정을 사용 중인지 확인하십시오.
+* 필요한 경우 이전 설정에서 현재 설정으로 이동하십시오.
+* Resource Manager, Terraform 또는 수동 설정을 사용하여 업그레이드하십시오.
+* 로그가 계속 도착하는지 확인하십시오.
+
+처음으로 포워딩을 설정하려면 [OCI 로그 포워딩 설치 및 설정](/docs/logs/forward-logs/oci-log-forwarding)을 참조하십시오.
+
+## 업그레이드 시기 [#when-to-upgrade]
+
+로그가 전송되는 동안에는 업그레이드할 필요가 없습니다. [oci-log-integration 릴리스 페이지](https://github.com/newrelic/oci-log-integration/releases)에서 각 새 버전의 릴리스 노트를 읽고 해당 릴리스가 중요한지 결정하십시오. 조치를 취해야 할 수도 있으므로, 특히 호환성이 손상되는 변경 사항이 있는지 확인하십시오.
+
+## 설정 확인 [#which-setup]
+
+배포는 두 가지 설정 중 하나를 사용합니다. Resource Manager 스택 또는 Terraform 모듈의 설정을 확인하십시오:
+
+* **Function image** \[함수 이미지] 설정이 있는 **Current setup** \[현재 설정]: 적용 시 통합은 도커 허브에서 자체 테넌시의 프라이빗 컨테이너 레지스트리 저장소로 함수 이미지를 복사하며, 함수는 해당 복사본에서 실행됩니다. 런타임에 함수가 뉴렐릭 호스팅 레지스트리에 의존하지 않으므로, 함수의 가용성은 해당 레지스트리에 얽매이지 않습니다. 통합은 적용 중에만 도커 허브를 사용합니다. 버전을 고정할 수 있습니다.
+* **이전 설정**(**New Relic Owned Registry** \[뉴렐릭 소유 레지스트리] 설정 사용): 함수는 자체 테넌시의 사본에서 가져오는 대신, 설정한 버전의 뉴렐릭 소유 레지스트리에서 직접 가져옵니다. 뉴렐릭은 이 설정을 사용 중단했습니다.
+
+이전 설정을 사용 중인 경우, 먼저 [현재 설정으로 일회성 이동](#migrate-previous)을 수행해 주십시오. 그 이후에는 모든 업그레이드가 [일반 업그레이드](#upgrade-current) 단계를 따릅니다.
+
+## 함수 및 템플릿 이해 [#what-you-upgrade]
+
+통합은 두 부분으로 구성됩니다. 각각 독립적으로 버전이 지정되고 릴리스되며, 릴리스 시 둘 중 하나 또는 둘 다 변경될 수 있습니다:
+
+* **로그 전달자 함수**: 뉴렐릭으로 로그를 전송하는 코드입니다. 뉴렐릭은 이를 도커 허브에 `docker.io/newrelic/oci-log-forwarder` (으)로 게시하고, [oci-log-integration 릴리스 페이지](https://github.com/newrelic/oci-log-integration/releases)에서 각 릴리스의 이름을 `function-<version>` (으)로 지정합니다.
+* **통합 템플릿**: 리소스 관리자 스택 및 변수 또는 Terraform 모듈에 해당하는 함수 관련 설정입니다. 템플릿 릴리스는 동일한 릴리스 페이지에서 일반 버전 번호를 사용하며 `oci-log-integration.zip` 파일을 포함합니다. Terraform 모듈 버전은 `terraform-provider-newrelic` [릴리스 태그](https://github.com/newrelic/terraform-provider-newrelic/releases)입니다.
+
+각 부분이 업데이트되는 방식은 사용 방법에 따라 다릅니다:
+
+* **Resource Manager 및 Terraform이 기능을 새로 고칩니다.** 적용할 때마다 도커 허브에서 `latest` 태그가 가리키는 이미지를 확인하고 더 최신 이미지를 가져옵니다.
+* **최신 템플릿 적용은 신중히 진행해야 하는 단계입니다.** 릴리스에서 템플릿이 변경된 경우에만 템플릿을 업데이트하고, 함수도 동시에 업데이트하십시오. 이렇게 하면 배포가 뉴렐릭에서 해당 릴리스에 대해 테스트한 조합으로 유지됩니다. 함수 릴리스는 이미 사용 중인 템플릿과 호환되므로, 최신 템플릿보다 최신 함수를 먼저 적용할 수 있습니다.
+* **수동 설정은 아무것도 자동으로 업데이트하지 않습니다.** 직접 버전을 선택하고 이미지를 복사해야 합니다.
+
+## 시작하기 전에 [#before-you-start]
+
+업그레이드하기 전에:
+
+* 통합을 실행하는 리소스 관리자 스택, Terraform 설정 또는 Functions 애플리케이션을 편집할 수 있는지 확인하십시오.
+* 현재 실행 중인 버전을 확인하고 최신 릴리스와 비교하십시오: **Function image** \[함수 이미지] 값 또는 이미지 태그, 그리고 Terraform 모듈의 `?ref=` 값.
+
+## 이전 설정에서 현재 설정으로 이동 [#migrate-previous]
+
+이는 일회성 마이그레이션으로, 버전 업그레이드가 아닙니다.
+
+**변경 사항.** 설정에 전체 이미지 참조가 포함된 **Function image** \[함수 이미지] 설정과 선택 사항인 Container Registry \[컨테이너 레지스트리] username \[사용자 이름] 및 auth token \[인증 토큰] 설정이 추가됩니다. 뉴렐릭은 **New Relic Owned Registry** \[뉴렐릭 소유 레지스트리] 지원을 종료했으며, 이는 아무런 영향을 미치지 않습니다. 첫 번째 적용 시, 통합은 `newrelic-logs/oci-log-forwarder` (Terraform의 경우 `newrelic-logs-tf/oci-log-forwarder`)(이)라는 이름의 비공개 Container Registry \[컨테이너 레지스트리] 저장소를 생성하고 그 안에 함수 이미지를 복사합니다.
+
+**가장 먼저 확인해야 할 사항입니다.** apply를 실행하는 요소는 이미 도달하는 OCI 엔드포인트 외에도 도커 허브 및 사용자 테넌시의 컨테이너 레지스트리에 대한 아웃바운드 액세스가 필요합니다. 또한 통합에서 이미지를 푸시하려면 컨테이너 레지스트리 자격 증명이 필요합니다. auth token \[인증 토큰] 설정을 비워 두면 apply를 실행하는 사용자를 위해 토큰이 생성되며 이후 apply에서 이를 재사용합니다.
+
+<Callout variant="important">
+OCI는 각 사용자가 보유할 수 있는 auth token \[인증 토큰]의 수를 제한하며, 현재 그 수는 두 개입니다. 적용을 실행하는 사용자가 이미 최대 개수를 보유하고 있고 auth token \[인증 토큰] 설정을 비워 두면, 기존 토큰을 요청하는 오류와 함께 적용이 실패합니다. 먼저 사용하지 않는 토큰을 삭제하거나, auth token \[인증 토큰] 및 username \[사용자 이름] 설정에 기존 토큰과 해당 사용자 이름을 입력하십시오. OCI User Settings \[사용자 설정]에서 현재 제한을 확인하십시오.
+</Callout>
+
+<CollapserGroup>
+<Collapser id="migrate-orm" title="Resource Manager [리소스 관리자]">
+다음 단계에 따라 스택을 현재 설정으로 이동해 주십시오.
+
+1. [릴리스 페이지](https://github.com/newrelic/oci-log-integration/releases)의 최신 템플릿 릴리스에서 `oci-log-integration.zip`을 다운로드합니다.
+2. 로그 스택을 편집하고 zip 파일을 새로운 스택 설정으로 업로드하여 기존 설정을 대체하십시오.
+3. Variables \[변수] 페이지에서 특정 버전을 유지하려는 경우가 아니라면 **Function image** \[함수 이미지]를 기본값으로 두십시오. Container Registry username \[컨테이너 레지스트리 사용자 이름]과 auth token \[인증 토큰]을 비워 두십시오(위의 참고 사항 참조).
+4. 스택을 저장하고 **Plan** \[계획]을 실행하십시오. 출력에는 적용을 통해 새로운 컨테이너 레지스트리 저장소가 생성되고 함수가 업데이트된다는 내용이 표시되어야 합니다.
+5. **Apply** \[적용]을 실행하십시오. 이 첫 번째 apply \[적용]은 함수 이미지를 테넌시로 복사하기 때문에 평소보다 시간이 더 오래 걸립니다.
+</Collapser>
+
+<Collapser id="migrate-terraform" title="테라폼">
+모듈을 현재 설정으로 이동하려면 다음 단계를 따르십시오. 현재 참조 예제는 [Terraform 레지스트리 OCI 가이드](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide#oci)를 참조하십시오.
+
+1. 두 모듈 블록의 `?ref=`을(를) 모듈이 함수 이미지를 자체 컨테이너 레지스트리로 복사하는 첫 번째 릴리스인 `v3.101.4` 이상으로 변경하십시오. 이 예제의 버전은 샘플일 뿐이므로 원하는 릴리스를 사용하십시오.
+
+   ```hcl
+   module "oci_policy_setup" {
+     source = "https://github.com/newrelic/terraform-provider-newrelic/tree/main/examples/modules/cloud-integrations/oci/policy-setup?ref=v3.101.4"
+   }
+
+   module "oci_logs_integration" {
+     source = "https://github.com/newrelic/terraform-provider-newrelic/tree/main/examples/modules/cloud-integrations/oci/logs-integration?ref=v3.101.4"
+   }
+   ```
+
+2. 설정에서 `image_version` 변수를 제거하십시오.
+
+3. 아직 설정되지 않은 경우 `user_ocid`을 추가하십시오. 모듈은 이를 사용하여 이미지를 푸시하는 컨테이너 레지스트리 자격 증명을 생성합니다.
+
+4. 정책 모듈의 디렉터리에서 `terraform init -upgrade`, `terraform plan` 및 `terraform apply`를 실행하십시오. 로그 모듈이 의존하는 권한 변경 사항이 정책 모듈에 포함될 수 있으므로 이 작업을 먼저 수행하십시오.
+
+5. 로그 모듈의 디렉터리에서 동일한 세 개의 명령을 실행하십시오.
+</Collapser>
+
+<Collapser id="migrate-manual" title="수동 설정">
+뉴렐릭의 guided setup \[안내 설정]은 현재의 수동 단계를 표시하므로, 이를 사용하여 테넌시와 비교하고 IAM 정책 또는 동적 그룹의 변경 사항을 포함하여 새로운 사항이 있는지 확인해 주십시오.
+
+1. 함수 이미지를 위한 컨테이너 레지스트리 저장소를 테넌시에 생성하십시오(예: `newrelic-logs/oci-log-forwarder`).
+2. `docker.io/newrelic/oci-log-forwarder`에서 원하는 버전을 가져온 다음, 태그를 지정하고 동일한 버전 번호로 해당 저장소에 푸시하십시오.
+3. 로그 함수를 편집하고 해당 이미지를 푸시한 버전으로 설정하십시오.
+</Collapser>
+</CollapserGroup>
+
+## 현재 설정에서 배포를 업그레이드하십시오. [#upgrade-current]
+
+스택 또는 모듈에 **Function image** \[함수 이미지] 설정이 있는 경우 다음 단계를 따르십시오. 통합을 설정하는 데 사용한 방법을 선택하십시오.
+
+<CollapserGroup>
+<Collapser id="current-orm" title="Resource Manager [리소스 관리자]">
+새로운 기능을 사용하려면 스택에서 **Plan** \[계획]을 실행한 다음 **Apply** \[적용]을 실행하십시오.
+
+릴리스로 인해 템플릿이 변경되는 경우 다음 작업도 수행하십시오:
+
+1. [릴리스 페이지](https://github.com/newrelic/oci-log-integration/releases)의 원하는 템플릿 릴리스에서 `oci-log-integration.zip`을(를) 다운로드하십시오. Resource Manager \[리소스 관리자]는 URL이 아닌 로컬 파일을 허용합니다.
+2. 로그 스택을 편집하고 zip 파일을 새로운 스택 설정으로 업로드하여 기존 설정을 대체하십시오.
+3. 뉴렐릭 계정, 리전, 페이로드 및 네트워킹에 대한 기존 변수 값을 유지하십시오.
+4. 스택을 저장하고 **Plan** \[계획]을 실행하십시오. 출력 결과를 읽고 변경 사항이 예상과 일치하는지 확인해 주십시오.
+5. **Apply** \[적용]을 실행하고 작업이 성공할 때까지 기다리십시오.
+
+함수를 특정 버전으로 유지하려면 **Function image** \[함수 이미지]를 해당 버전의 전체 참조(예: `docker.io/newrelic/oci-log-forwarder:1.3.0`)로 설정하십시오. 계측할 로그 그룹 또는 구획을 추가한 경우에만 페이로드 설정을 변경하십시오.
+</Collapser>
+
+<Collapser id="current-terraform" title="테라폼">
+더 최신 함수를 사용하려면 `terraform apply`을(를) 실행하십시오.
+
+최신 모듈을 적용하려면 두 모듈 블록을 동일한 릴리스로 이동하고 순서대로 적용하십시오. 작업을 수행하기 전에 [Terraform Registry OCI 가이드](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide#oci)의 현재 참조 예제와 모듈 블록을 비교하십시오. 새 변수, 변경된 기본값 또는 최신 `?ref=` 등 모든 차이점을 적용하십시오.
+
+```hcl
+module "oci_policy_setup" {
+  source = "https://github.com/newrelic/terraform-provider-newrelic/tree/main/examples/modules/cloud-integrations/oci/policy-setup?ref=v3.101.6"
+}
+
+module "oci_logs_integration" {
+  source = "https://github.com/newrelic/terraform-provider-newrelic/tree/main/examples/modules/cloud-integrations/oci/logs-integration?ref=v3.101.6"
+}
+```
+
+업그레이드를 적용하려면:
+
+1. 두 모듈 블록 모두에서 `?ref=`을(를) 동일한 릴리스로 설정하십시오. 이것은 각 모듈의 `source` URL 끝에 있는 쿼리 파라미터이며, `v3.101.6`는 샘플일 뿐입니다. `v3.101.4` 이상을 사용하십시오.
+
+2. 해결된 공급자 버전(예: `+ provider registry.terraform.io/newrelic/newrelic v3.99.2`)을 나열하는 `terraform version`을(를) 사용하여 뉴렐릭 Terraform 공급자 버전을 확인하십시오. 현재 템플릿에는 `v3.99.2` 이상의 버전이 필요하며, 이전 공급자를 사용하면 경고를 표시하는 대신 적용이 실패합니다.
+
+3. 로그 모듈이 의존하는 권한 변경 사항이 포함될 수 있으므로, 정책 모듈의 디렉터리에서 다음 명령을 먼저 실행하십시오.
+
+   ```bash
+   terraform init -upgrade
+   terraform plan
+   terraform apply
+   ```
+
+4. 로그 모듈의 디렉터리에서 동일한 세 개의 명령을 실행하십시오.
+</Collapser>
+
+<Collapser id="current-manual" title="수동 설정">
+버전을 선택하고, 해당 이미지를 자체 Container Registry \[컨테이너 레지스트리]에 복사한 다음, 함수가 해당 복사본을 가리키도록 하십시오.
+
+1. [releases page \[릴리스 페이지\]](https://github.com/newrelic/oci-log-integration/releases)에서 버전을 선택한 다음, [Docker Hub tags page \[도커 허브 태그 페이지\]](https://hub.docker.com/r/newrelic/oci-log-forwarder/tags)에서 일치하는 태그를 확인하십시오.
+2. 해당 버전을 풀(Pull)한 다음, 동일한 버전 번호로 태그를 지정하여 컨테이너 레지스트리 저장소에 푸시하십시오. 사본에 `latest` 태그를 지정하지 마십시오. 아무것도 동기화 상태를 유지하지 않으며, 버전 번호는 배포한 내용을 정확하게 기록합니다.
+3. 로그 함수를 편집하고 해당 이미지를 푸시한 버전으로 설정하십시오.
+</Collapser>
+</CollapserGroup>
+
+## 업그레이드 후 확인 [#verify]
+
+업그레이드 후 몇 분 이내에 로그가 계속 도착하는지 확인하십시오:
+
+```sql
+SELECT count(*) FROM Log WHERE instrumentation.provider = 'oci' SINCE 10 minutes ago
+```
+
+카운트가 0으로 떨어지면 OCI Console \[OCI 콘솔]에서 함수의 실행 로그를 확인하십시오.
+
+업그레이드 후 첫 번째 호출 시 함수가 새 이미지를 가져오는 동안 일시적으로 느려지는 것은 정상입니다. 어떤 버전이 적용되었는지 확인하려면 컨테이너 레지스트리 저장소에서 이미지 태그를 확인하십시오.
+
+## 관련 기사 [#related-articles]
+
+* [OCI 로그 포워딩 설치 및 설정](/docs/logs/forward-logs/oci-log-forwarding): 처음으로 OCI 로그 포워딩을 설정합니다.
+* [OCI 로그 전달자 모니터](/docs/logs/forward-logs/oci-log-forwarder-observability): 로그 전달자 함수에서 자체 옵저버빌리티 메트릭을 활성화하십시오.
+* [문제 진단, 해결](/docs/infrastructure/oci/troubleshoot): 설정 중 데이터가 표시되지 않는 문제에 대한 해결 방법입니다.
