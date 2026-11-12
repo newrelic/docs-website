@@ -93,7 +93,7 @@ SELECT name, type_desc FROM sys.database_principals WHERE name = '<YOUR_VM_NAME>
         scopes: [https://database.windows.net/.default]
         managed_identity: {}
     receivers:
-      sql_server/db1:
+      nrsqlserver/db1:
         collection_interval: 15s
         datasource: "sqlserver://<YOUR-SERVER>.database.windows.net:1433?database=<YOUR_DATABASE>&encrypt=true"
         db_auth: azure_auth
@@ -108,6 +108,7 @@ SELECT name, type_desc FROM sys.database_principals WHERE name = '<YOUR_VM_NAME>
           sqlserver.os.wait.duration: {enabled: true}
           sqlserver.processes.blocked: {enabled: true}
           sqlserver.memory.grants.pending.count: {enabled: true}
+          sqlserver.database.file.size: {enabled: true}
           sqlserver.memory.area: {enabled: true}
           sqlserver.tempdb.file.size: {enabled: false}
         events:
@@ -120,8 +121,14 @@ SELECT name, type_desc FROM sys.database_principals WHERE name = '<YOUR_VM_NAME>
           max_query_sample_count: 1000
           top_query_count: 250
           collection_interval: 60s
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
         query_sample_collection:
           max_rows_per_query: 100
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
         top_procedure_collection:
           max_procedure_sample_count: 1000
           top_procedure_count: 250
@@ -135,11 +142,24 @@ SELECT name, type_desc FROM sys.database_principals WHERE name = '<YOUR_VM_NAME>
         limit_mib: 200
         spike_limit_mib: 50
     exporters:
-      otlp_http/newrelic:
+      otlp:
         endpoint: https://otlp.nr-data.net:4318
         headers:
           api-key: <YOUR_LICENSE_KEY>
+        tls:
+          insecure: false
         compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+
     service:
       telemetry:
         metrics:
@@ -147,13 +167,13 @@ SELECT name, type_desc FROM sys.database_principals WHERE name = '<YOUR_VM_NAME>
       extensions: [azure_auth]
       pipelines:
         metrics:
-          receivers: [sql_server/db1]
+          receivers: [nrsqlserver/db1]
           processors: [memory_limiter]
-          exporters: [otlp_http/newrelic]
+          exporters: [otlp]
         logs:
-          receivers: [sql_server/db1]
+          receivers: [nrsqlserver/db1]
           processors: [memory_limiter]
-          exporters: [otlp_http/newrelic]
+          exporters: [otlp]
     ```
 
 <Callout variant="tip">
@@ -172,7 +192,7 @@ extensions:
     scopes: [https://database.windows.net/.default]
     managed_identity: {}
 receivers:
-  sql_server/db1: &sqlcfg
+  nrsqlserver/db1: &sqlcfg
     collection_interval: 15s
     datasource: "sqlserver://<YOUR-SERVER>.database.windows.net:1433?database=<YOUR_DATABASE_1>&encrypt=true"
     db_auth: azure_auth
@@ -187,6 +207,7 @@ receivers:
       sqlserver.os.wait.duration: {enabled: true}
       sqlserver.processes.blocked: {enabled: true}
       sqlserver.memory.grants.pending.count: {enabled: true}
+      sqlserver.database.file.size: {enabled: true}
       sqlserver.memory.area: {enabled: true}
       sqlserver.tempdb.file.size: {enabled: false}
     events:
@@ -199,8 +220,14 @@ receivers:
       max_query_sample_count: 1000
       top_query_count: 250
       collection_interval: 60s
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
     query_sample_collection:
       max_rows_per_query: 100
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
     top_procedure_collection:
       max_procedure_sample_count: 1000
       top_procedure_count: 250
@@ -208,7 +235,7 @@ receivers:
     resource_attributes:
       db.system.version: {enabled: true}
       sqlserver.db.edition: {enabled: true}
-  sql_server/db2:
+  nrsqlserver/db2:
     <<: *sqlcfg
     datasource: "sqlserver://<YOUR-SERVER>.database.windows.net:1433?database=<YOUR_DATABASE_2>&encrypt=true"
 processors:
@@ -217,11 +244,24 @@ processors:
     limit_mib: 200
     spike_limit_mib: 50
 exporters:
-  otlp_http/newrelic:
+  otlp:
     endpoint: https://otlp.nr-data.net:4318
     headers:
       api-key: <YOUR_LICENSE_KEY>
+    tls:
+      insecure: false
     compression: gzip
+    sending_queue:
+      enabled: true
+      sizer: bytes
+      queue_size: 100_000_000
+      num_consumers: 10
+      batch:
+        sizer: bytes
+        max_size: 1_000_000
+        min_size: 0
+        flush_timeout: 5s
+
 service:
   telemetry:
     metrics:
@@ -229,13 +269,13 @@ service:
   extensions: [azure_auth]
   pipelines:
     metrics:
-      receivers: [sql_server/db1, sql_server/db2]
+      receivers: [nrsqlserver/db1, nrsqlserver/db2]
       processors: [memory_limiter]
-      exporters: [otlp_http/newrelic]
+      exporters: [otlp]
     logs:
-      receivers: [sql_server/db1, sql_server/db2]
+      receivers: [nrsqlserver/db1, nrsqlserver/db2]
       processors: [memory_limiter]
-      exporters: [otlp_http/newrelic]
+      exporters: [otlp]
 ```
 
 <Callout variant="important">
@@ -305,7 +345,7 @@ Get-EventLog -LogName Application -Source nrdot-collector -Newest 20
 | --- | --- |
 | `Login failed for user '<token-identified principal>'` for one database | The user is missing in that database. Create it there. |
 | Identity error from `azure_auth` | The system-assigned identity is off for the VM. |
-| `invalid keys: sql_server/db2` | The receiver isn't indented under `receivers:`. |
+| `invalid keys: nrsqlserver/db2` | The receiver isn't indented under `receivers:`. |
 | `not supported for sqlserver.tempdb.*` | Disable the unsupported metrics listed above. |
 | `api-key` parse error | Add a space after the colon. |
 | New Relic `403` or `unexpected EOF` | The key is wrong or isn't an Ingest - License key, or the endpoint doesn't match your region. |
