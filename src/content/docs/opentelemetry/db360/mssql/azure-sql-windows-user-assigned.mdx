@@ -1,0 +1,375 @@
+---
+title: "Install & configure OpenTelemetry for MSSQL with Azure SQL Database on Windows: user-assigned managed identity"
+tags:
+  - OpenTelemetry
+  - SQL Server
+  - Windows
+  - Azure SQL Database
+  - Azure
+metaDescription: Set up Microsoft SQL Server monitoring with the OpenTelemetry Collector on Windows for Azure SQL Database using a user-assigned managed identity, with no passwords in the configuration
+freshnessValidatedDate: 2026-11-11
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+---
+
+Monitor your Azure SQL Database with metrics and query logs, and send them to New Relic without storing passwords in the configuration. The collector runs on an Azure Windows VM and authenticates to Azure SQL Database using the VM's user-assigned managed identity.
+
+This page covers user-assigned managed identity authentication. For other methods, see [SQL Server authentication](/docs/opentelemetry/db360/mssql/azure-sql-windows) or [system-assigned managed identity](/docs/opentelemetry/db360/mssql/azure-sql-windows-system-assigned).
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+* A New Relic [Ingest - License key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). A user key doesn't work.
+* Network connectivity to the [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp) for your region.
+* An Azure Windows VM that can reach the internet and the SQL server. A user-assigned managed identity attached to the VM (see [Create and attach the user-assigned identity](#identity)).
+* An Azure SQL logical server and database, with a Microsoft Entra admin set. The server firewall or virtual network rule must allow the VM.
+* Network access from the VM on port `1433`. To test, run `Test-NetConnection <YOUR-SERVER>.database.windows.net -Port 1433`.
+
+</Step>
+
+<Step>
+
+## Create and attach the user-assigned identity [#identity]
+
+1. In the Azure portal, go to <DNT>**Managed Identities > Create**</DNT>. Enter a name, such as `uami-otel-sql`. Use the same subscription, resource group, and region as the VM.
+2. Open the identity and copy the **<DNT>Client ID</DNT>** from the **<DNT>Overview</DNT>** page.
+3. Go to your VM, then <DNT>**Identity > User assigned > Add**</DNT>, and select the identity.
+
+<Callout variant="important">
+  If the VM also has a system-assigned identity enabled, the collector might authenticate as the wrong identity. Set `client_id` in the configuration, and turn off the system-assigned identity during testing if you see login errors.
+</Callout>
+
+</Step>
+<Step>
+
+## Install NRDOT Collector [#setup]
+
+Install the NRDOT Collector on a host that can reach your Azure SQL server.
+
+Run PowerShell as Administrator:
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'
+$NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name
+$WebClient = New-Object System.Net.WebClient
+$WebClient.Headers.Add("User-Agent", "Mozilla/5.0")
+$WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi")
+Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait
+Get-Service nrdot-collector -ErrorAction SilentlyContinue
+```
+
+</Step>
+
+<Step>
+
+## Grant database permissions [#user]
+
+Sign in as the server's Microsoft Entra admin using Microsoft Entra authentication. SQL authentication can't create external users. Run the following in **each** database you want to monitor, because contained users are per database. Replace `<YOUR_IDENTITY_NAME>` with the identity name (not the VM name):
+
+```sql
+CREATE USER [<YOUR_IDENTITY_NAME>] FROM EXTERNAL PROVIDER;
+ALTER ROLE db_datareader ADD MEMBER [<YOUR_IDENTITY_NAME>];
+GRANT VIEW DATABASE STATE TO [<YOUR_IDENTITY_NAME>];
+```
+
+(Optional) Verify the user:
+
+```sql
+SELECT name, type_desc FROM sys.database_principals WHERE name = '<YOUR_IDENTITY_NAME>';
+```
+
+</Step>
+
+<Step>
+
+## Configure the collector [#configure-collector]
+
+1. Create the configuration file in PowerShell as Administrator:
+
+    ```powershell
+    New-Item -Path "C:\Program Files\nrdot-collector\mssql-config.yaml" -ItemType File
+    ```
+
+2. Add the following configuration to the `mssql-config.yaml` file. Replace `<YOUR-SERVER>`, `<YOUR_DATABASE>`, `<YOUR_CLIENT_ID>`, and `<YOUR_LICENSE_KEY>` with your values.
+
+    ```yaml
+    extensions:
+      azure_auth:
+        scopes: [https://database.windows.net/.default]
+        managed_identity:
+          client_id: "<YOUR_CLIENT_ID>"
+    receivers:
+      nrsqlserver/db1:
+        collection_interval: 15s
+        datasource: "sqlserver://<YOUR-SERVER>.database.windows.net:1433?database=<YOUR_DATABASE>&encrypt=true"
+        db_auth: azure_auth
+        metrics:
+          sqlserver.database.count: {enabled: false}
+          sqlserver.database.io: {enabled: true}
+          sqlserver.database.latency: {enabled: true}
+          sqlserver.database.operations: {enabled: true}
+          sqlserver.database.tempdb.space: {enabled: false}
+          sqlserver.database.tempdb.version_store.size: {enabled: false}
+          sqlserver.deadlock.rate: {enabled: true}
+          sqlserver.os.wait.duration: {enabled: true}
+          sqlserver.processes.blocked: {enabled: true}
+          sqlserver.memory.grants.pending.count: {enabled: true}
+          sqlserver.database.file.size: {enabled: true}
+          sqlserver.memory.area: {enabled: true}
+          sqlserver.tempdb.file.size: {enabled: false}
+        events:
+          db.server.query_sample: {enabled: true}
+          db.server.top_query: {enabled: true}
+          db.server.query_plan: {enabled: true}
+          db.server.top_procedure: {enabled: true}
+        top_query_collection:
+          lookback_time: 60s
+          max_query_sample_count: 1000
+          top_query_count: 250
+          collection_interval: 60s
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+        query_sample_collection:
+          max_rows_per_query: 100
+          collect_full_query_text: true
+          allowed_comment_keys:
+            - nr_service_guid
+        top_procedure_collection:
+          max_procedure_sample_count: 1000
+          top_procedure_count: 250
+          collection_interval: 60s
+        resource_attributes:
+          db.system.version: {enabled: true}
+          sqlserver.db.edition: {enabled: true}
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 200
+        spike_limit_mib: 50
+    exporters:
+      otlp:
+        endpoint: https://otlp.nr-data.net:4318
+        headers:
+          api-key: <YOUR_LICENSE_KEY>
+        tls:
+          insecure: false
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+
+    service:
+      telemetry:
+        metrics:
+          level: none
+      extensions: [azure_auth]
+      pipelines:
+        metrics:
+          receivers: [nrsqlserver/db1]
+          processors: [memory_limiter]
+          exporters: [otlp]
+        logs:
+          receivers: [nrsqlserver/db1]
+          processors: [memory_limiter]
+          exporters: [otlp]
+    ```
+
+<Callout variant="tip">
+  * The collector connects to the single database named in `database=`. To monitor several databases, use one receiver per database, as described in [Monitor multiple databases](#multiple-databases).
+  * The following metrics aren't supported on Azure SQL Database and cause scrape errors, so leave them disabled: `sqlserver.database.count`, `sqlserver.database.tempdb.space`, `sqlserver.database.tempdb.version_store.size`, and `sqlserver.tempdb.file.size`.
+  * The `logs` pipeline carries SQL Server query telemetry, not collector debug logs.
+</Callout>
+
+### Monitor multiple databases [#multiple-databases]
+
+Use one receiver per database. The first receiver carries the full configuration and acts as the anchor (`&sqlcfg`). The others inherit it with the YAML merge key (`<<: *sqlcfg`) and override only `datasource`. Run the grants in every database, then replace the contents of `mssql-config.yaml` with the following configuration.
+
+```yaml
+extensions:
+  azure_auth:
+    scopes: [https://database.windows.net/.default]
+    managed_identity:
+      client_id: "<YOUR_CLIENT_ID>"
+receivers:
+  nrsqlserver/db1: &sqlcfg
+    collection_interval: 15s
+    datasource: "sqlserver://<YOUR-SERVER>.database.windows.net:1433?database=<YOUR_DATABASE_1>&encrypt=true"
+    db_auth: azure_auth
+    metrics:
+      sqlserver.database.count: {enabled: false}
+      sqlserver.database.io: {enabled: true}
+      sqlserver.database.latency: {enabled: true}
+      sqlserver.database.operations: {enabled: true}
+      sqlserver.database.tempdb.space: {enabled: false}
+      sqlserver.database.tempdb.version_store.size: {enabled: false}
+      sqlserver.deadlock.rate: {enabled: true}
+      sqlserver.os.wait.duration: {enabled: true}
+      sqlserver.processes.blocked: {enabled: true}
+      sqlserver.memory.grants.pending.count: {enabled: true}
+      sqlserver.database.file.size: {enabled: true}
+      sqlserver.memory.area: {enabled: true}
+      sqlserver.tempdb.file.size: {enabled: false}
+    events:
+      db.server.query_sample: {enabled: true}
+      db.server.top_query: {enabled: true}
+      db.server.query_plan: {enabled: true}
+      db.server.top_procedure: {enabled: true}
+    top_query_collection:
+      lookback_time: 60s
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
+    query_sample_collection:
+      max_rows_per_query: 100
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
+    top_procedure_collection:
+      max_procedure_sample_count: 1000
+      top_procedure_count: 250
+      collection_interval: 60s
+    resource_attributes:
+      db.system.version: {enabled: true}
+      sqlserver.db.edition: {enabled: true}
+  nrsqlserver/db2:
+    <<: *sqlcfg
+    datasource: "sqlserver://<YOUR-SERVER>.database.windows.net:1433?database=<YOUR_DATABASE_2>&encrypt=true"
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 200
+    spike_limit_mib: 50
+exporters:
+  otlp:
+    endpoint: https://otlp.nr-data.net:4318
+    headers:
+      api-key: <YOUR_LICENSE_KEY>
+    tls:
+      insecure: false
+    compression: gzip
+    sending_queue:
+      enabled: true
+      sizer: bytes
+      queue_size: 100_000_000
+      num_consumers: 10
+      batch:
+        sizer: bytes
+        max_size: 1_000_000
+        min_size: 0
+        flush_timeout: 5s
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  extensions: [azure_auth]
+  pipelines:
+    metrics:
+      receivers: [nrsqlserver/db1, nrsqlserver/db2]
+      processors: [memory_limiter]
+      exporters: [otlp]
+    logs:
+      receivers: [nrsqlserver/db1, nrsqlserver/db2]
+      processors: [memory_limiter]
+      exporters: [otlp]
+```
+
+<Callout variant="important">
+  Add every new receiver to the `receivers` list in both the `metrics` and `logs` pipelines. A receiver that's defined but not listed in a pipeline doesn't collect any data.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Update Windows Service Registry [#update-registry]
+
+1. Update the Windows Service Registry to use the new `mssql-config.yaml` file using one of the following methods:
+    * **For PowerShell:** Run the following command as Administrator:
+
+      ```powershell
+      Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\mssql-config.yaml"'
+      ```
+
+    * **For Command Prompt:** If PowerShell isn't available, use Command Prompt instead and run the following command as Administrator:
+
+      ```bash
+      sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\mssql-config.yaml\""
+      ```
+2. Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly:
+
+    ```bash
+    & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\mssql-config.yaml"
+    ```
+
+</Step>
+
+<Step>
+
+## Restart NRDOT Collector [#restart]
+
+After updating your configuration, restart the NRDOT Collector service:
+
+```bash
+net stop nrdot-collector
+net start nrdot-collector
+```
+
+Check the Windows Application event log for permission or connection errors:
+
+```powershell
+Get-EventLog -LogName Application -Source nrdot-collector -Newest 20
+```
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find]
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MSSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your Azure SQL Database from the list of entities.
+
+</Step>
+
+</Steps>
+
+## Troubleshooting [#troubleshooting]
+
+| Symptom | Cause or fix |
+| --- | --- |
+| `Login failed for user '<token-identified principal>'` for one database | The user is missing in that database. Create it there. |
+| Identity error from `azure_auth` | The identity isn't attached to the VM, or `client_id` is wrong. |
+| Login works but uses the wrong identity | The VM has both identities. Turn off the system-assigned identity for the test. |
+| `invalid keys: nrsqlserver/db2` | The receiver isn't indented under `receivers:`. |
+| `not supported for sqlserver.tempdb.*` | Disable the unsupported metrics listed above. |
+| `api-key` parse error | Add a space after the colon. |
+| New Relic `403` or `unexpected EOF` | The key is wrong or isn't an Ingest - License key, or the endpoint doesn't match your region. |
+| Timeout | Allow the VM in the SQL server's **<DNT>Networking</DNT>** settings. |
+
+## Related documentation [#related-docs]
+
+<DocTiles>
+  <DocTile title="Troubleshooting" path="/docs/opentelemetry/db360/mssql/troubleshooting">Learn how to troubleshoot your MSSQL monitoring setup in New Relic.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/db360/mssql/metrics-reference">Learn about the available metrics collected by the collector.</DocTile>
+</DocTiles>
