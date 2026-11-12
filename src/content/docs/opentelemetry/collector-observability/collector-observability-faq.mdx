@@ -1,0 +1,79 @@
+---
+title: Collector observability FAQ
+metaDescription: Answers to common questions about collector observability, including supported collector versions, export formats, auto-detection, auto-classification, and attached collectors.
+freshnessValidatedDate: 2026-11-16
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Collector
+---
+
+This page answers common questions about [collector observability](/docs/opentelemetry/collector-observability/collector-observability) and describes its limitations.
+
+## What distribution and version of the collector is supported? [#supported-versions]
+
+The experience uses the [core internal telemetry](https://opentelemetry.io/docs/collector/internal-telemetry/) emitted by the collector, so generally [any collector distribution](https://opentelemetry.io/docs/collector/distributions/) should light up the experience unless the authors of the distribution actively diverge from this standard.
+
+When it comes to versions, the OpenTelemetry community is still stabilizing the telemetry and is reserving the right to make breaking changes during minor releases. Therefore we can only guarantee support for releases we have actively tested which we do on an ongoing basis. We document the distributions and versions that were tested in our aggregated [NRDOT release notes](https://docs.newrelic.com/docs/release-notes/nrdot-release-notes/) using the label "Collector Observability", e.g. [Collector Observability 1.0.0](/docs/release-notes/nrdot-release-notes/collector-o11y-1-0-0). 
+
+The oldest distributions the experience supports are [opentelemetry-collector-contrib:0.129.1](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.129.1) and [nrdot-collector:1.3.0](https://github.com/newrelic/nrdot-collector-releases/releases/tag/1.3.0).
+
+## Which export formats are supported? [#export-format]
+
+We fully support telemetry emitted via the internal <DNT>`otlpexporter`</DNT> and recommend adopting this format.
+
+We do not provide official support for metrics exported via Prometheus, but we do our best to ensure the experience still works as expected. We rewrote the queries to support the differing metric names, and as of now there are no known limitations for Prometheus.
+
+## Why are traces disabled by default in the example configuration? [#traces-disabled]
+
+The collector's internal traces are disabled by default for these reasons:
+
+* Traces are not mature. Not all components are instrumented. See this [GitHub issue](https://github.com/open-telemetry/opentelemetry-collector/issues/8804).
+* The overhead is unpredictable. It varies with the workload and with the batching configuration of upstream agents and collectors.
+* No adaptive sampling algorithm is available. This makes it impossible to give a universal sampling recommendation that does not risk unexpected costs for certain use cases.
+* While you can enable them to leverage existing experiences like Distributed Tracing, this documentation is focused on the new Collector Observability experience which does not rely on traces.
+
+## Why don't I see the custom metrics of my collector components? [#custom-metrics]
+
+Custom or [contrib components](https://github.com/open-telemetry/opentelemetry-collector-contrib) are usually instrumented to emit the [standard internal component metrics](https://opentelemetry.io/docs/collector/internal-telemetry/) which are surfaced in the experience. However, they can also emit custom metrics, e.g. in the [filterprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.165.1/processor/filterprocessor/metadata.yaml#L21) which are not supported by the experience. They can still be ingested and are available via NRQL.
+
+## Why doesn't New Relic detect my collector? [#auto-detection-metrics]
+
+New Relic detects a collector from the presence of collector-specific metrics, so [auto-detection](/docs/opentelemetry/collector-observability/collector-observability-setup#auto-detection) doesn't work if your collector sends only logs or traces. If you want to leverage the new experience, which relies on metrics, you need to enable them. However, if you intentionally disabled metrics, you can still access your data in the usual ways.
+
+## Why does my collector show the wrong view mode? [#auto-classification]
+
+In <DNT>**Automatic**</DNT> mode, New Relic analyzes the entity's telemetry to determine if there is telemetry that a collector would not emit. If there is, it classifies the entity as an <DNT>**Attached Collector**</DNT>. However, if the sibling application's telemetry is too similar to what a collector would emit, this heuristic can wrongly classify the entity as a <DNT>**Standalone Collector**</DNT> instead.
+
+When this happens, use the options described in [Set the mode](/docs/opentelemetry/collector-observability/collector-observability#set-mode) to switch to the correct experience.
+
+## How do I set the view mode for many collectors at once? [#set-mode-at-scale]
+
+Leave the mode configured as <DNT>**Automatic**</DNT> and set the entity tag <DNT>`otelCollector.viewModeIac`</DNT> to <DNT>`standalone`</DNT> or <DNT>`attached`</DNT>. There are a few ways to set tags at scale:
+
+* **Option 1**: Set `otelCollector.viewModeIac` as a resource attribute of the collector's internal telemetry, so that New Relic [synthesizes](https://github.com/newrelic/entity-definitions/blob/92417f8cbd88d957032150e58ee28c644361e2ca/entity-types/ext-service/definition.yml#L121) the tag on ingest for you. This is often the easiest option, but it does contribute to your ingest volume.
+
+  ```yaml
+  service:
+    telemetry:
+      resource:
+        otelCollector.viewModeIac: standalone # or attached
+  ```
+
+  Instead of modifying your config file, you can also pass the argument <DNT>`--config=yaml:service::telemetry::resource::otelCollector.viewModeIac: standalone`</DNT> (or <DNT>`attached`</DNT>) to the collector. Note that the tag is only cached temporarily, so if your collector stops reporting the attribute, then the tag will expire after one day.
+* **Option 2**: Use the [Terraform provider](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/entity_tags).
+* **Option 3**: Use the [New Relic CLI](https://github.com/newrelic/newrelic-cli/blob/55467e869862b4a3baa6bbb62efadf35bc34d79a/docs/cli/newrelic_entity_tags_create.md).
+
+## Can my collector and my application share the same service name? [#attached-limitations]
+
+Yes, this is what <DNT>**Attached Collector**</DNT> mode is for. However, we recommend against it. A collector is a fully-fledged application that emits telemetry adhering to the OTel semantic conventions. If the collector and the application share the same <DNT>`service.name`</DNT>, the boundaries between them can become impossible to distinguish from the perspective of telemetry. This has side effects in the experience:
+
+* Aggregate metrics like throughput or error rate become less meaningful because they are calculated from a blend of application and collector metrics.
+* Capabilities like transactions and external services show a union of both application and collector data. You need knowledge about implementation details to interpret the data. For example, transaction names are often driven by the names of HTTP routes. To know which transactions belong to the application or the collector, you need to know which routes each one implements.
+
+If your collector has a different <DNT>`service.name`</DNT>, New Relic synthesizes a dedicated entity for it. You can then use <DNT>**Standalone Collector**</DNT> mode. See [Choose your collector's view mode](/docs/opentelemetry/collector-observability/collector-observability#view-modes).
+
+## What happened to the standard APM Summary page? [#summary-page-transactions]
+
+The standard view is driven by transaction-scoped <DNT>`apm.*`</DNT> metrics. The community is still working on stabilizing collector telemetry, so we haven't been able to come up with a solid notion of a transaction that would provide an intuitive experience. Instead, we rely on the native telemetry emitted by the collector and put it front and center with the [KPI tiles](/docs/opentelemetry/collector-observability/collector-observability#summary-page).
