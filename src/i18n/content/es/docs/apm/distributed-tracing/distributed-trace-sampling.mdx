@@ -1,0 +1,347 @@
+---
+title: Configurar el muestreo
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Sampling
+  - APM agents
+metaDescription: 'Deep dive into APM agent sampling configuration including sampler types like adaptive and trace id ratio based, adaptive sampling targets, and sampling based on upstream sampling decisions.'
+freshnessValidatedDate: '2026-09-29T00:00:00.000Z'
+translationType: machine
+---
+
+Los muestreadores del agente APM controlan qué transacciones dentro de un servicio determinado el agente envía a New Relic. Esta página cubre los tipos de muestreadores, como los adaptativos y los basados en la proporción de ID de traza, los objetivos de muestreo adaptativo y cómo configurar el muestreo en función de las decisiones de muestreo ascendentes.
+
+Los ejemplos de configuración de esta guía utilizan el formato YAML (agente de Java). Para obtener la sintaxis específica del agente y la referencia completa del parámetro, consulte:
+
+* [Configuración de rastreo distribuido del agente de Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file)
+* [Configuración de rastreo distribuido del agente de Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration)
+* [Configuración de rastreo distribuido del agente Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+
+## Cómo funciona el muestreo [#how-sampling-works]
+
+### Pasos en una decisión de muestreo
+
+Una decisión de muestreo ocurre en cinco pasos:
+
+1. El request llega al servicio.
+2. El agente comprueba el contexto de muestreo: ¿se trata de una transacción raíz o un servicio ascendente ya tomó una decisión de muestreo?
+3. El agente aplica el muestreador adecuado según el contexto y la configuración.
+4. El agente toma una decisión de muestreo: muestrear o no muestrear.
+5. El agente propaga la decisión a los servicios descendentes mediante los encabezados de contexto de traza de rastreo distribuido.
+
+## Contextos del muestreador [#sampling-contexts]
+
+Los agentes APM utilizan tres contextos de muestreo para manejar diferentes escenarios de trazas. Cada contexto puede tener su propia configuración de muestreador.
+
+| Contexto                                                         | Cuando se aplica                                         | Caso de uso                                                            |
+| ---------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [Raíz](#root-context)                                            | El rastreo distribuido se origina en el servicio actual  | Controle el muestreo para las trazas que comienzan desde este servicio |
+| [Padre remoto muestreado](#remote-parent-sampled-context)        | Un servicio upstream ya muestreó esta traza              | Controlar el rastreo de las trazas que muestreó el servicio ascendente |
+| [Padre remoto no muestreado](#remote-parent-not-sampled-context) | Un servicio ascendente decidió *no* muestrear esta traza | Controle el muestreo de las trazas que rechazó el servicio upstream    |
+
+<CollapserGroup>
+<Collapser id="root-context" title="Contexto raíz">
+<DNT>**When it applies**</DNT>: el rastreo distribuido se origina en el servicio actual (este es el primer servicio en el rastreo distribuido).
+
+<DNT>**Example scenario**</DNT>: la gateway de API es el punto de entrada para los requests de los clientes. Configure el muestreo raíz para capturar el 20 % de estas trazas iniciadas por los clientes.
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.2  # 20% of traces originating here
+```
+</Collapser>
+
+<Collapser id="remote-parent-sampled-context" title="Contexto muestreado del padre remoto">
+<DNT>**When it applies**</DNT>: un servicio ascendente decidió muestrear este rastreo distribuido (el servicio ascendente envió una decisión de muestreo de &quot;sampled&quot; en el contexto de rastreo distribuido).
+
+<DNT>**Common pattern**</DNT>: si el servicio ascendente muestreó el rastreo distribuido, muéstreelo siempre en el servicio actual también:
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_sampled:
+      always_on  # Always capture traces sampled by upstream
+```
+
+<DNT>**Alternative pattern**</DNT>: muestrear un porcentaje de las trazas ya muestreadas por el servicio ascendente:
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.6  # Sample 60% of traces sampled by upstream
+```
+
+<Callout variant="caution">
+Anular las decisiones de &quot;sampled&quot; ascendentes puede crear trazas fragmentadas donde solo están presentes algunos servicios. Utilice este patrón solo cuando tenga una necesidad específica de descartar las trazas que se muestrearon en el servicio ascendente.
+</Callout>
+</Collapser>
+
+<Collapser id="remote-parent-not-sampled-context" title="Contexto de padre remoto no muestreado">
+<DNT>**When it applies**</DNT>: un servicio ascendente decidió *no* muestrear este rastreo distribuido (el servicio ascendente envió una decisión de muestreo de “no muestreado” en el contexto de traza).
+
+<DNT>**Common pattern**</DNT>: si el servicio ascendente *no* muestreó el rastreo distribuido, nunca lo muestree en el servicio actual:
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_not_sampled:
+      always_off  # Don't sample traces that upstream rejected
+```
+
+<DNT>**Alternative pattern**</DNT>: muestree parte del rastreo distribuido incluso si el servicio upstream decidió no muestrearlo (úselo con precaución):
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_not_sampled:
+      trace_id_ratio_based:
+        ratio: 0.05  # Sample 5% even if upstream said not to
+```
+
+<Callout variant="caution">
+Anular las decisiones ascendentes de &quot;no muestreado&quot; puede crear trazas fragmentadas en las que solo están presentes algunos servicios. Utilice este patrón solo cuando tenga una necesidad específica de ver la actividad en un servicio descendente incluso cuando el ascendente no la haya muestreado.
+</Callout>
+</Collapser>
+</CollapserGroup>
+
+## Tipos de muestreadores [#sampler-types]
+
+Los agentes APM proporcionan cuatro tipos de muestreadores, cada uno adecuado para diferentes escenarios.
+
+| Tipo de muestreador                                                  | Cómo funciona                                                                                      | Ideal para                                                               |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [Adaptativo](#adaptive-sampler)                                      | Tiene como objetivo un número fijo de trazas por minuto, independientemente del volumen de tráfico | Número constante de trazas independientemente de los picos de tráfico    |
+| [Basado en la proporción de Trace ID](#trace-id-ratio-based-sampler) | Muestrea un porcentaje fijo de trazas en función del ID de la traza                                | Muestreo determinista en todos los servicios como porcentaje del tráfico |
+| [Siempre activo](#always-on-sampler)                                 | Muestrea todas las transacciones                                                                   | Cobertura completa de trazas para un contexto específico                 |
+| [Siempre desactivado](#always-off-sampler)                           | No muestrea transacciones                                                                          | Desactivación total del muestreo para un contexto específico             |
+
+<CollapserGroup>
+<Collapser id="adaptive-sampler" title="Muestreador adaptativo">
+<DNT>**How it works**</DNT>: se adapta dinámicamente al rendimiento del servicio para muestrear un número objetivo de trazas raíz por minuto, independientemente del volumen de tráfico. Siempre muestrea las transacciones que fueron muestreadas por un servicio ascendente y no las cuenta para el objetivo de muestreo adaptativo.
+
+<DNT>**Default behavior**</DNT>: los agentes APM utilizan el muestreador adaptativo de forma predeterminada. La mayoría de los agentes APM tienen un objetivo de muestreo adaptativo predeterminado de 10 transacciones por minuto. Consulte la documentación de configuración de cada agente APM para obtener más detalles.
+
+<DNT>**When to use**</DNT>:
+
+* Desea un número constante de transacciones muestreadas por minuto —independientemente de los cambios de tráfico— en lugar de un porcentaje constante de tráfico.
+* Desea un ajuste dinámico para espaciar el muestreo a lo largo de cada minuto.
+* Desea muestrear todas las transacciones que fueron muestreadas por el servicio ascendente y que estas no cuenten para el objetivo de muestreo adaptativo.
+
+<DNT>**Configuration**</DNT>:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root: adaptive
+```
+
+<DNT>**How it adapts**</DNT>:
+
+* Tráfico bajo (10 requests/min): muestrea cada request para alcanzar el objetivo
+* Tráfico medio (100 requests/min): muestrea aproximadamente cada 5.º request para alcanzar el objetivo
+* Tráfico alto (1000 requests/min): muestrea aproximadamente cada 50.º request para alcanzar el objetivo
+
+<Callout variant="tip">
+El muestreador adaptativo siempre muestrea las trazas que fueron muestreadas por un servicio upstream. Estas trazas no cuentan para el objetivo de muestreo adaptativo configurado.
+</Callout>
+
+### Objetivos de muestreo adaptativo [#adaptive-targets]
+
+Los objetivos de muestreo adaptativo controlan cuántas trazas por minuto intenta capturar el agente. Comprender los objetivos **globales** frente a los **por contexto** es fundamental para lograr un comportamiento predecible.
+
+| Propiedad de configuración                            | Alcance                                    |
+| ----------------------------------------------------- | ------------------------------------------ |
+| [`adaptive_sampling_target`](#global-sampling-target) | Global —compartido por todos los contextos |
+| [`sampling_target`](#context-sampling-targets)        | Contexto único                             |
+
+<CollapserGroup>
+<Collapser
+  id="global-sampling-target"
+  title={<>Configurar global <InlineCode>
+    adaptive_sampling_target
+  </InlineCode></>
+  }
+>
+El `adaptive_sampling_target` es compartido por todos los contextos y es el objetivo de muestreo **predeterminado**. Un contexto puede anular el `adaptive_sampling_target` global con su propio [`sampling_target`](#context-sampling-targets) específico del contexto.
+
+El `adaptive_sampling_target` se puede establecer en cualquier número entero entre 1 y 120, ambos inclusive.
+
+<DNT>**Configuration**</DNT>:
+
+```yaml
+distributed_tracing:
+  sampler:
+    adaptive_sampling_target: 10  # Applied to all contexts without explicit override
+    root: adaptive
+```
+
+<DNT>**Result**</DNT>: el agente intenta capturar aproximadamente 10 transacciones por minuto que se originan en el servicio actual.
+</Collapser>
+
+<Collapser
+  id="context-sampling-targets"
+  title={<>Configurar por contexto <InlineCode>
+    sampling_target
+  </InlineCode></>
+  }
+>
+Cada contexto de muestreo puede reemplazar el objetivo global con su propio `sampling_target`.
+
+El `sampling_target` se puede establecer en cualquier número entero entre 1 y 120, ambos inclusive.
+
+<DNT>**Configuration**</DNT>:
+
+```yaml
+distributed_tracing:
+  sampler:
+    adaptive_sampling_target: 10  # Global default
+    root:
+      adaptive:
+        sampling_target: 5  # Overrides global default to capture 5 traces/min
+```
+
+<DNT>**Result**</DNT>: el agente intenta capturar 5 transacciones por minuto que se originan en el servicio actual, anulando el valor predeterminado global de 10.
+</Collapser>
+</CollapserGroup>
+
+#### Razones para aumentar los objetivos de muestreo adaptativo
+
+El valor predeterminado de 10 trazas/minuto se diseñó para el rastreo de transacciones, no para el rastreo distribuido. Para el rastreo distribuido, a menudo se desea un muestreo mayor para:
+
+* <DNT>**Fill service map gaps**</DNT>: es posible que los extremos poco frecuentes nunca se muestreen a 10/min
+* <DNT>**Improve trace diversity**</DNT>: consulte más tipos de transacciones y rutas de código
+</Collapser>
+
+<Collapser id="trace-id-ratio-based-sampler" title="Muestreador basado en la proporción de Trace ID">
+<DNT>**How it works**</DNT>: muestrea un porcentaje fijo de trazas según el ID de la traza. Debido a que la decisión de muestreo se basa en el ID de la traza, la misma traza obtendrá la misma decisión en todos los servicios que utilicen el mismo muestreador de proporción y agente de lenguaje de APM.
+
+<DNT>**When to use**</DNT>:
+
+* Necesita un porcentaje constante de tráfico muestreado.
+* Desea un muestreo determinista (se muestrean los mismos rastreos distribuidos en todos los servicios con el mismo agente de lenguaje de APM).
+* Desea evitar el comportamiento del muestreador adaptativo en el que las transacciones que fueron muestreadas por el servicio ascendente siempre se muestrean y no cuentan para el objetivo de muestreo adaptativo.
+
+Cada muestreador `trace_id_ratio_based` **debe** proporcionar un decimal `ratio` entre 0.0 (exclusivo) y 1.0 (inclusivo). El `ratio` especifica el porcentaje de trazas que se capturarán.
+
+<Callout variant="important">
+La propiedad `ratio` es obligatoria cuando se utiliza el muestreador `trace_id_ratio_based`. Si no se establece una proporción, se utilizará el muestreador adaptativo predeterminado en su lugar.
+</Callout>
+
+<DNT>**Configuration**</DNT>:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1  # 10% of traces
+```
+
+<DNT>**Important characteristic**</DNT>: el ID de la traza determina si se muestrea una traza. Si varios servicios usan la misma proporción y agente de lenguaje, tomarán decisiones consistentes para la misma traza.
+
+<DNT>**Example**</DNT>: muestrear el 10 % del rastreo distribuido raíz y el 50 % del rastreo distribuido muestreado de forma ascendente:
+
+```yaml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.5
+```
+</Collapser>
+
+<Collapser id="always-on-sampler" title="Muestreador siempre activo">
+<DNT>**How it works**</DNT>: muestrea todas las transacciones que coinciden con este contexto.
+
+<DNT>**When to use**</DNT>:
+
+* Necesita una cobertura completa de trazas para un contexto específico (`root`, `remote_parent_sampled`, `remote_parent_not_sampled`)
+* Desea seguir o anular la decisión de muestreo del servicio upstream
+
+<DNT>**Configuration**</DNT>:
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_sampled:
+      always_on  # Capture all upstream-sampled traces
+```
+
+<Callout variant="caution">
+El uso de `always_on` capturará cada transacción para el contexto dado, lo que puede generar un volumen de datos significativo para los servicios de alto tráfico.
+</Callout>
+</Collapser>
+
+<Collapser id="always-off-sampler" title="Muestreador siempre desactivado">
+<DNT>**How it works**</DNT>: no muestrea ninguna de las transacciones para un contexto determinado.
+
+<DNT>**When to use**</DNT>:
+
+* Desea aceptar la decisión del servicio upstream de no muestrear
+* Desea desactivar el muestreo para un contexto específico
+
+<DNT>**Configuration**</DNT>:
+
+```yaml
+distributed_tracing:
+  sampler:
+    remote_parent_not_sampled:
+      always_off  # Don't sample if upstream did NOT sample
+```
+</Collapser>
+</CollapserGroup>
+
+## Configuración sugerida
+
+Con tantos muestreadores para elegir, puede resultar difícil encontrar la configuración adecuada para el servicio. La mejor manera de encontrar la configuración que le funcione es observar la distribución de trazas que tiene el servicio hoy y hacer pequeños ajustes para avanzar hacia la distribución de trazas que desea.
+
+Recomendamos esta configuración como punto de partida:
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      always_on
+    remote_parent_not_sampled:
+      always_off
+```
+
+Esta configuración muestrea el 10 % de las trazas del contexto `root`, todas las trazas del contexto `remote_parent_sampled` y ninguna traza del contexto `remote_parent_not_sampled`.
+
+Para algunas aplicaciones, esta configuración es un punto de partida razonable para una distribución equilibrada de trazas. Para otras —por ejemplo, aquellas en las que la *mayoría* de las trazas se originan en un servicio ascendente— esta configuración puede dar demasiada prioridad a las trazas `remote_parent_sampled` y muy poca a las trazas `root`. En ese caso, intente modificar la configuración de `remote_parent_sampled` para capturar solo un porcentaje de las trazas muestreadas de forma ascendente:
+
+```yml
+distributed_tracing:
+  sampler:
+    root:
+      trace_id_ratio_based:
+        ratio: 0.1
+    remote_parent_sampled:
+      trace_id_ratio_based:
+        ratio: 0.2 # Sample 20% of sampled traces originating upstream, instead of all of them
+    remote_parent_not_sampled:
+      always_off
+```
+
+## Que sigue [#whats-next]
+
+Ahora que comprende el muestreo:
+
+* Consulte la referencia completa de configuración del muestreador para el agente: [Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file), [Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration), [Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration)
+* Consulte [Ejemplos de configuración del muestreador](/docs/apm/distributed-tracing/sampler-configuration-examples) para ver escenarios del mundo real con configuración lista para copiar y pegar
+
+<Callout variant="tip">
+La configuración de muestreo puede ser compleja. Comience con un solo patrón e itere según el volumen de trazas real y las necesidades. Utilice métricas de capacidad de soporte y consultas de trazas para verificar que la configuración funcione como se espera.
+</Callout>
