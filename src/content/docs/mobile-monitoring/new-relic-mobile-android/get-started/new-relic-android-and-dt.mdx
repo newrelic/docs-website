@@ -8,25 +8,19 @@ freshnessValidatedDate: never
 
 New Relic Android <InlinePopover type="mobile"/> agents support distributed tracing. This lets you see how your mobile app activity connects to related services.
 
-Watch this short video (approx. 2:15 minutes) to learn how to:
-
-* Find mobile distributed tracing data in New Relic.
-* Filter by standard and custom attributes.
-
-<Video
-  id="tkAxeE5cT2Q"
-  type="youtube"
-/>
-
 ## Requirements [#requirements]
 
 To use distributed tracing, you need at least Android agent version 6.0.0. We recommend you use the most recent agent.
 
+{/* TODO: 6.0.0 is the version already stated on the live page. Code review couldn't independently confirm it: the agent repo's full git history starts from a 2022 squashed import ("Migrate agent from GHE") where the DistributedTracing feature flag and the whole distributedtracing/ package already existed fully-formed, and the earliest tag in the public repo is 6.11.0, not 6.0.0. Confirm 6.0.0 with Android engineering before publishing. */}
+
 ## How to set up distributed tracing [#setup]
 
-For mobile agents that support this feature, it’s enabled by default. You also need to turn on [AnalyticsEvents](/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api/android-agent-configuration-feature-flags/#ff-analytics-events) for this feature to work.
+Distributed tracing is enabled by default — you don't need to do anything to turn it on. Distributed tracing headers go out on every auto-instrumented request regardless of other settings.
 
-If you prefer to turn off distributed tracing, see [Android feature flag](/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api/android-agent-configuration-feature-flags/#dt).
+If you prefer to turn it off, see [Disable distributed tracing](#disable) below.
+
+To see the trace correlated with your app's network activity in New Relic (the reported `MobileRequest` or `MobileRequestError` event), you need [AnalyticsEvents](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings/#android-analytics-settings) enabled — this is on by default, and it's a prerequisite for sending any of your app's analytics events, not something specific to distributed tracing.
 
 ## Distributed tracing headers [#headers]
 
@@ -104,6 +98,139 @@ New Relic APM agents that support W3C Trace Context use these headers to continu
   If a service, proxy, or gateway between your app and your backend requires the `newrelic` header, update it to accept `traceparent` and `tracestate` instead. APM agents older than the versions above only recognize the `newrelic` header, and start a new trace instead of linking to the request from your app.
 </Callout>
 
+## Which requests get distributed tracing automatically [#automatic-instrumentation]
+
+The Android agent's Gradle plugin instruments your app's bytecode at build time, so distributed tracing headers are added automatically to requests made through:
+
+* `OkHttp` (versions 2 and 3)
+* Apache `HttpClient`
+* `HttpURLConnection`
+* Retrofit
+
+Because this instrumentation weaves the call sites of those libraries directly, code that wraps them — including Kotlin coroutines and suspend functions — should also be covered, since the underlying call sites are woven regardless of what calls them.
+
+The agent does not automatically add distributed tracing headers to:
+
+* Volley. There's no Volley support in the agent at all, so Volley requests need [manual propagation](#manual) if you want them traced.
+* `WebView`. The agent's `WebView` instrumentation covers page-load timing, not network request headers, so requests made from web content loaded in a `WebView` aren't traced automatically.
+* Any other third-party networking library or custom transport that doesn't route through the libraries listed above.
+
+For any of these, use manual propagation.
+
+## Manually propagate distributed tracing [#manual]
+
+If you make a request through a library the agent doesn't auto-instrument, you can still add distributed tracing headers and report the request yourself.
+
+First, create a trace context and get its headers to attach to your outgoing request:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        <DNT>
+          **Language**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Example**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Java
+      </td>
+
+      <td>
+        ```java
+        TraceContext traceContext = NewRelic.noticeDistributedTrace(null);
+        for (TraceHeader header : traceContext.getHeaders()) {
+            connection.setRequestProperty(header.getHeaderName(), header.getHeaderValue());
+        }
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Kotlin
+      </td>
+
+      <td>
+        ```kotlin
+        val traceContext = NewRelic.noticeDistributedTrace(null)
+        for (header in traceContext.getHeaders()) {
+            connection.setRequestProperty(header.headerName, header.headerValue)
+        }
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Then, when you report the completed request, pass `traceContext.asTraceAttributes()` as the trailing argument of [`noticeHttpTransaction`](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/network-request-success/) or [`noticeNetworkFailure`](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/network-request-failures/) (select the Android tab for the full parameter reference) so the reported event is attributed to that trace:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        <DNT>
+          **Language**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Example**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Java
+      </td>
+
+      <td>
+        ```java
+        Map<String, Object> traceAttributes = traceContext.asTraceAttributes();
+
+        NewRelic.noticeHttpTransaction(url, httpMethod, statusCode, startTimeMs, endTimeMs,
+                bytesSent, bytesReceived, responseBody, params, appData, traceAttributes);
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Kotlin
+      </td>
+
+      <td>
+        ```kotlin
+        val traceAttributes = traceContext.asTraceAttributes()
+
+        NewRelic.noticeHttpTransaction(url, httpMethod, statusCode, startTimeMs, endTimeMs,
+                bytesSent, bytesReceived, responseBody, params, appData, traceAttributes)
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Disable distributed tracing [#disable]
+
+```java
+NewRelic.disableFeature(FeatureFlag.DistributedTracing)
+```
+
 ## Enable Infinite Tracing [#infinite-tracing]
 
 If your mobile apps have some downstream services that use our tail-based distributed tracing called [Infinite Tracing](/docs/distributed-tracing/infinite-tracing/introduction-infinite-tracing), you should enable this feature for your mobile apps. This ensures that your root span (the initiating mobile app) is included in the rest of the spans tracked by Infinite Tracing.
@@ -126,6 +253,27 @@ Here are some tips for finding and querying data:
   * Query for traces containing at least one backend app with `appName is not null`.
   * Query for traces containing both mobile and backend spans by combining the two previous conditions.
 
+For example, to find mobile spans for a specific app:
+
+```sql
+SELECT count(*) FROM Span WHERE mobileApp.name = 'YOUR_APP_NAME' SINCE 1 day ago
+```
+
+To find traces that connect a mobile span to a backend APM span:
+
+```sql
+SELECT * FROM Span WHERE mobileApp.name IS NOT NULL AND appName IS NOT NULL SINCE 1 day ago
+```
+
 ## Troubleshooting [#troubleshooting]
 
-If you don't see end-user spans, or are having other distributed tracing issues, see [Troubleshooting](/docs/apm/distributed-tracing/troubleshooting/troubleshooting-missing-trace-data).
+If you don't see mobile spans where you expect them, check these in order:
+
+* **Distributed tracing is disabled.** Confirm you haven't called `disableFeature` with `FeatureFlag.DistributedTracing`. See [How to set up distributed tracing](#setup).
+* **AnalyticsEvents is disabled.** Headers still go out, but the correlated `MobileRequest`/`MobileRequestError` event won't be sent. See [How to set up distributed tracing](#setup).
+* **The request isn't auto-instrumented.** Requests made through Volley, a `WebView`, or any library other than `OkHttp`, Apache `HttpClient`, `HttpURLConnection`, or Retrofit need [manual propagation](#manual). See [Which requests get distributed tracing automatically](#automatic-instrumentation).
+* **The backend APM agent is too old.** If the receiving service's APM agent doesn't support W3C Trace Context yet, it starts a new trace instead of linking to your app's. Check the [minimum APM agent versions](#headers).
+* **A proxy or gateway strips the headers.** Anything sitting between your app and the backend needs to pass through `traceparent` and `tracestate` unmodified.
+* **`tracestate` is dropped because the trusted account key doesn't match.** If a backend service belongs to a different New Relic account than your mobile app, confirm the account is in the same trust relationship, or the `tracestate` entry may be ignored.
+
+For broader distributed tracing issues, see [Troubleshooting](/docs/apm/distributed-tracing/troubleshooting/troubleshooting-missing-trace-data).
