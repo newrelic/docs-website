@@ -54,11 +54,20 @@ translationType: machine
     * [SQL Server 認証](/docs/opentelemetry/db360/mssql/windows-rds-sql)
     * [Windowsドメイン認証](/docs/opentelemetry/db360/mssql/windows-rds-domain)
     * [gMSA](/docs/opentelemetry/db360/mssql/windows-rds-gmsa)
+
+  * Azure SQL Database：
+
+    * [Linux](/docs/opentelemetry/db360/mssql/azure-sql-linux)
+    * [ウィンドウズ](/docs/opentelemetry/db360/mssql/azure-sql-windows)
 </Step>
 
 <Step>
 ## マルチレシーバー設定の追加 [#multi]
 
+ご使用の環境に合ったコラプサーを選択してください。
+
+<CollapserGroup>
+<Collapser id="multiple-instances" title="複数のSQL Serverインスタンス（セルフホスト型またはRDS）">
 次の例では、マルチ・レシーバー設定を使用して2つのMSSQLインスタンスをモニターするようにNRDOT Collectorを設定する方法を示します。1番目のインスタンス`nrsqlserver/1`は、完全な設定を保持し、アンカーとして機能します；2番目のインスタンス`nrsqlserver/2`は、YAMLマージ・キーを通じてすべての共有設定を継承し、自身の接続の詳細のみを上書きします。追加のインスタンス用に、必要に応じてさらにレシーバーを追加できます。
 
 ```yaml
@@ -194,6 +203,134 @@ service:
 <Callout variant="tip">
 ドメインまたはgMSA認証を使用するWindowsセルフホストおよびRDS環境では、`username`/`password`/`server`/`port`の代わりに`datasource`フィールドを使用してください。`datasource`の形式については、[Windowsセルフホスト計装（Windowsドメイン認証）](/docs/opentelemetry/db360/mssql/windows-hosted-domain)を参照してください。
 </Callout>
+</Collapser>
+
+<Collapser id="azure-sql-database" title="Azure SQLデータベース上の複数のデータベース">
+Azure SQL データベースはクロスデータベースクエリをサポートしていないため、各レシーバーは1つのデータベースに接続します。同じサーバー上の複数のデータベースをモニターするには、データベースごとに1つのレシーバーを定義します。最初のレシーバーは完全な設定を保持し、アンカーとして機能します；他のレシーバーはYAMLマージキー（`<<`）を介してそれを継承し、`datasource`のみをオーバーライドします。
+
+1. 監視対象とするすべてのデータベースにおいて、監視用ユーザーを作成します。手順については、「[Linux](/docs/opentelemetry/db360/mssql/azure-sql-linux#user)」または「[Windows](/docs/opentelemetry/db360/mssql/azure-sql-windows#user)」の「監視用ユーザーの作成と権限の付与」に関する説明を参照してください。`master`の`newrelic`ログインは共有されるため、作成するのは1回のみです。
+
+2. 以下の設定を追加します。`<YOUR_PASSWORD>`、`<YOUR-SERVER>`、`<YOUR_DATABASE_1>`、`<YOUR_DATABASE_2>`、`<YOUR_LICENSE_KEY>`、およびOTLPエンドポイントをご自身の値に置き換えます：
+
+   ```yaml
+   receivers:
+     # First database: defines the anchor that the others inherit from.
+     nrsqlserver/db1: &nrsqlserver-common
+       collection_interval: 15s
+       # datasource replaces username, password, server, and port.
+       datasource: "sqlserver://newrelic:<YOUR_PASSWORD>@<YOUR-SERVER>:1433?database=<YOUR_DATABASE_1>"
+
+       metrics:
+         sqlserver.database.io:
+           enabled: true
+         sqlserver.database.latency:
+           enabled: true
+         sqlserver.database.operations:
+           enabled: true
+         sqlserver.database.tempdb.space:
+           enabled: true
+         sqlserver.database.tempdb.version_store.size:
+           enabled: true
+         sqlserver.deadlock.rate:
+           enabled: true
+         sqlserver.os.wait.duration:
+           enabled: true
+         sqlserver.processes.blocked:
+           enabled: true
+         sqlserver.memory.grants.pending.count:
+           enabled: true
+         sqlserver.database.file.size:
+           enabled: true
+         sqlserver.memory.area:
+           enabled: true
+
+       events:
+         db.server.query_sample:
+           enabled: true
+         db.server.top_query:
+           enabled: true
+         db.server.query_plan:
+           enabled: true
+         db.server.top_procedure:
+           enabled: true
+
+       top_query_collection:
+         lookback_time: 60s
+         max_query_sample_count: 1000
+         top_query_count: 250
+         collection_interval: 60s
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       query_sample_collection:
+         max_rows_per_query: 100
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       top_procedure_collection:
+         max_procedure_sample_count: 1000
+         top_procedure_count: 250
+         collection_interval: 60s
+
+       resource_attributes:
+         db.system.version:
+           enabled: true
+         sqlserver.db.edition:
+           enabled: true
+
+     # Second database: inherits every setting above and overrides only the database.
+     # Add more databases the same way (nrsqlserver/db3, ...).
+     nrsqlserver/db2:
+       <<: *nrsqlserver-common
+       datasource: "sqlserver://newrelic:<YOUR_PASSWORD>@<YOUR-SERVER>:1433?database=<YOUR_DATABASE_2>"
+
+   processors:
+     memory_limiter:
+       check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+       limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+       spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+   exporters:
+     otlp:
+       endpoint: https://otlp.nr-data.net:4318
+       headers:
+         api-key: <YOUR_LICENSE_KEY>
+       tls:
+         insecure: false
+       compression: gzip
+       sending_queue:
+         enabled: true
+         sizer: bytes
+         queue_size: 100_000_000
+         num_consumers: 10
+         batch:
+           sizer: bytes
+           max_size: 1_000_000
+           min_size: 0
+           flush_timeout: 5s
+
+   service:
+     telemetry:
+       metrics:
+         level: none
+     pipelines:
+       metrics:
+         receivers: [nrsqlserver/db1, nrsqlserver/db2]
+         processors: [memory_limiter]
+         exporters: [otlp]
+       logs:
+         receivers: [nrsqlserver/db1, nrsqlserver/db2]
+         processors: [memory_limiter]
+         exporters: [otlp]
+   ```
+
+<Callout variant="important">
+`nrsqlserver/db3`などの新しい各レシーバーを、`metrics`パイプラインと`logs`パイプラインの両方の`receivers`リストに追加します。定義されていてもパイプラインにリストされていないレシーバーは、データを収集しません。
+</Callout>
+</Collapser>
+</CollapserGroup>
 </Step>
 
 <Step>
