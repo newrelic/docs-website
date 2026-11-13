@@ -95,7 +95,14 @@ Install the NRDOT Collector on a system that can connect to your RDS instance:
 
 ## Configure database user and grants [#database-user]
 
-Create a monitoring user with the necessary privileges for your RDS PostgreSQL instance.
+Create a monitoring user with the necessary privileges for your RDS PostgreSQL instance. Choose the authentication method that fits your environment:
+
+<CollapserGroup>
+
+<Collapser
+  title="Password authentication"
+  id="password-auth"
+>
 
 **To create the monitoring user and grants:**
 
@@ -156,6 +163,103 @@ Create a monitoring user with the necessary privileges for your RDS PostgreSQL i
 
     If each command completes without an error, the monitoring user, host, and port are all correct.
 
+</Collapser>
+
+<Collapser
+  title="IAM database authentication"
+  id="iam-auth"
+>
+
+As an alternative to a static password, the monitoring user can authenticate using a short-lived AWS IAM database authentication token.
+
+**To create the monitoring user and grants:**
+
+1. Enable IAM database authentication on the RDS instance:
+
+  ```bash
+  aws rds modify-db-instance \
+    --db-instance-identifier <YOUR_DB_INSTANCE_ID> \
+    --enable-iam-database-authentication \
+    --apply-immediately
+  ```
+
+2. Connect to your RDS instance as the master user:
+
+  ```shell
+  psql --host=<YOUR_RDS_ENDPOINT> --dbname=postgres --port=5432 --username=<YOUR_MASTER_USERNAME>
+  ```
+
+3. Create the monitoring user and grant the `rds_iam` role:
+
+  ```sql
+  CREATE USER <YOUR_DB_USERNAME> WITH LOGIN;
+  GRANT rds_iam TO <YOUR_DB_USERNAME>;
+  ```
+
+4. Grant the monitoring user role membership as needed:
+
+  * If you're on PostgreSQL 15 and above, assign role to inherit privileges:
+
+    ```sql
+    ALTER ROLE <YOUR_DB_USERNAME> INHERIT;
+    ```
+
+    <Callout variant="tip">
+      If you're on PostgreSQL 14, the monitoring user inherits privileges by default, so you can skip this step.
+    </Callout>
+
+  * Create the following schema and grants in every database you want to monitor:
+
+    ```sql
+    CREATE SCHEMA IF NOT EXISTS otel;
+    GRANT USAGE ON SCHEMA otel TO <YOUR_DB_USERNAME>;
+    GRANT USAGE ON SCHEMA public TO <YOUR_DB_USERNAME>;
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO <YOUR_DB_USERNAME>;
+    GRANT pg_monitor TO <YOUR_DB_USERNAME>;
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+    ```
+
+  * (Optional) To collect vector metrics, create the `pgvector` extension in each database:
+
+    ```sql
+    CREATE EXTENSION IF NOT EXISTS vector;
+    ```
+
+    The `l1`, `hamming`, and `jaccard` distance functions require `pgvector` version `0.7.0` or above.
+
+5. Grant IAM permission to connect:
+
+  Attach a policy to the collector's AWS identity (EC2 instance profile, ECS task role, or IRSA):
+
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "rds-db:connect",
+        "Resource": "arn:aws:rds-db:<YOUR_AWS_REGION>:<YOUR_ACCOUNT_ID>:dbuser:<DB_RESOURCE_ID>/<YOUR_DB_USERNAME>"
+      }
+    ]
+  }
+  ```
+
+  | Placeholder | Description |
+  | --- | --- |
+  | `<DB_RESOURCE_ID>` | The RDS instance's `DbiResourceId` (not the instance identifier). Get it by running: `aws rds describe-db-instances --db-instance-identifier <YOUR_DB_INSTANCE_ID> --query 'DBInstances[0].DbiResourceId'` |
+
+  <Callout variant="tip">
+    IAM policy changes can take a few minutes to propagate. A connection attempt right after attaching the policy may still fail with an access denied error even though the policy is already correctly attached.
+  </Callout>
+
+6. Enable TLS:
+
+  AWS RDS/Aurora requires SSL for IAM-authenticated connections. Set `tls.insecure: false` and `tls.ca_file` to the [Amazon RDS certificate bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem).
+
+</Collapser>
+
+</CollapserGroup>
+
 </Step>
 
 <Step>
@@ -176,61 +280,68 @@ This configuration focuses on essential PostgreSQL monitoring with the `nrpostgr
     sudo nano /etc/nrdot-collector/postgresql-config.yaml
   ```
 
-2. Add the following configuration to the `postgresql-config.yaml` file you created in the previous step.
+2. Add the following configuration to the `postgresql-config.yaml` file you created in the previous step. Choose the authentication method you configured in the previous step:
 
-  <OtelConfig
-    inputOptions={[
-      {
-        name: 'host',
-        label: 'PostgreSQL RDS Endpoint',
-        codeLine: 3,
-        defaultValue: 'mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com',
-        toolTip: 'Enter your PostgreSQL RDS endpoint',
-      },
-      {
-        name: 'port',
-        label: 'PostgreSQL Port',
-        codeLine: 3,
-        defaultValue: '5432',
-        toolTip: 'Enter your PostgreSQL port number. The default value is 5432.',
-      },
-      {
-        name: 'username',
-        label: 'Database Username',
-        codeLine: 4,
-        defaultValue: 'newrelic',
-        toolTip: 'Enter your database username for authentication',
-      },
-      {
-        name: 'password',
-        label: 'Database Password',
-        codeLine: 5,
-        defaultValue: 'YOUR_PASSWORD',
-        toolTip: 'Enter the password you set for the monitoring user',
-      },
-      {
-        name: 'database',
-        label: 'Database Name',
-        codeLine: 7,
-        defaultValue: 'YOUR_DATABASE_NAME',
-        toolTip: 'Enter the name of the database you want to monitor',
-      },
-      {
-        name: 'endpoint',
-        label: 'New Relic OTLP Endpoint',
-        codeLine: 59,
-        defaultValue: 'https://otlp.nr-data.net:4318',
-        toolTip: 'Enter your New Relic OTLP endpoint. For more information, refer to https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
-      },
-      {
-        name: 'licenseKey',
-        label: 'New Relic License Key',
-        codeLine: 61,
-        defaultValue: 'YOUR_LICENSE_KEY',
-        toolTip: 'Enter your New Relic license key',
-      },
-    ]}
-    config={`receivers:
+<CollapserGroup>
+
+<Collapser
+  title="Password authentication"
+  id="password-config"
+>
+
+<OtelConfig
+  inputOptions={[
+    {
+      name: 'host',
+      label: 'PostgreSQL RDS Endpoint',
+      codeLine: 3,
+      defaultValue: 'mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com',
+      toolTip: 'Enter your PostgreSQL RDS endpoint',
+    },
+    {
+      name: 'port',
+      label: 'PostgreSQL Port',
+      codeLine: 3,
+      defaultValue: '5432',
+      toolTip: 'Enter your PostgreSQL port number. The default value is 5432.',
+    },
+    {
+      name: 'username',
+      label: 'Database Username',
+      codeLine: 4,
+      defaultValue: 'newrelic',
+      toolTip: 'Enter your database username for authentication',
+    },
+    {
+      name: 'password',
+      label: 'Database Password',
+      codeLine: 5,
+      defaultValue: 'YOUR_PASSWORD',
+      toolTip: 'Enter the password you set for the monitoring user',
+    },
+    {
+      name: 'database',
+      label: 'Database Name',
+      codeLine: 7,
+      defaultValue: 'YOUR_DATABASE_NAME',
+      toolTip: 'Enter the name of the database you want to monitor',
+    },
+    {
+      name: 'endpoint',
+      label: 'New Relic OTLP Endpoint',
+      codeLine: 59,
+      defaultValue: 'https://otlp.nr-data.net:4318',
+      toolTip: 'Enter your New Relic OTLP endpoint. For more information, refer to https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
+    },
+    {
+      name: 'licenseKey',
+      label: 'New Relic License Key',
+      codeLine: 61,
+      defaultValue: 'YOUR_LICENSE_KEY',
+      toolTip: 'Enter your New Relic license key',
+    },
+  ]}
+  config={`receivers:
   nrpostgresql:
     endpoint: "<input1>:<input2>"
     username: "<input3>"
@@ -318,27 +429,178 @@ service:
       receivers: [nrpostgresql]
       processors: [batch]
       exporters: [otlp/newrelic]`}
-    fileName="postgresql-config.yaml"
-    tipMdx={{ body: null }}
-    onChange={() => {}}
-  />
+  fileName="postgresql-config.yaml"
+  tipMdx={{ body: null }}
+  onChange={() => {}}
+/>
 
-### Configuration parameters
+</Collapser>
 
-The following table describes the key configuration parameters for the `nrpostgresql` receiver: 
+<Collapser
+  title="IAM database authentication"
+  id="iam-config"
+>
 
-| Parameter | Description |
-| --- | --- |
-| `<YOUR_RDS_ENDPOINT>` | Enter your RDS instance endpoint hostname. |
-| `<YOUR_DB_PORT>` | Enter your PostgreSQL Database port. |
-| `<YOUR_DB_USERNAME>` | Enter your database username. |
-| `<YOUR_DB_PASSWORD>` | Enter your database password. |
-| `<YOUR_DATABASE_NAME>` | Enter the name of the database you want to monitor. |
-| `databases` | List of databases to collect statistics for. Default: `[]` (all non-template databases). Applies to metrics only. Query samples and top queries ignore this list and are filtered solely by `exclude_databases`. |
-| `exclude_databases` | Databases excluded from statistics, query samples, and top queries. Default: `[]`. Use this for managed-service internal databases (such as `rdsadmin`) that your monitoring user can't reach. |
-| `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, see [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
-| `<YOUR_NEWRELIC_LICENSE_KEY>` | Enter your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
-| `collection_interval` | Enter the interval between metric scrapes. Default: `15s`. |
+<OtelConfig
+  inputOptions={[
+    {
+      name: 'region',
+      label: 'AWS Region',
+      codeLine: 3,
+      defaultValue: 'us-east-1',
+      toolTip: 'Enter the AWS region of your RDS instance',
+    },
+    {
+      name: 'host',
+      label: 'PostgreSQL RDS Endpoint',
+      codeLine: 6,
+      defaultValue: 'mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com',
+      toolTip: 'Enter your PostgreSQL RDS endpoint',
+    },
+    {
+      name: 'port',
+      label: 'PostgreSQL Port',
+      codeLine: 6,
+      defaultValue: '5432',
+      toolTip: 'Enter your PostgreSQL port number. The default value is 5432.',
+    },
+    {
+      name: 'username',
+      label: 'Database Username',
+      codeLine: 7,
+      defaultValue: 'newrelic',
+      toolTip: 'Enter your database username for authentication',
+    },
+    {
+      name: 'database',
+      label: 'Database Name',
+      codeLine: 10,
+      defaultValue: 'YOUR_DATABASE_NAME',
+      toolTip: 'Enter the name of the database you want to monitor',
+    },
+    {
+      name: 'endpoint',
+      label: 'New Relic OTLP Endpoint',
+      codeLine: 64,
+      defaultValue: 'https://otlp.nr-data.net:4318',
+      toolTip: 'Enter your New Relic OTLP endpoint. For more information, refer to https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
+    },
+    {
+      name: 'licenseKey',
+      label: 'New Relic License Key',
+      codeLine: 66,
+      defaultValue: 'YOUR_LICENSE_KEY',
+      toolTip: 'Enter your New Relic license key',
+    },
+  ]}
+  config={`extensions:
+  aws_iam_db_auth:
+    region: "<input1>"
+receivers:
+  nrpostgresql:
+    endpoint: "<input2>:<input3>"
+    username: "<input4>"
+    db_auth: aws_iam_db_auth
+    databases:
+      - <input5>
+    # top_query/query_sample scan pg_stat_statements/pg_stat_activity cluster-wide
+    # regardless of the databases list above; on RDS/Aurora, exclude reserved
+    # databases the monitoring user can never reach.
+    exclude_databases:
+      - rdsadmin
+    collection_interval: 15s
+    events:
+      db.server.top_query:
+        enabled: true
+      db.server.query_sample:
+        enabled: true
+      db.server.query_plan:
+        enabled: true
+    top_query_collection:
+      max_rows_per_query: 1000
+      top_n_query: 200
+      collection_interval: 60s
+      allowed_comment_keys: [nr_service_guid]
+    query_sample_collection:
+      max_rows_per_query: 1000
+      allowed_comment_keys: [nr_service_guid]
+    resource_attributes:
+      db.system.version:
+        enabled: true
+    # Metrics needed for the out-of-the-box dashboard but disabled by default:
+    # see "Available metrics" below for the full default-on/default-off breakdown.
+    metrics:
+      postgresql.database.locks:
+        enabled: true
+      postgresql.deadlocks:
+        enabled: true
+      postgresql.function.calls:
+        enabled: true
+      postgresql.query.conflicts:
+        enabled: true
+      postgresql.sequential_scans:
+        enabled: true
+      postgresql.temp.io:
+        enabled: true
+      postgresql.temp_files:
+        enabled: true
+    # AWS RDS/Aurora requires SSL for IAM-authenticated connections.
+    tls:
+      insecure: false
+      ca_file: <PATH_TO_RDS_CA_BUNDLE>
+processors:
+  batch:
+  batch/metrics:
+    send_batch_size: 8192
+    send_batch_max_size: 8192
+    timeout: 10s
+exporters:
+  otlp/newrelic:
+    endpoint: "<input6>"
+    headers:
+      api-key: "<input7>"
+    compression: gzip
+    sending_queue:
+      enabled: true
+      sizer: bytes
+      queue_size: 100_000_000
+      num_consumers: 10
+      batch:
+        sizer: bytes
+        max_size: 1_000_000
+        min_size: 0
+        flush_timeout: 5s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+service:
+  extensions: [aws_iam_db_auth]
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [nrpostgresql]
+      processors: [batch/metrics]
+      exporters: [otlp/newrelic]
+    logs:
+      receivers: [nrpostgresql]
+      processors: [batch]
+      exporters: [otlp/newrelic]`}
+  fileName="postgresql-config.yaml"
+  tipMdx={{ body: null }}
+  onChange={() => {}}
+/>
+
+<Callout variant="tip">
+  Download the [Amazon RDS certificate bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem) and reference its path in `ca_file`.
+</Callout>
+
+</Collapser>
+
+</CollapserGroup>
 
 
 <Callout variant="tip">
