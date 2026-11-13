@@ -1,0 +1,253 @@
+---
+title: Install and configure OpenTelemetry Collector Contrib to monitor HAProxy on Kubernetes (Helm)
+metaDescription: "Install and configure the OpenTelemetry Collector Contrib with Helm to automatically discover and monitor HAProxy pods in Kubernetes and send data to New Relic."
+tags:
+  - OpenTelemetry
+  - HAProxy
+  - OTel Collector Contrib
+  - Kubernetes
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: haproxy
+flow:
+  prev: /docs/opentelemetry/integrations/haproxy/introduction
+  next: null
+stepTTFV: 10m
+---
+
+Use this guide to install the OpenTelemetry Collector Contrib on your Kubernetes cluster and configure it to monitor HAProxy running as pods. The collector automatically discovers your HAProxy pods by label, collects their metrics, and sends them to New Relic, so you don't need to configure each instance. This page uses Helm with the [upstream OTel Helm chart](https://github.com/open-telemetry/opentelemetry-helm-charts). To use Kubernetes manifests instead, see [Install and configure OpenTelemetry Collector Contrib (manifest)](/docs/opentelemetry/integrations/haproxy/install-configure/kubernetes/otel-collector-contrib-manifest-install). To monitor HAProxy on Linux servers or VMs, see the [self-hosted install pages](/docs/opentelemetry/integrations/haproxy/install-configure/self-hosted/nrdot).
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+- HAProxy running as pods in a Kubernetes cluster
+
+### Not supported
+None
+
+### You need
+- A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- HAProxy pods with the [stats endpoint enabled](https://www.haproxy.com/documentation/haproxy-configuration-manual/latest/#4-stats%20enable) (typically on port 8404), bound to all interfaces
+- A label on each HAProxy pod for discovery (for example, `app: haproxy`)
+- Helm 3.x (for the Helm install)
+- `kubectl` access to the cluster
+
+<Steps>
+
+<Step>
+
+## Install OpenTelemetry Collector Contrib [#install]
+
+This guide deploys the collector with the upstream [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/). Add the chart repository to Helm:
+
+```bash
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo update
+```
+
+You deploy the chart in the last step, after you configure the collector.
+
+</Step>
+
+<Step>
+
+## Configure the collector [#configure]
+
+```yaml
+mode: deployment
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "nodes"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["replicasets"]
+      verbs: ["get", "list", "watch"]
+
+extraVolumes:
+  - name: machine-id
+    hostPath:
+      path: /etc/machine-id
+      type: File
+
+extraVolumeMounts:
+  - name: machine-id
+    mountPath: /etc/machine-id
+    readOnly: true
+
+config:
+  extensions:
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+    k8s_observer:
+      auth_type: serviceAccount
+      observe_pods: true
+      observe_nodes: false
+
+  receivers:
+    receiver_creator/haproxy:
+      watch_observers: [k8s_observer]
+      receivers:
+        haproxy:
+          rule: type == "pod" && labels["app"] == "haproxy"
+          config:
+            endpoint: 'http://`endpoint`:8404/stats'
+            collection_interval: 30s
+
+  processors:
+    resourcedetection:
+      detectors: [env, system]
+      system:
+        resource_attributes:
+          host.name:
+            enabled: true
+          host.id:
+            enabled: true
+          os.type:
+            enabled: true
+
+    batch:
+      send_batch_size: 1024
+      timeout: 30s
+
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+
+    resource/cluster:
+      attributes:
+        - key: k8s.cluster.name
+          value: "<YOUR_CLUSTER_NAME>"
+          action: insert
+
+    transform/haproxy:
+      metric_statements:
+        - context: resource
+          statements:
+            - set(attributes["haproxy.display.name"], Concat(["server", "k8s", attributes["k8s.cluster.name"], attributes["k8s.namespace.name"], "pod", attributes["k8s.pod.name"], "haproxy", "8404"], ":"))
+
+    transform/metadata_nullify:
+      metric_statements:
+        - context: metric
+          statements:
+            - set(description, "")
+            - set(unit, "")
+
+  exporters:
+    otlp_http/newrelic:
+      endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+      headers:
+        api-key: "<YOUR_NEW_RELIC_LICENSE_KEY>"
+
+  service:
+    extensions: [health_check, k8s_observer]
+    pipelines:
+      metrics/haproxy:
+        receivers: [receiver_creator/haproxy]
+        processors: [resourcedetection, batch, resource/cluster, transform/haproxy, transform/metadata_nullify, memory_limiter]
+        exporters: [otlp_http/newrelic]
+```
+
+### Configuration parameters
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`labels["app"] == "haproxy"`</td>
+    <td>Pod label selector used to discover HAProxy pods. Update the rule to match your pod labels.</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_PORT_NUMBER>`</td>
+    <td>The port where HAProxy exposes its stats endpoint.</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_CLUSTER_NAME>`</td>
+    <td>Replace with your Kubernetes cluster name for identification in New Relic.</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_NEWRELIC_OTLP_ENDPOINT>`</td>
+    <td>Your New Relic OTLP endpoint. For more information, refer to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp).</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_NEW_RELIC_LICENSE_KEY>`</td>
+    <td>Your New Relic ingest license key.</td>
+  </tr>
+</tbody>
+</table>
+
+</Step>
+
+<Step>
+
+## Deploy the collector with Helm [#install-helm]
+
+Deploy the collector with the `values.yaml` file that contains your configuration:
+
+```bash
+helm upgrade --install haproxy-otel-collector open-telemetry/opentelemetry-collector \
+  -f values.yaml \
+  -n newrelic --create-namespace
+```
+
+</Step>
+
+<Step>
+
+## Verify your install [#verify]
+
+Within 5 minutes, run this query in New Relic to confirm data is flowing:
+
+```sql
+FROM Metric SELECT uniques(metricName)
+WHERE metricName LIKE 'haproxy.%'
+SINCE 10 minutes ago
+```
+
+<Callout variant="tip">
+You can also confirm each HAProxy pod reports separately: `FROM Metric SELECT uniques(haproxy.addr) WHERE metricName LIKE 'haproxy.%' SINCE 10 minutes ago` returns one address per pod.
+</Callout>
+
+If you don't see data within 5 minutes, see [HAProxy troubleshooting](/docs/opentelemetry/integrations/haproxy/troubleshooting#kubernetes-troubleshooting).
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find-and-use]
+
+Once New Relic collects your data, your HAProxy instances appear as entities.
+
+1. Go to <DNT>**[one.newrelic.com > All Entities](https://onenr.io/0vwBgJAW8Rp)**</DNT>.
+2. Search for your HAProxy entities by name or filter by entity type `HAPROXYINSTANCE`.
+3. Select an entity to view the summary page with golden metrics (sessions per second, requests per second, connection errors).
+
+After setting up HAProxy monitoring, you can:
+
+- [Query your data with NRQL](/docs/opentelemetry/integrations/haproxy/find-and-query-data)
+- [Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) to visualize your HAProxy metrics
+- [Set up alerts](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) for backend health and error thresholds
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [Advanced configuration](/docs/opentelemetry/integrations/haproxy/advanced-configuration)
+- [HAProxy metrics reference](/docs/opentelemetry/integrations/haproxy/metrics-reference)
+- [HAProxy distributed tracing](/docs/opentelemetry/integrations/haproxy/distributed-tracing)
+- [HAProxy troubleshooting](/docs/opentelemetry/integrations/haproxy/troubleshooting)
