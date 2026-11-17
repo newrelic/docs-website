@@ -131,6 +131,48 @@ test('reports a translation that does not compile as errored without writing it'
   expect(writes).toEqual(0);
 });
 
+// compiles, but fails the locale build when rendered: "attributes is not
+// defined". Translations kept bringing this back on the NRQL reference page.
+test('reports a translation that uses an undefined name as errored without writing it', async () => {
+  const zip = new AdmZip();
+  zip.addFile('pt-BR/src/content/docs/page.mdx', Buffer.from('<p>x</p>'));
+  let writes = 0;
+
+  const { fetchAndDeserializeFiles } = await esmock(
+    '../fetch-and-deserialize.mjs',
+    {
+      'node-fetch': async () => ({
+        status: 200,
+        buffer: async () => zip.toBuffer(),
+      }),
+      '../deserialize-html.mjs': async () =>
+        '<Collapser title={<InlineCode>dimensions(include: {attributes})</InlineCode>}>\nx\n</Collapser>',
+      '../utils/vendor-request.mjs': { getAccessToken: async () => 'token' },
+      '../utils/translation-monitoring.js': {
+        trackTranslationError: async () => {},
+        TRACKING_TARGET: {},
+      },
+      '../utils/create-directories.js': () => {},
+      'to-vfile': { default: { writeSync: () => (writes += 1) } },
+    }
+  );
+
+  const statuses = await fetchAndDeserializeFiles({
+    locale: 'pt-BR',
+    fileUris: ['src/content/docs/page.mdx'],
+  });
+
+  expect(statuses).toEqual([
+    {
+      ok: false,
+      slug: 'src/content/docs/page.mdx',
+      locale: 'pt-BR',
+      error: 'Uses undefined names: attributes',
+    },
+  ]);
+  expect(writes).toEqual(0);
+});
+
 // a page that switches a locale to human translation (`translate: [jp]`) can
 // still have an older machine job for it. Its download used to overwrite the
 // human translation, e.g. agentic-ai/mcp/overview.mdx in #26455.

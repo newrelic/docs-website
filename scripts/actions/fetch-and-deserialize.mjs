@@ -21,7 +21,33 @@ import {
 const { writeSync } = toVfile;
 // the MDX compiler the site builds with
 const { sync: compileMDX } = createRequire(import.meta.url)('@mdx-js/mdx');
+const babel = createRequire(import.meta.url)('@babel/core');
 const { frontmatter } = createRequire(import.meta.url)('../utils/frontmatter');
+
+/**
+ * Compiles like the site does, and also fails on names the page uses but
+ * never defines. Text such as `include: {attributes}` inside a JSX attribute
+ * compiles, then throws "attributes is not defined" while the site renders,
+ * failing the whole locale build (pt, Nov 10 to 17).
+ * @param {string} mdx
+ */
+const checkMDX = (mdx) => {
+  const ast = babel.parseSync(compileMDX(mdx), {
+    babelrc: false,
+    configFile: false,
+    parserOpts: { plugins: ['jsx'] },
+  });
+  babel.traverse(ast, {
+    Program(program) {
+      const names = Object.keys(program.scope.globals).filter(
+        (name) => name !== 'console'
+      );
+      if (names.length) {
+        throw new Error(`Uses undefined names: ${names.join(', ')}`);
+      }
+    },
+  });
+};
 
 // locales the English page sends for human translation (`translate:`)
 const humanLocales = (englishPath) => {
@@ -237,9 +263,9 @@ const deserializeHtmlToMdx = (locale) => {
         contentPath
       );
       const mdx = await deserializedHtml(html);
-      // a page that doesn't compile breaks the whole locale build, so leave
+      // a page that doesn't build breaks the whole locale build, so leave
       // the current translation in place and report this one as errored
-      compileMDX(mdx);
+      checkMDX(mdx);
 
       const temp = vfile({
         contents: mdx,
