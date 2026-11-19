@@ -90,15 +90,36 @@ test('calculates correct sums', () => {
   });
 });
 
+// 665 of the 827 finished machine-translation batches on 2026-11-01 downloaded
+// no files. Without an entry their job was never updated, so it stayed in
+// progress and its batch status was checked again every day.
+test('includes finished jobs that downloaded no files', () => {
+  const slugStatuses = [{ ok: true, slug: 'file1.txt', jobId: '1' }];
+
+  const { jobStatuses } = aggregateStatuses(slugStatuses, ['1', '2']);
+
+  expect(jobStatuses).toStrictEqual({
+    1: { successes: 1, failures: 0 },
+    2: { successes: 0, failures: 0 },
+  });
+});
+
 test('updates translation record to COMPLETED for failed slug', async () => {
   updateTranslations.returns([{ id: 0 }]);
+  getTranslationsJobsRecords.returns([{ translation_id: 0 }]);
 
-  const slugStatus = { ok: false, slug: 'failure.txt', locale: 'ja-JP' };
+  const slugStatus = {
+    ok: false,
+    slug: 'failure.txt',
+    locale: 'ja-JP',
+    jobId: 1,
+  };
 
   await updateTranslationRecords(PROJECT_ID, [slugStatus]);
 
   expect(updateTranslations.callCount).toBe(1);
   expect(updateTranslations.getCall(0).args[0]).toStrictEqual({
+    id: [0],
     slug: 'failure.txt',
     status: 'IN_PROGRESS',
     locale: 'ja-JP',
@@ -111,13 +132,20 @@ test('updates translation record to COMPLETED for failed slug', async () => {
 
 test('updates translation record to COMPLETED for successful slug', async () => {
   updateTranslations.returns([{ id: 0 }]);
+  getTranslationsJobsRecords.returns([{ translation_id: 0 }]);
 
-  const slugStatus = { ok: true, slug: 'success.txt', locale: 'ja-JP' };
+  const slugStatus = {
+    ok: true,
+    slug: 'success.txt',
+    locale: 'ja-JP',
+    jobId: 1,
+  };
 
   await updateTranslationRecords(PROJECT_ID, [slugStatus]);
 
   expect(updateTranslations.callCount).toBe(1);
   expect(updateTranslations.getCall(0).args[0]).toStrictEqual({
+    id: [0],
     slug: 'success.txt',
     status: 'IN_PROGRESS',
     locale: 'ja-JP',
@@ -130,16 +158,18 @@ test('updates translation record to COMPLETED for successful slug', async () => 
 
 test('updates multiple records', async () => {
   updateTranslations.returns([{ id: 0 }]);
+  getTranslationsJobsRecords.returns([{ translation_id: 0 }]);
   const slugStatuses = [
-    { ok: true, slug: 'fake_slug.txt', locale: 'ja-JP' },
-    { ok: false, slug: 'fake_slug_2.txt', locale: 'ko-KR' },
-    { ok: true, slug: 'fake_slug_3.txt', locale: 'es-LA' },
+    { ok: true, slug: 'fake_slug.txt', locale: 'ja-JP', jobId: 1 },
+    { ok: false, slug: 'fake_slug_2.txt', locale: 'ko-KR', jobId: 1 },
+    { ok: true, slug: 'fake_slug_3.txt', locale: 'es-LA', jobId: 1 },
   ];
 
   await updateTranslationRecords(PROJECT_ID, slugStatuses);
 
   expect(updateTranslations.callCount).toBe(3);
   expect(updateTranslations.getCall(0).args[0]).toStrictEqual({
+    id: [0],
     slug: 'fake_slug.txt',
     status: 'IN_PROGRESS',
     locale: 'ja-JP',
@@ -149,6 +179,7 @@ test('updates multiple records', async () => {
     status: 'COMPLETED',
   });
   expect(updateTranslations.getCall(1).args[0]).toStrictEqual({
+    id: [0],
     slug: 'fake_slug_2.txt',
     status: 'IN_PROGRESS',
     locale: 'ko-KR',
@@ -158,6 +189,7 @@ test('updates multiple records', async () => {
     status: 'COMPLETED',
   });
   expect(updateTranslations.getCall(2).args[0]).toStrictEqual({
+    id: [0],
     slug: 'fake_slug_3.txt',
     status: 'IN_PROGRESS',
     locale: 'es-LA',
@@ -281,6 +313,50 @@ test('does not update jobs where DB record count does not match success + failur
   await updateJobRecords(jobStatuses);
 
   expect(updateJob.callCount).toBe(0);
+});
+
+// a job whose translation records are all gone can never match its download
+// count, so it was downloaded again every day (27 human jobs by 2026-10-29)
+test('completes a job that has no translation records left', async () => {
+  getTranslationsJobsRecords.returns([]);
+
+  const jobStatuses = {
+    '1': {
+      successes: 12,
+      failures: 0,
+    },
+  };
+
+  await updateJobRecords(jobStatuses);
+
+  expect(updateJob.callCount).toBe(1);
+  expect(updateJob.getCall(0).args[0]).toBe('1');
+  expect(updateJob.getCall(0).args[1]).toStrictEqual({ status: 'COMPLETED' });
+});
+
+// another job's download of the same slug and locale used to complete (and so
+// delete) this job's still-in-progress record
+test('only completes translation records of the job the file came from', async () => {
+  getTranslationsJobsRecords.returns([
+    { translation_id: 11 },
+    { translation_id: 12 },
+  ]);
+  updateTranslations.returns([{ id: 11 }]);
+
+  const slugStatus = { ok: true, slug: 'a.mdx', locale: 'ja-JP', jobId: 7 };
+
+  await updateTranslationRecords(PROJECT_ID, [slugStatus]);
+
+  expect(getTranslationsJobsRecords.getCall(0).args[0]).toStrictEqual({
+    job_id: 7,
+  });
+  expect(updateTranslations.getCall(0).args[0]).toStrictEqual({
+    id: [11, 12],
+    slug: 'a.mdx',
+    status: 'IN_PROGRESS',
+    locale: 'ja-JP',
+    project_id: '7470e5b60',
+  });
 });
 
 test.run();

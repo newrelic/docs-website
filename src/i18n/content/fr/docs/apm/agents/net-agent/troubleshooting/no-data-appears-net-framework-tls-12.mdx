@@ -1,0 +1,160 @@
+---
+title: "Aucune donnée n’apparaît\_: l’application .NET framework n’utilise pas TLS 1.2"
+type: troubleshooting
+tags:
+  - Agents
+  - NET agent
+  - Troubleshooting
+metaDescription: 'Troubleshooting for the New Relic .NET agent: No data appears because a .NET Framework application is not configured to use TLS 1.2.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problème
+
+Vous avez installé l&apos;agent .NET pour une application .NET framework, mais aucune donnée n&apos;apparaît dans New Relic. Le log de l&apos;agent contient une erreur comme l&apos;une de celles-ci :
+
+* ```
+  NewRelic ERROR: Unable to connect to the New Relic service at collector.newrelic.com:443 : System.Net.WebException: 
+  The request was aborted: Could not create SSL/TLS secure channel.
+  ```
+* ```
+  NewRelic ERROR: Unable to connect to the New Relic service at collector.newrelic.com:443 : System.Net.WebException: 
+  The underlying connection was closed: An unexpected error occurred on a send. ---> System.IO.IOException: 
+  Received an unexpected EOF or 0 bytes from the transport stream.
+  ```
+* ```
+  NewRelic ERROR: Unable to connect to the New Relic service at collector.newrelic.com:443 : System.Net.WebException: 
+  The underlying connection was closed: An unexpected error occurred on a receive. ---> System.ComponentModel.Win32Exception: 
+  The client and server cannot communicate, because they do not possess a common algorithm.
+  ```
+
+## Solution
+
+New Relic nécessite TLS 1.2 ou supérieur. L’agent .NET utilise les protocoles TLS que votre application est configurée pour utiliser, la solution consiste donc à configurer votre application pour qu’elle utilise TLS 1.2.
+
+### Vérifiez quels protocoles votre application utilise
+
+À partir de la version 10.6.0 de l’agent .NET, l’agent enregistre au niveau `INFO` les protocoles que votre application est configurée pour utiliser lorsqu’il se connecte à New Relic. Par exemple :
+
+```
+Current TLS Configuration (System.Net.ServicePointManager.SecurityProtocol): Ssl3, Tls
+```
+
+* `SystemDefault`, ou une liste qui inclut `Tls12`, signifie que votre application est configurée pour TLS 1.2. Si la connexion échoue toujours, vérifiez que [TLS 1.2 est activé dans Windows](#schannel).
+* Une liste sans `Tls12`, telle que `Ssl3, Tls`, signifie que votre application n’est pas configurée pour TLS 1.2. Utilisez l’un des correctifs ci-dessous.
+
+### Corrigez le problème
+
+Choisissez le correctif qui correspond à votre situation :
+
+<CollapserGroup>
+<Collapser id="target-framework" title="Définissez comme cible .NET framework 4.7 ou supérieur (recommandé)">
+.NET framework sélectionne les protocoles TLS par défaut en fonction de la version du framework cible de l’application, plutôt que de la version la plus récente installée sur le serveur hôte. Les applications ciblant une version antérieure conservent ces paramètres par défaut legacy, même sur un serveur où .NET framework 4.8 est installé.
+
+| Framework cible    | Protocoles TLS par défaut                                                 |
+| ------------------ | ------------------------------------------------------------------------- |
+| 4.7 ou supérieur   | Les paramètres par défaut du système d’exploitation, qui incluent TLS 1.2 |
+| 4.6 à 4.6.2        | TLS 1.0, 1.1, et 1.2                                                      |
+| 4.5.2 ou inférieur | SSL 3.0, et TLS 1.0 uniquement                                            |
+
+Pour les applications ASP.NET, le framework cible est déterminé par l&apos;élément `httpRuntime` dans `web.config`, plutôt que par les propriétés compilées du projet. Si `httpRuntime` ne possède pas d&apos;attribut `targetFramework`, ou si l&apos;application n&apos;inclut pas de fichier `web.config`, ASP.NET exécute l&apos;application en utilisant les comportements cibles du framework .NET 4.0. Cette condition se produit fréquemment dans les applications mises à niveau à partir de modèles de projets legacy. Pour résoudre ce problème, définissez `targetFramework` sur 4.7, ou supérieur :
+
+```xml
+<configuration>
+  <system.web>
+    <httpRuntime targetFramework="4.8" />
+  </system.web>
+</configuration>
+```
+
+<Callout variant="caution">
+Configurer `targetFramework` active également les mises à jour de comportement d’ASP.NET introduites depuis .NET framework 4.5. Testez minutieusement les fonctionnalités de l’application avant de déployer cette modification de configuration.
+</Callout>
+
+Pour les autres applications, telles que les applications console et les services Windows, recompilez l’application pour avoir comme cible .NET framework 4.7 ou supérieur.
+</Collapser>
+
+<Collapser id="strongcrypto" title="Activez TLS 1.2 pour toutes les applications .NET framework dans le registre Windows">
+Utilisez ce correctif lorsque vous ne pouvez pas modifier l’application. Ces entrées de registre imposent l’utilisation de TLS 1.2 pour toutes les applications .NET framework sur le serveur, quelle que soit la version du framework cible :
+
+* `SystemDefaultTlsVersions` fait en sorte que .NET framework utilise les protocoles TLS par défaut du système d’exploitation.
+* `SchUseStrongCrypto` active TLS 1.1 et 1.2 et désactive les chiffrements faibles.
+
+Définissez les deux valeurs dans les deux clés de registre. La clé `WOW6432Node` s’applique aux applications 32 bits, telles que les pools d’applications IIS 32 bits.
+
+<Callout variant="caution">
+Il s’agit de paramètres à l’échelle de la machine qui affectent chaque application .NET framework sur le serveur. Les applications qui se connectent à des serveurs legacy qui prennent exclusivement en charge les chiffrements faibles peuvent perdre leur connectivité. Suivez attentivement ces instructions. Des modifications incorrectes du registre peuvent causer des problèmes opérationnels. Créez une sauvegarde du registre avant d’effectuer des modifications.
+</Callout>
+
+1. Copiez et collez ce qui suit dans un fichier :
+
+   ```ini
+   Windows Registry Editor Version 5.00
+
+   [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\.NETFramework\v4.0.30319]
+   "SystemDefaultTlsVersions"=dword:00000001
+   "SchUseStrongCrypto"=dword:00000001
+
+   [HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v4.0.30319]
+   "SystemDefaultTlsVersions"=dword:00000001
+   "SchUseStrongCrypto"=dword:00000001
+   ```
+
+2. Enregistrez le fichier avec une extension `.reg` .
+
+3. Exécutez le script.
+
+4. Redémarrez vos applications. Pour IIS, exécutez `iisreset`. .NET framework lit ces valeurs uniquement lorsqu’une application démarre.
+</Collapser>
+
+<Collapser id="schannel" title="Activez TLS 1.2 dans Windows (Windows Server 2008 R2 uniquement)">
+TLS 1.2 est activé par défaut sur Windows Server 2012 et les versions ultérieures. Sur Windows Server 2008 R2, ou lorsque TLS 1.2 a été désactivé par des stratégies de sécurité, activez le protocole pour le rôle <DNT>**Client**</DNT> afin de garantir la connectivité sortante vers les points de terminaison New Relic.
+
+Passez en revue la configuration existante dans ce chemin de clé de registre. TLS 1.2 est désactivé si `"Enabled"` est défini sur `0` ou si `"DisabledByDefault"` est défini sur `1`:
+
+```
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client
+```
+
+<Callout variant="caution">
+Suivez attentivement ces instructions. Des modifications incorrectes du registre peuvent causer des problèmes opérationnels. Créez une sauvegarde du registre avant d’effectuer des modifications.
+</Callout>
+
+1. Copiez et collez ce qui suit dans un fichier :
+
+   ```ini
+   Windows Registry Editor Version 5.00
+
+   [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2]
+
+   [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client]
+   "DisabledByDefault"=dword:00000000
+   "Enabled"=dword:00000001
+   ```
+
+2. Enregistrez le fichier avec une extension `.reg` .
+
+3. Exécutez le script.
+
+4. Redémarrez le serveur.
+</Collapser>
+
+<Collapser id="app-code" title="Ne codez pas en dur les versions TLS dans le code de l’application">
+Si votre application définit `System.Net.ServicePointManager.SecurityProtocol`, cette valeur remplace tous les correctifs ci-dessus, à la fois pour votre application et pour l’agent. Recherchez-le dans votre code.
+
+Microsoft vous recommande de ne pas définir cette propriété du tout et de laisser le système d’exploitation choisir. Si vos applications ciblent .NET framework 4.7 ou une version ultérieure, supprimez les lignes explicites. Si les mises à jour du code nécessitent l’inclusion explicite du protocole, ajoutez TLS 1.2 à la valeur existante plutôt que de l’écraser, en exécutant l’affectation le plus tôt possible lors du démarrage de l’application :
+
+```cs
+System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12;
+```
+</Collapser>
+</CollapserGroup>
+
+## Cause
+
+L’agent .NET s’exécute dans le processus de votre application et se connecte à New Relic avec les mêmes classes réseau .NET que celles utilisées par votre application. Il utilise les mêmes protocoles TLS que votre application, et vous ne pouvez pas configurer une version TLS différente pour l’agent seul.
+
+Les paramètres par défaut des anciens frameworks .NET n’incluent pas TLS 1.2, par conséquent une application qui cible une ancienne version du framework, ou une application ASP.NET sans `httpRuntime targetFramework`, ne peut pas se connecter à New Relic. Les applications basées sur .NET (anciennement .NET Core) utilisent les paramètres TLS du système d’exploitation et ne sont pas affectées.
+
+Pour en savoir plus sur la configuration de TLS pour les applications .NET framework, consultez [les bonnes pratiques de Microsoft pour Transport Layer Security (TLS) avec .NET framework](https://learn.microsoft.com/en-us/dotnet/framework/network-programming/tls).

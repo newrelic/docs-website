@@ -1,0 +1,433 @@
+---
+title: OCI 통합 제거
+metaDescription: How to remove the resources created by the OCI integration and unlink your account from New Relic.
+tags:
+  - Integrations
+  - Oracle Cloud integrations
+  - Update or uninstall
+freshnessValidatedDate: '2026-10-27T00:00:00.000Z'
+translationType: machine
+---
+
+뉴렐릭으로 OCI 모니터링을 중지하려면 이 가이드를 사용하십시오. 이 가이드는 OCI 테넌시에서 통합이 생성한 리소스를 제거한 다음 뉴렐릭에서 계정 연결을 해제하는 과정을 안내합니다.
+
+뉴렐릭에서 계정 연결을 해제하기 전에 OCI 리소스를 삭제하십시오. 연결을 해제하면 구획 및 스택 OCID를 저장하는 레코드가 삭제되며, 리소스를 찾으려면 해당 레코드가 필요합니다.
+
+계측된 데이터 유형에 따라 [메트릭 리소스 제거](#metrics) 및 [로그 리소스 제거](#logs)를 진행하십시오. 그런 다음 남은 항목이 없는지 확인하고, 뉴렐릭에서 계정 연결을 해제하며, 이름으로 항목을 찾아야 하는 경우 리소스 이름 참조를 사용하십시오.
+
+## 메트릭 리소스 제거 [#metrics]
+
+메트릭 리소스를 제거하는 방법은 리소스를 생성한 방법에 따라 다릅니다. 설정에 맞는 옵션을 선택하십시오:
+
+<CollapserGroup>
+<Collapser id="metrics-orm" title="오라클 리소스 관리자(ORM)로 삭제">
+오라클 리소스 관리자 스택을 통해 통합을 설정한 경우, Terraform이 모든 리소스를 생성하고 스택의 상태에서 이를 추적합니다. 스택을 삭제하면 올바른 종속성 순서에 따라 모든 항목이 제거됩니다.
+
+1. OCI 콘솔에서 <DNT>**Developer Services &gt; Resource Manager &gt; Stacks**</DNT>(으)로 이동합니다.
+2. 지역을 선택한 다음 뉴렐릭 메트릭 스택을 여십시오.
+3. <DNT>**Destroy**</DNT>을(를) 선택하고 작업이 <DNT>**Succeeded**</DNT>에 도달할 때까지 기다리십시오.
+4. <DNT>**Delete stack**</DNT> 선택합니다.
+5. 해당 리전의 로깅 스택에 대해 2～4단계를 반복합니다.
+6. 계측된 모든 리전에 대해 1～5단계를 반복해 주십시오.
+7. 홈 리전으로 전환하고 동일한 방식으로 정책 스택과 WIF 설정 스택을 삭제하십시오.
+
+<Callout variant="tip">
+모든 스택이 성공적으로 삭제되었다면 완료된 것입니다 — [남은 항목이 없는지 확인](#verify-nothing-is-left)으로 건너뛰십시오. 스택이 누락되었거나, 변경되었거나, 삭제 작업이 실패한 경우에만 수동 삭제를 사용하십시오.
+</Callout>
+</Collapser>
+
+<Collapser id="metrics-terraform" title="Terraform으로 삭제">
+리소스 관리자를 통하지 않고 뉴렐릭의 Terraform 설정을 직접 적용한 경우 이를 사용하십시오.
+
+원래 작업 디렉터리와 그 상태 — 로컬 `terraform.tfstate` 파일 또는 설정한 원격 백앤드에 대한 액세스가 필요합니다. Terraform은 상태에 설명된 내용만 삭제할 수 있습니다.
+
+1. 적용한 설정으로 변경하여 초기화하고, 작업 공간을 사용한 경우 작업 공간을 선택합니다:
+
+   ```shell
+   cd <path-to-your-newrelic-oci-configuration>
+   terraform init
+   terraform workspace select <workspace>
+   ```
+
+2. 상태가 여전히 리소스를 설명하는지 확인해 주십시오:
+
+   ```shell
+   terraform state list
+   ```
+
+   아무것도 반환되지 않거나 예상보다 훨씬 적은 리소스가 반환되면 상태가 사라졌거나 불완전한 것입니다. 대신 OCI 콘솔에서 수동으로 삭제하십시오 — 부분적인 상태에서 삭제하면 리소스가 남게 되어 여전히 비용이 발생합니다.
+
+3. 적용했던 것과 동일한 변수 값을 제공하여 각 설정을 삭제하십시오:
+
+   ```shell
+   terraform destroy -var-file=<your-vars-file>.tfvars
+   ```
+
+   확인하기 전에 계획을 검토해 주십시오. 변수 값이 다르면 실행 시 잘못된 리전을 가리키거나 리소스를 확인하지 못하여 리소스가 고립된 상태로 남을 수 있습니다.
+
+4. 종속성의 역순으로 작업하십시오. 계측된 각 리전에 대해 먼저 로깅 설정을 삭제한 다음, 메트릭을 삭제하십시오. 모든 리전이 정리된 후에만 홈 리전에 있는 정책 설정을 삭제한 다음, 워크로드 아이덴티티 페더레이션 설정을 삭제하십시오.
+
+<Callout variant="important">
+개별 리소스를 선택하기 위해 `terraform destroy -target`을(를) 사용하지 마십시오. 이것은 의존성 그래프를 건너뛰며, 이 설정에서는 VCN 게이트웨이와 커넥터 허브를 고립시킵니다 — 이 두 가지는 비용을 계속 발생시키는 요소입니다.
+</Callout>
+
+<Callout variant="tip">
+모든 삭제가 정상적으로 완료되면 [남은 항목이 없는지 확인](#verify-nothing-is-left)으로 건너뛰십시오. 실행 중 도중에 오류가 발생한 경우 한 번 다시 실행하십시오 — 종속 리소스가 여전히 종료 중일 때 OCI가 가끔 삭제를 거부할 수 있습니다 — 그런 다음 OCI 콘솔에서 남은 항목을 수동으로 삭제하십시오.
+</Callout>
+</Collapser>
+
+<Collapser id="metrics-manual" title="OCI 콘솔에서 수동으로 삭제">
+다음 중 하나라도 해당하는 경우 이 단계를 따르십시오:
+
+* Resource Manager 또는 Terraform을 사용하지 않고 수동으로 통합을 설정했습니다.
+* Resource Manager 스택 레코드가 더 이상 존재하지 않거나, 삭제 작업이 실패했습니다.
+* Terraform 상태 파일이 누락되었거나, 불완전하거나, 실제로 배포된 내용과 다릅니다.
+* 두 옵션 중 하나의 삭제 실행으로 인해 리소스가 남았습니다.
+
+순서대로 단계를 진행하십시오 — 이후 단계는 이전 단계에 종속됩니다.
+
+모든 리소스는 뉴렐릭 구획에 있습니다. Resource Manager 또는 Terraform이 생성한 경우에는 `newrelic_compartment_ORM_DO_NOT_REMOVE_<id>` (으)로 이름이 지정되고, 수동으로 생성한 경우에는 `newrelic_compartment_DO_NOT_REMOVE` (으)로 이름이 지정됩니다. 전체 이름 대신 접두사로 일치시킵니다 — [리소스 이름 참조](#resource-name-reference)를 확인하십시오.
+
+<Steps>
+<Step>
+#### 서비스 커넥터 허브를 삭제하십시오. [#connector-hubs]
+
+이것은 데이터 흐름을 중지하고 반복적인 비용을 중단하는 단계입니다. 먼저 수행하십시오.
+
+1. OCI 콘솔에서 <DNT>**Analytics &amp; AI &gt; Messaging &gt; Connectors**</DNT>(으)로 이동합니다.
+2. 구획을 뉴렐릭 구획으로 설정하십시오.
+3. 타겟이 뉴렐릭 함수인 모든 커넥터를 삭제하십시오 — 메트릭용으로 하나가 있으며, 로그를 활성화한 경우 로깅용으로 하나가 있습니다.
+4. 계측된 모든 리전에 대해 반복하십시오.
+</Step>
+
+<Step>
+#### 함수 및 함수 애플리케이션을 삭제하십시오. [#functions]
+
+1. <DNT>**Developer Services &gt; Functions &gt; Applications**</DNT> 으)로 이동합니다.
+2. `newrelic-<prefix>-<region>-metrics-function-app`을(를) 열어 함수 `newrelic-<prefix>-<region>-metrics-function`을(를) 삭제한 다음, 애플리케이션을 삭제하십시오.
+3. 로그를 활성화한 경우, 동일한 방법으로 로깅 함수와 해당 애플리케이션을 삭제하십시오.
+4. 모든 계측된 리전에 대해 반복하십시오.
+</Step>
+
+<Step>
+#### 컨테이너 레지스트리 저장소를 삭제하십시오. [#container-registry]
+
+함수는 저장소에 포함된 이미지에서 실행되므로, 함수를 삭제한 후 저장소를 삭제하십시오.
+
+1. <DNT>**Developer Services &gt; Containers &amp; Artifacts &gt; Container Registry**</DNT> 으)로 이동합니다.
+2. 구획을 뉴렐릭 구획으로 설정하십시오.
+3. 뉴렐릭 메트릭 함수 이미지가 포함된 저장소 `newrelic-<prefix>/oci-metrics-forwarder`을(를) 삭제하십시오.
+4. 모든 계측된 리전에 대해 반복하십시오.
+</Step>
+
+<Step>
+#### VCN, 서브넷 및 게이트웨이 삭제 [#vcn]
+
+1. <DNT>**Networking &gt; Virtual cloud networks**</DNT> 으)로 이동합니다.
+2. `newrelic-<prefix>-<region>-metrics-vcn` 을(를) 엽니다.
+3. NAT 게이트웨이, 서비스 게이트웨이 및 이름이 `NRMetricsInternetGateway`인 인터넷 게이트웨이를 삭제하십시오.
+4. 프라이빗 서브넷 `newrelic-<prefix>-<region>-metrics-vcn-private-subnet`을(를) 삭제하십시오.
+5. VCN을 삭제하십시오.
+6. 로깅 VCN 및 계측된 모든 리전에 대해 반복하십시오.
+</Step>
+
+<Step>
+#### 볼트, 키 및 시크릿을 삭제하십시오. [#vault]
+
+1. 홈 리전의 <DNT>**Identity &amp; Security &gt; Vault**</DNT> (으)로 이동하십시오.
+2. `newrelic_vault_ORM_DO_NOT_REMOVE_<id>` 을(를) 엽니다.
+3. `newrelic_ingest_api_key_ORM_DO_NOT_REMOVE_<id>` 및 `newrelic_user_api_key_ORM_DO_NOT_REMOVE_<id>` 두 시크릿 모두에 대해 삭제를 예약하십시오.
+4. `newrelic_key_ORM_DO_NOT_REMOVE_<id>` 키의 삭제를 예약하십시오.
+5. 볼트 삭제를 예약하십시오.
+
+<Callout variant="important">
+OCI는 즉시 삭제하는 대신 볼트, 키 및 시크릿 삭제를 예약합니다. 최소 대기 기간은 7일입니다.
+</Callout>
+</Step>
+
+<Step>
+#### 동적 그룹 및 정책을 삭제하십시오. [#iam]
+
+1. <DNT>**Identity &amp; Security &gt; Domains &gt; Dynamic groups**</DNT> 으)로 이동합니다.
+
+2. 삭제 `newrelic_dynamic_group_ORM_DO_NOT_REMOVE_<id>` .
+
+3. <DNT>**Identity &amp; Security &gt; Policies**</DNT> (으)로 이동하여 다음 세 가지가 있는 경우 삭제하십시오:
+
+   * `newrelic_metrics_policy_ORM_DO_NOT_REMOVE_<id>`
+   * `newrelic_logs_policy_ORM_DO_NOT_REMOVE_<id>`
+   * `newrelic_common_policy_ORM_DO_NOT_REMOVE_<id>`
+</Step>
+
+<Step>
+#### 워크로드 ID 페더레이션 리소스를 삭제하십시오. [#wif]
+
+인증을 설정할 때 이를 생성했습니다. 이를 삭제하면 뉴렐릭이 테넌시에 인증할 수 있는 권한이 영구적으로 취소됩니다.
+
+1. <DNT>**Identity &amp; Security &gt; Domains**</DNT> (으)로 이동하여 사용한 ID 도메인을 여십시오.
+
+2. <DNT>**Integrated applications**</DNT>에서 비활성화한 후 삭제하십시오:
+
+   * `newrelic-ida-app-orm`
+   * `newrelic-token-exchange-app-orm`
+
+3. <DNT>**Users**</DNT> 아래에서 `newrelic-wif-svc-user-orm`을(를) 삭제하십시오.
+
+4. <DNT>**Groups**</DNT> 아래에서 `newrelic-svc-user-group-orm`을(를) 삭제하십시오.
+
+5. <DNT>**Settings &gt; Identity propagation trust**</DNT>에서 뉴렐릭 신뢰 설정을 삭제하십시오.
+
+6. <DNT>**Identity &amp; Security &gt; Policies**</DNT> (으)로 이동하여 `newrelic-svc-user-policy-orm`을(를) 삭제합니다.
+</Step>
+
+<Step>
+#### 뉴렐릭 구획을 삭제하십시오 [#compartment]
+
+구획을 삭제하려면 먼저 비어 있어야 하므로, 이 작업을 마지막에 수행하십시오.
+
+1. <DNT>**Identity &amp; Security &gt; Compartments**</DNT> 으)로 이동합니다.
+2. 뉴렐릭 구획을 열고 리소스가 포함되어 있지 않은지 확인하십시오.
+3. <DNT>**Delete**</DNT> 선택합니다.
+</Step>
+</Steps>
+</Collapser>
+</CollapserGroup>
+
+## 로그 리소스를 제거하십시오 [#logs]
+
+로그 리소스를 제거하는 방법은 리소스를 생성한 방법에 따라 다릅니다. 설정에 맞는 옵션 선택:
+
+<CollapserGroup>
+<Collapser id="logs-orm" title="오라클 리소스 관리자(ORM)로 삭제">
+안내형 설정 마법사와 OCI 리소스 관리자 스택을 사용하여 온보딩한 경우:
+
+1. OCI 콘솔에서 <DNT>**Developer Services &gt; Resource Manager &gt; Stacks**</DNT>(으)로 이동합니다.
+2. 로깅 통합 스택을 배포한 구획을 선택하십시오(예: `newrelic-compartment`). 구획이 기억나지 않는 경우, 사용된 구획이 기록된 원래 배포 작업의 로그 — <DNT>**Resource Manager &gt; Jobs &gt; (your deployment job) &gt; Logs**</DNT> — 를 확인하십시오.
+3. `oci-log-integration` (또는 사용자 지정 스택 이름)이라는 이름의 스택을 선택하십시오.
+4. <DNT>**Terraform Actions**</DNT>를 선택한 다음 <DNT>**Destroy**</DNT>를 클릭합니다.
+5. 파기 작업을 확인하십시오. 리소스 관리자는 서비스 커넥터 허브 인스턴스(감사 커넥터 포함), OCI 포워더 함수 및 해당 애플리케이션, 스택이 생성한 로그 그룹 및 오브젝트 스토리지 버킷, 그리고 관련된 IAM 정책 및 동적 그룹을 자동으로 삭제합니다.
+6. 삭제 작업이 성공적으로 완료되면 <DNT>**Edit Stack**</DNT>을(를) 선택한 다음 <DNT>**Delete Stack**</DNT>을(를) 선택하여 스택 정의를 제거하십시오.
+
+<Callout variant="tip">
+그런 다음 [남은 항목이 없는지 확인](#verify-nothing-is-left), [로그 제거 확인](#logs-verify) 및 [뉴렐릭에서 계정 연결 해제](#unlink)를 진행하십시오. 삭제 작업이 실패하거나 스택이 없는 경우, [프로비저닝 해제 문제 해결](#logs-troubleshooting)을 참조하거나 OCI 콘솔에서 수동으로 삭제하십시오.
+</Callout>
+</Collapser>
+
+<Collapser id="logs-terraform" title="Terraform 또는 OpenTofu로 삭제">
+리소스 관리자를 통해서가 아니라 자체 Terraform 또는 OpenTofu 모듈을 사용하여 통합을 배포한 경우 이를 사용하십시오.
+
+1. OCI Terraform 작업 공간에서 plan 검사를 실행하여 제거될 항목을 검토하십시오:
+
+   ```shell
+   terraform plan -destroy
+   ```
+
+2. 이 통합을 위한 Terraform 설정이 포함된 폴더로 이동한 후 삭제하십시오:
+
+   ```shell
+   terraform destroy -auto-approve
+   ```
+
+3. OCI가 프로비저닝된 모든 리소스를 삭제했는지 확인해 주십시오: `oci_service_connector_hub`, `oci_functions_function`, `oci_identity_policy` 및 `oci_identity_dynamic_group`.
+
+4. 계정을 연결하기 위해 `newrelic` 테라폼 프로바이더를 사용한 경우, 설정에서 `newrelic_cloud_oci_integrations` 리소스 블록을 제거하고 다시 적용하십시오 — 그렇지 않은 경우 [뉴렐릭에서 계정 연결 해제](#unlink)를 따르십시오.
+
+<Callout variant="tip">
+그런 다음 [남은 항목이 없는지 확인](#verify-nothing-is-left), [로그 해체 확인](#logs-verify), 그리고 [뉴렐릭에서 계정 연결 해제](#unlink)를 따르십시오. 파기 실행 중 오류가 발생하거나 리소스가 남는 경우, [프로비저닝 해제 문제 해결](#logs-troubleshooting)을 참조하거나 OCI 콘솔에서 수동으로 삭제하십시오.
+</Callout>
+</Collapser>
+
+<Collapser id="logs-manual" title="OCI 콘솔에서 수동으로 삭제">
+단계별 설정 가이드에 따라 수동으로 로깅 리소스를 생성한 경우 이 단계를 따르십시오. 의존성 잠금을 방지하려면 순서대로 진행하십시오.
+
+1. **서비스 커넥터를 삭제합니다.** 수동으로 통합을 생성할 때 사용한 구획(예: `newrelic-compartment`)을 선택하고, <DNT>**Analytics &amp; AI &gt; Messaging &gt; Service Connector Hub**</DNT>(으)로 이동하여 뉴렐릭 함수로 스트리밍하는 모든 커넥터를 삭제합니다 ― 예: `newrelic-logs-*` 및 `newrelic-logs-*-audit`.
+2. **OCI 함수 및 애플리케이션을 삭제합니다.** 동일한 구획을 선택한 상태에서 <DNT>**Developer Services &gt; Functions**</DNT>(으)로 이동하여 함수 `oci-log-forwarder`을(를) 삭제한 다음 상위 함수 애플리케이션을 삭제하십시오.
+3. **시크릿을 삭제하고, 전용인 경우 볼트도 삭제하십시오.** <DNT>**Identity &amp; Security &gt; Vault**</DNT> (으)로 이동하여 그곳에 저장된 뉴렐릭 수집 키 시크릿의 삭제를 예약하십시오. 이 통합을 위해 특별히 볼트를 생성한 경우 볼트도 삭제하십시오 — 기존 볼트를 재사용한 경우에는 시크릿만 삭제하십시오.
+4. **IAM 정책 및 동적 그룹을 삭제하십시오.** <DNT>**Identity &amp; Security &gt; Identities &gt; Policies**</DNT> (으)로 이동하여 동적 그룹 액세스 권한을 부여하는 통합 정책(일반적으로 루트 구획 아래에 생성됨)을 삭제한 다음, <DNT>**Identity &amp; Security &gt; Dynamic Groups**</DNT> (으)로 이동하여 전달자 동적 그룹을 삭제하십시오.
+
+<Callout variant="tip">
+그런 다음 [남은 항목이 없는지 확인](#verify-nothing-is-left), [로그 해체 확인](#logs-verify) 및 [뉴렐릭에서 계정 연결 해제](#unlink)를 따르십시오.
+</Callout>
+</Collapser>
+</CollapserGroup>
+
+## 남은 항목이 없는지 확인 [#verify-nothing-is-left]
+
+리소스 관리자 또는 Terraform에서 생성한 리소스에는 자유 형식 태그가 포함됩니다. OCI 콘솔에서 <DNT>**Governance &amp; Administration &gt; Search**</DNT> (으)로 이동하여 다음 구조화된 쿼리를 각각 실행하십시오.
+
+```sql
+query all resources where (freeformTags.key = 'newrelic-orm-terraform' && freeformTags.value = 'true')
+```
+
+```sql
+query all resources where (freeformTags.key = 'newrelic-terraform' && freeformTags.value = 'true')
+```
+
+두 가지 다른 태그 키가 사용 중입니다: 메트릭 및 정책 스택 태그 `newrelic-orm-terraform`, 로깅 스택 태그 `newrelic-terraform`. 계측된 모든 리전에서 두 가지를 모두 실행하십시오.
+
+<Callout variant="important">
+결과가 비어 있다고 해서 테넌시가 완전히 정리된 것은 아닙니다. 이 쿼리로는 다음을 찾을 수 없습니다:
+
+* 어느 설정 방법에서도 태그를 지정하지 않은 [워크로드 아이덴티티 페더레이션 단계](#wif)의 워크로드 아이덴티티 페더레이션 리소스입니다.
+* 수동으로 생성하여 Terraform 태그가 전혀 없는 모든 항목입니다.
+
+대신 [리소스 이름 참조](#resource-name-reference)를 사용하여 이름으로 확인해 주십시오.
+</Callout>
+
+## 로그 해체 확인 [#logs-verify]
+
+완전한 삭제를 확인하려면 두 플랫폼을 모두 확인하십시오:
+
+* **인바운드 로그 볼륨 없음** — 뉴렐릭에서 <DNT>**Logs**</DNT>을(를) 열고 `oracle.tenantid = '<YOUR_TENANCY_OCID>'`을(를) 쿼리하십시오. 제거 타임스탬프 이후에 새로운 로그 이벤트가 도착하지 않는지 확인하십시오.
+* **함수 호출 0회** — OCI 콘솔의 <DNT>**Metrics**</DNT> 아래에서 로그 전달자 함수의 `FunctionInvocationCount`이(가) 0으로 떨어지는지 확인하십시오.
+* **고립된 IAM 리소스 없음** ― <DNT>**Identity &amp; Security**</DNT> 아래에 `newrelic`을(를) 참조하는 동적 그룹이나 정책이 남아 있지 않은지 확인해 주십시오.
+
+## 프로비저닝 해제 관련 문제 해결 [#logs-troubleshooting]
+
+제거 작업이 정상적으로 진행되지 않는 경우, 나타나는 현상을 다음 원인 중 하나와 확인해 보십시오:
+
+<CollapserGroup>
+<Collapser id="logs-ts-409" title="OCI 리소스 관리자가 409 충돌 또는 활성 잠금 오류를 반환합니다">
+스택 삭제가 `HTTP 409 Conflict: Resource is being used by another process`(으)로 인해 실패합니다. 이는 일반적으로 활성 서비스 커넥터 허브(Service Connector Hub) 배치 또는 함수 실행이 기본 구획 또는 서브넷 리소스에 대한 잠금을 유지하고 있음을 의미합니다. <DNT>**Analytics &amp; AI &gt; Messaging &gt; Service Connector Hub**</DNT>에서 커넥터를 선택하고 <DNT>**Deactivate**</DNT>을(를) 선택한 다음, 활성 함수 호출이 소진될 때까지 2～3분 정도 기다렸다가 ORM <DNT>**Destroy**</DNT> 작업을 다시 실행하십시오.
+</Collapser>
+
+<Collapser id="logs-ts-iam" title="IAM 정책 삭제가 `AuthorizationFailed` 또는 범위 잠금으로 인해 실패합니다">
+`oci_identity_policy` 또는 `oci_identity_dynamic_group`을(를) 삭제할 때 스택 파기가 실패합니다. 이는 일반적으로 파기 작업을 실행하는 사용자 또는 서비스 주체에게 테넌시 수준의 정책 관리 권한이 없음을 의미합니다 — 예를 들어, 테넌시 루트에 배포된 정책은 `manage policies in tenancy`을(를) 요구합니다. 해체 작업을 수행하는 사용자가 `Administrators` 그룹에 속해 있거나, 다음 테넌시 루트 권한을 직접 가지고 있는지 확인하십시오:
+
+```
+Allow group <Admin_Group> to manage policies in tenancy
+Allow group <Admin_Group> to manage dynamic-groups in tenancy
+```
+
+그래도 문제가 해결되지 않으면 OCI 콘솔의 <DNT>**Identity &amp; Security &gt; Identities &gt; Policies**</DNT>에서 정책 문을 수동으로 삭제한 다음, destroy 작업을 다시 실행하여 상태를 지우십시오.
+</Collapser>
+
+<Collapser id="logs-ts-partial" title="스택을 삭제했지만 뉴렐릭에 여전히 부분적인 로그 볼륨 또는 과거 메트릭 카드가 표시됩니다.">
+이는 일반적으로 보조 커넥터 ― 감사 커넥터 또는 ORM 스택 외부에서 생성된 수동 로그 커넥터 ― 가 여전히 활성 상태임을 의미합니다. 활성 커넥터를 찾으려면 테넌시 전체에서 OCI Search 쿼리를 실행하십시오:
+
+```sql
+query serviceconnector resources
+```
+
+타겟이 `oci-log-forwarder`을(를) 가리키는 <DNT>**Functions**</DNT> 인 모든 커넥터를 삭제하십시오.
+</Collapser>
+
+<Collapser id="logs-ts-vault" title="OCI가 즉시 제거하는 대신 볼트 시크릿이 'Pending Deletion'으로 표시됨">
+이는 예상된 OCI 동작이며 오류가 아닙니다. OCI Vault 시크릿은 우발적인 키 파괴를 방지하기 위해 영구 삭제 전 최소 7일의 필수 보존 기간을 적용합니다 ― 하지만 OCI는 삭제를 예약하는 즉시 읽기용 시크릿 페이로드를 비활성화하므로, 보존 기간 동안 로그 전달자도 이를 사용할 수 없습니다.
+</Collapser>
+</CollapserGroup>
+
+## 뉴렐릭에서 계정 연결 해제 [#unlink]
+
+OCI 리소스가 제거되면:
+
+1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Infrastructure &gt; Oracle Cloud Infrastructure**</DNT> 으)로 이동합니다.
+2. 연결된 계정을 선택하십시오.
+3. <DNT>**Unlink this account**</DNT>을(를) 선택한 다음 확인하십시오.
+
+이렇게 하면 해당 계정에 대한 모든 OCI 모니터링이 비활성화되며, 이에 의존하는 모든 대시보드, 알림 및 태그에 영향을 미칩니다. 이 작업은 실행 취소할 수 없습니다.
+
+## 리소스 이름 참조 [#resource-name-reference]
+
+`<id>` 은(는) 배포 시 생성되는 짧은 무작위 접미사이므로 전체 이름보다는 접두사로 일치시키십시오. `<prefix>`의 기본값은 `newrelic`입니다.
+
+<table>
+<thead>
+<tr>
+<th>
+스택
+</th>
+
+<th>
+범위
+</th>
+
+<th>
+태그 키
+</th>
+
+<th>
+자원
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+정책
+</td>
+
+<td>
+테넌시
+</td>
+
+<td>
+`newrelic-orm-terraform`
+</td>
+
+<td>
+구획, KMS 볼트, KMS 키, 수집 시크릿, 사용자 시크릿, 동적 그룹 및 메트릭, 로그, 공통 정책 — 모두 이름이 지정됨 `newrelic_*_ORM_DO_NOT_REMOVE_<id>`
+</td>
+</tr>
+
+<tr>
+<td>
+메트릭
+</td>
+
+<td>
+리전별
+</td>
+
+<td>
+`newrelic-orm-terraform`
+</td>
+
+<td>
+서비스 커넥터 허브, `newrelic-<prefix>-<region>-metrics-function-app`, `newrelic-<prefix>-<region>-metrics-function`, `newrelic-<prefix>-<region>-metrics-vcn` 및 해당 NAT 게이트웨이, 서비스 게이트웨이, `NRMetricsInternetGateway` 및 프라이빗 서브넷
+</td>
+</tr>
+
+<tr>
+<td>
+로그
+</td>
+
+<td>
+리전별
+</td>
+
+<td>
+`newrelic-terraform`
+</td>
+
+<td>
+서비스 커넥터 허브, 로깅 함수 애플리케이션, 로깅 함수, 로그 그룹, 로그, VCN 및 게이트웨이
+</td>
+</tr>
+
+<tr>
+<td>
+ID 페더레이션
+</td>
+
+<td>
+테넌시
+</td>
+
+<td>
+없음
+</td>
+
+<td>
+`newrelic-ida-app-orm`, `newrelic-token-exchange-app-orm`, `newrelic-wif-svc-user-orm`, `newrelic-svc-user-group-orm`, `newrelic-svc-user-policy-orm` 및 ID 전파 신뢰 설정
+</td>
+</tr>
+</tbody>
+</table>
+
+## 관련 기사 [#related-articles]
+
+* [OCI 통합 소개](/docs/infrastructure/oci/introduction): OCI 통합이 수행하는 작업, 기능 및 계정을 연결하는 방법입니다.
+* [문제 진단, 해결](/docs/infrastructure/oci/troubleshoot): 데이터가 표시되지 않는 문제 및 설정 중 신뢰 설정 충돌에 대한 해결 방법입니다.

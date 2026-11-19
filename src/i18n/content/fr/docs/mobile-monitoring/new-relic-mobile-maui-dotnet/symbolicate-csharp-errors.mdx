@@ -1,0 +1,242 @@
+---
+title: Symboliser les erreurs .NET MAUI C#
+tags:
+  - .NET MAUI
+  - Mobile monitoring
+  - New Relic Mobile .NET MAUI
+  - Errors
+metaDescription: 'Generate, store, and upload .NET MAUI .pdb and .dll files so New Relic can show source file names and line numbers in C# stack traces in the browser.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Les builds de sortie des applications .NET MAUI pour Android, et iOS n’incluent pas d’informations de débogage, les traces d’appels C# que votre application signale affichent donc le nom de la méthode, mais pas le fichier source, ni le numéro de ligne. New Relic peut symboliser ces traces d’appels dans votre navigateur lorsque vous fournissez les fichiers `.pdb`, et `.dll` correspondants de ce build. La symbolisation dans le navigateur s’applique uniquement aux exceptions gérées.
+
+Cette page explique :
+
+* Comparaison des traces d’appels C# symbolisées et non symbolisées
+* Comment générer les fichiers `.pdb` et `.dll` et où les trouver
+* Comment symboliser une trace d’appels dans l’UI de New Relic
+* Où trouver les plantages iOS natifs dans l’UI de New Relic et comment les symboliser
+* Comment stocker ces fichiers afin que vous puissiez symboliser les erreurs de n’importe quelle sortie que vous avez publiée
+
+<Callout variant="important">
+La symbolisation s’exécute entièrement dans votre navigateur. New Relic ne téléverse, ne stocke, ni ne conserve vos fichiers `.pdb`, ou `.dll`, ni les traces d’appels symbolisées. Le résultat n’est pas non plus partagé entre les erreurs : vous téléversez les fichiers séparément pour chaque erreur que vous ouvrez, et à nouveau chaque fois que vous rechargez la page, ou y revenez plus tard. Étant donné que vous aurez besoin des fichiers à chaque fois, [conservez-les pour chaque sortie](#store-symbols).
+</Callout>
+
+## Ce qu’apporte la symbolication [#before-after]
+
+Avant la symbolication, chaque frame indique `<unknown>` là où le fichier et le numéro de ligne devraient se trouver :
+
+```
+<unknown> in NewRelicMaui.MainPage.OnHandledExceptionClicked(Object sender, EventArgs e)()
+```
+
+Après la symbolication, la frame indique le fichier source, et un numéro de ligne :
+
+```
+MainPage.xaml.cs line 41 in NewRelicMaui.MainPage.OnHandledExceptionClicked()
+```
+
+La colonne <DNT>**Thread**</DNT> à côté de chaque frame indique la classe à laquelle le frame appartient, par exemple `NewRelicMaui.MainPage`.
+
+<Callout variant="caution">
+Le numéro de ligne correspond à l’endroit où la méthode commence (sa première instruction), et non à la ligne exacte qui a levé l’exception. La trace d’appels que New Relic reçoit des applications .NET MAUI n’inclut pas le décalage IL qui permettrait d’identifier la ligne exacte dans la méthode. Utilisez le numéro de ligne pour trouver la méthode dans votre code source, puis cherchez la cause dans cette méthode.
+</Callout>
+
+## Comprendre les fichiers de symboles .NET MAUI [#symbol-files]
+
+Une application .NET MAUI contient à la fois du code C# managé et du code natif de la plateforme, et chacun possède son propre type de fichier de symboles de débogage. Chaque fichier symbolise uniquement les erreurs issues de son propre code :
+
+| Déposer                                        | plateforme   | Ce qu’elle symbolise                                               | Où il est créé                                                                    | Comment l’utiliser dans New Relic                                                                                     |
+| ---------------------------------------------- | ------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `.pdb` + `.dll` (PDB portable et son assembly) | Android, iOS | Erreurs C# de votre application et de vos bibliothèques de classes | `bin/Release/<target framework>/`, voir [Trouver les fichiers de sortie](#output) | Importez dans le navigateur, comme décrit sur cette page                                                              |
+| `.dSYM`                                        | iOS          | Plantages iOS natifs                                               | `bin/Release/net10.0-ios/ios-arm64/<YourApp>.app.dSYM`                            | [Télécharger les fichiers dSYM](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps) |
+
+New Relic n’utilise que les fichiers `.pdb` et `.dll` pour symboliser les erreurs C#. Téléverser un dSYM pour une erreur C# ne la symbolisera pas. Conservez-les tous pour chaque sortie, cependant, afin que vous puissiez symboliser chaque type d’erreur que la sortie signale.
+
+{/* Verified 2026-10-07 on a .NET 10 Release iOS build: NewRelicMaui.app.dSYM is next to the dll/pdb in bin/Release/net10.0-ios/ios-arm64/. mapping.txt is omitted on purpose: the MAUI Android SDK's default ProGuard rules include -dontobfuscate, so Java/Kotlin code isn't obfuscated in typical MAUI apps. */}
+
+## Générez le `.pdb` et `.dll` [#generate]
+
+<Steps>
+<Step>
+### Activez les PDB portables pour les builds de sortie [#enable-pdb]
+
+Dans le `.csproj` de votre application, assurez-vous que les builds de sortie produisent des symboles de débogage portables :
+
+```xml
+<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+  <DebugType>portable</DebugType>
+  <DebugSymbols>true</DebugSymbols>
+</PropertyGroup>
+```
+
+La compilation génère des PDB portables à côté de l’assembly. Ils ne sont pas mis en package dans votre APK, AAB ou IPA, ils n’augmentent donc pas la taille de votre application.
+
+Ajoutez les mêmes paramètres à tous les projets de bibliothèque de classes dont vous souhaitez symboliser le code.
+</Step>
+
+<Step>
+### Générez votre sortie [#build]
+
+```sh
+# Android
+dotnet publish -f net10.0-android -c Release
+
+# iOS
+dotnet publish -f net10.0-ios -c Release
+```
+
+Utilisez le framework cible de votre projet (par exemple, `net9.0-android`).
+</Step>
+
+<Step>
+### Trouvez les fichiers de sortie [#output]
+
+Pour chaque assembly qui apparaît dans vos traces d’appels, vous avez besoin de son `.dll` et de son `.pdb` correspondant. Ils se trouvent dans votre dossier de sortie de build, nommés d’après votre projet :
+
+| plateforme | Emplacement                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Android    | `bin/Release/net10.0-android/`                                                                                                       |
+| iOS        | `bin/Release/net10.0-ios/ios-arm64/` (`ios-arm64` est le dossier pour les appareils physiques. N’utilisez pas `iossimulator-arm64`.) |
+
+Par exemple, si votre projet d’application est `NewRelicMaui`, vous avez besoin de `NewRelicMaui.dll`, et de `NewRelicMaui.pdb`. Pour trouver de quel assembly provient un cadre, regardez l’espace de nommage dans le cadre : `NewRelicMaui.MainPage.OnHandledExceptionClicked` se trouve dans `NewRelicMaui.dll`. Si un cadre provient de votre propre bibliothèque de classes, comme `MyApp.Core`, utilisez `MyApp.Core.dll`, et `MyApp.Core.pdb`.
+
+`dotnet publish` place votre APK, AAB ou IPA dans un sous-dossier `publish/`. Les fichiers `.dll` et `.pdb` se trouvent dans le dossier parent, aux emplacements indiqués dans le tableau.
+
+Vous pouvez également trouver des copies de ces fichiers sous `obj/Release/`. Importez toujours le `.dll` et le `.pdb` ensemble à partir du même dossier dans le tableau, afin qu’ils correspondent l’un à l’autre.
+
+<Callout variant="caution">
+Sur iOS, ne prenez pas le `.dll` à l’intérieur du bundle de l’application (`NewRelicMaui.app/`), ou de l’IPA. Les builds de sortie réduisent et nettoient cette copie, de sorte qu’elle ne correspond plus à aucun `.pdb`, et le bundle n’inclut pas de `.pdb`.
+</Callout>
+
+{/* Verified 2026-10-07 on .NET 10 Release builds. Android: bin/, obj/, obj/<rid>/linked/ and Obfuscar output all had the same MVID. iOS: bin/Release/net10.0-ios/ios-arm64/ dll+pdb are a matched pair; the .app copy (and obj/<rid>/linked|stripped) has a different MVID and is IL-stripped. App Exp confirmed in the UI that an iOS error symbolicates with the bin/Release/net10.0-ios/ios-arm64/ pair. */}
+</Step>
+</Steps>
+
+## Symboliser une trace d’appels dans New Relic [#symbolicate]
+
+<Steps>
+<Step>
+### Ouvrez l’erreur [#open-error]
+
+Ouvrez l’erreur C# depuis l’un ou l’autre emplacement :
+
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Errors Inbox**</DNT>, puis sélectionnez l’erreur.
+* <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Mobile &gt; (select your app) &gt; Handled exceptions**</DNT>, puis sélectionnez l’erreur.
+
+Faites défiler jusqu’à la section <DNT>**Stack trace**</DNT>.
+
+Notez `appVersion` et `appBuild` de l’erreur. Ceux-ci vous indiquent de quels fichiers de sortie vous avez besoin.
+</Step>
+
+<Step>
+### Téléversez le `.pdb` et `.dll` [#upload]
+
+Au-dessus de la trace d’appels, la bannière <DNT>**Not seeing what you expected?**</DNT> propose une symbolication à la demande. Cliquez sur <DNT>**Upload .pdb and .dll files**</DNT>, et sélectionnez à la fois le `.pdb` et le `.dll` pour l’assembly dans la trace d’appels. Si la trace d’appels inclut des frames de plusieurs de vos assemblies, par exemple votre application, et une bibliothèque de classes, sélectionnez le `.pdb` et le `.dll` pour chacun d’eux. Les deux fichiers sont requis : le `.dll` identifie l’assembly et ses méthodes, et le `.pdb` associe chaque méthode à son fichier source et à sa ligne.
+
+<img title="Unsymbolicated .NET MAUI C# stack trace" alt="Screenshot of an unsymbolicated .NET MAUI C# stack trace with the Upload .pdb and .dll files button" src="/images/maui_screenshot-crop_symbolicate-upload.webp" />
+
+<figcaption>
+Avant la symbolication, le cadre affiche `<unknown>` là où le fichier source et le numéro de ligne devraient se trouver.
+</figcaption>
+
+Les fichiers sélectionnés apparaissent à côté du bouton. Vérifiez que les deux sont listés (supprimez-en un incorrect avec <DNT>**×**</DNT>), puis cliquez sur <DNT>**Symbolicate**</DNT>.
+</Step>
+
+<Step>
+### Passez en revue, ou exportez le résultat [#export]
+
+Lorsque la symbolication est terminée, la bannière se change en <DNT>**Symbolicated your trace**</DNT>, et indique combien de frames ont été résolues, par exemple <DNT>**Symbolicated 1 of 1 unresolved frame**</DNT>. Elle vous rappelle également que les frames se résolvent au début de leur méthode, et non à la ligne exacte qui a généré l’erreur.
+
+<img title="Symbolicated .NET MAUI C# stack trace" alt="Screenshot of a .NET MAUI C# stack trace after symbolication, showing MainPage.xaml.cs line 41" src="/images/maui_screenshot-crop_symbolicate-result.webp" />
+
+<figcaption>
+Après la symbolication, le cadre indique le fichier source, et la ligne où commence la méthode.
+</figcaption>
+
+Le résultat ne reste disponible que tant que la page est ouverte. Pour le conserver, cliquez sur <DNT>**Export handled exception details**</DNT>. L&apos;export inclut les cadres symbolisés, vous pouvez donc le joindre à un ticket ou le partager avec votre équipe.
+
+Pour symboliser une autre erreur, ouvrez-la, et téléversez à nouveau les fichiers. Le résultat d’une erreur ne se reporte pas sur les autres.
+</Step>
+</Steps>
+
+## Symboliquer les plantages iOS natifs [#native-ios-crashes]
+
+Les plantages iOS natifs, tels qu’un plantage dans Objective-C, Swift, ou le runtime iOS, ne sont pas des erreurs C#, donc les fichiers `.pdb`, et `.dll` ne s’y appliquent pas. Ces plantages utilisent plutôt le fichier iOS `.dSYM`.
+
+Pour trouver les plantages iOS natifs dans l’UI de New Relic, accédez à <DNT>**[one.newrelic.com](https://one.newrelic.com/) &gt; Mobile &gt; (select your app) &gt; Crashes**</DNT>, puis sélectionnez le plantage. Si le dSYM pour ce build n’est pas disponible pour New Relic, la trace d’appels affiche du code machine (adresses mémoire) au lieu de noms de méthodes lisibles, et le rapport de plantage affiche l’avertissement `We were unable to locate your dsym.`
+
+<img title="Unsymbolicated native iOS crash stack trace" alt="Screenshot of the Stack trace section of a .NET MAUI native iOS crash on the Crashes page, showing memory addresses such as 0x108d84944 instead of method names" src="/images/maui_screenshot-crop_native-ios-crash.webp" />
+
+<figcaption>
+Sans le dSYM, les frames iOS natifs affichent des adresses mémoire au lieu des noms de méthodes.
+</figcaption>
+
+Pour le corriger :
+
+1. Trouvez le `.dSYM` pour la compilation qui a planté, comme décrit dans [Comprendre les fichiers de symboles .NET MAUI](#symbol-files). Associez-le aux `appVersion` et `appBuild` du plantage.
+2. Téléversez-le sur New Relic en suivant [Téléverser les fichiers dSYM](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps).
+
+## Trouvez les bons fichiers [#match]
+
+Une paire `.dll` et `.pdb` ne donne des résultats corrects que pour les trace d’appels provenant du build qui l’a produite :
+
+1. **Sortie :** faites correspondre `appVersion`, et `appBuild` de l’erreur aux fichiers que vous avez enregistrés pour cette sortie.
+2. **Plateforme :** utilisez les fichiers Android pour les erreurs Android, et les fichiers iOS pour les erreurs iOS.
+3. **Assembly :** faites correspondre l’espace de nommage dans le cadre de stack au nom de l’assembly, comme décrit dans [Trouver les fichiers de sortie](#output).
+4. **Même build :** faites correspondre le `.pdb` au build qui a produit le `.dll`. Ne mélangez pas les fichiers de différents builds.
+
+<Callout variant="caution">
+Comme la trace d’appels n’inclut pas d’identifiant d’assembly, New Relic ne peut pas toujours déterminer que les fichiers proviennent d’une compilation différente. Les fichiers provenant d’une autre version de votre application peuvent tout de même produire un résultat, avec des numéros de ligne qui pointent vers le mauvais endroit, si le code a changé. Même l’ajout d’une seule ligne de commentaire au-dessus d’une méthode déplace son numéro de ligne. Assurez-vous que les fichiers correspondent à `appVersion`, et à `appBuild` de l’erreur avant de vous fier au résultat.
+</Callout>
+
+## Bonne pratique : stocker les symboles pour chaque sortie [#store-symbols]
+
+New Relic ne conserve pas vos fichiers `.pdb` et `.dll`, vous devez donc les stocker vous-même. Sauvegardez-les lorsque vous générez chaque sortie, et non après l’apparition d’une erreur.
+
+* **Conservez les fichiers pour chaque compilation que vous distribuez,** y compris les compilations internes, bêta et de boutique, pour Android et iOS.
+* **Conservez tous les types de fichiers de symboles,** y compris les dSYM iOS. Consultez [Comprendre les fichiers de symboles .NET MAUI](#symbol-files).
+* **Incluez vos propres bibliothèques de classes**, et non seulement l’assembly principal de l’application.
+* **Étiquetez-les par plateforme, version, et numéro de build**, en faisant correspondre les attributs `appVersion` et `appBuild` que votre application signale, afin de pouvoir trouver les bons fichiers pour une erreur.
+* **Conservez-les tant que cette version est en cours d’utilisation.** Les utilisateurs restent souvent sur d’anciennes versions pendant des mois.
+* **Restreignez l’accès.** Les PDB révèlent les chemins de vos fichiers sources et la structure de votre code. Stockez-les avec les mêmes contrôles d’accès que votre code source.
+
+L’endroit où vous les stockez vous appartient, par exemple les artefacts de build de votre système CI, un bucket de stockage, ou un référentiel d’artefacts. Si vous utilisez des artefacts de build CI, vérifiez combien de temps votre système CI les conserve, car beaucoup les suppriment automatiquement après un délai défini.
+
+<Callout variant="caution">
+Une recompilation produit des fichiers identiques uniquement si le code source, les dépendances, la version du SDK et les paramètres de compilation sont tous exactement les mêmes. Sauvegardez les fichiers de la compilation que vous avez réellement publiée. Ne comptez pas pouvoir les recréer.
+</Callout>
+
+## Dépannage [#troubleshooting]
+
+<CollapserGroup>
+<Collapser id="still-unknown" title="Les frames affichent toujours <unknown> après le téléversement des fichiers">
+Vérifiez que :
+
+* Vous avez chargé l’assembly qui contient les frames. Le nom de l’assembly correspond généralement au début de l’espace de nommage dans la frame.
+* Vous avez téléversé à la fois le `.pdb` et le `.dll`, et les deux proviennent de la même compilation.
+* Le `.pdb` est un PDB portable. Les anciens PDB (complets) uniquement pour Windows ne sont pas pris en charge.
+</Collapser>
+
+<Collapser id="wrong-line" title="Le numéro de ligne ne pointe pas vers la ligne qui a levé l’exception">
+Ceci est attendu. Les frames se résolvent à la première ligne de leur méthode, car la trace d’appels n’inclut pas la position à l’intérieur de la méthode. Voir [Ce que la symbolication ajoute](#before-after).
+
+Si la ligne pointe vers une méthode entièrement différente, les fichiers proviennent probablement d’une compilation différente. Consultez [Trouver les bons fichiers](#match).
+</Collapser>
+
+<Collapser id="partial" title="Seuls certains cadres sont symbolisés">
+Chaque assembly a besoin de son propre `.dll` et `.pdb`. Vous pouvez importer plusieurs paires à la fois, incluez donc chacun de vos assemblies qui apparaît dans la trace d’appels. Les frames des assemblies que vous n’avez pas importés, y compris .NET, MAUI, et les package NuGet tiers, restent non symboliqués.
+</Collapser>
+
+<Collapser id="no-pdb" title="Je ne parviens pas à trouver de fichier .pdb dans ma sortie de compilation">
+Vérifiez que `DebugType` est défini sur `portable` pour la configuration de sortie, comme indiqué dans [Activer les PDB portables](#enable-pdb), puis recompilez. Les nouveaux fichiers correspondent uniquement aux erreurs de la nouvelle build, et non à celles des sortie que vous avez déjà publiées.
+</Collapser>
+</CollapserGroup>
+
+## Limites [#limitations]
+
+* Les cadres sont résolus au début de leur méthode, et non à la ligne exacte qui a levé l’exception.
+* La symbolication s’applique aux erreurs C#. Les plantages natifs Android (Java/Kotlin), et iOS utilisent les workflows de symbolication [Android](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-crash-reporting), et [iOS](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/upload-dsyms-bitcode-apps).
+* Les résultats ne sont ni enregistrés, ni partagés entre les erreurs. Vous devez téléverser les fichiers pour chaque erreur, à chaque fois que vous la consultez.
