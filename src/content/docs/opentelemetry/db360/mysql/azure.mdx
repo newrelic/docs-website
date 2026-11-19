@@ -1,0 +1,378 @@
+---
+title: "Install & configure NRDOT for MySQL monitoring with Azure flexible server"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Azure
+  - Flexible Server
+metaDescription: Set up MySQL monitoring with the NRDOT Collector on Azure Database for MySQL flexible server environments
+freshnessValidatedDate: 2026-10-06
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+---
+
+Set up MySQL monitoring using the NRDOT Collector for Azure Database for MySQL flexible server instances. Azure Flexible Server environments have specific considerations for privileges and platform limitations.
+
+<Callout variant="tip" title="Guided installation">
+  To install through the New Relic UI instead, go to <DNT> **[one.newrelic.com > Integrations & Agents > MySQL (Database 360)](https://onenr.io/0oQDYBNG1wy)** </DNT>. This page covers manual installation only.
+</Callout>
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+Before you install, make sure you have:
+
+* A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+* Network connectivity between the host where you install the NRDOT Collector and your Azure Database for MySQL flexible server instance.
+* Network connectivity to [New Relic OTLP endpoints documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+* Azure Flexible Server admin login credentials.
+
+For supported MySQL versions, required grants, and `performance_schema` requirements, see [Compatibility and prerequisites](/docs/opentelemetry/db360/mysql/compatibility).
+
+</Step>
+
+<Step>
+
+## Set up NRDOT Collector [#setup]
+
+Install the NRDOT Collector on a system that can connect to your Azure Database for MySQL flexible server instance:
+
+<CollapserGroup>
+
+<Collapser
+  title="For AMD64 architecture"
+  id="amd"
+>
+
+* For Debian/Ubuntu system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+* For RHEL/CentOS/OEL system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+</Collapser>
+
+<Collapser
+  title="For ARM64 architecture"
+  id="arm"
+>
+
+* For Debian/Ubuntu system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+* For RHEL/CentOS/OEL system, run:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+
+</Collapser>
+
+</CollapserGroup>
+
+</Step>
+
+<Step>
+
+## Configure database user [#user]
+
+Create a monitoring user with the necessary privileges for your Azure Database for MySQL flexible server instance.
+
+1. To create a monitoring user, connect to your instance as the Azure Flexible Server admin login (there's no `root` account) and run:
+
+  ```sql
+  CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>';
+  ```
+
+2. To collect query samples and top queries, grant the following privileges to the monitoring user:
+
+  ```sql
+  GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%';
+  GRANT SELECT ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+  GRANT REPLICATION CLIENT ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+  GRANT PROCESS ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+  ```
+
+    <Callout variant="important">
+      Granting `BACKUP_ADMIN` isn't supported on Azure Database for MySQL - Flexible Server. As a result, `mysql.innodb.redo_log.checkpoint.age`, `mysql.innodb.redo_log.lsn.checkpoint`, and `mysql.innodb.redo_log.lsn.current` are unavailable.
+    </Callout>
+
+3. (Optional) To view the wait-time data in New Relic platform, grant the following privileges to the monitoring user:
+
+  ```sql
+  GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+  ```
+
+4. (Optional) To verify the connection and grants, run:
+
+  ```shell
+  mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
+  ```
+
+  If the command completes without an error, the monitoring user, host, and port are all correct.
+
+</Step>
+
+<Step>
+
+## Configure NRDOT Collector [#configure]
+
+Configure the NRDOT Collector with your Azure Database for MySQL flexible server-specific settings.
+
+This configuration focuses on essential MySQL monitoring with the `nrmysql` receiver only.
+
+<Callout variant="tip" title="full configuration">
+  This baseline configuration captures essential metrics. To see the complete metric catalog, refer to the [configuration reference](/docs/opentelemetry/db360/mysql/config-reference/#azure-full).
+</Callout>
+
+1. Create a configuration file named `mysql-config.yaml`:
+
+  ```bash
+    sudo nano /etc/nrdot-collector/mysql-config.yaml
+  ```
+
+2. Add the following configuration to the `mysql-config.yaml` file you created in the previous step.
+
+<OtelConfig
+  inputOptions={[
+    {
+      name: 'host',
+      label: 'MySQL Azure Endpoint',
+      codeLine: 3,
+      defaultValue: 'myserver.mysql.database.azure.com',
+      toolTip: 'Enter your Azure Database for MySQL flexible server endpoint',
+    },
+    {
+      name: 'port',
+      label: 'MySQL Port',
+      codeLine: 3,
+      defaultValue: '3306',
+      toolTip: 'Enter your MySQL port number. The default value is 3306.',
+    },
+    {
+      name: 'username',
+      label: 'Database Username',
+      codeLine: 5,
+      defaultValue: 'newrelic',
+      toolTip: 'Enter your database username for authentication',
+    },
+    {
+      name: 'password',
+      label: 'Database Password',
+      codeLine: 6,
+      defaultValue: 'YOUR_PASSWORD',
+      toolTip: 'Enter the password you set for the monitoring user',
+    },
+    {
+      name: 'endpoint',
+      label: 'New Relic OTLP Endpoint',
+      codeLine: 55,
+      defaultValue: 'https://otlp.nr-data.net:4318',
+      toolTip: 'Enter your New Relic OTLP endpoint. For more information, refer to https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
+    },
+    {
+      name: 'licenseKey',
+      label: 'New Relic License Key',
+      codeLine: 57,
+      defaultValue: 'YOUR_LICENSE_KEY',
+      toolTip: 'Enter your New Relic license key',
+    },
+  ]}
+  config={`receivers:
+  nrmysql:
+    endpoint: "<input1>:<input2>"
+    transport: tcp
+    username: "<input3>"
+    password: "<input4>"
+    allow_native_passwords: true
+    collection_interval: 15s
+    initial_delay: 1s
+    explain_mode: procedure
+    statement_events:
+      digest_text_limit: 4096
+      time_limit: 24h
+      limit: 500
+    query_sample_collection:
+      max_rows_per_query: 100
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      lookback_time: 60
+      max_query_sample_count: 5000
+      top_query_count: 200
+      collection_interval: 60s
+      query_plan_cache_size: 1000
+      query_plan_cache_ttl: 1h
+      allowed_comment_keys: [nr_service_guid]
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+      db.server.query_plan:
+        enabled: true
+    resource_attributes:
+      db.system.version:
+        enabled: true
+    metrics:
+      mysql.query.count:
+        enabled: true
+      mysql.query.slow.count:
+        enabled: true
+      mysql.commands:
+        enabled: true
+      mysql.innodb.data_file.io:
+        enabled: true
+    # Azure Database for MySQL flexible server enforces TLS by default (require_secure_transport).
+    tls:
+      insecure: false
+      ca_file: <PATH_TO_AZURE_CA_CERTIFICATE>
+
+processors:
+  batch:
+
+exporters:
+  otlp/newrelic:
+    endpoint: "<input5>"
+    headers:
+      api-key: "<input6>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  pipelines:
+    metrics:
+      receivers: [nrmysql]
+      processors: [batch]
+      exporters: [otlp/newrelic]
+    logs:
+      receivers: [nrmysql]
+      processors: [batch]
+      exporters: [otlp/newrelic]`}
+  fileName="mysql-config.yaml"
+  tipMdx={{ body: null }}
+  onChange={() => {}}
+/>
+
+<Callout variant="tip">
+  This configuration omits the optional `database` field. By default, the receiver monitors every database the monitoring user can access. To [monitor a specific database](/docs/opentelemetry/db360/mysql/optional#database), see Enable detailed insights.
+</Callout>
+
+### Configuration parameters
+
+The following table describes the key configuration parameters for the `nrmysql` receiver:
+
+| Parameter | Description |
+| --- | --- |
+| `<YOUR_DB_HOST>` | Your Azure Database for MySQL flexible server endpoint. For example, `myserver.mysql.database.azure.com` |
+| `<YOUR_DB_PORT>` | Enter your MySQL port number. The default value is `3306`. |
+| `<YOUR_DB_USERNAME>` | Enter the username of the monitoring user you created in [Configure database user](#user). |
+| `<YOUR_DB_PASSWORD>` | Enter the password of the monitoring user you created in [Configure database user](#user). |
+| `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, see [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
+| `<YOUR_NEWRELIC_LICENSE_KEY>` | Enter your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
+| `transport` | Default value is set to `tcp` to connect over the network. |
+| `collection_interval` | Enter the interval between metric scrapes. Default: `15s`. |
+| `explain_mode` | Default value is set to `inline`. Set the value to `procedure` to collect query plans for write statements without granting DML privileges to the monitoring user. See [Query plans for write statements](/docs/opentelemetry/db360/mysql/optional#query). |
+
+</Step>
+
+<Step>
+
+## Validate NRDOT Collector configuration [#validate]
+
+1. Update the config path to point to your new `mysql-config.yaml` file:
+
+   ```bash
+     sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/mysql-config.yaml"|' /etc/nrdot-collector/nrdot-collector.conf
+   ```
+2. Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly:
+
+   ```bash
+     sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mysql-config.yaml
+   ```
+
+   <Callout variant="tip">
+     You can also:
+     * [Configure multiple receivers](/docs/opentelemetry/db360/mysql/multi-receiver): To monitor multiple MySQL instances from one collector.
+     * [Link your MySQL database with APM](/docs/opentelemetry/db360/capabilities/db-apm): To correlate your application performance with database operations. This allows you to see exactly which applications are generating specific database workloads.
+     * [Set up secret management](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management): To securely manage sensitive information, such as database credentials. This helps to enhance the security of your monitoring setup by avoiding hardcoding sensitive data in configuration files.
+   </Callout>
+
+</Step>
+
+<Step>
+
+## Restart NRDOT Collector [#restart]
+
+* After updating your configuration, restart the NRDOT Collector service:
+
+  ```shell
+  sudo systemctl restart nrdot-collector
+  ```
+
+  <Callout variant="tip">
+    Always restart the NRDOT Collector service after making configuration changes to ensure the new settings take effect.
+  </Callout>
+
+* To verify that the collector is running properly, check the service status:
+
+  ```shell
+  sudo systemctl status nrdot-collector
+  ```
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find]
+
+Once your data is being collected, you can access comprehensive Azure Database for MySQL flexible server monitoring through the New Relic UI.
+
+To find your Azure Database for MySQL flexible server entity in New Relic:
+
+1. Go to <DNT>**[https://one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**MySQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your Azure Database for MySQL flexible server instance from the list of entities.
+
+</Step>
+
+</Steps>
+
+## Limitations [#limitations]
+
+When monitoring an Azure Database for MySQL - Flexible Server instance, some features behave differently than on self-managed MySQL, due to Azure platform restrictions rather than anything in the receiver.
+
+Granting `BACKUP_ADMIN` isn't supported, which blocks `mysql.innodb.redo_log.checkpoint.age`, `mysql.innodb.redo_log.lsn.checkpoint`, and `mysql.innodb.redo_log.lsn.current` entirely.
+
+The MySQL X Plugin isn't supported on this platform, with no customer-enable path, [confirmed by Microsoft's Azure Database for MySQL Principal PM](https://stackoverflow.com/questions/74631732/mysql-azure-database-enable-mysqlx-plugin). As a result, `mysql.mysqlx_connections` and `mysql.mysqlx_worker_threads` report no data.
+
+Read replicas use storage-based replication, so `mysql.replica.thread.running` always reports not running regardless of actual replication health. `mysql.replica.time_behind_source` is unaffected.
+
+## Related documentation [#related]
+
+<DocTiles>
+  <DocTile title="AWS RDS setup" path="/docs/opentelemetry/db360/mysql/rds">Learn how to set up MySQL monitoring for AWS RDS with New Relic.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/db360/mysql/metrics-reference">Learn about the available metrics collected by the NRDOT Collector.</DocTile>
+  <DocTile title="Troubleshooting guide" path="/docs/opentelemetry/db360/mysql/troubleshooting">Learn how to troubleshoot common issues with MySQL monitoring.</DocTile>
+</DocTiles>
