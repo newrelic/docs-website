@@ -1,7 +1,7 @@
 ---
 title: Comece a usar a observabilidade do coletor
-metaDescription: 'Set up collector observability by enabling internal telemetry on your OpenTelemetry collector, tagging its entity, and customizing configuration.'
-freshnessValidatedDate: '2026-09-09T00:00:00.000Z'
+metaDescription: Set up collector observability by enabling internal telemetry on your OpenTelemetry collector and customizing the configuration.
+freshnessValidatedDate: '2026-11-16T00:00:00.000Z'
 tags:
   - Integrations
   - Open source telemetry integrations
@@ -10,29 +10,84 @@ tags:
 translationType: machine
 ---
 
-<Callout variant="important" title="Cobrança">
-O uso do Collector Observability é faturável durante o preview de acordo com o seu Pedido, conforme aplicável ao modelo de preços associado à sua Conta e conforme definido abaixo.
-
-Os custos associados a este recurso são determinados pelos seguintes fatores, conforme aplicável ao modelo de preços associado à sua Conta:
-
-**Core Compute**: A página de Resumo, medida em Core CCU, é faturável durante o preview.
-
-**Ingestão de dados**: Dados adicionais da telemetria interna, medidos em GB ingeridos, são faturáveis durante o preview.
-
-Se este recurso se tornar disponível de forma geral, seu uso será faturável de acordo com o seu Pedido.
-</Callout>
-
 ## Configuração passo a passo
 
 <Steps>
 <Step>
-### Baixe o arquivo de configuração [#download-config]
+### Crie o arquivo de configuração [#create-config]
 
-Por padrão, o coletor não emite sua [telemetria interna](https://opentelemetry.io/docs/collector/internal-telemetry/), então você precisará habilitá-la primeiro.
+Ative a [telemetria interna](https://opentelemetry.io/docs/collector/internal-telemetry/) do coletor salvando a seguinte configuração como `internal-telemetry-config.yaml`:
 
-```bash
-curl 'https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/heads/main/examples/internal-telemetry-config.yaml' \
-  --silent --output internal-telemetry-config.yaml
+```yaml
+##### Example configuration for internal telemetry
+# This configuration is intended to be used in conjunction with a configuration of components and pipelines. The
+# collector supports config merging on startup.
+##### Requirements
+# - nrdot-collector (any distro) >= 1.3.0 or collector core version >= v1.35.0 / v0.129.0
+##### Configuration via environment variables
+# For official documentation, see: https://opentelemetry.io/docs/collector/internal-telemetry/
+## Required
+# - INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY
+## Optional
+# - INTERNAL_TELEMETRY_SERVICE_NAME: defaults to 'otel-collector'; determines entity name in New Relic
+# - INTERNAL_TELEMETRY_OTLP_ENDPOINT: defaults to 'https://otlp.nr-data.net'; see https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/ and https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp-troubleshooting/
+# - INTERNAL_TELEMETRY_METRICS_LEVEL: defaults to 'detailed'; other values are 'normal', 'basic', 'none'
+# - INTERNAL_TELEMETRY_LOG_LEVEL: defaults to INFO; other values are DEBUG, WARN, ERROR
+# - INTERNAL_TELEMETRY_TRACE_LEVEL: defaults to 'none' (traces disabled); other value is 'basic'
+# - INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO: defaults to 0.01, i.e. 1% sampling; has no effect if TRACE_LEVEL is 'none'
+service:
+  telemetry:
+    metrics:
+      level: "${env:INTERNAL_TELEMETRY_METRICS_LEVEL:-detailed}"
+      readers:
+        - periodic:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: "${env:INTERNAL_TELEMETRY_OTLP_ENDPOINT:-https://otlp.nr-data.net}"
+                temporality_preference: delta
+                headers:
+                  - name: api-key
+                    value: "${env:INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY}"
+    logs:
+      level: "${env:INTERNAL_TELEMETRY_LOG_LEVEL:-INFO}"
+      # default sampling config for reference to simplify overwrites even if not exposed via env var, e.g. --config=yaml:service::telemetry::logs::sampling::enabled::false
+      sampling:
+        enabled: true
+        # The interval in seconds that the logger applies to each sampling.
+        tick: 10s
+        # The number of messages logged at the start of each sampling::tick
+        initial: 10
+        # Sets the sampling policy for subsequent messages after sampling::initial messages are logged. When sampling::thereafter is set to N, every Nth message is logged and all others are dropped. If N is zero, the logger drops all messages after sampling::initial messages are logged.
+        thereafter: 100
+      processors:
+        - batch:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: "${env:INTERNAL_TELEMETRY_OTLP_ENDPOINT:-https://otlp.nr-data.net}"
+                headers:
+                  - name: api-key
+                    value: "${env:INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY}"
+    traces:
+      # traces are disabled by default due to experimental status and lack of default sampling rate that works across use cases
+      level: "${env:INTERNAL_TELEMETRY_TRACE_LEVEL:-none}"
+      sampler:
+        parent_based:
+          root:
+            trace_id_ratio_based:
+              ratio: ${env:INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO:-0.01}
+      processors:
+        - batch:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: "${env:INTERNAL_TELEMETRY_OTLP_ENDPOINT:-https://otlp.nr-data.net}"
+                headers:
+                  - name: api-key
+                    value: "${env:INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY}"
+    resource:
+      service.name: "${env:INTERNAL_TELEMETRY_SERVICE_NAME:-otel-collector}"
 ```
 </Step>
 
@@ -55,7 +110,7 @@ docker run \
   -e NEW_RELIC_LICENSE_KEY='...' \
   -e INTERNAL_TELEMETRY_SERVICE_NAME='demo-collector' \
   -v './internal-telemetry-config.yaml:/etc/nrdot-collector/config-internal.yaml' \
-  newrelic/nrdot-collector:2.5.0 --config=/etc/nrdot-collector/config.yaml \
+  newrelic/nrdot-collector:2.8.1 --config=/etc/nrdot-collector/config.yaml \
   --config='/etc/nrdot-collector/config-internal.yaml'
 ```
 
@@ -65,23 +120,21 @@ A ordem dos argumentos `--config` importa se você tiver uma configuração pré
 </Step>
 
 <Step>
-### Adicionar tag de entidade [#add-tag]
+### Aguarde o New Relic detectar seu coletor [#auto-detection]
 
-A tag <DNT>`newrelic.service.type: otel_collector`</DNT> atua como uma adesão à experiência no nível da interface do usuário. Escolha uma das seguintes opções:
+Você não precisa configurar mais nada. O New Relic detecta seu coletor automaticamente e mostra a experiência do coletor para sua entidade.
 
-* **Opção 1**: Use a configuração de exemplo fornecida acima, que contém a configuração da Opção 2.
-* **Opção 2**: Adicione o argumento <DNT>`--config=yaml:service::telemetry::resource::newrelic.service.type: otel_collector`</DNT> ao coletor. Isso adiciona o atributo como um atributo de recurso e a New Relic faz a etiquetagem para você na ingestão. Se você remover esta opção, levará um dia para a tag expirar.
-* **Opção 3**: Adicionar tag via interface do APM (topo da página, ao lado do nome da entidade). Você também pode remover isso pela UI para alternar de volta.
+Nos bastidores, a maioria das métricas internas do coletor tem nomes que começam com <DNT>`otelcol`</DNT>. Quando uma entidade emite uma métrica com esse prefixo, a New Relic marca a entidade como um coletor adicionando a tag de entidade <DNT>`otelCollector: opentelemetry`</DNT>. Isso acontece na ingestão, portanto, pode levar alguns minutos após a chegada dos primeiros dados antes que a experiência apareça.
 
-Após adicionar a tag, consulte [Visualizar seu coletor na interface](/docs/opentelemetry/collector-observability/collector-observability#view-ui) para explorar os dados do seu coletor.
+Uma vez detectado, consulte [Visualizar seu coletor na interface](/docs/opentelemetry/collector-observability/collector-observability#view-ui) para explorar os dados do seu coletor.
 </Step>
 
 <Step>
 ### Opcional: personalize a configuração [#customize]
 
-A configuração padrão expõe variáveis de ambiente adicionais da forma `INTERNAL_TELEMETRY_...` para ajustar opções comuns, como níveis de detalhe e amostragem. Consulte a [própria configuração](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) para obter mais detalhes.
+A configuração padrão expõe variáveis de ambiente adicionais no formato `INTERNAL_TELEMETRY_...` para ajustar opções comuns, como níveis de detalhe e amostragem. Consulte a [própria configuração](#create-config) para obter mais detalhes.
 
-Recomendamos usar a configuração padrão para monitorar seu coletor. No entanto, você pode modificar a configuração de exemplo para atender às suas necessidades, como reduzir o nível de detalhes, a amostragem ou as taxas de coleta de dados. Consulte a [documentação oficial](https://opentelemetry.io/docs/collector/internal-telemetry/) para mais detalhes. Lembre-se de que alterações na configuração podem fazer com que certas partes da interface não exibam dados. Consulte também [Limitações](/docs/opentelemetry/collector-observability/collector-observability#limitations). As opções de configuração de telemetria interna do coletor mudam à medida que a comunidade OTel evolui. Você tem controle total sobre sua configuração, incluindo a opção de usar os padrões fornecidos.
+Recomendamos usar a configuração padrão para monitorar seu coletor. No entanto, você pode modificar a configuração de exemplo, como reduzir o nível de detalhes, a taxa de amostragem ou a taxa de coleta de dados. Consulte a [documentação oficial](https://opentelemetry.io/docs/collector/internal-telemetry/) para mais detalhes. Lembre-se de que alterações na configuração podem fazer com que certas partes da interface não exibam dados. Consulte também [o FAQ](/docs/opentelemetry/collector-observability/collector-observability-faq). As opções de configuração de telemetria interna do coletor mudam à medida que a comunidade OTel evolui. Você pode usar ou modificar os padrões fornecidos conforme necessário.
 </Step>
 </Steps>
 
@@ -93,15 +146,9 @@ Como toda telemetria, a telemetria interna do coletor aumenta a sua ingestão de
 
 Se você precisar reduzir a quantidade de métricas que seu coletor emite, recomendamos definir o nível de métrica para <DNT>`normal`</DNT>, por exemplo, via a variável de ambiente <DNT>`INTERNAL_TELEMETRY_METRICS_LEVEL`</DNT> na configuração de exemplo, pois apenas um subconjunto das métricas do <DNT>`detailed`</DNT> é usado pela UI e são tipicamente métricas destinadas ao ajuste fino de desempenho ou a problemas de rede, então você pode reativá-las conforme necessário.
 
-**Logs** Tem impacto mínimo durante a operação normal. Pode ocorrer uma sobrecarga maior quando os logs de erro aumentam rapidamente, mas isso é reduzido porque os logs são amostrados por padrão. O algoritmo de amostragem permite um número constante de logs por intervalo definido e, em seguida, faz a amostragem a uma taxa estática. Consulte [service::telemetry::logs::sampling](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml).
+**Logs** Os logs têm impacto mínimo durante a operação normal. Pode ocorrer uma sobrecarga maior quando os logs de erro aumentam rapidamente, mas isso é reduzido porque os logs são amostrados por padrão. O algoritmo de amostragem permite um número constante de logs por intervalo definido e, em seguida, faz a amostragem a uma taxa estática. Consulte <DNT>`service::telemetry::logs::sampling`</DNT> na [configuração](#create-config).
 
-**Traces** Desativados por padrão devido a:
-
-* Maturidade limitada dos rastreamentos. Nem todos os componentes estão instrumentados, consulte esta [issue do GitHub](https://github.com/open-telemetry/opentelemetry-collector/issues/8804).
-* Sobrecarga imprevisível que varia com a carga de trabalho e a configuração de lotes de agentes e coletores upstream.
-* Nenhum algoritmo de amostragem adaptativa disponível. Isso torna impossível fornecer uma recomendação de amostragem universal que não arrisque custos inesperados para certos casos de uso.
-
-Quando os rastreamentos se tornarem mais maduros, eles fornecerão insights valiosos sobre quanto tempo o coletor gasta processando dados no nível do componente. Para experimentar com traces durante o desenvolvimento, defina <DNT>`INTERNAL_TELEMETRY_TRACE_LEVEL=basic`</DNT> e comece com uma taxa de amostragem baixa, como <DNT>`INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO=0.001`</DNT> (0,1%), enquanto monitora seu volume de ingestão e ajusta conforme necessário.
+**Traces** Desativados por padrão, consulte [o FAQ](/docs/opentelemetry/collector-observability/collector-observability-faq#traces-disabled) para obter mais detalhes. Para experimentar com traces durante o desenvolvimento, defina <DNT>`INTERNAL_TELEMETRY_TRACE_LEVEL=basic`</DNT> e comece com uma taxa de amostragem baixa, como <DNT>`INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO=0.001`</DNT> (0,1%), enquanto monitora seu volume de ingestão e ajusta conforme necessário.
 
 ## Exemplos de configuração [#examples]
 
@@ -111,6 +158,6 @@ Esta seção contém exemplos de como o guia passo a passo acima se aplica a dif
 
 [Exemplo mínimo](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry) de um coletor em execução com docker compose.
 
-### Popular relacionamentos de infraestrutura (opcional, experimental)
+### Exemplo: popular relacionamentos de infraestrutura (opcional)
 
 Como mencionado na [página de Resumo](/docs/opentelemetry/collector-observability/collector-observability#summary-page), o APM pode mostrar métricas de infraestrutura para a infraestrutura onde o coletor está sendo executado, mas apenas se sua infraestrutura estiver instrumentada e [um relacionamento](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#related-entities) puder ser formado. A relação é impulsionada por atributos adicionais na telemetria interna do coletor. Você pode ler mais sobre este tópico em nossa [documentação do OTel](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/#service-to-infra-otel-collector). As etapas para configurar isso dependem muito da sua infraestrutura exata. Para a escolha comum do Kubernetes, criamos [um exemplo](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry-k8s-container-relationships) que demonstra como obter relacionamentos de contêiner para serviço com base em nossa [solução OTel para Kubernetes](https://docs.newrelic.com/docs/kubernetes-pixie/k8s-otel/intro/).
