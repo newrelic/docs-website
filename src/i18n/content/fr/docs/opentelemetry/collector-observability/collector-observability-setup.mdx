@@ -1,0 +1,163 @@
+---
+title: Commencez avec l'observabilité du collecteur
+metaDescription: Set up collector observability by enabling internal telemetry on your OpenTelemetry collector and customizing the configuration.
+freshnessValidatedDate: '2026-11-16T00:00:00.000Z'
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Collector
+translationType: machine
+---
+
+## Configuration étape par étape
+
+<Steps>
+<Step>
+### Créez le fichier de configuration [#create-config]
+
+Activez la [télémétrie interne](https://opentelemetry.io/docs/collector/internal-telemetry/) du collecteur en enregistrant la configuration suivante sous `internal-telemetry-config.yaml`:
+
+```yaml
+##### Example configuration for internal telemetry
+# This configuration is intended to be used in conjunction with a configuration of components and pipelines. The
+# collector supports config merging on startup.
+##### Requirements
+# - nrdot-collector (any distro) >= 1.3.0 or collector core version >= v1.35.0 / v0.129.0
+##### Configuration via environment variables
+# For official documentation, see: https://opentelemetry.io/docs/collector/internal-telemetry/
+## Required
+# - INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY
+## Optional
+# - INTERNAL_TELEMETRY_SERVICE_NAME: defaults to 'otel-collector'; determines entity name in New Relic
+# - INTERNAL_TELEMETRY_OTLP_ENDPOINT: defaults to 'https://otlp.nr-data.net'; see https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/ and https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp-troubleshooting/
+# - INTERNAL_TELEMETRY_METRICS_LEVEL: defaults to 'detailed'; other values are 'normal', 'basic', 'none'
+# - INTERNAL_TELEMETRY_LOG_LEVEL: defaults to INFO; other values are DEBUG, WARN, ERROR
+# - INTERNAL_TELEMETRY_TRACE_LEVEL: defaults to 'none' (traces disabled); other value is 'basic'
+# - INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO: defaults to 0.01, i.e. 1% sampling; has no effect if TRACE_LEVEL is 'none'
+service:
+  telemetry:
+    metrics:
+      level: "${env:INTERNAL_TELEMETRY_METRICS_LEVEL:-detailed}"
+      readers:
+        - periodic:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: "${env:INTERNAL_TELEMETRY_OTLP_ENDPOINT:-https://otlp.nr-data.net}"
+                temporality_preference: delta
+                headers:
+                  - name: api-key
+                    value: "${env:INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY}"
+    logs:
+      level: "${env:INTERNAL_TELEMETRY_LOG_LEVEL:-INFO}"
+      # default sampling config for reference to simplify overwrites even if not exposed via env var, e.g. --config=yaml:service::telemetry::logs::sampling::enabled::false
+      sampling:
+        enabled: true
+        # The interval in seconds that the logger applies to each sampling.
+        tick: 10s
+        # The number of messages logged at the start of each sampling::tick
+        initial: 10
+        # Sets the sampling policy for subsequent messages after sampling::initial messages are logged. When sampling::thereafter is set to N, every Nth message is logged and all others are dropped. If N is zero, the logger drops all messages after sampling::initial messages are logged.
+        thereafter: 100
+      processors:
+        - batch:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: "${env:INTERNAL_TELEMETRY_OTLP_ENDPOINT:-https://otlp.nr-data.net}"
+                headers:
+                  - name: api-key
+                    value: "${env:INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY}"
+    traces:
+      # traces are disabled by default due to experimental status and lack of default sampling rate that works across use cases
+      level: "${env:INTERNAL_TELEMETRY_TRACE_LEVEL:-none}"
+      sampler:
+        parent_based:
+          root:
+            trace_id_ratio_based:
+              ratio: ${env:INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO:-0.01}
+      processors:
+        - batch:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: "${env:INTERNAL_TELEMETRY_OTLP_ENDPOINT:-https://otlp.nr-data.net}"
+                headers:
+                  - name: api-key
+                    value: "${env:INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY}"
+    resource:
+      service.name: "${env:INTERNAL_TELEMETRY_SERVICE_NAME:-otel-collector}"
+```
+</Step>
+
+<Step>
+### Définir les variables d&apos;environnement [#set-env-vars]
+
+* <DNT>`INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY`</DNT>: Clé de licence d&apos;ingestion pour le compte vers lequel la télémétrie interne doit être envoyée. Cette clé peut être différente de la clé que le collecteur utilise pour envoyer des données standard à New Relic, c&apos;est-à-dire <DNT>`NEW_RELIC_LICENSE_KEY`</DNT> dans l&apos;exemple ci-dessous.
+* <DNT>`INTERNAL_TELEMETRY_SERVICE_NAME`</DNT>: Par défaut `otel-collector`, détermine le nom de l&apos;entité dans New Relic
+* <DNT>`INTERNAL_TELEMETRY_OTLP_ENDPOINT`</DNT>: Par défaut US `https://otlp.nr-data.net`; si vous êtes dans l&apos;UE, définissez ceci sur `https://otlp.eu01.nr-data.net`; si vous êtes en JP, définissez ceci sur `https://otlp.jp.nr-data.net`
+</Step>
+
+<Step>
+### Lancer le collecteur avec la configuration fusionnée [#run-collector]
+
+En plus de la configuration normale pour les composants et les pipelines (dans l&apos;exemple suivant `--config=/etc/nrdot-collector/config.yaml`), ajoutez un second argument `--config` qui fusionnera les deux configurations :
+
+```bash
+docker run \
+  -e INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY='...' \
+  -e NEW_RELIC_LICENSE_KEY='...' \
+  -e INTERNAL_TELEMETRY_SERVICE_NAME='demo-collector' \
+  -v './internal-telemetry-config.yaml:/etc/nrdot-collector/config-internal.yaml' \
+  newrelic/nrdot-collector:2.8.1 --config=/etc/nrdot-collector/config.yaml \
+  --config='/etc/nrdot-collector/config-internal.yaml'
+```
+
+<Callout variant="important">
+L&apos;ordre des arguments `--config` est important si vous avez une configuration préexistante sous le nœud `service::telemetry`. Le collecteur utilise une stratégie du « dernier arrivé gagne » au niveau du nœud lors de la fusion des configurations et de certaines parties de la config (par ex. les listes, les nœuds feuilles) ne peuvent pas être fusionnés, ils sont donc écrasés par le dernier argument `--config`.
+</Callout>
+</Step>
+
+<Step>
+### Attendez que New Relic détecte votre collecteur [#auto-detection]
+
+Vous n’avez rien d’autre à configurer. New Relic détecte automatiquement votre collecteur et affiche l’expérience du collecteur pour son entité.
+
+En coulisses, la plupart des métriques internes du collecteur ont des noms qui commencent par <DNT>`otelcol`</DNT>. Lorsqu’une entité émet une métrique avec ce préfixe, New Relic marque l’entité comme un collecteur en ajoutant le tag d’entité <DNT>`otelCollector: opentelemetry`</DNT>. Cela se produit lors de l&apos;ingestion, il peut donc s&apos;écouler quelques minutes après l&apos;arrivée des premières données avant que l&apos;expérience n&apos;apparaisse.
+
+Une fois détecté, consultez [Voir votre collecteur dans l’interface utilisateur](/docs/opentelemetry/collector-observability/collector-observability#view-ui) pour explorer les données de votre collecteur.
+</Step>
+
+<Step>
+### Facultatif : personnaliser la configuration [#customize]
+
+La configuration par défaut expose des variables d’environnement supplémentaires de la forme `INTERNAL_TELEMETRY_...` pour ajuster des options courantes telles que les niveaux de détail et l’échantillonnage. Consultez la [configuration elle-même](#create-config) pour plus de détails.
+
+Nous vous recommandons d’utiliser la configuration par défaut pour monitorer votre collecteur. Cependant, vous pouvez modifier l’exemple de configuration, par exemple en réduisant le niveau de détail, le taux d’échantillonnage ou le taux de collecte de données. Consultez la [documentation officielle](https://opentelemetry.io/docs/collector/internal-telemetry/) pour plus de détails. Gardez à l’esprit que les modifications de la configuration peuvent empêcher certaines parties de l’interface utilisateur d’afficher des données. Reportez-vous également à [la FAQ](/docs/opentelemetry/collector-observability/collector-observability-faq). Les options de configuration de la télémétrie interne du collecteur changent à mesure que la communauté OTel évolue. Vous pouvez utiliser ou modifier les valeurs par défaut fournies selon vos besoins.
+</Step>
+</Steps>
+
+## Considérations relatives au surcoût [#overhead]
+
+Comme toute télémétrie, la télémétrie interne du collecteur augmente votre ingestion de données. La surcharge dépend de votre charge de travail et de votre configuration. Voici les facteurs clés à prendre en compte :
+
+**Métriques** Génère une surcharge constante pour le collecteur et tous les composants actifs, quel que soit le débit. Les métriques sont émises à intervalle constant (60 secondes par défaut). Tout composant peut émettre des métriques personnalisées, comme indiqué par le [metadata.yaml](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/filterprocessor/metadata.yaml#L20) respectif, ce qui peut augmenter la surcharge.
+
+Si vous devez réduire le volume de métriques émises par votre collecteur, nous vous recommandons de définir le niveau de métrique sur <DNT>`normal`</DNT>, par ex. via la variable d&apos;environnement <DNT>`INTERNAL_TELEMETRY_METRICS_LEVEL`</DNT> dans l&apos;exemple de configuration, car seul un sous-ensemble des métriques <DNT>`detailed`</DNT> est utilisé par l&apos;interface utilisateur et ce sont généralement des métriques destinées à l&apos;ajustement des performances ou aux problèmes réseau, vous pouvez donc les réactiver au besoin.
+
+**Logs** Les logs ont un impact minime lors du fonctionnement normal. Une surcharge plus importante peut survenir lorsque les logs d’erreur augmentent rapidement, mais elle est réduite car les logs sont échantillonnés par défaut. L’algorithme d’échantillonnage autorise un nombre constant de logs par intervalle défini, puis échantillonne à un taux statique. Consultez <DNT>`service::telemetry::logs::sampling`</DNT> dans la [configuration](#create-config).
+
+**Traces** Désactivées par défaut, consultez [la FAQ](/docs/opentelemetry/collector-observability/collector-observability-faq#traces-disabled) pour plus de détails. Pour expérimenter avec les traces en cours de développement, définissez <DNT>`INTERNAL_TELEMETRY_TRACE_LEVEL=basic`</DNT> et commencez avec un taux d’échantillonnage faible tel que <DNT>`INTERNAL_TELEMETRY_TRACE_SAMPLE_RATIO=0.001`</DNT> (0,1 %) tout en monitorant votre volume d’ingestion et en l’ajustant si nécessaire.
+
+## Exemples de configuration [#examples]
+
+Cette section contient des exemples de la façon dont le guide étape par étape ci-dessus s&apos;applique à différents cas d&apos;utilisation impliquant le collecteur.
+
+### Collecteur simple avec télémétrie interne activée
+
+[Exemple minimal](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry) d&apos;un collecteur s&apos;exécutant avec docker compose.
+
+### Exemple : peupler les relations d’infrastructure (facultatif)
+
+Comme mentionné sur la [page Résumé](/docs/opentelemetry/collector-observability/collector-observability#summary-page), l’APM peut afficher des métriques d’infrastructure pour l’infrastructure sur laquelle le collecteur s’exécute, mais uniquement si votre infrastructure est instrumentée et qu’ [une relation](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#related-entities) peut être établie. La relation est pilotée par des attributs supplémentaires sur la télémétrie interne du collecteur. Vous pouvez en savoir plus sur ce sujet dans notre [documentation OTel](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/#service-to-infra-otel-collector). Les étapes de configuration dépendent fortement de votre infrastructure exacte. Pour le choix courant de Kubernetes, nous avons créé [un exemple](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry-k8s-container-relationships) qui présente comment obtenir des relations conteneur-service basées sur notre [solution OTel pour Kubernetes](https://docs.newrelic.com/docs/kubernetes-pixie/k8s-otel/intro/).

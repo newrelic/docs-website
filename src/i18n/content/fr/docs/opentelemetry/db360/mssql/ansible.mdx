@@ -1,0 +1,645 @@
+---
+title: Installez & configurez NRDOT pour le monitoring MSSQL avec Ansible
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Ansible
+metaDescription: Install and configure the NRDOT Collector for Microsoft SQL Server monitoring using the newrelic.newrelic_install Ansible role
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+Vous pouvez installer, et configurer le Collector NRDOT pour le monitoring de SQL Server en utilisant le rôle Ansible `newrelic.newrelic_install`. Le rôle installe le collecteur, crée, ou autorise l&apos;identité de monitoring, et configure le collecteur en une seule exécution.
+
+<Callout variant="tip" title="Installation guidée">
+Pour installer ceci via l’UI de New Relic à la place, accédez à <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Microsoft SQL Server (Database 360)](https://onenr.io/00jlEJX6EQW)** </DNT>. Suivez les instructions à l’écran pour configurer l’intégration. Cette page couvre uniquement l’installation manuelle.
+</Callout>
+
+<Steps>
+<Step>
+## Prérequis [#prerequisites]
+
+* Un compte New Relic avec une [clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys) valide.
+
+* Un [ID de compte](/docs/accounts/accounts-billing/account-structure/account-id) New Relic.
+
+* Microsoft SQL Server 2017 ou version ultérieure.
+
+* Ansible Core 2.13 ou 2.14, Python 3.10, et les collections `ansible.windows` et `ansible.utils`.
+
+* SQL Server auto-hébergé :
+
+  * Authentification SQL Server : un hôte de collecteur Linux ou Windows, et un identifiant dans le rôle de serveur `sysadmin` (ou équivalent) avec son mot de passe.
+  * Authentification Windows ou gMSA : un hôte collecteur Windows, une session PowerShell administrateur, et un compte Windows ou un compte de service géré de groupe (`gMSA`) avec les autorisations requises.
+
+* SQL Server sur AWS RDS :
+
+  * Un hôte collecteur Linux ou Windows avec une connectivité réseau au point de terminaison de la base de données (accès entrant accordé sur le port SQL Server au sein du groupe de sécurité), ainsi que le nom d’utilisateur et le mot de passe maîtres de la base de données.
+  * Authentification de domaine Windows ou gMSA : un hôte de collecteur Windows et une instance jointe à un domaine AWS Managed Microsoft Active Directory.
+
+* Hôte collecteur Linux : l’utilitaire `curl`, `systemd` et l’utilitaire `sqlcmd` installés et disponibles sur `PATH` (ou situés sous `/opt/mssql-tools18/bin` ou `/opt/mssql-tools/bin`).
+
+* Hôte collecteur Windows : l’utilitaire `sqlcmd.exe` installé et disponible sur `PATH`.
+
+* Connectivité réseau vers le [point de terminaison OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp) correspondant à la région cible.
+</Step>
+
+<Step>
+## Installez le rôle [#ansible-install-role]
+
+```bash
+ansible-galaxy install newrelic.newrelic_install
+```
+
+Assurez-vous que les collections requises sont également installées :
+
+```bash
+ansible-galaxy collection install ansible.windows ansible.utils
+```
+</Step>
+
+<Step>
+## Configurez le playbook [#ansible-configure]
+
+<CollapserGroup>
+<Collapser id="ansible-host-sql" title="Auto-hébergé - Authentification SQL Server">
+Ce rôle monitore une ou plusieurs instances SQL Server depuis un seul collecteur. Au lieu d’un seul ensemble hôte/port/identifiants, il lit deux fichiers qui doivent déjà exister sur l’hôte cible : un fichier d’instances (YAML) listant chaque instance à monitorer, et un fichier de secrets (`KEY=VALUE`) avec un identifiant et un mot de passe administrateur pour chacune, indexés pour correspondre.
+
+1. Créez le fichier d&apos;instance sur l&apos;hôte cible. Ajoutez une entrée par instance SQL Server que vous souhaitez que ce collecteur monitore, ou juste une entrée si vous n’exécutez qu’une seule instance :
+
+   ```yaml
+   instances:
+     - host: localhost
+       port: 1433
+       login_name: newrelic
+   ```
+
+2. Créez le fichier de secrets sur l’hôte cible avec un identifiant et un mot de passe administrateur pour chaque instance, indexé pour correspondre à l’ordre du fichier des instances. L’identifiant administrateur doit être membre du rôle `sysadmin` (ou équivalent) :
+
+   ```bash
+   NR_CLI_MSSQL_ADMIN_USER_1=<YOUR_ADMIN_USERNAME>
+   NR_CLI_MSSQL_ADMIN_PASSWORD_1=<YOUR_ADMIN_PASSWORD>
+   ```
+
+   Ensuite, créez un fichier nommé `playbook.yml` et copiez-y le contenu suivant. Définissez `targets` sur `mssql-otel` et remplacez les valeurs des espaces réservés par les vôtres :
+
+   ```yaml
+   - name: Install New Relic NRDOT for SQL Server
+     hosts: all
+     roles:
+       - role: newrelic.newrelic_install
+     vars:
+       targets:
+         - mssql-otel
+     environment:
+       NEW_RELIC_API_KEY: <API key>
+       NEW_RELIC_ACCOUNT_ID: <Account ID>
+       NEW_RELIC_REGION: <Region>
+       NR_CLI_MSSQL_CONFIG_PRESET: <1 Basic, 2 Advanced, default 1>
+       NR_CLI_MSSQL_INSTANCES_FILE: <path to the instances YAML file on the target host>
+       NR_CLI_MSSQL_SECRETS_FILE: <path to the secrets file (KEY=VALUE per instance) on the target host>
+   ```
+
+<Callout variant="tip">
+Pour activer le logging de débogage, ajoutez `verbosity: "debug"` sous `vars` dans le playbook.
+</Callout>
+
+<table>
+<thead>
+<tr>
+<th>
+Variable
+</th>
+
+<th>
+Description
+</th>
+
+<th>
+Défaut
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MSSQL_CONFIG_PRESET`
+</td>
+
+<td>
+Configuration NRDOT :
+
+* `1` pour Basic
+* `2` pour Advanced
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_INSTANCES_FILE`
+</td>
+
+<td>
+Requis. Chemin d&apos;accès au fichier YAML de l&apos;instance, déjà présent sur l&apos;hôte cible.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_SECRETS_FILE`
+</td>
+
+<td>
+Requis. Chemin vers le fichier des secrets (`KEY=VALUE`, une paire identifiant / mot de passe administrateur par instance), déjà présent sur l’hôte cible.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+Pour monitorer plus d&apos;une instance SQL Server à partir de ce collecteur, ajoutez des entrées supplémentaires au fichier d&apos;instances, et des identifiants numérotés correspondants (`_2`, `_3`,…) au fichier de secrets. Une instance qui échoue à ses vérifications est ignorée avec une raison dans le log plutôt que d’annuler toute l’installation.
+</Callout>
+</Collapser>
+
+<Collapser id="ansible-host-winauth" title="Auto-hébergé - Authentification Windows ou gMSA">
+Cette cible est uniquement prise en charge sur un hôte collecteur Windows. Elle utilise l’authentification Windows (`integrated security=true`) au lieu des identifiants SQL, et monitore une ou plusieurs instances SQL Server à partir d’un seul collecteur à l’aide d’un **fichier d’instances** (YAML, `host`/`port` par instance, aucun fichier de secrets : une identité Windows monitore chaque instance).
+
+Créez le fichier d’instance sur l’hôte cible, avec une seule entrée si vous n’exécutez qu’une seule instance. Seuls `host` et `port` sont nécessaires (pas de `login_name`) :
+
+```yaml
+instances:
+  - host: sql01.contoso.com
+    port: 1433
+  - host: sql02.contoso.com
+    port: 1433
+```
+
+Pour une instance nommée, utilisez `host` plus son port TCP statique plutôt que `host\INSTANCE`.
+
+Ensuite, créez un fichier nommé `playbook.yml` et copiez-y le contenu suivant. Définissez `targets` sur `mssql-otel-winauth` et remplacez les valeurs des espaces réservés par les vôtres :
+
+```yaml
+- name: Install New Relic NRDOT for SQL Server (Windows Auth)
+  hosts: all
+  roles:
+    - role: newrelic.newrelic_install
+  vars:
+    targets:
+      - mssql-otel-winauth
+  environment:
+    NEW_RELIC_API_KEY: <API key>
+    NEW_RELIC_ACCOUNT_ID: <Account ID>
+    NEW_RELIC_REGION: <Region>
+    NR_CLI_MSSQL_CONFIG_PRESET: <1 Basic, 2 Advanced, default 1>
+    NR_CLI_MSSQL_AUTH_MODE: <1 for Windows Domain Auth, 2 for gMSA, default 1>
+    NR_CLI_MSSQL_WINAUTH_LOCATION: <1 for same host as SQL Server, 2 for a different host, default 1; Windows Domain Auth only>
+    NR_CLI_MSSQL_INSTANCES_FILE: <path to the instances YAML file on the target host>
+    NR_CLI_MSSQL_WIN_ACCOUNT: <Windows domain account, DOMAIN\username; required only for Windows Domain Auth on a different host>
+    NR_CLI_MSSQL_WIN_PASSWORD: <password for that account; required only for Windows Domain Auth on a different host>
+    NR_CLI_MSSQL_GMSA_ACCOUNT: <gMSA account, DOMAIN\gMSAName$; gMSA only>
+```
+
+<Callout variant="tip">
+Pour activer le logging de débogage, ajoutez `verbosity: "debug"` sous `vars` dans le playbook.
+</Callout>
+
+<table>
+<thead>
+<tr>
+<th>
+Variable
+</th>
+
+<th>
+Description
+</th>
+
+<th>
+Défaut
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MSSQL_CONFIG_PRESET`
+</td>
+
+<td>
+Configuration NRDOT :
+
+* `1` pour Basic
+* `2` pour Advanced
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_AUTH_MODE`
+</td>
+
+<td>
+Authentification SQL Server :
+
+* `1` pour l’authentification de domaine Windows
+* `2` pour gMSA
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_WINAUTH_LOCATION`
+</td>
+
+<td>
+Authentification de domaine Windows uniquement :
+
+* `1` si le collecteur s’exécute sur le même hôte que SQL Server (l’identité de l’utilisateur effectuant l’installation est utilisée et le service reste `LocalSystem`, aucun compte de domaine n’est donc nécessaire)
+* `2` s’il s’exécute sur un hôte différent
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_INSTANCES_FILE`
+</td>
+
+<td>
+Requis. Chemin d&apos;accès au fichier YAML d&apos;instance (`host`/`port` par instance), déjà présent sur l&apos;hôte cible.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_WIN_ACCOUNT` / `NR_CLI_MSSQL_WIN_PASSWORD`
+</td>
+
+<td>
+Requis uniquement lorsque `NR_CLI_MSSQL_AUTH_MODE` est `1` et `NR_CLI_MSSQL_WINAUTH_LOCATION` est `2`. Compte de domaine Windows (`DOMAIN\username`) et mot de passe auxquels accorder des autorisations et sous lesquels exécuter le service collecteur. Non requis pour le flux sur le même hôte ou pour gMSA.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_GMSA_ACCOUNT`
+</td>
+
+<td>
+Requis si `NR_CLI_MSSQL_AUTH_MODE` est `2`. Compte gMSA (`DOMAIN\gMSAName$`) auquel accorder des autorisations.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+Pour monitorer plus d’une instance SQL Server à partir de ce collecteur, ajoutez des entrées supplémentaires au fichier d’instances. Un mode d’authentification et une identité Windows sont utilisés pour **chaque** instance dans le fichier. Une instance qui échoue à ses vérifications est ignorée avec une raison dans le log plutôt que d’annuler toute l’installation. Le flux sur le même hôte (`NR_CLI_MSSQL_WINAUTH_LOCATION` `1`) ne fonctionne que pour les instances sur l’hôte cible lui-même. Utilisez le flux sur un hôte différent ou gMSA pour les instances distantes ou en cluster.
+</Callout>
+</Collapser>
+
+<Collapser id="ansible-rds-sql" title="AWS RDS - Authentification SQL Server">
+Ce rôle monitore un ou plusieurs points de terminaison RDS SQL Server à partir d’un seul collecteur, en utilisant le même modèle de fichier d’instances / fichier de secrets que l’auto-hébergé (les deux fichiers doivent déjà exister sur l’hôte cible).
+
+1. Créez le fichier d’instance sur l’hôte cible, en utilisant le point de terminaison RDS comme `host`, avec une seule entrée si vous ne monitorez qu’une seule instance RDS :
+
+   ```yaml
+   instances:
+     - host: mydb1.abcdefg12345.us-east-1.rds.amazonaws.com
+       port: 1433
+       login_name: newrelic
+   ```
+
+2. Créez le fichier de secrets sur l’hôte cible avec le nom d’utilisateur et le mot de passe maître RDS pour chaque instance, indexé pour correspondre à l’ordre du fichier d’instance :
+
+   ```bash
+   NR_CLI_MSSQL_ADMIN_USER_1=admin
+   NR_CLI_MSSQL_ADMIN_PASSWORD_1=YourMasterPassword1
+   ```
+
+   Ensuite, créez un fichier nommé `playbook.yml` et copiez-y le contenu suivant. Définissez `targets` sur `mssql-otel-rds` et remplacez les valeurs des espaces réservés par les vôtres :
+
+   ```yaml
+   - name: Install New Relic NRDOT for SQL Server on RDS
+     hosts: all
+     roles:
+       - role: newrelic.newrelic_install
+     vars:
+       targets:
+         - mssql-otel-rds
+     environment:
+       NEW_RELIC_API_KEY: <API key>
+       NEW_RELIC_ACCOUNT_ID: <Account ID>
+       NEW_RELIC_REGION: <Region>
+       NR_CLI_MSSQL_CONFIG_PRESET: <1 Basic, 2 Advanced, default 1>
+       NR_CLI_MSSQL_INSTANCES_FILE: <path to the instances YAML file on the target host, using RDS endpoints as host>
+       NR_CLI_MSSQL_SECRETS_FILE: <path to the secrets file (KEY=VALUE per instance) on the target host>
+   ```
+
+<Callout variant="tip">
+Pour activer le logging de débogage, ajoutez `verbosity: "debug"` sous `vars` dans le playbook.
+</Callout>
+
+<table>
+<thead>
+<tr>
+<th>
+Variable
+</th>
+
+<th>
+Description
+</th>
+
+<th>
+Défaut
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MSSQL_CONFIG_PRESET`
+</td>
+
+<td>
+Configuration NRDOT :
+
+* `1` pour Basic
+* `2` pour Advanced
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_INSTANCES_FILE`
+</td>
+
+<td>
+Requis. Chemin d’accès au fichier YAML d’instance, utilisant les points de terminaison RDS comme `host`, déjà présent sur l’hôte cible.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_SECRETS_FILE`
+</td>
+
+<td>
+Requis. Chemin d’accès au fichier de secrets (`KEY=VALUE`, une paire nom d’utilisateur / mot de passe maître RDS par instance), déjà présent sur l’hôte cible.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+Pour monitorer plus d’un point de terminaison RDS SQL Server depuis ce collecteur, ajoutez des entrées supplémentaires au fichier d’instances et les identifiants numérotés correspondants au fichier de secrets. Une instance qui échoue à ses vérifications est ignorée avec une raison dans le log plutôt que d’annuler toute l’installation.
+</Callout>
+</Collapser>
+
+<Collapser id="ansible-rds-winauth" title="AWS RDS - Authentification de domaine Windows ou gMSA">
+Cette cible est uniquement prise en charge sur un hôte collecteur Windows, et nécessite que vos instances RDS soient déjà jointes à un domaine AWS Managed Microsoft AD. Elle monitore un ou plusieurs points de terminaison RDS SQL Server à partir d’un seul collecteur à l’aide d’un **fichier d’instance** (YAML, `host`/`port` par instance, en utilisant les points de terminaison RDS comme `host`). Contrairement à la cible auto-hébergée ci-dessus, il n’y a pas d’option &quot;même hôte&quot; ici : un compte de domaine (ou gMSA) est toujours requis.
+
+Créez le fichier d&apos;instance sur l&apos;hôte cible, en utilisant chaque point de terminaison RDS comme `host`, avec une seule entrée si vous ne monitorez qu&apos;une seule instance RDS :
+
+```yaml
+instances:
+  - host: mydb1.xxxxxxxxxx.us-east-1.rds.amazonaws.com
+    port: 1433
+  - host: mydb2.xxxxxxxxxx.us-east-1.rds.amazonaws.com
+    port: 1433
+```
+
+Ensuite, créez un fichier nommé `playbook.yml` et copiez-y le contenu suivant. Définissez `targets` sur `mssql-otel-rds-winauth` et remplacez les valeurs des espaces réservés par les vôtres :
+
+```yaml
+- name: Install New Relic NRDOT for SQL Server on RDS (Windows Auth)
+  hosts: all
+  roles:
+    - role: newrelic.newrelic_install
+  vars:
+    targets:
+      - mssql-otel-rds-winauth
+  environment:
+    NEW_RELIC_API_KEY: <API key>
+    NEW_RELIC_ACCOUNT_ID: <Account ID>
+    NEW_RELIC_REGION: <Region>
+    NR_CLI_MSSQL_CONFIG_PRESET: <1 Basic, 2 Advanced, default 1>
+    NR_CLI_MSSQL_AUTH_MODE: <1 for Windows Domain Auth, 2 for gMSA, default 1>
+    NR_CLI_MSSQL_INSTANCES_FILE: <path to the instances YAML file on the target host, using RDS endpoints as host>
+    NR_CLI_MSSQL_WIN_ACCOUNT: <Windows domain account, DOMAIN\username; Windows Domain Auth only>
+    NR_CLI_MSSQL_WIN_PASSWORD: <password for that account; Windows Domain Auth only>
+    NR_CLI_MSSQL_GMSA_ACCOUNT: <gMSA account, DOMAIN\gMSAName$; gMSA only>
+```
+
+<Callout variant="tip">
+Pour activer le logging de débogage, ajoutez `verbosity: "debug"` sous `vars` dans le playbook.
+</Callout>
+
+<table>
+<thead>
+<tr>
+<th>
+Variable
+</th>
+
+<th>
+Description
+</th>
+
+<th>
+Défaut
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_MSSQL_CONFIG_PRESET`
+</td>
+
+<td>
+Configuration NRDOT :
+
+* `1` pour Basic
+* `2` pour Advanced
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_AUTH_MODE`
+</td>
+
+<td>
+Authentification SQL Server :
+
+* `1` pour l’authentification de domaine Windows
+* `2` pour gMSA
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_INSTANCES_FILE`
+</td>
+
+<td>
+Requis. Chemin d’accès au fichier YAML d’instance, utilisant les points de terminaison RDS comme `host`, déjà présent sur l’hôte cible.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_WIN_ACCOUNT` / `NR_CLI_MSSQL_WIN_PASSWORD`
+</td>
+
+<td>
+Requis si `NR_CLI_MSSQL_AUTH_MODE` est `1`. Compte de domaine Windows (`DOMAIN\username`), et mot de passe auxquels accorder des autorisations, et sous lesquels exécuter le service du collecteur.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_MSSQL_GMSA_ACCOUNT`
+</td>
+
+<td>
+Requis si `NR_CLI_MSSQL_AUTH_MODE` est `2`. Compte gMSA (`DOMAIN\gMSAName$`) auquel accorder des autorisations.
+</td>
+
+<td>
+Aucun
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+Pour monitorer plus d’un point de terminaison RDS SQL Server depuis ce collecteur, ajoutez plus d’entrées au fichier des instances. Un mode d’authentification et une identité Windows sont utilisés pour **chaque** point de terminaison dans le fichier. Un point de terminaison qui échoue à ses vérifications est ignoré avec une raison dans le log plutôt que d’annuler toute l’installation.
+</Callout>
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+## Exécutez le playbook [#ansible-run]
+
+```bash
+ansible-playbook -i <inventory_file> <playbook_file>.yml
+```
+</Step>
+
+<Step>
+## Trouvez et utilisez vos données [#find]
+
+Une fois vos données collectées, vous pouvez accéder à un monitoring complet de la base de données SQL Server via l&apos;UI de New Relic.
+
+Pour trouver votre entité de base de données SQL Server dans New Relic :
+
+1. Allez à <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>.
+
+2. Dans la liste déroulante **<DNT>Entity type</DNT>**, sélectionnez <DNT>**MSSQL instance**</DNT>, puis cliquez sur <DNT>**Apply**</DNT>.
+
+3. Sélectionnez votre base de données SQL Server dans la liste des entités.
+
+   Après avoir configuré le monitoring SQL Server avec NRDOT, vous pouvez :
+
+   * [Créez des dashboards personnalisés](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) pour visualiser les métriques de votre base de données
+   * [Configurer des alertes](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) pour les seuils critiques de performances des bases de données
+   * [Explorez vos données](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) à l’aide des fonctionnalités de requête de New Relic
+</Step>
+</Steps>
+
+## Documentation associée [#related-docs]
+
+<DocTiles>
+<DocTile title="Configurer la corrélation APM-base de données" path="/docs/opentelemetry/db360/capabilities/db-apm">
+Découvrez comment corréler les performances des applications avec les opérations de base de données dans New Relic.
+</DocTile>
+
+<DocTile title="Dépannage" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+Découvrez comment dépanner votre configuration de monitoring MSSQL dans New Relic.
+</DocTile>
+
+<DocTile title="Référence des métriques" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+Découvrez les métriques disponibles collectées par le collecteur NRDOT.
+</DocTile>
+</DocTiles>

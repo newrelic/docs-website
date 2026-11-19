@@ -1,0 +1,342 @@
+---
+title: Chefを使用したOracle監視のためのNRDOTのインストールと設定
+tags:
+  - OpenTelemetry
+  - OpenTelemetry Collector
+  - nrdot-collector-OracleDB
+  - nrdot-collector-Database
+  - NRDOT
+  - Oracle Database
+  - Chef
+metaDescription: Install and configure the NRDOT Collector for Oracle Database monitoring using the newrelic-install Chef cookbook
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Oracle-Database-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/oracle/introduction
+  next: null
+translationType: machine
+---
+
+`newrelic-install` Chefクックブックを使用して、Oracleデータベース監視用のNRDOT Collectorをインストールおよび構成できます。`newrelic-install::default` レシピを実行すると、クックブックはコレクターをインストールし、監視データベースユーザーを作成し、コレクターを構成します。
+
+<Callout variant="tip" title="ガイド付きインストレーション">
+代わりにNew Relic UIからインストールするには、<DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Oracle (Database 360)](https://onenr.io/0kjnebKW7Ro)**</DNT>に移動してください。このページでは、手動インストレーションについてのみ説明します。
+</Callout>
+
+<Steps>
+<Step>
+## 前提条件 [#prerequisites]
+
+* 有効な[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)を持つNew Relicアカウント。
+* New Relic [アカウントID](/docs/accounts/accounts-billing/account-structure/account-id)。
+* Oracleデータベース19c以降。
+* Chef 15以降が必要です。
+* セルフホスト型Oracleの場合：SSHユーザーがパスワードプロンプトなしで`sudo su - oracle`を実行できるOracleデータベースホストへのSSHアクセス（エージェント転送付き）を備えたOracle Linux 7、8、または9。
+* AWS RDS上のOracleの場合：Debian/UbuntuまたはCentOS/RHEL/OELを実行しているコレクター・ホスト。
+* Oracle Autonomous データベース（ADB）の場合：Debian/UbuntuまたはCentOS/RHEL/OELを実行し、Oracle Instant Client（`sqlplus`）がインストールされ、`PATH`上にあるコレクターホスト；各インスタンスのエグレスIPがそのADBアクセス制御リストで許可されていること；および各インスタンスのOracle Walletがダウンロードされ、ノード上の独自のディレクトリに解凍されていること。
+</Step>
+
+<Step>
+## Chefクックブックをダウンロードします。 [#download-cookbook]
+
+Chef Supermarketから`newrelic-install` [Chefクックブック](https://supermarket.chef.io/cookbooks/newrelic-install)をchef-repoディレクトリにダウンロードします：
+
+```bash
+knife supermarket install newrelic-install
+```
+</Step>
+
+<Step>
+## デフォルトの属性を置き換えます [#configure]
+
+`attributes/default.rb`のデフォルトの属性をアカウントの詳細に置き換えてください：
+
+<CollapserGroup>
+<Collapser id="chef-host" title="セルフホスト型Oracleデータベース">
+このクックブックは、単一のコレクターから1つ以上のOracleデータベース・インスタンス（それぞれSSH経由で到達可能）をモニターします。単一のホスト/コンテナ/資格情報セットの代わりに、モニターするすべてのインスタンスがリストされた、ノード上にすでに存在している必要があるインスタンス・ファイル（YAML）と、オプションで、監視ユーザーのパスワードを自動生成する代わりに固定するためのシークレット・ファイルを読み取ります。正確なファイル形式については、[CLIインストール](/docs/opentelemetry/db360/oracle/cli/#install)を参照してください。
+
+```ruby
+default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+default['newrelic_install']['targets'] = [
+  'nrdot-collector-oracle'
+]
+default['newrelic_install']['env']['NR_CLI_ORACLE_INSTANCES_FILE'] = <path to the instances YAML file on the node>
+default['newrelic_install']['env']['NR_CLI_ORACLE_SECRETS_FILE']   = <optional path to a secrets file pinning monitoring passwords, on the node>
+default['newrelic_install']['env']['NR_CLI_ORACLE_CONFIG_PRESET']  = <1 Basic, 2 Advanced, default 1>
+# See all available targets at: https://github.com/newrelic/chef-install
+```
+
+<table>
+<thead>
+<tr>
+<th>
+属性（`env`の下）
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_ORACLE_INSTANCES_FILE`
+</td>
+
+<td>
+必須。すでにノード上に存在するインスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_SECRETS_FILE`
+</td>
+
+<td>
+オプション。すでにノード上に存在している、インスタンスごとに`NR_CLI_ORACLE_LOGIN_PASSWORD_<i>`を固定するシークレット・ファイル（`KEY=VALUE`）へのパス。すべてのインスタンスに対してランダムなパスワードを自動生成するには、未設定のままにしてください。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+これらの変数には、デフォルトの属性値は提供されていません。`default['newrelic_install']['env'][...]`を使用して、ターゲットに関連するものを明示的に設定してください。
+</Callout>
+
+<Callout variant="tip">
+このコレクターから複数のOracleデータベースインスタンスをモニターするには、インスタンスファイルにエントリを追加します。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由がログに記録されてスキップされます。
+</Callout>
+</Collapser>
+
+<Collapser id="chef-rds" title="AWS RDS上のOracleデータベース">
+このクックブックは、セルフホスト型と同じインスタンスファイル/シークレットファイルのパターンを使用して、単一のコレクターから1つ以上のRDS Oracleエンドポイントをモニターします（両方のファイルがノード上にすでに存在している必要があります）。
+
+```ruby
+default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+default['newrelic_install']['targets'] = [
+  'nrdot-collector-oracle-rds'
+]
+default['newrelic_install']['env']['NR_CLI_ORACLE_INSTANCES_FILE'] = <path to the instances YAML file on the node>
+default['newrelic_install']['env']['NR_CLI_ORACLE_SECRETS_FILE']   = <path to the secrets file (KEY=VALUE per instance) on the node>
+default['newrelic_install']['env']['NR_CLI_ORACLE_CONFIG_PRESET']  = <1 Basic, 2 Advanced, default 1>
+# See all available targets at: https://github.com/newrelic/chef-install
+```
+
+<table>
+<thead>
+<tr>
+<th>
+属性（`env`の下）
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_ORACLE_INSTANCES_FILE`
+</td>
+
+<td>
+必須。すでにノード上に存在するインスタンスYAMLファイルへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_SECRETS_FILE`
+</td>
+
+<td>
+必須。ノード上にすでに存在するシークレットファイル（`KEY=VALUE`、インスタンスごとに1つのRDSマスターユーザー名/パスワードのペア；オプションで監視パスワードを固定するための`NR_CLI_ORACLE_LOGIN_PASSWORD_<i>`）へのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_CONFIG_PRESET`
+</td>
+
+<td>
+NRDOTの設定：
+
+* `1` Basic用
+* `2` Advanced用
+</td>
+
+<td>
+`1`
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+これらの変数には、デフォルトの属性値は提供されていません。`default['newrelic_install']['env'][...]`を使用して、ターゲットに関連するものを明示的に設定してください。
+</Callout>
+
+<Callout variant="tip">
+このコレクターから複数のRDS Oracleエンドポイントをモニターするには、インスタンスファイルにエントリを追加し、シークレットファイルに一致する番号付きの資格情報を追加します。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由がログに記録されてスキップされます。
+</Callout>
+</Collapser>
+
+<Collapser id="chef-adb" title="Oracle Autonomous データベース（ADB）">
+このクックブックは、RDSと同じインスタンス・ファイル/シークレット・ファイルのパターンを使用して、単一のコレクターから1つ以上のOracle Autonomous データベース（ADB）インスタンスをモニターします（両方のファイルがすでにノード上に存在している必要があり、各インスタンスにはそのノード上にダウンロードして解凍された独自のOracle Walletも必要です）。
+
+```ruby
+default['newrelic_install']['NEW_RELIC_API_KEY']    = <API key>
+default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = <Account ID>
+default['newrelic_install']['NEW_RELIC_REGION']     = <Region>
+default['newrelic_install']['targets'] = [
+  'nrdot-collector-oracle-adb'
+]
+default['newrelic_install']['env']['NR_CLI_ORACLE_INSTANCES_FILE'] = <path to the instances YAML file on the node>
+default['newrelic_install']['env']['NR_CLI_ORACLE_SECRETS_FILE']   = <path to the secrets file (KEY=VALUE per instance) on the node>
+# See all available targets at: https://github.com/newrelic/chef-install
+```
+
+<table>
+<thead>
+<tr>
+<th>
+属性（`env`の下）
+</th>
+
+<th>
+説明
+</th>
+
+<th>
+デフォルト
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`NR_CLI_ORACLE_INSTANCES_FILE`
+</td>
+
+<td>
+必須。ノード上にすでに存在しているインスタンスYAMLファイルへのパスです。各インスタンスのエントリには`wallet_dir`も必要です：そのインスタンスの展開されたOracle Walletへのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+
+<tr>
+<td>
+`NR_CLI_ORACLE_SECRETS_FILE`
+</td>
+
+<td>
+必須。ノード上にすでに存在するシークレットファイル（`KEY=VALUE`、インスタンスごとに1つのADB管理者ユーザー名/パスワードのペア；オプションで監視パスワードを固定するための`NR_CLI_ORACLE_LOGIN_PASSWORD_<i>`）へのパス。
+</td>
+
+<td>
+なし
+</td>
+</tr>
+</tbody>
+</table>
+
+<Callout variant="tip">
+これらの変数には、デフォルトの属性値は提供されていません。`default['newrelic_install']['env'][...]`を使用して、ターゲットに関連するものを明示的に設定してください。
+</Callout>
+
+<Callout variant="tip">
+ADB用の`NR_CLI_ORACLE_CONFIG_PRESET`はありません：これはフルマネージド・サービスであり、ホスト・レベルのメトリクスを収集するためのホストが存在しないためです。
+</Callout>
+
+<Callout variant="tip">
+このコレクターから複数のADBインスタンスをモニターするには、インスタンスファイルにエントリを追加し、シークレットファイルに一致する番号付きの資格情報を追加します。チェックに失敗したインスタンスは、インストール全体を中止するのではなく、理由がログに記録されてスキップされます。
+</Callout>
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+## Chefクックブックをアップロードします。 [#upload-cookbook]
+
+`newrelic-install` ChefクックブックをChefサーバーにアップロードします：
+
+```bash
+knife cookbook upload newrelic-install
+```
+</Step>
+
+<Step>
+## ランリストを更新します。 [#run-list]
+
+ノードのランリストに `newrelic-install` レシピを追加します：
+
+```json
+"run_list": [
+  "recipe[newrelic-install]"
+]
+```
+</Step>
+</Steps>
+
+New RelicでOracleデータベースのエンティティを見つけるには、[「データの検索と使用」](/docs/opentelemetry/db360/oracle/introduction/#find)をご覧ください。

@@ -1,0 +1,444 @@
+---
+title: OCIインテグレーションのトラブルシューティング
+metaDescription: Common issues and fixes for connecting Oracle Cloud Infrastructure to New Relic.
+tags:
+  - Integrations
+  - Oracle Cloud integrations
+  - Troubleshooting
+freshnessValidatedDate: '2026-10-27T00:00:00.000Z'
+translationType: machine
+---
+
+OCIインテグレーションで問題が発生している場合は、ここから開始してください。
+
+## トラブルシューティングログ [#logs]
+
+OCIログが表示されない、予期せず停止する、重複して表示される、またはリソース名が正しく表示されない場合は、以下のヘルスチェックから開始し、続くセクションで特定の問題を確認してください。
+
+### 健康診断 [#logs-health-check]
+
+これらの2つのチェックにより、問題がOCIのアップストリームにある（New Relicで確認すべきことはまだない）か、ログが実際にNew Relicに到達しているかがわかります：
+
+1. **OCIのコネクタを確認してください。**OCIコンソールで<DNT>**Connector Hub**</DNT>に移動し、New Relicインテグレーションをデプロイしたコンパートメントを開きます。`newrelic-logs-<region>-audit`という名前のコネクタ（たとえば、`newrelic-logs-us-ashburn-1-audit`）を探し、そのステータスが<DNT>**Active**</DNT>であることを確認します。エラーステータスが表示されている場合は、コネクタを開いてエラーの詳細を確認してください。
+
+2. **ログがNew Relicに届いていることを確認してください。**[データのクエリ](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder)でこのクエリを実行します：
+
+   ```sql
+   SELECT count(*) FROM Log WHERE oracle.loggroupid = '_Audit' SINCE 30 minutes ago
+   ```
+
+   カウントがゼロより大きい場合は、監査ログが送信されていることを意味します。別のログタイプのトラブルシューティングを行っている場合は、代わりに該当する時間枠の最近の結果が表示されることを確認してください。
+
+両方のチェックが正常である場合、問題は完全な停止ではなく、以下の特定のシナリオのいずれかである可能性があります。
+
+<CollapserGroup>
+<Collapser id="no-logs" title="ログがまったく表示されない">
+発生している事象を考えられる原因と照らし合わせてください：
+
+<table>
+<thead>
+<tr>
+<th>
+これが表示された場合
+</th>
+
+<th>
+こちらをお試しください
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+セットアップを完了したばかりで、まだ何も表示されていません
+</td>
+
+<td>
+しばらくお待ちください。初めてコネクタを作成する際、OCIが最近のアクティビティをバックフィルするのに時間がかかる場合があります — 監査ログの場合、過去のイベントについては最大24時間かかることがありますが、通常、新しいイベントは数分以内に表示されます。
+</td>
+</tr>
+
+<tr>
+<td>
+<DNT>**Connector Hub**</DNT>にコネクタがまったく表示されない
+</td>
+
+<td>
+設定を再度開きます：ガイド付き設定ウィザードを使用した場合は、関連するトグルをオンにしたことを確認し、再実行してください。Terraformを使用した場合は、設定にログコネクタが含まれていることを確認し、再適用してください。
+</td>
+</tr>
+
+<tr>
+<td>
+複数のOCIリージョンにリソースがある
+</td>
+
+<td>
+各リージョンに独自のコネクタがあること、想定しているリージョンを確認していることを確認し、追加のリージョンがある場合は設定を繰り返してください。
+</td>
+</tr>
+
+<tr>
+<td>
+コンパートメントまたはロググループを読み込む際に、New Relic UIにアクセス/権限エラーが表示される
+</td>
+
+<td>
+以下の[権限の不足](#logs-permissions)を参照してください。
+</td>
+</tr>
+</tbody>
+</table>
+</Collapser>
+
+<Collapser id="logs-stopped" title="正常に機能した後にログが停止した">
+発生している事象を考えられる原因と照らし合わせてください：
+
+<table>
+<thead>
+<tr>
+<th>
+これが表示された場合
+</th>
+
+<th>
+こちらをお試しください
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+OCIのコネクタがなくなりました <DNT>**Active**</DNT>
+</td>
+
+<td>
+<DNT>**Connector Hub**</DNT>でコネクタを開き、そのエラーの詳細を確認してください。通常、これは権限の変更が原因であるか（[権限の不足](#logs-permissions)を参照）、誰かが基盤となるインテグレーションを再デプロイまたは置き換えたことが原因です。
+</td>
+</tr>
+
+<tr>
+<td>
+コネクタは<DNT>**Active**</DNT>ですが、新しいログが表示されません
+</td>
+
+<td>
+OCIコンソールで<DNT>**Functions**</DNT>に移動し、New Relicインテグレーション関数がデプロイされており、エラー状態を示していないことを確認します。[ログフォワーダーのオブザーバビリティ](/docs/logs/forward-logs/oci-log-forwarder-observability)をセットアップしている場合は、シークレット取得エラーや配信エラーなどの特定の障害について、まずそのダッシュボードを確認してください。依然として異常な状態が続いており、OCIだけで解決できない場合は、サポートにお問い合わせください。
+</td>
+</tr>
+
+<tr>
+<td>
+最近、誰かが設定を変更しました（ウィザードの再実行、Terraform設定の変更、トグルのオフ）。
+</td>
+
+<td>
+コネクターを復元するには、正しいオプションを有効にしてセットアップを再実行してください — その変更によって削除または変更された可能性があります。
+</td>
+</tr>
+</tbody>
+</table>
+</Collapser>
+
+<Collapser id="duplicate-logs" title="重複するログエントリ">
+複数のコネクタが同じログイベントをNew Relicに送信しています。これは通常、OCI内の複数のコネクタが同じログをカバーしていることを意味します — 多くの場合、単一のコンパートメントのみをカバーしていた古いコネクタを削除せずに、より広範な「すべてのコンパートメント」コネクタが追加されたことが原因です。
+
+<DNT>**Connector Hub**</DNT>で、New Relicインテグレーションに関連するすべてのコネクタをリストし、それぞれがカバーする範囲を確認してください。重複するものを削除し、実際に必要な範囲をカバーするコネクタを1つだけ残してください。
+</Collapser>
+
+<Collapser id="missing-compartments" title="コンパートメントまたはリソースが見つからない">
+コネクタのスコープが、想定していたすべての範囲をカバーしていません。
+
+<table>
+<thead>
+<tr>
+<th>
+セットアップの対象範囲
+</th>
+
+<th>
+含まれるもの
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+テナンシ全体（将来のものを含むすべてのコンパートメント）
+</td>
+
+<td>
+すべて自動的に — 新しいコンパートメントを追加する際、アクションは必要ありません。
+</td>
+</tr>
+
+<tr>
+<td>
+特定のコンパートメントおよびその配下のすべて
+</td>
+
+<td>
+そのコンパートメントおよびそのサブコンパートメント（後から追加された新しいサブコンパートメントを含みます）。
+</td>
+</tr>
+
+<tr>
+<td>
+特定の1つのコンパートメントのみ
+</td>
+
+<td>
+そのコンパートメントのみ — 新しいサブコンパートメントは自動的に含まれません。
+</td>
+</tr>
+</tbody>
+</table>
+
+ガイド付きウィザードを使用してセットアップした場合、コネクタはすでにテナンシ全体をカバーしています — コンパートメントがまだ欠落している場合、これはスコープの問題ではなく、コネクタの問題を示しています（[ログがまったく表示されない](#no-logs)を参照してください）。手動またはTerraform経由でセットアップした場合は、コネクタに設定したスコープを確認し、必要に応じてより広いスコープで再作成してください。
+</Collapser>
+
+<Collapser id="logs-permissions" title="アクセス権限の欠如">
+New Relicに必要なOCI権限がありません — これにより、コネクタの作成が完全にブロックされたり、完全な機能なしで実行されたりする可能性があります。
+
+セットアップ中に作成された動的グループに対して、以下のポリシーステートメントが存在することをOCIテナンシのアドミニストレーターに確認するよう依頼してください：
+
+<table>
+<thead>
+<tr>
+<th>
+ポリシー
+</th>
+
+<th>
+用途
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to read log-content in tenancy`
+</td>
+
+<td>
+ログデータの読み取り
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to use fn-function in tenancy`
+</td>
+
+<td>
+New Relicインテグレーションの実行
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to use fn-invocation in tenancy`
+</td>
+
+<td>
+New Relicインテグレーションの実行
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to read secret-bundles in tenancy where any { target.secret.id = 'your_ingest_secret_ocid', target.secret.id = 'your_user_secret_ocid' }`
+</td>
+
+<td>
+New Relicライセンスキーへの安全なアクセス
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect dns-family in tenancy`
+</td>
+
+<td>
+DNSリソースのフレンドリ名の解決
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect goldengate-family in tenancy`
+</td>
+
+<td>
+GoldenGateリソースのフレンドリ名の解決
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect network-firewall-family in tenancy`
+</td>
+
+<td>
+ネットワークファイアウォールリソースのフレンドリ名の解決
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect cloudevents-rules in tenancy`
+</td>
+
+<td>
+イベント・ルール・リソースのフレンドリ名の解決
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect integration-instance in tenancy`
+</td>
+
+<td>
+インテグレーションインスタンスリソースのフレンドリ名の解決
+</td>
+</tr>
+</tbody>
+</table>
+
+ガイド付きウィザードまたはTerraformポリシーモジュールを再実行すると、これらが自動的に再適用されます。権限を復元した後も、コネクタが依然として<DNT>**Active**</DNT>でない場合は、削除して再度作成してください。
+</Collapser>
+
+<Collapser id="resource-names" title="リソース名がID文字列として表示されます">
+一部のOCIリソースタイプでは、New Relicは、生のリソース識別子を表示するのではなく、ログが最初に到着した直後に判読可能な名前（VCNやファイアウォール名など）を自動的に検索します。New Relicが特定のリソースを初めて認識する際、この検索に数分かかる場合があります。
+
+<table>
+<thead>
+<tr>
+<th>
+これが表示された場合
+</th>
+
+<th>
+その意味
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+リソースには最初にIDが表示され、その直後にフレンドリ名が表示されます。
+</td>
+
+<td>
+正常 — これは新しいリソースが初めて表示される際に想定される動作です。
+</td>
+</tr>
+
+<tr>
+<td>
+しばらく経ってもリソースにわかりやすい名前が付けられない
+</td>
+
+<td>
+これは通常、権限の問題です — 以下をご覧ください。
+</td>
+</tr>
+
+<tr>
+<td>
+特定のリソースタイプで、どのリソースにもわかりやすい名前が表示されません
+</td>
+
+<td>
+一部のリソースタイプでは名前検索が有効になっておらず、常にIDが表示されます。これは想定される動作であり、エラーではありません。
+</td>
+</tr>
+</tbody>
+</table>
+
+名前が解決されない場合は、OCIテナンシのアドミニストレーターに、動的グループに[不足している権限](#logs-permissions)にリストされている`inspect`個のポリシーがあることを確認するよう依頼してください — DNS、GoldenGate、ネットワーク・ファイアウォール、イベント・ルール、およびインテグレーション・インスタンスのリソースごとに1つずつです。権限が正しく設定されているように見え、適度な時間待っても名前が解決されない場合は、影響を受けるリソースの例とログのタイムスタンプを添えてサポートにお問い合わせください。
+</Collapser>
+
+<Collapser id="dashboard-issues" title="ダッシュボードにエラー、ギャップ、または予期しない値が表示される">
+OCIログフォワーダーの監視ダッシュボードを有効にしている場合は、「ログが到着しているか」以外の確認事項について、まずこのダッシュボードを使用してください：
+
+<table>
+<thead>
+<tr>
+<th>
+これが表示された場合
+</th>
+
+<th>
+すべきこと
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+ダッシュボード上のすべてのウィジェットが空です。
+</td>
+
+<td>
+インテグレーションのメトリクスオプション（セットアップ中に選択する設定です）をオンにしたこと、および基盤となる関数がOCIで実行されていることを確認してください。
+</td>
+</tr>
+
+<tr>
+<td>
+ダッシュボードでエラー率が上昇しています。
+</td>
+
+<td>
+最近セットアップを変更した直後にこの問題が発生し始めたかどうかを確認してください。何も変更しておらず、問題が継続している場合は、OCIネットワーク/ファイアウォールのルールがNew Relicへのアウトバウンド・アクセスを許可しているか確認し、New Relicのライセンスキーが引き続き有効であることを確認してください。
+</td>
+</tr>
+
+<tr>
+<td>
+「records dropped」または類似のメトリクスがゼロ以外の値を示し、そのままの状態が続く
+</td>
+
+<td>
+時間範囲を添えてサポートにお問い合わせください — 一部のログ・データがNew Relicに到達していません。
+</td>
+</tr>
+
+<tr>
+<td>
+タイルに数値やパーセンテージの代わりにダッシュまたは値なしが表示される
+</td>
+
+<td>
+何かが壊れていると判断する前に、より広い時間範囲を確認してください — これは多くの場合、エラーではなく「この時間枠にはまだ十分なデータがない」状態です。
+</td>
+</tr>
+</tbody>
+</table>
+</Collapser>
+</CollapserGroup>
+
+## その他のヘルプ [#get-help]
+
+上記のチェックを行っても問題が解決しない場合は、以下の情報を添えてNew Relicサポートにお問い合わせください：
+
+* 使用したセットアップ方法（ガイド付きウィザード、手動セットアップ、またはTerraform）
+* OCIリージョン、および該当する場合は影響を受けるコンパートメント
+* 問題が発生し始めたおおよその時間帯
+* 上記のチェックのうち、すでにお試しいただいたもの
+
+## 関連記事 [#related-articles]
+
+* [OCIインテグレーションの概要](/docs/infrastructure/oci/introduction)：OCIインテグレーションの役割、機能、およびアカウントの接続方法について説明します。
+* [OCIメトリクス・リファレンス](/docs/infrastructure/oci/metrics-reference): New Relicが収集するOCIネームスペース、それぞれが属するサービス、およびレポート対象のエンティティ・タイプ。
+* [OCIログフォワーダーをモニターする](/docs/logs/forward-logs/oci-log-forwarder-observability)：ログフォワーダー関数で自己オブザーバビリティ・メトリクスを有効にし、ダッシュボードをインポートしてその正常性をモニターします。
+* [OCIインテグレーションをアンインストールする](/docs/infrastructure/oci/uninstall)：インテグレーションによって作成されたリソースを削除し、アカウントのリンクを解除します。

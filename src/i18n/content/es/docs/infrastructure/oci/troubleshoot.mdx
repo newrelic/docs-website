@@ -1,0 +1,444 @@
+---
+title: Solucionar problemas de la integración de OCI
+metaDescription: Common issues and fixes for connecting Oracle Cloud Infrastructure to New Relic.
+tags:
+  - Integrations
+  - Oracle Cloud integrations
+  - Troubleshooting
+freshnessValidatedDate: '2026-10-27T00:00:00.000Z'
+translationType: machine
+---
+
+Si tiene problemas con la integración de OCI, comience aquí.
+
+## Logs de resolución de problemas [#logs]
+
+Si los logs de OCI no aparecen, se detienen inesperadamente, se muestran como duplicados o muestran los nombres de los recursos de forma incorrecta, comience con la comprobación de estado a continuación y, luego, busque el problema específico en las secciones siguientes.
+
+### Check de salud [#logs-health-check]
+
+Estas dos comprobaciones le indican si el problema está en una fase anterior en OCI (no hay nada que comprobar en New Relic todavía) o si los logs han llegado realmente a New Relic:
+
+1. **Revise el conector en OCI.** En la consola de OCI, vaya a <DNT>**Connector Hub**</DNT> y abra el compartimento donde desplegó la integración de New Relic. Busque un conector llamado `newrelic-logs-<region>-audit` (por ejemplo, `newrelic-logs-us-ashburn-1-audit`) y confirme que su estado sea <DNT>**Active**</DNT>. Si ve un estado de error, abra el conector para ver los detalles del error.
+
+2. **Compruebe que los logs estén llegando a New Relic.** Ejecute esta consulta en [Consulta de datos](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder):
+
+   ```sql
+   SELECT count(*) FROM Log WHERE oracle.loggroupid = '_Audit' SINCE 30 minutes ago
+   ```
+
+   Un recuento mayor que cero significa que los logs de auditoría están fluyendo. Si realiza la resolución de problemas de un tipo de log diferente, confirme que ve resultados recientes para el periodo de tiempo relevante en su lugar.
+
+Si ambas comprobaciones están en buen estado, es probable que el problema sea uno de los escenarios específicos a continuación en lugar de una interrupción total.
+
+<CollapserGroup>
+<Collapser id="no-logs" title="No aparecen logs en absoluto">
+Relacione lo que ve con la causa probable:
+
+<table>
+<thead>
+<tr>
+<th>
+Si ve esto
+</th>
+
+<th>
+Pruebe esto
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+Acaba de finalizar la configuración y aún no ha aparecido nada
+</td>
+
+<td>
+Dele algo de tiempo. Cuando crea un conector por primera vez, OCI puede tardar un tiempo en rellenar la actividad reciente —para los logs de auditoría, esto puede tardar hasta 24 horas para los eventos históricos, aunque los eventos nuevos suelen aparecer en cuestión de minutos.
+</td>
+</tr>
+
+<tr>
+<td>
+No aparece ningún conector en <DNT>**Connector Hub**</DNT> en absoluto
+</td>
+
+<td>
+Vuelva a abrir la configuración: si usó el asistente de configuración guiada, confirme que activó el interruptor correspondiente y vuelva a ejecutarlo. Si usó Terraform, confirme que la configuración incluye el conector de logs y vuelva a aplicarla.
+</td>
+</tr>
+
+<tr>
+<td>
+Tiene recursos en más de una región de OCI
+</td>
+
+<td>
+Confirme que cada región tiene su propio conector, que está revisando la región que espera y repita la configuración para cualquier región adicional.
+</td>
+</tr>
+
+<tr>
+<td>
+La UI de New Relic muestra un error de acceso/permiso al cargar compartimentos o grupos de logs
+</td>
+
+<td>
+Consulte [Permisos faltantes](#logs-permissions) a continuación.
+</td>
+</tr>
+</tbody>
+</table>
+</Collapser>
+
+<Collapser id="logs-stopped" title="Los logs se detuvieron después de funcionar">
+Relacione lo que ve con la causa probable:
+
+<table>
+<thead>
+<tr>
+<th>
+Si ve esto
+</th>
+
+<th>
+Pruebe esto
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+El conector en OCI ya no está <DNT>**Active**</DNT>
+</td>
+
+<td>
+Abra el conector en <DNT>**Connector Hub**</DNT> y compruebe los detalles del error. Un cambio de permisos suele causar esto (consulte [Permisos faltantes](#logs-permissions)), o alguien volvió a implementar o reemplazó la integración subyacente.
+</td>
+</tr>
+
+<tr>
+<td>
+El conector está <DNT>**Active**</DNT>, pero no aparecen nuevos logs
+</td>
+
+<td>
+En la consola de OCI, vaya a <DNT>**Functions**</DNT> y confirme que la función de integración de New Relic está desplegada y no muestra un estado de error. Si configuró la [observabilidad del reenviador de logs](/docs/logs/forward-logs/oci-log-forwarder-observability), compruebe primero ese dashboard para ver la falla específica, por ejemplo, un error de obtención de secretos o un error de entrega. Si aún parece no estar en buen estado y no puede resolverlo solo desde OCI, comuníquese con el soporte.
+</td>
+</tr>
+
+<tr>
+<td>
+Alguien cambió recientemente la configuración (volvió a ejecutar el asistente, cambió una configuración de Terraform, desactivó un interruptor)
+</td>
+
+<td>
+Vuelva a ejecutar la configuración con la opción correcta habilitada para restaurar el conector —es probable que ese cambio lo haya eliminado o alterado.
+</td>
+</tr>
+</tbody>
+</table>
+</Collapser>
+
+<Collapser id="duplicate-logs" title="Entradas de log duplicadas">
+Más de un conector está enviando el mismo log de evento a New Relic. Esto generalmente significa que más de un conector en OCI está cubriendo los mismos logs —la mayoría de las veces, alguien agregó un conector más amplio de &quot;todos los compartimentos&quot; sin eliminar un conector más antiguo que solo cubría un único compartimento.
+
+En <DNT>**Connector Hub**</DNT>, enumere todos los conectores relacionados con la integración de New Relic y compruebe qué cubre cada uno. Elimine los que se superpongan y conserve solo el conector que cubra el alcance que realmente desea.
+</Collapser>
+
+<Collapser id="missing-compartments" title="Faltan compartimentos o recursos">
+El alcance del conector no cubre todo lo que esperaba.
+
+<table>
+<thead>
+<tr>
+<th>
+La configuración cubre
+</th>
+
+<th>
+Qué incluye
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+Todo el arrendamiento (todos los compartimentos, incluidos los futuros)
+</td>
+
+<td>
+Todo, automáticamente —no es necesario realizar ninguna acción a medida que agrega nuevos compartimentos.
+</td>
+</tr>
+
+<tr>
+<td>
+Un compartimento específico y todo lo que se encuentra debajo de este
+</td>
+
+<td>
+Ese compartimento y sus subcompartimentos, incluidos los nuevos subcompartimentos agregados posteriormente.
+</td>
+</tr>
+
+<tr>
+<td>
+Solo un compartimento específico
+</td>
+
+<td>
+Solo ese compartimento —no incluye automáticamente los nuevos subcompartimentos.
+</td>
+</tr>
+</tbody>
+</table>
+
+Si realizó la configuración mediante el asistente guiado, el conector ya cubre todo el arrendamiento —si aún faltan compartimentos, esto indica un problema del conector (consulte [No aparece ningún log en absoluto](#no-logs)) en lugar de un problema de alcance. Si realizó la configuración de forma manual o mediante Terraform, compruebe con qué alcance configuró el conector y vuelva a crearlo con un alcance más amplio si es necesario.
+</Collapser>
+
+<Collapser id="logs-permissions" title="Faltan permisos">
+New Relic no tiene los permisos de OCI que necesita —esto puede bloquear por completo la creación del conector o hacer que se ejecute sin toda su funcionalidad.
+
+Pida al administrador del arrendamiento de OCI que confirme que existen las siguientes sentencias de política para el grupo dinámico creado durante la configuración:
+
+<table>
+<thead>
+<tr>
+<th>
+Política
+</th>
+
+<th>
+Para qué sirve
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to read log-content in tenancy`
+</td>
+
+<td>
+Lectura de los datos de logs
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to use fn-function in tenancy`
+</td>
+
+<td>
+Ejecución de la integración de New Relic
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to use fn-invocation in tenancy`
+</td>
+
+<td>
+Ejecución de la integración de New Relic
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to read secret-bundles in tenancy where any { target.secret.id = 'your_ingest_secret_ocid', target.secret.id = 'your_user_secret_ocid' }`
+</td>
+
+<td>
+Acceso seguro a la clave de licencia de New Relic
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect dns-family in tenancy`
+</td>
+
+<td>
+Resolución de nombres descriptivos para recursos de DNS
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect goldengate-family in tenancy`
+</td>
+
+<td>
+Resolución de nombres descriptivos para los recursos de GoldenGate
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect network-firewall-family in tenancy`
+</td>
+
+<td>
+Resolución de nombres descriptivos para recursos de firewall de red
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect cloudevents-rules in tenancy`
+</td>
+
+<td>
+Resolución de nombres descriptivos para recursos de reglas de eventos
+</td>
+</tr>
+
+<tr>
+<td>
+`Allow dynamic-group your_dynamic_group_name to inspect integration-instance in tenancy`
+</td>
+
+<td>
+Resolución de nombres descriptivos para recursos de instancia de integración
+</td>
+</tr>
+</tbody>
+</table>
+
+Si vuelve a ejecutar el asistente guiado o el módulo de políticas de Terraform, estos se vuelven a aplicar automáticamente. Después de restaurar los permisos, si el conector aún no está <DNT>**Active**</DNT>, elimínelo y vuelva a crearlo.
+</Collapser>
+
+<Collapser id="resource-names" title="Los nombres de los recursos se muestran como cadenas de ID">
+Para algunos tipos de recursos de OCI, New Relic busca automáticamente un nombre legible por humanos (como un nombre de VCN o firewall) poco después de que el log llega por primera vez, en lugar de mostrar el identificador de recurso sin procesar. Esta búsqueda puede tardar unos minutos la primera vez que New Relic ve un recurso determinado.
+
+<table>
+<thead>
+<tr>
+<th>
+Si ve esto
+</th>
+
+<th>
+Qué significa
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+Un recurso muestra su ID al principio, luego un nombre descriptivo poco después
+</td>
+
+<td>
+Normal —esto es lo esperado la primera vez que aparece un recurso nuevo.
+</td>
+</tr>
+
+<tr>
+<td>
+Un recurso nunca obtiene un nombre descriptivo, ni siquiera después de un tiempo
+</td>
+
+<td>
+Esto suele ser un problema de permisos —consulte a continuación.
+</td>
+</tr>
+
+<tr>
+<td>
+Un tipo de recurso específico nunca muestra un nombre descriptivo para ningún recurso
+</td>
+
+<td>
+Algunos tipos de recursos no tienen habilitada la búsqueda de nombres y siempre mostrarán su ID. Este es el comportamiento esperado, no un error.
+</td>
+</tr>
+</tbody>
+</table>
+
+Si los nombres nunca se resuelven, pida al administrador del arrendamiento de OCI que confirme que el grupo dinámico tiene las `inspect` políticas enumeradas en [Permisos faltantes](#logs-permissions) —una para cada uno de los recursos de DNS, GoldenGate, firewall de red, regla de evento e instancia de integración. Si los permisos parecen correctos y los nombres siguen sin resolverse después de una espera razonable, comuníquese con el servicio de soporte con un ejemplo del recurso afectado y el timestamp del log.
+</Collapser>
+
+<Collapser id="dashboard-issues" title="El dashboard muestra errores, vacíos o valores inesperados">
+Si habilitó el dashboard de monitoreo del reenviador de logs de OCI, utilícelo como primera parada para cualquier cosa más allá de “están llegando los logs”:
+
+<table>
+<thead>
+<tr>
+<th>
+Si ve esto
+</th>
+
+<th>
+Qué hacer
+</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>
+Cada widget del dashboard está vacío.
+</td>
+
+<td>
+Confirme que activó la opción de métricas de la integración (es un ajuste que elige durante la configuración) y que la función subyacente se está ejecutando en OCI.
+</td>
+</tr>
+
+<tr>
+<td>
+La tasa de errores está aumentando en el dashboard.
+</td>
+
+<td>
+Compruebe si esto comenzó justo después de un cambio reciente en la configuración. Si nada cambió y el problema continúa, compruebe que las reglas de red/firewall de OCI permitan el acceso saliente a New Relic y confirme que la clave de licencia de New Relic siga siendo válida.
+</td>
+</tr>
+
+<tr>
+<td>
+Una métrica de “registros descartados” o similar muestra un valor distinto de cero y se mantiene así
+</td>
+
+<td>
+Póngase en contacto con el servicio de asistencia con el intervalo de tiempo —algunos datos de log no están llegando a New Relic.
+</td>
+</tr>
+
+<tr>
+<td>
+Un mosaico muestra un guion o ningún valor en lugar de un número o porcentaje
+</td>
+
+<td>
+Compruebe un rango de tiempo más amplio antes de asumir que algo está roto —este suele ser solo un estado de &quot;aún no hay suficientes datos en este periodo de tiempo&quot;, no un error.
+</td>
+</tr>
+</tbody>
+</table>
+</Collapser>
+</CollapserGroup>
+
+## Obtener más ayuda [#get-help]
+
+Si ha realizado las comprobaciones anteriores y el problema no se ha resuelto, comuníquese con el soporte de New Relic con:
+
+* Qué método de configuración utilizó (asistente guiado, configuración manual o Terraform)
+* La región de OCI y, si es relevante, el compartimento(s) afectado(s)
+* El rango de tiempo aproximado en el que comenzó el problema
+* Cuáles de las comprobaciones anteriores ya ha probado
+
+## Artículos relacionados [#related-articles]
+
+* [Introducción a la integración de OCI](/docs/infrastructure/oci/introduction): qué hace la integración de OCI, sus capacidades y cómo conectar la cuenta.
+* [Referencia de métricas de OCI](/docs/infrastructure/oci/metrics-reference): los namespace de OCI de los que New Relic recopila datos, el servicio al que pertenece cada uno y el tipo de entidad sobre el que informa.
+* [Monitoree el reenviador de logs de OCI](/docs/logs/forward-logs/oci-log-forwarder-observability): habilite las métricas de autoobservabilidad en la función del reenviador de logs e importe un dashboard para monitorear su estado.
+* [Desinstalar la integración de OCI](/docs/infrastructure/oci/uninstall): elimine los recursos creados por la integración y desvincule la cuenta.

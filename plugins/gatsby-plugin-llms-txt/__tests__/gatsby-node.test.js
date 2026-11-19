@@ -1206,7 +1206,7 @@ test('never leaks raw MDX node types or object references into the output', () =
 // (src/nav/generatedNav.yml) instead of a hand-maintained duplicate of its
 // ~40 categories - the old hardcoded list only covered ~15 of them, so
 // everything else (AI monitoring, Kubernetes, OpenTelemetry, Serverless,
-// CodeStream, Distributed Tracing, New Relic Lens, Workflow Automation,
+// Security RX, Distributed Tracing, New Relic Lens, Workflow Automation,
 // Licenses, Data and APIs, and more) silently fell into "Other" instead of
 // its real category.
 test('categorizes real pages under their actual nav category instead of "Other"', () => {
@@ -1215,7 +1215,7 @@ test('categorizes real pages under their actual nav category instead of "Other"'
     '/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration': 'Kubernetes monitoring',
     '/docs/opentelemetry/get-started/introduction-opentelemetry-new-relic': 'OpenTelemetry',
     '/docs/serverless-function-monitoring/aws-lambda-monitoring/introduction-aws-lambda-monitoring': 'Serverless monitoring',
-    '/docs/codestream/observability/performance-monitoring': 'CodeStream',
+    '/docs/vulnerability-management/getting-started/overview': 'Security RX (Remediation Explorer)',
     '/docs/distributed-tracing/infinite-tracing/introduction-infinite-tracing': 'Distributed tracing',
     '/docs/new-relic-lens/overview': 'New Relic Lens',
     '/docs/workflow-automation/get-workflow-definition': 'Workflow Automation',
