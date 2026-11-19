@@ -1,0 +1,344 @@
+---
+title: "Install & configure NRDOT for PostgreSQL on Azure with a user-assigned managed identity"
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Windows
+  - Azure
+metaDescription: Set up PostgreSQL monitoring with the NRDOT Collector on Windows for Azure Database for PostgreSQL Flexible Server using a user-assigned managed identity, with no passwords in the configuration
+freshnessValidatedDate: 2026-11-18
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+---
+
+Monitor Azure Database for PostgreSQL Flexible Server with infrastructure metrics, query performance statistics, and slow and top query events, and send them to New Relic without storing passwords in the configuration. The NRDOT Collector runs on an Azure Windows VM and authenticates to PostgreSQL using the VM's user-assigned managed identity.
+
+This page covers the user-assigned managed identity. For the other option, see [system-assigned managed identity](/docs/opentelemetry/db360/postgresql/azure-system-assigned).
+
+
+<Steps>
+
+<Step>
+
+## Prerequisites [#prerequisites]
+
+* A New Relic [Ingest - License key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). A user key doesn't work.
+* Network connectivity to the [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp) for your region.
+* An Azure Database for PostgreSQL Flexible Server (PostgreSQL 14 or later) that the VM can reach on port `5432`, through a virtual network, a peering, or a firewall rule.
+* An Azure Windows VM with PowerShell and administrator access. A user-assigned managed identity attached to the VM (see [Create and attach the user-assigned identity](#identity)).
+* A Microsoft Entra administrator on the PostgreSQL server, to run the one-time setup.
+
+For supported PostgreSQL versions and recommended server parameters, see [Compatibility and prerequisites](/docs/opentelemetry/db360/postgresql/compatibility).
+
+</Step>
+
+<Step>
+
+## Create and attach the user-assigned identity [#identity]
+
+1. In the Azure portal, go to <DNT>**Managed Identities > Create**</DNT>. Enter a name, such as `uami-otel-pg`. Use the same subscription, resource group, and region as the VM.
+2. Open the identity and copy the **<DNT>Client ID</DNT>** and the **<DNT>Object (principal) ID</DNT>** from the **<DNT>Overview</DNT>** page.
+3. Go to your VM, then <DNT>**Identity > User assigned > Add**</DNT>, and select the identity.
+
+<Callout variant="important">
+  If the VM also has a system-assigned identity enabled, the collector might authenticate as the wrong identity. Set `client_id` in the configuration, and make sure it's the **Client ID**, not the Object ID.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Configure the PostgreSQL server in Azure [#azure-config]
+
+1. Go to your PostgreSQL Flexible Server, then <DNT>**Settings > Authentication**</DNT>, and enable **<DNT>Microsoft Entra authentication</DNT>** (or **<DNT>PostgreSQL and Microsoft Entra authentication</DNT>**).
+2. Under **<DNT>Microsoft Entra administrators</DNT>**, add an administrator and click **<DNT>Save</DNT>**. Sign in as a Microsoft Entra administrator of the server. This can be a user, or the VM's system-assigned identity if you added it as an administrator.
+3. Set the following server parameters in <DNT>**Server parameters**</DNT>. Changing `shared_preload_libraries` requires a server restart.
+
+    | Parameter | Value | Why |
+    | --- | --- | --- |
+    | `azure.extensions` | Includes `PG_STAT_STATEMENTS` | Allows `CREATE EXTENSION` |
+    | `shared_preload_libraries` | Includes `pg_stat_statements` (restart required) | Loads the extension |
+    | `pg_stat_statements.track` | `all` | Tracks statements within stored procedures and functions |
+    | `track_activity_query_size` | `4096` | Collects larger queries. At the default value, queries longer than 1024 characters aren't collected |
+    | `pg_stat_statements.max` | `10000` | Increases the number of normalized queries tracked. Recommended for high-volume databases that see many different types of queries |
+    | `pg_stat_statements.save` | `on` | Saves statistics across server restarts |
+    | `track_functions` | `all` | Collects function call statistics |
+
+</Step>
+
+<Step>
+
+## Install NRDOT Collector [#setup]
+
+Install the NRDOT Collector on the Windows VM that can reach your PostgreSQL server.
+
+Run PowerShell as Administrator:
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'
+$NRDOT_VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest").tag_name
+$WebClient = New-Object System.Net.WebClient
+$WebClient.Headers.Add("User-Agent", "Mozilla/5.0")
+$WebClient.DownloadFile("https://github.com/newrelic/nrdot-collector-releases/releases/download/$NRDOT_VERSION/nrdot-collector_${NRDOT_VERSION}_windows_x64.msi", "$env:TEMP\nrdot-collector.msi")
+Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\nrdot-collector.msi`" /qn /norestart /L*V `"$env:TEMP\nrdot_install.log`"" -Wait
+Get-Service nrdot-collector -ErrorAction SilentlyContinue
+```
+
+</Step>
+
+<Step>
+
+## Register the identity and grant permissions [#user]
+
+Sign in to the server with Microsoft Entra authentication as a Microsoft Entra administrator. SQL password authentication can't create Entra principals.
+
+1. Register the user-assigned identity as a service principal. Replace `<YOUR_IDENTITY_NAME>` with the identity name and `<YOUR_OBJECT_ID>` with its Object (principal) ID:
+
+    ```sql
+    SELECT * FROM pgaadauth_create_principal_with_oid(
+      '<YOUR_IDENTITY_NAME>',
+      '<YOUR_OBJECT_ID>',
+      'service',
+      false,
+      false
+    );
+    ```
+
+2. Grant server-wide monitoring privileges:
+
+    ```sql
+    GRANT pg_monitor TO "<YOUR_IDENTITY_NAME>";
+    ```
+
+3. Connect to **each** database you want to monitor and run the following:
+
+    ```sql
+    CREATE SCHEMA IF NOT EXISTS otel;
+    GRANT USAGE ON SCHEMA otel TO "<YOUR_IDENTITY_NAME>";
+    GRANT USAGE ON SCHEMA public TO "<YOUR_IDENTITY_NAME>";
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO "<YOUR_IDENTITY_NAME>";
+    GRANT pg_monitor TO "<YOUR_IDENTITY_NAME>";
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+    ```
+
+4. (Optional) To collect vector metrics, create the `pgvector` extension in each database:
+
+    ```sql
+    CREATE EXTENSION IF NOT EXISTS vector;
+    ```
+
+    The `l1`, `hamming`, and `jaccard` distance functions require `pgvector` version `0.7.0` or above.
+
+5. (Optional) Verify the role:
+
+    ```sql
+    SELECT rolname, pg_has_role(rolname, 'pg_monitor', 'member') AS has_pg_monitor
+    FROM pg_roles WHERE rolname = '<YOUR_IDENTITY_NAME>';
+    ```
+
+</Step>
+
+<Step>
+
+## Configure NRDOT Collector [#configure-collector]
+
+1. Create the configuration file in PowerShell as Administrator:
+
+    ```powershell
+    New-Item -Path "C:\Program Files\nrdot-collector\postgresql-config.yaml" -ItemType File
+    ```
+
+2. Add the following configuration to the `postgresql-config.yaml` file. Replace `<YOUR-SERVER>`, `<YOUR_DATABASE>`, `<YOUR_IDENTITY_NAME>`, `<YOUR_CLIENT_ID>`, and `<YOUR_LICENSE_KEY>` with your values:
+
+    ```yaml
+    extensions:
+      azure_auth:
+        managed_identity:
+          client_id: "<YOUR_CLIENT_ID>"
+        scopes:
+          - "https://ossrdbms-aad.database.windows.net/.default"
+
+    receivers:
+      nrpostgresql:
+        endpoint: <YOUR-SERVER>.postgres.database.azure.com:5432
+        transport: tcp
+        username: <YOUR_IDENTITY_NAME>
+        db_auth: azure_auth
+        tls:
+          insecure: false
+        databases:
+          - <YOUR_DATABASE>
+        exclude_databases:
+          - azure_maintenance
+          - azure_sys
+        collection_interval: 15s
+        events:
+          db.server.top_query:
+            enabled: true
+          db.server.query_sample:
+            enabled: true
+          db.server.query_plan:
+            enabled: true
+        top_query_collection:
+          max_rows_per_query: 1000
+          top_n_query: 200
+          collection_interval: 60s
+          allowed_comment_keys: [nr_service_guid]
+        query_sample_collection:
+          max_rows_per_query: 1000
+          allowed_comment_keys: [nr_service_guid]
+        resource_attributes:
+          db.system.version:
+            enabled: true
+        metrics:
+          postgresql.database.locks:
+            enabled: true
+          postgresql.deadlocks:
+            enabled: true
+          postgresql.function.calls:
+            enabled: true
+          postgresql.query.conflicts:
+            enabled: true
+          postgresql.sequential_scans:
+            enabled: true
+          postgresql.temp.io:
+            enabled: true
+          postgresql.temp_files:
+            enabled: true
+
+    processors:
+      batch:
+      batch/metrics:
+        send_batch_size: 8192
+        send_batch_max_size: 8192
+        timeout: 10s
+
+    exporters:
+      otlp/newrelic:
+        endpoint: https://otlp.nr-data.net:4318
+        headers:
+          api-key: <YOUR_LICENSE_KEY>
+        compression: gzip
+        sending_queue:
+          enabled: true
+          sizer: bytes
+          queue_size: 100_000_000
+          num_consumers: 10
+          batch:
+            sizer: bytes
+            max_size: 1_000_000
+            min_size: 0
+            flush_timeout: 5s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+    service:
+      extensions: [azure_auth]
+      telemetry:
+        metrics:
+          level: none
+      pipelines:
+        metrics:
+          receivers: [nrpostgresql]
+          processors: [batch/metrics]
+          exporters: [otlp/newrelic]
+        logs:
+          receivers: [nrpostgresql]
+          processors: [batch]
+          exporters: [otlp/newrelic]
+    ```
+
+<Callout variant="tip">
+  * Set `username` to the PostgreSQL role that maps to the identity: the identity name.
+  * Set `client_id` to the identity's **Client ID**, not its Object ID.
+  * `databases` lists the databases to collect metrics for. Query samples and top queries ignore this list and are filtered only by `exclude_databases`.
+  * To monitor several PostgreSQL servers from one collector, see [Configure multiple receivers](/docs/opentelemetry/db360/postgresql/multi-receiver).
+  * The `logs` pipeline carries query telemetry, not collector debug logs.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Update Windows Service Registry [#update-registry]
+
+1. Update the Windows Service Registry to use the new `postgresql-config.yaml` file using one of the following methods:
+    * **For PowerShell:** Run the following command as Administrator:
+
+      ```powershell
+      Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\nrdot-collector" -Name "ImagePath" -Value '"C:\Program Files\nrdot-collector\nrdot-collector.exe" --config "C:\Program Files\nrdot-collector\postgresql-config.yaml"'
+      ```
+
+    * **For Command Prompt:** If PowerShell isn't available, use Command Prompt instead and run the following command as Administrator:
+
+      ```bash
+      sc config "nrdot-collector" binPath= "\"C:\Program Files\nrdot-collector\nrdot-collector.exe\" --config \"C:\Program Files\nrdot-collector\postgresql-config.yaml\""
+      ```
+2. Validate the NRDOT Collector configuration to ensure it's correctly formatted and will work properly:
+
+    ```bash
+    & "C:\Program Files\nrdot-collector\nrdot-collector.exe" validate --config="C:\Program Files\nrdot-collector\postgresql-config.yaml"
+    ```
+
+</Step>
+
+<Step>
+
+## Restart NRDOT Collector [#restart]
+
+After updating your configuration, restart the NRDOT Collector service:
+
+```bash
+net stop nrdot-collector
+net start nrdot-collector
+```
+
+Check the Windows Application event log for permission or connection errors:
+
+```powershell
+Get-EventLog -LogName Application -Source nrdot-collector -Newest 20
+```
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find-use-data]
+
+Query samples and top queries arrive as log events (`event.name = 'db.server.query_sample'` and `'db.server.top_query'`). Metrics arrive under the `postgresql.*` namespace.
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Databases**</DNT>.
+2. From the **<DNT>Entity type</DNT>** dropdown, select <DNT>**PostgreSQL instance**</DNT>, then click <DNT>**Apply**</DNT>.
+3. Select your PostgreSQL database from the list of entities.
+
+</Step>
+
+</Steps>
+
+## Troubleshooting [#troubleshooting]
+
+| Symptom | Cause or fix |
+| --- | --- |
+| `yaml: line X: could not find expected ':'` | Hidden UTF-8 BOM or non-breaking spaces (`0xA0`) from copying YAML out of a web page. Retype the affected lines, or save the file as UTF-8 without BOM. |
+| `FATAL: password authentication failed` | The identity isn't registered (check `SELECT * FROM pgaadauth_list_principals(false);`), or `client_id` doesn't match the identity's **Client ID** (not its Object ID). |
+| Identity error from `azure_auth` | The identity isn't attached to the VM. |
+| Login works but uses the wrong identity | The VM has both identities. Set `client_id`, or turn off the system-assigned identity for the test. |
+| `postgresql.table.count` returns `0` | The receiver ignores system catalog tables (`pg_catalog`, `information_schema`). The count updates once user tables exist in the monitored databases. |
+| Timeout | Allow the VM in the PostgreSQL server's **<DNT>Networking</DNT>** settings. |
+
+## Related documentation [#related]
+
+<DocTiles>
+  <DocTile title="Link your PostgreSQL database with APM" path="/docs/opentelemetry/db360/capabilities/db-apm">Learn how to correlate your application performance with database operations.</DocTile>
+  <DocTile title="Troubleshooting guide" path="/docs/opentelemetry/db360/postgresql/troubleshooting">Learn how to troubleshoot common issues with PostgreSQL monitoring.</DocTile>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/db360/postgresql/metrics-reference">Learn about the available metrics collected by the NRDOT Collector.</DocTile>
+</DocTiles>
