@@ -1,0 +1,203 @@
+---
+title: 'Set up auto-instrumentation for each language on Kubernetes'
+metaDescription: 'Annotate Java, Node.js, Python, .NET, Go, PHP, Ruby, and Deno workloads so the OpenTelemetry Operator from the kube-stack chart instruments them and sends traces and APM data to New Relic.'
+tags:
+  - OpenTelemetry
+  - Kubernetes
+  - Auto-instrumentation
+  - Java
+  - Node.js
+  - Python
+  - .NET
+  - Go
+  - PHP
+  - Ruby
+  - Deno
+freshnessValidatedDate: never
+---
+
+This page shows the annotation and any extra settings each runtime needs. Read the [overview](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/overview) first for how the annotation value is built and how to verify the result.
+
+In every example, replace `<NAMESPACE>/<NAME>` with the namespace and name of your main `Instrumentation` resource (`kubectl get instrumentation -n <YOUR_KUBE_STACK_NAMESPACE>`). Put the annotations on the **pod template** (`spec.template.metadata.annotations`) and roll the workload out again.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="java">Java</TabsBarItem>
+    <TabsBarItem id="nodejs">Node.js</TabsBarItem>
+    <TabsBarItem id="python">Python</TabsBarItem>
+    <TabsBarItem id="dotnet">.NET</TabsBarItem>
+    <TabsBarItem id="go">Go</TabsBarItem>
+    <TabsBarItem id="php">PHP</TabsBarItem>
+    <TabsBarItem id="ruby">Ruby</TabsBarItem>
+    <TabsBarItem id="deno">Deno</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="java">
+
+## Java [#java]
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-java: "<NAMESPACE>/<NAME>"
+```
+
+No other settings are required. The agent instruments common Java frameworks and libraries automatically. See the [Java agent's supported libraries](https://opentelemetry.io/docs/zero-code/java/agent/supported-libraries/).
+
+    </TabsPageItem>
+
+    <TabsPageItem id="nodejs">
+
+## Node.js [#nodejs]
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-nodejs: "<NAMESPACE>/<NAME>"
+```
+
+No other settings are required. See the [Node.js instrumentations](https://opentelemetry.io/docs/zero-code/js/) that are enabled automatically.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="python">
+
+## Python [#python]
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-python: "<NAMESPACE>/<NAME>"
+```
+
+No other settings are required. By default, the Python agent reports the HTTP server duration metric as `http.server.duration`, which New Relic uses for APM data. To emit the current metric name, `http.server.request.duration`, set this environment variable on the container. New Relic keeps building APM data from it:
+
+```yaml
+env:
+  - name: OTEL_SEMCONV_STABILITY_OPT_IN
+    value: http
+```
+
+See the [Python instrumentations](https://opentelemetry.io/docs/zero-code/python/) that are enabled automatically.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="dotnet">
+
+## .NET [#dotnet]
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-dotnet: "<NAMESPACE>/<NAME>"
+```
+
+No other settings are required. The injected agent includes builds for `amd64` and `arm64`. Instrumentation on Alpine (musl) based images is not covered on this page. See the [.NET automatic instrumentation documentation](https://opentelemetry.io/docs/zero-code/dotnet/).
+
+    </TabsPageItem>
+
+    <TabsPageItem id="go">
+
+## Go [#go]
+
+Go has no runtime agent, so the Operator attaches an eBPF-based agent from a sidecar container that shares the process namespace of your application. That makes three things different:
+
+- The annotation `instrumentation.opentelemetry.io/otel-go-auto-target-exe` is required. It's the path of your application's executable inside the container.
+- The pod must set `shareProcessNamespace: true`.
+- The sidecar needs elevated permissions to load eBPF programs, which some cluster security policies don't allow.
+
+```yaml
+spec:
+  template:
+    metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-go: "<NAMESPACE>/<NAME>"
+        instrumentation.opentelemetry.io/otel-go-auto-target-exe: "/app/server"
+    spec:
+      shareProcessNamespace: true
+      containers:
+        - name: my-go-app
+          image: my-registry/my-go-app:1.0
+```
+
+The binary needs its symbols to be instrumented. Don't build it with `-ldflags "-s -w"`.
+
+A Go pod shows two containers (your application and the instrumentation sidecar) instead of an extra init container. See the [Go auto-instrumentation documentation](https://opentelemetry.io/docs/zero-code/go/) for the libraries it supports.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="php">
+
+## PHP [#php]
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-php: "<NAMESPACE>/<NAME>"
+  instrumentation.opentelemetry.io/otel-php-api-version: "20240924"
+```
+
+- **The PHP API version annotation is required.** The value is the extension API number of the PHP version in your image. If it's missing or doesn't match, the Operator skips the injection without an error. Run `php -i | grep "PHP API"` in your image to read it. For example:
+
+  | PHP version | API version |
+  | --- | --- |
+  | 8.1 | 20210902 |
+  | 8.2 | 20220829 |
+  | 8.3 | 20230831 |
+  | 8.4 | 20240924 |
+  | 8.5 | 20250925 |
+
+- **Only `amd64` is supported.** The injected extension is built for x86-64. On `arm64` nodes the extension can't load, PHP logs `Unable to load dynamic library` at startup, and the application runs without instrumentation.
+- **The agent hooks frameworks and libraries, not plain scripts.** It creates spans for Slim, Laravel, PSR-15 middleware, and the PSR-18 and Guzzle HTTP clients. A PHP script that doesn't use one of them produces no spans. Slim 4, a PSR-15 stack with Guzzle, and Laravel 12 were verified with this setup. Other frameworks aren't covered by this page.
+
+See the [PHP zero-code instrumentation documentation](https://opentelemetry.io/docs/zero-code/php/).
+
+    </TabsPageItem>
+
+    <TabsPageItem id="ruby">
+
+## Ruby [#ruby]
+
+Ruby uses its own `Instrumentation` resource, named `<NAME>-ruby`, not the main one:
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-ruby: "<NAMESPACE>/<NAME>-ruby"
+```
+
+The agent starts through Bundler, so your application must load its gems with Bundler. Use a `Gemfile` and `Bundler.require`, or set the `OTEL_RUBY_REQUIRE_BUNDLER=true` environment variable on the container. Without Bundler the agent never starts and the application runs without instrumentation.
+
+Ruby has no metrics SDK. New Relic derives the APM data for Ruby services from their spans. See the [OpenTelemetry Ruby instrumentation repository](https://github.com/open-telemetry/opentelemetry-ruby-instrumentation) for the libraries it covers.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="deno">
+
+## Deno [#deno]
+
+Deno has OpenTelemetry support built into the runtime, so there's nothing for the Operator to inject and no annotation. Set these environment variables on the container instead. Use Deno 2.2 or later, because earlier versions don't include the feature.
+
+```yaml
+env:
+  - name: OTEL_DENO
+    value: "true"
+  - name: OTEL_SERVICE_NAME
+    value: my-deno-app
+  - name: OTEL_EXPORTER_OTLP_PROTOCOL
+    value: http/protobuf
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "http://<RELEASE>-daemon-collector.<NAMESPACE>.svc.cluster.local:4318"
+  - name: OTEL_TRACES_SAMPLER
+    value: always_on
+```
+
+Replace `<RELEASE>` and `<NAMESPACE>` with your kube-stack release name and namespace. Deno's default trace sampling exports very few spans, so set `OTEL_TRACES_SAMPLER` to `always_on` (or another sampler you choose). See the [Deno OpenTelemetry documentation](https://docs.deno.com/runtime/fundamentals/open_telemetry/).
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## What you see in New Relic [#results]
+
+For each runtime above, traces appear in [distributed tracing](/docs/distributed-tracing/concepts/introduction-distributed-tracing) and the service appears in **APM & services**. See [APM data for every runtime](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/overview#apm-data) for how Go, PHP, and Ruby get their APM metrics.
+
+## Next steps [#next]
+
+- [Instrument Apache HTTPD and NGINX](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/web-servers)
+- [Explore the OpenTelemetry APM UI](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui)
