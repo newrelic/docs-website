@@ -1,0 +1,198 @@
+---
+title: 'Instrument Apache HTTPD and NGINX on Kubernetes with the OpenTelemetry kube-stack chart'
+metaDescription: 'Send traces and APM data from Apache HTTPD and NGINX workloads to New Relic with the OpenTelemetry Operator from the kube-stack chart, and add server metrics with Prometheus exporters.'
+tags:
+  - OpenTelemetry
+  - Kubernetes
+  - Auto-instrumentation
+  - Apache HTTPD
+  - NGINX
+freshnessValidatedDate: never
+---
+
+The OpenTelemetry Operator can inject an OpenTelemetry module into Apache HTTPD and NGINX pods, so you get a trace for each request the web server handles, with no change to the server's configuration or image. Both servers use the same injected image. This page covers traces and APM data. Server metrics come from a separate mechanism, described in [Add server metrics](#metrics).
+
+Read the [overview](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/overview) first for how annotations and verification work.
+
+<Callout variant="important">
+  The injected module is built for `linux/amd64` and glibc only. The init image has no `arm64` build, so pods on `arm64` nodes stay in `Init:ImagePullBackOff` with `no match for platform in manifest`. Schedule these workloads on `amd64` nodes. The module is compiled against glibc, so use a Debian-based web server image, because Alpine (musl) images aren't covered.
+</Callout>
+
+## Supported versions [#versions]
+
+| Server | Tested version | Notes |
+| --- | --- | --- |
+| Apache HTTPD | 2.4 (`httpd:2.4`) | The module hooks the server's internal request-processing modules, so you see time spent in each. |
+| NGINX | 1.25.3 | The image carries modules for NGINX 1.24.0 and 1.25.3 only. Any other NGINX version fails to start with a missing-module error. |
+
+If you run an NGINX version this image doesn't support, use the [NGINX OpenTelemetry module configuration](/docs/opentelemetry/integrations/nginx/nginx-otel-distributed-tracing) instead.
+
+## Annotate the workload [#annotate]
+
+Apache HTTPD and NGINX use the `-webserver` `Instrumentation` resource, not the main one. The module exports over OTLP gRPC, and that resource points at the Collector's gRPC port. Check that it exists:
+
+```bash
+kubectl get instrumentation -n <YOUR_KUBE_STACK_NAMESPACE>
+```
+
+Then annotate the pod template:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="apache">Apache HTTPD</TabsBarItem>
+    <TabsBarItem id="nginx">NGINX</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="apache">
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-apache-httpd: "<NAMESPACE>/<NAME>-webserver"
+```
+
+    </TabsPageItem>
+
+    <TabsPageItem id="nginx">
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-nginx: "<NAMESPACE>/<NAME>-webserver"
+```
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+<Callout variant="important">
+  Don't set `command:` or `args:` on the web server container. The Operator wraps the image's default command to load the module. A custom `command:` replaces that wrapper, and the server then runs without instrumentation and without an error.
+</Callout>
+
+If the pod has other containers, such as a metrics exporter, tell the Operator which container to instrument with the `instrumentation.opentelemetry.io/container-names` annotation:
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-nginx: "<NAMESPACE>/<NAME>-webserver"
+  instrumentation.opentelemetry.io/container-names: nginx
+```
+
+Roll the workload out again. The pod has two init containers (`otel-agent-source-container-clone` and `otel-agent-attach-apache` or `-nginx`), and spans start arriving after the first requests.
+
+## APM data [#apm]
+
+The Apache HTTPD and NGINX modules emit spans, not HTTP server metrics. The generated Collector configuration derives the `http.server.duration` metric from the server spans so the service gets transactions and an error rate in APM. The transaction name uses the request path as the route, so on servers with many distinct URLs you'll see many transactions.
+
+## Add server metrics [#metrics]
+
+Instrumentation injects traces only. Connection and request metrics for the server come from a Prometheus exporter that runs in the same pod, which the Collector scrapes. Annotate the exporter's port so the Collector finds it. The default scrape mode honours annotations on a pod or on its Service:
+
+| Annotation | Purpose |
+| --- | --- |
+| `prometheus.io/scrape: "true"` | Turn scraping on for this pod or Service. |
+| `prometheus.io/port` | The exporter's port. |
+| `prometheus.io/path` | The metrics path, if it isn't `/metrics`. |
+| `prometheus.io/scheme` | `http` or `https`. The target's certificate must be trusted by the Collector. |
+| `prometheus.io/param_<name>` | Query parameters to send with each scrape. |
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nginx-metrics">NGINX</TabsBarItem>
+    <TabsBarItem id="apache-metrics">Apache HTTPD</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nginx-metrics">
+
+Expose NGINX's `stub_status` page to the exporter only, and run the [NGINX Prometheus exporter](https://github.com/nginxinc/nginx-prometheus-exporter) as a second container:
+
+```nginx
+server {
+  listen 80;
+  location /stub_status { stub_status; allow 127.0.0.1; deny all; }
+}
+```
+
+```yaml
+metadata:
+  annotations:
+    instrumentation.opentelemetry.io/inject-nginx: "<NAMESPACE>/<NAME>-webserver"
+    instrumentation.opentelemetry.io/container-names: nginx
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9113"
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.25.3
+    - name: exporter
+      image: nginx/nginx-prometheus-exporter:1.3.0
+      args: ["--nginx.scrape-uri=http://127.0.0.1:80/stub_status"]
+      ports:
+        - containerPort: 9113
+```
+
+    </TabsPageItem>
+
+    <TabsPageItem id="apache-metrics">
+
+Enable `mod_status` in the Apache image and run the [Apache Prometheus exporter](https://github.com/Lusitaniae/apache_exporter) as a second container. Enable the module by building it into your image rather than overriding the container's command, because a custom `command:` disables the instrumentation:
+
+```dockerfile
+FROM httpd:2.4
+RUN sed -i 's/^#LoadModule status_module/LoadModule status_module/' /usr/local/apache2/conf/httpd.conf \
+ && printf '<Location "/server-status">\n  SetHandler server-status\n  Require local\n</Location>\n' >> /usr/local/apache2/conf/httpd.conf
+```
+
+```yaml
+metadata:
+  annotations:
+    instrumentation.opentelemetry.io/inject-apache-httpd: "<NAMESPACE>/<NAME>-webserver"
+    instrumentation.opentelemetry.io/container-names: apache
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9117"
+spec:
+  containers:
+    - name: apache
+      image: my-registry/httpd-status:2.4
+    - name: exporter
+      image: lusotycoon/apache-exporter:v1.0.10
+      args: ["--scrape_uri=http://127.0.0.1:80/server-status?auto"]
+      ports:
+        - containerPort: 9117
+```
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+The exporter metrics (for example `nginx_up`, `nginx_connections_active`, `apache_up`, `apache_workers`) arrive as separate metrics. They add server health data, but they aren't the source of the APM data described above.
+
+<Callout variant="tip">
+  In the default configuration the Collector needs no pod label to find annotated pods, and it scrapes each pod once, even when both the pod and its Service carry the annotations. When both do, the pod's annotations win.
+</Callout>
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="init-backoff" title="The pod is stuck in Init:ImagePullBackOff">
+
+  The node is `arm64`. Move the workload to an `amd64` node.
+
+  </Collapser>
+
+  <Collapser id="nginx-crash" title="NGINX fails to start after injection">
+
+  The image's NGINX version isn't one of 1.24.0 or 1.25.3, so the module can't load. Use a supported version.
+
+  </Collapser>
+
+  <Collapser id="no-spans-web" title="The pod runs but no spans arrive">
+
+  Check that the container has no `command:` or `args:` override, that the annotation points at the `-webserver` resource, and that requests reach the server. Apache logs lines from `mod_opentelemetry_webserver_sdk` (tagged `[error]`, though they're informational) when the module is active.
+
+  </Collapser>
+</CollapserGroup>
+
+## Next steps [#next]
+
+- [Set up each language](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/languages)
+- [Monitor NGINX with OpenTelemetry](/docs/opentelemetry/integrations/nginx/nginx-otel-overview)

@@ -1,0 +1,123 @@
+---
+title: 'Monitor Linkerd with the OpenTelemetry kube-stack chart'
+metaDescription: 'Send Linkerd proxy and control plane metrics and distributed traces to New Relic with the OpenTelemetry kube-stack chart on Kubernetes.'
+tags:
+  - Linkerd
+  - OpenTelemetry
+  - Kubernetes
+  - kube-stack
+  - Service mesh
+freshnessValidatedDate: never
+---
+
+If you installed the `opentelemetry-kube-stack` chart from the values or manifests New Relic generated for your cluster, the Collector it deploys can already scrape Linkerd and receive its traces. Linkerd isn't auto-instrumented by the OpenTelemetry Operator. It exports its own telemetry, so you generate the Collector side with the Linkerd option turned on and then point Linkerd at the Collector.
+
+This page covers the kube-stack setup. For the other install paths (NRDOT or OpenTelemetry Collector Contrib with Helm or manifests), see the [Linkerd introduction](/docs/opentelemetry/integrations/linkerd/introduction).
+
+## What you get [#what-you-get]
+
+- **Metrics**: each Collector on a node scrapes the Linkerd proxy sidecars and the control plane on that node. It needs no Prometheus Operator CRDs.
+- **Traces**: Linkerd proxies export a span for each proxied request. The Collector names each span after the meshed deployment (for example `web` or `client`), so the spans join that application's traces.
+
+## Before you begin [#requirements]
+
+- Linkerd 2.19 or later (edge-26.7.0 or later) installed and healthy.
+- The kube-stack chart installed from configuration generated **with Linkerd monitoring enabled**. Note the release name and namespace you used.
+
+## Point Linkerd at the Collector [#setup]
+
+The generated configuration only changes the Collector. You also need to make three changes on the Linkerd side.
+
+<Steps>
+
+<Step>
+
+### Send proxy traces to the Collector [#tracing-values]
+
+Set the tracing values on the Linkerd control plane. Replace `<RELEASE>` and `<NAMESPACE>` with your kube-stack release name and namespace:
+
+```yaml
+proxy:
+  tracing:
+    enabled: true
+    collector:
+      endpoint: <RELEASE>-daemon-collector.<NAMESPACE>.svc.cluster.local:4317
+      meshIdentity:
+        serviceAccountName: <RELEASE>-daemon-collector
+        namespace: <NAMESPACE>
+```
+
+<Callout variant="important">
+  Use port `4317`. The Linkerd proxy only speaks OTLP over gRPC, so spans sent to the HTTP port (`4318`) are rejected and never arrive. The `meshIdentity` block is required whenever tracing is enabled.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Mesh the Collector [#mesh-collector]
+
+The proxies verify the Collector's identity, so the Collector pods need to be meshed:
+
+```bash
+kubectl annotate namespace <NAMESPACE> linkerd.io/inject=enabled --overwrite
+kubectl -n <NAMESPACE> rollout restart daemonset/<RELEASE>-daemon-collector
+```
+
+Make sure the Linkerd proxy injector is running before the Collector pods restart. A Collector without the proxy makes the application proxies drop their spans without an error on the Collector side.
+
+</Step>
+
+<Step>
+
+### Restart your meshed workloads [#restart]
+
+Proxies pick up the tracing configuration when they start. Restart the workloads you want traced:
+
+```bash
+kubectl rollout restart deployment -n <YOUR_APP_NAMESPACE>
+```
+
+</Step>
+
+</Steps>
+
+<Callout variant="note">
+  A Linkerd proxy only exports spans for requests that already carry a sampled W3C `traceparent` header (the trace flags end in `-01`). The proxy doesn't start traces. Instrumented applications or an instrumented ingress start them.
+</Callout>
+
+## Find your data [#find]
+
+- **Mesh metrics**: Linkerd appears as an entity of type `LINKERD`, named `<CLUSTER_NAME>-linkerd`. Search for it in the entity explorer, or run:
+
+  ```sql
+  FROM Metric SELECT count(*) WHERE entity.type = 'LINKERD' FACET entity.name SINCE 30 minutes ago
+  ```
+
+  See [Find and query your Linkerd data](/docs/opentelemetry/integrations/linkerd/find-data) and the [metrics reference](/docs/opentelemetry/integrations/linkerd/metrics-reference).
+
+- **Traces**: proxy spans are filed under the **names of the meshed workloads**, not under a service called `linkerd`. For a meshed `web` deployment you see client and server spans under the `web` service in distributed tracing:
+
+  ```sql
+  FROM Span SELECT count(*) WHERE service.name = 'web' FACET span.kind SINCE 30 minutes ago
+  ```
+
+  Because the spans come from the proxy, those services don't get APM transaction data from them.
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="no-linkerd-spans" title="No spans arrive">
+
+  Check that the tracing endpoint uses port `4317`, that the Collector namespace is meshed and the Collector pods were restarted after the injector was ready, and that requests carry a sampled `traceparent` header. The proxy logs `Span dropped: no available capacity` when it can't reach the Collector.
+
+  </Collapser>
+
+  <Collapser id="heartbeat-errors" title="linkerd-heartbeat pods are in Error">
+
+  The heartbeat job reports usage to Linkerd's version check and queries the optional `linkerd-viz` Prometheus. In clusters without egress to the version check or without `linkerd-viz`, the job fails. It doesn't affect metrics or traces. Disable it with `disableHeartBeat: true` in the Linkerd control plane values.
+
+  </Collapser>
+</CollapserGroup>
+
+For more on how traces connect across the mesh and your applications, see [Linkerd distributed tracing](/docs/opentelemetry/integrations/linkerd/distributed-tracing).
