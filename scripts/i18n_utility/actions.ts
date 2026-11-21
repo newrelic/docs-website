@@ -7,7 +7,7 @@ import * as path from 'path';
 
 import { LOCALES } from '../actions/utils/constants';
 
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 const git = simpleGit();
 
 interface FileRename {
