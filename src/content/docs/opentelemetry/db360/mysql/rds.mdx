@@ -95,15 +95,22 @@ Install the NRDOT Collector on a system that can connect to your RDS instance:
 
 ## Configure database user [#user]
 
-Create a monitoring user with the necessary privileges for your RDS MySQL instance.
+Create a monitoring user with the necessary privileges for your RDS MySQL instance. Choose the authentication method that fits your environment:
 
-* To create a monitoring user, connect to your RDS instance as the master user and run:
+<CollapserGroup>
+
+<Collapser
+  title="Password authentication"
+  id="password-auth"
+>
+
+1. To create a monitoring user, connect to your RDS instance as the master user and run:
 
   ```sql
   CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>';
   ```
 
-* To collect query samples and top queries, grant the following privileges to the monitoring user:
+2. To collect query samples and top queries, grant the following privileges to the monitoring user:
 
   ```sql
   GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%';
@@ -112,7 +119,7 @@ Create a monitoring user with the necessary privileges for your RDS MySQL instan
   GRANT PROCESS ON *.* TO '<YOUR_DB_USERNAME>'@'%';
   ```
 
-* (Optional) To view the wait-time data in New Relic platform, grant the following privileges to the monitoring user:
+3. (Optional) To view the wait-time data in New Relic platform, grant the following privileges to the monitoring user:
 
   ```sql
   GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
@@ -122,13 +129,79 @@ Create a monitoring user with the necessary privileges for your RDS MySQL instan
     This setting doesn't persist on RDS; the `events_waits_current` consumer resets on every restart or failover. Granting this privilege lets the collector automatically re-enable it on reconnect; otherwise you'll need to re-run the enable statement after every restart.
     </Callout>
 
-* (Optional) To verify the connection and grants, run:
+4. (Optional) To verify the connection and grants, run:
 
   ```shell
   mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
   ```
 
   If the command completes without an error, the monitoring user, host, and port are all correct.
+
+</Collapser>
+
+<Collapser
+  title="IAM database authentication"
+  id="iam-auth"
+>
+
+As an alternative to a static password, the monitoring user can authenticate using a short-lived AWS IAM database authentication token.
+
+1. Enable IAM database authentication on the RDS instance:
+
+  ```bash
+  aws rds modify-db-instance \
+    --db-instance-identifier <YOUR_DB_INSTANCE_ID> \
+    --enable-iam-database-authentication \
+    --apply-immediately
+  ```
+
+2. Connect to your RDS instance as the master user and create the monitoring user for IAM authentication:
+
+  ```sql
+  CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
+  ```
+
+3. Grant the same privileges as password-based authentication:
+
+  ```sql
+  GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%';
+  GRANT SELECT ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+  GRANT REPLICATION CLIENT ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+  GRANT PROCESS ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+  ```
+
+4. Grant IAM permission to connect:
+
+  Attach a policy to the collector's AWS identity (EC2 instance profile, ECS task role, or IRSA):
+
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "rds-db:connect",
+        "Resource": "arn:aws:rds-db:<YOUR_AWS_REGION>:<YOUR_ACCOUNT_ID>:dbuser:<DB_RESOURCE_ID>/<YOUR_DB_USERNAME>"
+      }
+    ]
+  }
+  ```
+
+  | Placeholder | Description |
+  | --- | --- |
+  | `<DB_RESOURCE_ID>` | The RDS instance's `DbiResourceId` (not the instance identifier). Get it by running: `aws rds describe-db-instances --db-instance-identifier <YOUR_DB_INSTANCE_ID> --query 'DBInstances[0].DbiResourceId'` |
+
+  <Callout variant="tip">
+    IAM policy changes can take a few minutes to propagate. A connection attempt right after attaching the policy may still fail with an access denied error even though the policy is already correctly attached.
+  </Callout>
+
+5. Enable TLS:
+
+  IAM authentication requires TLS. Set `tls.insecure: false` and `tls.ca_file` to the [Amazon RDS certificate bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem).
+
+</Collapser>
+
+</CollapserGroup>
 
 </Step>
 
@@ -150,59 +223,22 @@ This configuration focuses on essential MySQL monitoring with the `nrmysql` rece
     sudo nano /etc/nrdot-collector/mysql-config.yaml
   ```
 
-2. Add the following configuration to the `mysql-config.yaml` file you created in the previous step:
+2. Add the following configuration to the `mysql-config.yaml` file you created in the previous step. Choose the authentication method you configured in the previous step:
 
-<OtelConfig
-  inputOptions={[
-    {
-      name: 'host',
-      label: 'MySQL RDS Endpoint',
-      codeLine: 3,
-      defaultValue: 'mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com',
-      toolTip: 'Enter your MySQL RDS endpoint',
-    },
-    {
-      name: 'port',
-      label: 'MySQL Port',
-      codeLine: 3,
-      defaultValue: '3306',
-      toolTip: 'Enter your MySQL port number. The default value is 3306.',
-    },
-    {
-      name: 'username',
-      label: 'Database Username',
-      codeLine: 5,
-      defaultValue: 'newrelic',
-      toolTip: 'Enter your database username for authentication',
-    },
-    {
-      name: 'password',
-      label: 'Database Password',
-      codeLine: 6,
-      defaultValue: 'YOUR_PASSWORD',
-      toolTip: 'Enter the password you set for the monitoring user',
-    },
-    {
-      name: 'endpoint',
-      label: 'New Relic OTLP Endpoint',
-      codeLine: 51,
-      defaultValue: 'https://otlp.nr-data.net:4318',
-      toolTip: 'Enter your New Relic OTLP endpoint. For more information, refer to https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/',
-    },
-    {
-      name: 'licenseKey',
-      label: 'New Relic License Key',
-      codeLine: 53,
-      defaultValue: 'YOUR_LICENSE_KEY',
-      toolTip: 'Enter your New Relic license key',
-    },
-  ]}
-  config={`receivers:
+<CollapserGroup>
+
+<Collapser
+  title="Password authentication"
+  id="password-config"
+>
+
+```yaml
+receivers:
   nrmysql:
-    endpoint: "<input1>:<input2>"
+    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
     transport: tcp
-    username: "<input3>"
-    password: "<input4>"
+    username: "<YOUR_DB_USERNAME>"
+    password: "<YOUR_DB_PASSWORD>"
     allow_native_passwords: true
     collection_interval: 15s
     initial_delay: 1s
@@ -247,9 +283,9 @@ processors:
 
 exporters:
   otlp/newrelic:
-    endpoint: "<input5>"
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
     headers:
-      api-key: "<input6>"
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
     compression: gzip
     retry_on_failure:
       enabled: true
@@ -266,14 +302,108 @@ service:
     logs:
       receivers: [nrmysql]
       processors: [batch]
-      exporters: [otlp/newrelic]`}
-  fileName="mysql-config.yaml"
-  tipMdx={{ body: null }}
-  onChange={() => {}}
-/>
+      exporters: [otlp/newrelic]
+```
+
+</Collapser>
+
+<Collapser
+  title="IAM database authentication"
+  id="iam-config"
+>
+
+```yaml
+extensions:
+  aws_iam_db_auth:
+    region: "<YOUR_AWS_REGION>"
+
+receivers:
+  nrmysql:
+    endpoint: "<YOUR_DB_HOST>:<YOUR_DB_PORT>"
+    transport: tcp
+    username: "<YOUR_DB_USERNAME>"
+    db_auth: aws_iam_db_auth
+    allow_native_passwords: true
+    collection_interval: 15s
+    initial_delay: 1s
+    explain_mode: procedure
+    statement_events:
+      digest_text_limit: 4096
+      time_limit: 24h
+      limit: 500
+    query_sample_collection:
+      max_rows_per_query: 100
+      allowed_comment_keys: [nr_service_guid]
+    top_query_collection:
+      lookback_time: 60
+      max_query_sample_count: 5000
+      top_query_count: 200
+      collection_interval: 60s
+      query_plan_cache_size: 1000
+      query_plan_cache_ttl: 1h
+      allowed_comment_keys: [nr_service_guid]
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+      db.server.query_plan:
+        enabled: true
+    resource_attributes:
+      db.system.version:
+        enabled: true
+    metrics:
+      mysql.query.count:
+        enabled: true
+      mysql.query.slow.count:
+        enabled: true
+      mysql.commands:
+        enabled: true
+      mysql.innodb.data_file.io:
+        enabled: true
+    # AWS RDS/Aurora requires SSL for IAM-authenticated connections.
+    tls:
+      insecure: false
+      ca_file: <PATH_TO_RDS_CA_BUNDLE>
+
+processors:
+  batch:
+
+exporters:
+  otlp/newrelic:
+    endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+    headers:
+      api-key: "<YOUR_NEWRELIC_LICENSE_KEY>"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  extensions: [aws_iam_db_auth]
+  pipelines:
+    metrics:
+      receivers: [nrmysql]
+      processors: [batch]
+      exporters: [otlp/newrelic]
+    logs:
+      receivers: [nrmysql]
+      processors: [batch]
+      exporters: [otlp/newrelic]
+```
 
 <Callout variant="tip">
-  This configuration omits the optional `database` and `tls` fields. By default, the receiver monitors every database the monitoring user can access, and connects without TLS. Most Amazon RDS/Aurora instances enforce SSL/TLS, so you'll likely need to [enable it](/docs/opentelemetry/db360/mysql/optional#tls). See Enable detailed insights for the `tls` block and `ca_file` setup.
+  Download the [Amazon RDS certificate bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem) and reference its path in `ca_file`.
+</Callout>
+
+</Collapser>
+
+</CollapserGroup>
+
+<Callout variant="tip">
+  This configuration omits the optional `database` field. By default, the receiver monitors every database the monitoring user can access. To [monitor a specific database](/docs/opentelemetry/db360/mysql/optional#database), see Enable detailed insights. The password-authentication option above also omits `tls`, which most Amazon RDS/Aurora instances require — see [enable TLS](/docs/opentelemetry/db360/mysql/optional#tls) if yours does.
 </Callout>
 
 ### Configuration parameters
@@ -282,6 +412,12 @@ The following table describes the key configuration parameters for the `nrmysql`
 
 | Parameter | Description |
 | --- | --- |
+| `<YOUR_DB_HOST>` | Your RDS MySQL endpoint. For example, `mydb-instance.xxxxxxxxxxxx.us-east-1.rds.amazonaws.com` |
+| `<YOUR_DB_PORT>` | Enter your MySQL port number. The default value is `3306`. |
+| `<YOUR_DB_USERNAME>` | Enter the username of the monitoring user you created in [Configure database user](#user). |
+| `<YOUR_DB_PASSWORD>` | Enter the password of the monitoring user you created in [Configure database user](#user). Only applies to password authentication. |
+| `db_auth` | References the `aws_iam_db_auth` extension by component ID. Only applies to IAM authentication; mutually exclusive with `password`. |
+| `aws_iam_db_auth.region` | AWS region of the RDS instance. Only applies to IAM authentication. |
 | `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | Enter the New Relic OTLP endpoint. For more information, see [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/). |
 | `<YOUR_NEWRELIC_LICENSE_KEY>` | Enter your New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). |
 | `transport` | Default value is set to `tcp` to connect over the network. |
