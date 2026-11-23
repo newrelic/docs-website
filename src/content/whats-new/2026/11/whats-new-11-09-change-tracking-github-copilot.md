@@ -21,6 +21,6 @@ Follow these steps to set up Change Tracking for GitHub Copilot:
 
 1. Configure a GitHub Fine-Grained Personal Access Token (PAT) with read and write access to pull requests, issues, and contents.
 2. Click **Ask AI** in New Relic, click **...**, then click **Configure**. Under **External MCP connections**, connect GitHub with your token and organization name, then turn on **Enable deployment monitoring**.
-3. Include `watchpoint_monitoring: "true"` in the custom attributes of your Change Tracking deployment mutation to trigger deployment monitoring.
+3. Trigger deployment monitoring by including `autopilot_monitoring: "true"` in the custom attributes of your Change Tracking deployment mutation, or by adding the `autopilot_monitoring` label to the pull request in GitHub.
 
 [Learn more](https://docs.newrelic.com/docs/agentic-ai/autopilot/change-tracking-for-github-copilot/)

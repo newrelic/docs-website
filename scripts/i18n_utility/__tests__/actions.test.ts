@@ -12,7 +12,7 @@ import * as Actions from '../actions';
 import { FileRename } from '../actions';
 
 jest.mock('simple-git', () => {
-  return { default: jest.fn(() => mockGit) };
+  return { simpleGit: jest.fn(() => mockGit) };
 });
 jest.mock('glob');
 jest.mock('fs');
