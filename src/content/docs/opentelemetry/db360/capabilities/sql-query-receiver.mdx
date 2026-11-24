@@ -1,21 +1,23 @@
 ---
-title: "SQL Query Receiver with NRDOT"
+title: "Custom SQL query receiver with NRDOT"
 tags:
   - OpenTelemetry
   - OpenTelemetry Collector
   - NRDOT
   - Database
   - Custom metrics
+  - Custom logs
+  - Custom events
   - SQL queries
-metaDescription: Run custom SQL queries against your database and ingest results as metrics using the SQL Query Receiver with New Relic Distribution of OpenTelemetry (NRDOT).
+metaDescription: Run custom SQL queries against your database and ingest results as metrics, logs, or custom events using the SQL Query Receiver with New Relic Distribution of OpenTelemetry (NRDOT).
 freshnessValidatedDate: 2026-10-06
 redirects:
   - /docs/opentelemetry/database/capabilities/sql-query-receiver
 ---
 
-The `sqlqueryreceiver` is an OpenTelemetry Collector receiver that lets you run any custom SQL query against your database and ingest the results as metrics into New Relic.
+The `sqlqueryreceiver` is an OpenTelemetry Collector receiver that lets you run any custom SQL query against your database and ingest the results as metrics, logs, or custom events into New Relic.
 
-Use this when you want to monitor data not covered by the built-in `nroracledbreceiver` / `nrsqlserverreceiver` / `nrmysqlreceiver` / `nrpostgresqlreceiver` metrics. Custom metrics collected via `sqlqueryreceiver` appear under the same Oracle, SQL Server, MySQL, or PostgreSQL entity in New Relic as the built-in receiver data, provided the entity-linking attributes are configured correctly.
+Use this when you want to monitor data not covered by the built-in `nroracledbreceiver` / `nrsqlserverreceiver` / `nrmysqlreceiver` / `nrpostgresqlreceiver` metrics. Custom metrics, logs, and events collected via `sqlqueryreceiver` appear under the same Oracle, SQL Server, MySQL, or PostgreSQL entity in New Relic as the built-in receiver data, provided the entity-linking attributes are configured correctly.
 
 ## Prerequisites [#prerequisites]
 
@@ -23,6 +25,8 @@ Use this when you want to monitor data not covered by the built-in `nroracledbre
 * The collector binary must include the `sqlqueryreceiver` component.
 
 ## Configuration [#config]
+
+Each database tab below shows how to collect custom metrics, custom logs, and custom events with the SQL Query Receiver.
 
 <Tabs>
 <TabsBar>
@@ -43,7 +47,7 @@ receivers:
 
   ...
 
-  sqlquery/oracle:
+  sql_query/oracle:
     driver: oracle
 
     # Approach 1: Use the `host`, `port`, `database`, `username`, and `password` fields to connect to your database. The receiver will construct the datasource URL for you.
@@ -91,7 +95,7 @@ Set the following parameters for each metric:
     </tr>
     <tr>
       <td>`<YOUR_DB_PASSWORD>`</td>
-      <td>Your Oracle database password.</td>
+      <td>Your Oracle database password</td>
     </tr>
     <tr>
       <td>`<YOUR_SERVICE_NAME>`</td>
@@ -149,13 +153,92 @@ For Oracle CDB users (`C##` prefix), encode `#` as `%23` in the datasource URL. 
 
 </Callout>
 
+### Custom logs and custom events
+
+Add separate receivers for custom logs and custom events, using a `logs:` block instead of `metrics:`.
+
+Custom logs and custom events need two things to link to the database entity:
+
+* **`db.system.name`** as a constant column in the query, included in `attribute_columns`, set to `oracle`. The metric name prefix rule under **Naming convention** applies to metrics only; for logs and events, `db.system.name` is what links the data instead.
+* **`server.address`** and **`server.port`** on the resource, set to the same values the database receiver uses. This is the same requirement as for custom metrics, so reuse the processors from this tab's `metrics/custom` pipeline.
+
+For custom events specifically, also add **`newrelic.event.type`** as a constant column included in `attribute_columns`. Its value becomes the event type name in the New Relic Database (NRDB).
+
+<Callout variant="important">
+
+Without `db.system.name`, or without matching `server.address`/`server.port` values, the data still lands in New Relic but isn't linked to the database entity.
+
+</Callout>
+
+```yaml
+receivers:
+  # Custom logs
+  sql_query/oracle_logs:
+    driver: oracle
+    datasource: "oracle://<YOUR_DB_USERNAME>:<YOUR_DB_PASSWORD>@<YOUR_DB_HOST>:<YOUR_DB_PORT>/<YOUR_SERVICE_NAME>"
+    collection_interval: 60s
+    queries:
+      - sql: "SELECT <YOUR_COLUMNS>, 'oracle' AS \"db.system.name\" FROM <YOUR_TABLE>"
+        logs:
+          - body_column: <SOME_TEXT_COLUMN>
+            attribute_columns: [<COLUMN_1>, <COLUMN_2>, "db.system.name"]
+
+  # Custom events
+  sql_query/oracle_events:
+    driver: oracle
+    datasource: "oracle://<YOUR_DB_USERNAME>:<YOUR_DB_PASSWORD>@<YOUR_DB_HOST>:<YOUR_DB_PORT>/<YOUR_SERVICE_NAME>"
+    collection_interval: 60s
+    queries:
+      - sql: "SELECT <YOUR_COLUMNS>, '<YOUR_EVENT_NAME>' AS \"newrelic.event.type\", 'oracle' AS \"db.system.name\" FROM <YOUR_TABLE>"
+        logs:
+          - body_column: <SOME_TEXT_COLUMN>
+            attribute_columns: [<COLUMN_1>, "newrelic.event.type", "db.system.name"]
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`<YOUR_COLUMNS>`</td>
+      <td>The columns to select from your table, in addition to the constant `db.system.name` (and `newrelic.event.type` for events) columns</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_TABLE>`</td>
+      <td>The view or table to query</td>
+    </tr>
+    <tr>
+      <td>`<SOME_TEXT_COLUMN>`</td>
+      <td>The column whose value becomes the log record's body</td>
+    </tr>
+    <tr>
+      <td>`<COLUMN_1>`, `<COLUMN_2>`</td>
+      <td>Columns from the query result that become log or event attributes. Used to filter and facet in NRQL</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_EVENT_NAME>`</td>
+      <td>The custom event type name shown in NRDB. Can be anything you choose</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+
+**Column casing:** Oracle folds unquoted aliases to UPPERCASE, so match `body_column` and `attribute_columns` to that case. The `"db.system.name"` and `"newrelic.event.type"` aliases are double-quoted to preserve their lowercase, dotted form.
+
+</Callout>
+
 ### Naming convention
 
-Metric names must start with `oracledb.` to be associated with the correct entity in New Relic. Metrics with a different prefix will be ingested but will not appear under the database entity.
+Metric names must start with `oracledb.` to be associated with the correct entity in New Relic. New Relic still ingests metrics with a different prefix, but they won't appear under the database entity.
 
 ### Entity synthesis
 
-Add `resource/add_event_name` and `resource/add_host` processors to set `server.address` and `server.port` to the same values used by the database receiver. Without this, custom metrics will not be linked to the database entity.
+Add `resource/add_event_name` and `resource/add_host` processors to set `server.address` and `server.port` to the same values used by the database receiver. Without this, custom metrics won't link to the database entity.
 
 Add the processors in the `processors:` section:
 
@@ -191,7 +274,12 @@ service:
       exporters: [otlp/newrelic]
 
     metrics/custom:
-      receivers: [sqlquery/oracle]
+      receivers: [sql_query/oracle]
+      processors: [resource/add_event_name, resource/add_host, batch]
+      exporters: [otlp/newrelic]
+
+    logs/custom:
+      receivers: [sql_query/oracle_logs, sql_query/oracle_events]
       processors: [resource/add_event_name, resource/add_host, batch]
       exporters: [otlp/newrelic]
 ```
@@ -204,14 +292,23 @@ Add both `resource/add_event_name` and `resource/add_host` before `batch` in the
 
 ### NRQL to validate data
 
-After restarting the collector, run the following to confirm custom metrics are arriving:
+* After restarting the collector, run the following to confirm custom metrics are arriving:
 
-```sql
-SELECT uniques(metricName) FROM Metric
-WHERE otel.library.name LIKE '%sqlqueryreceiver%'
-AND metricName LIKE 'oracledb.%'
-SINCE 1 hour ago
-```
+  ```sql
+  SELECT uniques(metricName) FROM Metric
+  WHERE otel.library.name LIKE '%sqlqueryreceiver%'
+  AND metricName LIKE 'oracledb.%'
+  SINCE 1 hour ago
+  ```
+
+* Run the following to confirm custom logs and custom events are arriving:
+
+  ```sql
+  -- Custom events
+  SELECT count(*) FROM <YOUR_EVENT_NAME> SINCE 1 hour ago
+  -- Custom logs
+  SELECT count(*) FROM Log WHERE db.system.name = 'oracle' SINCE 1 hour ago
+  ```
 
 
 ## Troubleshooting [#troubleshooting]
@@ -222,6 +319,9 @@ SINCE 1 hour ago
 | `missing port in address` | `#` in username/password not URL-encoded | Replace `#` with `%23` in the datasource URL |
 | No data in New Relic | `server.address`/`server.port` not set or mismatched | Add `resource/add_event_name` and `resource/add_host` processors with the correct values |
 | Metrics not under database entity | Metric name missing required prefix | Ensure metric names start with `oracledb.` |
+| Logs or events in NRDB but not under the database entity | `db.system.name` missing from the query or from `attribute_columns` | Add the `db.system.name` column with the value from the table above |
+| Logs or events in NRDB but not under the database entity | `server.address`/`server.port` not set or mismatched | Add the processors shown in the `logs/custom` pipeline, with the same values the database receiver uses |
+| Custom event shows up under `Log` instead of its own type | The `newrelic.event.type` alias isn't quoted correctly for your DB, or isn't listed in `attribute_columns` | Match the quoting and casing shown in the snippet for your DB |
 
 If none of the above resolves the issue, check the collector's own logs for errors:
 
@@ -240,7 +340,7 @@ receivers:
   nrsqlserver:
     ...
 
-  sqlquery:
+  sql_query/sqlserver:
     driver: sqlserver
 
     # Approach 1: Use the `host`, `port`, `database`, `username`, and `password` fields to connect to your database. The receiver will construct the datasource URL for you.
@@ -348,13 +448,92 @@ Set the following parameters for each metric:
   </tbody>
 </table>
 
+### Custom logs and custom events
+
+Add separate receivers for custom logs and custom events, using a `logs:` block instead of `metrics:`.
+
+Custom logs and custom events need two things to link to the database entity:
+
+* **`db.system.name`** as a constant column in the query, included in `attribute_columns`, set to `microsoft.sql_server`. The metric name prefix rule under **Naming convention** applies to metrics only; for logs and events, `db.system.name` is what links the data instead.
+* **`server.address`** and **`server.port`** on the resource, set to the same values the database receiver uses. This is the same requirement as for custom metrics, so reuse the processors from this tab's `metrics/custom` pipeline.
+
+For custom events specifically, also add **`newrelic.event.type`** as a constant column included in `attribute_columns`. Its value becomes the event type name in NRDB.
+
+<Callout variant="important">
+
+Without `db.system.name`, or without matching `server.address`/`server.port` values, the data still lands in New Relic but isn't linked to the database entity.
+
+</Callout>
+
+```yaml
+receivers:
+  # Custom logs
+  sql_query/sqlserver_logs:
+    driver: sqlserver
+    datasource: "sqlserver://<YOUR_DB_USERNAME>:<YOUR_DB_PASSWORD>@<YOUR_DB_HOST>:<YOUR_DB_PORT>?database=<YOUR_DATABASE_NAME>"
+    collection_interval: 30s
+    queries:
+      - sql: "SELECT <YOUR_COLUMNS>, 'microsoft.sql_server' AS [db.system.name] FROM <YOUR_TABLE>"
+        logs:
+          - body_column: <SOME_TEXT_COLUMN>
+            attribute_columns: ["<COLUMN_1>", "<COLUMN_2>", "db.system.name"]
+
+  # Custom events
+  sql_query/sqlserver_events:
+    driver: sqlserver
+    datasource: "sqlserver://<YOUR_DB_USERNAME>:<YOUR_DB_PASSWORD>@<YOUR_DB_HOST>:<YOUR_DB_PORT>?database=<YOUR_DATABASE_NAME>"
+    collection_interval: 30s
+    queries:
+      - sql: "SELECT <YOUR_COLUMNS>, '<YOUR_EVENT_NAME>' AS [newrelic.event.type], 'microsoft.sql_server' AS [db.system.name] FROM <YOUR_TABLE>"
+        logs:
+          - body_column: <SOME_TEXT_COLUMN>
+            attribute_columns: ["<COLUMN_1>", "newrelic.event.type", "db.system.name"]
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`<YOUR_COLUMNS>`</td>
+      <td>The columns to select from your table, in addition to the constant `db.system.name` (and `newrelic.event.type` for events) columns</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_TABLE>`</td>
+      <td>The view or table to query</td>
+    </tr>
+    <tr>
+      <td>`<SOME_TEXT_COLUMN>`</td>
+      <td>The column whose value becomes the log record's body</td>
+    </tr>
+    <tr>
+      <td>`<COLUMN_1>`, `<COLUMN_2>`</td>
+      <td>Columns from the query result that become log or event attributes. Used to filter and facet in NRQL</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_EVENT_NAME>`</td>
+      <td>The custom event type name shown in NRDB. Can be anything you choose</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+
+**Column casing:** SQL Server preserves the case you write in the `AS` alias.
+
+</Callout>
+
 ### Naming convention
 
-Metric names must start with `sqlserver.` to be associated with the correct entity in New Relic. Metrics with a different prefix will be ingested but will not appear under the database entity.
+Metric names must start with `sqlserver.` to be associated with the correct entity in New Relic. New Relic still ingests metrics with a different prefix, but they won't appear under the database entity.
 
 ### Entity synthesis
 
-Add a `resource/add_host` processor to set `server.address` and `server.port` to the same values used by the database receiver. Without this, custom metrics will not be linked to the database entity.
+Add a `resource/add_host` processor to set `server.address` and `server.port` to the same values used by the database receiver. Without this, custom metrics won't link to the database entity.
 
 Add the processor in the `processors:` section:
 
@@ -378,9 +557,14 @@ Add a `metrics/custom` pipeline in the `service.pipelines:` section of the confi
 service:
   pipelines:
     metrics/custom:
-      receivers: [sqlquery]
+      receivers: [sql_query/sqlserver]
       processors: [resource/add_host, batch]
       exporters: [otlp]
+
+    logs/custom:
+      receivers: [sql_query/sqlserver_logs, sql_query/sqlserver_events]
+      processors: [resource/add_host, batch]
+      exporters: [otlp/newrelic]
 ```
 
 <Callout variant="important">
@@ -391,14 +575,23 @@ Add `resource/add_host` before `batch` in the processor list.
 
 ### NRQL to validate data
 
-After restarting the collector, run the following to confirm custom metrics are arriving:
+* After restarting the collector, run the following to confirm custom metrics are arriving:
 
-```sql
-SELECT uniques(metricName) FROM Metric
-WHERE otel.library.name LIKE '%sqlqueryreceiver%'
-AND metricName LIKE 'sqlserver.%'
-SINCE 1 hour ago
-```
+  ```sql
+  SELECT uniques(metricName) FROM Metric
+  WHERE otel.library.name LIKE '%sqlqueryreceiver%'
+  AND metricName LIKE 'sqlserver.%'
+  SINCE 1 hour ago
+  ```
+
+* Run the following to confirm custom logs and custom events are arriving:
+
+  ```sql
+  -- Custom events
+  SELECT count(*) FROM <YOUR_EVENT_NAME> SINCE 1 hour ago
+  -- Custom logs
+  SELECT count(*) FROM Log WHERE db.system.name = 'microsoft.sql_server' SINCE 1 hour ago
+  ```
 
 </TabsPageItem>
 
@@ -464,7 +657,7 @@ Set the following parameters for each metric:
     </tr>
     <tr>
       <td>`<YOUR_DB_PASSWORD>`</td>
-      <td>Your MySQL monitoring password.</td>
+      <td>Your MySQL monitoring password</td>
     </tr>
     <tr>
       <td>`collection_interval`</td>
@@ -517,9 +710,114 @@ MySQL's `datasource` connection string uses the format `<user>:<password>@tcp(<h
 
 </Callout>
 
+### Custom logs and custom events
+
+Add separate receivers for custom logs and custom events, using a `logs:` block instead of `metrics:`.
+
+Custom logs and custom events need two things to link to the database entity:
+
+* **`db.system.name`** as a constant column in the query, included in `attribute_columns`, set to `mysql`. The metric name prefix rule under **Naming convention** applies to metrics only; for logs and events, `db.system.name` is what links the data instead.
+* **`server.address`** and **`server.port`** on the resource, set to the same values the database receiver uses. This is the same requirement as for custom metrics, so reuse the processors from this tab's `metrics/custom` pipeline.
+
+For custom events specifically, also add **`newrelic.event.type`** as a constant column included in `attribute_columns`. Its value becomes the event type name in NRDB.
+
+<Callout variant="important">
+
+Without `db.system.name`, or without matching `server.address`/`server.port` values, the data still lands in New Relic but isn't linked to the database entity.
+
+</Callout>
+
+```yaml
+receivers:
+  # Custom logs
+  sql_query/mysql_logs:
+    driver: mysql
+    host: <YOUR_DB_HOST>
+    port: <YOUR_DB_PORT>
+    database: <YOUR_DATABASE_NAME>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    collection_interval: 60s
+    queries:
+      - sql: "SELECT <YOUR_COLUMNS>, 'mysql' AS `db.system.name` FROM <YOUR_TABLE>"
+        logs:
+          - body_column: <SOME_TEXT_COLUMN>
+            attribute_columns: ["<COLUMN_1>", "<COLUMN_2>", "db.system.name"]
+
+  # Custom events
+  sql_query/mysql_events:
+    driver: mysql
+    host: <YOUR_DB_HOST>
+    port: <YOUR_DB_PORT>
+    database: <YOUR_DATABASE_NAME>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    collection_interval: 60s
+    queries:
+      - sql: "SELECT <YOUR_COLUMNS>, '<YOUR_EVENT_NAME>' AS `newrelic.event.type`, 'mysql' AS `db.system.name` FROM <YOUR_TABLE>"
+        logs:
+          - body_column: <SOME_TEXT_COLUMN>
+            attribute_columns: ["<COLUMN_1>", "newrelic.event.type", "db.system.name"]
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`<YOUR_COLUMNS>`</td>
+      <td>The columns to select from your table, in addition to the constant `db.system.name` (and `newrelic.event.type` for events) columns</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_TABLE>`</td>
+      <td>The view or table to query</td>
+    </tr>
+    <tr>
+      <td>`<SOME_TEXT_COLUMN>`</td>
+      <td>The column whose value becomes the log record's body</td>
+    </tr>
+    <tr>
+      <td>`<COLUMN_1>`, `<COLUMN_2>`</td>
+      <td>Columns from the query result that become log or event attributes. Used to filter and facet in NRQL</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_EVENT_NAME>`</td>
+      <td>The custom event type name shown in NRDB. Can be anything you choose</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+
+**Column casing:** MySQL preserves the case you write in the `AS` alias.
+
+</Callout>
+
 ### Naming convention
 
-Metric names must start with `mysql.` to be associated with the correct entity in New Relic. Metrics with a different prefix will be ingested but will not appear under the database entity.
+Metric names must start with `mysql.` to be associated with the correct entity in New Relic. New Relic still ingests metrics with a different prefix, but they won't appear under the database entity.
+
+### Entity synthesis
+
+Add a `resource/add_host` processor to set `server.address` and `server.port` to the same values used by the database receiver. Without this, custom logs and custom events won't link to the database entity.
+
+Add the processor in the `processors:` section:
+
+```yaml
+processors:
+  resource/add_host:
+    attributes:
+      - key: server.address
+        value: "<YOUR_DB_HOST>"
+        action: upsert
+      - key: server.port
+        value: "<YOUR_DB_PORT>"
+        action: upsert
+```
 
 ### Pipeline configuration
 
@@ -536,18 +834,32 @@ service:
       receivers: [sql_query/mysql]
       processors: [batch]
       exporters: [otlp/newrelic]
+
+    logs/custom:
+      receivers: [sql_query/mysql_logs, sql_query/mysql_events]
+      processors: [resource/add_host, batch]
+      exporters: [otlp/newrelic]
 ```
 
 ### NRQL to validate data
 
-After restarting the collector, run the following to confirm custom metrics are arriving:
+* After restarting the collector, run the following to confirm custom metrics are arriving:
 
-```sql
-SELECT uniques(metricName) FROM Metric
-WHERE otel.library.name LIKE '%sqlqueryreceiver%'
-AND metricName LIKE 'mysql.%'
-SINCE 1 hour ago
-```
+  ```sql
+  SELECT uniques(metricName) FROM Metric
+  WHERE otel.library.name LIKE '%sqlqueryreceiver%'
+  AND metricName LIKE 'mysql.%'
+  SINCE 1 hour ago
+  ```
+
+* Run the following to confirm custom logs and custom events are arriving:
+
+  ```sql
+  -- Custom events
+  SELECT count(*) FROM <YOUR_EVENT_NAME> SINCE 1 hour ago
+  -- Custom logs
+  SELECT count(*) FROM Log WHERE db.system.name = 'mysql' SINCE 1 hour ago
+  ```
 
 ## Troubleshooting [#troubleshooting-mysql]
 
@@ -557,6 +869,9 @@ SINCE 1 hour ago
 | Error 1146: Table doesn't exist / SQL syntax error | Custom SQL references a table/column that doesn't exist on this MySQL/MariaDB version, or uses unsupported syntax | Test the query directly against the instance first with the same user before adding it to the receiver config |
 | Metrics not under database entity | Metric name missing `mysql.` prefix | Ensure metric names start with `mysql.` |
 | TLS/SSL negotiation error connecting to a TLS-enforcing server | Driver defaults to no TLS unless configured | Set the `tls` parameter under `additional_params` to match the server's TLS requirements |
+| Logs or events in NRDB but not under the database entity | `db.system.name` missing from the query or from `attribute_columns` | Add the `db.system.name` column with the value from the table above |
+| Logs or events in NRDB but not under the database entity | `server.address`/`server.port` not set or mismatched | Add the processors shown in the `logs/custom` pipeline, with the same values the database receiver uses |
+| Custom event shows up under `Log` instead of its own type | The `newrelic.event.type` alias isn't quoted correctly for your DB, or isn't listed in `attribute_columns` | Match the quoting and casing shown in the snippet for your DB |
 
 If none of the above resolves the issue, check the collector's own logs for errors:
 
@@ -630,7 +945,7 @@ Set the following parameters for each metric:
     </tr>
     <tr>
       <td>`<YOUR_DB_PASSWORD>`</td>
-      <td>Your PostgreSQL database password.</td>
+      <td>Your PostgreSQL database password</td>
     </tr>
     <tr>
       <td>`collection_interval`</td>
@@ -679,17 +994,108 @@ Set the following parameters for each metric:
 
 <Callout variant="important">
 
-If your PostgreSQL server requires TLS, set `sslmode` accordingly under `additional_params` (Approach 1) or in the `datasource` string (Approach 2) — for example `sslmode: require`. When omitted, the underlying driver defaults to negotiating SSL for non-local connections, which fails against a server that isn't configured for it.
+If your PostgreSQL server requires TLS, set `sslmode` accordingly under `additional_params` (Approach 1) or in the `datasource` string (Approach 2), for example `sslmode: require`. When omitted, the underlying driver defaults to negotiating SSL for non-local connections, which fails against a server that isn't configured for it.
+
+</Callout>
+
+### Custom logs and custom events
+
+Add separate receivers for custom logs and custom events, using a `logs:` block instead of `metrics:`.
+
+Custom logs and custom events need two things to link to the database entity:
+
+* **`db.system.name`** as a constant column in the query, included in `attribute_columns`, set to `postgresql`. The metric name prefix rule under **Naming convention** applies to metrics only; for logs and events, `db.system.name` is what links the data instead.
+* **`server.address`** and **`server.port`** on the resource, set to the same values the database receiver uses. This is the same requirement as for custom metrics, so reuse the processors from this tab's `metrics/custom` pipeline.
+
+For custom events specifically, also add **`newrelic.event.type`** as a constant column included in `attribute_columns`. Its value becomes the event type name in NRDB.
+
+<Callout variant="important">
+
+Without `db.system.name`, or without matching `server.address`/`server.port` values, the data still lands in New Relic but isn't linked to the database entity.
+
+</Callout>
+
+```yaml
+receivers:
+  # Custom logs
+  sql_query/postgres_logs:
+    driver: postgres
+    host: <YOUR_DB_HOST>
+    port: <YOUR_DB_PORT>
+    database: <YOUR_DATABASE_NAME>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    additional_params:
+      sslmode: disable
+    collection_interval: 60s
+    queries:
+      - sql: "SELECT <YOUR_COLUMNS>, 'postgresql' AS \"db.system.name\" FROM <YOUR_TABLE>"
+        logs:
+          - body_column: <SOME_TEXT_COLUMN>
+            attribute_columns: ["<COLUMN_1>", "<COLUMN_2>", "db.system.name"]
+
+  # Custom events
+  sql_query/postgres_events:
+    driver: postgres
+    host: <YOUR_DB_HOST>
+    port: <YOUR_DB_PORT>
+    database: <YOUR_DATABASE_NAME>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    additional_params:
+      sslmode: disable
+    collection_interval: 60s
+    queries:
+      - sql: "SELECT <YOUR_COLUMNS>, '<YOUR_EVENT_NAME>' AS \"newrelic.event.type\", 'postgresql' AS \"db.system.name\" FROM <YOUR_TABLE>"
+        logs:
+          - body_column: <SOME_TEXT_COLUMN>
+            attribute_columns: ["<COLUMN_1>", "newrelic.event.type", "db.system.name"]
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`<YOUR_COLUMNS>`</td>
+      <td>The columns to select from your table, in addition to the constant `db.system.name` (and `newrelic.event.type` for events) columns</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_TABLE>`</td>
+      <td>The view or table to query</td>
+    </tr>
+    <tr>
+      <td>`<SOME_TEXT_COLUMN>`</td>
+      <td>The column whose value becomes the log record's body</td>
+    </tr>
+    <tr>
+      <td>`<COLUMN_1>`, `<COLUMN_2>`</td>
+      <td>Columns from the query result that become log or event attributes. Used to filter and facet in NRQL</td>
+    </tr>
+    <tr>
+      <td>`<YOUR_EVENT_NAME>`</td>
+      <td>The custom event type name shown in NRDB. Can be anything you choose</td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+
+**Column casing:** PostgreSQL folds unquoted aliases to lowercase.
 
 </Callout>
 
 ### Naming convention
 
-Metric names must start with `postgresql.` to be associated with the correct entity in New Relic. Metrics with a different prefix will be ingested but will not appear under the database entity.
+Metric names must start with `postgresql.` to be associated with the correct entity in New Relic. New Relic still ingests metrics with a different prefix, but they won't appear under the database entity.
 
 ### Entity synthesis
 
-`nrpostgresql` synthesizes its database entity from `server.address` and `server.port`. Add a `resource/add_host` processor to stamp the same `server.address`/`server.port` values used by the database receiver. Without this, custom metrics will not be linked to the database entity.
+`nrpostgresql` synthesizes its database entity from `server.address` and `server.port`. Add a `resource/add_host` processor to stamp the same `server.address`/`server.port` values used by the database receiver. Without this, custom metrics won't link to the database entity.
 
 Add the processor in the `processors:` section:
 
@@ -708,7 +1114,7 @@ processors:
 
 <Callout variant="important">
 
-If your `nrpostgresql` pipeline already has a `resource/*` processor setting `server.address`/`server.port` (for example `resource/postgresql`), reuse that same processor in the `metrics/custom` pipeline below instead of duplicating it — both receivers must stamp identical values to attach to the same entity.
+If your `nrpostgresql` pipeline already has a `resource/*` processor setting `server.address`/`server.port` (for example `resource/postgresql`), reuse that same processor in the `metrics/custom` pipeline below instead of duplicating it. Both receivers must stamp identical values to attach to the same entity.
 
 </Callout>
 
@@ -731,6 +1137,11 @@ service:
       receivers: [sql_query/postgres]
       processors: [resource/add_host, batch]
       exporters: [otlp/newrelic]
+
+    logs/custom:
+      receivers: [sql_query/postgres_logs, sql_query/postgres_events]
+      processors: [resource/add_host, batch]
+      exporters: [otlp/newrelic]
 ```
 
 <Callout variant="important">
@@ -741,22 +1152,34 @@ Add `resource/add_host` before `batch` in the processor list.
 
 ### NRQL to validate data
 
-After restarting the collector, run the following to confirm custom metrics are arriving:
+* After restarting the collector, run the following to confirm custom metrics are arriving:
 
-```sql
-SELECT uniques(metricName) FROM Metric
-WHERE otel.library.name LIKE '%sqlqueryreceiver%'
-AND metricName LIKE 'postgresql.%'
-SINCE 1 hour ago
-```
+  ```sql
+  SELECT uniques(metricName) FROM Metric
+  WHERE otel.library.name LIKE '%sqlqueryreceiver%'
+  AND metricName LIKE 'postgresql.%'
+  SINCE 1 hour ago
+  ```
+
+* Run the following to confirm custom logs and custom events are arriving:
+
+  ```sql
+  -- Custom events
+  SELECT count(*) FROM <YOUR_EVENT_NAME> SINCE 1 hour ago
+  -- Custom logs
+  SELECT count(*) FROM Log WHERE db.system.name = 'postgresql' SINCE 1 hour ago
+  ```
 
 ## Troubleshooting [#troubleshooting-postgresql]
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | `pq: SSL is not enabled on the server` | `sslmode` not set, driver defaulted to negotiating SSL | Set `sslmode: disable` (or the mode your server supports) under `additional_params`, or in the `datasource` string |
-| `pq: password authentication failed for user` | Wrong username/password, or special characters not escaped in a raw `datasource` string | Use Approach 1 (individual fields) — the receiver URL-escapes `username`/`password` automatically — or manually escape special characters in `datasource` |
+| `pq: password authentication failed for user` | Wrong username/password, or special characters not escaped in a raw `datasource` string | Use Approach 1 (individual fields), since the receiver URL-escapes `username`/`password` automatically, or manually escape special characters in `datasource` |
 | Metrics not under database entity | Metric name missing required `postgresql.` prefix, or `server.address`/`server.port` not set or mismatched | Ensure metric names start with `postgresql.`, and add `resource/add_host` (or reuse the existing `nrpostgresql` resource processor) with the correct host/port values |
+| Logs or events in NRDB but not under the database entity | `db.system.name` missing from the query or from `attribute_columns` | Add the `db.system.name` column with the value from the table above |
+| Logs or events in NRDB but not under the database entity | `server.address`/`server.port` not set or mismatched | Add the processors shown in the `logs/custom` pipeline, with the same values the database receiver uses |
+| Custom event shows up under `Log` instead of its own type | The `newrelic.event.type` alias isn't quoted correctly for your DB, or isn't listed in `attribute_columns` | Match the quoting and casing shown in the snippet for your DB |
 
 If none of the above resolves the issue, check the collector's own logs for errors:
 
