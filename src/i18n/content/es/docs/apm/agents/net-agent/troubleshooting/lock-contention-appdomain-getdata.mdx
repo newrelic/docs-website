@@ -1,37 +1,48 @@
 ---
-title: Alta contención de bloqueo AppDomain.GetData() (.NET framework)
+title: Alta contención de bloqueo de AppDomain.GetData() o aumento de la memoria nativa
 type: troubleshooting
 tags:
   - Agents
   - NET agent
   - Troubleshooting
-metaDescription: Instructions and information about reducing AppDomain.GetData() lock contention for impacted .NET Framework applications
-freshnessValidatedDate: never
+metaDescription: 'Information about the .NET agent''s method cache, and how it relates to AppDomain.GetData() lock contention on .NET Framework and increased native memory on .NET and .NET Core.'
+freshnessValidatedDate: '2026-10-07T00:00:00.000Z'
 translationType: machine
 ---
 
 ## Problema
 
-Cuando el agente .NET está conectado a la aplicación <DNT>**.NET Framework**</DNT> de alto rendimiento, algunos clientes informaron haber observado una alta contención de subprocesos. Al revisar los volcados del proceso y el rastreo del stack, es posible que muchos hilos estén bloqueados por llamadas a `AppDomain.GetData()`.
+El agente de .NET almacena en caché la información del método que necesita para llamar al agente desde los métodos instrumentados. Desde la versión 10.54.0, el agente usa esta caché tanto para las aplicaciones de .NET framework como para las de .NET o .NET Core. Antes de la versión 10.54.0, el agente la usaba solo para las aplicaciones de .NET framework.
 
-## Solución posible
+La caché puede causar estos síntomas:
 
-En [la versión 9.7 del agente .NET](/docs/release-notes/agent-release-notes/net-release-notes), se introdujo una nueva variable de entorno que deshabilita el uso del almacenamiento `AppDomain` por parte del agente .NET:
+* **.NET framework:** una aplicación de alto rendimiento muestra una alta contención de subprocesos. Los volcados de procesos y los rastreos del stack muestran muchos subprocesos bloqueados en llamadas a `AppDomain.GetData()`.
+* **.NET o .NET Core, versiones del agente de la 10.54.0 a la 10.56.0:** La aplicación usa más memoria nativa de la que usaba con la versión 10.53.x del agente. El aumento crece con la cantidad de ensamblados que carga la aplicación.
+
+## Causa
+
+El agente de .NET necesita información de la firma del método para instrumentar métodos. Para evitar una llamada de reflexión cada vez que se ejecuta un método instrumentado, el agente almacena en caché esta información. La caché utiliza más memoria para ahorrar tiempo de CPU. En nuestras pruebas, las aplicaciones tuvieron un mayor rendimiento máximo con la caché habilitada.
+
+En .NET framework, el agente almacena parte de esta caché en el almacenamiento `AppDomain`. Las llamadas a `AppDomain.GetData()` toman un bloqueo global, lo que puede causar contención de subprocesos en algunas aplicaciones de alto rendimiento.
+
+En .NET y .NET Core, las versiones del agente de la 10.54.0 a la 10.56.0 agregan referencias a los métodos auxiliares del agente a cada módulo que carga la aplicación, incluidos los módulos que no tienen métodos instrumentados. El tiempo de ejecución mantiene una copia de los metadatos de cada módulo modificado en la memoria nativa.
+
+## Antes de cambiar la configuración del agente
+
+Los síntomas anteriores pueden tener muchas causas. Comuníquese con el [soporte de New Relic](https://support.newrelic.com/) con un volcado de subprocesos o mediciones de memoria antes de cambiar la configuración del agente. El soporte puede confirmar si la caché de métodos del agente es la causa.
+
+## Solución
+
+Si usa las versiones 10.54.0 a 10.56.0 del agente de .NET en .NET o .NET Core y observa el aumento de memoria nativa descrito anteriormente, [actualice el agente](/docs/apm/agents/net-agent/installation/update-net-agent/) a una versión posterior a la 10.56.0. En esas versiones, el agente agrega estas referencias solo a `System.Private.CoreLib` y a los módulos que tienen métodos instrumentados.
+
+Si el soporte confirma que la caché de métodos del agente es la causa y no puede actualizar el agente, puede desactivar la caché con esta variable de entorno:
 
 ```ini
 NEW_RELIC_DISABLE_APPDOMAIN_CACHING=true
 ```
 
+Esta configuración está disponible en la versión 9.7 y posteriores del agente de .NET, y se aplica a las aplicaciones de .NET framework, .NET y .NET Core. Puede dejarla habilitada a largo plazo.
+
 <Callout variant="caution">
-  Si bien esta variable de entorno elimina la contención de bloqueo de las llamadas del agente a `AppDomain.GetData()`, la sobrecarga total del agente .NET aumenta cuando esta variable de entorno está habilitada. En nuestras pruebas, esto resultó en un menor bloqueo, pero un menor rendimiento máximo de la aplicación con el agente .NET conectado a una aplicación de prueba.
+Esta configuración no reduce el uso del montón administrado y no soluciona las requests lentas ni el uso elevado de la CPU. Con la caché desactivada, el agente usa la reflexión cada vez que se ejecuta un método instrumentado, lo que aumenta la sobrecarga del agente. En nuestras pruebas, las aplicaciones tuvieron un rendimiento máximo menor con la caché desactivada.
 </Callout>
-
-Estamos muy interesados en cualquier comentario de los clientes que experimenten este problema y prueben esta nueva opción de configuración. Si prueba esta opción de configuración, cree un problema en nuestro [repositorio de GitHub para .NET](https://github.com/newrelic/newrelic-dotnet-agent) que describa su experiencia.
-
-## Causa
-
-El agente .NET necesita acceso a la información de firma del método para los métodos de instrumento. De forma predeterminada, para la aplicación .NET framework , el agente carga la información de este método mediante reflexión y la almacena en caché en `AppDomain` para uso futuro. Esto pretende ser una optimización general, pero varios clientes han experimentado un alto conflicto de bloqueo de subprocesos en torno a este comportamiento y creen que es la causa principal de que los servicios se vuelvan lentos o no respondan.
-
-Después de inspeccionar el código fuente de Microsoft, las llamadas a `AppDomain.GetData()` de hecho dan como resultado un bloqueo global.
-
-Dado que el agente .NET no utiliza ningún esquema de almacenamiento en caché de información de métodos para la aplicación .NET Core, y ningún cliente ha informado problemas similares de contención de bloqueo de subprocesos, decidimos exponer una variable de entorno para que el agente funcione de la misma manera en .NET. aplicación framework .
