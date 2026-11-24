@@ -1,0 +1,350 @@
+---
+title: 마이그레이션 가이드
+metaDescription: 'Key considerations, configuration mapping, entity continuity, and rollback steps when migrating from a standalone Infrastructure Agent to Agent Control on Linux, Windows, and Kubernetes.'
+freshnessValidatedDate: '2026-10-02T00:00:00.000Z'
+translationType: machine
+---
+
+이 가이드는 독립 실행형 에이전트 설치에서 에이전트 컨트롤 및 플릿 컨트롤이 관리하는 에이전트로 이동할 때 가장 자주 묻는 질문과 주의 사항을 다룹니다.
+
+## 시작하기 전: 모니터링 공백
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="gap-host">온 호스트</TabsBarItem> <TabsBarItem id="gap-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="gap-host">
+      <Callout variant="caution">
+        **Agent Control을 설치하면 독립 실행형 인프라 에이전트가 제거됩니다.**
+
+        Agent Control을 설치하는 OS 패키지는 이전에 설치된 인프라 에이전트를 제거하거나 중지합니다. 그 순간부터 Agent Control이 플릿 컨트롤에 연결하고, 배포 설정을 수신하며, 관리되는 하위 에이전트로 인프라 에이전트를 성공적으로 시작할 때까지 호스트에는 실행 중인 에이전트가 없습니다.
+      </Callout>
+
+      **다음 조건이 모두 충족될 때까지 호스트에 Agent Control을 설치하지 마십시오:**
+
+      1. 플릿 컨트롤에는 기존 `newrelic-infra.yml` 및 `integrations.d/` 파일과 유사한 설정이 있는 해당 호스트를 타겟으로 하는 인프라 에이전트 배포가 있습니다. 각 부분을 변환하는 방법은 [설정 마이그레이션](#configuration-migration)을 참조하십시오.
+      2. 먼저 하나 이상의 비프로덕션 호스트에서 배포 설정을 검증했습니다.
+      3. 에이전트 컨트롤은 타겟 호스트에서 플릿 컨트롤 엔드포인트 및 OCI 레지스트리에 도달할 수 있습니다. 방화벽 규칙 및 프록시 설정을 사전에 확인하십시오.
+      4. 배포가 시작되지 않을 경우를 대비하여 롤백 단계를 준비해 두십시오. [롤백](#rollback)을 참조하십시오.
+
+      모든 것이 올바르게 설정된 경우, Agent Control 설치와 첫 번째 성공적인 관리형 에이전트 시작 사이의 간격은 일반적으로 몇 초입니다.
+    </TabsPageItem>
+
+    <TabsPageItem id="gap-k8s">
+      <Callout variant="caution">
+        **마이그레이션하려면 Agent Control을 설치하기 전에 기존 에이전트를 제거해야 합니다.**
+
+        Agent Control 인스톨러가 기존 에이전트를 대체하는 호스트와 달리, Kubernetes에서는 먼저 이전 에이전트를 수동으로 제거해야 합니다. `helm uninstall`을(를) 실행하는 순간부터 Agent Control이 플릿 컨트롤에 연결하고 원격 설정을 적용할 때까지 모니터링에 공백이 발생합니다.
+      </Callout>
+
+      **다음 사항이 모두 충족될 때까지 기존 에이전트를 제거하지 마십시오.**
+
+      1. 기존 Helm 값을 저장했습니다: `helm get values RELEASE_NAME --namespace NAMESPACE`. 이것은 롤백 지점입니다.
+      2. 플릿 컨트롤에는 마이그레이션하는 각 에이전트 유형에 대해 준비된 원격 설정이 있습니다. Helm 값을 플릿 컨트롤 설정에 매핑하는 방법은 [설정 마이그레이션](#configuration-migration)을 참조하십시오.
+      3. 에이전트 컨트롤은 클러스터 노드에서 플릿 컨트롤 엔드포인트 및 OCI 레지스트리에 도달할 수 있습니다. 네트워크 정책 및 이그레스 규칙을 사전에 확인하십시오.
+      4. 배포가 시작되지 않을 경우를 대비하여 롤백 단계를 준비해 두십시오. [롤백](#rollback)을 참조하십시오.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 이전에 계측된 시스템 마이그레이션
+
+<Callout variant="important">
+  Agent Control은 기존 에이전트의 자동 마이그레이션을 지원하지 않습니다. 마이그레이션은 항상 수동 프로세스입니다: 기존 에이전트를 제거하고 Agent Control을 설치한 다음, 설정을 플릿 컨트롤 원격 설정으로 다시 만드십시오.
+</Callout>
+
+<Callout variant="caution" title="Linux 및 Windows 호스트의 모니터링 공백">
+  호스트에 Agent Control을 설치하면 **독립 실행형 인프라 에이전트가 제거됩니다**. 이전 에이전트가 중지된 순간부터 Agent Control이 플릿 컨트롤에 연결하고 관리형 에이전트를 시작할 때까지 일시적인 텔레메트리 손실이 발생할 수 있습니다. 프로덕션 환경을 마이그레이션하기 전에 비프로덕션 호스트에서 플릿 컨트롤 배포 설정을 준비하고 검증하십시오. 롤백 단계를 포함한 전체 세부 정보는 [호스트 마이그레이션 가이드](/docs/new-relic-control/agent-control/migration-guide)를 참조하십시오.
+</Callout>
+
+### 일반 마이그레이션 프로세스
+
+플랫폼에 관계없이 마이그레이션은 다음 네 단계를 따릅니다:
+
+1. **기존 설정을 기록해 두십시오.** 제거하기 전에 모든 에이전트 설정 파일 및 통합 설정의 사본을 저장하십시오. 플릿 컨트롤 원격 설정으로 다시 생성하게 됩니다.
+2. **기존 에이전트를 제거합니다.** 에이전트 컨트롤은 동일한 유형의 독립 실행형 에이전트 설치와 공존할 수 없습니다.
+3. **에이전트 컨트롤을 설치하고 플릿에 연결하십시오.** 플랫폼별 설치 가이드를 따르고 기존 플릿을 선택하거나 새 플릿을 생성하십시오.
+4. **플릿 컨트롤에서 설정을 다시 생성하십시오.** 이전 설정으로 플릿에 대한 원격 설정을 생성하십시오. 에이전트 컨트롤이 이를 자동으로 적용합니다.
+
+<Callout variant="important" title="원격 설정이 항상 승리합니다">
+  플릿 컨트롤은 에이전트 설정에 대한 신뢰할 수 있는 소스입니다. 모든 에이전트 설정, 버전, 차트 값 및 리소스 제한은 로컬 설치 파일이 아닌 플릿 컨트롤 원격 설정에 정의되어야 합니다. 두 가지가 모두 존재하는 경우, 원격 설정이 우선하며 모든 로컬 값을 재정의합니다.
+</Callout>
+
+<Callout variant="tip" title="모범 사례">
+  데이터 연속성을 보장하려면 에이전트 컨트롤 설치 중에 동일한 엔티티 이름(클러스터 이름 또는 호스트명)과 동일한 뉴렐릭 계정을 사용하십시오. 엔티티 GUID는 에이전트 관리 방법이 아니라 이러한 속성에 연결됩니다. 자세한 내용은 [엔티티 연속성 및 대시보드](/docs/new-relic-control/agent-control/migration-guide#entity-continuity-and-dashboards)를 참조하십시오. 에이전트 컨트롤에서 아직 지원하지 않는 에이전트나 구성 요소는 지원될 때까지 그대로 둘 수 있습니다.
+</Callout>
+
+### Kubernetes
+
+쿠버네티스 클러스터가 이미 뉴렐릭으로 계측된 경우, 에이전트가 Agent Control에서 관리되도록 전환할 수 있습니다. 마이그레이션 프로세스는 기존 에이전트 설치를 제거하고 플릿 컨트롤을 통해 중앙에서 설정된 Agent Control 관리 설치로 교체합니다.
+
+에이전트 컨트롤은 `nri-bundle` Helm 차트에서 다음 에이전트를 배포하고 관리할 수 있습니다:
+
+* `newrelic-infrastructure`, `nri-kube-events` 및 `kube-state-metrics`: **인프라 에이전트** 유형으로 관리됨
+* `newrelic-prometheus-configurator`: **Prometheus** 에이전트 유형으로 관리됩니다
+* `newrelic-logging`: **Fluent Bit** 에이전트 유형으로 관리됩니다
+* `nr-k8s-otel-collector`: **OpenTelemetry Collector** 에이전트 유형으로 관리됩니다
+
+1. **기존 설정을 가져오십시오.** Helm을 사용하여 에이전트를 설치한 경우, 클러스터에서 설치 설정을 가져오십시오:
+
+```sh
+# Find releases in the namespace
+helm list --namespace <namespace-name>
+
+# Get the values for a specific release
+helm get values <release-name> --namespace <namespace-name>
+```
+
+설치 시 저장한 원본 설정 파일이 있는 경우, 이를 직접 사용하십시오. Kubernetes 매니페스트(kubectl 또는 Kustomize)를 통해 클러스터가 계측된 경우, 각 에이전트에 설정된 옵션을 기록해 두십시오 ― 플릿 컨트롤 원격 설정으로 다시 만들어야 합니다.
+
+2. **이전 에이전트를 제거합니다.** Agent Control을 설치하기 전에 클러스터에서 이전 에이전트를 제거하십시오. Helm 설치의 경우:
+
+```shell
+helm uninstall <release-name> -n <namespace>
+```
+
+예를 들어, `nri-bundle` 을 제거하려면 다음과 같이 하세요.
+
+```shell
+helm uninstall nri-bundle -n newrelic
+```
+
+3. **에이전트 컨트롤을 설치합니다.** [에이전트 컨트롤 가이드 설치](/docs/new-relic-control/agent-control/setup/)를 시작하고 생성된 `values.yaml`을(를) 다운로드하십시오. 이 파일에는 에이전트 컨트롤 감독자 설정(자격 증명, 플릿 ID 및 관리할 에이전트 유형)만 포함되어 있습니다 — **여기에 에이전트별 차트 값을 추가하지 마십시오**. 해당 값은 플릿 컨트롤 원격 설정에 속합니다.
+
+```shell
+helm upgrade --install agent-control-bootstrap -n newrelic newrelic/agent-control-bootstrap --create-namespace --values my_values.yaml
+```
+
+4. **플릿 컨트롤에서 에이전트 설정을 다시 생성하십시오.** 에이전트 컨트롤이 플릿 컨트롤에 연결된 후, 이전 설정을 사용하여 기존의 각 에이전트에 대한 [설정을 생성하십시오](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration).
+
+5. 방금 생성한 원격 설정을 플릿에 추가하여 **새 배포를 생성하십시오**. 에이전트 컨트롤이 새 설정을 클러스터에 자동으로 적용합니다. [첫 번째 배포 생성 및 실행](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment)의 단계를 따르십시오.
+
+6. **데이터가 흐르고 있는지 확인하십시오.** 뉴렐릭 UI에서 **Infrastructure &gt; Kubernetes**로 이동하십시오. 원격 설정이 적용된 후 1～2분 이내에 클러스터가 나타나야 합니다. 나타나지 않으면 [Agent Control 문제 진단, 해결](/docs/new-relic-control/agent-control/troubleshooting)을 참조하십시오.
+
+### Linux
+
+<Callout variant="important">
+  Agent Control은 Linux에서 기존 에이전트의 자동 마이그레이션을 지원하지 않습니다. Linux 호스트에 뉴럴릭 인프라가 이미 설치되어 있는 경우, Control을 설치하기 전에 수동으로 제거해야 합니다. Agent Control은 플릿 위험을 통해 OCI 호환 패키지를 통해 에이전트를 배포하며 기존 `newrelic-infra` 패키지 설치를 대체하거나 상속하지 않습니다.
+</Callout>
+
+1. **기존 설정 기록**
+
+제거하기 전에 다음의 사본을 저장하십시오:
+
+* 에이전트 설정: `/etc/newrelic-infra/newrelic-infra.yml`
+* 모든 온호스트 통합 설정: `/etc/newrelic-infra/integrations.d/`
+
+4단계에서 이를 플릿 컨트롤 원격 설정으로 다시 생성합니다. 각 설정 파일 및 설정이 플릿 컨트롤 형식에 매핑되는 방법은 [설정 마이그레이션](/docs/new-relic-control/agent-control/migration-guide#configuration-migration)을 참조하십시오.
+
+2. **기존 인프라 에이전트 제거**
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="linux-uninstall-debian">데비안, 우분투,</TabsBarItem> <TabsBarItem id="linux-uninstall-suse">SLES,</TabsBarItem> <TabsBarItem id="linux-uninstall-redhat">아마존 리눅스, 센토오스, RHEL</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="linux-uninstall-debian">
+      ```bash
+      sudo apt-get remove newrelic-infra -y
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="linux-uninstall-suse">
+      ```bash
+      sudo zypper -n remove newrelic-infra
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="linux-uninstall-redhat">
+      ```bash
+      sudo yum remove newrelic-infra -y
+      ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+3. **에이전트 컨트롤을 설치합니다.** [Linux 설치 가이드](/docs/new-relic-control/agent-control/setup/)를 따르십시오. **Host - Linux** 유형의 플릿을 선택하거나 생성하십시오.
+
+4. **플릿 컨트롤에서 에이전트 설정을 다시 생성하십시오.** 에이전트 컨트롤이 플릿 컨트롤에 연결된 후 이전 설정을 사용하여 각 기존 에이전트에 대한 [설정을 생성하십시오](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration). 1단계에서 저장한 설정 파일을 참조로 사용하십시오. 각 설정이 플릿 컨트롤 형식에 매핑되는 방법은 [설정 마이그레이션](/docs/new-relic-control/agent-control/migration-guide#configuration-migration)을 참조하십시오.
+
+5. 방금 생성한 원격 설정을 플릿에 추가하여 **새 배포를 생성하십시오**. 에이전트 컨트롤이 새 설정을 호스트에 자동으로 적용하고, 각 에이전트에 대한 OCI 패키지를 다운로드하여 설치합니다. [첫 번째 배포 생성 및 실행](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment)의 단계를 따르십시오.
+
+6. **데이터가 흐르고 있는지 확인하십시오.** 뉴렐릭 UI에서 **Infrastructure &gt; Hosts**로 이동하십시오. 1～2분 이내에 호스트가 나타나야 합니다. 나타나지 않으면 [Agent Control 문제 진단, 해결](/docs/new-relic-control/agent-control/troubleshooting)을 참조하십시오.
+
+동일한 계정과 호스트명을 사용하는 한 인프라 에이전트의 데이터를 참조하는 커스텀 대시보드 및 알림은 계속 작동합니다. 엔티티 GUID는 에이전트 관리 방식이 아니라 호스트명과 계정에서 파생됩니다. 자세한 설명 및 롤백 단계는 [호스트 마이그레이션 가이드](/docs/new-relic-control/agent-control/migration-guide)를 참조하십시오.
+
+### 윈도우
+
+<Callout variant="important">
+  에이전트 컨트롤은 Windows에서 기존 에이전트의 자동 마이그레이션을 지원하지 않습니다. Windows 호스트에 뉴렐릭 인프라 에이전트가 이미 설치되어 있는 경우, 에이전트 컨트롤을 설치하기 전에 수동으로 제거해야 합니다. APM 에이전트는 Agent Control에서 관리하지 않으므로 설치된 상태로 유지할 수 있습니다.
+</Callout>
+
+1. **기존 설정 기록**
+
+제거하기 전에 다음의 사본을 저장하십시오:
+
+* 에이전트 설정: `C:\Program Files\New Relic\newrelic-infra\newrelic-infra.yml`
+* 모든 온호스트 통합 설정: `C:\Program Files\New Relic\newrelic-infra\integrations.d\`
+
+4단계에서 이를 플릿 컨트롤 원격 설정으로 다시 생성합니다. 각 설정 파일 및 설정이 플릿 컨트롤 형식에 매핑되는 방법은 [설정 마이그레이션](/docs/new-relic-control/agent-control/migration-guide#configuration-migration)을 참조하십시오.
+
+2. **기존 인프라 에이전트 제거**
+
+**Add or Remove Programs** \[프로그램 추가/제거]를 열고 뉴렐릭 인프라 에이전트를 제거하십시오. 또는 PowerShell에서 MSI 제거 프로그램을 사용하십시오:
+
+```powershell
+# Replace {PRODUCT_CODE} with the GUID from Add/Remove Programs
+msiexec /x {PRODUCT_CODE} /quiet
+```
+
+3. **에이전트 컨트롤을 설치하십시오.** [Windows 설치 가이드](/docs/new-relic-control/agent-control/setup/)를 따르십시오. **Host - Windows** 유형의 플릿을 선택하거나 생성하십시오.
+
+4. **플릿 컨트롤에서 에이전트 설정을 다시 생성하십시오.** 에이전트 컨트롤이 플릿 컨트롤에 연결된 후 이전 설정을 사용하여 각 기존 에이전트에 대한 [설정을 생성하십시오](/docs/new-relic-control/fleet-control/setup/#step-3-create-an-agent-configuration). 1단계에서 저장한 설정 파일을 참조로 사용하십시오. 각 설정이 플릿 컨트롤 형식에 매핑되는 방법은 [설정 마이그레이션](/docs/new-relic-control/agent-control/migration-guide#configuration-migration)을 참조하십시오.
+
+5. 방금 생성한 원격 설정을 플릿에 추가하여 **새 배포를 생성하십시오**. 에이전트 컨트롤이 새 설정을 호스트에 자동으로 적용하고, 각 에이전트에 대한 OCI 패키지를 다운로드하여 설치합니다. [첫 번째 배포 생성 및 실행](/docs/new-relic-control/fleet-control/setup/#step-4-create-and-run-your-first-deployment)의 단계를 따르십시오.
+
+6. **데이터가 흐르고 있는지 확인하십시오.** 뉴렐릭 UI에서 **Infrastructure &gt; Hosts**로 이동하십시오. 1～2분 이내에 호스트가 나타나야 합니다. 나타나지 않으면 [Agent Control 문제 진단, 해결](/docs/new-relic-control/agent-control/troubleshooting)을 참조하십시오.
+
+동일한 계정과 호스트명을 사용하는 한 인프라 에이전트의 데이터를 참조하는 커스텀 대시보드 및 알림은 계속 작동합니다. 엔티티 GUID는 에이전트 관리 방식이 아니라 호스트명과 계정에서 파생됩니다. 자세한 설명 및 롤백 단계는 [호스트 마이그레이션 가이드](/docs/new-relic-control/agent-control/migration-guide)를 참조하십시오.
+
+## 엔티티 연속성 및 대시보드
+
+**기존 대시보드, 알림 및 워크로드는 변경 없이 계속 작동합니다.**
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="entity-host">온호스트</TabsBarItem> <TabsBarItem id="entity-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="entity-host">
+      뉴렐릭 엔티티 GUID는 에이전트 설치 방법이나 프로세스를 감독하는 요소가 아니라 안정적인 속성(주로 호스트명, CloudInstanceId, 계정 ID 및 통합 ID)에서 파생됩니다. Agent Control이 동일한 설정으로 동일한 호스트에서 인프라 에이전트를 시작하면 에이전트는 항상 보고하던 것과 동일한 속성을 보고합니다. 뉴렐릭은 이러한 속성을 이전과 동일한 엔티티 GUID로 해석하므로 다음과 같습니다.
+
+      * 인프라 UI의 호스트 엔티티는 동일한 엔티티입니다.
+      * 온-호스트 통합 엔티티(MySQL, NGINX 등)는 해당 GUID를 유지합니다.
+      * 해당 엔티티로 쿼리하거나 필터링하는 모든 대시보드 위젯, 공지 조건 또는 워크로드는 계속 작동합니다.
+      * 골든 시그널 기록이 보존됩니다. 에이전트 실행 시 장기간의 중복이나 공백 없이 마이그레이션이 수행된다면 엔티티의 메트릭 타임라인에 공백이나 중복이 없습니다.
+    </TabsPageItem>
+
+    <TabsPageItem id="entity-k8s">
+      Kubernetes의 뉴렐릭 엔티티 GUID는 에이전트가 설치되거나 관리되는 방식이 아니라 클러스터 이름과 계정 ID에서 파생됩니다. Agent Control이 동일한 클러스터 이름을 사용하여 동일한 클러스터에 인프라 에이전트를 배포할 때, 클러스터 엔티티와 모든 워크로드 엔티티는 이전과 동일한 GUID로 확인되므로 다음과 같습니다:
+
+      * Kubernetes UI의 클러스터 엔티티는 동일한 엔티티입니다.
+      * 워크로드 및 네임스페이스 엔티티는 GUID를 유지합니다.
+      * 해당 엔티티로 쿼리하거나 필터링하는 모든 대시보드 위젯, 공지 조건 또는 워크로드는 계속 작동합니다.
+      * 기존 에이전트 제거와 에이전트 컨트롤이 관리형 에이전트를 시작하는 사이의 간격이 짧게 유지된다면 골든 시그널 기록이 보존됩니다.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 설정 마이그레이션
+
+라이선스 키, API 키 또는 비밀번호와 같은 시크릿을 플릿 컨트롤 설정에 일반 텍스트로 저장하지 마십시오. 대신 `nr-env:` 접두사를 사용하여 환경 변수로 참조하십시오.
+
+```yaml
+license_key: ${nr-env:NEW_RELIC_LICENSE_KEY}
+```
+
+Agent Control은 하위 에이전트에 `NEW_RELIC_LICENSE_KEY`을(를) 자동으로 노출하므로 `license_key`을(를) 명시적으로 설정할 필요가 없으며, 위 예시는 참고용으로 표시되었습니다. 다른 시크릿에도 동일한 패턴을 사용하십시오. 전체 구문 및 지원되는 다른 소스에 대해서는 [변수 보간 문서](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/VARIABLE_INTERPOLATION.md#nr-env--environment-variables)를 참조하십시오.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="config-host">온-호스트</TabsBarItem> <TabsBarItem id="config-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="config-host">
+      **인프라 에이전트 기본 설정**
+
+      인프라 에이전트 기본 설정(`newrelic-infra.yml`)은 플릿 컨트롤에 있는 인프라 에이전트 하위 에이전트 설정의 `content` 블록에 직접 매핑됩니다. `newrelic-infra.yml`에서 허용되는 모든 키는 해당 위치에서도 허용됩니다. `display_name`, `custom_attributes` 및 `log`와 같은 필드는 모두 변경 없이 그대로 유지됩니다.
+
+      Agent Control이 인프라 에이전트를 관리할 때 모든 원격 설정 업데이트 시 유효한 설정을 디스크에 씁니다. 에이전트는 해당 경로에서 읽습니다. 이전 `newrelic-infra.yml` 설정은 마이그레이션 후에도 디스크에 남아 있지만 사용되지 않습니다.
+
+      <Callout variant="tip">
+        관리되는 에이전트가 데이터를 올바르게 보고하는지 확인할 때까지 `newrelic-infra.yml` 또는 `integrations.d/` 파일을 삭제하지 마십시오. 원본을 디스크에 유지하면 [롤백 절차](#rollback)가 가능해집니다.
+      </Callout>
+
+      **호스트 내 통합**
+
+      각 통합 설정도 올바른 에이전트 유형을 선택하여 플릿 컨트롤에서 생성해야 합니다.
+    </TabsPageItem>
+
+    <TabsPageItem id="config-k8s">
+      **에이전트 유형 및 Helm 차트 매핑**
+
+      Agent Control은 `nri-bundle` Helm 차트의 에이전트를 플릿 컨트롤에서 고유한 에이전트 유형으로 관리합니다. 각 에이전트 유형에는 고유한 원격 설정이 있습니다.
+
+      | nri-bundle 구성 요소                                                    | 플릿 컨트롤 에이전트 유형          |
+      | ------------------------------------------------------------------- | ----------------------- |
+      | `newrelic-infrastructure`, `nri-kube-events` , `kube-state-metrics` | 인프라 에이전트                |
+      | `newrelic-prometheus-configurator`                                  | Prometheus              |
+      | `newrelic-logging`                                                  | Fluent Bit              |
+      | `nr-k8s-otel-collector`                                             | OpenTelemetry Collector |
+
+      **Helm 값을 플릿 컨트롤 설정으로 변환**
+
+      `helm get values` (으)로 검색한 Helm 값은 각 에이전트 유형에 대한 플릿 컨트롤 원격 설정의 본문이 됩니다. 예를 들어, 인프라 에이전트의 `values.yaml` 섹션은 다음과 같습니다:
+
+      ```yaml
+      newrelic-infrastructure:
+        customAttributes:
+          environment: production
+        resources:
+          limits:
+            memory: 300Mi
+      ```
+
+      에이전트의 설정 블록 아래에 동일한 키가 있는 **인프라 에이전트** 유형에 대한 플릿 컨트롤 원격 설정이 됩니다. 허용되는 키는 각 에이전트의 문서를 참조하십시오.
+
+      **시크릿 및 라이선스 키**
+
+      플릿 컨트롤 설정에 시크릿을 일반 텍스트로 저장하지 마십시오. 라이선스 키는 에이전트 컨트롤에 의해 모든 관리형 하위 에이전트로 자동 전파되므로, 원격 설정에서 설정할 필요가 없습니다. 다른 시크릿(API 키, 비밀번호)의 경우 `nr-env:` 접두사를 통해 환경 변수 참조를 사용하십시오. 자세한 내용은 [변수 보간 문서](https://github.com/newrelic/newrelic-agent-control/blob/main/docs/VARIABLE_INTERPOLATION.md#nr-env--environment-variables)를 참조하십시오.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 롤백
+
+설치 후 Agent Control이 예상대로 작동하지 않으면 언제든지 독립 실행형 에이전트로 안전하게 돌아갈 수 있습니다.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="rollback-linux">Linux</TabsBarItem> <TabsBarItem id="rollback-windows">Windows</TabsBarItem> <TabsBarItem id="rollback-k8s">Kubernetes</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="rollback-linux">
+      1. 에이전트 컨트롤 제거:
+         ```bash
+         sudo sh /usr/lib/newrelic-agent-control/uninstall.sh
+         ```
+         스크립트는 서비스를 중지하고 패키지 매니저를 감지하며 모든 Agent Control 파일을 제거합니다.
+      2. 인프라 에이전트 패키지가 제거된 경우 다시 설치하십시오. 마이그레이션 전에 삭제하지 않는 한 `newrelic-infra.yml` 및 `integrations.d/` 파일은 호스트에 보존됩니다.
+    </TabsPageItem>
+
+    <TabsPageItem id="rollback-windows">
+      1. 관리자 권한으로 PowerShell을 열고 Agent Control을 제거하십시오.
+         ```powershell
+         PowerShell.exe -ExecutionPolicy Bypass -File "C:\Program Files\New Relic\newrelic-agent-control\uninstall.ps1"
+         ```
+         스크립트는 서비스를 중지하고, 서비스 등록을 제거하며, 에이전트 컨트롤 파일을 삭제합니다.
+      2. 인프라 에이전트가 제거된 경우 MSI 인스톨러를 사용하여 다시 설치하십시오. 마이그레이션 전에 삭제하지 않는 한 `newrelic-infra.yml` 및 `integrations.d\` 파일은 호스트에 보존됩니다.
+    </TabsPageItem>
+
+    <TabsPageItem id="rollback-k8s">
+      1. 에이전트 컨트롤 제거:
+         ```shell
+         helm uninstall agent-control-bootstrap -n newrelic
+         ```
+      2. 마이그레이션 전에 저장한 Helm 값을 사용하여 이전 에이전트를 다시 설치하십시오:
+         ```shell
+         helm upgrade --install nri-bundle newrelic/nri-bundle -n newrelic --values saved-values.yaml
+         ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+**롤백 시 엔티티 연속성이 보존됩니다.** 엔티티 GUID는 에이전트 관리 방법이 아니라 호스트명 또는 클러스터 이름과 계정에서 파생되므로 호스트 또는 클러스터 엔티티와 모든 통합 엔티티는 이전에 보고하던 것과 동일합니다. Dashboards, 알림 및 워크로드는 UI에 공백이나 중복된 기록 없이 즉시 작동을 재개합니다.

@@ -1,0 +1,695 @@
+---
+title: CLI를 사용하여 MSSQL 모니터링을 위한 NRDOT 설치 및 구성
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - CLI
+metaDescription: Install and configure the NRDOT Collector for Microsoft SQL Server monitoring using the New Relic CLI
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+뉴렐릭 CLI를 사용하여 SQL Server 모니터링을 위한 NRDOT Collector를 설치하고 구성할 수 있습니다. CLI는 단일 명령으로 수집기를 설치하고, 모니터링 ID를 생성하거나 권한을 부여하며, 수집기를 구성합니다.
+
+<Callout variant="tip" title="가이드 설치">
+  대신 뉴렐릭 UI를 통해 설치하려면 <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; Microsoft SQL Server (Database 360)](https://onenr.io/00jlEJX6EQW)** </DNT>(으)로 이동하십시오. 화면의 지시에 따라 통합을 설정하십시오. 이 페이지에서는 수동 설치만 다룹니다.
+</Callout>
+
+<Steps>
+  <Step>
+    ## 전제 조건 [#prerequisites]
+
+    * 유효한 [라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)가 있는 뉴렐릭 계정.
+
+    * 뉴렐릭 [계정 ID](/docs/accounts/accounts-billing/account-structure/account-id).
+
+    * Microsoft SQL Server 2017 이상.
+
+    * **자체 호스팅 SQL Server:**
+
+      * **SQL Server 인증:** Linux 또는 Windows 수집기 호스트, 그리고 `sysadmin` 서버 역할(또는 동급)의 로그인 및 해당 비밀번호.
+      * **Windows 인증 또는 gMSA:** Windows 수집기 호스트, 관리자 PowerShell 세션, 그리고 필요한 권한이 있는 Windows 계정 또는 gMSA입니다.
+
+    * **AWS RDS의 SQL Server:**
+
+      * RDS 엔드포인트에 대한 네트워크 연결이 있는 Linux 또는 Windows 수집기 호스트(RDS 보안 그룹 내의 SQL Server 포트에서 인바운드 액세스 허용)와 RDS 마스터 사용자 이름 및 비밀번호.
+      * **Windows 도메인 인증 또는 gMSA:** AWS Managed Microsoft Active Directory 도메인에 이미 조인된 Windows 수집기 호스트 및 RDS 인스턴스.
+
+    * **Linux 수집기 호스트:** `curl` 유틸리티, `systemd`, 그리고 `PATH`에 설치되어 사용 가능한(또는 `/opt/mssql-tools18/bin` 또는 `/opt/mssql-tools/bin`에 위치한) `sqlcmd` 유틸리티.
+
+    * **Windows 수집기 호스트:** `PATH`에 설치되어 사용할 수 있는 `sqlcmd.exe` 유틸리티입니다.
+
+    * 타겟 리전에 해당하는 [뉴렐릭 OTLP 엔드포인트](/docs/opentelemetry/best-practices/opentelemetry-otlp)에 대한 네트워크 연결
+  </Step>
+
+  <Step>
+    ## NRDOT Collector를 설치하고 구성하십시오 [#cli-install]
+
+    <CollapserGroup>
+      <Collapser id="cli-host-sql" title="자체 호스팅-SQL Server 인증">
+        이 레시피는 단일 수집기에서 하나 이상의 SQL Server 인스턴스를 모니터링합니다. 단일 호스트/포트/자격 증명 세트에 대한 입력을 요청하는 대신, 미리 생성한 두 개의 파일, 즉 모니터링할 모든 인스턴스를 나열하는 **인스턴스 파일** (YAML)과 서로 일치하도록 인덱싱된 각 인스턴스의 관리자 로그인 및 비밀번호가 포함된 **시크릿 파일** (`KEY=VALUE`)을 읽습니다.
+
+        1. 인스턴스 파일을 생성합니다. 이 수집기가 모니터할 SQL Server 인스턴스당 하나의 항목을 추가하거나, 단일 인스턴스만 실행 중인 경우 하나의 항목만 추가하십시오:
+
+           ```bash
+           cat > ~/mssql-instances.yml << 'EOF'
+           instances:
+             - host: localhost
+               port: 1433
+               login_name: newrelic
+           EOF
+           ```
+
+        2. 각 인스턴스에 대한 관리자 로그인 및 비밀번호를 포함하여 secrets 파일을 생성하고, 인스턴스 파일의 순서와 일치하도록 인덱싱하십시오. 관리자 로그인은 `sysadmin` 역할(또는 동등한 역할)의 구성원이어야 합니다:
+
+           ```bash
+           umask 077
+           cat > ~/mssql-secrets.env << 'EOF'
+           NR_CLI_MSSQL_ADMIN_USER_1=<YOUR_ADMIN_USERNAME>
+           NR_CLI_MSSQL_ADMIN_PASSWORD_1=<YOUR_ADMIN_PASSWORD>
+           EOF
+           chmod 600 ~/mssql-secrets.env
+           ```
+
+        **리눅스:**
+
+        ```bash
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-mssql
+        ```
+
+        **Windows** (관리자 PowerShell 세션에서 실행):
+
+        ```powershell
+        [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $WebClient = New-Object System.Net.WebClient; $WebClient.DownloadFile("https://download.newrelic.com/install/newrelic-cli/scripts/install.ps1", "$env:TEMP\install.ps1"); & PowerShell.exe -ExecutionPolicy Bypass -File $env:TEMP\install.ps1; $env:NEW_RELIC_API_KEY='INSERT_YOUR_API_KEY'; $env:NEW_RELIC_ACCOUNT_ID='INSERT_YOUR_ACCOUNT_ID'; $env:NEW_RELIC_REGION='INSERT_YOUR_REGION'; & 'C:\Program Files\New Relic\New Relic CLI\newrelic.exe' install -n nrdot-collector-mssql
+        ```
+
+        CLI는 다음 변수에 대해 대화형으로 프롬프트를 표시합니다. 비대화형으로 실행하기 위해 환경 변수로 미리 설정할 수도 있습니다.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                변하기 쉬운
+              </th>
+
+              <th>
+                설명
+              </th>
+
+              <th>
+                기본값
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOT 설정:
+
+                * `1` Basic용
+                * `2` 고급의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_INSTANCES_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 인스턴스 YAML 파일의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_SECRETS_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. secrets 파일 경로입니다(
+
+                `KEY=VALUE`
+
+                , 인스턴스당 하나의 관리자 로그인/비밀번호 쌍).
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          이 수집기에서 두 개 이상의 SQL Server 인스턴스를 모니터하려면 인스턴스 파일에 항목을 더 추가하고 일치하는 번호가 지정된 자격 증명(`_2`, `_3`, ...)을 secrets 파일에 추가하십시오. 검사에 실패한 인스턴스는 전체 설치를 중단하는 대신 로그된 이유와 함께 건너뜁니다. 모든 인스턴스가 통과하지 못하는 경우에만 설치가 완전히 실패합니다.
+        </Callout>
+      </Collapser>
+
+      <Collapser id="cli-host-winauth" title="자체 호스팅-Windows 인증 또는 gMSA">
+        이 메서드는 Windows 수집기 호스트에서만 지원됩니다. SQL 로그인 대신 Windows 인증(`integrated security=true`)을 사용하며, 단일 수집기에서 하나 이상의 SQL Server 인스턴스를 모니터합니다. 수집기는 하나의 로그온 계정을 사용하는 하나의 Windows 서비스이며 해당 계정으로 **모든** 인스턴스에 연결되므로, 다중 인스턴스 설치는 항상 나열된 모든 인스턴스에 부여된 하나의 인증 모드와 하나의 Windows ID를 사용합니다.
+
+        1. 인스턴스 파일을 생성합니다. 이 수집기에서 모니터할 SQL Server 인스턴스당 하나의 항목을 추가하거나, 단일 인스턴스만 실행하는 경우 하나의 항목만 추가하십시오. `host` 및 `port`만 필요합니다(`login_name` 없음, secrets 파일 없음):
+
+           ```yaml
+           instances:
+             - host: sql01.contoso.com
+               port: 1433
+             - host: sql02.contoso.com
+               port: 1433
+           ```
+
+           이를 수집기 호스트의 아무 곳에나 저장하십시오(예: `C:\mssql-instances.yml`). 명명된 인스턴스의 경우 `host\INSTANCE` 대신 `host` 및 해당 정적 TCP 포트를 사용하십시오.
+
+        이 명령을 실행하기 전에 다음을 준비하십시오:
+
+        * 1단계의 인스턴스 파일
+        * Windows 계정을 사용하든 gMSA 계정을 사용하든
+        * Windows 인증의 경우: 수집기가 SQL Server와 동일한 호스트에서 실행되는지 아니면 다른 호스트에서 실행되는지 여부
+        * 권한을 부여할 Windows 계정(또는 gMSA 계정) (수집기가 SQL Server와 동일한 호스트에서 실행되는 경우 필요하지 않음)
+        * 기본 또는 고급 메트릭을 원하는지 여부
+
+        관리자 PowerShell 세션에서 이를 실행하십시오:
+
+        ```powershell
+        [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $WebClient = New-Object System.Net.WebClient; $WebClient.DownloadFile("https://download.newrelic.com/install/newrelic-cli/scripts/install.ps1", "$env:TEMP\install.ps1"); & PowerShell.exe -ExecutionPolicy Bypass -File $env:TEMP\install.ps1; $env:NEW_RELIC_API_KEY='INSERT_YOUR_API_KEY'; $env:NEW_RELIC_ACCOUNT_ID='INSERT_YOUR_ACCOUNT_ID'; $env:NEW_RELIC_REGION='INSERT_YOUR_REGION'; & 'C:\Program Files\New Relic\New Relic CLI\newrelic.exe' install -n nrdot-collector-mssql-winauth
+        ```
+
+        CLI는 다음 변수에 대해 대화형으로 프롬프트를 표시합니다. 비대화형으로 실행하기 위해 환경 변수로 미리 설정할 수도 있습니다.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                변하기 쉬운
+              </th>
+
+              <th>
+                설명
+              </th>
+
+              <th>
+                기본값
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOT 설정:
+
+                * `1` Basic용
+                * `2` 고급의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_AUTH_MODE`
+              </td>
+
+              <td>
+                SQL Server 인증:
+
+                * `1` Windows 인증용
+                * `2` gMSA의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_WINAUTH_LOCATION`
+              </td>
+
+              <td>
+                Windows 인증 전용:
+
+                * `1` 수집기가 SQL Server와 동일한 호스트에서 실행되는 경우(설치하는 사용자의 ID가 사용되고 서비스가 `LocalSystem` 상태로 유지되므로 도메인 계정이 필요하지 않음)
+                * `2` 다른 호스트에서 실행되는 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_INSTANCES_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 인스턴스 YAML 파일의 경로입니다(인스턴스당 
+
+                `host`
+
+                /
+
+                `port`
+
+                ).
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_WIN_ACCOUNT`
+              </td>
+
+              <td>
+                권한을 부여할 Windows 계정, 
+
+                `DOMAIN\username`
+
+                . 
+
+                `NR_CLI_MSSQL_AUTH_MODE`
+
+                이(가) 
+
+                `1`
+
+                 이고 
+
+                `NR_CLI_MSSQL_WINAUTH_LOCATION`
+
+                이(가) 
+
+                `2`
+
+                인 경우에만 필요하며, gMSA 또는 동일 호스트 흐름의 경우 비워 두십시오.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_WIN_PASSWORD`
+              </td>
+
+              <td>
+                해당 Windows 계정의 비밀번호입니다. 
+
+                `NR_CLI_MSSQL_AUTH_MODE`
+
+                이(가) 
+
+                `1`
+
+                 이고 
+
+                `NR_CLI_MSSQL_WINAUTH_LOCATION`
+
+                이(가) 
+
+                `2`
+
+                인 경우에만 필요하며, gMSA 또는 동일 호스트 흐름의 경우 비워 둡니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_GMSA_ACCOUNT`
+              </td>
+
+              <td>
+                gMSA 계정, 
+
+                `DOMAIN\gMSAName$`
+
+                . gMSA 전용이며, Windows 인증의 경우 비워 두십시오.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          이 수집기에서 두 개 이상의 SQL Server 인스턴스를 모니터하려면 인스턴스 파일에 항목을 더 추가하십시오. 파일의 **모든** 인스턴스에 대해 하나의 인증 모드와 하나의 Windows ID가 사용되며, 인스턴스당 다른 ID는 지원되지 않습니다. 잘못된 호스트 또는 포트, 중복된 `host:port`, 또는 버전 검사나 권한 설정에 실패한 인스턴스는 전체 설치를 중단하는 대신 로그된 이유와 함께 건너뜁니다. 동일 호스트 흐름(`NR_CLI_MSSQL_WINAUTH_LOCATION` `1`)은 이 컴퓨터의 인스턴스에만 작동합니다. 다른 호스트 흐름 또는 gMSA를 사용하여 다른 호스트의 인스턴스를 나열하십시오.
+        </Callout>
+      </Collapser>
+
+      <Collapser id="cli-rds-sql" title="AWS RDS - SQL Server 인증">
+        이 레시피는 자체 호스팅과 동일한 인스턴스 파일/시크릿 파일 패턴을 사용하여 단일 수집기에서 하나 이상의 RDS SQL Server 엔드포인트를 모니터합니다.
+
+        1. 단일 RDS 인스턴스만 모니터링하는 경우, RDS 엔드포인트를 `host`(으)로 사용하여 단 하나의 항목만 있는 인스턴스 파일을 생성하십시오:
+
+           ```bash
+           cat > ~/mssql-instances.yml << 'EOF'
+           instances:
+             - host: mydb1.abcdefg12345.us-east-1.rds.amazonaws.com
+               port: 1433
+               login_name: newrelic
+           EOF
+           ```
+
+        2. 인스턴스 파일의 순서와 일치하도록 인덱싱하여 각 인스턴스에 대한 RDS 마스터 사용자 이름과 비밀번호로 secrets 파일을 생성하십시오:
+
+           ```bash
+           umask 077
+           cat > ~/mssql-secrets.env << 'EOF'
+           NR_CLI_MSSQL_ADMIN_USER_1=admin
+           NR_CLI_MSSQL_ADMIN_PASSWORD_1=YourMasterPassword1
+           EOF
+           chmod 600 ~/mssql-secrets.env
+           ```
+
+        **리눅스:**
+
+        ```bash
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=INSERT_YOUR_API_KEY NEW_RELIC_ACCOUNT_ID=INSERT_YOUR_ACCOUNT_ID NEW_RELIC_REGION=INSERT_YOUR_REGION /usr/local/bin/newrelic install -n nrdot-collector-mssql-rds
+        ```
+
+        **Windows** (관리자 PowerShell 세션에서 실행):
+
+        ```powershell
+        [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $WebClient = New-Object System.Net.WebClient; $WebClient.DownloadFile("https://download.newrelic.com/install/newrelic-cli/scripts/install.ps1", "$env:TEMP\install.ps1"); & PowerShell.exe -ExecutionPolicy Bypass -File $env:TEMP\install.ps1; $env:NEW_RELIC_API_KEY='INSERT_YOUR_API_KEY'; $env:NEW_RELIC_ACCOUNT_ID='INSERT_YOUR_ACCOUNT_ID'; $env:NEW_RELIC_REGION='INSERT_YOUR_REGION'; & 'C:\Program Files\New Relic\New Relic CLI\newrelic.exe' install -n nrdot-collector-mssql-rds
+        ```
+
+        CLI는 다음 변수에 대해 대화형으로 프롬프트를 표시합니다. 비대화형으로 실행하기 위해 환경 변수로 미리 설정할 수도 있습니다.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                변하기 쉬운
+              </th>
+
+              <th>
+                설명
+              </th>
+
+              <th>
+                기본값
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOT 설정:
+
+                * `1` Basic용
+                * `2` 고급의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_INSTANCES_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. RDS 엔드포인트를 
+
+                `host`
+
+                (으)로 사용하는 인스턴스 YAML 파일의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_SECRETS_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. secrets 파일 경로입니다(
+
+                `KEY=VALUE`
+
+                , 인스턴스당 하나의 RDS 마스터 사용자 이름/비밀번호 쌍).
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          이 수집기에서 둘 이상의 RDS SQL Server 엔드포인트를 모니터하려면 인스턴스 파일에 항목을 더 추가하고 시크릿 파일에 일치하는 번호가 지정된 자격 증명을 추가하십시오. 검사에 실패한 인스턴스는 전체 설치를 중단하는 대신 로그에 기록된 이유와 함께 건너뜁니다.
+        </Callout>
+      </Collapser>
+
+      <Collapser id="cli-rds-winauth" title="AWS RDS - Windows 도메인 인증 또는 gMSA">
+        이 메서드는 Windows 수집기 호스트에서만 지원되며, RDS 인스턴스가 AWS Managed Microsoft AD 도메인에 이미 가입되어 있어야 합니다. 단일 수집기에서 하나 이상의 RDS SQL Server 엔드포인트를 모니터합니다. 수집기는 하나의 로그온 계정을 사용하는 하나의 Windows 서비스이며 해당 계정으로 **모든** 엔드포인트에 연결되므로, 다중 인스턴스 설치는 항상 나열된 모든 엔드포인트에 부여된 하나의 인증 모드와 하나의 Windows ID를 사용합니다. 위의 자체 호스팅 메서드와 달리 여기에는 &quot;동일 호스트&quot; 옵션이 없으며, 도메인 계정(또는 gMSA)이 항상 필요합니다.
+
+        1. 단일 RDS 인스턴스만 모니터링하는 경우, 각 RDS 엔드포인트를 `host`(으)로 사용하여 단 하나의 항목만 있는 인스턴스 파일을 생성하십시오:
+
+           ```yaml
+           instances:
+             - host: mydb1.xxxxxxxxxx.us-east-1.rds.amazonaws.com
+               port: 1433
+             - host: mydb2.xxxxxxxxxx.us-east-1.rds.amazonaws.com
+               port: 1433
+           ```
+
+           이를 수집기 호스트의 아무 곳에나 저장하십시오(예: `C:\mssql-instances.yml`).
+
+        이 명령을 실행하기 전에 다음을 준비하십시오:
+
+        * 1단계의 인스턴스 파일
+        * Windows 도메인 계정을 사용하는지 또는 gMSA 계정을 사용하는지 여부
+        * 권한을 부여할 도메인 계정(또는 gMSA 계정)
+        * 기본 또는 고급 메트릭을 원하는지 여부
+
+        관리자 PowerShell 세션에서 이를 실행하십시오:
+
+        ```powershell
+        [Net.ServicePointManager]::SecurityProtocol = 'tls12, tls'; $WebClient = New-Object System.Net.WebClient; $WebClient.DownloadFile("https://download.newrelic.com/install/newrelic-cli/scripts/install.ps1", "$env:TEMP\install.ps1"); & PowerShell.exe -ExecutionPolicy Bypass -File $env:TEMP\install.ps1; $env:NEW_RELIC_API_KEY='INSERT_YOUR_API_KEY'; $env:NEW_RELIC_ACCOUNT_ID='INSERT_YOUR_ACCOUNT_ID'; $env:NEW_RELIC_REGION='INSERT_YOUR_REGION'; & 'C:\Program Files\New Relic\New Relic CLI\newrelic.exe' install -n nrdot-collector-mssql-rds-winauth
+        ```
+
+        CLI는 다음 변수에 대해 대화형으로 프롬프트를 표시합니다. 비대화형으로 실행하기 위해 환경 변수로 미리 설정할 수도 있습니다.
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                변하기 쉬운
+              </th>
+
+              <th>
+                설명
+              </th>
+
+              <th>
+                기본값
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOT 설정:
+
+                * `1` Basic용
+                * `2` 고급의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_AUTH_MODE`
+              </td>
+
+              <td>
+                SQL Server 인증:
+
+                * `1` Windows 도메인 인증용
+                * `2` gMSA의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_INSTANCES_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. RDS 엔드포인트를 
+
+                `host`
+
+                (으)로 사용하는 인스턴스 YAML 파일의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_WIN_ACCOUNT`
+              </td>
+
+              <td>
+                권한을 부여할 Windows 도메인 계정, 
+
+                `DOMAIN\username`
+
+                . Windows 도메인 인증 전용이며, gMSA의 경우 비워 두십시오.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_WIN_PASSWORD`
+              </td>
+
+              <td>
+                해당 도메인 계정의 비밀번호입니다. Windows 도메인 인증 전용이며, gMSA의 경우 비워 두십시오.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MSSQL_GMSA_ACCOUNT`
+              </td>
+
+              <td>
+                gMSA 계정, 
+
+                `DOMAIN\gMSAName$`
+
+                . gMSA 전용이며, Windows 도메인 인증의 경우 비워 두십시오.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          이 수집기에서 두 개 이상의 RDS SQL Server 엔드포인트를 모니터하려면 인스턴스 파일에 항목을 더 추가하십시오. 파일의 **모든** 엔드포인트에 하나의 인증 모드와 하나의 Windows ID가 사용됩니다. 잘못된 호스트나 포트, 중복된 `host:port`, 또는 버전 확인이나 권한 설정에 실패한 엔드포인트는 전체 설치를 중단하는 대신 로그된 이유와 함께 건너뜁니다.
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## 데이터 찾기 및 사용 [#find]
+
+    데이터가 수집되면 뉴렐릭 UI를 통해 포괄적인 SQL Server 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+    뉴렐릭에서 SQL Server 데이터베이스를 찾으려면 다음을 수행하세요.
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+
+    2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**MSSQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+
+    3. 모임 목록에서 SQL Server 데이터베이스를 선택합니다.
+
+       NRDOT로 SQL Server 모니터링을 설정한 후 다음을 수행할 수 있습니다:
+
+       * [사용자 정의 대시보드를 만들어](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) 데이터베이스 지표를 시각화하세요.
+       * 중요한 데이터베이스 성능에 대한 [알림 설정](/docs/alerts/create-alert/create-alert-condition/alert-conditions/), 참조 값
+       * 뉴렐릭 쿼리 기능을 사용하여 [데이터 탐색](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/)
+  </Step>
+</Steps>
+
+## 관련 문서 [#related-docs]
+
+<DocTiles>
+  <DocTile title="APM-데이터베이스 상관관계 설정" path="/docs/opentelemetry/db360/capabilities/db-apm">
+    뉴렐릭에서 애플리케이션 성능을 데이터베이스 작업과 연관시키는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="문제점 해결" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+    뉴렐릭에서 MSSQL 모니터링 설정 문제를 해결하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="지표 참조" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+    NRDOT Collector가 수집하는 사용 가능한 메트릭에 대해 알아보십시오.
+  </DocTile>
+</DocTiles>

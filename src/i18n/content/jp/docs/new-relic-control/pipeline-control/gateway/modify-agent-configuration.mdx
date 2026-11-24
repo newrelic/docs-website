@@ -5,7 +5,13 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-ゲートウェイがエージェントのテレメトリーデータを処理するには、エージェントのデータを New Relic に直接ではなくゲートウェイNew Relicにルーティングするようにエージェントを再設定する必要があります。 そのためには、New Relic NodeJS エージェントのサンプル構成に示すように、 `NEW_RELIC_HOST`設定を使用してゲートウェイを指すようにエンドポイントの詳細を変更します。
+ゲートウェイがエージェントのテレメトリーデータを処理できるようにするには、データを直接New Relicにルーティングするのではなく、ゲートウェイクラスタにルーティングするようにエージェントを再設定します。その方法はエージェントのタイプによって異なります：New Relic APMエージェントは`NEW_RELIC_HOST`を使用し、OpenTelemetryソースはOTLPエクスポーター設定を使用し、ログフォワーダーは独自の出力プラグイン設定を使用します。以下のセクションでは、各エージェントのタイプについて説明します。すべての例で、クラスタローカルのゲートウェイエンドポイントを使用しています。エージェントがクラスタの外部で実行されている場合は、実際のエンドポイントに置き換えてください。
+
+## New Relic APMエージェント
+
+`NEW_RELIC_HOST` APM専用であり、OpenTelemetryソース、infrastructureエージェント、またはログフォワーダーには影響しません。ゲートウェイエンドポイントはHTTPS経由で到達可能である必要があります。そのため、APMエージェントはゲートウェイポッドに直接接続するのではなく、クラスタ内のリバースプロキシ（NGINXまたはKong）、またはクラスタ外のALBを介して接続します。
+
+以下の例は、Node.jsエージェントの設定ファイルを示しています：
 
 ```js
 'use strict'
@@ -67,150 +73,259 @@ exports.config = {
 }
 ```
 
+## OpenTelemetry
+
+**最小バージョン：** opentelemetry-collector-contrib v0.104.0
+
+ゲートウェイのOTLP HTTPポートを指定する`otlphttp`エクスポーターを使用してください。この設定をKubernetes ConfigMapとしてデプロイしてください：
+
+```yaml
+exporters:
+  otlphttp:
+    endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local:4318
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      exporters: [otlphttp]
+    metrics:
+      exporters: [otlphttp]
+    logs:
+      exporters: [otlphttp]
+```
+
+<Callout variant="important">
+`otlp`ではなく、`otlphttp`エクスポーターを使用してください。Helmチャートは内部で`otlp`を`otlp_grpc`に名前変更しますが、これはこのコレクターバージョンでは無効です。
+</Callout>
+
+## eBPF自動アタッチエージェント
+
+valuesファイルに`customOtlpEndpoint`を設定して、OTLP gRPC経由でテレメトリーを送信するようにeBPF APM自動アタッチエージェントを構成します：
+
+```yaml
+customOtlpEndpoint: "pipeline-control-gateway.newrelic.svc.cluster.local:4317"
+customOtlpEndpointTlsEnabled: false
+reportLogs: "true"
+```
+
+これにより、メトリクスとログの両方が、ポート4317のゲートウェイのOTLP gRPCレシーバーを介してルーティングされます。接続はクラスタ内にとどまるため、TLSは無効になっています。
+
+## インフラストラクチャー・エージェント
+
+**最小バージョン：**v1.62.0
+
+3つの設定キーにより、infrastructureエージェントがゲートウェイを介してルーティングするテレメトリーを制御します：
+
+* `collector_url` — インフラストラクチャのサンプル（`SystemSample`や`ProcessSample`など）およびインベントリをルーティングします。ゲートウェイはサンプルを処理します。インベントリは変更されずにNew Relicに渡されます（ベースURL、末尾のパスなし）。
+* `metric_url` — ディメンショナルメトリクスをルーティングします（ベースURL、末尾のパスなし）。
+* `logging_endpoint` — ログをルーティングします（`/log/v1`を含む完全なURL）。
+
+エージェントのすべてのテレメトリーをゲートウェイを介してルーティングするには、`collector_url`、`metric_url`、および`logging_endpoint`を設定します（Kubernetesでは、`logging_endpoint`の代わりに`newrelic-logging.endpoint`を設定します）。`collector_url`と`metric_url`だけではログはルーティングされません。
+
+<Callout variant="important">
+エージェントの登録（`identity-api.newrelic.com`）とコマンドチャネル（`infrastructure-command-api.newrelic.com`）は常にNew Relicに直接接続します — これらの設定に関係なく、ゲートウェイをバイパスします。ホストは引き続き両方のエンドポイントへのエグレスを必要とします。
+</Callout>
+
+### インフラストラクチャのサンプル、メトリクス、およびインベントリをゲートウェイを介してルーティングする
+
+**Kubernetes（nri-bundle Helm値）：**
+
+```yaml
+newrelic-infrastructure:
+  common:
+    agentConfig:
+      collector_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+      metric_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+```
+
+**ホスト（`/etc/newrelic-infra.yml`）：**
+
+```yaml
+license_key: YOUR_LICENSE_KEY
+collector_url: http://GATEWAY_ADDRESS
+metric_url: http://GATEWAY_ADDRESS
+```
+
+クラスタ内で実行されているエージェントの場合は`GATEWAY_ADDRESS`を`pipeline-control-gateway.newrelic.svc.cluster.local`に置き換え、外部ホスト上のエージェントの場合はゲートウェイのロードバランサーアドレスに置き換えます。
+
+### ログをゲートウェイを介してルーティングする
+
+Kubernetesの`nri-bundle`デプロイメントでは、ログ転送はinfrastructureエージェントではなく、`newrelic-logging`チャートによって処理されます。Helm値でロギングエンドポイントを設定します：
+
+```yaml
+newrelic-logging:
+  endpoint: "http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1"
+```
+
+ホストベースのインストールの場合は、`/etc/newrelic-infra.yml`で`logging_endpoint`を設定します：
+
+```yaml
+license_key: YOUR_LICENSE_KEY
+logging_endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1
+```
+
+クラスタローカルエンドポイントには`http://`を使用します。cert-managerがデプロイされたクラスタ内のリバースプロキシ（NGINXまたはKong）経由でルーティングする場合にのみ`https://`を使用します。
+
+次に、転送するログファイルを`/etc/newrelic-infra/logging.d/logging.yml`で定義します：
+
+```yaml
+logs:
+  - name: my-app-logs
+    file: /var/log/my-app.log
+```
+
+変更を適用するには、Infrastructureエージェントを再起動します。
+
 ## 互換性マトリックス: サポートされているエージェントとバージョン
 
 次の表に、ゲートウェイでの使用がサポートされているNew Relic APMエージェント、インフラストラクチャエージェント、およびログコレクターを示します。 ゲートウェイ機能のサポートは、 [New Relic の一般的なサポート終了 (EOL) ポリシー](/docs/licenses/end-of-life/notification-changes-new-relic-saas-features-distributed-software/)や、該当する[エージェント固有の EOL ポリシー](/docs/licenses/end-of-life/notification-changes-new-relic-saas-features-distributed-software/#eol-agents)を上書きしないことに注意してください。
 
 <table>
-  <thead>
-    <tr>
-      <th>
-        エージェントの種類/言語
-      </th>
+<thead>
+<tr>
+<th>
+エージェントの種類/言語
+</th>
 
-      <th>
-        利用可能なバージョン
-      </th>
-    </tr>
-  </thead>
+<th>
+利用可能なバージョン
+</th>
+</tr>
+</thead>
 
-  <tbody>
-    <tr>
-      <td>
-        <strong>New Relic APMエージェント</strong>
-      </td>
+<tbody>
+<tr>
+<td>
+<strong>New Relic APMエージェント</strong>
+</td>
 
-      <td>
-        以下の言語固有のバージョンを参照してください。
-      </td>
-    </tr>
+<td>
+以下の言語固有のバージョンを参照してください。
+</td>
+</tr>
 
-    <tr>
-      <td>
-        [。ネット](/docs/apm/agents/net-agent/configuration/net-agent-configuration/)
-      </td>
+<tr>
+<td>
+[。ネット](/docs/apm/agents/net-agent/configuration/net-agent-configuration/)
+</td>
 
-      <td>
-        8.17.438以降
-      </td>
-    </tr>
+<td>
+8.17.438以降
+</td>
+</tr>
 
-    <tr>
-      <td>
-        [行く](/docs/apm/agents/go-agent/configuration/go-agent-configuration/)
-      </td>
+<tr>
+<td>
+[行く](/docs/apm/agents/go-agent/configuration/go-agent-configuration/)
+</td>
 
-      <td>
-        2.2.0以降
-      </td>
-    </tr>
+<td>
+2.2.0以降
+</td>
+</tr>
 
-    <tr>
-      <td>
-            
+<tr>
+<td>
+    [Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)
+</td>
 
-        [Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)
-      </td>
+<td>
+4.9.0以降
+</td>
+</tr>
 
-      <td>
-        4.9.0以降
-      </td>
-    </tr>
+<tr>
+<td>
+[ノードJS](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/)
+</td>
 
-    <tr>
-      <td>
-        [ノードJS](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/)
-      </td>
+<td>
+6.10.0以降
+</td>
+</tr>
 
-      <td>
-        6.10.0以降
-      </td>
-    </tr>
+<tr>
+<td>
+[PHP](/docs/apm/agents/php-agent/configuration/php-agent-configuration/)
+</td>
 
-    <tr>
-      <td>
-        [PHP](/docs/apm/agents/php-agent/configuration/php-agent-configuration/)
-      </td>
+<td>
+10.0.0以降
+</td>
+</tr>
 
-      <td>
-        10.0.0以降
-      </td>
-    </tr>
+<tr>
+<td>
+    [Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration/)
+</td>
 
-    <tr>
-      <td>
-            
+<td>
+4.10.0以降
+</td>
+</tr>
 
-        [Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration/)
-      </td>
+<tr>
+<td>
+    [Ruby](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/)
+</td>
 
-      <td>
-        4.10.0以降
-      </td>
-    </tr>
+<td>
+6.1.0そしてその後
+</td>
+</tr>
 
-    <tr>
-      <td>
-            
+<tr>
+<td>
+[インフラストラクチャー・エージェント](/docs/infrastructure/infrastructure-agent/new-relic-guided-install-overview)
+</td>
 
-        [Ruby](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/)
-      </td>
+<td>
+1.62.0以降
+</td>
+</tr>
 
-      <td>
-        6.1.0そしてその後
-      </td>
-    </tr>
+<tr>
+<td>
+[Kubernetesエージェント](/install/kubernetes)
+</td>
 
-    <tr>
-      <td>
-        [インフラストラクチャー・エージェント](/docs/infrastructure/infrastructure-agent/new-relic-guided-install-overview)
-      </td>
+<td>
+v3.33.2以降
+</td>
+</tr>
 
-      <td>
-        1.62.0以降
-      </td>
-    </tr>
+<tr>
+<td>
+[Fluent Bitエージェント](/docs/logs/forward-logs/fluent-bit-plugin-log-forwarding)
+</td>
 
-    <tr>
-      <td>
-        [Kubernetesエージェント](/install/kubernetes)
-      </td>
+<td>
+2.3.0以降
+</td>
+</tr>
 
-      <td>
-        v3.33.2以降
-      </td>
-    </tr>
+<tr>
+<td>
+[OpenTelemetry](https://opentelemetry.io/docs/collector/)
+</td>
 
-    <tr>
-      <td>
-        [Fluent Bitエージェント](/docs/logs/forward-logs/fluent-bit-plugin-log-forwarding)
-      </td>
+<td>
+opentelemetry-collector-contrib v0.104.0以降
+</td>
+</tr>
 
-      <td>
-        2.3.0以降
-      </td>
-    </tr>
+<tr>
+<td>
+[MELT API](/docs/apis/intro-apis/introduction-new-relic-apis/#data-type-apis)
+</td>
 
-    <tr>
-      <td>
-        [MELT API](/docs/apis/intro-apis/introduction-new-relic-apis/#data-type-apis)
-      </td>
-
-      <td>
-        NA
-      </td>
-    </tr>
-  </tbody>
+<td>
+NA
+</td>
+</tr>
+</tbody>
 </table>
 
 リストされているバージョンは、各言語で利用可能な範囲を代表しています。詳細なバージョン情報については、特定のエージェントのドキュメントを参照してください。

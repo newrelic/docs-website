@@ -3,7 +3,7 @@ title: 'Introducing database monitoring with the DBmarlin integration'
 summary: 'New DBmarlin quickstart gives you visibility into the performance of your databases such as Oracle, MySQL, Postgres, SQL Server, Db2, CockroachDB, and more.'
 releaseDate: '2022-08-29'
 getStartedLink: 'https://newrelic.com/instant-observability/dbmarlin/a0daa1f8-99de-41ba-b7cb-7dd87c1bf7f2'
-learnMoreLink: 'https://discuss.newrelic.com/t/introducing-database-monitoring-with-the-dbmarlin-integration/189202'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008dTF/introducing-database-monitoring-with-the-dbmarlin-integration'
 ---
 
 The new **DBmarlin integration and the DBmarlin quickstart dashboard** for New Relic make it easier to monitor the functionality and performance of your databases alongside the rest of your observability data.
@@ -32,4 +32,4 @@ You can send data to New Relic with DBmarlin v2.7 and above. This allows you to 
 - Claim [a free premium copy of DBmarlin](https://www.dbmarlin.com/new-relic-offer) that can be applied to any supported database.
 - Before [installing the integration](https://docs.dbmarlin.com/docs/integrations/newrelic/) you'll need to install DBmarlin. If you haven't already installed DBmarlin, [see the install instructions](https://docs.dbmarlin.com/docs/Getting-Started/hardware-requirements).
 - [Read the DBmarlin blog](https://www.dbmarlin.com/blog/2022-07-29-dbmarlin-v2-7-0-released) to learn more about version 2.7 of DBmarlin and the New Relic integration.
-- Check out the [Explorers Hub post](https://discuss.newrelic.com/t/introducing-database-monitoring-with-the-dbmarlin-integration/189202).
+- Check out the [Explorers Hub post](https://support.newrelic.com/s/hubtopic/aAX8W0000008dTF/introducing-database-monitoring-with-the-dbmarlin-integration).

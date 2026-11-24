@@ -1,0 +1,107 @@
+---
+title: 詳細なインサイトを有効にする
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Optional configuration
+metaDescription: Optional configuration options for deeper insights into PostgreSQL monitoring with the NRDOT Collector
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+translationType: machine
+---
+
+PostgreSQLインスタンスに関するより深いインサイトを得るには、以下のオプションを設定できます：
+
+* [TLSを有効にする](#tls)
+* [書き込みステートメントのクエリプラン](#query)
+
+## TLSを有効にする [#tls]
+
+`tls`フィールドはオプションですが、これを省略することはTLSを明示的に無効にすることと同じではありません：レシーバーのデフォルト設定ではすでに`insecure: false`と`insecure_skip_verify: true`が設定されているため、接続は暗号化されます（`sslmode=require`）が、`insecure_skip_verify: false`を設定して`ca_file`を提供しない限り、サーバー証明書は検証されません。ほとんどのAmazon RDSおよびAuroraインスタンスはSSL/TLSを強制するため、通常はそれらの環境に対してその検証を追加することをお勧めします。
+
+```yaml
+receivers:
+  nrpostgresql:
+    endpoint: <YOUR_HOST>:<YOUR_PORT>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    collection_interval: 30s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+      ca_file: <PATH_TO_CA_CERTIFICATE>
+      cert_file: <PATH_TO_CLIENT_CERTIFICATE>
+      key_file: <PATH_TO_CLIENT_KEY>
+```
+
+<Callout variant="tip">
+  `cert_file`/`key_file` は、PostgreSQLサーバーが相互TLS（クライアント証明書認証）を必要とする場合にのみ必要です；ほとんどのセットアップでは、サーバーを検証するために `ca_file` のみが必要です。Amazon RDS/Auroraの場合は、適切な[RDS CA証明書バンドル](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html)をダウンロードし、`ca_file` で参照してください。`insecure_skip_verify: true`（デフォルト）は、自己署名証明書を使用するインスタンスに対するテストの場合にのみそのままにし、本番環境では決して使用しないでください。
+</Callout>
+
+## 書き込みステートメントのクエリプラン [#query]
+
+デフォルトでは、`EXPLAIN`は直接監視ユーザーとして実行され、PostgreSQLはプラン時にテーブル権限を確認します。つまり、監視ユーザーが書き込みアクセス権を持っていない限り、行ロックや書き込みステートメントは`permission denied`で失敗します。なお、監視ユーザーが書き込みアクセス権を持つことは決してあってはなりません。
+
+監視ユーザーに書き込みアクセス権を付与せずに行ロックまたは書き込みステートメントのクエリ計画を収集するには、各データベースに次の関数を作成します：
+
+```sql
+CREATE OR REPLACE FUNCTION otel.explain_statement(l_query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_plan json;
+    v_param_count int;
+    v_nulls text := '';
+    i int;
+BEGIN
+    SET TRANSACTION READ ONLY;
+    SET plan_cache_mode = force_generic_plan;
+
+    EXECUTE 'PREPARE otel_explain_stmt AS ' || l_query;
+
+    SELECT COALESCE(array_length(parameter_types, 1), 0) INTO v_param_count
+    FROM pg_prepared_statements WHERE name = 'otel_explain_stmt';
+
+    IF v_param_count > 0 THEN
+        FOR i IN 1..v_param_count LOOP
+            v_nulls := v_nulls || CASE WHEN i > 1 THEN ', ' ELSE '' END || 'null';
+        END LOOP;
+        v_nulls := '(' || v_nulls || ')';
+    END IF;
+
+    EXECUTE 'EXPLAIN (FORMAT JSON) EXECUTE otel_explain_stmt' || v_nulls INTO v_plan;
+    DEALLOCATE otel_explain_stmt;
+    RETURN v_plan;
+EXCEPTION WHEN OTHERS THEN
+    IF EXISTS (SELECT 1 FROM pg_prepared_statements WHERE name = 'otel_explain_stmt') THEN
+        DEALLOCATE otel_explain_stmt;
+    END IF;
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION otel.explain_statement(text) TO <YOUR_DB_USERNAME>;
+```
+
+### 実行計画の収集メカニズム [#mechanics]
+
+* **レート制限：** `top_query_collection.max_explain_each_interval`（デフォルトは`1000`）は、スクレイプごとの`EXPLAIN`呼び出し回数を制限します。
+* **キャッシング:** `query_plan_cache_size`/`query_plan_cache_ttl`（デフォルトは`1000`エントリ/`1h`）は、取得した計画をクエリIDをキーとしてキャッシュします。
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+  <DocTile title="セルフホスト環境での計装" path="/docs/opentelemetry/db360/postgresql/hosted">
+    New Relicを使用して、セルフホスト環境でPostgreSQL監視をセットアップする方法について説明します。
+  </DocTile>
+
+  <DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/db360/postgresql/metrics-reference">
+    NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+  </DocTile>
+
+  <DocTile title="トラブルシューティングガイド" path="/docs/opentelemetry/db360/postgresql/troubleshooting">
+    PostgreSQL監視に関する一般的な問題のトラブルシューティング方法について説明します。
+  </DocTile>
+</DocTiles>

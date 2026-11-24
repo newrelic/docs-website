@@ -11,6 +11,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
+import MdxLlmTools from '../components/MdxLlmTools';
 import { TYPES } from '../utils/constants';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -55,6 +56,7 @@ const EolAnnouncement = ({ data, location, pageContext }) => {
       >
         {title}
       </PageTitle>
+      <MdxLlmTools pathname={location.pathname} />
       <div
         css={css`
           max-width: 850px;

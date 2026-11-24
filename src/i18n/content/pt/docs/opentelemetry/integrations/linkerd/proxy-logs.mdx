@@ -1,0 +1,114 @@
+---
+title: Colete logs do proxy do Linkerd
+metaDescription: 'Optionally collect linkerd-proxy sidecar container logs and send them to New Relic, for NRDOT and OpenTelemetry Collector Contrib.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Isso adiciona os próprios logs do contêiner sidecar `linkerd-proxy` ao New Relic, separados das métricas e traces coletados durante a instalação. Ele tem o escopo restrito apenas ao contêiner de proxy, não aos logs do seu aplicativo.
+
+<CollapserGroup>
+  <Collapser id="collect-logs-nrdot" title="coletor NRDOT">
+    O chart NRDOT envia um receiver `filelog` habilitado por padrão (`receivers.filelog.enabled: true`) que já coleta os logs de todos os contêineres, incluindo `linkerd-proxy`, de `/var/log/pods` no nó. Nada a adicionar a `values.yaml`.
+  </Collapser>
+
+  <Collapser id="collect-logs-otelcol" title="OpenTelemetry Collector Contrib">
+    Instale um **segundo** release do Helm em `mode: daemonset`. Salve o seguinte como `filelog-values.yaml`. Defina `<YOUR_CLUSTER_NAME>` e `<YOUR_NR_INGEST_LICENSE_KEY>` e, em seguida, instale:
+
+    **Personalize antes de aplicar:**
+
+    | Campo              | Localização            | O que definir                                                              |
+    | ------------------ | ---------------------- | -------------------------------------------------------------------------- |
+    | `extraEnvs`        | `K8S_CLUSTER_NAME`     | Nome do seu cluster Kubernetes                                             |
+    | `extraEnvs`        | `NEWRELIC_LICENSE_KEY` | Sua chave de licença de ingestão da New Relic                              |
+    | `filter/onlyproxy` | processador            | Descarta todos os registros de log, exceto os do contêiner `linkerd-proxy` |
+    | `resource/cluster` | processador            | Anexa `k8s.cluster.name` a todos os registros de log                       |
+
+    ```yaml
+    mode: daemonset
+    image:
+      repository: otel/opentelemetry-collector-contrib
+
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 10001
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+
+    extraVolumes:
+      - name: varlogpods
+        hostPath:
+          path: /var/log/pods
+    extraVolumeMounts:
+      - name: varlogpods
+        mountPath: /var/log/pods
+        readOnly: true
+
+    extraEnvs:
+      - name: K8S_CLUSTER_NAME
+        value: "<YOUR_CLUSTER_NAME>"
+      - name: NEWRELIC_LICENSE_KEY
+        value: "<YOUR_NR_INGEST_LICENSE_KEY>"
+
+    config:
+      receivers:
+        filelog:
+          include: [/var/log/pods/*/*/*.log]
+          include_file_path: true
+          start_at: end
+          operators:
+            - type: container
+              add_metadata_from_filepath: true
+
+      processors:
+        filter/onlyproxy:
+          error_mode: ignore
+          logs:
+            log_record:
+              - 'resource.attributes["k8s.container.name"] != "linkerd-proxy"'
+        resource/cluster:
+          attributes:
+            - key: k8s.cluster.name
+              value: "${env:K8S_CLUSTER_NAME}"
+              action: insert
+        batch: {}
+
+      exporters:
+        otlp_http/newrelic:
+          endpoint: "https://otlp.nr-data.net:4318"
+          headers:
+            api-key: "${env:NEWRELIC_LICENSE_KEY}"
+
+      service:
+        pipelines:
+          logs:
+            receivers: [filelog]
+            processors: [filter/onlyproxy, resource/cluster, batch]
+            exporters: [otlp_http/newrelic]
+    ```
+
+    ```bash
+    helm upgrade my-opentelemetry-collector-logs open-telemetry/opentelemetry-collector \
+      -f filelog-values.yaml -n newrelic --create-namespace --install
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Documentação relacionada [#related]
+
+<DocTiles>
+  <DocTile title="Instale e configure o monitoramento do Linkerd com NRDOT e Helm" path="/docs/opentelemetry/integrations/linkerd/nrdot-helm">
+    Instalação e configuração básicas para métricas com o NRDOT Collector e o Helm.
+  </DocTile>
+
+  <DocTile title="Linkerd distributed tracing com OpenTelemetry" path="/docs/opentelemetry/integrations/linkerd/distributed-tracing">
+    Ative a exportação de trace do proxy e instrumente os pods do seu aplicativo.
+  </DocTile>
+
+  <DocTile title="Encontre e consulte seus dados" path="/docs/opentelemetry/integrations/linkerd/find-data">
+    Passo a passo do dashboard, consultas NRQL e etapas de resolução de problemas.
+  </DocTile>
+</DocTiles>

@@ -2,7 +2,7 @@
 title: 'Infinite Tracing enhancements: EU & APAC. Browser, mobile, & Lambda'
 summary: 'Smart sampling now supports more regions and use cases' 
 releaseDate: '2022-06-09'
-learnMoreLink: 'https://discuss.newrelic.com/t/infinite-tracing-enhancements-eu-apac-browser-mobile-lambda/183513'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008d4E/infinite-tracing-enhancements-eu-apac-browser-mobile-lambda'
 getStartedLink: 'https://docs.newrelic.com/docs/distributed-tracing/infinite-tracing/set-trace-observer'
 ---
 There are some new enhancements and benefits of [New Relic Infinite Tracing](https://docs.newrelic.com/docs/distributed-tracing/infinite-tracing/introduction-infinite-tracing) that are now available:

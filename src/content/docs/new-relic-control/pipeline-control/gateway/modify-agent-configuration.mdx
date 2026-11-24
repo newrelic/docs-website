@@ -6,7 +6,13 @@ redirects:
 freshnessValidatedDate: never
 ---
 
-For the gateway to process your agents' telemetry data, you have to reconfigure your agents to route their data to your gateway cluster(s) instead of directly to New Relic. To do that, change the endpoint details to point to the gateway using the `NEW_RELIC_HOST` setting, as shown in the sample New Relic NodeJS agent configuration:
+For the gateway to process your agents' telemetry data, reconfigure them to route data to your gateway cluster instead of directly to New Relic. How you do that depends on the agent type: New Relic APM agents use `NEW_RELIC_HOST`, OpenTelemetry sources use OTLP exporter settings, and log forwarders use their own output plugin configuration. The sections below cover each agent type. All examples use the cluster-local gateway endpoint. Replace it with your actual endpoint if agents run outside the cluster.
+
+## New Relic APM agents
+
+`NEW_RELIC_HOST` is APM-only and has no effect on OpenTelemetry sources, the Infrastructure agent, or log forwarders. The gateway endpoint must be reachable over HTTPS, so APM agents connect through the in-cluster reverse proxy (NGINX or Kong) or the out-of-cluster ALB, not directly to the gateway pod.
+
+The following example shows a Node.js agent configuration file:
 
 ```js
 'use strict'
@@ -68,6 +74,113 @@ exports.config = {
 }
 ```
 
+## OpenTelemetry Collector
+
+**Minimum version:** opentelemetry-collector-contrib v0.104.0
+
+Use the `otlphttp` exporter pointed at the gateway's OTLP HTTP port. Deploy this configuration as a Kubernetes ConfigMap:
+
+```yaml
+exporters:
+  otlphttp:
+    endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local:4318
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      exporters: [otlphttp]
+    metrics:
+      exporters: [otlphttp]
+    logs:
+      exporters: [otlphttp]
+```
+
+<Callout variant="important">
+Use the `otlphttp` exporter, not `otlp`. The Helm chart renames `otlp` to `otlp_grpc` internally, which is invalid for this collector version.
+</Callout>
+
+## eBPF auto-attach agent
+
+Configure the eBPF APM auto-attach agent to send telemetry via OTLP gRPC by setting `customOtlpEndpoint` in your values file:
+
+```yaml
+customOtlpEndpoint: "pipeline-control-gateway.newrelic.svc.cluster.local:4317"
+customOtlpEndpointTlsEnabled: false
+reportLogs: "true"
+```
+
+This routes both metrics and logs through the gateway's OTLP gRPC receiver on port 4317. TLS is disabled because the connection stays within the cluster.
+
+
+## Infrastructure agent
+
+**Minimum version:** v1.62.0
+
+Three configuration keys control which telemetry the Infrastructure agent routes through the gateway:
+
+- `collector_url` — routes infrastructure samples (such as `SystemSample` and `ProcessSample`) and inventory. The gateway processes samples. Inventory is passed through to New Relic unchanged (base URL, no trailing path).
+- `metric_url` — routes dimensional metrics (base URL, no trailing path).
+- `logging_endpoint` — routes logs (full URL including `/log/v1`).
+
+To route all of the agent's telemetry through the gateway, set `collector_url`, `metric_url`, and `logging_endpoint` (on Kubernetes, set `newrelic-logging.endpoint` instead of `logging_endpoint`). `collector_url` and `metric_url` alone do not route logs.
+
+<Callout variant="important">
+Agent registration (`identity-api.newrelic.com`) and the command channel (`infrastructure-command-api.newrelic.com`) always connect directly to New Relic — they bypass the gateway regardless of these settings. Hosts still need egress to both endpoints.
+</Callout>
+
+### Route infrastructure samples, metrics, and inventory through the gateway
+
+**Kubernetes (nri-bundle Helm values):**
+
+```yaml
+newrelic-infrastructure:
+  common:
+    agentConfig:
+      collector_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+      metric_url: "http://pipeline-control-gateway.newrelic.svc.cluster.local"
+```
+
+**Host (`/etc/newrelic-infra.yml`):**
+
+```yaml
+license_key: YOUR_LICENSE_KEY
+collector_url: http://GATEWAY_ADDRESS
+metric_url: http://GATEWAY_ADDRESS
+```
+
+Replace `GATEWAY_ADDRESS` with `pipeline-control-gateway.newrelic.svc.cluster.local` for agents running inside the cluster, or the gateway's load balancer address for agents on external hosts.
+
+### Route logs through the gateway
+
+In Kubernetes `nri-bundle` deployments, log forwarding is handled by the `newrelic-logging` chart, not the Infrastructure agent. Set the logging endpoint in your Helm values:
+
+```yaml
+newrelic-logging:
+  endpoint: "http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1"
+```
+
+For host-based installs, set `logging_endpoint` in `/etc/newrelic-infra.yml`:
+
+```yaml
+license_key: YOUR_LICENSE_KEY
+logging_endpoint: http://pipeline-control-gateway.newrelic.svc.cluster.local/log/v1
+```
+
+Use `http://` for the cluster-local endpoint. Use `https://` only when routing through an in-cluster reverse proxy (NGINX or Kong) with cert-manager deployed.
+
+Then define which log files to forward in `/etc/newrelic-infra/logging.d/logging.yml`:
+
+```yaml
+logs:
+  - name: my-app-logs
+    file: /var/log/my-app.log
+```
+
+Restart the Infrastructure agent to apply the changes.
+
+
 ## Compatibility matrix: Supported agents and versions
 The following table lists the New Relic APM agents, Infrastructure agents, and log collectors supported for use with the gateway. Note that support for the Gateway feature doesn't override the general [New Relic end-of-life (EOL) policies](/docs/licenses/end-of-life/notification-changes-new-relic-saas-features-distributed-software/) or any applicable [agent-specific EOL policies.](/docs/licenses/end-of-life/notification-changes-new-relic-saas-features-distributed-software/#eol-agents).
 
@@ -122,6 +235,10 @@ The following table lists the New Relic APM agents, Infrastructure agents, and l
 <tr>
 <td>[Fluent Bit agent](/docs/logs/forward-logs/fluent-bit-plugin-log-forwarding)</td>
 <td>2.3.0 and later</td>
+</tr>
+<tr>
+<td>[OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)</td>
+<td>opentelemetry-collector-contrib v0.104.0 and later</td>
 </tr>
 <tr>
 <td>[MELT APIs](/docs/apis/intro-apis/introduction-new-relic-apis/#data-type-apis)</td>

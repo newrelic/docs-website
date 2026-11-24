@@ -90,6 +90,27 @@ export default {
       };
     },
   },
+  // non-comment MDX expressions, e.g. `{'{errors}'}`. Sent as text they came
+  // back HTML-encoded and brace-escaped (`\{&apos;{errors}&apos;}`), so they
+  // are carried verbatim instead.
+  mdxExpression: {
+    deserialize: (_state, node) => ({
+      type: node.tagName === 'span' ? 'mdxTextExpression' : 'mdxFlowExpression',
+      value: Buffer.from(node.properties.dataValue, 'base64').toString(),
+    }),
+    serialize: (_state, node) => ({
+      type: 'element',
+      tagName: node.type === 'mdxTextExpression' ? 'span' : 'div',
+      properties: {
+        'data-type': 'mdxExpression',
+        'data-value': Buffer.from(node.value).toString('base64'),
+        class: 'notranslate',
+      },
+      // never read back, but an empty inline element makes rehype-remark
+      // collapse the whitespace that follows it
+      children: [u('text', `{${node.value}}`)],
+    }),
+  },
   frontmatter: {
     deserialize: (_state, node) => {
       const data = deserializeJSValue(node.properties.dataValue);
@@ -239,6 +260,85 @@ export default {
   OptionReference: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
+  },
+  // `OtelConfig` takes an `inputOptions` prop: an array of objects, each with
+  // a translatable `label` and `toolTip`. Everything else (the `config` YAML
+  // template, `defaultValue`, `codeLine`, `fileName`, etc.) is left untranslated,
+  // same as `CodeBlock`. This mirrors `UserJourneyControls` below, but walks an
+  // array of items (keyed by each item's stable `name`) instead of a fixed set
+  // of named attributes.
+  OtelConfig: {
+    deserialize: (_state, node) => {
+      const data = deserializeJSValue(node.properties.dataValue);
+      const translatedProps = node.children.reduce((acc, child) => {
+        const key = child.properties.dataKey;
+        const value = child.children[0]?.value;
+        return { ...acc, [key]: value };
+      }, {});
+
+      const inputOptionsAttr = data.attributes.find(
+        (attr) => attr.name === 'inputOptions'
+      );
+
+      if (inputOptionsAttr) {
+        const options = JSON.parse(createJsonStr(inputOptionsAttr.value.value));
+        const translatedOptions = options.map((option) => {
+          const labelKey = `inputOptions.${option.name}.label`;
+          const toolTipKey = `inputOptions.${option.name}.toolTip`;
+          return {
+            ...option,
+            ...(translatedProps[labelKey] !== undefined && {
+              label: translatedProps[labelKey],
+            }),
+            ...(translatedProps[toolTipKey] !== undefined && {
+              toolTip: translatedProps[toolTipKey],
+            }),
+          };
+        });
+        inputOptionsAttr.value.value = JSON.stringify(translatedOptions);
+      }
+
+      return {
+        ...node,
+        ...data,
+        type: 'mdxJsxFlowElement',
+      };
+    },
+    serialize: (_state, node) => {
+      const inputOptionsAttr = node.attributes.find(
+        (attr) => attr.name === 'inputOptions'
+      );
+
+      const translatableFields = [];
+      if (inputOptionsAttr) {
+        const options = JSON.parse(createJsonStr(inputOptionsAttr.value.value));
+        options.forEach((option) => {
+          ['label', 'toolTip'].forEach((field) => {
+            if (option[field]) {
+              translatableFields.push({
+                key: `inputOptions.${option.name}.${field}`,
+                value: option[field],
+              });
+            }
+          });
+        });
+      }
+
+      return {
+        type: 'element',
+        tagName: 'div',
+        properties: {
+          'data-type': 'OtelConfig',
+          'data-value': serializeJSValue(node),
+        },
+        children: translatableFields.map(({ key, value }) => ({
+          type: 'element',
+          tagName: 'div',
+          properties: { 'data-key': key },
+          children: [{ type: 'text', value }],
+        })),
+      };
+    },
   },
   table: {
     deserialize: deserializeComponent,
@@ -510,6 +610,18 @@ export default {
         tagName: 'pre',
         wrapChildren: false,
         identifyComponent: false,
+      }),
+  },
+  // bare HTML `<code>` (e.g. inline in a raw <td>), distinct from the
+  // `CodeBlock` (fenced code) and `InlineCode` (custom component) handlers.
+  code: {
+    deserialize: (state, node) =>
+      deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        wrapChildren: false,
+        identifyComponent: false,
+        tagName: 'code',
       }),
   },
   var: {

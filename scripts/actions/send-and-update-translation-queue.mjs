@@ -8,6 +8,13 @@ import process from 'process';
 import { fileURLToPath } from 'url';
 
 import { vendorRequest, uploadFile } from './utils/vendor-request.mjs';
+import {
+  buildReport,
+  getRunLink,
+  postToSlack,
+  todayISO,
+  truncate,
+} from './utils/slack-report.mjs';
 import Database from './translation_workflow/database.js';
 import {
   trackTranslationError,
@@ -170,10 +177,14 @@ const createBatches = async (jobRecords, translationsPerLocale) => {
  *
  * @param {[{ batchUid: string, locale: string, jobId: string }]} batches
  * @param {Object.<string, Translation[]>} translationsPerLocale
+ * @returns {Promise<{ successCount: number, failures: {slug: string, locale: string, error: string}[] }>}
  */
 const uploadFiles = async (batches, translationsPerLocale) => {
+  let successCount = 0;
+  const failures = [];
+
   for (const batch of batches) {
-    let successCount = 0;
+    let batchSuccessCount = 0;
 
     const translations = translationsPerLocale[batch.locale];
     for (const translation of translations) {
@@ -188,7 +199,7 @@ const uploadFiles = async (batches, translationsPerLocale) => {
             status: 'IN_PROGRESS',
           });
           await Database.addTranslationsJobsRecord(translation.id, batch.jobId);
-          successCount += 1;
+          batchSuccessCount += 1;
         }
       } catch (error) {
         await trackTranslationError({
@@ -206,10 +217,17 @@ const uploadFiles = async (batches, translationsPerLocale) => {
         console.log(`Error: ${error}`);
         console.log(error.stack);
         process.exitCode = 1;
+        failures.push({
+          slug: translation.slug,
+          locale: batch.locale,
+          error: error.message || String(error),
+        });
       }
     }
 
-    if (successCount > 0) {
+    successCount += batchSuccessCount;
+
+    if (batchSuccessCount > 0) {
       // if at least one file was successfully uploaded, set job to in progress
       await Database.updateJob(batch.jobId, { status: 'IN_PROGRESS' });
 
@@ -218,11 +236,13 @@ const uploadFiles = async (batches, translationsPerLocale) => {
         status: 'IN_PROGRESS',
         jobId: batch.jobId,
         locale: batch.locale,
-        successCount,
+        successCount: batchSuccessCount,
         ...defaultTrackingMetadata,
       });
     }
   }
+
+  return { successCount, failures };
 };
 
 /** Entrypoint. */
@@ -233,17 +253,28 @@ const main = async () => {
     // exit early if no translations are ready
     if (Object.keys(translationsPerLocale).length === 0) {
       console.log('No ready to go translations. Exiting early.');
+      await postToSlack(
+        `🌐 Translation Pipeline Report — ${todayISO()}\nNo translations pending today.`
+      );
       process.exit(0);
     }
 
     console.log(`Records to be sent: ${JSON.stringify(translationsPerLocale)}`);
+
+    const attempted = Object.values(translationsPerLocale).reduce(
+      (sum, translations) => sum + translations.length,
+      0
+    );
 
     const createdJobs = await createJobs(Object.keys(translationsPerLocale));
     const createdBatches = await createBatches(
       createdJobs,
       translationsPerLocale
     );
-    await uploadFiles(createdBatches, translationsPerLocale);
+    const { successCount, failures } = await uploadFiles(
+      createdBatches,
+      translationsPerLocale
+    );
 
     await trackTranslationEvent({
       ...defaultTrackingMetadata,
@@ -251,6 +282,10 @@ const main = async () => {
       createdJobsCount: createdJobs.length,
       createdBatchesCount: createdBatches.length,
     });
+
+    await postToSlack(
+      buildReport({ attempted, succeeded: successCount, failures })
+    );
   } catch (error) {
     await trackTranslationError({
       ...defaultTrackingMetadata,
@@ -260,6 +295,19 @@ const main = async () => {
     });
     console.log(`Error encountered: ${error}`);
     console.log(error.stack);
+
+    const runLink = getRunLink();
+    await postToSlack(
+      [
+        `🚨 Translation Pipeline Report — ${todayISO()}`,
+        'The workflow crashed before completing.',
+        `Error: ${truncate(error.message || String(error))}`,
+        runLink ? `🔗 View full run: ${runLink}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+
     // eslint-disable-next-line require-atomic-updates
     process.exitCode = 1;
   }
@@ -281,4 +329,5 @@ export {
   createBatches,
   uploadFile,
   uploadFiles,
+  buildReport,
 };

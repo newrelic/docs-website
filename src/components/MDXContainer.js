@@ -27,6 +27,7 @@ import MDXButtonGroup from './MDXButtonGroup';
 import ContributorNote from './ContributorNote';
 import MDXTechTileGrid from './MDXTechTileGrid';
 import OptionReference from './OptionReference';
+import OtelConfig from './OtelConfig';
 import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
@@ -133,6 +134,7 @@ const defaultComponents = {
   UserJourneyControls,
   EolPage,
   DeveloperIcons,
+  OtelConfig,
 };
 
 const MDXContainer = ({ body, children, components }) => {

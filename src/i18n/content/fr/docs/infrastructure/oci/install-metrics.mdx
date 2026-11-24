@@ -1,0 +1,158 @@
+---
+title: Installer et configurer le monitoring des métriques OCI
+metaDescription: Install and configure the New Relic OCI integration to collect Oracle Cloud Infrastructure metrics and send them to New Relic.
+tags:
+  - Integrations
+  - Oracle Cloud integrations
+  - OCI
+  - Metrics
+freshnessValidatedDate: '2026-10-27T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: oracle-cloud
+flow:
+  prev: /docs/infrastructure/oci/introduction
+  next: null
+translationType: machine
+---
+
+Utilisez ce guide pour envoyer les métriques OCI à New Relic. Les métriques suivent la santé, la capacité, et les performances de vos ressources OCI. Pour envoyer également des logs, consultez [Monitorer les métriques et les logs OCI](/docs/infrastructure/oci/install-metrics-and-logs). Pour envoyer uniquement des logs, consultez [Transférer les logs OCI](/docs/logs/forward-logs/oci-log-forwarding).
+
+## Compatibilité et exigences [#requirements]
+
+Avant de commencer, assurez-vous d&apos;avoir :
+
+* Un compte New Relic avec des permissions de monitoring d’infrastructure dans une région prise en charge (US, EU, ou JP)
+* Une [clé de licence d’ingestion](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) New Relic valide et une [clé utilisateur](/docs/apis/intro-apis/new-relic-api-keys/#user-api-key)
+* Une location OCI avec un domaine de gestion des identités et des accès (IAM), et un accès administratif temporaire à ce domaine et au compartiment racine, suffisant pour terminer la configuration de la fédération d’identités de workload (WIF), le mécanisme que New Relic utilise pour s’authentifier sans stocker d’identifiants à long terme. Vous pouvez révoquer cet accès une fois la configuration terminée.
+* L&apos;OCID de votre location OCI et votre région principale (par exemple, `us-ashburn-1`)
+* Une clé de signature d’API OCI (uniquement si vous déployez avec Terraform)
+
+## Installation guidée [#ui-install]
+
+L&apos;installation guidée est disponible sur <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Integrations &amp; Agents &gt; Oracle Cloud Infrastructure**</DNT>. L&apos;interface utilisateur vous guide pour connecter votre compte OCI, puis pour instrumenter les espaces de nommage de métrique que vous souhaitez monitorer.
+
+<Steps>
+<Step>
+### Choisissez le type de données des métriques
+
+Suivez ces étapes :
+
+1. Sélectionnez <DNT>**Metrics**</DNT> (pour les statistiques de performance et d&apos;utilisation).
+2. Cliquez sur <DNT>**Continue**</DNT>.
+</Step>
+
+<Step>
+### Choisissez votre méthode d’intégration et configurez l’intégration
+
+Sélectionnez votre méthode d&apos;intégration préférée pour ingérer les métriques OCI dans New Relic en fonction de vos besoins organisationnels :
+
+<CollapserGroup>
+<Collapser id="orm" title="Monitorer OCI avec Oracle Resource Manager">
+Exécute les stacks Oracle Resource Manager pour provisionner ce dont l’intégration a besoin, au lieu de créer vous-même chaque élément à la main dans la console OCI. Suivez les instructions à l’écran pour établir la connexion.
+</Collapser>
+
+<Collapser id="manual" title="Intégrer manuellement votre compte OCI">
+Dans la console OCI, créez les politiques et les connecteurs de service requis. L&apos;installation guidée vous accompagne dans ces étapes dans l&apos;ordre : créer un compartiment, créer un groupe dynamique, configurer un secret de coffre de clés, créer une politique, configurer un réseau, configurer la fonction de métriques, configurer le connecteur de métriques, configurer WIF, et créer la connexion.
+
+Vous aurez besoin des informations suivantes pour terminer le processus :
+
+* Nommez le compartiment dédié `newrelic_compartment_DO_NOT_REMOVE`. Créez-le dans votre région d’origine OCI.
+
+* Lors de la création du groupe dynamique dans le compartiment racine sous le domaine par défaut, ajoutez les règles `resource.type = 'serviceconnector'` et `resource.type = 'fnfunc'`.
+
+* Créez un coffre de clés pour stocker en toute sécurité votre clé de licence New Relic et votre clé utilisateur pour l’authentification.<br />
+
+  1. **Créez un coffre de clés**. Dans la console OCI, localisez et accédez aux **services Key Management and Vault** et créez un coffre dans le compartiment que vous avez créé précédemment, en le nommant (par exemple, `newrelic-vault`) et en choisissant un coffre standard ou privé virtuel en fonction de vos exigences de sécurité.<br />
+  2. **Créez une clé de chiffrement principale**. Dans le coffre-fort, créez une clé principale nommée (par exemple) `newrelic-encryption-key`, en utilisant l’algorithme `AES` et une longueur de clé de `256`bits.<br />
+  3. **Créez des secrets pour vos clés API**. Créez un secret pour votre clé de licence d’ingestion New Relic, nommé (par exemple) `newrelic-ingest-key`, en sélectionnant la clé principale que vous venez de créer, et en collant votre clé de licence d’ingestion comme contenu du secret (texte brut). Répétez l’opération pour créer un second secret pour votre clé utilisateur New Relic, nommé (par exemple) `newrelic-user-key`, en collant votre clé utilisateur comme contenu du secret (texte brut).
+
+* Créez une application serverless et déployez la fonction New Relic qui traite et transfère vos métriques OCI.<br />
+
+  1. **Créez une application sans serveur**
+
+     * Accédez au service <DNT>**Functions**</DNT> sous <DNT>**Developer Services**</DNT> dans la console OCI.
+
+     * Créer une nouvelle application avec cette configuration :
+
+       * **Nom**: un nom descriptif (par exemple, `NewRelicMetricsApp`)
+       * **Compartiment**: votre compartiment New Relic désigné
+       * **VCN**: le VCN créé pour l’intégration New Relic
+       * **Subnet**: le sous-réseau privé, pour une connectivité sécurisée
+       * **Forme**: `GENERIC_X86`, pour la forme de l’application
+
+  2. **Configurer les variables d’environnement**
+
+     * Dans les paramètres de l’application, ajoutez ces variables de configuration :
+
+       * `FORWARD_TO_NR`: définissez sur `True` pour activer le transfert de données vers New Relic
+       * `LOGGING_ENABLED`: définissez sur `False` pour désactiver le logging détaillé (facultatif)
+       * `NR_METRIC_ENDPOINT`: le point de terminaison New Relic, en utilisant `newrelic-metric-api` pour les comptes US, `newrelic-eu-metric-api` pour les comptes EU, ou `newrelic-jp-metric-api` pour les comptes JP
+       * `VAULT_REGION`: la région où vous avez créé votre coffre de clés
+       * `SECRET_OCID`: l&apos;OCID de votre secret d&apos;ingestion New Relic du coffre de clés
+       * `TENANCY_OCID`: l’OCID de votre location OCI
+
+     * Enregistrez les variables de configuration.
+
+  3. **Créez et déployez la fonction**
+
+     * Dans l’application, créez une nouvelle fonction avec ces spécifications :
+
+       * **Function name**: un nom descriptif (par exemple, `newrelic-metrics-function`)
+       * **Source de l’image**: l’image Docker New Relic, que vous copiez dans un référentiel privé de votre registre de conteneurs
+       * **Memory allocation**: une mémoire appropriée (par exemple, 256 Mo)
+
+     * Pour l’image Docker, récupérez l’image New Relic depuis Docker Hub (`docker.io/newrelic/beyond-oci-metric-function:latest`, plateforme `linux/amd64`). Ensuite, authentifiez-vous auprès du point de terminaison régional de votre registre de conteneurs (`{region}.ocir.io`) à l’aide d’un jeton d’authentification.
+
+     * Ajoutez un tag à l&apos;image et poussez-la vers un référentiel privé dans votre espace de nommage dans la même région que la fonction, et référencez-la dans la configuration de votre fonction.
+
+     * Terminez le processus de création et de déploiement de la fonction.
+
+     * Pour mettre à niveau ultérieurement, poussez à nouveau la nouvelle image, et mettez à jour la fonction pour l’utiliser.
+</Collapser>
+
+<Collapser id="terraform" title="Automatiser avec Terraform">
+Pour les étapes d’intégration détaillées, consultez le [guide d’intégration cloud OCI](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide#oci).<br />
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+### Instrumentez vos espaces de nommage de métriques
+
+Une fois que vous avez créé la connexion, la page OCI dans New Relic affiche une vue des métriques avec un contrôle **Add instrumentation** :
+
+1. Cliquez sur **Add instrumentation**, filtré par défaut sur l’onglet **Not instrumented**.
+2. Développez un compartiment pour voir ses espaces de nommage de métrique individuels, et sélectionnez ceux que vous souhaitez monitorer.
+3. Confirmez votre sélection. New Relic affiche un résumé du nombre de compartiments et d’espaces de nommage que vous vous apprêtez à instrumenter. Puis cliquez sur **Deploy to OCI**.
+4. Une fois le déploiement terminé dans OCI, le compartiment se déplace vers l’onglet **Instrumented**, et ses données apparaissent à <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Infrastructure &gt; OCI**</DNT>.
+
+Les données peuvent mettre jusqu’à 30 minutes à apparaître. Si vous ne les voyez pas après cela, vérifiez l’état du déploiement dans la console OCI.
+
+Pour instrumenter des espaces de nommage supplémentaires plus tard, retournez sur la page OCI dans New Relic, et répétez ces étapes.
+</Step>
+
+<Step>
+### Trouvez et utilisez vos données
+
+Une fois que vos données commencent à apparaître dans <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; Infrastructure &gt; OCI**</DNT>, confirmez que l’intégration fonctionne et utilisez-la :
+
+1. Vérifiez que votre compte OCI apparaît dans la liste des intégrations.
+2. Confirmez que vous recevez des métriques.
+3. [Créez des conditions d’alerte](/docs/alerts/create-alert/create-alert-condition/alert-conditions) pour les métriques OCI clés afin d’obtenir des notifications proactives sur les problèmes de performances.
+4. [Créez des dashboards personnalisés](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) pour visualiser les données de votre infrastructure OCI et monitorer les tendances de performances.
+
+Si vous ne voyez pas de données après 30 minutes, consultez [dépannage](/docs/infrastructure/oci/troubleshoot).
+</Step>
+</Steps>
+
+## Articles connexes [#related-articles]
+
+* [Introduction à l’intégration OCI](/docs/infrastructure/oci/introduction): aperçu de l’intégration OCI, et de ses options de configuration.
+* [Référence des métriques OCI](/docs/infrastructure/oci/metrics-reference): les espaces de nommage OCI à partir desquels New Relic collecte des données et le service auquel chacun appartient.
+* [Désinstaller l’intégration OCI](/docs/infrastructure/oci/uninstall): supprimez les ressources créées par l’intégration, et dissociez votre compte.
+* [Dépannage](/docs/infrastructure/oci/troubleshoot): solutions en cas d’absence de données et de conflits de configuration de confiance lors de l’installation.

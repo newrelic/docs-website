@@ -1,3 +1,4 @@
+import AdmZip from 'adm-zip';
 import esmock from 'esmock';
 import { expect } from 'expect';
 import sinon from 'sinon';
@@ -89,6 +90,123 @@ test('splits batches with correct content', () => {
       .flat()
       .sort()
   ).toEqual(input.sort());
+});
+
+test('reports a translation that does not compile as errored without writing it', async () => {
+  const zip = new AdmZip();
+  zip.addFile('es-LA/src/content/docs/page.mdx', Buffer.from('<p>hola</p>'));
+  let writes = 0;
+
+  const { fetchAndDeserializeFiles } = await esmock(
+    '../fetch-and-deserialize.mjs',
+    {
+      'node-fetch': async () => ({
+        status: 200,
+        buffer: async () => zip.toBuffer(),
+      }),
+      '../deserialize-html.mjs': async () => '<Callout>\nhola',
+      '../utils/vendor-request.mjs': { getAccessToken: async () => 'token' },
+      '../utils/translation-monitoring.js': {
+        trackTranslationError: async () => {},
+        TRACKING_TARGET: {},
+      },
+      '../utils/create-directories.js': () => {},
+      'to-vfile': { default: { writeSync: () => (writes += 1) } },
+    }
+  );
+
+  const statuses = await fetchAndDeserializeFiles({
+    locale: 'es-LA',
+    fileUris: ['src/content/docs/page.mdx'],
+  });
+
+  expect(statuses).toEqual([
+    {
+      ok: false,
+      slug: 'src/content/docs/page.mdx',
+      locale: 'es-LA',
+      error: expect.stringContaining('<Callout>'),
+    },
+  ]);
+  expect(writes).toEqual(0);
+});
+
+// a page that switches a locale to human translation (`translate: [jp]`) can
+// still have an older machine job for it. Its download used to overwrite the
+// human translation, e.g. agentic-ai/mcp/overview.mdx in #26455.
+const receive = async ({ type, translate, locale }) => {
+  const zip = new AdmZip();
+  zip.addFile(`${locale}/src/content/docs/page.mdx`, Buffer.from('<p>x</p>'));
+  let writes = 0;
+  const english = `---\ntitle: Page\n${
+    translate
+      ? `translate:\n${translate.map((l) => `  - ${l}`).join('\n')}\n`
+      : ''
+  }---\n\nText\n`;
+
+  const { fetchAndDeserializeFiles } = await esmock(
+    '../fetch-and-deserialize.mjs',
+    {
+      fs: { readFileSync: () => english },
+      'node-fetch': async () => ({
+        status: 200,
+        buffer: async () => zip.toBuffer(),
+      }),
+      '../deserialize-html.mjs': async () => 'texto',
+      '../configuration.js': { configuration: { TRANSLATION: { TYPE: type } } },
+      '../utils/vendor-request.mjs': { getAccessToken: async () => 'token' },
+      '../utils/translation-monitoring.js': {
+        trackTranslationError: async () => {},
+        TRACKING_TARGET: {},
+      },
+      '../utils/create-directories.js': () => {},
+      'to-vfile': { default: { writeSync: () => (writes += 1) } },
+    }
+  );
+
+  const statuses = await fetchAndDeserializeFiles({
+    locale,
+    fileUris: ['src/content/docs/page.mdx'],
+  });
+  return { statuses, writes };
+};
+
+test('does not let a machine translation overwrite a human-translated locale', async () => {
+  const { statuses, writes } = await receive({
+    type: 'machine',
+    translate: ['jp'],
+    locale: 'ja-JP',
+  });
+
+  expect(writes).toEqual(0);
+  expect(statuses).toEqual([
+    {
+      ok: true,
+      skipped: true,
+      slug: 'src/content/docs/page.mdx',
+      locale: 'ja-JP',
+    },
+  ]);
+});
+
+test('still writes machine translations for other locales of the page', async () => {
+  const { writes } = await receive({
+    type: 'machine',
+    translate: ['jp'],
+    locale: 'es-LA',
+  });
+
+  expect(writes).toEqual(1);
+});
+
+test('writes human translations for the locales the page lists', async () => {
+  const { writes } = await receive({
+    type: 'human',
+    translate: ['jp'],
+    locale: 'ja-JP',
+  });
+
+  expect(writes).toEqual(1);
 });
 
 test.run();

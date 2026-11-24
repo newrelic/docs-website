@@ -1,0 +1,315 @@
+---
+title: Ansible을 사용하여 MySQL 모니터링을 위한 NRDOT 설치 및 구성
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Ansible
+metaDescription: Install and configure the NRDOT Collector for MySQL monitoring using the newrelic.newrelic_install Ansible role
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+`newrelic.newrelic_install` Ansible 역할을 사용하여 MySQL 모니터링을 위한 NRDOT Collector를 설치하고 구성할 수 있습니다. 이 역할은 단일 플레이에서 수집기를 설치하고, 모니터링 사용자를 생성하며, 수집기를 구성합니다.
+
+<Callout variant="tip" title="가이드 설치">
+  대신 뉴렐릭 UI를 통해 설치하려면 <DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; MySQL (Database 360)](https://onenr.io/0oQDYBNG1wy)** </DNT>(으)로 이동하십시오. 이 페이지는 수동 설치만 다룹니다.
+</Callout>
+
+<Steps>
+  <Step>
+    ## 전제 조건 [#prerequisites]
+
+    * 유효한 [라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)가 있는 뉴렐릭 계정.
+    * 뉴렐릭 [계정 ID](/docs/accounts/accounts-billing/account-structure/account-id).
+    * MySQL 5.7 이상.
+    * Ansible Core 2.13 또는 2.14, 파이썬 3.10, 그리고 `ansible.windows` 및 `ansible.utils` 컬렉션.
+    * Debian/Ubuntu 또는 RHEL/CentOS를 실행하는 Linux 수집기 호스트.
+    * 자체 호스팅 MySQL의 경우: 비밀번호 기반 인증을 사용하여 MySQL 서버(`root` 계정 또는 이와 동등한 계정)에 대한 관리자 액세스 권한이 필요합니다.
+    * AWS RDS의 MySQL 또는 Aurora의 경우: 수집기 호스트에서 RDS 엔드포인트로의 네트워크 연결, 그리고 RDS 마스터 사용자 이름 및 비밀번호.
+    * 해당 리전의 [뉴렐릭 OTLP 엔드포인트](/docs/opentelemetry/best-practices/opentelemetry-otlp)에 대한 네트워크 연결.
+
+    자세한 요구 사항은 [호환성 및 필수 조건](/docs/opentelemetry/db360/mysql/compatibility)을 참조하십시오.
+  </Step>
+
+  <Step>
+    ## 역할 설치 [#ansible-install-role]
+
+    ```bash
+    ansible-galaxy install newrelic.newrelic_install
+    ```
+
+    필요한 컬렉션도 설치되어 있는지 확인하십시오:
+
+    ```bash
+    ansible-galaxy collection install ansible.windows ansible.utils
+    ```
+  </Step>
+
+  <Step>
+    ## 플레이북을 구성하십시오. [#ansible-configure]
+
+    <CollapserGroup>
+      <Collapser id="ansible-host" title="자체 호스팅 MySQL">
+        이 역할은 단일 수집기에서 하나 이상의 MySQL 인스턴스를 모니터합니다. 단일 호스트/포트/자격 증명 세트 대신, 타겟 호스트에 이미 존재해야 하는 두 개의 파일을 읽습니다: 모니터할 모든 인스턴스를 나열하는 인스턴스 파일(YAML)과 일치하도록 인덱싱된 각각에 대한 관리자 로그인 및 비밀번호가 포함된 시크릿 파일(`KEY=VALUE`)입니다. 정확한 파일 형식은 [CLI 설치](/docs/opentelemetry/db360/mysql/cli/#cli-install) 페이지를 참조하십시오.
+
+        `playbook.yml` (이)라는 이름의 파일을 생성하고 다음 내용을 그 안에 복사하십시오. `targets`을(를) `mysql-otel` (으)로 설정하고 플레이스홀더 값을 실제 값으로 바꾸십시오:
+
+        ```yaml
+        - name: Install New Relic NRDOT for MySQL
+          hosts: all
+          roles:
+            - role: newrelic.newrelic_install
+          vars:
+            targets:
+              - mysql-otel
+          environment:
+            NEW_RELIC_API_KEY: <API key>
+            NEW_RELIC_ACCOUNT_ID: <Account ID>
+            NEW_RELIC_REGION: <Region>
+            NR_CLI_MYSQL_CONFIG_PRESET: <1 Basic, 2 Advanced, default 1>
+            NR_CLI_MYSQL_INSTANCES_FILE: <path to the instances YAML file on the target host>
+            NR_CLI_MYSQL_SECRETS_FILE: <path to the secrets file (KEY=VALUE per instance) on the target host>
+        ```
+
+        <Callout variant="important">
+          이 역할은 비밀번호를 사용하여 TCP를 통해 MySQL에 연결하므로, 시크릿 파일의 관리자 계정은 비밀번호 기반 인증을 사용해야 합니다. 일부 Debian/Ubuntu 설치에서는 `root`@`localhost`이(가) 기본적으로 `auth_socket` 플러그인(비밀번호 없음, 로컬 소켓 전용)으로 설정되며, 이는 여기에서 작동하지 않습니다. 플레이북을 실행하기 전에 전환하십시오:
+
+          ```bash
+          mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '<password>';"
+          ```
+        </Callout>
+
+        <Callout variant="tip">
+          디버그 로깅을 활성화하려면 플레이북의 `vars` 아래에 `verbosity: "debug"`을(를) 추가하십시오.
+        </Callout>
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                변하기 쉬운
+              </th>
+
+              <th>
+                설명
+              </th>
+
+              <th>
+                기본값
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOT 설정:
+
+                * `1` Basic용
+                * `2` 고급의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_INSTANCES_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 타겟 호스트에 이미 존재하는 인스턴스 YAML 파일의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_SECRETS_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 타겟 호스트에 이미 존재하는 시크릿 파일(
+
+                `KEY=VALUE`
+
+                , 인스턴스당 하나의 관리자 로그인/비밀번호 쌍)의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          이 수집기에서 두 개 이상의 MySQL 인스턴스를 모니터하려면, 인스턴스 파일에 항목을 더 추가하고 시크릿 파일에 일치하는 번호가 지정된 자격 증명(`_2`, `_3`, ...)을 추가하십시오. 검사에 실패한 인스턴스는 전체 설치를 중단하는 대신 로그된 이유와 함께 건너뜁니다.
+        </Callout>
+      </Collapser>
+
+      <Collapser id="ansible-rds" title="AWS RDS의 MySQL 또는 Aurora">
+        이 역할은 자체 호스팅과 동일한 인스턴스 파일/시크릿 파일 패턴을 사용하여 단일 수집기에서 하나 이상의 RDS MySQL 또는 Aurora 엔드포인트를 모니터합니다(두 파일 모두 타겟 호스트에 이미 존재해야 합니다). `playbook.yml` (이)라는 이름의 파일을 생성하고 다음 내용을 복사하여 넣으십시오. `targets`을(를) `mysql-otel-rds` (으)로 설정하고 플레이스홀더 값을 자체 값으로 교체하십시오:
+
+        ```yaml
+        - name: Install New Relic NRDOT for MySQL on RDS
+          hosts: all
+          roles:
+            - role: newrelic.newrelic_install
+          vars:
+            targets:
+              - mysql-otel-rds
+          environment:
+            NEW_RELIC_API_KEY: <API key>
+            NEW_RELIC_ACCOUNT_ID: <Account ID>
+            NEW_RELIC_REGION: <Region>
+            NR_CLI_MYSQL_CONFIG_PRESET: <1 Basic, 2 Advanced, default 1>
+            NR_CLI_MYSQL_INSTANCES_FILE: <path to the instances YAML file on the target host, using RDS endpoints as host>
+            NR_CLI_MYSQL_SECRETS_FILE: <path to the secrets file (KEY=VALUE per instance) on the target host>
+        ```
+
+        <Callout variant="tip">
+          디버그 로깅을 활성화하려면 플레이북의 `vars` 아래에 `verbosity: "debug"`을(를) 추가하십시오.
+        </Callout>
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                변하기 쉬운
+              </th>
+
+              <th>
+                설명
+              </th>
+
+              <th>
+                기본값
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_CONFIG_PRESET`
+              </td>
+
+              <td>
+                NRDOT 설정:
+
+                * `1` Basic용
+                * `2` 고급의 경우
+              </td>
+
+              <td>
+                `1`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_INSTANCES_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 타겟 호스트에 이미 존재하며 RDS 엔드포인트를 
+
+                `host`
+
+                (으)로 사용하는 인스턴스 YAML 파일의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NR_CLI_MYSQL_SECRETS_FILE`
+              </td>
+
+              <td>
+                필수 항목입니다. 타겟 호스트에 이미 존재하는 시크릿 파일(
+
+                `KEY=VALUE`
+
+                , 인스턴스당 하나의 RDS 마스터 사용자 이름/비밀번호 쌍)의 경로입니다.
+              </td>
+
+              <td>
+                없음
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <Callout variant="tip">
+          이 수집기에서 두 개 이상의 RDS MySQL 또는 Aurora 엔드포인트를 모니터하려면 인스턴스 파일에 항목을 더 추가하고 시크릿 파일에 일치하는 번호의 자격 증명을 추가하십시오. 검사에 실패한 인스턴스는 전체 설치를 중단하는 대신 로그된 이유와 함께 건너뜁니다.
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## 플레이북을 실행합니다. [#ansible-run]
+
+    ```bash
+    ansible-playbook -i <inventory_file> <playbook_file>.yml
+    ```
+  </Step>
+
+  <Step>
+    ## 데이터 찾기 및 사용 [#find]
+
+    데이터가 수집되면 뉴렐릭 UI를 통해 포괄적인 MySQL 데이터베이스 모니터링에 액세스할 수 있습니다.
+
+    뉴렐릭에서 MySQL 데이터베이스 엔티티를 찾으려면 다음을 수행하십시오:
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT> 으)로 이동합니다.
+    2. **<DNT>Entity type</DNT>** 드롭다운 메뉴에서 <DNT>**MySQL instance**</DNT>을(를) 선택한 다음 <DNT>**Apply**</DNT>을(를) 클릭합니다.
+    3. 엔티티 목록에서 MySQL 데이터베이스를 선택하십시오.
+  </Step>
+</Steps>
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="NRDOT을 사용한 MySQL 모니터링 소개" path="/docs/opentelemetry/db360/mysql/introduction">
+    뉴렐릭을 통한 MySQL 모니터링에 사용 가능한 모든 설치 방법에 대해 알아보십시오.
+  </DocTile>
+
+  <DocTile title="CLI 설치" path="/docs/opentelemetry/db360/mysql/cli">
+    단일 뉴렐릭 CLI 명령으로 MySQL 모니터링을 설치하고 구성하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="Chef 설치" path="/docs/opentelemetry/db360/mysql/chef">
+    newrelic-install Chef 쿡북을 사용하여 대규모로 MySQL 모니터링을 설치하고 구성하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="Helm 차트 설치" path="/docs/opentelemetry/db360/mysql/helm">
+    mysql-otel Helm 차트를 사용하여 Kubernetes에서 MySQL 모니터링을 설치하고 구성하는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>

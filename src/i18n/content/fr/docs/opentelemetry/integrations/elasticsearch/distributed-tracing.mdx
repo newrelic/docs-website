@@ -1,0 +1,213 @@
+---
+title: Corrélez l’APM avec Elasticsearch à l’aide du tracing distribué
+tags:
+  - OpenTelemetry
+  - Elasticsearch
+  - Integrations
+  - Distributed tracing
+  - APM
+metaDescription: 'Set up distributed tracing to automatically correlate your APM applications with the Elasticsearch cluster they call, with no per-application changes.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Par défaut, New Relic monitore votre application APM et votre cluster Elasticsearch comme deux éléments distincts et non connectés : rien ne vous indique que l&apos;application appelle réellement ce cluster.
+
+Cette page comble cette lacune en utilisant le tracing distribué OpenTelemetry natif d’Elasticsearch. Elasticsearch exporte ses propres spans de trace via le même collecteur OpenTelemetry (NRDOT ou Collecteur Otel Contrib) que vous utilisez déjà pour les métriques, sans aucune modification par application. Le résultat : une transaction lente vous mène directement au cluster qui l’a servie.
+
+Sous le capot, votre application et Elasticsearch apportent chacun leur part de la même requête à une seule trace partagée. New Relic reconnaît que les deux côtés vont ensemble, et crée automatiquement la relation service-cluster pour vous.
+
+<Callout variant="tip">
+  Le tracing distribué est l’une des deux façons de corréler l’APM avec Elasticsearch. Il vous donne des détails complets au niveau de la requête, mais les données de trace supplémentaires s’ajoutent à votre volume d’ingestion. Si vous avez seulement besoin que le cluster apparaisse comme une entité associée, vous pouvez plutôt ajouter un tag à la télémétrie de votre application APM avec le nom de votre cluster ; cela fonctionne sur n’importe quelle version d’Elasticsearch, mais ignore les détails de la trace de bout en bout.
+</Callout>
+
+## Instrumentation compatible [#compatibility]
+
+Cette corrélation fonctionne avec n’importe quelle application qui prend en charge la propagation du contexte W3C Trace Context, y compris :
+
+* Les applications instrumentées par le SDK OpenTelemetry (n’importe quel langage)
+* Auto-instrumentation OpenTelemetry (Java, .NET, Python, Node.js)
+* Agents New Relic APM (Go, Java, .NET, Node.js, Python, Ruby, PHP) avec le [tracing distribué](/docs/distributed-tracing/concepts/quick-start/) activé
+
+Vous pouvez combiner les approches d’instrumentation. Par exemple, un service Java utilisant un agent New Relic APM, et un service Python utilisant le SDK OpenTelemetry peuvent tous deux appeler le même cluster Elasticsearch, et chacun apparaît correctement lié à celui-ci dans New Relic.
+
+## Vous avez besoin de [#you-need]
+
+Avant de commencer, assurez-vous d&apos;avoir :
+
+* Une [clé de licence](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)New Relic valide
+* Elasticsearch 9.4 ou version ultérieure, car l’exportation native de trace OTLP nécessite cette version
+* Un collecteur OpenTelemetry (Collecteur Otel Contrib ou NRDOT) déjà en cours d’exécution et accessible depuis vos nœuds Elasticsearch. Si vous n’en avez pas encore installé un, suivez l’ [installation auto-hébergée](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-install) ou l’ [installation Kubernetes](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install).
+* Applications instrumentées envoyant des requests à Elasticsearch, en utilisant l’une des approches d’instrumentation compatibles listées ci-dessus, avec le [tracing distribué activé](/docs/distributed-tracing/concepts/quick-start/)
+* Accès réseau depuis le collecteur vers le [point de terminaison OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)de New Relic
+
+## Configurer le tracing distribué [#configuration]
+
+La configuration comporte deux parties : activer le tracing dans Elasticsearch, et ajouter un pipeline de trace à votre collecteur.
+
+Une fois que vous avez activé le tracing, Elasticsearch émet ses propres spans OpenTelemetry, rejoint la trace de votre application via l’en-tête `traceparent`, et ajoute `es.cluster.name` sur chacune d’elles. New Relic utilise cette trace partagée pour établir la relation automatiquement.
+
+Développez la section qui correspond à votre déploiement.
+
+<CollapserGroup>
+  <Collapser id="host" title="Auto-hébergé">
+    <Steps>
+      <Step>
+        ### Activez le tracing dans Elasticsearch [#es-enable-tracing]
+
+        Ajoutez ce qui suit à `elasticsearch.yml` sur chaque nœud. Ensuite, définissez `-Dtelemetry.otel.traces.enabled=true` (via `ES_JAVA_OPTS` ou `jvm.options`) et redémarrez chaque nœud :
+
+        ```yaml
+        telemetry.tracing.enabled: true
+        telemetry.export.endpoint: http://YOUR_COLLECTOR_HOST:4317   # localhost if the collector runs on this node
+        telemetry.tracing.sample_rate: 1.0                           # default 0.001; lower for high volume
+        ```
+      </Step>
+
+      <Step>
+        ### Ajouter un pipeline de trace à votre collecteur [#collector-traces]
+
+        Configurez maintenant le collecteur pour recevoir les traces qu’Elasticsearch envoie, et pour filtrer les spans qui, autrement, donneraient l’impression que le cluster s’appelle lui-même. Ajoutez le récepteur `otlp` et les processeurs `filter/drop_rootless_es` et `transform/strip_es_host` à un pipeline `traces` :
+
+        ```yaml
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+
+        processors:
+          # Drop Elasticsearch's own parentless spans (health checks, metrics-scrape calls) so the cluster isn't linked to itself
+          filter/drop_rootless_es:
+            error_mode: ignore
+            traces:
+              span:
+                - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+          # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+          transform/strip_es_host:
+            error_mode: ignore
+            trace_statements:
+              - context: span
+                statements:
+                  - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+                  - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+              exporters: [otlphttp]
+        ```
+      </Step>
+
+      <Step>
+        ### Redémarrez le collecteur [#restart-collector]
+
+        Remplacez `<collector-service>` par le nom du service de votre collecteur (par exemple, `nrdot-collector`, ou `otelcol-contrib`) :
+
+        ```bash
+        sudo systemctl restart <collector-service>
+        ```
+      </Step>
+
+      <Step>
+        ### Vérifier que les spans arrivent [#verify-correlation]
+
+        Confirmez qu’Elasticsearch envoie des traces taggées avec le nom de votre cluster :
+
+        ```sql
+        FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+        ```
+
+        La clause `SINCE` définit jusqu’où la requête remonte dans le temps. Ajustez-la en fonction de votre situation ; par exemple, `SINCE 2 hours ago` si vous avez activé le tracing plus tôt et que vous souhaitez vérifier une fenêtre plus longue.
+      </Step>
+    </Steps>
+  </Collapser>
+
+  <Collapser id="k8s" title="Kubernetes">
+    <Steps>
+      <Step>
+        ### Activez le tracing dans les pods Elasticsearch [#es-enable-tracing-k8s]
+
+        Ajoutez ce qui suit à `elasticsearch.yml` (ConfigMap, valeurs Helm, ou ECK `nodeSets`). Ensuite, définissez `-Dtelemetry.otel.traces.enabled=true` via `ES_JAVA_OPTS`, et déployez les pods :
+
+        ```yaml
+        telemetry.tracing.enabled: true
+        telemetry.export.endpoint: http://YOUR_COLLECTOR_SVC.YOUR_NAMESPACE.svc.cluster.local:4317
+        telemetry.tracing.sample_rate: 1.0   # default 0.001; lower for high volume
+        ```
+      </Step>
+
+      <Step>
+        ### Ajouter un pipeline de trace à votre collecteur [#collector-traces-k8s]
+
+        Configurez maintenant le collecteur pour recevoir les traces qu’Elasticsearch envoie, et pour filtrer les spans qui, autrement, donneraient l’impression que le cluster s’appelle lui-même. Ajoutez le récepteur `otlp` et les processeurs `filter/drop_rootless_es` et `transform/strip_es_host` à un pipeline `traces` dans la configuration de votre collecteur. Assurez-vous que le collecteur expose le port gRPC `4317`:
+
+        ```yaml
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+
+        processors:
+          # Drop Elasticsearch's own parentless spans (health probes, metrics-scrape calls) so the cluster isn't linked to itself
+          filter/drop_rootless_es:
+            error_mode: ignore
+            traces:
+              span:
+                - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+          # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+          transform/strip_es_host:
+            error_mode: ignore
+            trace_statements:
+              - context: span
+                statements:
+                  - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+                  - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+              exporters: [otlphttp]
+        ```
+      </Step>
+
+      <Step>
+        ### Redéployer le collecteur [#redeploy-collector]
+
+        Appliquez la configuration mise à jour, puis déployez les pods du collecteur pour qu’ils la prennent en compte. Utilisez le même fichier ConfigMap, le nom `Deployment`, et l’espace de nommage que vous avez utilisés lorsque vous avez [installé le collecteur](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install) — par exemple, `nr-k8s-otel-collector-deployment` si vous avez suivi l’installation basée sur le manifeste :
+
+        ```bash
+        kubectl apply -f <your-collector-config>.yaml -n <namespace>
+        kubectl rollout restart deployment/<collector-deployment> -n <namespace>
+        ```
+
+        Si vous avez déployé le collecteur avec Helm, réexécutez `helm upgrade` avec vos valeurs mises à jour au lieu de `kubectl apply`.
+      </Step>
+
+      <Step>
+        ### Vérifier que les spans arrivent [#verify-correlation-k8s]
+
+        Confirmez qu’Elasticsearch envoie des traces taggées avec le nom de votre cluster :
+
+        ```sql
+        FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+        ```
+
+        La clause `SINCE` définit jusqu’où la requête remonte dans le temps. Ajustez-la en fonction de votre situation ; par exemple, `SINCE 2 hours ago` si vous avez activé le tracing plus tôt et que vous souhaitez vérifier une fenêtre plus longue.
+      </Step>
+    </Steps>
+  </Collapser>
+</CollapserGroup>
+
+## Consultez vos traces [#view-traces]
+
+Une fois que les spans circulent, vous pouvez effectuer des requêtes, et inspecter la carte des services corrélée. Consultez [Afficher les traces distribuées, et la corrélation APM](/docs/opentelemetry/integrations/elasticsearch/find-and-query-data/#traces-correlation) pour obtenir des exemples de requêtes, et savoir où trouver la carte des services dans New Relic.
+
+## Dépannage [#troubleshooting]
+
+Si vous ne voyez pas de spans, si le cluster montre une relation avec lui-même, ou si les applications ne sont pas liées au cluster, consultez la [section sur la corrélation APM et le tracing distribué](/docs/opentelemetry/integrations/elasticsearch/troubleshooting/#correlation-troubleshooting) du guide de dépannage.

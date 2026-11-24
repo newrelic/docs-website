@@ -49,18 +49,6 @@ const DataDictionaryFilter = ({ location, events }) => {
     });
   }, [queryParams]);
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.keyCode === 13) {
-        navigateToParams(formState);
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => {
-      document.removeEventListener('keydown', handler);
-    };
-  });
-
   const navigateToParams = (params) => {
     Object.entries(params).forEach(([key, value]) => {
       value ? queryParams.set(key, value) : queryParams.delete(key);
@@ -70,103 +58,112 @@ const DataDictionaryFilter = ({ location, events }) => {
   };
 
   return (
-    <PageTools.Section>
-      <PageTools.Title>Search and filter</PageTools.Title>
-      <FormControl>
-        <Label htmlFor="attributeSearch">Attribute name</Label>
-        <SearchInput
-          value={formState.attributeSearch || ''}
-          onClear={() =>
-            setFormState((state) => ({ ...state, attributeSearch: null }))
-          }
-          onChange={(e) => {
-            const { value } = e.target;
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+    <div
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          navigateToParams(formState);
+        }
+      }}
+    >
+      <PageTools.Section>
+        <PageTools.Title>Search and filter</PageTools.Title>
+        <FormControl>
+          <Label htmlFor="attributeSearch">Attribute name</Label>
+          <SearchInput
+            value={formState.attributeSearch || ''}
+            onClear={() =>
+              setFormState((state) => ({ ...state, attributeSearch: null }))
+            }
+            onChange={(e) => {
+              const { value } = e.target;
 
-            setFormState((state) => ({
-              ...state,
-              attribute: null,
-              attributeSearch: value,
-            }));
-          }}
-          placeholder="Name contains..."
-        />
-      </FormControl>
-      <FormControl>
-        <Label htmlFor="dataSourceFilter">Data source</Label>
-        <Select
-          id="dataSourceFilter"
-          value={formState.dataSource || ''}
-          onChange={(e) => {
-            const { value } = e.target;
+              setFormState((state) => ({
+                ...state,
+                attribute: null,
+                attributeSearch: value,
+              }));
+            }}
+            placeholder="Name contains..."
+          />
+        </FormControl>
+        <FormControl>
+          <Label htmlFor="dataSourceFilter">Data source</Label>
+          <Select
+            id="dataSourceFilter"
+            value={formState.dataSource || ''}
+            onChange={(e) => {
+              const { value } = e.target;
 
-            setFormState((state) => ({
-              ...state,
-              event: null,
-              attribute: null,
-              dataSource: value,
-            }));
-          }}
-        >
-          <option value="">All</option>
-          {dataSources.map((dataSource) => (
-            <option key={dataSource} value={dataSource}>
-              {dataSource}
-            </option>
-          ))}
-        </Select>
-      </FormControl>
-      <FormControl>
-        <Label htmlFor="eventFilter">Data type</Label>
-        <Select
-          id="eventFilter"
-          value={formState.event || ''}
-          onChange={(e) => {
-            const { value } = e.target;
+              setFormState((state) => ({
+                ...state,
+                event: null,
+                attribute: null,
+                dataSource: value,
+              }));
+            }}
+          >
+            <option value="">All</option>
+            {dataSources.map((dataSource) => (
+              <option key={dataSource} value={dataSource}>
+                {dataSource}
+              </option>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl>
+          <Label htmlFor="eventFilter">Data type</Label>
+          <Select
+            id="eventFilter"
+            value={formState.event || ''}
+            onChange={(e) => {
+              const { value } = e.target;
 
-            setFormState((state) => ({
-              ...state,
-              event: value,
-              attribute: null,
-            }));
-          }}
-        >
-          <option value="">All</option>
-          {filteredEvents.map((event) => (
-            <option key={event.name} value={event.name}>
-              {event.name}
-            </option>
-          ))}
-        </Select>
-      </FormControl>
+              setFormState((state) => ({
+                ...state,
+                event: value,
+                attribute: null,
+              }));
+            }}
+          >
+            <option value="">All</option>
+            {filteredEvents.map((event) => (
+              <option key={event.name} value={event.name}>
+                {event.name}
+              </option>
+            ))}
+          </Select>
+        </FormControl>
 
-      <FormControl>
-        <Button
-          variant={Button.VARIANT.PRIMARY}
-          onClick={() => {
-            navigateToParams(formState);
-          }}
-        >
-          Search
-        </Button>
-        <Button
-          as={Link}
-          to={location.pathname}
-          variant={Button.VARIANT.LINK}
-          onClick={() => {
-            const formState = {
-              event: null,
-              dataSource: null,
-              attribute: null,
-              attributeSearch: null,
-            };
+        <FormControl>
+          <Button
+            variant={Button.VARIANT.PRIMARY}
+            onClick={() => {
+              navigateToParams(formState);
+            }}
+          >
+            Search
+          </Button>
+          <Button
+            as={Link}
+            to={location.pathname}
+            variant={Button.VARIANT.LINK}
+            onClick={() => {
+              const formState = {
+                event: null,
+                dataSource: null,
+                attribute: null,
+                attributeSearch: null,
+              };
 
-            setFormState(formState);
-          }}
-        >
-          Reset
-        </Button>
-      </FormControl>
-    </PageTools.Section>
+              setFormState(formState);
+            }}
+          >
+            Reset
+          </Button>
+        </FormControl>
+      </PageTools.Section>
+    </div>
   );
 };
 

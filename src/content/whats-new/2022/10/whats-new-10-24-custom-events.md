@@ -2,7 +2,7 @@
 title: 'Send more custom events with the next APM agent update starting Oct 26'
 summary: 'Track critical actions for analysis using the increased custom event limits'
 releaseDate: '2022-10-26'
-learnMoreLink: 'https://discuss.newrelic.com/t/send-more-custom-events-with-the-latest-apm-agents/190497'
+learnMoreLink: 'https://support.newrelic.com/s/hubtopic/aAX8W0000008dby/send-more-custom-events-with-the-latest-apm-agents'
 ---
 
 Starting Oct 26th, 2022, when you update to the latest APM language agents (Go, Java, .NET, Node.js, Python, Ruby), the default custom event limit will be automatically increased. Additionally, we're introducing a new higher maximum limit. 

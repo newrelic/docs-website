@@ -1,0 +1,164 @@
+---
+title: 상세한 인사이트를 활성화하십시오.
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Optional configuration
+metaDescription: Optional configuration options for deeper insights into MySQL monitoring with the NRDOT Collector
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+translationType: machine
+---
+
+MySQL 인스턴스에 대한 더 깊은 인사이트를 얻기 위해 다음 옵션을 구성할 수 있습니다:
+
+* [특정 데이터베이스를 모니터링합니다.](#database)
+* [TLS 활성화](#tls)
+* [쓰기 문에 대한 쿼리 계획](#query)
+* [잠금 대기 시간 추적 활성화](#lock)
+
+## 특정 데이터베이스를 모니터링합니다. [#database]
+
+기본적으로 `database` 필드는 수신기 설정에서 생략되며, 수신기는 모니터링 사용자가 액세스할 수 있는 모든 데이터베이스를 모니터합니다. 모니터링 범위를 단일 스키마로 지정하려면 `database`을(를) 해당 스키마의 이름으로 설정하십시오:
+
+```yaml
+receivers:
+  nrmysql:
+    endpoint: <YOUR_HOST>:<YOUR_PORT>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    database: <YOUR_DATABASE_NAME>
+    collection_interval: 30s
+```
+
+## TLS 활성화 [#tls]
+
+`tls` 필드는 선택 사항이지만, 이를 생략하는 것이 TLS를 명시적으로 비활성화하는 것과 같지는 않습니다. 수신자의 기본 설정은 `insecure: true`을(를) 설정하므로, 직접 `tls`을(를) 설정하지 않으면 연결이 암호화되지 않습니다. 대부분의 Amazon RDS 및 Aurora 인스턴스는 SSL/TLS를 강제 적용하므로, 일반적으로 이러한 환경에 대해 이 블록을 추가해야 합니다.
+
+```yaml
+receivers:
+  nrmysql:
+    endpoint: <YOUR_HOST>:<YOUR_PORT>
+    username: <YOUR_DB_USERNAME>
+    password: <YOUR_DB_PASSWORD>
+    collection_interval: 30s
+    tls:
+      insecure: false
+      insecure_skip_verify: false
+      ca_file: <PATH_TO_CA_CERTIFICATE>
+```
+
+<Callout variant="tip">
+  Amazon RDS/Aurora의 경우, 적절한 [RDS CA 인증서 번들](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html)을 다운로드하여 `ca_file`에서 참조하십시오. 자체 서명된 인증서가 있는 인스턴스에 대해 테스트할 때만 `insecure_skip_verify: true`을(를) 설정하고, 프로덕션에서는 절대 설정하지 마십시오.
+</Callout>
+
+## 쓰기 문에 대한 쿼리 계획 [#query]
+
+`explain_mode`을(를) `procedure` (으)로 설정하면 모니터링 사용자에게 DML 권한을 부여하지 않고도 NRDOT Collector가 쓰기 문에 대한 `EXPLAIN` 계획을 수집할 수 있습니다. 설정 시 수신기는 이름이 `<schema>.explain_statement`인 `SQL SECURITY DEFINER` 프로시저를 검색합니다. 해당 프로시저가 존재하지 않거나 모니터링 사용자에게 실행 권한이 없는 경우 수신기는 `inline` 모드로 대체됩니다. 이 상태에서는 쓰기 문이 쿼리 계획을 수집하지 못하며, 수집기 로그에 다음 경고가 표시됩니다: `unable to execute explain statement`.
+
+`explain_mode`을(를) `procedure`(으)로 설정하려면, 스키마당 한 번씩 권한이 있는 계정(예: `root`)으로 다음을 실행하십시오:
+
+```sql
+DELIMITER //
+CREATE DEFINER = 'root'@'%' PROCEDURE <YOUR_SCHEMA>.explain_statement(IN q TEXT)
+SQL SECURITY DEFINER
+BEGIN
+  SET @nr_explain_sql = CONCAT('EXPLAIN FORMAT=JSON ', q);
+  PREPARE nr_explain_stmt FROM @nr_explain_sql;
+  EXECUTE nr_explain_stmt;
+  DEALLOCATE PREPARE nr_explain_stmt;
+END//
+DELIMITER ;
+GRANT EXECUTE ON PROCEDURE <YOUR_SCHEMA>.explain_statement TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+`GRANT EXECUTE` 단계는 `CALL` 문을 실행하는 것 이상을 위해 필요합니다. 이 권한이 없으면 모니터링 사용자는 수신자가 존재 여부를 확인하는 데 사용하는 `information_schema.ROUTINES`의 프로시저를 볼 수 없습니다. `GRANT EXECUTE`을(를) 생략하면 프로시저가 누락된 것과 동일한 결과가 발생하며, 두 경우 모두 수신자가 `inline` 모드로 폴백하게 됩니다.
+
+<Callout variant="tip">
+  이 설정은 스키마별로 상태를 유지합니다. 데이터베이스를 생성 또는 복원하거나 프로시저를 삭제하면 해당 스키마에 대한 쓰기 문 계획 수집이 알림 없이 비활성화되고 `inline` 모드로의 폴백이 트리거됩니다. `SQL SECURITY DEFINER` 저장 루틴은 그 안에서 `PREPARE`/`EXECUTE` 문을 통해 실행되는 동적 SQL에 정의자의 권한을 적용합니다. 이를 통해 `SELECT`전용 모니터링 사용자는 직접 실행 권한이 없는 문에 대한 계획을 검색할 수 있습니다.
+</Callout>
+
+## 잠금 대기 시간 추적 활성화 [#lock]
+
+`events_waits_current` 소비자는 잠금 대기 시간 정보를 제공하지만 플랫폼별 설정이 필요합니다:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        플랫폼
+      </th>
+
+      <th>
+        방법
+      </th>
+
+      <th>
+        재시작 후에도 유지됩니까?
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        자체 관리형 MySQL
+      </td>
+
+      <td>
+        `performance-schema-consumer-events-waits-current=ON`
+
+         
+
+        `[mysqld]`
+
+         (
+
+        `my.cnf`
+
+        )에서
+      </td>
+
+      <td>
+        네
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AWS RDS
+      </td>
+
+      <td>
+        `UPDATE performance_schema.setup_consumers SET ENABLED='YES' WHERE NAME='events_waits_current';`
+      </td>
+
+      <td>
+        **아니요**
+
+        : 재시작/장애 조치 시 재설정됩니다. 각 재시작 후 다시 실행하거나, 재연결 시 소비자를 자동으로 다시 활성화할 수 있도록 수신 사용자에게 이 
+
+        `UPDATE`
+
+        을(를) 부여하십시오.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 관련 문서 [#related]
+
+<DocTiles>
+  <DocTile title="호환성 및 전제 조건" path="/docs/opentelemetry/db360/mysql/compatibility">
+    지원되는 MySQL 버전, 네트워크 요구 사항 및 권장 서버 파라미터에 대해 알아보십시오.
+  </DocTile>
+
+  <DocTile title="자체 호스팅 환경에서의 계측" path="/docs/opentelemetry/db360/mysql/hosted">
+    뉴렐릭을 사용하여 자체 호스팅 환경에서 MySQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+
+  <DocTile title="RDS 환경에서의 계측" path="/docs/opentelemetry/db360/mysql/rds">
+    뉴렐릭을 사용하여 RDS 환경에서 MySQL 모니터링을 설정하는 방법을 알아보십시오.
+  </DocTile>
+</DocTiles>

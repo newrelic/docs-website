@@ -3,10 +3,13 @@
 import AdmZip from 'adm-zip';
 import vfile from 'vfile';
 import toVfile from 'to-vfile';
+import fs from 'fs';
+import { createRequire } from 'module';
 import path from 'path';
 import fetch from 'node-fetch';
 
 import deserializedHtml from './deserialize-html.mjs';
+import { configuration } from './configuration.js';
 import createDirectories from './utils/create-directories.js';
 import { getAccessToken } from './utils/vendor-request.mjs';
 import { LOCALE_IDS } from './utils/constants.js';
@@ -16,6 +19,19 @@ import {
 } from './utils/translation-monitoring.js';
 
 const { writeSync } = toVfile;
+// the MDX compiler the site builds with
+const { sync: compileMDX } = createRequire(import.meta.url)('@mdx-js/mdx');
+const { frontmatter } = createRequire(import.meta.url)('../utils/frontmatter');
+
+// locales the English page sends for human translation (`translate:`)
+const humanLocales = (englishPath) => {
+  try {
+    const { attributes } = frontmatter(fs.readFileSync(englishPath, 'utf8'));
+    return Array.isArray(attributes.translate) ? attributes.translate : [];
+  } catch {
+    return [];
+  }
+};
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 const defaultTrackingMetadata = {
@@ -38,6 +54,7 @@ const defaultTrackingMetadata = {
  * @typedef SlugStatus
  * @property {boolean} ok - Boolean flag indicating whether the translated file whether file was successfully deserialized or not.
  * @property {string} slug - Complete source path of the translated file
+ * @property {string} [error] - Why it failed, when `ok` is false
  */
 
 /**
@@ -188,12 +205,28 @@ const deserializeHtmlToMdx = (locale) => {
       (key) => LOCALE_IDS[key] === locale
     );
 
+    // a page can switch a locale to human translation after a machine job for
+    // it was sent, or while that job is stuck. Its file must not replace the
+    // human translation.
+    if (
+      configuration.TRANSLATION.TYPE === 'machine' &&
+      humanLocales(completePath).includes(localeKey)
+    ) {
+      console.log(
+        `Skipped ${contentPath} (${locale}): the page is human-translated for this locale`
+      );
+      return { ok: true, skipped: true, slug: completePath, locale };
+    }
+
     try {
       const localePath = path.join(
         `src/i18n/content/${localeKey}/docs/`,
         contentPath
       );
       const mdx = await deserializedHtml(html);
+      // a page that doesn't compile breaks the whole locale build, so leave
+      // the current translation in place and report this one as errored
+      compileMDX(mdx);
 
       const temp = vfile({
         contents: mdx,
@@ -221,7 +254,7 @@ const deserializeHtmlToMdx = (locale) => {
       console.log(`Failed to deserialize: ${contentPath}`);
       console.log(ex);
 
-      return { ok: false, slug: completePath, locale };
+      return { ok: false, slug: completePath, locale, error: ex.message };
     }
   };
 };

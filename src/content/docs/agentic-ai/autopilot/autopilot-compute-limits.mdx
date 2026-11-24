@@ -1,0 +1,176 @@
+---
+title: Autopilot compute limits
+metaDescription: "Set daily and monthly Advanced CCU budgets for Autopilot, isolate automated alert triage from interactive use, and track consumption with NRQL."
+tags:
+  - Agentic AI
+  - Autopilot
+  - SRE Agent
+  - Compute limits
+  - Budgets
+  - Governance
+freshnessValidatedDate: never
+---
+
+<Callout title="preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+New Relic <DNT>Autopilot</DNT> compute limits provides a level of budget governance to help better manage enterprise budgets. High-frequency observability events—such as incident alert storms or cascading condition failures—can trigger bursts of investigation prompts or analyses that can drive up costs for compute resources, potentially leading to invoice surprises. New Relic <DNT>Autopilot</DNT> compute limits helps to provide proactive, policy-based budgeting that allows you to implement certain operational boundaries for costs surrounding <DNT>Autopilot</DNT> runs.
+
+Enterprise compute allocations are configured by Organization Managers as daily and monthly budgets denominated in Advanced Compute Capacity Units (Advanced CCUs). These roles can now create sub-budgets for System Identity (SI) workflows pertaining to New Relic <DNT>Autopilot</DNT>. Background alert investigations also contain their own dedicated allocation. Setting budgets for these actions help you better manage compute quota used during active incident investigations using <DNT>Autopilot</DNT>.
+
+## User roles and governance capabilities [#permissions]
+
+Access control for <DNT>Autopilot</DNT> compute limits follows New Relic's Role-Based Access Control (RBAC) framework. The matrix below defines administrative authorities compared to read-only operational capabilities across platform workflows:
+
+| Capability | Organization managers | Read-only users / engineers |
+| --- | --- | --- |
+| Manage compute budget policies (create, edit, or delete global and sub-budgets) | ✅ | ❌ |
+| View real-time quota and budget pills | ✅ | ✅ |
+| Inspect audit logs (`NrAuditEvent`) | Reporting account access required | Reporting account access required |
+
+The following section details the administrative workflows and procedures required to configure compute limits within the New Relic platform.
+
+## Configure compute budgets (admin workflow) [#configure]
+
+[Compute budgets](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/compute-budgets/overview/) allow managers to help enforce financial policies or budget policies with configurable, in-UI constraints. Using the New Relic user interface, administrators establish organizational limits that dynamically enforce desired limits on system execution across interactive sessions and background automation.
+
+### UI navigation and configurable parameters [#parameters]
+
+To configure compute budgets, navigate to **<DNT>Autopilot</DNT> Configuration Modal / Onboarding Panel > Compute Limits & Budgeting**.
+
+Administrators can define four core parameters within the configuration interface:
+
+* **Total Daily <DNT>Autopilot</DNT> budget (Advanced CCUs/day)**: Sets the enterprise-wide expenditure ceiling for all combined interactive user sessions and automated workflows per calendar day (evaluated in the organization's timezone).
+* **Automated and Async Daily Sub-Budget (Advanced CCUs/day)**: Allocates a dedicated daily sub-quota strictly for System Identity (SI) workflows, such as alert webhooks and workflow notifications.
+* **Total Monthly <DNT>Autopilot</DNT> budget (Advanced CCUs/month)**: Establishes the macro-level monthly compute budget ceiling across all <DNT>Autopilot</DNT> executions.
+* **Automated and Async Monthly Sub-budget (Advanced CCUs/month)**: Defines a dedicated monthly sub-allocation exclusively reserved for autonomous background investigations.
+
+### Parameter validation rules and backend conversion mechanics [#validation]
+
+The platform UI enforces input validation rules at the configuration entry gate to prevent invalid or conflicting policy states:
+
+* **Rule 1 (Sub-budget hierarchy)**: Automated sub-budgets must be strictly less than their corresponding total budget (`Automated Sub-budget < Total budget`).
+* **Rule 2 (Temporal multiplier)**: When both daily and monthly budgets are configured, the monthly budget must not exceed 30 times the daily budget (`Monthly budget <= 30 * Daily budget`).
+* **Policy flexibility**: All limit parameters are optional. Organizations can configure partial policies (such as enforcing a daily total budget without a monthly budget) based on specific operational needs.
+
+Admins set budget limits using a single metric (Advanced CCUs), creating an exact, non-negotiable spend limit that automatically blocks an AI from running up huge unexpected bills when doing fast, complex tasks.
+
+### Audit change log specification [#audit-log]
+
+Every configuration change is tracked in `NrAuditEvent` as follows:
+
+| Field name | Data type | Description | Strategic value |
+| --- | --- | --- | --- |
+| Timestamp | ISO 8601 UTC | Exact time of configuration mutation | Establishes chronological baseline for billing |
+| Admin ID | String (userId) | Identity of modifying manager | Ensures administrative accountability |
+| Budget Delta | String | Prior value vs. updated value (old budget -> new budget) | Quantifies threshold shifts |
+
+Once administrative policies are saved and validated, the platform dynamically evaluates budget thresholds to enforce deterministic execution states for all users.
+
+## User experience and budget thresholds [#thresholds]
+
+<DNT>Autopilot</DNT> operates deterministically: requests execute with full multi-step model reasoning or are blocked at entry once budgets are reached.
+
+### State machine and execution behaviors [#state-machine]
+
+The system evaluates compute consumption across three operational tiers based on total spend against the configured budget:
+
+<Callout variant="note" title="Nominal state (0% – 75% budget consumption)">
+  * **Execution profile**: Unrestricted AI execution with full multi-step model reasoning and complete RAG knowledge base retrieval (`query_knowledge_base`).
+  * **UI visibility**: A non-intrusive, read-only status pill is displayed in the context bar of the chat interface, indicating normal operational state.
+</Callout>
+
+<Callout variant="important" title="Warning state (75% – 100% budget consumption)">
+  * **Execution profile**: Full reasoning capabilities and standard multi-step executions continue without model degradation or performance changes.
+  * **UI visibility**: A contextual warning banner is appended to system responses, informing users that the organization is approaching its daily or monthly compute ceiling.
+</Callout>
+
+<Callout variant="caution" title="Hard stop state (100% budget consumption exhausted)">
+  * **Execution profile**: Immediate execution block enforced at the orchestration entry gate (`api/orchestration.py`). No downstream LLM calls or subagent tasks are initiated.
+  * **UI visibility**: A prominent inline error card replaces the prompt input, instructing users to contact their Organization Manager or wait for the daily quota reset.
+</Callout>
+
+### UI error card display format [#error-card]
+
+When an organization reaches 100% of its compute allocation, interactive chat sessions present the following standard error card:
+
+> ⚠️ **<DNT>Autopilot</DNT> Daily Compute Limit Reached**
+>
+> Your organization has consumed 100% of its daily allocated compute budget (Advanced CCU Limit Exceeded). Interactive reasoning and automated investigations are temporarily paused.
+>
+> **Next steps**: Contact your New Relic Organization Manager to increase your budget, or retry after the midnight reset (00:00 UTC).
+
+While interactive user sessions provide visual indicators and immediate error card feedback, automated background operations require dedicated processing lifecycles.
+
+### Real-time metric fetch failure and unavailable state [#unavailable]
+
+When the platform UI is unable to fetch real-time usage metrics from the backend telemetry cache, the system transitions to a non-blocking degraded visual state. Backend budget enforcement remains continuously active regardless of UI data availability.
+
+* **Status pill badge text**: Displays `Daily Usage: Unavailable ⚠` in the context bar.
+* **Contextual tooltip**: On hover over the unavailable pill, displays: "Unable to fetch real-time usage metrics. Your backend budget enforcement remains active. [Retry]"
+
+<Callout variant="important" title="Usage data temporarily unavailable">
+  If an administrator opens the <DNT>Autopilot</DNT> Configuration Modal while usage data is unreachable, an inline top-level alert banner appears at the head of the modal container: "We couldn't load your current usage metrics. Any previously configured limits are still being enforced in the backend. Please try refreshing."
+</Callout>
+
+## Automated alert triage and async System Identity (SI) workflows [#si-workflows]
+
+Automated incident triage relies on System Identity (SI) workflows that process incoming alerts asynchronously. During major system outages, alert storms ("thunderstorms") can fire dozens of concurrent webhooks simultaneously. Dedicated SI sub-budgets insulate the background intake engine, ensuring automated alert bursts do not impact interactive human investigation budgets.
+
+### System Identity execution lifecycle [#si-lifecycle]
+
+When an automated trigger occurs (for example, `alert_webhook` or `workflow_notification`), the execution path varies based on current sub-budget consumption:
+
+| Sub-budget state | Webhook intake handling | New Relic issue page experience | Fallback mechanism |
+| --- | --- | --- | --- |
+| Nominal (&lt;100% SI quota) | HTTP 200 Accepted; automated AI investigation runs asynchronously. | Issue page chat panel is pre-filled with complete automated root-cause analysis. | N/A (standard execution) |
+| Hard stop (100% SI quota exhausted) | HTTP 200 Rejected with error code `ADVANCED_DAILY_SI_LIMIT_EXCEEDED`. | Issue page loads normally; pre-filled chat panel is suppressed and replaced with an inline error card. | Manual fallback button enabled: user can manually trigger investigation if interactive budget remains. |
+
+## Edge scenarios, concurrency budgets, and safeguards [#safeguards]
+
+Daily and monthly Advanced CCU budgets evaluate total cumulative spend, but they cannot prevent sudden event bursts where hundreds of incoming webhooks fire concurrently before usage can be processed and written to telemetry storage. To handle these edge scenarios, the platform employs defense-in-depth safeguards at the entry gate.
+
+### Alert storm mitigation architecture [#alert-storm]
+
+To maintain platform stability and protect organization budgets during sudden alert spikes, two concurrent protection mechanisms operate at the entry gate:
+
+* **Per-org automated concurrency budget**: Imposes a strict ceiling of maximum 20 simultaneous active automated runs per organization. Requests arriving while 20 automated runs are in-flight are shed immediately.
+* **Atomic Valkey reservations**: Prior to spawning an asynchronous execution task (`asyncio.create_task`), the entry gate atomically increments high-speed Valkey counters by a conservative estimate. Upon run completion, the orchestration engine reconciles the reservation against actual consumption. If an initial reservation causes the organization's counter to exceed its configured limit, the transaction rolls back, and the request is rejected immediately.
+
+### High availability and disaster recovery: Valkey outage fallback policy [#valkey-fallback]
+
+During local cache or Valkey infrastructure outages, the orchestration engine applies a tiered operational fallback policy:
+
+<Callout variant="caution" title="Infrastructure outage operational mode">
+  * **Automated / SI workflows (fail-closed)**: All automated trigger requests are blocked during cache dark periods to prevent unmonitored spend spikes.
+  * **Interactive user workflows (fail-open)**: Human interactive chat sessions remain available to preserve engineer operational capabilities during active incident response.
+</Callout>
+
+## Billing reconciliation, data lag, and disclaimers [#billing]
+
+Distributed system architectures maintain a structural separation between real-time entry gating and asynchronous billing metrics processing.
+
+### Counter architecture and pipeline skew reconciliation [#counters]
+
+The platform uses a dual-store model to balance low-latency enforcement with accounting accuracy:
+
+* **Real-time enforcement layer**: Sub-millisecond Valkey counters evaluate entry gates to block over-budget runs instantly.
+* **Billing and reporting pipeline**: Historical NRDB metric pipelines (`resourceConsumption`) aggregate data asynchronously, with an expected 2-hour processing lag.
+* **Margin of error absorption**: Due to high-frequency execution concurrency, minor counter skew may create a temporary overshoot variance of 5% to 10%. New Relic absorbs all overshoot costs internally; customer accounts are never billed for usage that exceeds their explicitly configured hard budget.
+
+### Important callouts and limitations [#limitations]
+
+<Callout variant="important" title="Admin UI configuration">
+  Budget limits configured in the <DNT>Autopilot</DNT> Admin Portal represent target thresholds. While real-time enforcement gates halt execution immediately upon limit detection, processing delays in telemetry rollups may result in minor consumption variances.
+</Callout>
+
+<Callout variant="important" title="Real-time user interface notice">
+  Compute limit status indicators ("budget pills") reflect near-real-time Valkey counter state. If your organization reaches its daily or monthly budget, active chat sessions will terminate further execution immediately without loss of historical chat data.
+</Callout>
+
+<Callout variant="note" title="Monthly billing statement reconciliation">
+  Official invoice line items for Advanced Compute Units (Advanced CCUs) are derived exclusively from processed NRDB billing pipeline metrics. In the event of any discrepancy between real-time UI counters and monthly billing statements, the final audited NRDB pipeline metric governs, budgeted at your explicitly configured policy limit.
+</Callout>

@@ -1,0 +1,637 @@
+---
+title: Fleet Controlアクセスの管理
+tags:
+  - fleet-control
+  - access management
+  - permissions
+  - rbac
+  - governance
+  - agent-management
+metaDescription: 'Patterns for setting up role-based access control for Fleet Control, including per-fleet scoping, lifecycle separation, delegated group management, and business unit isolation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このガイドでは、<DNT>Fleet Control</DNT>の操作に対するロールベースのアクセス制御（RBAC）を設定するためのパターンを提供します。基本的なものからエンタープライズ向けまで、3つの実装パターンをUIと<DNT>NerdGraph</DNT>の両方の例とともに説明します。
+
+<Callout title="どのアプローチが組織に適していますか？" variant="tip">
+  * 組織の分離（推奨）：複数の自律的なビジネスユニットを管理している場合、またはユニット間の可視性をゼロにして厳格な請負業者の分離が必要な場合は、マルチテナンシー（個別のNew Relic組織）を使用します。これにより、複雑なカスタムロールを使用せずに、完全な境界の適用が提供されます。「複数のビジネスユニットでのFleet Controlの委任」にジャンプします。
+
+  * 単一組織のRBAC：契約、請求、または運用上の制約により単一の組織が必要な場合は、このガイドのRBACパターン（Basic、Advanced、またはEnterprise）を使用します。注意：ユーザーは組織全体に他のフリートが存在することを引き続き確認でき、中央IT部門は新しいフリートごとにアクセス権限を作成する必要があります。
+</Callout>
+
+## 前提条件 [#prerequisites]
+
+以下のパターンのいずれかを設定する前に：
+
+* **フルプラットフォームユーザー：**すべての<DNT>Fleet Control</DNT>権限には、フルプラットフォームの[ユーザータイプ](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)が必要です。
+* **Proまたはエンタープライズエディション：**これらのパターンで使用するカスタムロールとカスタムグループを作成するために必要です。
+* **認証ドメインマネージャーロール：**<DNT>**Authentication domain manager**</DNT>ロールを持つユーザーは、特定のフリートにグループとロールを割り当てるアクセス付与を作成できます。これは、すべてのアクセス付与操作に対するNew Relicプラットフォームの要件です。
+* **初期<DNT>Agent Control</DNT>セットアップ：**システムIDを作成するために、1回だけ<DNT>**Authentication domain manager**</DNT>ロールが必要です。
+* **フリートと設定の作成：**<DNT>**Organization product admin**</DNT>ロールが必要です。このロールは、デフォルトの<DNT>**User**</DNT>グループの全員に自動的に付与されます。
+* **デプロイメントの実行：**<DNT>**Organization Manager**</DNT>ロールが必要です。このロールは、デフォルトの<DNT>**Admin**</DNT>グループの全員に自動的に付与されます。または、<DNT>**Fleet manager**</DNT>ロール、あるいは<DNT>**Deploy**</DNT>を持つカスタムロールを使用すると、組織全体に影響を与えることなく、特定のフリートに対して付与できます。
+
+<Callout title="ロール要件に関するよくある誤解" variant="important">
+  多くのチームは、すべての<DNT>Fleet Control</DNT>操作に<DNT>**Authentication domain manager**</DNT>が必要であると思い込んでいます。**これは事実ではありません。**
+
+  <DNT>**Authentication domain manager**</DNT> 以下の場合にのみ必要です：
+
+  1. **初期<DNT>Agent Control</DNT>セットアップ**（1回限り）。これによりシステムIDが作成されます。
+  2. **アクセス権限の作成**。これにより、グループをフリートに割り当てます。
+
+  **継続的なフリート管理**（フリートの作成や設定の作成など）には<DNT>**Organization product admin**</DNT>のみが必要であり、ほとんどのユーザーはすでにこれを持っています。
+</Callout>
+
+## Fleet Controlの権限の構成方法 [#permissions]
+
+カスタムロールを作成すると、<DNT>Fleet Control</DNT>の権限が表として表示されます：リソースの行と、<DNT>**Read**</DNT>、<DNT>**Modify**</DNT>、<DNT>**Delete**</DNT>、および<DNT>**Other**</DNT>の列です。各チェックボックスは、個別の権限ではなく、関連する一連のアクションを付与します。表示される行は、ロールのスコープによって異なります。
+
+組織スコープのロールには<DNT>**Fleets (all)**</DNT>行があり、組織内のすべてのフリートを対象とします：
+
+| 許可                                                      | 対象範囲                                                      |
+| :------------------------------------------------------ | :-------------------------------------------------------- |
+| <DNT>**Read**</DNT>                                     | フリート、管理対象エンティティ上のエージェント、設定とその内容、フリートのメンバーシップ、および承認ポリシーの表示 |
+| <DNT>**Modify**</DNT>                                   | フリートの作成と更新、設定の作成とバージョンの追加、およびReadのすべての機能                  |
+| <DNT>**Delete**</DNT>                                   | フリート、設定、およびデプロイメントの削除                                     |
+| <DNT>**Other: Deploy**</DNT>                            | デプロイメントの作成、編集、実行、削除、およびフリート内の管理対象エンティティの変更                |
+| <DNT>**Other: Approve configurations**</DNT>            | 設定バージョンの承認、変更リクエスト、または拒否                                  |
+| <DNT>**Other: Configure organization governance**</DNT> | 承認ポリシーを設定および変更します。                                        |
+
+フリートを対象とするエンティティスコープのロールには<DNT>**Fleets (individual)**</DNT>行が表示され、ロールが付与されているフリートのみをカバーします：
+
+| 許可                           | 対象範囲                                                  |
+| :--------------------------- | :---------------------------------------------------- |
+| <DNT>**Modify**</DNT>        | フリートの名前変更、説明の編集、およびメンバーシップの表示                         |
+| <DNT>**Delete**</DNT>        | フリートの削除                                               |
+| <DNT>**Other: Deploy**</DNT> | フリートのデプロイメントを作成、編集、実行、および削除し、そこに含まれる管理対象エンティティを変更します。 |
+
+<Callout title="フリートスコープのロールは、読み取りアクセスを置き換えるのではなく、その上に構築されます。" variant="important">
+  <DNT>**Fleets (individual)**</DNT>の行には<DNT>**Read**</DNT>権限がありません。フリートスコープのロールは、フリートに対してアクションを実行する機能を付与するものであり、そもそも<DNT>Fleet Control</DNT>を表示するためのものではありません。
+
+  ユーザーは組織スコープのロールからの読み取りアクセス権も必要ですが、通常はデフォルトの<DNT>**User**</DNT>グループを通じてこのアクセス権を持っています。他に何も権限を持たないメンバーのグループにフリートスコープのロールを付与した場合、そのメンバーはアクションを実行するための情報を何も表示できません。
+</Callout>
+
+設定の承認と承認ポリシーの設定は、組織スコープのロールでのみ利用できるため、承認権限を特定のフリートにスコープすることはできません。詳細については[設定の承認](/docs/new-relic-control/fleet-control/manage-fleets/#config-approvals)を、付与方法については[承認権限の委任](/docs/new-relic-control/fleet-control/manage-fleets/#delegate-approval-authority)をご覧ください。
+
+## 基本パターン：単一フリートの権限（FGA） [#basic-pattern]
+
+<DNT>Fleet Control</DNT> エンティティスコープのアクセス権限を通じて、きめ細かいアクセス（FGA）をサポートします。組み込みの<DNT>**Fleet manager**</DNT>ロールは、特定のフリートエンティティにスコープを設定できます。これにより、<DNT>**Organization Manager**</DNT>がなくても、デプロイメントを含め、それらのフリートの完全な運用制御をグループに付与できます。
+
+これにより、組織内のすべてのフリートへのアクセス権を付与することなく、特定のフリートを管理するアクセス権をチームに付与できます。
+
+### UIウォークスルー [#basic-ui]
+
+1. **フリートを作成します**（まだ作成されていない場合）：
+
+   1. に行く <DNT>**All capabilities &gt; New Relic Control &gt; Fleets**</DNT>
+   2. クリック <DNT>**Create a fleet**</DNT>
+   3. たとえば、次のように名前を付けます `production-us-east-fleets`
+   4. フリートGUIDを保存してメモしてください。
+
+2. **ターゲットグループを作成または特定します**：
+
+   1. に行く <DNT>**Administration &gt; Access management &gt; Groups**</DNT>
+   2. 新しいグループ（たとえば`prod-us-east-fleet-operators`）を作成するか、既存のグループを使用します
+   3. <DNT>**Create a group**</DNT>モーダルで、<DNT>**Add users**</DNT>ドロップダウンを使用して今すぐユーザーを追加するか、後でグループを編集して追加します。
+   4. グループIDを控えておきます
+
+3. **エンティティ範囲のアクセス権の付与**：
+
+   1. に行く <DNT>**New Relic Control &gt; Fleets**</DNT>
+   2. フリートの行でケバブメニューを開き、次を選択してください。 <DNT>**Fleet permissions**</DNT>
+   3. <DNT>**Fleet permissions**</DNT>モーダルで、グループを選択し、ロールとして<DNT>**Fleet manager**</DNT>を選択します。必要な数だけグループとロールのペアを追加します。
+   4. 「<DNT>**Save**</DNT>」をクリックしてください。これにより、ペアごとに1つのアクセス権限が作成されます。
+
+<Callout title="フリートの権限が欠落しているか、ロックされた状態で開く場合" variant="important">
+  <DNT>**Fleet permissions**</DNT>メニュー項目には<DNT>**Authentication domain manager**</DNT>ロールが必要です。これがないと、アクションがフリートの行に表示されないか、モーダルが部分的に利用可能になるのではなくロックされた状態で開きます。
+
+  権限は、フリート作成時に「<DNT>**Create fleet**</DNT>」ダイアログからアタッチすることもできます。
+</Callout>
+
+**結果：**`prod-us-east-fleet-operators`のメンバーは、`production-us-east-fleets`に対してのみデプロイメントを実行し、メンバーを管理できるようになります。他のフリートを変更することはできません。読み取りアクセス権は、この付与からではなく組織スコープのロールから提供されるため、他のフリートが存在することは引き続き確認できます。
+
+### NerdGraphの自動化 [#basic-nerdgraph]
+
+```graphql
+mutation GrantFleetAccess {
+  authorizationManagementGrantAccess(
+    grantAccessOptions: {
+      grantee: { type: GROUP, id: "YOUR_GROUP_ID" }
+      entityAccessGrants: {
+        entity: { id: "YOUR_FLEET_GUID", type: "fleet" }
+        roleId: "YOUR_ROLE_ID"
+      }
+    }
+  ) {
+    accessGrants {
+      id
+    }
+  }
+}
+```
+
+**IDの見つけ方：**
+
+* **フリートGUID：**フリート詳細ページのURLで確認するか、[<DNT>NerdGraph Fleet Control</DNT>チュートリアル](/docs/apis/nerdgraph/examples/nerdgraph-fleet-control-tutorial)を使用してフリートをクエリします。
+* **グループID：**<DNT>**Administration &gt; Access management &gt; Groups**</DNT>、グループをクリックすると、IDがURLに表示されます。
+* **ロールID：**[既知の問題](#known-issues)の回避策を使用してクエリを実行します。
+
+## 高度なパターン：ライフサイクル分離のためのカスタムロール [#advanced-pattern]
+
+異なる<DNT>Fleet Control</DNT>権限を持つ2つのカスタムエンティティスコープのロールを作成し、同じフリートエンティティ上の異なるグループにそれぞれ付与します。<DNT>**Fleet manager**</DNT>には変更、削除、およびデプロイが一緒に含まれているため、グループが持つべき権限よりも大きい場合は、それを分割します。
+
+これにより、両方のグループが同じフリートで作業しながら、フリートの定義とメンバーシップを変更できるユーザーと、デプロイメントを実行できるユーザーを分離できます。
+
+### ブループリントの例：カスタムロールの設計 [#role-design]
+
+このセクションでは、アーキテクチャーの権限をデプロイメントの実行から分離するために、権限の低いカスタムロールを設計する方法の推奨例を示します。
+
+どちらのロールもエンティティスコープであり、<DNT>**Fleet**</DNT>をターゲットとします：
+
+| ロール              | 許可                           | 保持者が行えること                                  | 割り当て先          |
+| :--------------- | :--------------------------- | :----------------------------------------- | :------------- |
+| `Fleet author`   | <DNT>**Modify**</DNT>        | フリートの名前変更、説明の編集、メンバーシップの表示                 | プラットフォームOpsチーム |
+| `Fleet deployer` | <DNT>**Other: Deploy**</DNT> | デプロイメントの作成、編集、実行、および削除、フリート内の管理対象エンティティの変更 | アプリチームと請負業者    |
+
+<DNT>**Delete**</DNT>はチェックを外したままにする別の権限であるため、どちらのロールもフリートを削除することはできません。
+
+<DNT>Fleet Control</DNT>の設定はフリートに属するのではなく組織レベルのオブジェクトであるため、設定の作成はどちらのロールにも含まれません。それらの作成は<DNT>**Organization product admin**</DNT>に含まれていますが、デフォルトの<DNT>**User**</DNT>グループはすでにこれを持っています。実際には、作成者が設定を記述し、これらのフリートをスコープとするロールが、何がどこにデプロイされるかを制御します。
+
+### UIウォークスルー [#advanced-ui]
+
+1. **カスタムロールを作成します。**それぞれについて：
+
+   1. に行く <DNT>**Administration &gt; Access management &gt; Roles**</DNT>
+   2. クリック <DNT>**Add a role**</DNT>
+   3. ロールのスコープには<DNT>**Single item or entity**</DNT>を選択し、クリックします <DNT>**Next**</DNT>
+   4. <DNT>**Select what you want to configure access to**</DNT>の下で、選択します。 <DNT>**Fleet**</DNT>
+   5. ロールに名前を付けます。たとえば、 `Fleet author`
+   6. <DNT>**Set permissions**</DNT>で<DNT>**Fleet Control**</DNT>を展開し、<DNT>**Fleets (individual)**</DNT>行目でロールが持つものを選択します：authorロールの場合は<DNT>**Modify**</DNT>、deployerロールの場合は<DNT>**Other**</DNT>の下の<DNT>**Deploy**</DNT>。
+   7. 保存してから、2番目のロールについて繰り返します。
+
+2. **各ロールのグループを作成します**：
+
+   1. 作成者用のグループ`fleet-architects`を作成し、<DNT>**Create a group**</DNT>モーダルの<DNT>**Add users**</DNT>ドロップダウンから関連するユーザーを追加するか、後でグループを編集して追加します。
+   2. 同じ方法で、デプロイ担当者用のグループ`fleet-deployment-operators`を作成します。
+
+3. **各グループにエンティティスコープのアクセス権を付与する**：
+
+   1. <DNT>**New Relic Control &gt; Fleets**</DNT>に移動し、ターゲットフリートのケバブメニューを開いて、次を選択します <DNT>**Fleet permissions**</DNT>
+   2. グループとロールのペアを追加します：`fleet-architects`と <DNT>**Fleet author**</DNT>
+   3. グループとロールのペアを追加します：`fleet-deployment-operators`と <DNT>**Fleet deployer**</DNT>
+   4. 保存すると、両方の付与が一緒に作成されます。
+
+<Callout title="カスタムロールは、新しい権限を自動的に取得しません。" variant="important">
+  カスタムロールには、アドミニストレーターが追加したもののみが含まれます。標準ロールは、新しい組織スコープの機能がリリースされるとその権限を受け取ります。そのため、後で<DNT>Fleet Control</DNT>が機能を追加した場合、誰かがそれらを持つべき各カスタムロールに追加する必要があります。
+
+  新しい<DNT>Fleet Control</DNT>機能を自動的に取得する必要があるユーザーには、代わりに標準ロールを割り当てます。
+</Callout>
+
+### NerdGraphの自動化 [#advanced-nerdgraph]
+
+カスタムロールはUIで作成されます。ロールの作成には、チェックボックスに表示される権限名ではなく、内部の権限識別子が使用されるため、ロール自体を構築するための実用的なAPIパスはありません。
+
+ロールが作成されたら、各ロールのIDを渡して、[基本パターン](#basic-nerdgraph)と同じミューテーションで付与します。
+
+**結果：**フリート作成者は所有するフリートを形成できますが、デプロイメントを実行することはできません。デプロイメントオペレーターはデプロイメントを実行できますが、フリートを再定義または削除することはできません。
+
+## エンタープライズパターン：委任されたグループ管理 [#enterprise-pattern]
+
+グループメンバーシップの管理を委任するには、グループスコープの付与を持つ<DNT>**Group admin**</DNT>ロールを使用します。
+
+これにより、チームリーダーは完全な<DNT>**Authentication domain manager**</DNT>権限を必要とせずに、チームのグループにメンバーを追加したり、グループからメンバーを削除したりできます。
+
+### UIウォークスルー [#enterprise-ui]
+
+1. **マネージャーグループの作成**：
+
+   1. に行く <DNT>**Administration &gt; Access management &gt; Groups**</DNT>
+   2. グループ作成 `fleet-team-leads`
+   3. チームリーダーをメンバーとして追加してください。
+
+2. **ターゲットグループにグループ管理者ロールを付与します**：
+
+   1. に行く <DNT>**Administration &gt; Access management &gt; Access grants**</DNT>
+   2. クリック <DNT>**Create new grant**</DNT>
+   3. 他のグループをターゲットとする付与タイプである、グループ付与を選択します。
+   4. グループを選択 `fleet-team-leads`
+   5. ロール： <DNT>**Group admin**</DNT>
+   6. チームリードが管理できるようにするグループを選択します。たとえば`fleet-architects`および `fleet-deployment-operators`
+   7. 保存
+
+**結果：**`fleet-team-leads`のメンバーは、<DNT>**Authentication domain manager**</DNT>ロールを必要とせずに、`fleet-architects`および`fleet-deployment-operators`のユーザーを追加および削除できるようになりました。
+
+<Callout title="重要な制限事項" variant="caution">
+  <DNT>**Group admin**</DNT> グループに*誰*が含まれるかを管理できますが、新しいアクセス付与を作成したり、新しいフリートにグループを割り当てたりすることはできません。新しいフリートが作成された場合、引き続き<DNT>**Authentication domain manager**</DNT>を持つユーザーがそのフリートのアクセス付与を作成する必要があります。
+</Callout>
+
+### NerdGraphの自動化 [#enterprise-nerdgraph]
+
+```graphql
+mutation DelegateGroupManagement {
+  authorizationManagementGrantAccess(
+    grantAccessOptions: {
+      grantee: { type: GROUP, id: "YOUR_TEAM_LEADS_GROUP_ID" }
+      groupAccessGrants: [
+        {
+          groupId: "YOUR_TARGET_GROUP_ID"
+          roleId: "YOUR_GROUP_ADMIN_ROLE_ID"
+        }
+      ]
+    }
+  ) {
+    accessGrants {
+      id
+    }
+  }
+}
+```
+
+## 複数のビジネスユニットでFleet Controlを委任する [#business-units]
+
+このセクションでは、複数の自律的なビジネスユニットを持ち、<DNT>Fleet Control</DNT>の管理を委任する必要がある顧客で見られるシナリオの概要を説明します。上記のパターンを使用した推奨ソリューションと代替アプローチの両方を提供します。
+
+### シナリオ [#scenario]
+
+**例：**ByteFlix Entertainmentは、単一のNew Relic組織の下で複数の自律的なビジネスユニットを運営する大規模なメディア企業です。
+
+* **ByteFlix+**、ストリーミングサービス
+* **BBS**、ByteFlix Broadcast System、ブロードキャストネットワーク
+* ケーブルネットワークの**PixelTV**
+
+#### 組織構造 [#org-structure]
+
+**中央IT：**
+
+* <DNT>**Organization Manager**</DNT>および<DNT>**Authentication domain manager**</DNT>のロールを持つのは2、3人のみです。
+* 彼らはNew Relicのライセンスとガバナンスを管理します。
+* 監視エンティティの設定や作成は**行いません**。
+* それらはアクセス管理の変更におけるボトルネックになります
+
+**ビジネスユニット：**
+
+* 各ユニットは、同じNew Relic組織の下に個別のアカウントを持っています。
+* 各ユニットは独自のオブザーバビリティを独立して管理します
+* 多くのユニットは、New Relic Infrastructureを管理するために請負業者を使用しています
+
+#### 課題 [#challenge]
+
+ByteFlixは<DNT>Fleet Control</DNT>の導入を希望していますが、課題に直面しています：
+
+1. **厳格なビジネスユニットの分離が必要：**ByteFlix+チームは、BBSまたはPixelTVのインフラストラクチャを管理してはなりません。
+2. **請負業者への委任：**ユニットのリーダーは、中央のIT部門を関与させることなく、請負業者をオンボーディングする必要があります
+3. **ライフサイクルの分離：**プラットフォームの運用チームがフリートを形成し、アプリチームがデプロイする必要がありますが、アプリチームがフリートを削除したり再定義したりできないようにする必要があります
+4. **広範な管理者権限の付与なし：**セキュリティ上の懸念から、中央IT部門はユニットチームに<DNT>**Authentication domain manager**</DNT>を付与しません。
+
+### 推奨される解決策：別々の組織 [#separate-orgs]
+
+ByteFlixの組織構造に基づくと、マルチテナンシーが理想的なソリューションです。
+
+#### これが意味すること [#multi-tenancy-meaning]
+
+複数のアカウントを持つ1つの組織の代わりに、ByteFlixは3つの独立したNew Relic組織を作成します：
+
+* **ByteFlix+組織**、独自のアカウントを持つ
+* **BBS組織**、独自のアカウントを持ちます。
+* **PixelTV組織**、独自のアカウントを持つ
+
+各ビジネスユニットは、独立した独自のNew Relic組織になります。
+
+#### 利点 [#multi-tenancy-benefits]
+
+1. **完全なビジネスユニットの分離：**<DNT>Fleet Control</DNT>を含む組織スコープの機能は、そのユニットの組織内のデータのみを表示します
+2. **ユニット間の可視性なし：**組織の境界によって保証されているため、ByteFlix+ユーザーはBBSまたはPixelTVエンティティを表示できません。
+3. **自律的な管理：**各ユニットには独自の認証ドメイン管理者と組織管理者がおり、他のユニットに影響を与えることはありません。
+4. **請負業者への委任：**各ユニットは、中央のIT部門や他のユニットを関与させることなく、請負業者にアクセス権を付与できます
+5. **よりシンプルな権限：**分離を強制するために、エンティティスコープの付与やカスタムロールは必要ありません
+
+#### 共有サービスについてはどうでしょうか？ [#shared-services]
+
+New Relicの[アカウント共有](/docs/accounts/accounts-billing/account-structure/multi-tenancy/share-accounts)により、アカウントは組織の境界を越えることができます。ByteFlixに、一元化されたロギングや共有インフラストラクチャなど、ユニット全体での可視性を必要とする共有プラットフォームサービスがある場合、それらのアカウントを複数の組織で共有できます。
+
+たとえば、中央IT部門は共有プラットフォームアカウントを持つ共有オブザーバビリティ組織を維持し、ByteFlix+、BBS、およびPixelTVの各組織はアカウント共有を介してそれらのアカウントへの読み取りアクセス権を持ちます。
+
+#### トレードオフ [#multi-tenancy-tradeoffs]
+
+**利点：**
+
+* 組織の境界によって強制される、最も強力な分離モデル
+* 最もシンプルな権限モデルであり、エンティティスコープの付与は必要ありません。
+* 各ユニットは完全に自律して動作します。
+
+**欠点：**
+
+* 権限の変更だけでなく、組織の再構築が必要です
+* 組織ごとに請求とライセンスが分かれるため、契約構造に影響を与える可能性があります。
+* 共有サービスにはアカウント共有の設定が必要です。
+* 一部の組織横断的なレポートには、カスタムダッシュボードまたはData Plus機能が必要です
+
+#### 個別の組織の次のステップ [#multi-tenancy-next-steps]
+
+このモデルを追求するには、[マルチテナンシー](/docs/accounts/accounts-billing/account-structure/multi-tenancy/intro-to-multi-tenancy)を参照し、アカウント担当者に連絡して、共有サービスのワークフロー、ユニットを別々の組織に移行するための移行計画、共有プラットフォームサービスのアカウント共有、および契約と請求への影響について確認してください。
+
+### 代替の解決策：単一の組織内のRBACパターン [#rbac-single-org]
+
+契約上の制約、スケジュール、または組織の抵抗により、ByteFlixが別々の組織に移行**できない**場合でも、単一の組織内でこのガイドのRBACパターンを使用することで、同様の結果を達成できます。
+
+#### パターン1：エンティティスコープのアクセス（FGA） [#bu-pattern-1]
+
+**解決する課題：**単一の組織内でのビジネスユニットの分離。
+
+**仕組み：**きめ細かいアクセスを使用して、各ユニットのグループに特定のフリートエンティティへのアクセスのみを付与します。
+
+**例：**
+
+* `byteflix-plus-platform-ops` `byteflix-plus-prod-k8s`フリートのみをスコープとする<DNT>**Fleet manager**</DNT>ロールが付与されます
+* `bbs-platform-ops` `bbs-prod-k8s`フリートのみをスコープとする<DNT>**Fleet manager**</DNT>ロールが付与されます
+
+**結果：**ByteFlix+チームはByteFlix+フリートに対してのみ、BBSチームはBBSフリートに対してのみアクションを実行できます。
+
+**制限事項：**これには、<DNT>**Authentication domain manager**</DNT>が<DNT>**Fleet permissions**</DNT> UIを介して初期アクセス付与をセットアップする必要があります。一度確立されると、ユニットリーダーは中央IT部門を関与させることなく、新しいフリートへのアクセスを付与することはできません。
+
+**リファレンス：**[基本パターン](#basic-pattern)。
+
+#### パターン2：カスタムライフサイクルロール [#bu-pattern-2]
+
+**解決する課題：**ライフサイクルの分離。プラットフォームOpsがフリートを形成し、アプリチームがデプロイを行います。
+
+**仕組み：**<DNT>**Fleet**</DNT>をターゲットとする2つのカスタムエンティティスコープのロールを作成します：
+
+* **Fleet author**、<DNT>**Modify**</DNT>を保持し、プラットフォームOpsチームに割り当てられます
+* **Fleet deployer**、<DNT>**Deploy**</DNT>を保持し、アプリチームと請負業者に割り当てられます
+
+その後、パターン1を使用して、特定のフリートエンティティ上のグループに両方のロールが付与されます。
+
+**結果：**プラットフォームOpsは所有するフリートを形成し、アプリチームはデプロイメントを実行します。どちらもフリートを削除することはできません。
+
+**制限事項：**カスタムロールを作成するには、Proまたはエンタープライズエディションが必要です。フリートにそれらを付与するには、<DNT>**Fleet permissions**</DNT> UI経由で<DNT>**Authentication domain manager**</DNT>が必要です。
+
+**参考：**[高度なパターン](#advanced-pattern)。
+
+#### パターン3：グループ管理者の委任 [#bu-pattern-3]
+
+**解決する課題：**<DNT>**Authentication domain manager**</DNT>なしでの請負業者への委任。
+
+**仕組み：**ユニットリーダーに、そのユニットのオペレーショングループをスコープとする<DNT>**Group admin**</DNT>ロールを付与します。
+
+**ByteFlix+の例：**
+
+* グループ： `byteflix-plus-bu-leads`
+* ロール： <DNT>**Group admin**</DNT>
+* スコープ：`byteflix-plus-platform-ops`のメンバーシップを管理でき、 `byteflix-plus-app-teams`
+
+**結果：**ユニットリーダーは、**中央ITを関与させることなく**、また**<DNT>Authentication domain manager</DNT>を必要とせずに**、グループに請負業者を追加したり、グループから削除したりできます。
+
+**制限事項：**ユニットリーダーはグループに*誰*が含まれるかを管理できますが、新しいアクセス付与を作成したり、新しいフリートにグループを割り当てたりすることはできません。新しいフリートが作成された場合でも、中央IT部門がそのアクセス付与を作成する必要があります。
+
+**リファレンス：**[エンタープライズパターン](#enterprise-pattern)。
+
+#### 統合RBACアーキテクチャー [#combined-architecture]
+
+単一の組織内で3つのパターンすべてを併用する場合、ByteFlixのアーキテクチャーは次のようになります：
+
+```
+Organization: ByteFlix Entertainment
+
+├── ByteFlix+ (Streaming BU):
+│   ├── Groups:
+│   │   ├── byteflix-plus-bu-leads (Group admin over operational groups)
+│   │   ├── byteflix-plus-platform-ops (Fleet author role)
+│   │   └── byteflix-plus-app-teams (Fleet deployer role, includes contractors)
+│   └── Fleets (entity-scoped to ByteFlix+ groups only):
+│       ├── byteflix-plus-prod-k8s
+│       └── byteflix-plus-stage-k8s
+│
+├── BBS (Broadcast BU):
+│   ├── Groups:
+│   │   ├── bbs-bu-leads (Group admin)
+│   │   ├── bbs-platform-ops (Fleet author role)
+│   │   └── bbs-app-teams (Fleet deployer role)
+│   └── Fleets (entity-scoped to BBS groups only):
+│       ├── bbs-prod-k8s
+│       └── bbs-stage-k8s
+│
+└── PixelTV (Cable BU):
+    ├── Groups:
+    │   ├── pixeltv-bu-leads (Group admin)
+    │   ├── pixeltv-platform-ops (Fleet author role)
+    │   └── pixeltv-app-teams (Fleet deployer role)
+    └── Fleets (entity-scoped to PixelTV groups only):
+        ├── pixeltv-prod-k8s
+        └── pixeltv-stage-k8s
+
+Custom entity-scoped roles, created once by central IT:
+├── Fleet author (Modify)
+└── Fleet deployer (Deploy)
+```
+
+#### RBACのトレードオフ [#rbac-tradeoffs]
+
+**利点：**
+
+* 組織の再構築は必要ありません。
+* 単一の契約および請求関係
+* 適切に設定された権限付与により、ユニット間の運用上の分離を実現します。
+
+**欠点：**
+
+* 中央IT部門による初期設定が必要です。つまり、認証ドメイン管理者の関与が必要になります。
+* 新しいフリートでは依然として中央IT部門がアクセス権限を作成する必要があり、継続的な依存関係となります。
+* 個別の組織よりも複雑な権限モデル
+* 分離は正しいアクセス付与の設定に依存しており、組織の境界によって強制されるものではありません。
+
+<Callout title="このモデルは、誰がフリートを表示できるかではなく、誰がフリートを操作できるかを制御します。" variant="important">
+  フリートスコープのロールには<DNT>**Read**</DNT>権限がないため、<DNT>Fleet Control</DNT>で作業するすべてのユーザーには組織スコープの読み取りアクセス権が必要です。ByteFlix+のユーザーは、BBSおよびPixelTVフリートに対してアクションを実行できなくても、それらが存在することを確認できます。
+
+  ビジネスユニットが互いのフリートをまったく見ることができないようにする必要がある場合、それを実現できるモデルは個別の組織のみです。
+</Callout>
+
+### ロール要件 [#role-clarification]
+
+| アクション                             | 必要なロール                        | 頻度        | メモ                                                                         |
+| :-------------------------------- | :---------------------------- | :-------- | :------------------------------------------------------------------------- |
+| **<DNT>Agent Control</DNT>の初期設定** | 認証ドメインマネージャー                  | 1回        | システムIDを作成し、権限を割り当てます。                                                      |
+| **フリートの作成/更新**                    | 組織製品アドミン                      | 継続中       | <DNT>**User**</DNT>グループに自動的に割り当てられます                                       |
+| **設定の作成**                         | 組織製品アドミン                      | 継続中       | <DNT>**User**</DNT>グループに自動的に割り当てられます                                       |
+| **フリートをデプロイする**                   | 組織マネージャー、またはフリートごとのフリートマネージャー | 継続中       | デフォルトの<DNT>**Admin**</DNT>グループに自動的に割り当てられます。または、デプロイを含むフリートスコープのロールを使用します。 |
+| **フリートとデプロイメントを削除します。**           | 組織マネージャー、またはフリートごとのフリートマネージャー | 不定期       | 設定の削除には組織レベルのスコープが必要です。                                                    |
+| **設定を承認し、承認ポリシーを設定する**            | 組織マネージャー                      | 継続中       | 組織スコープのみ；フリートごとにスコープを設定することはできません。                                         |
+| **アクセス許可を作成する**                   | 認証ドメインマネージャー                  | 新しいフリートごと | ユーザーグループをフリートに割り当てます                                                       |
+| **グループメンバーシップを管理します。**            | グループ管理者、委任済み                  | 継続中       | 完全なドメインマネージャー権限なしでメンバーシップを管理します。[パターン3](#bu-pattern-3)を参照してください。           |
+
+ロールは加算されるため、複数のロールを持つユーザーはそれらの権限の合計を持ちます。各標準ロールがカバーする内容については、[ユーザー管理の概念](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#standard-roles)を参照してください。
+
+## 既知の問題と回避策 [#known-issues]
+
+### ロールIDを直接クエリできません。 [#role-ids]
+
+**問題：**<DNT>NerdGraph</DNT>は、名前でロールIDを一覧表示する直接的なクエリを提供していません。
+
+**回避策：**すでにロールを保持しているグループから読み取ってください：
+
+```graphql
+{
+  actor {
+    organization {
+      authorizationManagement {
+        authenticationDomains(id: "YOUR_AUTH_DOMAIN_ID") {
+          authenticationDomains {
+            groups {
+              groups {
+                displayName
+                roles {
+                  roles {
+                    roleId
+                    displayName
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### フリートGUIDの検索 [#fleet-guids]
+
+**問題：**フリートGUIDは、UIを介して簡単に見つけることができません。
+
+**回避策：**フリートの詳細ページに移動します。GUIDはURLの`/fleets/`の後にあります。代わりにフリートをクエリするには、[<DNT>NerdGraph Fleet Control</DNT>チュートリアル](/docs/apis/nerdgraph/examples/nerdgraph-fleet-control-tutorial)を参照してください。
+
+## クイックリファレンス：NerdGraph IDの検索 [#find-ids]
+
+**組織および認証ドメインID：**
+
+```graphql
+{
+  actor {
+    organization {
+      id
+      name
+      userManagement {
+        authenticationDomains {
+          authenticationDomains {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**グループID：**
+
+```graphql
+{
+  actor {
+    organization {
+      userManagement {
+        authenticationDomains(id: "YOUR_AUTH_DOMAIN_ID") {
+          authenticationDomains {
+            groups {
+              groups {
+                id
+                displayName
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**アカウントID：**New RelicのURLで確認できます。または：
+
+```graphql
+{
+  actor {
+    accounts {
+      id
+      name
+    }
+  }
+}
+```
+
+## 自動化スクリプトテンプレート [#automation-script]
+
+複数のフリートやグループを大規模に管理するチーム向けに、[New Relic CLI](/docs/new-relic-solutions/tutorials/new-relic-cli)を使用したテンプレートを以下に示します。このテンプレートは、グループを作成し、フリートを作成して、そのフリートへのアクセス権をグループに付与します。
+
+[高度なパターン](#advanced-ui)で説明されているように、最初にUIでカスタムロールを作成し、ロールIDをスクリプトに渡します。
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Prerequisites:
+#   - New Relic CLI installed and profile configured with a user key
+#   - The Authentication domain manager role, required to create access grants
+#   - A role created in Administration > Access management > Roles, and its ID
+
+AUTH_DOMAIN_ID="YOUR_AUTH_DOMAIN_ID"
+ACCOUNT_ID="YOUR_ACCOUNT_ID"
+ROLE_ID="YOUR_ROLE_ID"
+GROUP_NAME="fleet-architects"
+FLEET_NAME="production-us-east-k8s"
+
+# 1. Create the group. Note the returned group ID.
+echo "Creating group ${GROUP_NAME}..."
+newrelic nerdgraph query 'mutation CreateGroup($authDomainId: ID!, $displayName: String!) {
+  userManagementCreateGroup(createGroupOptions: {
+    authenticationDomainId: $authDomainId
+    displayName: $displayName
+  }) {
+    group { id displayName }
+  }
+}' --variables "{\"authDomainId\": \"${AUTH_DOMAIN_ID}\", \"displayName\": \"${GROUP_NAME}\"}"
+
+# 2. Create the fleet. Note the returned fleet GUID.
+echo "Creating fleet ${FLEET_NAME}..."
+newrelic nerdgraph query 'mutation CreateFleet($name: String!, $scopeId: ID!) {
+  fleetControlCreateFleet(fleetEntity: {
+    name: $name
+    description: "Created by setup script"
+    managedEntityType: KUBERNETESCLUSTER
+    scope: { type: ACCOUNT, id: $scopeId }
+  }) {
+    entity { id name }
+  }
+}' --variables "{\"name\": \"${FLEET_NAME}\", \"scopeId\": \"${ACCOUNT_ID}\"}"
+
+# 3. Grant the group access to the fleet, using the IDs returned above.
+GROUP_ID="GROUP_ID_FROM_STEP_1"
+FLEET_GUID="FLEET_GUID_FROM_STEP_2"
+
+echo "Granting entity-scoped access..."
+newrelic nerdgraph query 'mutation GrantFleetAccess($groupId: ID!, $fleetGuid: ID!, $roleId: ID!) {
+  authorizationManagementGrantAccess(grantAccessOptions: {
+    grantee: { type: GROUP, id: $groupId }
+    entityAccessGrants: {
+      entity: { id: $fleetGuid, type: "fleet" }
+      roleId: $roleId
+    }
+  }) {
+    accessGrants { id }
+  }
+}' --variables "{\"groupId\": \"${GROUP_ID}\", \"fleetGuid\": \"${FLEET_GUID}\", \"roleId\": \"${ROLE_ID}\"}"
+
+echo "Setup complete."
+```
+
+スペースや引用符を含む名前によってリクエストが失敗しないように、手動でクエリ文字列を作成するのではなく、`--variables`を使用して値を渡してください。無人でステップを実行するには、各レスポンスをキャプチャし、次の呼び出しの前にそこからIDを読み取ってください。
+
+フリートの更新や削除、デプロイメントの管理など、フリート操作の詳細については、[<DNT>Fleet Control</DNT> APIおよびCLI](/docs/new-relic-control/fleet-control/apis-and-cli)をご覧ください。
+
+## 次のステップ [#whats-next]
+
+* フリート権限UIおよび設定の承認については、[フリートの管理](/docs/new-relic-control/fleet-control/manage-fleets)
+* プログラムによるアクセスのための[Fleet Control APIおよびCLI](/docs/new-relic-control/fleet-control/apis-and-cli)
+* 設定と認証情報がどのように保護されるかについては、[Fleet Controlのセキュリティ](/docs/new-relic-control/fleet-control/security)をご覧ください。
+* グループ、ロール、およびアクセス付与がNew Relic全体でどのように機能するかについては、[ユーザー権限](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions)および[ユーザー管理の概念](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts)

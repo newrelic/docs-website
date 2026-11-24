@@ -1,0 +1,319 @@
+---
+title: Rastreo distribuido de NGINX con OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - NGINX
+  - Distributed tracing
+  - Service maps
+metaDescription: Enable distributed tracing through NGINX using the ngx_otel_module. View service relationships in New Relic service maps.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+NGINX 1.25.3 y versiones posteriores incluyen el [`ngx_otel_module`](https://nginx.org/en/docs/ngx_otel_module.html), un módulo nativo de OpenTelemetry que agrega compatibilidad con el rastreo distribuido directamente en el servidor web.
+
+Al combinar `ngx_otel_module` con aplicaciones instrumentadas, New Relic conecta las trazas de extremo a extremo y crea [relaciones de servicio](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/) entre sus servicios y la entidad de NGINX. Estas relaciones aparecen en los [mapas de servicio](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/), lo que le brinda visibilidad de cómo fluye el tráfico a través de su servidor web o proxy inverso.
+
+## Cómo funciona [#how-it-works]
+
+En una configuración típica, el tráfico fluye de la siguiente manera:
+
+```
+Instrumented app (client) → NGINX (with ngx_otel_module) → Instrumented app (backend)
+```
+
+1. La aplicación cliente envía una solicitud con un encabezado `traceparent` de [W3C](https://www.w3.org/TR/trace-context/).
+2. El `ngx_otel_module` de NGINX extrae el contexto de traza, crea un span para la solicitud e inyecta el contexto de traza actualizado en la solicitud enviada por proxy al backend ascendente.
+3. La aplicación del backend recibe la solicitud con el contexto de traza propagado y continúa la traza.
+4. Todos los spans (del cliente, NGINX y el backend) se exportan a un OpenTelemetry Collector, que enriquece los spans de NGINX con la identidad de NGINX y los reenvía a New Relic.
+
+New Relic utiliza estos spans conectados para crear relaciones CALLS:
+
+* **Servicio del cliente** LLAMA A **entidad de NGINX**
+* **Entidad de NGINX** CALLS **servicio de backend**
+
+Debido a que el recolector estampa la misma identidad `nginx.deployment.name` y `nginx.server.endpoint` que usan las métricas de NGINX, los spans de NGINX se resuelven en la **misma** entidad `NGINXSERVER` que sus métricas de NGINX. Estas relaciones son visibles en los [mapas de servicios](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/) y en la [experiencia de mapas](/docs/service-architecture-intelligence/maps/advanced-maps/).
+
+## Compatibilidad [#compatibility]
+
+`ngx_otel_module` funciona con cualquier aplicación que admita la propagación del contexto de W3C Trace Context, lo que incluye:
+
+* Aplicaciones instrumentadas con **OpenTelemetry SDK** (cualquier lenguaje)
+* **Instrumentación automática de OpenTelemetry** (Java, .NET, Python, Node.js, Go)
+* **Agentes APM de New Relic** (Go, Java, .NET, Node.js, Python, Ruby, PHP) con el [rastreo distribuido habilitado](/docs/distributed-tracing/enable-configure/overview-enable-distributed-tracing/)
+
+Puede combinar enfoques de instrumentación. Por ejemplo, un cliente del SDK de OTel puede llamar a través de NGINX a un backend de agente APM de New Relic, y la cadena de relaciones aparece correctamente en New Relic.
+
+## Antes de que empieces [#prerequisites]
+
+Asegúrese de tener:
+
+* [Clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)de New Relic válida
+* **NGINX 1.25.3 o posterior** con `ngx_otel_module` disponible. El módulo se distribuye como un módulo dinámico precompilado (`nginx-module-otel`) desde el [respositorio oficial de paquetes de NGINX](https://nginx.org/en/linux_packages.html); consulte la [documentación de`ngx_otel_module` ](https://nginx.org/en/docs/ngx_otel_module.html)para obtener detalles de instalación.
+* **OpenTelemetry Collector** ([NRDOT](https://github.com/newrelic/nrdot-collector-releases) u [OTel Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest)) que se ejecuta en el mismo host o al que se puede acceder desde el host de NGINX
+* **Aplicaciones instrumentadas** que envían requests a través de NGINX, utilizando cualquiera de los enfoques de instrumentación compatibles enumerados anteriormente
+* Acceso de red desde el recolector al [extremo OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)de New Relic
+
+<Callout variant="tip">
+  Esta guía configura tanto la recopilación de métricas como el rastreo distribuido en un solo OTel Collector. Para una configuración de solo métricas o un despliegue de Kubernetes, consulte [Monitorear NGINX autohospedado](/docs/opentelemetry/integrations/nginx/nginx-otel-host/) y [Monitorear NGINX en Kubernetes](/docs/opentelemetry/integrations/nginx/nginx-otel-kubernetes/).
+</Callout>
+
+## Configurar el rastreo distribuido [#setup]
+
+<Callout variant="tip">
+  El pipeline de trazas a continuación es la misma configuración estándar que usaría para cualquier servicio que participe en el rastreo distribuido. No es una configuración de relación manual. Una vez que el rastreo está activo, New Relic detecta automáticamente los spans conectados y crea relaciones de servicio.
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="step1-nginx-config" title="Paso 1: configurar ngx_otel_module en NGINX">
+    Cargue el módulo y habilite el rastreo en su `nginx.conf`. Agregue la directiva `load_module` en el nivel superior (contexto principal) y las directivas de OpenTelemetry dentro del contexto `http`:
+
+    ```nginx
+    # Main context — load the dynamic module
+    load_module modules/ngx_otel_module.so;
+
+    http {
+        # Export spans to the OpenTelemetry Collector over OTLP/gRPC
+        otel_exporter {
+            endpoint localhost:4317;
+        }
+
+        # A name that identifies this NGINX instance in traces
+        otel_service_name nginx-server;
+
+        # Emit a span per request and propagate W3C trace context to upstreams
+        otel_trace on;
+        otel_trace_context propagate;
+
+        server {
+            listen 80;
+
+            location / {
+                proxy_pass http://backend_app;
+            }
+        }
+    }
+    ```
+
+    Esta configuración:
+
+    * **Carga** el módulo de OpenTelemetry (`load_module`).
+    * **Exporta** spans a través de OTLP/gRPC al recolector que escucha en `localhost:4317` (`otel_exporter`).
+    * **Crea un span** para cada solicitud (`otel_trace on`). Para trazar un subconjunto de tráfico en entornos de alto rendimiento, configure `otel_trace` en una variable (por ejemplo, controlada por [`split_clients`](https://nginx.org/en/docs/http/ngx_http_split_clients_module.html)) en lugar de `on`.
+    * **Propaga** el contexto de traza (`otel_trace_context propagate`): esto *extrae* el encabezado `traceparent` entrante (vinculando los spans de NGINX al servicio de llamada) e *inyecta* el contexto actualizado en las requests enviadas a los upstreams (permitiendo que los servicios downstream continúen la traza).
+
+    Las directivas `otel_trace on` y `otel_trace_context` también se pueden configurar por bloque `server` o `location` si desea trazar solo hosts virtuales o rutas específicas.
+
+    Para obtener la referencia completa de las directivas, consulte la [documentación de`ngx_otel_module` ](https://nginx.org/en/docs/ngx_otel_module.html).
+  </Collapser>
+
+  <Collapser id="step2-collector" title="Paso 2: configurar el OTel Collector">
+    Configure el OTel Collector para recibir trazas de `ngx_otel_module` y métricas del extremo de estado stub de NGINX, enriquecer ambas con la identidad de NGINX y enviarlas a New Relic.
+
+    ```yaml
+    receivers:
+      # Receives spans from ngx_otel_module (NGINX → localhost:4317)
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+      # Collects NGINX metrics from the stub status endpoint
+      nginx:
+        endpoint: <YOUR_STUB_STATUS_ENDPOINT>  # e.g. http://127.0.0.1/status
+        collection_interval: 30s
+
+    processors:
+      resourcedetection:
+        detectors: [system]
+        system:
+          resource_attributes:
+            host.id:
+              enabled: true
+
+      # Adds the NGINX identity so spans and metrics resolve to the SAME NGINXSERVER entity
+      resource/nginx:
+        attributes:
+          - key: nginx.server.endpoint
+            value: "<YOUR_STUB_STATUS_ENDPOINT>"  # must match the nginx receiver endpoint
+            action: upsert
+          - key: nginx.deployment.name
+            value: "<YOUR_DEPLOYMENT_NAME>"        # a stable name for this NGINX deployment
+            action: upsert
+
+      # Sets nginx.display.name for the metrics pipeline
+      transform/nginx_metrics:
+        metric_statements:
+          - context: resource
+            statements:
+              - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+
+      # Same display-name stamp for the traces pipeline — ngx_otel_module spans carry no
+      # NGINX identity by default; resource/nginx adds the endpoint + deployment name, and
+      # this adds nginx.display.name, so the spans resolve to the NGINXSERVER entity.
+      transform/nginx_traces:
+        trace_statements:
+          - context: resource
+            statements:
+              - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+
+      batch:
+
+    exporters:
+      otlp_http:
+        endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [resourcedetection, resource/nginx, transform/nginx_traces, batch]
+          exporters: [otlp_http]
+        metrics/nginx:
+          receivers: [nginx]
+          processors: [resourcedetection, resource/nginx, transform/nginx_metrics, batch]
+          exporters: [otlp_http]
+    ```
+
+    Esta configuración del recolector incluye dos pipelines:
+
+    * **Pipeline de trazas**: recibe datos de traza de OTLP de `ngx_otel_module` y sus aplicaciones instrumentadas a través de gRPC (puerto 4317) o HTTP (puerto 4318). Este es el mismo pipeline de trazas estándar que usaría para cualquier servicio que envíe datos de OTLP a New Relic.
+    * **Pipeline de métricas**: usa el [`nginxreceiver`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/nginxreceiver) para recopilar métricas de rendimiento (conexiones, requests) del extremo de estado stub de NGINX. Estas métricas crean la entidad de NGINX en New Relic con métricas doradas.
+
+    Ambas canalizaciones comparten estos procesadores:
+
+    * **`resourcedetection`**: agrega `host.id`, un atributo de recurso estándar que se usa para identificar hosts en todo el ecosistema de OpenTelemetry.
+    * **`resource/nginx`**: agrega `nginx.server.endpoint` y `nginx.deployment.name`. Estos dos atributos forman la identidad de la entidad de NGINX. Al aplicarlos a ambos pipelines, los spans y las métricas de NGINX se resuelven en la misma entidad `NGINXSERVER` en lugar de en una entidad de servicio duplicada.
+    * **`transform/nginx_*`**: agrega `nginx.display.name` para obtener un nombre de entidad amigable.
+
+    <Callout variant="important">
+      El valor de `nginx.server.endpoint` en `resource/nginx` y el `endpoint` del receptor `nginx` deben ser idénticos. Junto con `nginx.deployment.name`, forman la identidad de la entidad `NGINXSERVER`. Este es un valor estático y único por instancia de NGINX. Cuando agrega o elimina aplicaciones de cliente y de backend, no necesita cambiar la configuración del recolector. Las relaciones se forman automáticamente a través de la propagación del contexto de traza.
+    </Callout>
+
+    Establezca las variables de entorno requeridas e inicie (o reinicie) el recolector:
+
+    ```bash
+    export NEW_RELIC_LICENSE_KEY="<YOUR_LICENSE_KEY>"
+    export OTEL_EXPORTER_OTLP_ENDPOINT="<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+
+    sudo systemctl restart nrdot-collector
+    ```
+
+    Reemplace `<YOUR_LICENSE_KEY>` con su <InlinePopover type="licenseKey" />. Para el extremo OTLP, consulte la [configuración del extremo OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+  </Collapser>
+
+  <Collapser id="step3-restart" title="Paso 3: recargar NGINX y verificar">
+    Pruebe la configuración y recargue NGINX para cargar el módulo de OpenTelemetry:
+
+    ```bash
+    sudo nginx -t
+    sudo systemctl reload nginx
+    ```
+
+    <Callout variant="important">
+      La directiva `load_module` requiere que el archivo `ngx_otel_module.so` exista en la ruta indicada y coincida con su versión de NGINX. Si ve `unknown directive "otel_exporter"` o un error de carga del módulo, el módulo no está instalado o no está cargado. Instale el paquete `nginx-module-otel` para su versión de NGINX y confirme la ruta `load_module`.
+    </Callout>
+
+    Una vez que NGINX y el recolector estén en ejecución, genere algo de tráfico a través de sus aplicaciones instrumentadas. Después de unos minutos, verifique que los datos estén llegando a New Relic:
+
+    ```sql
+    -- Verify NGINX trace spans
+    FROM Span SELECT count(*)
+    WHERE nginx.deployment.name = '<YOUR_DEPLOYMENT_NAME>'
+    SINCE 10 minutes ago
+
+    -- Verify NGINX metrics
+    FROM Metric SELECT count(*)
+    WHERE metricName LIKE 'nginx.%'
+    SINCE 10 minutes ago
+    ```
+  </Collapser>
+
+  <Collapser id="step4-relationships" title="Paso 4: ver las relaciones de los servicios">
+    Una vez que los datos de traza fluyen, New Relic crea automáticamente relaciones CALLS entre sus servicios y la entidad de NGINX. Las relaciones pueden tardar hasta 10 minutos en aparecer.
+
+    Para ver las relaciones:
+
+    1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; All entities**</DNT>.
+    2. Busque la entidad de NGINX o uno de los servicios instrumentados.
+    3. Seleccione una entidad para abrir su página de resumen.
+    4. Haga clic en <DNT>**Service map**</DNT> para ver el gráfico de relaciones de la entidad.
+
+    Debería ver sus servicios de cliente conectados a NGINX y NGINX conectado a sus servicios de backend:
+
+    ```
+    [Client app] → CALLS → [NGINX] → CALLS → [Backend app]
+    ```
+
+    También puede consultar las relaciones con NRQL:
+
+    ```sql
+    FROM Relationship SELECT *
+    WHERE source.entityName = '<YOUR_NGINX_DISPLAY_NAME>'
+      OR target.entityName = '<YOUR_NGINX_DISPLAY_NAME>'
+    SINCE 1 day ago
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Resolución de problemas [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-no-spans" title="No aparecen spans de NGINX en New Relic">
+    * Verifique que NGINX se haya recargado sin errores: `sudo nginx -t` y `sudo journalctl -u nginx -n 50 --no-pager`
+    * Confirme que `ngx_otel_module` esté cargado. Un error `unknown directive "otel_exporter"` significa que el módulo no está cargado. Verifique la ruta `load_module` y que `nginx-module-otel` esté instalado para su versión de NGINX.
+    * Verifique que el OTel Collector se esté ejecutando y escuchando en el puerto en `otel_exporter`: `sudo ss -tlnp | grep 4317`
+    * Verifique los logs del recolector en busca de errores: `sudo journalctl -u nrdot-collector -n 50 --no-pager`
+    * Confirme que el extremo `otel_exporter` coincida con la dirección del listener de gRPC del recolector.
+  </Collapser>
+
+  <Collapser id="troubleshoot-no-relationships" title="Aparecen los spans, pero no se forman las relaciones">
+    * Espere hasta 10 minutos para que aparezcan las relaciones después de que lleguen los primeros spans.
+
+    * Verifique que sus aplicaciones instrumentadas estén enviando trazas a través del recolector. Tanto los spans de NGINX como los spans de la aplicación deben llegar a New Relic para que se formen las relaciones.
+
+    * Compruebe que las aplicaciones cliente propaguen los encabezados `traceparent` del W3C. Sin la propagación del contexto de traza, los spans de NGINX no están conectados al servicio de llamada.
+
+    * Confirme que los procesadores `resourcedetection` y `resource/nginx` estén incluidos en el pipeline de trazas del recolector. Los atributos `nginx.server.endpoint` y `nginx.deployment.name` son necesarios para que los spans de NGINX se resuelvan en la entidad NGINXSERVER.
+
+    * Confirme que `otel_trace_context propagate` esté configurado (no solo `extract` o `inject`). `propagate` es necesario para el flujo de contexto de extremo a extremo a través de NGINX.
+
+    * Consulta para verificar que tanto los spans de NGINX como los de la aplicación compartan los ID de traza:
+
+      ```sql
+      FROM Span SELECT uniques(service.name)
+      WHERE trace.id IN (
+        SELECT uniques(trace.id) FROM Span
+        WHERE nginx.deployment.name = '<YOUR_DEPLOYMENT_NAME>'
+        SINCE 10 minutes ago LIMIT 5
+      )
+      SINCE 10 minutes ago
+      ```
+
+      Debería ver su servicio NGINX junto a los nombres de los servicios de su aplicación.
+  </Collapser>
+
+  <Collapser id="troubleshoot-duplicate-entity" title="NGINX aparece como un servicio independiente en lugar de la entidad NGINXSERVER">
+    * Asegúrese de que el procesador `resource/nginx` se ejecute en el pipeline de **trazas** (no solo en el pipeline de métricas). Sin él, los spans de NGINX carecen de `nginx.deployment.name` / `nginx.server.endpoint` y se sintetizan como un servicio genérico en lugar de resolverse en la entidad NGINXSERVER.
+    * Verifique que el valor `nginx.server.endpoint` sea **idéntico** en el receptor `nginx` y el procesador `resource/nginx`, y que `nginx.deployment.name` coincida con el valor utilizado por sus métricas de NGINX. La identidad de la entidad es la composición de estos dos valores. Una discrepancia produce una entidad diferente.
+    * Ejecute también el pipeline de métricas. Las métricas doradas de la entidad NGINXSERVER provienen del `nginxreceiver`; sin esto, NGINX sigue apareciendo a través de trazas, pero sin métricas.
+  </Collapser>
+
+  <Collapser id="troubleshoot-partial-relationships" title="Aparecen algunas relaciones, pero no todas">
+    * Cada aplicación instrumentada debe enviar trazas a través del mismo OTel Collector (o directamente a New Relic) para que los datos de los spans de todos los servicios lleguen a la misma cuenta.
+    * Para las aplicaciones que utilizan agentes APM de New Relic, verifique que el [rastreo distribuido](/docs/distributed-tracing/enable-configure/overview-enable-distributed-tracing/) esté habilitado y que el agente esté conectado.
+    * Para las aplicaciones del SDK de OTel, verifique que el exportador OTLP esté configurado para enviar al recolector.
+    * Espere un tiempo adicional. Las relaciones de los servicios con menor volumen de tráfico pueden tardar más en aparecer.
+  </Collapser>
+</CollapserGroup>
+
+## Próximos pasos [#next-steps]
+
+* [Mapas de servicios](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/): aprenda a explorar las relaciones de las entidades visualmente
+* [Monitorear las métricas de NGINX autohospedado](/docs/opentelemetry/integrations/nginx/nginx-otel-host/): configuración de métricas y configuración del dashboard
+* [Encuentre y consulte sus datos de NGINX](/docs/opentelemetry/integrations/nginx/find-and-query-your-data/): consultas NRQL tanto para métricas como para datos de trazas
+* [Documentación de`ngx_otel_module` ](https://nginx.org/en/docs/ngx_otel_module.html): referencia completa para el módulo de OpenTelemetry de NGINX

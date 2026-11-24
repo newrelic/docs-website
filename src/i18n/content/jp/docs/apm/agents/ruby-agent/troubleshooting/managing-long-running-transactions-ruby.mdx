@@ -1,0 +1,86 @@
+---
+title: 長時間実行されるトランザクションの管理
+tags:
+  - Agents
+  - Ruby agent
+  - Troubleshooting
+metaDescription: Strategies for troubleshooting issues caused by long-running transactions with the New Relic Ruby agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Rubyエージェントは、非常に長時間実行されるトランザクションや、決して終了しないトランザクションをトレースするようには設計されていません。このガイドでは、それがメモリの増加を引き起こす理由を説明し、それを回避するための戦略を提供します。
+
+## 問題
+
+アプリケーションのメモリ使用量が継続的に増加し、それが長時間開いたままになっている1つ以上のトランザクションと相関しています。これは以下の場合に最も一般的です：
+
+* 大規模なバッチの処理や、多数のデータベースクエリまたは外部呼び出しの発行など、長期間1つのトランザクションに留まるバックグラウンドジョブまたはワーカー
+* プロセスの存続期間中存在するスレッド（エージェントはこれを1つの継続的に実行されているトランザクションとして扱います）
+* 通常よりもはるかに長く実行されるか、または完了しないトランザクション
+
+## これが発生する理由
+
+トランザクション内のトレースされたすべての作業単位に対して、エージェントはセグメントを作成し、トランザクショントレースを構築して各セグメントの親の排他時間を計算できるようにします。[`transaction_tracer.limit_segments`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration-transaction-tracer-settings#transaction_tracer-limit_segments)設定（デフォルトは`4000`）は、トランザクショントレースに追加されるこれらのセグメントの数を制限します。
+
+ただし、その制限に達した後でも、親セグメントの排他的な時間計算を正確に保つために、エージェントは追加の作業単位ごとにセグメントを作成し続け、その開始時間と終了時間を追跡します。実行され続けるトランザクションの場合、このタイミングデータは、トランザクションが開いている限り蓄積され続けます。これは、そのトランザクションに関連付けられたメモリが、トランザクションが終了するまで解放されないことを意味し、長時間実行されるトランザクションや終了しないトランザクションの場合、非常に長い時間になる可能性があります。
+
+## ソリューション
+
+### 設定オプションでメモリの増加を制限する
+
+以下のオプションはいずれもトランザクションを短くするものではありませんが、トランザクションが開いている間にエージェントが保持するデータ量を制限できます。
+
+* **トレース制限に達したら、セグメントのタイミングデータを制限してください。**実行時間の長いトランザクションが[`transaction_tracer.limit_segments`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration-transaction-tracer-settings#transaction_tracer-limit_segments)で許可されている数より多くのセグメントを作成すると予想される場合は、[`transaction_tracer.cap_segment_artifacts`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration-transaction-tracer-settings#transaction_tracer-cap_segment_artifacts)（エージェントバージョン10.7.0以降で利用可能、デフォルトでは無効）を有効にしてください。
+
+  セグメントの制限に達すると、エージェントはそのトランザクション内の以降のセグメントの排他時間データの記録を停止し、トランザクションのメモリ増加を制限します。セグメントのタイミングの収集を停止するため、トレードオフとしてトランザクション内の親セグメントのタイミングデータの精度が低下します。
+
+* **セグメント制限自体を下げてください。**1つのトランザクショントレースに何千ものノードを必要としない場合、[`transaction_tracer.limit_segments`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration-transaction-tracer-settings#transaction_tracer-limit_segments)（デフォルトは`4000`）を下げると、エージェントはトレースに新しいセグメントを追加するのをより早く停止します。トランザクションが実際にこの制限に達しているかどうかを確認するには、デバッグレベルのロギングをオンにして、`Segment limit of [segment_limit] reached, ceasing collection.`を探してください。
+
+* **スパンイベントの量を減らしてください。**終了した各セグメントは、トランザクショントレースとは独立してスパンイベントも作成します。異常に多くのセグメントを作成するトランザクションの場合、[`span_events.max_samples_stored`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration-distributed-tracing-settings#span_events-max_samples_stored)（デフォルトは`2000`）を下げるか、スパンレベルのディストリビューティッド（分散）トレーシングの詳細が必要ない場合は、`span_events.enabled: false`を使用してアプリ全体のスパンイベントを無効にしてください。これにより、メモリ消費の要因の1つを減らすことができますが、上記で説明した根本的なセグメント/タイミングの蓄積を止めるものではないため、修正ではなく部分的な緩和策として扱ってください。
+
+* **Sidekiqジョブによるウェブトランザクションの肥大化を防いでください。**実行時間の長いトランザクションが、実際にはリクエスト内でSidekiqジョブを実行しているために長引いているウェブトランザクションである場合、デフォルトでは、そのジョブの作業はウェブトランザクション内のネストされたセグメントになります。そのため、遅いジョブやセグメントの多いジョブは、ウェブトランザクションの所要時間を引き延ばし、セグメント数を増加させます。エージェントがジョブの開始と同時にウェブトランザクションを終了し、代わりにそのジョブを独自のトランザクションとして記録するように、[`sidekiq.separate_transactions`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration-other-settings#sidekiq-separate_transactions)（エージェントバージョン10.4.0以降で利用可能、デフォルトでは無効）を有効にしてください。
+
+* **長時間実行されるスレッドの自動トレースをオフにしてください。**単一のジョブではなく、プロセスの存続期間全体にわたって存在するスレッドから増加が発生している場合は、[`instrumentation.thread.tracing`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration-other-settings#instrumentation-thread-tracing)を無効にすることで、エージェントによってスレッドが自動的にインストゥルメントされた状態になるのを停止できます。すべてのスレッドのトレースを無効にしたくない場合は、単一のスレッドを[`NewRelic::Agent.disable_all_tracing`](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/Agent#disable_all_tracing-class_method)でラップして、その単一のスレッドのトレースをオフにすることができます。
+
+* **ミドルウェアからのセグメント数を減らしてください。**サードパーティの大規模なRackまたはRailsミドルウェアスタックを持つウェブトランザクションの場合、[`disable_middleware_instrumentation`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration-other-settings#disable_middleware_instrumentation)を使用すると、エージェントは各ミドルウェアを独自のセグメントにラップしなくなります。
+
+### カスタムインストゥルメンテーションを使用します。
+
+* **トランザクションを分割します。**長いトランザクションの場合は、カスタムインストゥルメンテーションを使用して、トランザクション内の各作業単位を独自の短いトランザクションとして計装することを検討できます。各トランザクションのセグメントデータは、1つのトランザクションの期間全体にわたって蓄積されるのではなく、そのトランザクションが終了するとすぐに記録および解放されます。[`NewRelic::Agent::Tracer.in_transaction`](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/#in-transaction)の使用：
+
+  ```ruby
+  require 'new_relic/agent/tracer'
+
+  def process_large_batch(items)
+    items.each do |item|
+      NewRelic::Agent::Tracer.in_transaction(partial_name: 'Custom/process_item', category: :task) do
+        process_item(item)
+      end
+    end
+  end
+  ```
+
+  これにより、継続的に増大する1つのトランザクションを多数の短命なトランザクションに置き換えながら、メトリクス、トレース、エラーレポートを期待どおりに機能させることができます。
+
+* **ジョブの実行期間中、セグメントの蓄積を完全に停止します。**長時間実行されるジョブの本体を[`NewRelic::Agent.disable_all_tracing`](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/Agent#disable_all_tracing-class_method)でラップすると、ブロック内で実行された作業がトランザクションにアタッチされることはないため、上記で説明した蓄積が完全に停止します：
+
+  ```ruby
+  def perform(*args)
+    NewRelic::Agent.disable_all_tracing do
+      do_the_long_running_work(*args)
+    end
+  end
+  ```
+
+  トレードオフとして、ブロック内のすべての計装の詳細が失われます。そのトレードオフに価値があるかどうかは、ジョブに対してどの程度の可視性が必要かによって異なります。
+
+### OpenTelemetryを使用して長時間実行される作業を計装する
+
+上記のオプションを適用してもエージェントのトランザクションモデルに適合しないコードについては、その部分のコードを[OpenTelemetry Ruby SDK](https://opentelemetry.io/docs/languages/ruby/)でインストゥルメントされた状態にし、[OTLP経由でNew Relic](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/)にエクスポートすることを検討してください。ジョブの全期間にわたってデータを保持する同じ長時間実行トランザクションオブジェクトを持つ代わりに、OpenTelemetryは各スパンが終了するとすぐにエクスポートします。
+
+<Callout variant="important">
+これは、Rubyエージェントの[OpenTelemetry APIサポート](/docs/apm/agents/manage-apm-agents/opentelemetry-api-support/)とは異なります。その機能は、OpenTelemetry APIコールをエージェント独自のトランザクションおよびセグメントモデルに変換するため、上記で説明したのと同じメモリ動作の対象となります。独自のOTLPエクスポーターを備えたスタンドアロンのOpenTelemetry SDKを使用すると、エージェントのトランザクション/セグメントトラッキングを完全に回避できます。
+</Callout>
+
+詳細については、[OpenTelemetryとNew Relicの概要](/docs/opentelemetry/opentelemetry-introduction/)を参照してください。

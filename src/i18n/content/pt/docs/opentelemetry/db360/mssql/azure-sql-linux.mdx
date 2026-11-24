@@ -1,0 +1,314 @@
+---
+title: Instale e configure o NRDOT para monitoramento de MSSQL com banco de dados SQL do Azure no Linux
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - SQL Server
+  - Linux
+  - Azure SQL Database
+  - Azure
+metaDescription: Set up Microsoft SQL Server monitoring with the NRDOT Collector on Linux for Azure SQL Database
+freshnessValidatedDate: '2026-10-26T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: Microsoft-SQL-Server-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mssql/introduction
+  next: null
+translationType: machine
+---
+
+Monitore o desempenho do seu banco de dados SQL do Azure com métricas de banco de dados, análise de consultas e dados de integridade do sistema usando o coletor New Relic Distribution of OpenTelemetry (NRDOT) no Linux.
+
+<Callout variant="tip">
+Para executar o coletor no Windows, consulte [Banco de dados SQL do Azure no Windows](/docs/opentelemetry/db360/mssql/azure-sql-windows).
+</Callout>
+
+<Steps>
+<Step>
+## Pré-requisitos [#prerequisites]
+
+* Uma conta New Relic com uma [chave de licença](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) válida.
+
+* Conectividade de rede para o [endpoint OTLP da New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp) para sua região.
+
+* Requisitos do Banco de Dados SQL do Azure:
+
+  * Um servidor lógico e banco de dados do Azure SQL.
+  * O login e a senha do administrador do servidor (ou outra conta que possa criar logins e gerenciar funções de servidor no `master`).
+  * Acesso de rede do host do coletor ao servidor na porta `1433`, por meio de uma regra de firewall do servidor, de uma regra de rede virtual ou de um endpoint privado. Se o servidor usar um endpoint privado, o nome do servidor deverá ser resolvido para o endereço IP privado a partir do host do coletor.
+
+* Requisitos de host do Collector: um host (por exemplo, uma VM do Azure) com o utilitário `sqlcmd` instalado.
+</Step>
+
+<Step>
+## Instalar o NRDOT Collector [#setup]
+
+Instale o NRDOT Collector em um host que possa acessar seu servidor do Azure SQL.
+
+Para Debian/Ubuntu em AMD64:
+
+```bash
+NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+```
+
+Para outras distribuições e arquiteturas, consulte a [etapa de instalação do Linux RDS](/docs/opentelemetry/db360/mssql/linux-rds#setup) e a página [nrdot-collector-releases](https://github.com/newrelic/nrdot-collector-releases/releases).
+</Step>
+
+<Step>
+## Criar usuário de monitoramento e conceder permissões [#user]
+
+O banco de dados SQL do Azure não permite `GRANT VIEW SERVER STATE` e concessões semelhantes no nível da instância. Em vez disso, você adiciona o login às funções de servidor integradas no `master` e, em seguida, cria um usuário em cada banco de dados que deseja monitorar.
+
+1. Crie um arquivo chamado `nr-grant-permission-master.sql` e substitua `<YOUR_PASSWORD>` pela senha desejada:
+
+   ```sql
+   CREATE LOGIN [newrelic] WITH PASSWORD = '<YOUR_PASSWORD>';
+   GO
+   ALTER SERVER ROLE [##MS_ServerStateReader##] ADD MEMBER [newrelic];
+   ALTER SERVER ROLE [##MS_DefinitionReader##] ADD MEMBER [newrelic];
+   ALTER SERVER ROLE [##MS_DatabaseConnector##] ADD MEMBER [newrelic];
+   GO
+   ```
+
+2. Execute-o no banco de dados `master` como administrador do servidor. Substitua `<YOUR-SERVER>` pelo nome do seu servidor (por exemplo, `myserver.database.windows.net`):
+
+   ```bash
+   sqlcmd -S <YOUR-SERVER> -d master -U <YOUR_ADMIN_USER> -P '<YOUR_ADMIN_PASSWORD>' -C -i nr-grant-permission-master.sql
+   ```
+
+3. Crie um arquivo chamado `nr-grant-permission-db.sql`:
+
+   ```sql
+   CREATE USER [newrelic] FOR LOGIN [newrelic];
+   GO
+   GRANT VIEW DATABASE STATE TO [newrelic];
+   GO
+   ```
+
+4. Execute-o em **cada** banco de dados que você deseja monitorar. Substitua `<YOUR_DATABASE>` pelo nome do banco de dados:
+
+   ```bash
+   sqlcmd -S <YOUR-SERVER> -d <YOUR_DATABASE> -U <YOUR_ADMIN_USER> -P '<YOUR_ADMIN_PASSWORD>' -C -i nr-grant-permission-db.sql
+   ```
+
+   A tabela a seguir mostra por que cada função é necessária:
+
+   | Função ou permissão        | Usado para                                                                                                               |
+   | -------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+   | `##MS_ServerStateReader##` | Exibições de gerenciamento dinâmico em nível de servidor, como `sys.dm_exec_query_stats` e `sys.dm_exec_procedure_stats` |
+   | `##MS_DefinitionReader##`  | Resolução de nomes de objetos e esquemas para os principais procedimentos e estatísticas de índice                       |
+   | `##MS_DatabaseConnector##` | Conectando a banco de dados para coletar estatísticas físicas de índice                                                  |
+   | `VIEW DATABASE STATE`      | Exibições de gerenciamento dinâmico no escopo do banco de dados, como `sys.dm_db_resource_stats`                         |
+
+5. (Opcional) Verifique as funções de servidor do banco de dados `master`:
+
+   ```bash
+   sqlcmd -S <YOUR-SERVER> -d master -U <YOUR_ADMIN_USER> -P '<YOUR_ADMIN_PASSWORD>' -C -Q "SELECT r.name AS [Role], l.name AS [Login] FROM sys.server_role_members rm JOIN sys.server_principals r ON rm.role_principal_id = r.principal_id JOIN sys.sql_logins l ON rm.member_principal_id = l.principal_id WHERE l.name = 'newrelic';"
+   ```
+
+   A saída lista todas as três funções.
+
+6. (Opcional) Verifique as permissões do banco de dados conectando-se como o usuário de monitoramento:
+
+   ```bash
+   sqlcmd -S <YOUR-SERVER> -d <YOUR_DATABASE> -U newrelic -P '<YOUR_PASSWORD>' -C -Q "SELECT TOP 1 * FROM sys.dm_db_resource_stats; SELECT TOP 1 * FROM sys.dm_exec_query_stats;"
+   ```
+
+   Um erro de permissão significa que falta uma concessão.
+
+<Callout variant="tip">
+Para gerenciar informações confidenciais com segurança, como credenciais de banco de dados, armazene-as em ferramentas de [gerenciamento de segredos](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management).
+</Callout>
+</Step>
+
+<Step>
+## Configurar o NRDOT Collector [#configure-collector]
+
+1. Crie o arquivo de configuração:
+
+   ```bash
+   sudo nano /etc/nrdot-collector/mssql-config.yaml
+   ```
+
+2. Adicione a seguinte configuração. Substitua `<YOUR_PASSWORD>`, `<YOUR-SERVER>`, `<YOUR_DATABASE>`, `<YOUR_LICENSE_KEY>` e o endpoint OTLP pelos seus valores:
+
+   ```yaml
+   receivers:
+     nrsqlserver:
+       collection_interval: 15s
+       # datasource replaces username, password, server, and port.
+       datasource: "sqlserver://newrelic:<YOUR_PASSWORD>@<YOUR-SERVER>:1433?database=<YOUR_DATABASE>"
+
+       metrics:
+         sqlserver.database.io:
+           enabled: true
+         sqlserver.database.latency:
+           enabled: true
+         sqlserver.database.operations:
+           enabled: true
+         sqlserver.database.tempdb.space:
+           enabled: true
+         sqlserver.database.tempdb.version_store.size:
+           enabled: true
+         sqlserver.deadlock.rate:
+           enabled: true
+         sqlserver.os.wait.duration:
+           enabled: true
+         sqlserver.processes.blocked:
+           enabled: true
+         sqlserver.memory.grants.pending.count:
+           enabled: true
+         sqlserver.database.file.size:
+           enabled: true
+         sqlserver.memory.area:
+           enabled: true
+
+       events:
+         db.server.query_sample:
+           enabled: true
+         db.server.top_query:
+           enabled: true
+         db.server.query_plan:
+           enabled: true
+         db.server.top_procedure:
+           enabled: true
+
+       top_query_collection:
+         lookback_time: 60s
+         max_query_sample_count: 1000
+         top_query_count: 250
+         collection_interval: 60s
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       query_sample_collection:
+         max_rows_per_query: 100
+         collect_full_query_text: true
+         allowed_comment_keys:
+           - nr_service_guid
+
+       top_procedure_collection:
+         max_procedure_sample_count: 1000
+         top_procedure_count: 250
+         collection_interval: 60s
+
+       resource_attributes:
+         db.system.version:
+           enabled: true
+         sqlserver.db.edition:
+           enabled: true
+
+   processors:
+     memory_limiter:
+       check_interval: ${env:NR_MEM_LIMITER_CHECK_INTERVAL:-1s}
+       limit_mib:       ${env:NR_MEM_LIMITER_LIMIT_MIB:-200}
+       spike_limit_mib: ${env:NR_MEM_LIMITER_SPIKE_MIB:-50}
+
+   exporters:
+     otlp:
+       endpoint: https://otlp.nr-data.net:4318
+       headers:
+         api-key: <YOUR_LICENSE_KEY>
+       tls:
+         insecure: false
+       compression: gzip
+       sending_queue:
+         enabled: true
+         sizer: bytes
+         queue_size: 100_000_000
+         num_consumers: 10
+         batch:
+           sizer: bytes
+           max_size: 1_000_000
+           min_size: 0
+           flush_timeout: 5s
+
+   service:
+     telemetry:
+       metrics:
+         level: none
+     pipelines:
+       metrics:
+         receivers: [nrsqlserver]
+         processors: [memory_limiter]
+         exporters: [otlp]
+       logs:
+         receivers: [nrsqlserver]
+         processors: [memory_limiter]
+         exporters: [otlp]
+   ```
+
+<Callout variant="tip">
+* O valor `datasource` é uma URL de conexão. Se a sua senha contiver caracteres diferentes de letras, dígitos e `- . _ ~ ! $ * + ,`, codifique-os em URL.
+* O coletor se conecta ao único banco de dados nomeado em `database=`. Para monitorar vários bancos de dados no mesmo servidor, use um receiver separado para cada um, conforme descrito em [Configuração de múltiplos receivers](/docs/opentelemetry/db360/mssql/multi-receiver#multi).
+* Always-On, failover-cluster e algumas métricas de latch e tempdb não estão disponíveis no banco de dados SQL do Azure e não retornam dados.
+* O pipeline `logs` transporta telemetria de consulta do SQL Server (texto da consulta, planos de execução e amostras), não logs de depuração do coletor.
+</Callout>
+</Step>
+
+<Step>
+## Atualize a configuração do NRDOT Collector [#update]
+
+1. Edite o arquivo de configuração do serviço:
+
+   ```bash
+   sudo nano /etc/nrdot-collector/nrdot-collector.conf
+   ```
+
+2. Aponte o caminho de configuração para o seu novo arquivo:
+
+   ```bash
+   OTELCOL_CONFIG="/etc/nrdot-collector/mssql-config.yaml"
+   ```
+
+3. (Opcional) Valide a configuração:
+
+   ```bash
+   sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mssql-config.yaml
+   ```
+</Step>
+
+<Step>
+## Reiniciar o NRDOT Collector [#restart]
+
+```bash
+sudo systemctl restart nrdot-collector
+```
+
+Verifique o log do coletor em busca de erros de permissão ou conexão:
+
+```bash
+sudo journalctl -u nrdot-collector -n 50 --no-pager
+```
+</Step>
+
+<Step>
+## Encontre e use seus dados [#find]
+
+1. Vá para <DNT>**[one.newrelic.com](https://one.newrelic.com) &gt; All capabilities &gt; Databases**</DNT>.
+2. Na dropdown **<DNT>Entity type</DNT>**, selecione <DNT>**MSSQL instance**</DNT> e clique em <DNT>**Apply**</DNT>.
+3. Selecione seu banco de dados Azure SQL na lista de entidades.
+</Step>
+</Steps>
+
+## Documentação relacionada [#related-docs]
+
+<DocTiles>
+<DocTile title="Configurar a correlação entre APM e banco de dados" path="/docs/opentelemetry/db360/capabilities/db-apm">
+Aprenda a correlacionar o desempenho do seu aplicativo com as operações de banco de dados no New Relic.
+</DocTile>
+
+<DocTile title="Resolução de problemas" path="/docs/opentelemetry/db360/mssql/troubleshooting">
+Saiba como solucionar problemas na sua configuração de monitoramento do MSSQL no New Relic.
+</DocTile>
+
+<DocTile title="Referência de métricas" path="/docs/opentelemetry/db360/mssql/metrics-reference">
+Saiba mais sobre as métricas disponíveis coletadas pelo NRDOT Collector.
+</DocTile>
+</DocTiles>

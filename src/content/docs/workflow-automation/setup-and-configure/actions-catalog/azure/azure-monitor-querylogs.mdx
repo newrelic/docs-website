@@ -1,0 +1,158 @@
+---
+title: "Query Azure Monitor logs"
+tags:
+  - workflow automation
+  - workflow
+  - workflow automation actions
+  - Azure Monitor actions
+metaDescription: "Use the azure.monitor.queryLogs action to run a KQL query against an Azure Monitor Log Analytics workspace from your workflows."
+freshnessValidatedDate: 2026-09-24
+---
+
+The Azure Monitor Query Logs action runs a [KQL (Kusto Query Language)](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/get-started-queries?tabs=kql) query against an Azure Monitor Log Analytics workspace and returns the result table to your workflow.
+
+## Query Azure Monitor logs [#azure-monitor-querylogs]
+
+Use this action to query log data — for example, application requests, failures, or custom logs — and then branch or notify based on the results.
+
+<Callout variant="important">
+  The Azure AD service principal you use must have the **Log Analytics Reader** role on the target workspace.
+</Callout>
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="azuremonitorquerylogsinputs">
+      Inputs
+    </TabsBarItem>
+
+    <TabsBarItem id="azuremonitorquerylogsoutputs">
+      Outputs
+    </TabsBarItem>
+
+    <TabsBarItem id="azuremonitorquerylogsexample">
+      Example
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="azuremonitorquerylogsinputs">
+
+The following inputs are available for this action:
+
+    <table>
+        <thead>
+            <tr>
+              <th>Input</th>
+              <th>Type</th>
+              <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>`clientId`</td>
+                <td>String</td>
+                <td>**Required.** An Azure Service Principal clientId (UUID format). Pass as a secret. See how to [register an Azure app.](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/api/register-app-for-token?tabs=portal)</td>
+            </tr>
+            <tr>
+                <td>`clientSecret`</td>
+                <td>String</td>
+                <td>**Required.** An Azure Service Principal clientSecret. Pass as a secret. See how to [register an Azure app.](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/api/register-app-for-token?tabs=portal)</td>
+            </tr>
+            <tr>
+                <td>`tenantId`</td>
+                <td>String</td>
+                <td>**Required.** The Azure tenant identifier (UUID format). Can be passed as a secret.</td>
+            </tr>
+            <tr>
+                <td>`workspaceId`</td>
+                <td>String</td>
+                <td>**Required.** The Log Analytics workspace ID (GUID). For example, `"78460d46-1c7c-494b-90b4-e21288a074d4"`.</td>
+            </tr>
+            <tr>
+                <td>`query`</td>
+                <td>String</td>
+                <td>**Required.** The KQL query to run against the workspace. For example, `"AppRequests | take 10"`. Maximum 8000 characters.</td>
+            </tr>
+            <tr>
+                <td>`timespan`</td>
+                <td>String</td>
+                <td>**Optional.** An ISO-8601 duration that bounds the query time range. For example, `"P7D"` (7 days) or `"PT1H"` (1 hour). When omitted, the query runs without a time constraint.</td>
+            </tr>
+            <tr>
+                <td>`selectors`</td>
+                <td>List</td>
+                <td>**Optional.** A list of selectors used to extract or rename specific values from the response. For example, `[{"name": "records", "expression": ".response.tables[0].rows"}]`.</td>
+            </tr>
+        </tbody>
+    </table>
+  </TabsPageItem>
+
+  <TabsPageItem id="azuremonitorquerylogsoutputs">
+
+The following outputs are available for this action:
+
+<table>
+  <thead>
+      <tr>
+          <th>Output</th>
+          <th>Type</th>
+          <th>Description</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>`success`</td>
+          <td>Boolean</td>
+          <td>Query result status. `true` when the call succeeded (HTTP 2xx). `false` otherwise.</td>
+      </tr>
+      <tr>
+          <td>`errorMessage`</td>
+          <td>String</td>
+          <td>Failure reason. The action sets this field when `success` is `false`.</td>
+      </tr>
+      <tr>
+          <td>`response`</td>
+          <td>Object</td>
+          <td>The full Log Analytics response. Result rows are at `response.tables[0].rows`. Column definitions are at `response.tables[0].columns`. For more information, see the [Azure Monitor Log Analytics API reference](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/api/overview).</td>
+      </tr>
+  </tbody>
+</table>
+  </TabsPageItem>
+
+  <TabsPageItem id="azuremonitorquerylogsexample">
+
+The following example queries the `AppRequests` table for the last 25 days and sends a summary to a Slack channel.
+
+```yaml
+name: query-azure-monitor-logs
+
+steps:
+  - name: query_app_requests
+    type: action
+    action: azure.monitor.queryLogs
+    version: 1
+    inputs:
+      clientId: ${{ :secrets:azure-client-id }}
+      clientSecret: ${{ :secrets:azure-client-secret }}
+      tenantId: ${{ :secrets:azure-tenant-id }}
+      workspaceId: "78460d46-1c7c-494b-90b4-e21288a074d4"
+      query: |-
+        AppRequests
+        | take 10
+      timespan: P25D
+      selectors:
+        - name: records
+          expression: ".response.tables[0] as $t | ($t.columns | map(.name)) as $cols | $t.rows | map(. as $row | reduce range(0; ($cols | length)) as $i ({}; . + {($cols[$i]): $row[$i]}))"
+  - name: send_slack_notification
+    type: action
+    action: newrelic.notification.sendSlack
+    version: 1
+    inputs:
+      destinationId: ${{ :secrets:slack-destination-id }}
+      channel: ops-alerts
+      text: ${{ "*AppRequests* (" + (.steps.query_app_requests.outputs.records | length | tostring) + " rows)\n```\n" + (.steps.query_app_requests.outputs.records | map([(.OperationName // ""), (.ResultCode // ""), (.Url // ""), ((.DurationMs // 0) | tostring) + "ms"] | join(" | ")) | join("\n")) + "\n```" }}
+    next: end
+```
+  </TabsPageItem>
+  </TabsPages>
+</Tabs>

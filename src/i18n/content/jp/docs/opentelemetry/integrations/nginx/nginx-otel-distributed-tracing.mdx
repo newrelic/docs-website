@@ -1,0 +1,319 @@
+---
+title: OpenTelemetryを使用したNGINXのディストリビューティッド（分散）トレーシング
+tags:
+  - Integrations
+  - OpenTelemetry
+  - NGINX
+  - Distributed tracing
+  - Service maps
+metaDescription: Enable distributed tracing through NGINX using the ngx_otel_module. View service relationships in New Relic service maps.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+NGINX 1.25.3以降には、Webサーバーに直接ディストリビューティッド（分散）トレーシングのサポートを追加するネイティブのOpenTelemetryモジュールである[`ngx_otel_module`](https://nginx.org/en/docs/ngx_otel_module.html)が含まれています。
+
+`ngx_otel_module`をインストゥルメントされたアプリケーションと組み合わせると、New Relicはトレースをエンドツーエンドで接続し、サービスとNGINXエンティティの間に[サービス関係](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/)を作成します。これらの関係は[サービスマップ](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/)に表示され、Webサーバーまたはリバースプロキシをトラフィックがどのように流れるかを可視化します。
+
+## 使い方 [#how-it-works]
+
+一般的な設定では、トラフィックは次のように流れます：
+
+```
+Instrumented app (client) → NGINX (with ngx_otel_module) → Instrumented app (backend)
+```
+
+1. クライアントアプリケーションは、[W3C](https://www.w3.org/TR/trace-context/) `traceparent`ヘッダーを含むリクエストを送信します。
+2. NGINXの`ngx_otel_module`はトレースコンテキストを抽出し、リクエストのスパンを作成して、アップストリームのバックエンドにプロキシされるリクエストに更新されたトレースコンテキストを挿入します。
+3. バックエンドアプリケーションは、伝播されたトレースコンテキストとともにリクエストを受信し、トレースを継続します。
+4. すべてのスパン（クライアント、NGINX、およびバックエンドからのもの）はOpenTelemetry Collectorにエクスポートされ、そこでNGINXスパンにNGINXアイデンティティが付与されてNew Relicに転送されます。
+
+New Relicは、これらの接続されたスパンを使用してCALLS関係を作成します：
+
+* **クライアントサービス** CALLS **NGINXエンティティ**
+* **NGINXエンティティ** CALLS **バックエンドサービス**
+
+コレクターはNGINXメトリクスが使用するものと同じ`nginx.deployment.name`および`nginx.server.endpoint`アイデンティティをスタンプするため、NGINXスパンはNGINXメトリクスと**同じ**`NGINXSERVER`エンティティに解決されます。これらの関係は、[サービスマップ](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/)および[マップエクスペリエンス](/docs/service-architecture-intelligence/maps/advanced-maps/)で確認できます。
+
+## 互換性 [#compatibility]
+
+`ngx_otel_module` 以下を含む、W3Cトレースコンテキスト伝搬をサポートするすべてのアプリケーションに対応しています：
+
+* **OpenTelemetry SDK**でインストゥルメントされたアプリケーション（任意の言語）
+* **OpenTelemetryの自動インストゥルメンテーション**（Java、.NET、Python、Node.js、Go）
+* **New Relic APMエージェント**（Go、Java、.NET、Node.js、Python、Ruby、PHP）（[ディストリビューティッド（分散）トレーシングが有効](/docs/distributed-tracing/enable-configure/overview-enable-distributed-tracing/)なもの）
+
+計装アプローチを混在させることができます。たとえば、OTel SDKクライアントはNGINXを介してNew Relic APMエージェントのバックエンドを呼び出すことができ、リレーションシップチェーンはNew Relicに正しく表示されます。
+
+## あなたが始める前に [#prerequisites]
+
+以下のものを用意してください:
+
+* 有効なNew Relic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* `ngx_otel_module`が利用可能な**NGINX 1.25.3以降**。このモジュールは、[公式のNGINXパッケージリポジトリ](https://nginx.org/en/linux_packages.html)からビルド済みの動的モジュール（`nginx-module-otel`）として提供されます。インストレーションの詳細については、[`ngx_otel_module`のドキュメント](https://nginx.org/en/docs/ngx_otel_module.html)を参照してください。
+* 同じホスト上で実行されている、またはNGINXホストからアクセス可能な**OpenTelemetry Collector**（[NRDOT](https://github.com/newrelic/nrdot-collector-releases)または[OTel Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest)）
+* 上記の互換性のある計装アプローチのいずれかを使用して、NGINXを介してrequestsを送信する**インストゥルメントされたアプリケーション**
+* コレクターからNew Relicの[OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)へのネットワークアクセス
+
+<Callout variant="tip">
+  このガイドでは、単一のOTel Collectorでメトリクスの収集とディストリビューティッド（分散）トレーシングの両方を設定します。メトリクスのみの設定またはKubernetesのデプロイメントについては、[セルフホスト型NGINXのモニター](/docs/opentelemetry/integrations/nginx/nginx-otel-host/)および[Kubernetes上のNGINXのモニター](/docs/opentelemetry/integrations/nginx/nginx-otel-kubernetes/)を参照してください。
+</Callout>
+
+## ディストリビューティッド（分散）トレーシングの設定 [#setup]
+
+<Callout variant="tip">
+  以下のトレースパイプラインは、ディストリビューティッド（分散）トレーシングに参加するすべてのサービスで使用するのと同じ標準設定です。手動でのリレーションシップの設定ではありません。トレーシングがアクティブになると、New Relicは接続されたスパンを自動的に検出し、サービスのリレーションシップを作成します。
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="step1-nginx-config" title="ステップ1：NGINXでngx_otel_moduleを設定する">
+    モジュールをロードし、`nginx.conf`でトレーシングを有効にします。トップレベル（メインコンテキスト）に`load_module`ディレクティブを追加し、`http`コンテキスト内にOpenTelemetryディレクティブを追加します：
+
+    ```nginx
+    # Main context — load the dynamic module
+    load_module modules/ngx_otel_module.so;
+
+    http {
+        # Export spans to the OpenTelemetry Collector over OTLP/gRPC
+        otel_exporter {
+            endpoint localhost:4317;
+        }
+
+        # A name that identifies this NGINX instance in traces
+        otel_service_name nginx-server;
+
+        # Emit a span per request and propagate W3C trace context to upstreams
+        otel_trace on;
+        otel_trace_context propagate;
+
+        server {
+            listen 80;
+
+            location / {
+                proxy_pass http://backend_app;
+            }
+        }
+    }
+    ```
+
+    この設定:
+
+    * OpenTelemetryモジュール（`load_module`）を**ロードします**。
+    * `localhost:4317`（`otel_exporter`）でリッスンしているコレクターに、OTLP/gRPC経由でスパンを**エクスポートします**。
+    * すべてのリクエスト（`otel_trace on`）に対して**スパンを作成します**。高スループット環境でトラフィックのサブセットをトレースするには、`on`の代わりに`otel_trace`を変数（たとえば、[`split_clients`](https://nginx.org/en/docs/http/ngx_http_split_clients_module.html)によって駆動されるもの）に設定します。
+    * トレースコンテキスト（`otel_trace_context propagate`）を**伝播します**：これにより、受信した`traceparent`ヘッダーを*抽出し*（NGINXスパンを呼び出し元のサービスにリンクします）、更新されたコンテキストをアップストリームに送信されるrequestsに*注入します*（ダウンストリームサービスがトレースを継続できるようにします）。
+
+    特定の仮想ホストまたはルートのみをトレースしたい場合は、`otel_trace on`および`otel_trace_context`ディレクティブを`server`または`location`ブロックごとに設定することもできます。
+
+    ディレクティブの完全なリファレンスについては、[`ngx_otel_module`のドキュメント](https://nginx.org/en/docs/ngx_otel_module.html)を参照してください。
+  </Collapser>
+
+  <Collapser id="step2-collector" title="ステップ2：OTel Collectorを設定する">
+    OTel Collectorを設定して、`ngx_otel_module`からトレースを受信し、NGINXスタブステータスエンドポイントからメトリクスを受信し、両方にNGINX IDを付与して、New Relicに転送します。
+
+    ```yaml
+    receivers:
+      # Receives spans from ngx_otel_module (NGINX → localhost:4317)
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+      # Collects NGINX metrics from the stub status endpoint
+      nginx:
+        endpoint: <YOUR_STUB_STATUS_ENDPOINT>  # e.g. http://127.0.0.1/status
+        collection_interval: 30s
+
+    processors:
+      resourcedetection:
+        detectors: [system]
+        system:
+          resource_attributes:
+            host.id:
+              enabled: true
+
+      # Adds the NGINX identity so spans and metrics resolve to the SAME NGINXSERVER entity
+      resource/nginx:
+        attributes:
+          - key: nginx.server.endpoint
+            value: "<YOUR_STUB_STATUS_ENDPOINT>"  # must match the nginx receiver endpoint
+            action: upsert
+          - key: nginx.deployment.name
+            value: "<YOUR_DEPLOYMENT_NAME>"        # a stable name for this NGINX deployment
+            action: upsert
+
+      # Sets nginx.display.name for the metrics pipeline
+      transform/nginx_metrics:
+        metric_statements:
+          - context: resource
+            statements:
+              - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+
+      # Same display-name stamp for the traces pipeline — ngx_otel_module spans carry no
+      # NGINX identity by default; resource/nginx adds the endpoint + deployment name, and
+      # this adds nginx.display.name, so the spans resolve to the NGINXSERVER entity.
+      transform/nginx_traces:
+        trace_statements:
+          - context: resource
+            statements:
+              - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+
+      batch:
+
+    exporters:
+      otlp_http:
+        endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [resourcedetection, resource/nginx, transform/nginx_traces, batch]
+          exporters: [otlp_http]
+        metrics/nginx:
+          receivers: [nginx]
+          processors: [resourcedetection, resource/nginx, transform/nginx_metrics, batch]
+          exporters: [otlp_http]
+    ```
+
+    このコレクター設定には、2つのパイプラインが含まれています：
+
+    * **トレースパイプライン**：`ngx_otel_module`およびインストゥルメントされたアプリケーションから、gRPC（ポート4317）またはHTTP（ポート4318）経由でOTLPトレースデータを受信します。これは、New RelicにOTLPデータを送信するすべてのサービスで使用するのと同じ標準のトレースパイプラインです。
+    * **メトリクスパイプライン**：[`nginxreceiver`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/nginxreceiver)を使用して、NGINXスタブステータスエンドポイントからパフォーマンスメトリクス（接続、requests）を収集します。これらのメトリクスにより、New Relicにゴールデンメトリクスを備えたNGINXエンティティが作成されます。
+
+    両方のパイプラインは以下のプロセッサを共有します：
+
+    * **`resourcedetection`**：OpenTelemetryエコシステム全体でホストを識別するために使用される標準リソース属性である`host.id`を追加します。
+    * **`resource/nginx`**：`nginx.server.endpoint`と`nginx.deployment.name`を追加します。これら2つの属性は、NGINXエンティティのアイデンティティを形成します。これらを両方のパイプラインに適用することで、NGINXのスパンとメトリクスは、重複したサービスエンティティではなく、同じ`NGINXSERVER`エンティティに解決されるようになります。
+    * **`transform/nginx_*`**：わかりやすいエンティティ名として`nginx.display.name`を追加します。
+
+    <Callout variant="important">
+      `resource/nginx`の`nginx.server.endpoint`の値と、`nginx`レシーバーの`endpoint`は同一である必要があります。`nginx.deployment.name`とともに、これらは`NGINXSERVER`エンティティのアイデンティティを形成します。これは、NGINXインスタンスごとの1回限りの静的な値です。バックエンドおよびクライアントアプリケーションを追加または削除する際、コレクターの設定を変更する必要はありません。トレースコンテキスト伝搬を通じて、関係が自動的に形成されます。
+    </Callout>
+
+    必要な環境変数を設定し、コレクターを起動（または再起動）します：
+
+    ```bash
+    export NEW_RELIC_LICENSE_KEY="<YOUR_LICENSE_KEY>"
+    export OTEL_EXPORTER_OTLP_ENDPOINT="<YOUR_NEWRELIC_OTLP_ENDPOINT>"
+
+    sudo systemctl restart nrdot-collector
+    ```
+
+    `<YOUR_LICENSE_KEY>`を<InlinePopover type="licenseKey" />に置き換えます。OTLPエンドポイントについては、[New Relic OTLPエンドポイントの設定](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)を参照してください。
+  </Collapser>
+
+  <Collapser id="step3-restart" title="ステップ3：NGINXをリロードして確認する">
+    設定をテストし、NGINXをリロードしてOpenTelemetryモジュールをロードします：
+
+    ```bash
+    sudo nginx -t
+    sudo systemctl reload nginx
+    ```
+
+    <Callout variant="important">
+      `load_module`ディレクティブは、指定されたパスに`ngx_otel_module.so`ファイルが存在し、NGINXのバージョンと一致していることを必要とします。`unknown directive "otel_exporter"`またはモジュールのロードエラーが表示される場合、モジュールがインストールされていないか、ロードされていません。NGINXのバージョンに対応する`nginx-module-otel`パッケージをインストールし、`load_module`のパスを確認してください。
+    </Callout>
+
+    NGINXとコレクターが実行されたら、インストゥルメントされたアプリケーションを通じてトラフィックを生成します。数分後、データがNew Relicに到着していることを確認します：
+
+    ```sql
+    -- Verify NGINX trace spans
+    FROM Span SELECT count(*)
+    WHERE nginx.deployment.name = '<YOUR_DEPLOYMENT_NAME>'
+    SINCE 10 minutes ago
+
+    -- Verify NGINX metrics
+    FROM Metric SELECT count(*)
+    WHERE metricName LIKE 'nginx.%'
+    SINCE 10 minutes ago
+    ```
+  </Collapser>
+
+  <Collapser id="step4-relationships" title="ステップ4：サービスの関係を表示する">
+    トレースデータが流れ始めると、New RelicはサービスとNGINXエンティティの間にCALLS関係を自動的に作成します。関係が表示されるまでに最大10分かかります。
+
+    関係を表示するには：
+
+    1. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; All entities**</DNT>に移動します。
+    2. NGINXエンティティ、またはインストゥルメントされたサービスのいずれかを検索します。
+    3. エンティティを選択して、そのサマリーページを開きます。
+    4. <DNT>**Service map**</DNT>をクリックして、エンティティ関係グラフを表示します。
+
+    クライアントサービスがNGINXに接続され、NGINXがバックエンドサービスに接続されていることが確認できます：
+
+    ```
+    [Client app] → CALLS → [NGINX] → CALLS → [Backend app]
+    ```
+
+    NRQLを使用して関連付けをクエリすることもできます：
+
+    ```sql
+    FROM Relationship SELECT *
+    WHERE source.entityName = '<YOUR_NGINX_DISPLAY_NAME>'
+      OR target.entityName = '<YOUR_NGINX_DISPLAY_NAME>'
+    SINCE 1 day ago
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## トラブルシューティング [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-no-spans" title="New RelicにNGINXのスパンが表示されない">
+    * NGINXがエラーなしでリロードされたことを確認します：`sudo nginx -t`および `sudo journalctl -u nginx -n 50 --no-pager`
+    * `ngx_otel_module`がロードされていることを確認します。`unknown directive "otel_exporter"`エラーは、モジュールがロードされていないことを意味します。`load_module`のパスを確認し、NGINXのバージョンに対応する`nginx-module-otel`がインストールされていることを確認してください。
+    * OTel Collectorが実行されており、`otel_exporter`のポートでリッスンしていることを確認します： `sudo ss -tlnp | grep 4317`
+    * コレクターのログでエラーを確認します： `sudo journalctl -u nrdot-collector -n 50 --no-pager`
+    * `otel_exporter`エンドポイントがコレクターのgRPCリスナーアドレスと一致していることを確認します。
+  </Collapser>
+
+  <Collapser id="troubleshoot-no-relationships" title="スパンは表示されますが、リレーションシップが形成されません">
+    * 最初のスパンが到着してから関係が表示されるまで、最大10分お待ちください。
+
+    * インストゥルメントされたアプリケーションがコレクターを通じてトレースを送信していることを確認します。関係が形成されるには、NGINXのスパンとアプリケーションのスパンの両方がNew Relicに到達する必要があります。
+
+    * クライアントアプリケーションがW3Cの`traceparent`ヘッダーを伝搬していることを確認してください。トレースコンテキスト伝搬がない場合、NGINXのスパンは呼び出し元のサービスに接続されません。
+
+    * `resourcedetection`プロセッサと`resource/nginx`プロセッサの両方がコレクタートレースパイプラインに含まれていることを確認します。NGINXスパンがNGINXSERVERエンティティに解決されるには、`nginx.server.endpoint`および`nginx.deployment.name`属性が必要です。
+
+    * `otel_trace_context propagate`が設定されていることを確認してください（`extract`または`inject`単独ではなく）。NGINXを経由するエンドツーエンドのコンテキストフローには、`propagate`が必要です。
+
+    * NGINXとアプリケーションの両方のスパンがトレースIDを共有していることを確認するクエリ：
+
+      ```sql
+      FROM Span SELECT uniques(service.name)
+      WHERE trace.id IN (
+        SELECT uniques(trace.id) FROM Span
+        WHERE nginx.deployment.name = '<YOUR_DEPLOYMENT_NAME>'
+        SINCE 10 minutes ago LIMIT 5
+      )
+      SINCE 10 minutes ago
+      ```
+
+      アプリケーションのサービス名と並んで、NGINXサービスが表示されるはずです。
+  </Collapser>
+
+  <Collapser id="troubleshoot-duplicate-entity" title="NGINXは、NGINXSERVERエンティティではなく別のサービスとして表示されます。">
+    * `resource/nginx`プロセッサが（メトリクスパイプラインだけでなく）**トレース**パイプラインで実行されていることを確認してください。これがないと、NGINXスパンに`nginx.deployment.name`/`nginx.server.endpoint`が欠落し、NGINXSERVERエンティティに解決されるのではなく、汎用サービスとして合成されます。
+    * `nginx`レシーバーと`resource/nginx`プロセッサで`nginx.server.endpoint`の値が**完全に同一**であること、および`nginx.deployment.name`がNGINXメトリクスで使用される値と一致していることを確認します。エンティティのIDは、これら2つの値の組み合わせです。一致しない場合、異なるエンティティが生成されます。
+    * メトリクスパイプラインも実行します。NGINXSERVERエンティティのゴールデンメトリクスは`nginxreceiver`から取得されます；これがない場合、NGINXはトレース経由で引き続き表示されますが、メトリクスは表示されません。
+  </Collapser>
+
+  <Collapser id="troubleshoot-partial-relationships" title="一部の関係は表示されるが、すべてではない">
+    * すべてのサービスのスパンデータが同じアカウントに届くように、各インストゥルメントされたアプリケーションは、同じOTel Collectorを経由して（または直接New Relicに）トレースを送信する必要があります。
+    * New Relic APMエージェントを使用しているアプリケーションの場合は、[ディストリビューティッド（分散）トレーシング](/docs/distributed-tracing/enable-configure/overview-enable-distributed-tracing/)が有効になっており、エージェントが接続されていることを確認してください。
+    * OTel SDKアプリケーションの場合は、OTLPエクスポーターがコレクターに送信するように構成されていることを確認してください。
+    * さらに時間をおいてください。トラフィック量が少ないサービスのリレーションシップは、表示されるまでに時間がかかる場合があります。
+  </Collapser>
+</CollapserGroup>
+
+## 次のステップ [#next-steps]
+
+* [サービスマップ](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/)：エンティティの関係を視覚的に探索する方法を学びます
+* [セルフホスト型NGINXのメトリクスをモニターする](/docs/opentelemetry/integrations/nginx/nginx-otel-host/)：メトリクスの設定とダッシュボードのセットアップ
+* [NGINXデータの検索とクエリ](/docs/opentelemetry/integrations/nginx/find-and-query-your-data/)：メトリクスとトレースデータの両方に対するNRQLクエリ
+* [`ngx_otel_module`ドキュメント](https://nginx.org/en/docs/ngx_otel_module.html)：NGINX OpenTelemetryモジュールの完全なリファレンス

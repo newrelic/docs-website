@@ -1,0 +1,637 @@
+---
+title: Administrar el acceso a control de flota
+tags:
+  - fleet-control
+  - access management
+  - permissions
+  - rbac
+  - governance
+  - agent-management
+metaDescription: 'Patterns for setting up role-based access control for Fleet Control, including per-fleet scoping, lifecycle separation, delegated group management, and business unit isolation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esta guía proporciona patrones para configurar el control de acceso basado en roles (RBAC) para las operaciones de <DNT>Fleet Control</DNT>. Cubre tres patrones de implementación, desde el básico hasta el empresarial, con ejemplos tanto de la UI como de <DNT>NerdGraph</DNT>.
+
+<Callout title="¿Qué enfoque se adapta a la organización?" variant="tip">
+  * Organizaciones separadas (recomendado): si administra múltiples unidades de negocio autónomas o necesita un aislamiento estricto de contratistas con cero visibilidad entre unidades, utilice la arquitectura multiinquilino (organizaciones de New Relic separadas). Esto proporciona una aplicación completa de los límites sin roles personalizados complejos. Ir a Delegar el control de flota con múltiples unidades de negocio.
+
+  * RBAC de una sola organización: si las restricciones de contrato, facturación u operativas requieren una sola organización, utilice los patrones de RBAC de esta guía (Básico, Avanzado o Empresarial). Advertencia: los usuarios seguirán viendo que existen otras flotas en toda la organización, y el departamento de TI central debe crear concesiones de acceso para cada flota nueva.
+</Callout>
+
+## Requisitos previos [#prerequisites]
+
+Antes de configurar cualquiera de los siguientes patrones:
+
+* **Usuarios de plataforma completa:** cada permiso de <DNT>Fleet Control</DNT> requiere el [tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) de plataforma completa.
+* **Edición Pro o edición Enterprise:** necesario para crear los roles personalizados y los grupos personalizados que usan estos patrones.
+* **Rol de administrador de dominio de autenticación:** los usuarios con el rol <DNT>**Authentication domain manager**</DNT> pueden crear concesiones de acceso, que asignan grupos y roles a flotas específicas. Este es un requisito de la plataforma de New Relic para todas las operaciones de concesión de acceso.
+* **Configuración inicial de <DNT>Agent Control</DNT>:** requiere el rol <DNT>**Authentication domain manager**</DNT>, una vez, para crear identidades del sistema.
+* **Crear flotas y configuración:** requiere el rol <DNT>**Organization product admin**</DNT>, que se otorga automáticamente a cualquier persona en el grupo <DNT>**User**</DNT> predeterminado.
+* **Ejecutar despliegues:** requiere el rol <DNT>**Organization Manager**</DNT>, que se otorga automáticamente a cualquier persona del grupo <DNT>**Admin**</DNT> predeterminado. Como alternativa, el rol <DNT>**Fleet manager**</DNT> o un rol personalizado que contenga <DNT>**Deploy**</DNT> lo otorga en flotas específicas, sin alcance en toda la organización.
+
+<Callout title="Concepto erróneo común sobre los requisitos de rol" variant="important">
+  Muchos equipos asumen que <DNT>**Authentication domain manager**</DNT> es necesario para todas las operaciones de <DNT>Fleet Control</DNT>. **Esto no es cierto.**
+
+  <DNT>**Authentication domain manager**</DNT> solo se requiere para:
+
+  1. **Configuración inicial de <DNT>Agent Control</DNT> **, una sola vez, que crea identidades del sistema.
+  2. **Creación de concesiones de acceso**, que asigna grupos a flotas.
+
+  **Gestión continua de flotas**, es decir, crear flotas y crear configuración, solo requiere <DNT>**Organization product admin**</DNT>, que la mayoría de los usuarios ya tienen.
+</Callout>
+
+## Cómo se organizan los permisos de control de flota [#permissions]
+
+Al crear un rol personalizado, los permisos de <DNT>Fleet Control</DNT> se muestran como una tabla: una fila para el recurso y columnas para <DNT>**Read**</DNT>, <DNT>**Modify**</DNT>, <DNT>**Delete**</DNT> y <DNT>**Other**</DNT>. Cada casilla de verificación otorga un conjunto de acciones relacionadas en lugar de un permiso individual. La fila que obtiene depende del alcance del rol.
+
+Los roles a nivel de organización obtienen la fila <DNT>**Fleets (all)**</DNT>, que cubre todas las flotas de la organización:
+
+| Licencia                                                | Qué cubre                                                                                                                                        |
+| :------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| <DNT>**Read**</DNT>                                     | Ver flotas, los agentes en sus entidades administradas, las configuraciones y su contenido, la membresía de la flota y la política de aprobación |
+| <DNT>**Modify**</DNT>                                   | Cree y actualice flotas, cree configuración y agregue versiones, además de todo lo incluido en Read                                              |
+| <DNT>**Delete**</DNT>                                   | Eliminar flotas, configuración y despliegues                                                                                                     |
+| <DNT>**Other: Deploy**</DNT>                            | Crear, editar, ejecutar y eliminar despliegues, y cambiar qué entidades administradas están en una flota                                         |
+| <DNT>**Other: Approve configurations**</DNT>            | Aprobar, solicitar cambios o denegar una versión de configuración                                                                                |
+| <DNT>**Other: Configure organization governance**</DNT> | Establecer y cambiar la política de aprobación                                                                                                   |
+
+Los roles con alcance de entidad que tienen como objetivo una flota obtienen la fila <DNT>**Fleets (individual)**</DNT>, que cubre solo las flotas en las que se otorga el rol:
+
+| Licencia                     | Qué cubre                                                                                                                 |
+| :--------------------------- | :------------------------------------------------------------------------------------------------------------------------ |
+| <DNT>**Modify**</DNT>        | Cambiar el nombre de la flota, editar su descripción y ver su membresía                                                   |
+| <DNT>**Delete**</DNT>        | Eliminar la flota                                                                                                         |
+| <DNT>**Other: Deploy**</DNT> | Crear, editar, ejecutar y eliminar despliegues para la flota, y cambiar qué entidades administradas forman parte de ella. |
+
+<Callout title="Los roles con alcance de flota se basan en el acceso de lectura en lugar de reemplazarlo" variant="important">
+  La fila <DNT>**Fleets (individual)**</DNT> no tiene el permiso <DNT>**Read**</DNT>. Un rol con alcance de flota otorga la capacidad de actuar sobre una flota, no de ver <DNT>Fleet Control</DNT> en primer lugar.
+
+  Los usuarios también necesitan acceso de lectura de un rol con alcance de organización, que normalmente tienen a través del grupo <DNT>**User**</DNT> predeterminado. Si otorga un rol con alcance de flota a un grupo cuyos miembros no tienen nada más, no podrán ver nada sobre lo que actuar.
+</Callout>
+
+Aprobar la configuración y establecer la política de aprobación solo están disponibles para los roles a nivel de organización, por lo que la autoridad de aprobación no se puede limitar a una flota en particular. Consulte [aprobaciones de configuración](/docs/new-relic-control/fleet-control/manage-fleets/#config-approvals) para obtener más detalles y [delegar la autoridad de aprobación](/docs/new-relic-control/fleet-control/manage-fleets/#delegate-approval-authority) para saber cómo otorgarla.
+
+## Patrón básico: permiso de flota única (FGA) [#basic-pattern]
+
+<DNT>Fleet Control</DNT> admite el acceso detallado (FGA) a través de concesiones de acceso a nivel de entidad. El rol <DNT>**Fleet manager**</DNT> integrado se puede limitar a entidades de flota específicas, lo que otorga a un grupo el control operativo total de esas flotas, despliegues incluidos, sin <DNT>**Organization Manager**</DNT>.
+
+Esto le permite otorgar acceso a un equipo para administrar una flota específica sin darle acceso a todas las flotas de la organización.
+
+### Recorrido por la UI [#basic-ui]
+
+1. **Cree la flota**, si aún no está creada:
+
+   1. Ir a <DNT>**All capabilities &gt; New Relic Control &gt; Fleets**</DNT>
+   2. Hacer clic <DNT>**Create a fleet**</DNT>
+   3. Asígnele un nombre, por ejemplo `production-us-east-fleets`
+   4. Guardar y anotar el GUID de la flota
+
+2. **Cree o identifique el grupo objetivo**:
+
+   1. Ir a <DNT>**Administration &gt; Access management &gt; Groups**</DNT>
+   2. Cree un nuevo grupo, por ejemplo `prod-us-east-fleet-operators`, o use uno existente
+   3. En el modal de <DNT>**Create a group**</DNT>, agregue usuarios ahora a través del desplegable <DNT>**Add users**</DNT>, o agréguelos más tarde editando el grupo
+   4. Anote el ID del grupo
+
+3. **Otorgar acceso con alcance de entidad**:
+
+   1. Ir a <DNT>**New Relic Control &gt; Fleets**</DNT>
+   2. En la fila de la flota, abra el menú de kebab y seleccione <DNT>**Fleet permissions**</DNT>
+   3. En el modal <DNT>**Fleet permissions**</DNT>, elija un grupo y seleccione <DNT>**Fleet manager**</DNT> como rol. Agregue tantos pares de grupo y rol como sea necesario
+   4. Haga clic en <DNT>**Save**</DNT>, lo que crea una concesión de acceso por par
+
+<Callout title="Si faltan los permisos de la flota o se abren bloqueados" variant="important">
+  El elemento del menú <DNT>**Fleet permissions**</DNT> requiere el rol <DNT>**Authentication domain manager**</DNT>. Sin él, la acción no aparece en la fila de la flota o el modal se abre bloqueado en lugar de estar parcialmente disponible.
+
+  Las concesiones también se pueden adjuntar en el momento de la creación de la flota a través del cuadro de diálogo <DNT>**Create fleet**</DNT>.
+</Callout>
+
+**Resultado:** los miembros de `prod-us-east-fleet-operators` ahora pueden ejecutar despliegues y administrar miembros solo para `production-us-east-fleets`. No pueden modificar otras flotas. Aún verán que existen otras flotas, porque el acceso de lectura proviene de su rol a nivel de organización en lugar de esta concesión.
+
+### Automatización de NerdGraph [#basic-nerdgraph]
+
+```graphql
+mutation GrantFleetAccess {
+  authorizationManagementGrantAccess(
+    grantAccessOptions: {
+      grantee: { type: GROUP, id: "YOUR_GROUP_ID" }
+      entityAccessGrants: {
+        entity: { id: "YOUR_FLEET_GUID", type: "fleet" }
+        roleId: "YOUR_ROLE_ID"
+      }
+    }
+  ) {
+    accessGrants {
+      id
+    }
+  }
+}
+```
+
+**Cómo encontrar los ID:**
+
+* **GUID de la flota:** visible en la URL de la página de detalles de la flota, o realice una consulta de las flotas a través del [tutorial de<DNT>NerdGraph Fleet Control</DNT>](/docs/apis/nerdgraph/examples/nerdgraph-fleet-control-tutorial)
+* **ID de grupo:** <DNT>**Administration &gt; Access management &gt; Groups**</DNT>, haga clic en el grupo, el ID está en la URL
+* **ID del rol:** realice una consulta para obtenerlo mediante la solución alternativa en [problemas conocidos](#known-issues)
+
+## Patrón avanzado: roles personalizados para la separación del ciclo de vida [#advanced-pattern]
+
+Crear dos roles personalizados con alcance de entidad con diferentes permisos de <DNT>Fleet Control</DNT>, y luego otorgar cada uno a un grupo diferente en las mismas entidades de la flota. <DNT>**Fleet manager**</DNT> conlleva Modificar, Eliminar y Desplegar juntos, por lo que cuando eso sea más autoridad de la que debería tener un grupo, divídalo.
+
+Esto le permite separar quién puede cambiar la definición y la membresía de una flota de quién puede ejecutar despliegues, mientras ambos grupos trabajan en las mismas flotas.
+
+### Ejemplo de blueprint: diseño de roles personalizados [#role-design]
+
+Esta sección proporciona un ejemplo recomendado de cómo puede diseñar roles personalizados con menos privilegios para separar los permisos de arquitectura de la ejecución del despliegue.
+
+Ambos roles tienen alcance de entidad y tienen como objetivo <DNT>**Fleet**</DNT>:
+
+| Rol              | Licencia                     | Lo que los titulares pueden hacer                                                                     | Asignado a                              |
+| :--------------- | :--------------------------- | :---------------------------------------------------------------------------------------------------- | :-------------------------------------- |
+| `Fleet author`   | <DNT>**Modify**</DNT>        | Cambie el nombre de la flota, edite su descripción, vea sus miembros                                  | Equipos de operaciones de la plataforma |
+| `Fleet deployer` | <DNT>**Other: Deploy**</DNT> | Crear, editar, ejecutar y eliminar despliegues, cambiar qué entidades administradas están en la flota | Equipos de aplicaciones y contratistas  |
+
+Ningún rol puede eliminar una flota, ya que <DNT>**Delete**</DNT> es un permiso independiente que se deja sin marcar.
+
+La creación de configuraciones no es parte de ninguno de los roles, porque las configuraciones en <DNT>Fleet Control</DNT> son objetos a nivel de organización en lugar de pertenecer a una flota. Su creación viene con <DNT>**Organization product admin**</DNT>, que el grupo <DNT>**User**</DNT> predeterminado ya tiene. En la práctica, los autores escriben configuraciones y estos roles con alcance de flota controlan qué se despliega y dónde.
+
+### Recorrido por la UI [#advanced-ui]
+
+1. **Crear los roles personalizados.** Para cada uno:
+
+   1. Ir a <DNT>**Administration &gt; Access management &gt; Roles**</DNT>
+   2. Hacer clic <DNT>**Add a role**</DNT>
+   3. Para el alcance del rol, elija <DNT>**Single item or entity**</DNT>, luego haga clic <DNT>**Next**</DNT>
+   4. En <DNT>**Select what you want to configure access to**</DNT>, elija <DNT>**Fleet**</DNT>
+   5. Asigne un nombre al rol, por ejemplo `Fleet author`
+   6. En <DNT>**Set permissions**</DNT>, expanda <DNT>**Fleet Control**</DNT> y seleccione lo que conlleva el rol en la fila <DNT>**Fleets (individual)**</DNT>: <DNT>**Modify**</DNT> para el rol de autor o <DNT>**Deploy**</DNT> en <DNT>**Other**</DNT> para el rol de implementador
+   7. Guarde y luego repita para el segundo rol
+
+2. **Cree grupos para cada rol**:
+
+   1. Cree el grupo `fleet-architects` para los autores, agregando los usuarios relevantes a través del desplegable <DNT>**Add users**</DNT> en el modal <DNT>**Create a group**</DNT>, o más adelante editando el grupo
+   2. Cree el grupo `fleet-deployment-operators` para los implementadores de la misma manera
+
+3. **Otorgar acceso con alcance de entidad para cada grupo**:
+
+   1. Ir a <DNT>**New Relic Control &gt; Fleets**</DNT>, abrir el menú de kebab en la flota objetivo y seleccionar <DNT>**Fleet permissions**</DNT>
+   2. Agregue un par de grupo y rol: `fleet-architects` con <DNT>**Fleet author**</DNT>
+   3. Agregue un par de grupo y rol: `fleet-deployment-operators` con <DNT>**Fleet deployer**</DNT>
+   4. Guarde, y ambas concesiones se crean juntas
+
+<Callout title="Los roles personalizados no adquieren nuevos permisos por sí solos" variant="important">
+  Un rol personalizado contiene solo lo que un administrador le agregó. Los roles estándar reciben los permisos para las nuevas características con alcance de organización a medida que se lanzan, por lo que si <DNT>Fleet Control</DNT> agrega capacidades más adelante, alguien tiene que agregarlas a cada rol personalizado que deba tenerlas.
+
+  Para los usuarios que deberían obtener nuevas características de <DNT>Fleet Control</DNT> automáticamente, asigne un rol estándar en su lugar.
+</Callout>
+
+### Automatización de NerdGraph [#advanced-nerdgraph]
+
+Los roles personalizados se crean en la UI. La creación de roles toma identificadores de permisos internos en lugar de los nombres de permisos que se muestran en las casillas de verificación, por lo que no hay una ruta de API práctica para crear los roles en sí.
+
+Una vez que los roles existan, otórguelos con la misma mutación que el [patrón básico](#basic-nerdgraph) y pase el ID de cada rol.
+
+**Resultado:** los autores de flotas pueden dar forma a las flotas que poseen, pero no pueden ejecutar despliegues. Los operadores de despliegue pueden ejecutar despliegues, pero no pueden redefinir ni eliminar una flota.
+
+## Patrón empresarial: gestión de grupos delegada [#enterprise-pattern]
+
+Use el rol <DNT>**Group admin**</DNT> con concesiones de ámbito de grupo para delegar la administración de la membresía del grupo.
+
+Esto le permite hacer que los líderes de equipo agreguen y eliminen miembros de los grupos de su equipo sin necesitar privilegios completos de <DNT>**Authentication domain manager**</DNT>.
+
+### Recorrido por la UI [#enterprise-ui]
+
+1. **Crear un grupo de administradores**:
+
+   1. Ir a <DNT>**Administration &gt; Access management &gt; Groups**</DNT>
+   2. Crea un grupo `fleet-team-leads`
+   3. Agregue a los líderes de equipo como miembros
+
+2. **Otorgar el rol de administrador de grupo sobre los grupos objetivo**:
+
+   1. Ir a <DNT>**Administration &gt; Access management &gt; Access grants**</DNT>
+   2. Hacer clic <DNT>**Create new grant**</DNT>
+   3. Elija una concesión de grupo, que es el tipo de concesión que tiene como objetivo a otros grupos
+   4. Seleccionar grupo `fleet-team-leads`
+   5. Rol: <DNT>**Group admin**</DNT>
+   6. Seleccione los grupos que los líderes de equipo deberían poder administrar, por ejemplo `fleet-architects` y `fleet-deployment-operators`
+   7. Guardar
+
+**Resultado:** los miembros de `fleet-team-leads` ahora pueden agregar y eliminar usuarios de `fleet-architects` y `fleet-deployment-operators` sin necesitar el rol <DNT>**Authentication domain manager**</DNT>.
+
+<Callout title="Limitación importante" variant="caution">
+  <DNT>**Group admin**</DNT> puede administrar *quién* está en un grupo, pero no puede crear nuevas concesiones de acceso ni asignar grupos a nuevas flotas. Cuando se crea una nueva flota, alguien con <DNT>**Authentication domain manager**</DNT> aún debe crear la concesión de acceso para esa flota.
+</Callout>
+
+### Automatización de NerdGraph [#enterprise-nerdgraph]
+
+```graphql
+mutation DelegateGroupManagement {
+  authorizationManagementGrantAccess(
+    grantAccessOptions: {
+      grantee: { type: GROUP, id: "YOUR_TEAM_LEADS_GROUP_ID" }
+      groupAccessGrants: [
+        {
+          groupId: "YOUR_TARGET_GROUP_ID"
+          roleId: "YOUR_GROUP_ADMIN_ROLE_ID"
+        }
+      ]
+    }
+  ) {
+    accessGrants {
+      id
+    }
+  }
+}
+```
+
+## Delegar el control de flota con múltiples unidades de negocio [#business-units]
+
+Esta sección describe un escenario que hemos visto con clientes que tienen múltiples unidades de negocio autónomas y necesitan delegar la gestión de <DNT>Fleet Control</DNT>. Proporciona tanto la solución recomendada como enfoques alternativos utilizando los patrones anteriores.
+
+### El escenario [#scenario]
+
+**Ejemplo:** ByteFlix Entertainment es una gran empresa de medios con múltiples unidades de negocio autónomas que operan bajo una sola organización de New Relic:
+
+* **ByteFlix+**, un servicio de streaming
+* **BBS**, el ByteFlix Broadcast System, una red de transmisión
+* **PixelTV**, una red de cable
+
+#### Estructura organizacional [#org-structure]
+
+**TI central:**
+
+* Solo dos o tres personas tienen los roles <DNT>**Organization Manager**</DNT> y <DNT>**Authentication domain manager**</DNT>
+* Administran las licencias y la gobernanza de New Relic
+* **No** configuran ni crean entidades de monitoreo
+* Son un cuello de botella para los cambios en la gestión de acceso
+
+**Unidades de negocio:**
+
+* Cada unidad tiene cuentas separadas bajo la misma organización de New Relic
+* Cada unidad gestiona su propia observabilidad de forma independiente
+* Muchas unidades usan contratistas para administrar New Relic Infrastructure
+
+#### El desafío [#challenge]
+
+ByteFlix quiere adoptar <DNT>Fleet Control</DNT> pero se encuentra con fricciones:
+
+1. **Aislamiento estricto de la unidad de negocio requerido:** los equipos de ByteFlix+ no deben administrar la infraestructura de BBS o PixelTV
+2. **Delegación de contratistas:** los líderes de unidad necesitan incorporar contratistas sin involucrar a la TI central
+3. **Separación del ciclo de vida:** las operaciones de plataforma deben dar forma a las flotas y los equipos de aplicaciones deben desplegar, pero los equipos de aplicaciones no deberían poder eliminar ni redefinir las flotas
+4. **Sin permisos amplios de administrador:** el departamento de TI central no otorgará <DNT>**Authentication domain manager**</DNT> a los equipos de las unidades por motivos de seguridad
+
+### Solución recomendada: organizaciones separadas [#separate-orgs]
+
+Según la estructura organizacional de ByteFlix, la arquitectura multiinquilino es la solución ideal.
+
+#### Qué significa esto [#multi-tenancy-meaning]
+
+En lugar de una organización con múltiples cuentas, ByteFlix crea tres organizaciones de New Relic separadas:
+
+* **Organización ByteFlix+**, con sus propias cuentas
+* **Organización BBS**, con sus propias cuentas
+* **Organización PixelTV**, con sus propias cuentas
+
+Cada unidad de negocio se convierte en su propia organización aislada de New Relic.
+
+#### Beneficios [#multi-tenancy-benefits]
+
+1. **Aislamiento completo de la unidad de negocio:** las características a nivel de organización, incluido <DNT>Fleet Control</DNT>, solo ven los datos dentro de la organización de esa unidad
+2. **Sin visibilidad entre unidades:** los usuarios de ByteFlix+ no pueden ver las entidades de BBS o PixelTV, garantizado por los límites organizacionales
+3. **Administración autónoma:** cada unidad tiene sus propios administradores de dominio de autenticación y administradores de organización sin afectar a las demás
+4. **Delegación de contratistas:** cada unidad puede otorgar acceso de contratista sin involucrar a la TI central ni a las otras unidades
+5. **Permisos más simples:** no se necesitan concesiones de ámbito de entidad ni roles personalizados para aplicar el aislamiento
+
+#### ¿Qué hay de los servicios compartidos? [#shared-services]
+
+El [uso compartido de cuentas](/docs/accounts/accounts-billing/account-structure/multi-tenancy/share-accounts) de New Relic permite que las cuentas crucen los límites organizacionales. Si ByteFlix tiene servicios de plataforma compartidos, como logging centralizado o infraestructura compartida, que necesitan visibilidad en todas las unidades, esas cuentas se pueden compartir en múltiples organizaciones.
+
+Por ejemplo, el departamento de TI central mantiene una organización de observabilidad compartida con las cuentas de plataforma compartidas, y las organizaciones de ByteFlix+, BBS y PixelTV tienen acceso de lectura a esas cuentas a través del uso compartido de cuentas.
+
+#### Compensaciones [#multi-tenancy-tradeoffs]
+
+**Ventajas:**
+
+* Modelo de aislamiento más fuerte, impuesto por límites organizacionales
+* Modelo de permisos más simple, sin necesidad de concesiones con alcance de entidad
+* Cada unidad opera de manera completamente autónoma
+
+**Desventajas:**
+
+* Requiere una reestructuración organizacional, no solo cambios de permisos
+* Facturación y licencias separadas por organización, lo que puede afectar la estructura del contrato
+* Los servicios compartidos requieren la configuración del uso compartido de cuentas
+* Algunos informes entre organizaciones requieren dashboards personalizados o características de Data Plus
+
+#### Siguientes pasos para organizaciones separadas [#multi-tenancy-next-steps]
+
+Para seguir este modelo, consulte [multitenencia](/docs/accounts/accounts-billing/account-structure/multi-tenancy/intro-to-multi-tenancy), luego comuníquese con su representante de cuenta para trabajar en los flujos de trabajo de servicios compartidos, un plan de migración para mover unidades a organizaciones separadas, el uso compartido de cuentas para cualquier servicio de plataforma compartido y las implicaciones de contrato y facturación.
+
+### Solución alternativa: patrones RBAC dentro de una sola organización [#rbac-single-org]
+
+Si ByteFlix **no puede** trasladarse a organizaciones separadas, debido a restricciones de contrato, plazos o resistencia organizacional, pueden lograr resultados similares utilizando los patrones de RBAC de esta guía dentro de una sola organización.
+
+#### Patrón 1: acceso con alcance de entidad (FGA) [#bu-pattern-1]
+
+**Qué resuelve:** separación de unidades de negocio dentro de una sola organización.
+
+**Cómo funciona:** utilice el acceso detallado para otorgar a los grupos de cada unidad acceso solo a las entidades de su flota específica.
+
+**Ejemplo:**
+
+* `byteflix-plus-platform-ops` se otorgó el rol <DNT>**Fleet manager**</DNT>, con alcance solo a la flota `byteflix-plus-prod-k8s`
+* `bbs-platform-ops` se otorgó el rol <DNT>**Fleet manager**</DNT>, con alcance solo a la flota `bbs-prod-k8s`
+
+**Resultado:** los equipos de ByteFlix+ pueden actuar solo en las flotas de ByteFlix+, y los equipos de BBS solo en las flotas de BBS.
+
+**Limitación:** esto requiere que <DNT>**Authentication domain manager**</DNT> configure los permisos de acceso iniciales a través de la UI de <DNT>**Fleet permissions**</DNT>. Una vez establecido, los líderes de unidad no pueden otorgar acceso a nuevas flotas sin involucrar a la TI central.
+
+**Referencia:** [patrón básico](#basic-pattern).
+
+#### Patrón 2: roles de ciclo de vida personalizados [#bu-pattern-2]
+
+**Lo que resuelve:** separación del ciclo de vida, con operaciones de plataforma que dan forma a las flotas y equipos de aplicaciones que se encargan de desplegar.
+
+**Cómo funciona:** cree dos roles personalizados a nivel de entidad dirigidos a <DNT>**Fleet**</DNT>:
+
+* **Autor de flota**, que lleva <DNT>**Modify**</DNT>, asignado a los equipos de operaciones de plataforma
+* **Desplegador de flotas**, que lleva <DNT>**Deploy**</DNT>, asignado a equipos de aplicaciones y contratistas
+
+Luego, ambos roles se conceden a sus grupos en entidades de flota específicas mediante el Patrón 1.
+
+**Resultado:** Operaciones de plataforma da forma a las flotas que posee, los equipos de aplicaciones ejecutan despliegues y ninguno puede eliminar una flota.
+
+**Limitación:** la creación de roles personalizados requiere la edición Pro o Enterprise. Otorgarlos en flotas requiere <DNT>**Authentication domain manager**</DNT>, a través de la UI de <DNT>**Fleet permissions**</DNT>.
+
+**Referencia:** [patrón avanzado](#advanced-pattern).
+
+#### Patrón 3: delegación de administración de grupos [#bu-pattern-3]
+
+**Qué resuelve:** delegación de contratistas sin <DNT>**Authentication domain manager**</DNT>.
+
+**Cómo funciona:** otorgue a los líderes de unidad el rol <DNT>**Group admin**</DNT> con alcance a los grupos operativos de su unidad.
+
+**Ejemplo para ByteFlix+:**
+
+* Grupo: `byteflix-plus-bu-leads`
+* Rol: <DNT>**Group admin**</DNT>
+* Alcance: puede administrar la membresía de `byteflix-plus-platform-ops` y `byteflix-plus-app-teams`
+
+**Resultado:** los líderes de unidad pueden agregar y eliminar contratistas de los grupos **sin involucrar a TI central** y **sin necesitar <DNT>Authentication domain manager</DNT>**.
+
+**Limitación:** los líderes de unidad pueden administrar *quién* está en un grupo, pero no pueden crear nuevas concesiones de acceso ni asignar grupos a nuevas flotas. Cuando se crea una nueva flota, TI central aún debe crear la concesión de acceso para esta.
+
+**Referencia:** [patrón empresarial](#enterprise-pattern).
+
+#### Arquitectura RBAC combinada [#combined-architecture]
+
+Al usar los tres patrones juntos dentro de una sola organización, la arquitectura de ByteFlix se ve así:
+
+```
+Organization: ByteFlix Entertainment
+
+├── ByteFlix+ (Streaming BU):
+│   ├── Groups:
+│   │   ├── byteflix-plus-bu-leads (Group admin over operational groups)
+│   │   ├── byteflix-plus-platform-ops (Fleet author role)
+│   │   └── byteflix-plus-app-teams (Fleet deployer role, includes contractors)
+│   └── Fleets (entity-scoped to ByteFlix+ groups only):
+│       ├── byteflix-plus-prod-k8s
+│       └── byteflix-plus-stage-k8s
+│
+├── BBS (Broadcast BU):
+│   ├── Groups:
+│   │   ├── bbs-bu-leads (Group admin)
+│   │   ├── bbs-platform-ops (Fleet author role)
+│   │   └── bbs-app-teams (Fleet deployer role)
+│   └── Fleets (entity-scoped to BBS groups only):
+│       ├── bbs-prod-k8s
+│       └── bbs-stage-k8s
+│
+└── PixelTV (Cable BU):
+    ├── Groups:
+    │   ├── pixeltv-bu-leads (Group admin)
+    │   ├── pixeltv-platform-ops (Fleet author role)
+    │   └── pixeltv-app-teams (Fleet deployer role)
+    └── Fleets (entity-scoped to PixelTV groups only):
+        ├── pixeltv-prod-k8s
+        └── pixeltv-stage-k8s
+
+Custom entity-scoped roles, created once by central IT:
+├── Fleet author (Modify)
+└── Fleet deployer (Deploy)
+```
+
+#### Ventajas y desventajas de RBAC [#rbac-tradeoffs]
+
+**Ventajas:**
+
+* No se requiere reestructuración organizacional
+* Contrato único y relación de facturación
+* Logra la separación operativa entre unidades con concesiones configuradas correctamente
+
+**Desventajas:**
+
+* Requiere una configuración inicial por parte de TI central, lo que significa la participación del administrador del dominio de autenticación
+* Las nuevas flotas aún requieren que TI central cree concesiones de acceso, una dependencia continua
+* Un modelo de permisos más complejo que el de organizaciones separadas
+* La separación depende de la configuración correcta de la concesión de acceso y no está impuesta por límites organizacionales
+
+<Callout title="Este modelo controla quién puede actuar sobre una flota, no quién puede verla" variant="important">
+  Debido a que los roles a nivel de flota no tienen permiso de <DNT>**Read**</DNT>, todos los que trabajan en <DNT>Fleet Control</DNT> necesitan acceso de lectura a nivel de organización. Los usuarios de ByteFlix+ verán que existen las flotas de BBS y PixelTV, aunque no puedan actuar sobre ellas.
+
+  Si sus unidades de negocio no deben ver las flotas de las demás en absoluto, las organizaciones separadas son el único modelo que ofrece eso.
+</Callout>
+
+### Requisitos de rol [#role-clarification]
+
+| Acción                                                         | Rol requerido                                                       | Frecuencia      | Notas                                                                                                                                 |
+| :------------------------------------------------------------- | :------------------------------------------------------------------ | :-------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| **Configuración inicial de <DNT>Agent Control</DNT>**          | Administrador del dominio de autenticación                          | Una vez         | Crea identidades del sistema y asigna permisos                                                                                        |
+| **Crear/actualizar flotas**                                    | Administrador de productos de la organización                       | En curso        | Asignado automáticamente al grupo <DNT>**User**</DNT>                                                                                 |
+| **Crear configuraciones**                                      | Administrador de productos de la organización                       | En curso        | Asignado automáticamente al grupo <DNT>**User**</DNT>                                                                                 |
+| **Desplegar flotas**                                           | Administrador de la organización o administrador de flota por flota | En curso        | Asignado automáticamente al grupo <DNT>**Admin**</DNT> predeterminado. Como alternativa, use un rol de ámbito de flota con desplegar. |
+| **Eliminar flotas y despliegues**                              | Administrador de la organización o administrador de flota por flota | Ocasional       | La eliminación de la configuración requiere un alcance a nivel de organización                                                        |
+| **Aprobar configuraciones, establecer política de aprobación** | Administrador de la organización                                    | En curso        | Solo a nivel de organización; no se puede definir el alcance por flota                                                                |
+| **Crear concesiones de acceso**                                | Administrador del dominio de autenticación                          | Por nueva flota | Asigna grupos de usuarios a flotas                                                                                                    |
+| **Administrar la membresía del grupo**                         | Administrador de grupo, delegado                                    | En curso        | Administra la membresía sin privilegios completos de administrador de dominio. Consulte el [Patrón 3](#bu-pattern-3)                  |
+
+Los roles son aditivos, por lo que un usuario que tiene varios cuenta con la suma de sus permisos. Para conocer lo que cubre cada rol estándar, consulte los [conceptos de gestión de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#standard-roles).
+
+## Problemas conocidos y soluciones alternativas [#known-issues]
+
+### No se pueden consultar los ID de los roles directamente [#role-ids]
+
+**Problema:** <DNT>NerdGraph</DNT> no proporciona una consulta directa para listar los ID de roles por nombre.
+
+**Solución alternativa:** léalos de los grupos que ya tienen el rol:
+
+```graphql
+{
+  actor {
+    organization {
+      authorizationManagement {
+        authenticationDomains(id: "YOUR_AUTH_DOMAIN_ID") {
+          authenticationDomains {
+            groups {
+              groups {
+                displayName
+                roles {
+                  roles {
+                    roleId
+                    displayName
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Búsqueda de GUID de flota [#fleet-guids]
+
+**Problema:** los GUID de flota no son fáciles de descubrir a través de la UI.
+
+**Solución alternativa:** navegue a la página de detalles de la flota, donde el GUID está en la URL después de `/fleets/`. Para consultar flotas en su lugar, consulte el [tutorial de<DNT>NerdGraph Fleet Control</DNT> ](/docs/apis/nerdgraph/examples/nerdgraph-fleet-control-tutorial).
+
+## Referencia rápida: búsqueda de ID de NerdGraph [#find-ids]
+
+**ID de organización y dominio de autenticación:**
+
+```graphql
+{
+  actor {
+    organization {
+      id
+      name
+      userManagement {
+        authenticationDomains {
+          authenticationDomains {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**ID de grupo:**
+
+```graphql
+{
+  actor {
+    organization {
+      userManagement {
+        authenticationDomains(id: "YOUR_AUTH_DOMAIN_ID") {
+          authenticationDomains {
+            groups {
+              groups {
+                id
+                displayName
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**ID de la cuenta:** visible en la URL de New Relic, o:
+
+```graphql
+{
+  actor {
+    accounts {
+      id
+      name
+    }
+  }
+}
+```
+
+## Plantilla de script de automatización [#automation-script]
+
+Para los equipos que administran múltiples flotas y grupos a escala, aquí tiene una plantilla que usa la [CLI de New Relic](/docs/new-relic-solutions/tutorials/new-relic-cli). Crea un grupo, crea una flota y otorga al grupo acceso a esa flota.
+
+Cree los roles personalizados en la UI primero, como se describe en el [patrón avanzado](#advanced-ui), y pase el ID del rol al script.
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Prerequisites:
+#   - New Relic CLI installed and profile configured with a user key
+#   - The Authentication domain manager role, required to create access grants
+#   - A role created in Administration > Access management > Roles, and its ID
+
+AUTH_DOMAIN_ID="YOUR_AUTH_DOMAIN_ID"
+ACCOUNT_ID="YOUR_ACCOUNT_ID"
+ROLE_ID="YOUR_ROLE_ID"
+GROUP_NAME="fleet-architects"
+FLEET_NAME="production-us-east-k8s"
+
+# 1. Create the group. Note the returned group ID.
+echo "Creating group ${GROUP_NAME}..."
+newrelic nerdgraph query 'mutation CreateGroup($authDomainId: ID!, $displayName: String!) {
+  userManagementCreateGroup(createGroupOptions: {
+    authenticationDomainId: $authDomainId
+    displayName: $displayName
+  }) {
+    group { id displayName }
+  }
+}' --variables "{\"authDomainId\": \"${AUTH_DOMAIN_ID}\", \"displayName\": \"${GROUP_NAME}\"}"
+
+# 2. Create the fleet. Note the returned fleet GUID.
+echo "Creating fleet ${FLEET_NAME}..."
+newrelic nerdgraph query 'mutation CreateFleet($name: String!, $scopeId: ID!) {
+  fleetControlCreateFleet(fleetEntity: {
+    name: $name
+    description: "Created by setup script"
+    managedEntityType: KUBERNETESCLUSTER
+    scope: { type: ACCOUNT, id: $scopeId }
+  }) {
+    entity { id name }
+  }
+}' --variables "{\"name\": \"${FLEET_NAME}\", \"scopeId\": \"${ACCOUNT_ID}\"}"
+
+# 3. Grant the group access to the fleet, using the IDs returned above.
+GROUP_ID="GROUP_ID_FROM_STEP_1"
+FLEET_GUID="FLEET_GUID_FROM_STEP_2"
+
+echo "Granting entity-scoped access..."
+newrelic nerdgraph query 'mutation GrantFleetAccess($groupId: ID!, $fleetGuid: ID!, $roleId: ID!) {
+  authorizationManagementGrantAccess(grantAccessOptions: {
+    grantee: { type: GROUP, id: $groupId }
+    entityAccessGrants: {
+      entity: { id: $fleetGuid, type: "fleet" }
+      roleId: $roleId
+    }
+  }) {
+    accessGrants { id }
+  }
+}' --variables "{\"groupId\": \"${GROUP_ID}\", \"fleetGuid\": \"${FLEET_GUID}\", \"roleId\": \"${ROLE_ID}\"}"
+
+echo "Setup complete."
+```
+
+Pase los valores con `--variables` en lugar de crear cadenas de consulta a mano, para que los nombres que contengan espacios o comillas no rompan la solicitud. Para ejecutar los pasos de forma desatendida, capture cada respuesta y lea los ID que contiene antes de la siguiente llamada.
+
+Para obtener un conjunto más completo de operaciones de flota, que incluye actualizar y eliminar flotas y gestionar despliegues, consulte [las API y la CLI de<DNT>Fleet Control</DNT> ](/docs/new-relic-control/fleet-control/apis-and-cli).
+
+## Que sigue [#whats-next]
+
+* [Administrar flotas](/docs/new-relic-control/fleet-control/manage-fleets) para la UI de permisos de flotas y las aprobaciones de configuración
+* [API y CLI de control de flota](/docs/new-relic-control/fleet-control/apis-and-cli) para acceso programático
+* [Seguridad del control de flota](/docs/new-relic-control/fleet-control/security) para saber cómo se protegen las configuraciones y las credenciales
+* [Permisos de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions) y [conceptos de administración de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts) sobre cómo funcionan los grupos, los roles y las concesiones de acceso en todo New Relic

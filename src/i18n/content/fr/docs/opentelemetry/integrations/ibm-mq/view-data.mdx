@@ -1,0 +1,287 @@
+---
+title: Trouvez et interrogez vos données IBM MQ dans New Relic
+metaDescription: 'Find your IBM MQ metrics in New Relic, query queue managers and queues with NRQL, create dashboards and alerts, and troubleshoot data visibility.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Une fois le collecteur en cours d’exécution et que les données circulent, vous pouvez afficher vos métriques IBM MQ dans New Relic, effectuer des requêtes sur celles-ci avec NRQL, créer des dashboards et configurer des alertes. Chaque gestionnaire de files d’attente apparaît comme une entité `IBMMQ_MANAGER` (avec pour clé `target.name:qmgr`) avec ses files d’attente comme entités `IBMMQ_QUEUE` enfants.
+
+## Affichez vos données IBM MQ dans New Relic [#find-data]
+
+Après quelques minutes, les métriques IBM MQ apparaissent dans New Relic. Le pipeline préserve la forme brute de Prometheus — les noms de métriques avec trait de soulignement (`ibmmq_*`) et les étiquettes brutes `qmgr` et `queue` — et attribue une identité `target.name` à chaque métrique, que New Relic utilise pour synthétiser les entités.
+
+<CollapserGroup>
+  <Collapser id="via-entity-explorer" title="Via l’explorateur d’entités">
+    1. Allez à <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **All entities**</DNT>.
+    2. Filtrez sur `IBMMQ_MANAGER` et `IBMMQ_QUEUE`, ou recherchez un nom de gestionnaire de files d&apos;attente.
+    3. Ouvrez un gestionnaire de files d&apos;attente pour voir ses métriques dorées — connexions, taux de messages put/get — et son dashboard IBM MQ préconfiguré, avec ses files d&apos;attente répertoriées en tant qu&apos;entités associées.
+  </Collapser>
+
+  <Collapser id="via-dashboard" title="Via le dashboard IBM MQ">
+    Lorsque vous ouvrez une entité `IBMMQ_MANAGER`, New Relic affiche un dashboard préconfiguré résumant l&apos;état de santé du gestionnaire de files d&apos;attente, les connexions, le débit des messages, les erreurs et l&apos;utilisation du système de fichiers. Ouvrez une entité `IBMMQ_QUEUE` pour connaître la profondeur par file d&apos;attente, l&apos;âge des messages et le débit. Vous pouvez également créer le vôtre — voir [Créer des dashboards personnalisés](#dashboards).
+  </Collapser>
+</CollapserGroup>
+
+Pour dépanner tout problème de visibilité des données, consultez la documentation de [Dépannage](/docs/opentelemetry/integrations/ibm-mq/troubleshooting).
+
+## Interrogez vos données avec NRQL [#query-data]
+
+<Callout variant="tip">
+  Interrogez les métriques par leurs noms avec tiret bas et leurs labels bruts — `ibmmq_qmgr_status`, `ibmmq_queue_depth`, `qmgr`, `queue`. Les noms de métriques ne sont **pas** séparés par des points et le label `qmgr` n’est **pas** renommé, donc le NRQL écrit pour `ibmmq.*` ou `ibmmq.queue_manager.name` ne correspondra pas.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Cas d&apos;utilisation
+      </th>
+
+      <th>
+        Qequête
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Pour confirmer que les données circulent vers chaque métrique IBM MQ
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT count(*) WHERE metricName LIKE 'ibmmq_%' SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Pour compter les gestionnaires de files d&apos;attente qui remontent des données (chacun devient une entité 
+
+        `IBMMQ_MANAGER`
+
+        )
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT uniqueCount(qmgr) WHERE metricName LIKE 'ibmmq_%' FACET target.name SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Pour afficher le statut du gestionnaire de files d&apos;attente (
+
+        `2`
+
+         \= en cours d&apos;exécution), une ligne par gestionnaire de files d&apos;attente
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Pour afficher le statut du canal (
+
+        `3`
+
+         \= en cours d&apos;exécution)
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Pour afficher la profondeur actuelle de chaque file d&apos;attente monitorée
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) FACET qmgr, queue SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Pour afficher la profondeur de la file d&apos;attente de lettres mortes sur l&apos;ensemble du parc comme signal d&apos;alerte commun
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr SINCE 30 minutes ago
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Pour afficher le débit de la file d&apos;attente, les écritures et les lectures par minute. Cela nécessite que les statistiques MQI soient activées
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT rate(sum(ibmmq_queue_mqput_count), 1 minute) AS 'Puts/min', rate(sum(ibmmq_queue_mqget_count), 1 minute) AS 'Gets/min' FACET qmgr, queue TIMESERIES SINCE 1 hour ago
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Pour parcourir les entités directement, accédez à <DNT>**All entities**</DNT> dans l&apos;UI de New Relic et filtrez pour vos entités `IBMMQ_MANAGER` et `IBMMQ_QUEUE`, ou ouvrez un gestionnaire de files d&apos;attente à partir de l&apos;une des requêtes ci-dessus.
+
+## Créer des dashboards personnalisés [#dashboards]
+
+Pour créer votre propre dashboard IBM MQ :
+
+1. Allez à <DNT>[one.newrelic.com](https://one.newrelic.com) &gt; **Dashboards**</DNT> et cliquez sur <DNT>**Create a dashboard**</DNT>.
+
+2. Ajoutez un widget, choisissez <DNT>**Add a chart**</DNT> et collez l&apos;une des [requêtes NRQL ci-dessus](#query-data).
+
+3. Regroupez les widgets par domaine d’intérêt pour une vue d’ensemble :
+
+   * **Santé du gestionnaire de files d’attente** — `ibmmq_qmgr_status`, `ibmmq_qmgr_connection_count`, `ibmmq_channel_status`
+   * **Profondeur de la file d&apos;attente et backlog** — `ibmmq_queue_depth`, `ibmmq_queue_oldest_message_age`, `ibmmq_queue_uncommitted_messages`
+   * **Débit** — `ibmmq_queue_mqput_count`, `ibmmq_queue_mqget_count` (représenté sous forme de taux)
+   * **Capacité** — `ibmmq_qmgr_log_in_use_bytes`, `ibmmq_qmgr_queue_manager_file_system_in_use_bytes`
+
+## Configurer des alertes [#alerts]
+
+Créez des [conditions d&apos;alerte NRQL](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) sur les métriques `ibmmq_*` pour détecter les problèmes avant qu&apos;ils n&apos;affectent les applications qui dépendent de votre messagerie.
+
+Le tableau suivant présente les conditions d&apos;alerte IBM MQ recommandées :
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Alerte
+      </th>
+
+      <th>
+        Requête NRQL
+      </th>
+
+      <th>
+        Seuil recommandé
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Gestionnaire de files d&apos;attente non en cours d&apos;exécution
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_qmgr_status) FACET qmgr, target.name
+        ```
+      </td>
+
+      <td>
+        Critique lorsque la valeur n&apos;est pas égale à 
+
+        `2`
+
+         pendant au moins 2 minutes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Canal inactif
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_channel_status) FACET qmgr, channel
+        ```
+      </td>
+
+      <td>
+        Critique lorsque la valeur n&apos;est pas égale à 
+
+        `3`
+
+         pendant au moins 5 minutes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        File d&apos;attente se remplissant vers son maximum
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) / latest(ibmmq_queue_attribute_max_depth) * 100 AS 'Depth %' FACET qmgr, queue
+        ```
+      </td>
+
+      <td>
+        Avertissement à 
+
+        `80%`
+
+        , critique à 
+
+        `95%`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Messages dans la file d&apos;attente de rebut
+      </td>
+
+      <td>
+        ```sql
+        FROM Metric SELECT latest(ibmmq_queue_depth) WHERE queue = 'SYSTEM.DEAD.LETTER.QUEUE' FACET qmgr
+        ```
+      </td>
+
+      <td>
+        Critique lorsque la valeur est supérieure à 
+
+        `0`
+
+        .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Documentation associée [#related-docs]
+
+<DocTiles>
+  <DocTile title="Instrumentation Kubernetes pour IBM MQ" path="/docs/opentelemetry/integrations/ibm-mq/kubernetes">
+    Découvrez comment configurer le monitoring d&apos;IBM MQ pour Kubernetes dans New Relic.
+  </DocTile>
+
+  <DocTile title="Référence des métriques" path="/docs/opentelemetry/integrations/ibm-mq/metrics">
+    Découvrez les métriques IBM MQ collectées par New Relic.
+  </DocTile>
+
+  <DocTile title="Dépannage" path="/docs/opentelemetry/integrations/ibm-mq/troubleshooting">
+    Découvrez comment dépanner le monitoring d&apos;IBM MQ dans New Relic.
+  </DocTile>
+</DocTiles>

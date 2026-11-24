@@ -8,7 +8,7 @@ metaDescription: Install New Relic's container based job manager that accepts an
 freshnessValidatedDate: never
 ---
 
-Our synthetic monitoring job managers are [container](https://www.docker.com/resources/what-container)-based resources that accept and execute [synthetic monitors](/docs/synthetics/synthetic-monitoring/using-monitors/intro-synthetic-monitoring/#types-of-synthetic-monitors) assigned to [private locations](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations). The job manager can operate in a Docker container system environment, a Podman container system environment, Kubernetes container orchestration system environment, or an OpenShift container system environment. 
+Our synthetic monitoring job managers are [container](https://www.docker.com/resources/what-container)-based resources that accept and execute [synthetic monitors](/docs/synthetics/synthetic-monitoring/using-monitors/intro-synthetic-monitoring/#types-of-synthetic-monitors) assigned to [private locations](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations). The job manager can operate in a Docker container system environment, a Podman container system environment, Kubernetes container orchestration system environment, or an OpenShift container system environment.
 
 <Callout variant="important">
   If you're migrating from Node.js 16 / Chrome 134 runtimes to Node.js 22 / Chrome 146, see the [private location runtime transition guide](/docs/synthetics/synthetic-monitoring/private-locations/runtime-transition-guide) for migration strategies, deployment examples, and troubleshooting steps.
@@ -756,9 +756,14 @@ Following are the applicable Docker, Podman, or Kubernetes instructions to start
     To create a pod in Linux and add the host machine's IP address:
 
     ```
-    podman pod create --network slirp4netns --name YOUR_POD_NAME --add-host=podman.service:HOST_IP_ADDRESS
+    podman pod create --network slirp4netns --name YOUR_POD_NAME --add-host=podman.service:HOST_IP_ADDRESS --shm-size=2g
     ```
-    To start tart the Job Manager:
+
+    <Callout variant="important">
+      Set `--shm-size` at pod creation time. All containers in the pod share a single `/dev/shm` allocation sized by the pod itself (64 MiB by default), and an individual container can't resize or override it later. Browser monitors are particularly sensitive to this—Chrome can crash with errors like `NoSuchSessionError: invalid session id` if `/dev/shm` is too small. See [Browser monitors crash due to shared memory sizing on Podman](/docs/synthetics/synthetic-monitoring/private-locations/troubleshoot-private-locations/#shm) for more detail.
+    </Callout>
+
+    To start the job manager:
 
     ```
     podman run \
@@ -850,16 +855,16 @@ Following are the applicable Docker, Podman, or Kubernetes instructions to start
         kind: BuildConfig
         metadata:
           name: synthetics-node-api-runtime-build
-          namespace: <your_namespace> 
+          namespace: <your_namespace>
         spec:
           output:
             to:
               kind: ImageStreamTag
-              name: <your_output_image_name>:<output_tag> 
+              name: <your_output_image_name>:<output_tag>
           source:
             type: Dockerfile
             dockerfile: |-
-              FROM newrelic/synthetics-node-api-runtime:latest 
+              FROM newrelic/synthetics-node-api-runtime:latest
               USER root
               RUN setcap -r /usr/bin/node
               USER 2000
@@ -867,7 +872,7 @@ Following are the applicable Docker, Podman, or Kubernetes instructions to start
             type: Docker
             dockerStrategy:
               platform:
-                architecture: amd64 
+                architecture: amd64
           postCommit: {}
           triggers:
             - type: ConfigChange
@@ -918,7 +923,7 @@ Following are the applicable Docker, Podman, or Kubernetes instructions to start
             - **image_repo**:
                 - run oc registry info in terminal to fetch registry url.
                 - image_repo is a combination of registry url, `your_namespace`, `your_output_image_name` as mentioned in buildConfig yaml file separated by forward slash. registery_url/your_namespace/your_output_image_name
-          
+
           Let us consider the following example:
 
           ```shell
@@ -1059,6 +1064,64 @@ Sandboxing and dependencies are applicable to the synthetics job manager in a Do
 
     There is a crucial dependency at launch. To enable sandboxing, ensure that you have:
 
+    The rootless setup below is a mix of one-time admin/root steps and steps the service account (the rootless user that runs Podman) completes for itself. Here's how the work splits:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Admin/rootful (sudo)
+          </th>
+
+          <th>
+            Service account (rootless user)
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Install Podman
+          </td>
+
+          <td>
+            `~/.config/containers/containers.conf`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Enable cgroups v2 via GRUB (RHEL only)
+          </td>
+
+          <td>
+            `~/.config/systemd/user/podman.service.d/override.conf`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `/etc/systemd/system/user@.service.d/delegate.conf`
+          </td>
+
+          <td>
+            `systemctl --user enable/start podman.socket`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `loginctl enable-linger YOUR_SERVICE_ACCOUNT_USERNAME`
+          </td>
+
+          <td>
+            `~/.config/systemd/user/podman-api.service` + `systemctl --user enable/start`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
     1. Installed the Podman [5.0.0-ce](https://github.com/containers/podman/releases/tag/v5.0.0) or higher.
     2. Enabled the Rootless execution:
        * Set up Podman to run containers without requiring root privileges.
@@ -1085,7 +1148,19 @@ Sandboxing and dependencies are applicable to the synthetics job manager in a Do
        sudo mkdir -p /etc/systemd/system/user@.service.d/
        echo -e "[Service]\nDelegate=yes" | sudo tee /etc/systemd/system/user@.service.d/delegate.conf > /dev/null
        ```
-    5. Set up the user-level `systemd` service:
+    5. Enabled lingering for the service account, so its user-level `systemd` services (configured in the next steps) keep running without an active login session:
+       ```
+       sudo loginctl enable-linger YOUR_SERVICE_ACCOUNT_USERNAME
+       ```
+       Verify it took effect:
+       ```
+       loginctl show-user YOUR_SERVICE_ACCOUNT_USERNAME --property=Linger
+       ```
+       This should return `Linger=yes`.
+       <Callout variant="tip">
+         If you're provisioning the service account centrally and don't have `sudo` access to run this on its behalf, the account can enable its own lingering by running `loginctl enable-linger` with no arguments while logged in as itself.
+       </Callout>
+    6. Set up the user-level `systemd` service:
        * Create directories for the user-level `systemd` services.
          ```
          mkdir -p ~/.config/systemd/user/podman.service.d
@@ -1094,13 +1169,13 @@ Sandboxing and dependencies are applicable to the synthetics job manager in a Do
          ```
          echo -e "[Service]\nDelegate=yes" > ~/.config/systemd/user/podman.service.d/override.conf
          ```
-    6. Enabled and started the Podman socket.
+    7. Enabled and started the Podman socket.
        ```
        systemctl --user enable podman.socket
        systemctl --user start podman.socket
        systemctl --user status podman.socket
        ```
-    7. Created and configured the Podman API service:
+    8. Created and configured the Podman API service:
        * Create a Podman API service, sets up Podman to provide HTTP API access.
          ```
          mkdir -p ~/.config/systemd/user
@@ -1121,7 +1196,7 @@ Sandboxing and dependencies are applicable to the synthetics job manager in a Do
          [Install]
          WantedBy=default.target
          ```
-    8. Enabled and started the Podman API service.
+    9. Enabled and started the Podman API service.
        ```
        systemctl --user daemon-reload
        systemctl --user enable podman-api.service
