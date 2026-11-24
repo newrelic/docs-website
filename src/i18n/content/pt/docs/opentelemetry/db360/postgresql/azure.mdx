@@ -1,0 +1,338 @@
+---
+title: Instale e configure o NRDOT para monitoramento do PostgreSQL com o servidor flexível do Azure
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Azure
+  - Flexible Server
+metaDescription: Set up PostgreSQL monitoring with the NRDOT Collector on Azure Database for PostgreSQL flexible server environments
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+Configure o monitoramento do PostgreSQL usando o NRDOT Collector para instâncias do servidor flexível do Banco de Dados do Azure para PostgreSQL. Os ambientes de servidor flexível do Azure têm considerações específicas para extensões e parâmetros do servidor.
+
+<Steps>
+<Step>
+## Pré-requisitos [#prerequisites]
+
+Antes de instalar, certifique-se de ter:
+
+* PostgreSQL `14` e superior
+* Uma [chave de licença](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) da New Relic.
+* Conectividade de rede entre o host onde você instala o NRDOT Collector e a sua instância do servidor flexível do Banco de Dados do Azure para PostgreSQL.
+* Conectividade de rede para a [documentação dos endpoints OTLP da New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+* Credenciais de login do administrador do servidor flexível do Azure.
+
+Para versões suportadas do PostgreSQL, permissões necessárias e parâmetros de servidor recomendados, consulte [Compatibilidade e pré-requisitos](/docs/opentelemetry/db360/postgresql/compatibility).
+</Step>
+
+<Step>
+## Configurar o NRDOT Collector [#setup]
+
+Instale o NRDOT Collector em um sistema que possa se conectar à sua instância de servidor flexível do Banco de Dados do Azure para PostgreSQL:
+
+<CollapserGroup>
+<Collapser title="Para arquitetura AMD64" id="amd">
+* Para sistemas Debian/Ubuntu, execute:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+* Para sistemas RHEL/CentOS/OEL, execute:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+</Collapser>
+
+<Collapser title="Para arquitetura ARM64" id="arm">
+* Para sistemas Debian/Ubuntu, execute:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+* Para sistemas RHEL/CentOS/OEL, execute:
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_aarch64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+## Configurar usuário do banco de dados e concessões [#database-user]
+
+Crie um usuário de monitoramento com os privilégios necessários para a sua instância de servidor flexível do Banco de Dados do Azure para PostgreSQL.
+
+**Para criar o usuário de monitoramento e as concessões:**
+
+1. Conecte-se à sua instância de servidor flexível do Banco de Dados do Azure para PostgreSQL como o login de administrador:
+
+```shell
+psql --host=<YOUR_AZURE_ENDPOINT> --dbname=postgres --port=5432 --username=<YOUR_ADMIN_USERNAME>
+```
+
+2. Crie o usuário de monitoramento:
+
+```sql
+CREATE USER <YOUR_DB_USERNAME> WITH LOGIN PASSWORD '<YOUR_DB_PASSWORD>';
+```
+
+3. Conceda a associação ao perfil do usuário de monitoramento conforme necessário:
+
+* Para o PostgreSQL 15 e superior, atribua a função para herdar privilégios:
+
+  ```sql
+  ALTER ROLE <YOUR_DB_USERNAME> INHERIT;
+  ```
+
+  <Callout variant="tip">
+  No PostgreSQL 14, o usuário de monitoramento herda os privilégios por padrão, portanto, esta etapa pode ser ignorada.
+  </Callout>
+
+* Crie o seguinte esquema e as seguintes concessões em todos os bancos de dados a serem monitorados:
+
+  ```sql
+  CREATE SCHEMA IF NOT EXISTS otel;
+  GRANT USAGE ON SCHEMA otel TO <YOUR_DB_USERNAME>;
+  GRANT USAGE ON SCHEMA public TO <YOUR_DB_USERNAME>;
+  GRANT SELECT ON ALL TABLES IN SCHEMA public TO <YOUR_DB_USERNAME>;
+  GRANT pg_monitor TO <YOUR_DB_USERNAME>;
+  CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+  ```
+
+* (Opcional) Para coletar métricas de vetor, crie a extensão `pgvector` em cada banco de dados:
+
+  ```sql
+  CREATE EXTENSION IF NOT EXISTS vector;
+  ```
+
+  As funções de distância `l1`, `hamming` e `jaccard` exigem a versão `0.7.0` ou superior do `pgvector`.
+
+* (Opcional) Para verificar a conexão e as permissões, é necessário executar:
+
+  ```shell
+  psql --username=<YOUR_DB_USERNAME> --host=<YOUR_AZURE_ENDPOINT> --port=5432 --dbname=<YOUR_DATABASE_NAME> --command '\conninfo'
+  psql --username=<YOUR_DB_USERNAME> --host=<YOUR_AZURE_ENDPOINT> --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+    -c "SELECT * FROM pg_stat_database LIMIT 1;" && echo "pg_stat_database OK"
+  psql --username=<YOUR_DB_USERNAME> --host=<YOUR_AZURE_ENDPOINT> --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+    -c "SELECT * FROM pg_stat_activity LIMIT 1;" && echo "pg_stat_activity OK"
+  psql --username=<YOUR_DB_USERNAME> --host=<YOUR_AZURE_ENDPOINT> --port=5432 --dbname=<YOUR_DATABASE_NAME> \
+    -c "SELECT * FROM pg_stat_statements LIMIT 1;" && echo "pg_stat_statements OK"
+  ```
+
+  Se cada comando for concluído sem erro, o usuário de monitoramento, o host e a porta estarão todos corretos.
+</Step>
+
+<Step>
+## Configurar o NRDOT Collector [#configure-collector]
+
+Configure o NRDOT Collector com as configurações específicas do seu servidor flexível do Banco de Dados do Azure para PostgreSQL.
+
+Esta configuração concentra-se no monitoramento essencial do PostgreSQL apenas com o receptor `nrpostgresql`.
+
+<Callout variant="tip" title="configuração completa">
+Esta configuração de baseline captura métricas essenciais. Para ver o catálogo completo de métricas, consulte a [referência de configuração](/docs/opentelemetry/db360/postgresql/config-reference/#azure-full).
+</Callout>
+
+1. Crie um arquivo de configuração chamado `postgresql-config.yaml`:
+
+```bash
+  sudo nano /etc/nrdot-collector/postgresql-config.yaml
+```
+
+2. Adicione a seguinte configuração ao arquivo `postgresql-config.yaml` criado na etapa anterior.
+
+<OtelConfig
+  inputOptions={[{"name":"host","label":"Endpoint do PostgreSQL no Azure","codeLine":3,"defaultValue":"myserver.postgres.database.azure.com","toolTip":"Insira o endpoint do seu servidor flexível do Banco de Dados do Azure para PostgreSQL"},{"name":"port","label":"Porta do PostgreSQL","codeLine":3,"defaultValue":"5432","toolTip":"Insira o número da porta do PostgreSQL. O valor padrão é 5432."},{"name":"username","label":"Nome de usuário do banco de dados","codeLine":4,"defaultValue":"newrelic","toolTip":"Insira seu nome de usuário do banco de dados para autenticação"},{"name":"password","label":"Senha do banco de dados","codeLine":5,"defaultValue":"YOUR_PASSWORD","toolTip":"Insira a senha que você definiu para o usuário de monitoramento"},{"name":"database","label":"Nome do banco de dados","codeLine":7,"defaultValue":"YOUR_DATABASE_NAME","toolTip":"Insira o nome do banco de dados que você deseja monitorar"},{"name":"endpoint","label":"Endpoint New Relic OTLP","codeLine":56,"defaultValue":"https://otlp.nr-data.net:4318","toolTip":"Insira seu endpoint OTLP da New Relic. Para obter mais informações, consulte https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/"},{"name":"licenseKey","label":"Chave de licença da New Relic","codeLine":58,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"Insira sua chave de licença do New Relic"}]}
+  config={`receivers:
+  nrpostgresql:
+   endpoint: "<input1>:<input2>"
+   username: "<input3>"
+   password: "<input4>"
+   databases:
+     - <input5>
+   collection_interval: 15s
+   events:
+     db.server.top_query:
+       enabled: true
+     db.server.query_sample:
+       enabled: true
+     db.server.query_plan:
+       enabled: true
+   top_query_collection:
+     max_rows_per_query: 1000
+     top_n_query: 200
+     collection_interval: 60s
+     allowed_comment_keys: [nr_service_guid]
+   query_sample_collection:
+     max_rows_per_query: 1000
+     allowed_comment_keys: [nr_service_guid]
+   resource_attributes:
+     db.system.version:
+       enabled: true
+   # Metrics needed for the out-of-the-box dashboard but disabled by default:
+   # see "Available metrics" below for the full default-on/default-off breakdown.
+   metrics:
+     postgresql.database.locks:
+       enabled: true
+     postgresql.deadlocks:
+       enabled: true
+     postgresql.function.calls:
+       enabled: true
+     postgresql.query.conflicts:
+       enabled: true
+     postgresql.sequential_scans:
+       enabled: true
+     postgresql.temp.io:
+       enabled: true
+     postgresql.temp_files:
+       enabled: true
+   # Azure Database for PostgreSQL flexible server enforces TLS by default (require_secure_transport).
+   tls:
+     insecure: false
+     ca_file: <PATH_TO_AZURE_CA_CERTIFICATE>
+  processors:
+  batch:
+  batch/metrics:
+   send_batch_size: 8192
+   send_batch_max_size: 8192
+   timeout: 10s
+  exporters:
+  otlp/newrelic:
+   endpoint: "<input6>"
+   headers:
+     api-key: "<input7>"
+   compression: gzip
+   sending_queue:
+     enabled: true
+     sizer: bytes
+     queue_size: 100_000_000
+     num_consumers: 10
+     batch:
+       sizer: bytes
+       max_size: 1_000_000
+       min_size: 0
+       flush_timeout: 5s
+   retry_on_failure:
+     enabled: true
+     initial_interval: 5s
+     max_interval: 30s
+     max_elapsed_time: 300s
+  service:
+  telemetry:
+   metrics:
+     level: none
+  pipelines:
+   metrics:
+     receivers: [nrpostgresql]
+     processors: [batch/metrics]
+     exporters: [otlp/newrelic]
+   logs:
+     receivers: [nrpostgresql]
+     processors: [batch]
+     exporters: [otlp/newrelic]`}
+  fileName="postgresql-config.yaml"
+  tipMdx={{ body: null }}
+  onChange={() => {}}
+/>
+
+<Callout variant="tip">
+Você também pode:
+
+* [Configurar múltiplos receptores](/docs/opentelemetry/db360/postgresql/multi-receiver): para monitorar múltiplas instâncias do PostgreSQL a partir de um coletor.
+* [Vincule seu banco de dados PostgreSQL ao APM](/docs/opentelemetry/db360/capabilities/db-apm): para correlacionar o desempenho do aplicativo com as operações do banco de dados. Isso permite visualizar exatamente quais aplicativos estão gerando workloads específicas de banco de dados.
+* [Planos de consulta para instruções de gravação](/docs/opentelemetry/db360/postgresql/optional#query): para coletar planos de consulta para instruções de bloqueio ou gravação sem conceder acesso de gravação ao usuário de monitoramento.
+* [Configurar o gerenciamento de segredos](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management): para gerenciar com segurança informações confidenciais, como credenciais de banco de dados. Isso ajuda a aprimorar a segurança do seu ambiente de monitoramento ao evitar a inserção direta de dados sensíveis nos arquivos de configuração.
+</Callout>
+</Step>
+
+<Step>
+## Validar a configuração do NRDOT Collector [#validate]
+
+1. Atualize o caminho da configuração para apontar para seu novo arquivo `postgresql-config.yaml`:
+
+```bash
+  sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/postgresql-config.yaml"|' /etc/nrdot-collector/nrdot-collector.conf
+```
+
+2. Valide a configuração do Collector NRDOT para garantir que esteja formatada corretamente e funcione adequadamente:
+
+```bash
+  sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/postgresql-config.yaml
+```
+</Step>
+
+<Step>
+## Reiniciar o NRDOT Collector [#restart-collector]
+
+Após configurar o coletor, reinicie o serviço NRDOT Collector para aplicar as alterações:
+
+```bash
+sudo systemctl restart nrdot-collector
+```
+
+Para verificar se o coletor está funcionando corretamente, verifique o status do serviço:
+
+```bash
+sudo systemctl status nrdot-collector
+```
+
+<Callout variant="tip">
+Sempre reinicie o Collector NRDOT após fazer alterações de configuração para garantir que as novas configurações entrem em vigor.
+</Callout>
+</Step>
+
+<Step>
+## Encontre e use seus dados [#find-use-data]
+
+As amostras de consulta e as principais consultas chegam como eventos de log (`event.name = 'db.server.query_sample'` / `'db.server.top_query'`, `db.system.name = 'postgresql'`). As métricas chegam no namespace `postgresql.*`.
+
+Para encontrar sua entidade de servidor flexível do Banco de Dados do Azure para PostgreSQL no New Relic:
+
+1. Vá para <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>.
+2. Na dropdown **<DNT>Entity type</DNT>**, selecione <DNT>**PostgreSQL instance**</DNT> e clique em <DNT>**Apply**</DNT>.
+3. Selecione sua instância de servidor flexível do Banco de Dados do Azure para PostgreSQL na lista de entidades.
+</Step>
+</Steps>
+
+## Comportamento do servidor flexível do Banco de Dados do Azure para PostgreSQL [#azure-flexible]
+
+Quando você monitora uma instância do servidor flexível do Banco de Dados do Azure para PostgreSQL, os comportamentos diferem do PostgreSQL autogerenciado ou do Amazon RDS devido à arquitetura da plataforma do Azure, e não ao receiver. Todas as métricas padrão do PostgreSQL continuam disponíveis no Azure.
+
+* O Azure pré-carrega as extensões `pg_stat_statements` (preenche `postgresql.query.execution.time`) e `pgvector` (preenche `postgresql.vector.*`) no servidor, mas você deve adicioná-las ao parâmetro do servidor `azure.extensions` antes que `CREATE EXTENSION` seja bem-sucedido. Para obter as etapas de configuração, consulte [Configurar usuário e concessões do banco de dados](#database-user).
+
+* As métricas de replicação (`postgresql.replication.data_delay`, `postgresql.wal.lag` e `postgresql.wal.delay`) são preenchidas a partir de uma réplica de leitura explícita ou do standby de alta disponibilidade (HA) integrado do Azure, distinguido por `sync_state` (`async` ou `sync`). Além disso, `postgresql.wal.delay` exige o feature gate `postgresqlreceiver.preciselagmetrics`, que a configuração de baseline nesta página não habilita.
+
+* `track_functions` o padrão é `none` (comportamento padrão do PostgreSQL, não específico do Azure). Defina-o para `pl` ou `all` para habilitar `postgresql.function.calls`.
+
+## Documentação relacionada [#related]
+
+<DocTiles>
+<DocTile title="Instrumentação em ambientes auto-hospedados" path="/docs/opentelemetry/db360/postgresql/hosted">
+Saiba como configurar o monitoramento do PostgreSQL em ambientes auto-hospedados com o New Relic.
+</DocTile>
+
+<DocTile title="Referência de métricas" path="/docs/opentelemetry/db360/postgresql/metrics-reference">
+Saiba mais sobre as métricas disponíveis coletadas pelo NRDOT Collector.
+</DocTile>
+
+<DocTile title="Guia de solução de problemas" path="/docs/opentelemetry/db360/postgresql/troubleshooting">
+Saiba como solucionar problemas comuns com o monitoramento do PostgreSQL.
+</DocTile>
+</DocTiles>
