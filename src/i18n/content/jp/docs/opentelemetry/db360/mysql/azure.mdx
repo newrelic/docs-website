@@ -1,0 +1,322 @@
+---
+title: Azureフレキシブルサーバーを使用したMySQL監視のためのNRDOTのインストールと設定
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Azure
+  - Flexible Server
+metaDescription: Set up MySQL monitoring with the NRDOT Collector on Azure Database for MySQL flexible server environments
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+Azure Database for MySQLフレキシブルサーバーのインスタンス用に、NRDOT Collectorを使用してMySQL監視を設定します。Azureフレキシブルサーバー環境には、権限とプラットフォームの制限に関する特有の考慮事項があります。
+
+<Callout variant="tip" title="ガイド付きインストレーション">
+代わりにNew Relic UIからインストールするには、<DNT>**[one.newrelic.com &gt; Integrations &amp; Agents &gt; MySQL (Database 360)](https://onenr.io/0oQDYBNG1wy)** </DNT>に移動してください。このページでは、手動インストレーションについてのみ説明します。
+</Callout>
+
+<Steps>
+<Step>
+## 前提条件 [#prerequisites]
+
+インストールする前に、以下のものがあることを確認してください：
+
+* NewRelic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)。
+* NRDOT Collectorをインストールするホストと、Azure Database for MySQLフレキシブルサーバーのインスタンス間のネットワーク接続。
+* [New Relic OTLPエンドポイントのドキュメント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)へのネットワーク接続
+* Azure Flexible Serverの管理者ログイン資格情報。
+
+サポートされているMySQLのバージョン、必要な権限、および`performance_schema`の要件については、[互換性と前提条件](/docs/opentelemetry/db360/mysql/compatibility)をご覧ください。
+</Step>
+
+<Step>
+## NRDOT Collectorのセットアップ [#setup]
+
+Azure データベース for MySQLフレキシブル サーバー インスタンスに接続できるシステムにNRDOT Collectorをインストールします：
+
+<CollapserGroup>
+<Collapser title="AMD64向けアーキテクチャー" id="amd">
+* Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_amd64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+* RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_x86_64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+</Collapser>
+
+<Collapser title="ARM64用アーキテクチャー" id="arm">
+* Debian/Ubuntuシステムの場合は、以下を実行してください。
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.deb" --output nrdot-collector.deb && sudo dpkg -i nrdot-collector.deb
+  ```
+
+* RHEL/CentOS/OELシステムの場合は、以下を実行してください。
+
+  ```bash
+  NRDOT_VERSION=$(curl -s https://api.github.com/repos/newrelic/nrdot-collector-releases/releases/latest | grep '"tag_name":' | awk -F'"' '{print $4}') && curl -L "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_arm64.rpm" --output nrdot-collector.rpm && sudo rpm -ivh nrdot-collector.rpm
+  ```
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+## データベースユーザーを構成する [#user]
+
+Azure Database for MySQLフレキシブルサーバーインスタンスに必要な権限を持つ監視ユーザーを作成します。
+
+1. 監視ユーザーを作成するには、Azureフレキシブルサーバーの管理者ログインとしてインスタンスに接続し（`root`アカウントはありません）、次を実行します：
+
+```sql
+CREATE USER '<YOUR_DB_USERNAME>'@'%' IDENTIFIED BY '<YOUR_DB_PASSWORD>';
+```
+
+2. クエリサンプルとトップクエリを収集するには、監視ユーザーに次の権限を付与します：
+
+```sql
+GRANT SELECT ON performance_schema.* TO '<YOUR_DB_USERNAME>'@'%';
+GRANT SELECT ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+GRANT REPLICATION CLIENT ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+GRANT PROCESS ON *.* TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+<Callout variant="important">
+Azure データベース for MySQL - Flexible Serverでは、`BACKUP_ADMIN`の付与はサポートされていません。その結果、`mysql.innodb.redo_log.checkpoint.age`、`mysql.innodb.redo_log.lsn.checkpoint`、および`mysql.innodb.redo_log.lsn.current`は利用できません。
+</Callout>
+
+3. （オプション）New Relicプラットフォームで待機時間データを表示するには、監視ユーザーに次の権限を付与します：
+
+```sql
+GRANT UPDATE ON performance_schema.setup_consumers TO '<YOUR_DB_USERNAME>'@'%';
+```
+
+4. （オプション）接続と権限を確認するには、次を実行します：
+
+```shell
+mysql -h <YOUR_DB_HOST> -P <YOUR_DB_PORT> -u <YOUR_DB_USERNAME> -p -e "SELECT 1;"
+```
+
+コマンドがエラーなしで完了した場合、監視ユーザー、ホスト、およびポートはすべて正しいです。
+</Step>
+
+<Step>
+## NRDOT Collectorを構成する [#configure]
+
+Azure Database for MySQLフレキシブルサーバー固有の設定でNRDOT Collectorを設定します。
+
+この設定は、`nrmysql`レシーバーのみを使用した必須のMySQL監視に焦点を当てています。
+
+<Callout variant="tip" title="完全な設定">
+このベースライン設定は、重要なメトリクスを収集します。完全なメトリクスカタログを確認するには、[設定リファレンス](/docs/opentelemetry/db360/mysql/config-reference/#azure-full)を参照してください。
+</Callout>
+
+1. `mysql-config.yaml`という名前の設定ファイルを作成します：
+
+```bash
+  sudo nano /etc/nrdot-collector/mysql-config.yaml
+```
+
+2. 前の手順で作成した`mysql-config.yaml`ファイルに以下の設定を追加します。
+
+<OtelConfig
+  inputOptions={[{"name":"host","label":"MySQL Azure Endpoint [MySQL Azureエンドポイント]","codeLine":3,"defaultValue":"myserver.mysql.database.azure.com","toolTip":"Azure Database for MySQLフレキシブルサーバーのエンドポイントを入力してください。"},{"name":"port","label":"MySQLポート","codeLine":3,"defaultValue":"3306","toolTip":"MySQLのポート番号を入力してください。デフォルト値は3306です。"},{"name":"username","label":"データベースユーザー名","codeLine":5,"defaultValue":"newrelic","toolTip":"認証用のデータベースユーザー名を入力してください"},{"name":"password","label":"データベースパスワード","codeLine":6,"defaultValue":"YOUR_PASSWORD","toolTip":"監視ユーザーに設定したパスワードを入力してください。"},{"name":"endpoint","label":"New Relic OTLPエンドポイント","codeLine":55,"defaultValue":"https://otlp.nr-data.net:4318","toolTip":"New Relic OTLPエンドポイントを入力します。詳細については、https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/ を参照してください。"},{"name":"licenseKey","label":"New Relicライセンスキー","codeLine":57,"defaultValue":"YOUR_LICENSE_KEY","toolTip":"New Relicライセンスキーを入力してください。"}]}
+  config={`receivers:
+  nrmysql:
+   endpoint: "<input1>:<input2>"
+   transport: tcp
+   username: "<input3>"
+   password: "<input4>"
+   allow_native_passwords: true
+   collection_interval: 15s
+   initial_delay: 1s
+   explain_mode: procedure
+   statement_events:
+     digest_text_limit: 4096
+     time_limit: 24h
+     limit: 500
+   query_sample_collection:
+     max_rows_per_query: 100
+     allowed_comment_keys: [nr_service_guid]
+   top_query_collection:
+     lookback_time: 60
+     max_query_sample_count: 5000
+     top_query_count: 200
+     collection_interval: 60s
+     query_plan_cache_size: 1000
+     query_plan_cache_ttl: 1h
+     allowed_comment_keys: [nr_service_guid]
+   events:
+     db.server.query_sample:
+       enabled: true
+     db.server.top_query:
+       enabled: true
+     db.server.query_plan:
+       enabled: true
+   resource_attributes:
+     db.system.version:
+       enabled: true
+   metrics:
+     mysql.query.count:
+       enabled: true
+     mysql.query.slow.count:
+       enabled: true
+     mysql.commands:
+       enabled: true
+     mysql.innodb.data_file.io:
+       enabled: true
+   # Azure Database for MySQL flexible server enforces TLS by default (require_secure_transport).
+   tls:
+     insecure: false
+     ca_file: <PATH_TO_AZURE_CA_CERTIFICATE>
+
+  processors:
+  batch:
+
+  exporters:
+  otlp/newrelic:
+   endpoint: "<input5>"
+   headers:
+     api-key: "<input6>"
+   compression: gzip
+   retry_on_failure:
+     enabled: true
+     initial_interval: 5s
+     max_interval: 30s
+     max_elapsed_time: 300s
+
+  service:
+  pipelines:
+   metrics:
+     receivers: [nrmysql]
+     processors: [batch]
+     exporters: [otlp/newrelic]
+   logs:
+     receivers: [nrmysql]
+     processors: [batch]
+     exporters: [otlp/newrelic]`}
+  fileName="mysql-config.yaml"
+  tipMdx={{ body: null }}
+  onChange={() => {}}
+/>
+
+<Callout variant="tip">
+この設定では、オプションの`database`フィールドを省略します。デフォルトでは、レシーバーは監視ユーザーがアクセスできるすべてのデータベースをモニターします。[特定のデータベースをモニターする](/docs/opentelemetry/db360/mysql/optional#database)には、「詳細なインサイトを有効にする」を参照してください。
+</Callout>
+
+### 設定パラメーター
+
+次の表は、 `nrmysql`受信機のキー設定を説明しています。
+
+| パラメータ                           | 説明                                                                                                                                                                           |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<YOUR_DB_HOST>`                | Azure Database for MySQLフレキシブルサーバーエンドポイント。例： `myserver.mysql.database.azure.com`                                                                                             |
+| `<YOUR_DB_PORT>`                | MySQLのポート番号を入力します。デフォルト値は`3306`です。                                                                                                                                           |
+| `<YOUR_DB_USERNAME>`            | [データベースユーザーの設定](#user)で作成した監視ユーザーのユーザー名を入力します。                                                                                                                               |
+| `<YOUR_DB_PASSWORD>`            | [データベースユーザーの設定](#user)で作成した監視ユーザーのパスワードを入力します。                                                                                                                               |
+| `<YOUR_NEWRELIC_OTLP_ENDPOINT>` | New Relic OTLPエンドポイントを入力します。詳細については、[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp/)を参照してください。                                                |
+| `<YOUR_NEWRELIC_LICENSE_KEY>`   | New Relicの[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)を入力してください。                                                                                  |
+| `transport`                     | ネットワーク経由で接続するため、デフォルト値は`tcp`に設定されています。                                                                                                                                       |
+| `collection_interval`           | メトリクススクレイプの間隔を入力します。デフォルト：`15s`。                                                                                                                                             |
+| `explain_mode`                  | デフォルト値は`inline`に設定されています。監視ユーザーにDML権限を付与せずに書き込みステートメントのクエリプランを収集するには、値を`procedure`に設定してください。「[書き込みステートメントのクエリプラン](/docs/opentelemetry/db360/mysql/optional#query)」を参照してください。 |
+</Step>
+
+<Step>
+## NRDOT Collectorの設定の検証 [#validate]
+
+1. 新しい`mysql-config.yaml`ファイルを指すように設定パスを更新します：
+
+   ```bash
+     sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/mysql-config.yaml"|' /etc/nrdot-collector/nrdot-collector.conf
+   ```
+
+2. NRDOT Collectorの設定を検証して、正しくフォーマットされ、適切に機能することを確認します：
+
+   ```bash
+     sudo /usr/bin/nrdot-collector validate --config=/etc/nrdot-collector/mysql-config.yaml
+   ```
+
+   <Callout variant="tip">
+   もできます。
+
+   * [複数のレシーバーを設定する](/docs/opentelemetry/db360/mysql/multi-receiver)：1つのコレクターから複数のMySQLインスタンスをモニターするため。
+   * [MySQLデータベースをAPMとリンクする](/docs/opentelemetry/db360/capabilities/db-apm)：アプリケーションパフォーマンスとデータベース操作を関連付けます。これにより、どのアプリケーションが特定のデータベースワークロードを生成しているかを正確に確認できます。
+   * [シークレット管理のセットアップ](/docs/opentelemetry/db360/capabilities/db-apm/#secret-management)：データベースの認証情報などの機密情報を安全に管理します。これにより、設定ファイルへの機密データのハードコーディングを回避し、監視セットアップのセキュリティを強化できます。
+   </Callout>
+</Step>
+
+<Step>
+## NRDOT Collectorを再起動します [#restart]
+
+* 設定を更新した後、NRDOT Collectorサービスを再起動します：
+
+  ```shell
+  sudo systemctl restart nrdot-collector
+  ```
+
+  <Callout variant="tip">
+  新しい設定を確実に適用するために、設定を変更した後は常にNRDOT Collectorサービスを再起動してください。
+  </Callout>
+
+* コレクターが正常に実行されていることを確認するには、サービスステータスを確認します：
+
+  ```shell
+  sudo systemctl status nrdot-collector
+  ```
+</Step>
+
+<Step>
+## データを探す、使う [#find]
+
+データの収集が開始されると、New Relic UIを通じて包括的なAzure Database for MySQLフレキシブルサーバー監視にアクセスできます。
+
+New RelicでAzure Database for MySQLフレキシブルサーバーエンティティを見つけるには：
+
+1. <DNT>**[https://one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Databases**</DNT>に移動します。
+2. **<DNT>Entity type</DNT>**ドロップダウンから<DNT>**MySQL instance**</DNT>を選択し、<DNT>**Apply**</DNT>をクリックします。
+3. エンティティのリストから、Azure Database for MySQLフレキシブルサーバーのインスタンスを選択してください。
+</Step>
+</Steps>
+
+## 制限 [#limitations]
+
+Azure Database for MySQL - Flexible Serverインスタンスを監視する場合、レシーバー側の要因ではなくAzureプラットフォームの制限により、一部の機能はセルフマネージドMySQLとは異なる動作をします。
+
+`BACKUP_ADMIN`の付与はサポートされていないため、`mysql.innodb.redo_log.checkpoint.age`、`mysql.innodb.redo_log.lsn.checkpoint`、および`mysql.innodb.redo_log.lsn.current`が完全にブロックされます。
+
+MySQL Xプラグインはこのプラットフォームではサポートされておらず、顧客が有効にする手段はありません（[MicrosoftのAzure Database for MySQLプリンシパルPMによって確認されています](https://stackoverflow.com/questions/74631732/mysql-azure-database-enable-mysqlx-plugin)）。その結果、`mysql.mysqlx_connections`と`mysql.mysqlx_worker_threads`はデータを報告しません。
+
+リードリプリカはストレージベースのレプリケーションを使用するため、実際のレプリケーションの正常性に関係なく、`mysql.replica.thread.running`は常に実行されていないと報告されます。`mysql.replica.time_behind_source`は影響を受けません。
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+<DocTile title="AWS RDSのセットアップ" path="/docs/opentelemetry/db360/mysql/rds">
+New RelicでAWS RDSのMySQL監視を設定する方法を学びます。
+</DocTile>
+
+<DocTile title="メトリクスリファレンス" path="/docs/opentelemetry/db360/mysql/metrics-reference">
+NRDOT Collectorによって収集される利用可能なメトリクスについて説明します。
+</DocTile>
+
+<DocTile title="トラブルシューティングガイド" path="/docs/opentelemetry/db360/mysql/troubleshooting">
+MySQL監視に関する一般的な問題のトラブルシューティング方法をご覧ください。
+</DocTile>
+</DocTiles>
