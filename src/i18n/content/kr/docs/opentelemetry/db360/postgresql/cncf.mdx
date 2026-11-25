@@ -1,0 +1,158 @@
+---
+title: OpenTelemetry Collector(CNCF)로 PostgreSQL 모니터링 구성
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - PostgreSQL
+  - Linux
+metaDescription: Set up PostgreSQL monitoring for your instance using the OpenTelemetry Collector
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: PostgreSQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/postgresql/introduction
+  next: null
+translationType: machine
+---
+
+PostgreSQL용 OpenTelemetry Collector Contrib를 사용하여 인스턴스를 모니터할 수 있습니다. OpenTelemetry Collector Contrib는 PostgreSQL에서 텔레메트리 데이터를 수집하여 뉴렐릭으로 전송하는 커뮤니티 지원 프로젝트입니다.
+
+기본적으로 OpenTelemetry Collector Contrib는 PostgreSQL에서 제한된 메트릭을 수집합니다. 쿼리 성능, 대기 이벤트, 세션 및 클라이언트 메트릭을 전송하려면 OpenTelemetry Collector Contrib를 구성해야 합니다. 이 가이드에서는 PostgreSQL에서 고급 메트릭을 수집하여 뉴렐릭으로 전송하도록 구성하는 방법을 안내합니다.
+
+<Callout variant="tip" title="메모">
+이 페이지에서는 표준 `otelcol-contrib` 바이너리에 포함되어 제공되는 커뮤니티 `postgresql` 수신기를 다룹니다. 뉴렐릭의 배포판(NRDOT)을 사용하는 경우, 대신 [PostgreSQL 모니터링 소개](/docs/opentelemetry/db360/postgresql/introduction)를 참조하십시오.
+</Callout>
+
+<Steps>
+<Step>
+## 전제 조건 [#prerequisites]
+
+* 시스템에 설치 및 구성된 OpenTelemetry Collector Contrib(`otelcol-contrib`). [OpenTelemetry Collector 릴리스](https://github.com/open-telemetry/opentelemetry-collector-releases/releases) 페이지에서 최신 릴리스를 다운로드할 수 있습니다.
+
+* `pg_stat_statements` 모니터되는 PostgreSQL 인스턴스에서 `shared_preload_libraries`을(를) 통해 활성화됩니다. 이는 쿼리 성능, 대기 이벤트, 세션 및 클라이언트 데이터에 필요합니다. [권장 서버 파라미터](/docs/opentelemetry/db360/postgresql/compatibility#params)를 참조하십시오.
+
+* 수집기가 `receiver.postgresql.useOTelSemconv` 기능 게이트를 사용하여 시맨틱 컨벤션 모드로 시작되었습니다.
+
+  `otelcol-contrib`을(를) RPM/Debian 패키지(systemd 서비스)로 실행 중인 경우, 서비스 파일은 `EnvironmentFile=/etc/otelcol-contrib/otelcol-contrib.conf`을(를) 통해 환경 변수를 가져옵니다. 해당 파일에서 `OTELCOL_OPTIONS`에 플래그를 추가하십시오:
+
+  ```bash
+  OTELCOL_OPTIONS="--config=/etc/otelcol-contrib/config.yaml --feature-gates=receiver.postgresql.useOTelSemconv"
+  ```
+
+  파일을 저장한 후, 게이트를 적용하려면 서비스를 다시 시작하십시오:
+
+  ```bash
+  sudo systemctl restart otelcol-contrib
+  ```
+</Step>
+
+<Step>
+## UI 메트릭 활성화 [#enable]
+
+`otelcol-contrib` 설정 파일에 메트릭을 추가하고 활성화하여 뉴렐릭 플랫폼 경험을 향상시킬 수 있습니다. 이 섹션에서 제공하는 설정을 사용하면 뉴렐릭 플랫폼의 다음 페이지에 데이터를 채울 수 있습니다:
+
+* <DNT>Overview</DNT>
+* <DNT>Query performance</DNT>
+* <DNT>Wait events</DNT>
+* <DNT>Sessions</DNT>
+* <DNT>Clients</DNT>
+
+<CollapserGroup>
+<Collapser id="overview" title="개요 페이지 메트릭 활성화">
+<DNT>Overview</DNT> 페이지는 데이터베이스 잠금, 교착 상태, 함수 호출, 쿼리 충돌, 순차 스캔 및 임시 파일/IO 사용량과 같은 주요 메트릭을 포함하여 PostgreSQL 인스턴스의 상위 수준 보기를 표시합니다.
+
+뉴렐릭 플랫폼의 <DNT>Overview</DNT> 페이지에 데이터를 채우려면 `otelcol-contrib` 설정 파일에 다음 설정을 추가하십시오:
+
+```yaml
+receivers:
+  postgresql:
+    metrics:
+      postgresql.database.locks:
+        enabled: true
+      postgresql.deadlocks:
+        enabled: true
+      postgresql.function.calls:
+        enabled: true
+      postgresql.query.conflicts:
+        enabled: true
+      postgresql.sequential_scans:
+        enabled: true
+      postgresql.temp.io:
+        enabled: true
+      postgresql.temp_files:
+        enabled: true
+```
+</Collapser>
+
+<Collapser id="query-performance" title="쿼리 성능, 세션, 대기 및 클라이언트 메트릭 활성화">
+<DNT>Query performance</DNT>, <DNT>Wait events</DNT>, <DNT>Sessions</DNT> 및 <DNT>Clients</DNT> 페이지에 데이터를 채우려면:
+
+* Query performance \[쿼리 성능]: PostgreSQL 인스턴스에서 실행 중인 쿼리에 대한 자세한 정보를 다음 탭에 표시합니다:
+
+  * Normalized queries \[정규화된 쿼리]: 실행 및 평균 CPU 시간 그래프를 표시합니다.
+  * Query samples \[쿼리 샘플]: 시작 시간, 소요 시간, 대기 유형, 대기 시간, 데이터베이스, DB 사용자 및 클라이언트 호스트를 포함한 개별 쿼리 실행을 표시합니다.
+
+* Wait events \[대기 이벤트]: PostgreSQL 인스턴스에서 발생하는 대기 이벤트에 대한 정보를 표시합니다. query samples view \[쿼리 샘플 뷰]는 현재 대기 중인 쿼리를 대기 유형 및 대기 시간과 함께 표시합니다.
+
+* Sessions\[세션]: 활성 및 유휴 데이터베이스 연결, 평균 세션 지속 시간, 차단된 세션, 애플리케이션 및 프로세스별 사용량에 대한 추세를 시각화하여 로드 급증 및 연결 병목현상을 추적합니다.
+
+* Clients \[클라이언트]: 활성 세션, 차단된 세션, 연결된 DB 사용자 및 클라이언트 호스트 세부 정보를 포함하여 PostgreSQL 인스턴스에 연결된 클라이언트에 대한 정보를 표시합니다.
+
+다음 설정을 `otelcol-contrib` 설정 파일에 추가하십시오:
+
+```yaml
+receivers:
+  postgresql:
+    events:
+      db.server.top_query:
+        enabled: true
+      db.server.query_sample:
+        enabled: true
+      db.server.query_plan:
+        enabled: true
+    top_query_collection:
+      max_rows_per_query: 1000
+      top_n_query: 200
+      collection_interval: 60s
+    query_sample_collection:
+      max_rows_per_query: 1000
+```
+
+<Callout variant="important">
+`db.server.query_plan` `db.server.top_query` 또는 `db.server.query_sample` 중 하나 이상이 함께 활성화되어야 합니다. 단독으로 활성화하면 설정 유효성 검사 오류가 발생합니다.
+</Callout>
+
+<Callout variant="tip" title="메모">
+`postgresql.session.duration` 커뮤니티 `postgresql` 수신기에서는 사용할 수 없으므로 Sessions\[세션] 페이지에 Sessions\[세션] 테이블이 렌더링되지 않습니다.
+</Callout>
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+## OpenTelemetry Collector 다시 시작 [#restart]
+
+설정 변경 사항을 적용하려면 OpenTelemetry Collector를 다시 시작합니다:
+
+```bash
+sudo systemctl restart otelcol-contrib
+```
+</Step>
+</Steps>
+
+## 관련 문서 [#related]
+
+<DocTiles>
+<DocTile title="NRDOT를 사용한 PostgreSQL 모니터링 소개" path="/docs/opentelemetry/db360/postgresql/introduction">
+뉴렐릭을 사용한 PostgreSQL 모니터링에 사용할 수 있는 모든 설치 방법에 대해 알아보십시오.
+</DocTile>
+
+<DocTile title="지표 참조" path="/docs/opentelemetry/db360/postgresql/metrics-reference">
+NRDOT Collector가 수집하는 사용 가능한 메트릭에 대해 알아보십시오.
+</DocTile>
+</DocTiles>
