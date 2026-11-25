@@ -1,0 +1,492 @@
+---
+title: ElasticsearchをモニターするためのKubernetesへのNRDOTのインストールと設定（Helm）
+metaDescription: Deploy NRDOT on Kubernetes using Helm to monitor Elasticsearch clusters with automatic pod discovery and send data to New Relic.
+tags:
+  - OpenTelemetry
+  - Elasticsearch
+  - NRDOT
+  - Kubernetes
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: elasticsearch
+flow:
+  prev: /docs/opentelemetry/integrations/elasticsearch/introduction
+  next: null
+translationType: machine
+---
+
+このガイドでは、Helmを使用してKubernetes上にNRDOTをデプロイし、Elasticsearchポッドを自動的に検出し、クラスタ、ノード、およびJVMメトリクスを収集してNew Relicにストリーミングし、クラスタの健全性とパフォーマンスをモニターする方法を説明します。
+
+## 互換性と要件 [#requirements]
+
+### サポート対象
+
+* Kubernetesクラスタでポッドとして実行されているElasticsearch 7.16以降
+* Helmのインストール方法
+
+### 必要なこと
+
+* New Relicの[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* `kubectl` Kubernetesクラスタへのアクセス
+* Helm 3.xがインストールされていること
+* `monitor`または`manage`のクラスタ権限を持つElasticsearchユーザー（[Elasticsearchのセキュリティ権限](https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html)を参照）
+* New Relicの[OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)へのアウトバウンドHTTPS（ポート443）接続
+* Elasticsearchのユーザー名とパスワード（クラスタで認証が必要な場合）
+
+<Steps>
+<Step>
+## ポッドラベルの設定 [#pod-labels]
+
+自動検出が機能するためには、各Elasticsearchポッドにラベル `app: elasticsearch` が付与されている必要があります。このラベルがないと、コレクターはポッドを検出またはモニターしません。
+
+Elasticsearchに StatefulSet またはデプロイメントを使用している場合は、ポッド テンプレートにラベルを追加します。
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+spec:
+  template:
+    metadata:
+      labels:
+        app: elasticsearch  # Required for auto-discovery
+    spec:
+      containers:
+      - name: elasticsearch
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.x.x
+```
+
+ラベルのない既存のポッドについては、StatefulSet/デプロイメントを更新し、ポッドを再起動してください：
+
+```bash
+kubectl label pods -l <your-existing-selector> app=elasticsearch -n <namespace>
+```
+
+ラベルが正しく設定されているかどうかを確認できます。
+
+```bash
+kubectl get pods -n <namespace> --show-labels
+```
+</Step>
+
+<Step>
+## 資格情報とコレクター設定を準備してください。 [#prepare]
+
+コレクターに必要な認証情報を作成し、`values.yaml`ファイルでElasticsearchの監視設定を定義します。次のステップで、この設定を使用してコレクターをインストールします。
+
+1. ネームスペースと、New Relic認証情報用のシークレットを作成します：
+
+   ```bash
+   kubectl create namespace newrelic
+   kubectl create secret generic newrelic-licenses \
+     --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE \
+     --from-literal=NEWRELIC_OTLP_ENDPOINT=YOUR_NEWRELIC_OTLP_ENDPOINT \
+     --from-literal=NEW_RELIC_MEMORY_LIMIT_MIB=100 \
+     -n newrelic
+   ```
+
+   メモリ制限をご使用の環境に合ったものに置き換えてください。
+
+2. NRDOTコレクター用の`values.yaml`ファイルを作成します：`rule`をポッドラベルと一致するように設定し、`K8S_CLUSTER_NAME`をこのクラスタの一意の名前に設定します：
+
+   ```yaml
+   mode: deployment
+
+   image:
+     repository: newrelic/nrdot-collector
+     tag: latest
+     pullPolicy: IfNotPresent
+
+   resources:
+     limits:
+       cpu: 500m
+       memory: 512Mi
+     requests:
+       cpu: 200m
+       memory: 256Mi
+
+   ports: {}
+
+   extraEnvs:
+     - name: NEWRELIC_LICENSE_KEY
+       valueFrom:
+         secretKeyRef:
+           name: newrelic-licenses
+           key: NEWRELIC_LICENSE_KEY
+     - name: NEWRELIC_OTLP_ENDPOINT
+       valueFrom:
+         secretKeyRef:
+           name: newrelic-licenses
+           key: NEWRELIC_OTLP_ENDPOINT
+     - name: NEW_RELIC_MEMORY_LIMIT_MIB
+       valueFrom:
+         secretKeyRef:
+           name: newrelic-licenses
+           key: NEW_RELIC_MEMORY_LIMIT_MIB
+     - name: K8S_CLUSTER_NAME
+       value: "elasticsearch-cluster"
+
+   clusterRole:
+     create: true
+     rules:
+       - apiGroups: [""]
+         resources: ["pods", "nodes", "nodes/stats", "nodes/proxy"]
+         verbs: ["get", "list", "watch"]
+       - apiGroups: ["apps"]
+         resources: ["replicasets"]
+         verbs: ["get", "list", "watch"]
+
+   config:
+     extensions:
+       health_check:
+         endpoint: 0.0.0.0:13133
+       k8s_observer:
+         auth_type: serviceAccount
+         observe_pods: true
+         observe_nodes: true
+     receivers:
+       jaeger: null
+       zipkin: null
+       prometheus: null
+       otlp: null
+       receiver_creator/elasticsearch:
+         watch_observers: [k8s_observer]
+         receivers:
+           elasticsearch:
+             rule: type == "pod" && labels["app"] == "elasticsearch"
+             config:
+               endpoint: 'http://`endpoint`:9200'
+               collection_interval: 15s
+               metrics:
+                 elasticsearch.os.cpu.usage:
+                   enabled: true
+                 elasticsearch.cluster.data_nodes:
+                   enabled: true
+                 elasticsearch.cluster.health:
+                   enabled: true
+                 elasticsearch.cluster.in_flight_fetch:
+                   enabled: true
+                 elasticsearch.cluster.nodes:
+                   enabled: true
+                 elasticsearch.cluster.pending_tasks:
+                   enabled: true
+                 elasticsearch.cluster.shards:
+                   enabled: true
+                 elasticsearch.cluster.state_update.time:
+                   enabled: true
+                 elasticsearch.index.documents:
+                   enabled: true
+                 elasticsearch.index.operations.merge.current:
+                   enabled: true
+                 elasticsearch.index.operations.time:
+                   enabled: true
+                 elasticsearch.node.cache.count:
+                   enabled: true
+                 elasticsearch.node.cache.evictions:
+                   enabled: true
+                 elasticsearch.node.cache.memory.usage:
+                   enabled: true
+                 elasticsearch.node.shards.size:
+                   enabled: true
+                 elasticsearch.node.cluster.io:
+                   enabled: true
+                 elasticsearch.node.documents:
+                   enabled: true
+                 elasticsearch.node.disk.io.read:
+                   enabled: true
+                 elasticsearch.node.disk.io.write:
+                   enabled: true
+                 elasticsearch.node.fs.disk.available:
+                   enabled: true
+                 elasticsearch.node.fs.disk.total:
+                   enabled: true
+                 elasticsearch.node.http.connections:
+                   enabled: true
+                 elasticsearch.node.ingest.documents.current:
+                   enabled: true
+                 elasticsearch.node.ingest.operations.failed:
+                   enabled: true
+                 elasticsearch.node.open_files:
+                   enabled: true
+                 elasticsearch.node.operations.completed:
+                   enabled: true
+                 elasticsearch.node.operations.current:
+                   enabled: true
+                 elasticsearch.node.operations.get.completed:
+                   enabled: true
+                 elasticsearch.node.operations.time:
+                   enabled: true
+                 elasticsearch.node.shards.reserved.size:
+                   enabled: true
+                 elasticsearch.index.shards.size:
+                   enabled: true
+                 elasticsearch.os.cpu.load_avg.1m:
+                   enabled: true
+                 elasticsearch.os.cpu.load_avg.5m:
+                   enabled: true
+                 elasticsearch.os.cpu.load_avg.15m:
+                   enabled: true
+                 elasticsearch.os.memory:
+                   enabled: true
+                 jvm.gc.collections.count:
+                   enabled: true
+                 jvm.gc.collections.elapsed:
+                   enabled: true
+                 jvm.memory.heap.max:
+                   enabled: true
+                 jvm.memory.heap.used:
+                   enabled: true
+                 jvm.memory.heap.utilization:
+                   enabled: true
+                 jvm.threads.count:
+                   enabled: true
+                 elasticsearch.index.segments.count:
+                   enabled: true
+                 elasticsearch.index.operations.completed:
+                   enabled: true
+                 elasticsearch.node.script.cache_evictions:
+                   enabled: false
+                 elasticsearch.node.cluster.connections:
+                   enabled: false
+                 elasticsearch.node.pipeline.ingest.documents.preprocessed:
+                   enabled: false
+                 elasticsearch.node.thread_pool.tasks.queued:
+                   enabled: false
+                 elasticsearch.cluster.published_states.full:
+                   enabled: false
+                 jvm.memory.pool.max:
+                   enabled: false
+                 elasticsearch.node.script.compilation_limit_triggered:
+                   enabled: false
+                 elasticsearch.node.shards.data_set.size:
+                   enabled: false
+                 elasticsearch.node.pipeline.ingest.documents.current:
+                   enabled: false
+                 elasticsearch.cluster.state_update.count:
+                   enabled: false
+                 elasticsearch.node.fs.disk.free:
+                   enabled: false
+                 jvm.memory.nonheap.used:
+                   enabled: false
+                 jvm.memory.pool.used:
+                   enabled: false
+                 elasticsearch.node.translog.size:
+                   enabled: false
+                 elasticsearch.node.thread_pool.threads:
+                   enabled: false
+                 elasticsearch.cluster.state_queue:
+                   enabled: false
+                 elasticsearch.node.translog.operations:
+                   enabled: false
+                 elasticsearch.memory.indexing_pressure:
+                   enabled: false
+                 elasticsearch.node.ingest.documents:
+                   enabled: false
+                 jvm.classes.loaded:
+                   enabled: false
+                 jvm.memory.heap.committed:
+                   enabled: false
+                 elasticsearch.breaker.memory.limit:
+                   enabled: false
+                 elasticsearch.indexing_pressure.memory.total.replica_rejections:
+                   enabled: false
+                 elasticsearch.breaker.memory.estimated:
+                   enabled: false
+                 elasticsearch.cluster.published_states.differences:
+                   enabled: false
+                 jvm.memory.nonheap.committed:
+                   enabled: false
+                 elasticsearch.node.translog.uncommitted.size:
+                   enabled: false
+                 elasticsearch.node.script.compilations:
+                   enabled: false
+                 elasticsearch.node.pipeline.ingest.operations.failed:
+                   enabled: false
+                 elasticsearch.indexing_pressure.memory.limit:
+                   enabled: false
+                 elasticsearch.breaker.tripped:
+                   enabled: false
+                 elasticsearch.indexing_pressure.memory.total.primary_rejections:
+                   enabled: false
+                 elasticsearch.node.thread_pool.tasks.finished:
+                   enabled: false
+     processors:
+       memory_limiter:
+         check_interval: 60s
+         limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB}
+       cumulativetodelta: {}
+       attributes/cluster_state_aggregate:
+         include:
+           match_type: strict
+           metric_names:
+             - elasticsearch.cluster.state_update.time
+         actions:
+           - key: type
+             action: delete
+           - key: state
+             action: delete
+       filter/critical_operations:
+         metrics:
+           datapoint:
+             - 'attributes["operation"] == "query" or attributes["operation"] == "index" or attributes["operation"] == "get" or attributes["operation"] == "merge" or attributes["operation"] == nil'
+       resource/cluster:
+         attributes:
+           - key: k8s.cluster.name
+             value: "${env:K8S_CLUSTER_NAME}"
+             action: insert
+       resource/cluster_name_override:
+         attributes:
+           - key: elasticsearch.cluster.name
+             value: "${env:K8S_CLUSTER_NAME}"
+             action: upsert
+       resourcedetection:
+         detectors: [env, system]
+         system:
+           resource_attributes:
+             host.name:
+               enabled: true
+             host.id:
+               enabled: true
+             os.type:
+               enabled: true
+       batch:
+         timeout: 30s
+         send_batch_size: 2048
+         send_batch_max_size: 4096
+       attributes/cardinality_reduction:
+         actions:
+           - key: process.pid
+             action: delete
+           - key: process.parent_pid
+             action: delete
+           - key: k8s.pod.uid
+             action: delete
+       transform/metadata_nullify:
+         metric_statements:
+           - context: metric
+             statements:
+               - set(description, "")
+               - set(unit, "")
+     exporters:
+       otlp_http:
+         endpoint: "${env:NEWRELIC_OTLP_ENDPOINT}"
+         headers:
+           api-key: "${env:NEWRELIC_LICENSE_KEY}"
+         compression: gzip
+         timeout: 30s
+         retry_on_failure:
+           enabled: true
+           initial_interval: 5s
+           max_interval: 30s
+           max_elapsed_time: 300s
+     service:
+       extensions: [health_check, k8s_observer]
+       pipelines:
+         traces: null
+         logs: null
+         metrics: null
+         metrics/elasticsearch:
+           receivers: [receiver_creator/elasticsearch]
+           processors: [memory_limiter, resourcedetection, resource/cluster, resource/cluster_name_override, attributes/cardinality_reduction, filter/critical_operations, attributes/cluster_state_aggregate, cumulativetodelta, transform/metadata_nullify, batch]
+           exporters: [otlp_http]
+   ```
+
+   オプションで、認証とSSLを使用してこのクラスタを保護できます。[高度な設定](/docs/opentelemetry/integrations/elasticsearch/advanced-configuration#secured)をご覧ください。
+
+### 設定パラメーター [#configuration-parameters]
+
+以下の表は、上記の`values.yaml`で使用される主な設定パラメーターについて説明しています：
+
+| パラメータ                                          | 説明                                                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `rule`                                         | 自動検出に使用されるポッドマッチングルール。ポッドラベルと一致するように`labels["app"] == "elasticsearch"`を更新します。                                                |
+| `endpoint`                                     | 検出された各ポッドでスクレイプされるElasticsearchエンドポイント。Elasticsearchが別のポートで実行されている場合はポート`9200`を更新し、セキュアなクラスタには`https`を使用してください。              |
+| `collection_interval`                          | メトリクスのスクレイプ間隔です。デフォルトは15秒です。                                                                                                 |
+| `elasticsearch-cluster` ( `K8S_CLUSTER_NAME`内) | New Relicでこのクラスタを識別する一意の名前です。アカウント全体で一意の名前に置き換えてください。                                                                        |
+| `NEW_RELIC_MEMORY_LIMIT_MIB`                   | コレクターの`memory_limiter`プロセッサのメモリ制限（MiB単位）。環境に合わせて設定してください。                                                                    |
+| `NEWRELIC_LICENSE_KEY`                         | あなたのNew Relic [ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 。                                      |
+| `NEWRELIC_OTLP_ENDPOINT`                       | アカウントのリージョンのNew Relic OTLPエンドポイントです。[New Relic OTLPエンドポイント](/docs/opentelemetry/best-practices/opentelemetry-otlp)を参照してください。 |
+</Step>
+
+<Step>
+## Helm経由でのNRDOTコレクターのインストールと設定 [#install-helm]
+
+NRDOTコレクターをクラスタにデプロイします。Helmは、作成したばかりの`values.yaml`ファイルから設定を適用します。
+
+1. OpenTelemetry Helmチャートリポジトリを追加して更新します：
+
+   ```bash
+   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+   helm repo update
+   ```
+
+2. NRDOTコレクターをデプロイします：
+
+   ```bash
+   helm upgrade --install elasticsearch-nrdot-collector open-telemetry/opentelemetry-collector \
+     --namespace newrelic \
+     --create-namespace \
+     -f values.yaml
+   ```
+</Step>
+
+<Step>
+## インストールの確認 [#verify]
+
+インストールから約5分以内に、New Relicでこのクエリを実行して、データが送信されていることを確認します（`elasticsearch-cluster`をご自身のクラスタ名に置き換えてください）：
+
+```sql
+FROM Metric
+SELECT *
+WHERE metricName LIKE 'elasticsearch.%'
+  AND instrumentation.provider = 'opentelemetry'
+  AND k8s.cluster.name = 'elasticsearch-cluster'
+SINCE 10 minutes ago
+```
+
+<Callout variant="tip">
+コレクター自体を確認することもできます：ポッドは`Running`状態（`kubectl get pods -n newrelic --watch`）で、名前が`elasticsearch-nrdot-collector-<hash>`のようになっており、ポッドログ（`kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector -f`）に接続エラーがないはずです。
+</Callout>
+
+約5分経過してもデータが表示されない場合は、[Kubernetesのトラブルシューティング](/docs/opentelemetry/integrations/elasticsearch/troubleshooting#kubernetes-troubleshooting)をご覧ください。
+</Step>
+
+<Step>
+## データを探す、使う [#find-and-use]
+
+New Relicがデータを収集すると、New Relic UIを通じてElasticsearchの監視にアクセスできるようになります。
+
+New RelicでElasticsearchダッシュボードを見つけるには：
+
+1. <DNT>**one.newrelic.com &gt; Integrations &amp; Agents**</DNT>に移動します。
+2. <DNT>**All**</DNT>タブで<DNT>**Dashboards**</DNT>をクリックし、<DNT>**Elasticsearch (OpenTelemetry Collector)**</DNT>を検索してダッシュボードを表示します。
+
+または、左側のナビゲーションから：
+
+1. <DNT>**Dashboards**</DNT>をクリックします。
+2. <DNT>**Elasticsearch (OpenTelemetry Collector)**</DNT>ダッシュボードを検索して表示します。
+
+NRDOTを使用してElasticsearchの監視をセットアップすると、次のことができるようになります：
+
+* Elasticsearchのメトリクスを可視化するための[カスタムダッシュボードを作成](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/)します
+* クリティカルなクラスタのヘルスおよびパフォーマンスの閾値に対する[アラートを設定](/docs/alerts/create-alert/create-alert-condition/alert-conditions/)します
+* New Relicのクエリ機能を使用して、[データを探索](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/)します
+</Step>
+</Steps>
+
+<Callout variant="tip">
+**APMとElasticsearchの関連付け**：APMアプリケーションとElasticsearchクラスタを接続するには、APMメトリクスにリソース属性`es.cluster.name="your-cluster-name"`を含めてください。これにより、New RelicでAPMとElasticsearchのデータを一緒に表示できるようになります。
+</Callout>
+
+## 関連記事 [#related-articles]
+
+* [高度な設定](/docs/opentelemetry/integrations/elasticsearch/advanced-configuration)
+* [ディストリビューティッド（分散）トレーシングを使用してAPMとElasticsearchを関連付ける](/docs/opentelemetry/integrations/elasticsearch/distributed-tracing)
+* [Elasticsearchメトリクスのリファレンス](/docs/opentelemetry/integrations/elasticsearch/metrics-reference)
+* [Elasticsearchのトラブルシューティング](/docs/opentelemetry/integrations/elasticsearch/troubleshooting)
