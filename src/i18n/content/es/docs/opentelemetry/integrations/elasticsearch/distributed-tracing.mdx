@@ -18,7 +18,7 @@ Esta página cierra esa brecha mediante el rastreo distribuido de OpenTelemetry 
 A nivel interno, la aplicación y Elasticsearch aportan cada uno su parte de la misma solicitud a una única traza compartida. New Relic reconoce que ambas partes están relacionadas y crea automáticamente la relación de servicio a clúster.
 
 <Callout variant="tip">
-  El rastreo distribuido es una de las dos formas de correlacionar APM con Elasticsearch. Proporciona detalles completos a nivel de solicitud, pero los datos de traza adicionales aumentan el volumen de ingesta. Si solo necesita que el clúster aparezca como una entidad relacionada, puede etiquetar la telemetría de la aplicación APM con el nombre del clúster en su lugar —esto funciona en cualquier versión de Elasticsearch, pero omite los detalles de la traza de extremo a extremo.
+El rastreo distribuido es una de las dos formas de correlacionar APM con Elasticsearch. Proporciona todos los detalles a nivel de solicitud, pero los datos de traza adicionales aumentan el volumen de ingesta. Si solo necesita que el clúster aparezca como una entidad relacionada, en su lugar puede etiquetar la telemetría de la aplicación APM con el nombre del clúster. Esto funciona en cualquier versión de Elasticsearch, pero omite los detalles de traza de extremo a extremo.
 </Callout>
 
 ## Instrumentación compatible [#compatibility]
@@ -50,158 +50,158 @@ Una vez que activa el rastreo, Elasticsearch emite sus propios spans de OpenTele
 Expanda la sección que coincida con el despliegue.
 
 <CollapserGroup>
-  <Collapser id="host" title="Autoalojado">
-    <Steps>
-      <Step>
-        ### Activar el rastreo en Elasticsearch [#es-enable-tracing]
+<Collapser id="host" title="Autoalojado">
+<Steps>
+<Step>
+### Activar el rastreo en Elasticsearch [#es-enable-tracing]
 
-        Agregue lo siguiente a `elasticsearch.yml` en cada nodo. Luego, establezca `-Dtelemetry.otel.traces.enabled=true` (mediante `ES_JAVA_OPTS` o `jvm.options`) y reinicie cada nodo:
+Agregue lo siguiente a `elasticsearch.yml` en cada nodo. Luego, establezca `-Dtelemetry.otel.traces.enabled=true` (mediante `ES_JAVA_OPTS` o `jvm.options`) y reinicie cada nodo:
 
-        ```yaml
-        telemetry.tracing.enabled: true
-        telemetry.export.endpoint: http://YOUR_COLLECTOR_HOST:4317   # localhost if the collector runs on this node
-        telemetry.tracing.sample_rate: 1.0                           # default 0.001; lower for high volume
-        ```
-      </Step>
+```yaml
+telemetry.tracing.enabled: true
+telemetry.export.endpoint: http://YOUR_COLLECTOR_HOST:4317   # localhost if the collector runs on this node
+telemetry.tracing.sample_rate: 1.0                           # default 0.001; lower for high volume
+```
+</Step>
 
-      <Step>
-        ### Agregue un pipeline de trazas al recolector [#collector-traces]
+<Step>
+### Agregue un pipeline de trazas al recolector [#collector-traces]
 
-        Ahora configure el recolector para recibir las trazas que envía Elasticsearch y para filtrar los spans que, de lo contrario, harían que el clúster pareciera llamarse a sí mismo. Agregue el receptor `otlp` y los procesadores `filter/drop_rootless_es` y `transform/strip_es_host` a un pipeline `traces`:
+Ahora configure el recolector para recibir las trazas que envía Elasticsearch y para filtrar los spans que, de lo contrario, harían que el clúster pareciera llamarse a sí mismo. Agregue el receptor `otlp` y los procesadores `filter/drop_rootless_es` y `transform/strip_es_host` a un pipeline `traces`:
 
-        ```yaml
-        receivers:
-          otlp:
-            protocols:
-              grpc:
-                endpoint: 0.0.0.0:4317
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
 
-        processors:
-          # Drop Elasticsearch's own parentless spans (health checks, metrics-scrape calls) so the cluster isn't linked to itself
-          filter/drop_rootless_es:
-            error_mode: ignore
-            traces:
-              span:
-                - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
-          # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
-          transform/strip_es_host:
-            error_mode: ignore
-            trace_statements:
-              - context: span
-                statements:
-                  - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
-                  - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+processors:
+  # Drop Elasticsearch's own parentless spans (health checks, metrics-scrape calls) so the cluster isn't linked to itself
+  filter/drop_rootless_es:
+    error_mode: ignore
+    traces:
+      span:
+        - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+  # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+  transform/strip_es_host:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+          - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
 
-        service:
-          pipelines:
-            traces:
-              receivers: [otlp]
-              processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
-              exporters: [otlphttp]
-        ```
-      </Step>
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+      exporters: [otlphttp]
+```
+</Step>
 
-      <Step>
-        ### Reinicie el recopilador [#restart-collector]
+<Step>
+### Reinicie el recopilador [#restart-collector]
 
-        Reemplace `<collector-service>` con el nombre de servicio del recolector (por ejemplo, `nrdot-collector` o `otelcol-contrib`):
+Reemplace `<collector-service>` con el nombre de servicio del recolector (por ejemplo, `nrdot-collector` o `otelcol-contrib`):
 
-        ```bash
-        sudo systemctl restart <collector-service>
-        ```
-      </Step>
+```bash
+sudo systemctl restart <collector-service>
+```
+</Step>
 
-      <Step>
-        ### Verifique que los spans estén llegando [#verify-correlation]
+<Step>
+### Verifique que los spans estén llegando [#verify-correlation]
 
-        Confirme que Elasticsearch está enviando trazas etiquetadas con el nombre del clúster:
+Confirme que Elasticsearch está enviando trazas etiquetadas con el nombre del clúster:
 
-        ```sql
-        FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
-        ```
+```sql
+FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+```
 
-        La cláusula `SINCE` establece qué tan atrás busca la consulta. Ajústelo a su situación —por ejemplo, `SINCE 2 hours ago` si habilitó el rastreo antes y desea revisar una ventana más amplia.
-      </Step>
-    </Steps>
-  </Collapser>
+La cláusula `SINCE` establece qué tan atrás busca la consulta. Ajústela para adaptarla a la situación. Por ejemplo, use `SINCE 2 hours ago` si habilitó el rastreo anteriormente y desea revisar una ventana más amplia.
+</Step>
+</Steps>
+</Collapser>
 
-  <Collapser id="k8s" title="Kubernetes">
-    <Steps>
-      <Step>
-        ### Active el rastreo en los pods de Elasticsearch [#es-enable-tracing-k8s]
+<Collapser id="k8s" title="Kubernetes">
+<Steps>
+<Step>
+### Active el rastreo en los pods de Elasticsearch [#es-enable-tracing-k8s]
 
-        Agregue lo siguiente a `elasticsearch.yml` (ConfigMap, valores de Helm o ECK `nodeSets`). Luego, configure `-Dtelemetry.otel.traces.enabled=true` mediante `ES_JAVA_OPTS` y despliegue los pods:
+Agregue lo siguiente a `elasticsearch.yml` (ConfigMap, valores de Helm o ECK `nodeSets`). Luego, configure `-Dtelemetry.otel.traces.enabled=true` mediante `ES_JAVA_OPTS` y despliegue los pods:
 
-        ```yaml
-        telemetry.tracing.enabled: true
-        telemetry.export.endpoint: http://YOUR_COLLECTOR_SVC.YOUR_NAMESPACE.svc.cluster.local:4317
-        telemetry.tracing.sample_rate: 1.0   # default 0.001; lower for high volume
-        ```
-      </Step>
+```yaml
+telemetry.tracing.enabled: true
+telemetry.export.endpoint: http://YOUR_COLLECTOR_SVC.YOUR_NAMESPACE.svc.cluster.local:4317
+telemetry.tracing.sample_rate: 1.0   # default 0.001; lower for high volume
+```
+</Step>
 
-      <Step>
-        ### Agregue un pipeline de trazas al recolector [#collector-traces-k8s]
+<Step>
+### Agregue un pipeline de trazas al recolector [#collector-traces-k8s]
 
-        Ahora configure el recolector para recibir las trazas que envía Elasticsearch y para filtrar los spans que, de lo contrario, harían que el clúster pareciera llamarse a sí mismo. Agregue el receptor `otlp` y los procesadores `filter/drop_rootless_es` y `transform/strip_es_host` a un pipeline `traces` en la configuración del recolector. Asegúrese de que el recolector exponga el puerto gRPC `4317`:
+Ahora configure el recolector para recibir las trazas que envía Elasticsearch y para filtrar los spans que, de lo contrario, harían que el clúster pareciera llamarse a sí mismo. Agregue el receptor `otlp` y los procesadores `filter/drop_rootless_es` y `transform/strip_es_host` a un pipeline `traces` en la configuración del recolector. Asegúrese de que el recolector exponga el puerto gRPC `4317`:
 
-        ```yaml
-        receivers:
-          otlp:
-            protocols:
-              grpc:
-                endpoint: 0.0.0.0:4317
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
 
-        processors:
-          # Drop Elasticsearch's own parentless spans (health probes, metrics-scrape calls) so the cluster isn't linked to itself
-          filter/drop_rootless_es:
-            error_mode: ignore
-            traces:
-              span:
-                - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
-          # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
-          transform/strip_es_host:
-            error_mode: ignore
-            trace_statements:
-              - context: span
-                statements:
-                  - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
-                  - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
+processors:
+  # Drop Elasticsearch's own parentless spans (health probes, metrics-scrape calls) so the cluster isn't linked to itself
+  filter/drop_rootless_es:
+    error_mode: ignore
+    traces:
+      span:
+        - 'instrumentation_scope.name == "elasticsearch" and IsRootSpan()'
+  # Remove Elasticsearch's own node address so New Relic doesn't resolve it back to the cluster
+  transform/strip_es_host:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(attributes, "http.request.headers.host") where instrumentation_scope.name == "elasticsearch"
+          - delete_key(attributes, "server.address") where instrumentation_scope.name == "elasticsearch"
 
-        service:
-          pipelines:
-            traces:
-              receivers: [otlp]
-              processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
-              exporters: [otlphttp]
-        ```
-      </Step>
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [filter/drop_rootless_es, transform/strip_es_host, batch]
+      exporters: [otlphttp]
+```
+</Step>
 
-      <Step>
-        ### Vuelva a desplegar el recolector [#redeploy-collector]
+<Step>
+### Vuelva a desplegar el recolector [#redeploy-collector]
 
-        Aplique la configuración actualizada y luego despliegue los pods del recolector para que la tomen. Utilice el mismo archivo ConfigMap, nombre de `Deployment` y namespace que utilizó cuando [instaló el recolector](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install) —por ejemplo, `nr-k8s-otel-collector-deployment` si siguió la instalación basada en manifiestos:
+Aplique la configuración actualizada y, a continuación, despliegue los pods del recolector para que la apliquen. Utilice el mismo archivo ConfigMap, el nombre de `Deployment` y el namespace que usó cuando [instaló el recolector](/docs/opentelemetry/integrations/elasticsearch/elasticsearch-otel-integration-k8-install). Por ejemplo, utilice `nr-k8s-otel-collector-deployment` si siguió la instalación basada en manifiestos:
 
-        ```bash
-        kubectl apply -f <your-collector-config>.yaml -n <namespace>
-        kubectl rollout restart deployment/<collector-deployment> -n <namespace>
-        ```
+```bash
+kubectl apply -f <your-collector-config>.yaml -n <namespace>
+kubectl rollout restart deployment/<collector-deployment> -n <namespace>
+```
 
-        Si desplegó el recolector con Helm, vuelva a ejecutar `helm upgrade` con los valores actualizados en lugar de `kubectl apply`.
-      </Step>
+Si desplegó el recolector con Helm, vuelva a ejecutar `helm upgrade` con los valores actualizados en lugar de `kubectl apply`.
+</Step>
 
-      <Step>
-        ### Verifique que los spans estén llegando [#verify-correlation-k8s]
+<Step>
+### Verifique que los spans estén llegando [#verify-correlation-k8s]
 
-        Confirme que Elasticsearch está enviando trazas etiquetadas con el nombre del clúster:
+Confirme que Elasticsearch está enviando trazas etiquetadas con el nombre del clúster:
 
-        ```sql
-        FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
-        ```
+```sql
+FROM Span SELECT count(*) WHERE es.cluster.name = '<elasticsearch-cluster-name>' SINCE 30 minutes ago
+```
 
-        La cláusula `SINCE` establece qué tan atrás busca la consulta. Ajústelo a su situación —por ejemplo, `SINCE 2 hours ago` si habilitó el rastreo antes y desea revisar una ventana más amplia.
-      </Step>
-    </Steps>
-  </Collapser>
+La cláusula `SINCE` establece qué tan atrás busca la consulta. Ajústela para adaptarla a la situación. Por ejemplo, use `SINCE 2 hours ago` si habilitó el rastreo anteriormente y desea revisar una ventana más amplia.
+</Step>
+</Steps>
+</Collapser>
 </CollapserGroup>
 
 ## Vea las trazas [#view-traces]

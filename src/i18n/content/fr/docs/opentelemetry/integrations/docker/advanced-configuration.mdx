@@ -1,0 +1,190 @@
+---
+title: Configuration avancée pour le monitoring Docker
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Docker
+  - Containers
+metaDescription: 'Advanced configuration options for Docker container monitoring with OpenTelemetry, including log collection for the NRDOT Collector and OpenTelemetry Collector Contrib.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cette page couvre la configuration facultative pour le monitoring des conteneurs Docker au-delà de la configuration minimale. Actuellement, il s&apos;agit de la collecte de logs.
+
+## Exigences [#requirements]
+
+Vous pouvez collecter les log de conteneur Docker en utilisant le [créateur de Récepteur](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) OpenTelemetry avec l&apos;extension [observateur Docker](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/observer/dockerobserver). Assurez-vous d&apos;avoir les éléments suivants :
+
+* Droits de lecture sur `/var/lib/docker/containers/` pour le processus du collecteur (root, ou appartenance au groupe docker)
+* Ports de conteneur exposés, pour que le créateur de Récepteur puisse découvrir et collecter les log de conteneur
+
+## Configurer la collecte des logs [#logs]
+
+<CollapserGroup>
+<Collapser id="logs-nrdot" title="Collecteur NRDOT">
+Ajoutez la configuration de la collecte de log à votre `docker-stats-config.yaml` existant.
+
+```yaml
+extensions:
+  # Docker observer - discovers running containers
+  docker_observer:
+    endpoint: unix:///var/run/docker.sock
+    use_hostname_if_present: true
+
+receivers:
+  # Your existing dockerstats receiver...
+
+  # Receiver creator - dynamically creates filelog receivers for discovered containers
+  receiver_creator:
+    watch_observers: [docker_observer]
+    receivers:
+      filelog:
+        rule: type == "container"
+        config:
+          include:
+            - /var/lib/docker/containers/`container_id`/`container_id`-json.log
+          poll_interval: 200ms
+          start_at: end
+          include_file_name: false
+          include_file_path: false
+          operators:
+            - id: container-parser
+              type: container
+              format: docker
+              add_metadata_from_filepath: false
+
+processors:
+  # Your existing processors...
+
+  # Add entity type attribute for logs (required for New Relic entity correlation)
+  attributes/logs:
+    actions:
+      - key: nr.entity_type
+        value: CONTAINER
+        action: upsert
+
+service:
+  extensions: [docker_observer]
+  pipelines:
+  # Your existing metrics pipeline...
+
+    logs:
+      receivers: [receiver_creator]
+      processors: [attributes/logs, batch]
+      exporters: [otlp_http]
+```
+</Collapser>
+
+<Collapser id="logs-otelcol-contrib" title="OpenTelemetry Collector Contrib">
+Fusionnez la configuration suivante avec votre fichier de configuration existant à `/etc/otelcol-contrib/config.yaml`.
+
+```yaml
+extensions:
+  # Docker observer - discovers running containers
+  docker_observer:
+    endpoint: unix:///var/run/docker.sock
+    use_hostname_if_present: true
+
+receivers:
+  # Your existing dockerstats receiver...
+
+  # Receiver creator - dynamically creates filelog receivers for discovered containers
+  receiver_creator:
+    watch_observers: [docker_observer]
+    receivers:
+      filelog:
+        rule: type == "container"
+        config:
+          include:
+            - /var/lib/docker/containers/`container_id`/`container_id`-json.log
+          poll_interval: 200ms
+          start_at: end
+          include_file_name: false
+          include_file_path: false
+          operators:
+            - id: container-parser
+              type: container
+              format: docker
+              add_metadata_from_filepath: false
+
+processors:
+  # Your existing processors...
+
+  # Add entity type attribute for logs (required for New Relic entity correlation)
+  attributes/logs:
+    actions:
+      - key: nr.entity_type
+        value: CONTAINER
+        action: upsert
+
+service:
+  extensions: [docker_observer]
+  pipelines:
+  # Your existing metrics pipeline...
+
+    logs:
+      receivers: [receiver_creator]
+      processors: [attributes/logs]
+      exporters: [otlp_http/newrelic]
+```
+</Collapser>
+</CollapserGroup>
+
+### Paramètres de configuration [#logs-configuration-parameters]
+
+Le tableau suivant décrit les principaux paramètres de configuration pour la collecte de logs :
+
+| paramètres                     | Description                                                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `endpoint` (`docker_observer`) | Saisissez le chemin d&apos;accès au socket Docker auquel l&apos;observateur se connecte. Par défaut : `unix:///var/run/docker.sock`                           |
+| `use_hostname_if_present`      | Définissez s’il faut utiliser le nom d’hôte du conteneur lorsqu’il est disponible. Par défaut : `true`                                                        |
+| `poll_interval`                | Définissez la fréquence à laquelle le Récepteur vérifie les fichiers de log à la recherche de nouvelles lignes. Par défaut : `200ms`                          |
+| `start_at`                     | Définissez où le Récepteur commence à lire chaque fichier de log. Utilisez `end` pour ignorer les lignes de log existantes et ne collecter que les nouvelles. |
+
+## Redémarrez le collecteur [#start]
+
+Après avoir mis à jour la configuration, redémarrez le collecteur pour appliquer les modifications.
+
+<CollapserGroup>
+<Collapser id="restart-nrdot" title="Collecteur NRDOT">
+Rechargez systemd, activez et redémarrez le collecteur :
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable nrdot-collector
+sudo systemctl restart nrdot-collector
+
+# Verify the collector is running
+sudo systemctl status nrdot-collector
+```
+</Collapser>
+
+<Collapser id="restart-otelcol-contrib" title="OpenTelemetry Collector Contrib">
+Rechargez systemd et redémarrez le collecteur :
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart otelcol-contrib
+
+# Verify the collector is running
+sudo systemctl status otelcol-contrib
+```
+</Collapser>
+</CollapserGroup>
+
+## Vérifier les logs [#verify-logs]
+
+**Docker logs**: exécutez cette requête :
+
+```sql
+FROM Log SELECT count(*) SINCE 10 minutes ago
+```
+
+Ajustez la clause `WHERE` pour correspondre à vos propres attributs de log.
+
+## Articles connexes [#related-articles]
+
+* [Installer et configurer NRDOT Collector pour monitorer Docker](/docs/opentelemetry/integrations/docker/install-nrdot): étapes minimales d&apos;installation, de configuration, et de vérification
+* [Installer et configurer OpenTelemetry Collector Contrib pour monitorer Docker](/docs/opentelemetry/integrations/docker/install-otelcol-contrib): étapes minimales d&apos;installation, de configuration, et de vérification
+* [Référence des métriques Docker](/docs/opentelemetry/integrations/docker/metrics-reference): référence complète des métriques et des attributs, avec recommandations d&apos;alerte
