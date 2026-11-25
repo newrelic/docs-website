@@ -19,11 +19,11 @@ const getSitesToBuild = (files) => {
   const sites = new Set();
   files.forEach((file) => {
     if (
-      file.status === 'added' &&
+      ['added', 'removed'].includes(file.status) &&
       !LOCALES.every((locale) => file.raw_url.includes(`/i18n/content/${locale}/`))
     ) {
       LOCALES.forEach((locale) => sites.add(locale));
-    } else if (file.status === 'modified' || file.status === 'added') {
+    } else if (['added', 'modified', 'removed'].includes(file.status)) {
       LOCALES.forEach((locale) => {
         // Check for i18n translation files path
         if (file.raw_url.includes(`/i18n/content/${locale}/`)) {
