@@ -1,0 +1,190 @@
+---
+title: 도커 모니터링을 위한 고급 설정
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Docker
+  - Containers
+metaDescription: 'Advanced configuration options for Docker container monitoring with OpenTelemetry, including log collection for the NRDOT Collector and OpenTelemetry Collector Contrib.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+이 페이지에서는 최소 설정 외의 도커 컨테이너 모니터링을 위한 선택적 설정에 대해 설명합니다. 현재는 로그 수집입니다.
+
+## 요구 사항 [#requirements]
+
+[도커 observer](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/observer/dockerobserver) 확장과 함께 OpenTelemetry [receiver creator 를](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) 사용하여 도커 컨테이너 로그를 수집할 수 있습니다. 다음을 확인해 주십시오:
+
+* 수집기 프로세스(root 또는 docker 그룹 멤버십)를 위한 `/var/lib/docker/containers/`에 대한 읽기 권한
+* 컨테이너 포트가 노출되어, receiver creator가 컨테이너 로그를 검색하고 스크랩할 수 있습니다.
+
+## 로그 수집 구성 [#logs]
+
+<CollapserGroup>
+<Collapser id="logs-nrdot" title="NRDOT Collector">
+기존 `docker-stats-config.yaml`에 로그 수집 설정을 추가해 주십시오.
+
+```yaml
+extensions:
+  # Docker observer - discovers running containers
+  docker_observer:
+    endpoint: unix:///var/run/docker.sock
+    use_hostname_if_present: true
+
+receivers:
+  # Your existing dockerstats receiver...
+
+  # Receiver creator - dynamically creates filelog receivers for discovered containers
+  receiver_creator:
+    watch_observers: [docker_observer]
+    receivers:
+      filelog:
+        rule: type == "container"
+        config:
+          include:
+            - /var/lib/docker/containers/`container_id`/`container_id`-json.log
+          poll_interval: 200ms
+          start_at: end
+          include_file_name: false
+          include_file_path: false
+          operators:
+            - id: container-parser
+              type: container
+              format: docker
+              add_metadata_from_filepath: false
+
+processors:
+  # Your existing processors...
+
+  # Add entity type attribute for logs (required for New Relic entity correlation)
+  attributes/logs:
+    actions:
+      - key: nr.entity_type
+        value: CONTAINER
+        action: upsert
+
+service:
+  extensions: [docker_observer]
+  pipelines:
+  # Your existing metrics pipeline...
+
+    logs:
+      receivers: [receiver_creator]
+      processors: [attributes/logs, batch]
+      exporters: [otlp_http]
+```
+</Collapser>
+
+<Collapser id="logs-otelcol-contrib" title="OpenTelemetry Collector 기여">
+`/etc/otelcol-contrib/config.yaml` 에 있는 기존 설정 파일과 다음 설정을 병합하세요.
+
+```yaml
+extensions:
+  # Docker observer - discovers running containers
+  docker_observer:
+    endpoint: unix:///var/run/docker.sock
+    use_hostname_if_present: true
+
+receivers:
+  # Your existing dockerstats receiver...
+
+  # Receiver creator - dynamically creates filelog receivers for discovered containers
+  receiver_creator:
+    watch_observers: [docker_observer]
+    receivers:
+      filelog:
+        rule: type == "container"
+        config:
+          include:
+            - /var/lib/docker/containers/`container_id`/`container_id`-json.log
+          poll_interval: 200ms
+          start_at: end
+          include_file_name: false
+          include_file_path: false
+          operators:
+            - id: container-parser
+              type: container
+              format: docker
+              add_metadata_from_filepath: false
+
+processors:
+  # Your existing processors...
+
+  # Add entity type attribute for logs (required for New Relic entity correlation)
+  attributes/logs:
+    actions:
+      - key: nr.entity_type
+        value: CONTAINER
+        action: upsert
+
+service:
+  extensions: [docker_observer]
+  pipelines:
+  # Your existing metrics pipeline...
+
+    logs:
+      receivers: [receiver_creator]
+      processors: [attributes/logs]
+      exporters: [otlp_http/newrelic]
+```
+</Collapser>
+</CollapserGroup>
+
+### 구성 매개변수 [#logs-configuration-parameters]
+
+다음 표에서는 로그 수집을 위한 주요 설정 파라미터에 대해 설명합니다:
+
+| 매개변수                           | 설명                                                                                 |
+| ------------------------------ | ---------------------------------------------------------------------------------- |
+| `endpoint` (`docker_observer`) | 관찰자가 연결할 도커 소켓의 경로를 입력해 주십시오. 기본: `unix:///var/run/docker.sock`                    |
+| `use_hostname_if_present`      | 사용 가능한 경우 컨테이너의 호스트명을 사용할지 여부를 설정합니다. 기본: `true`                                   |
+| `poll_interval`                | 수신기가 로그 파일에서 새 줄을 확인하는 빈도를 설정해 주십시오. 기본: `200ms`                                   |
+| `start_at`                     | 수신기가 각 로그 파일을 읽기 시작할 위치를 설정해 주십시오. 기존 로그 줄을 건너뛰고 새 로그 줄만 수집하려면 `end`을(를) 사용해 주십시오. |
+
+## 수집기를 재시작하세요 [#start]
+
+설정을 업데이트한 후 수집기를 다시 시작하여 변경 사항을 적용해 주십시오.
+
+<CollapserGroup>
+<Collapser id="restart-nrdot" title="NRDOT Collector">
+systemd를 다시 로드하고 수집기를 활성화한 후 다시 시작해 주십시오:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable nrdot-collector
+sudo systemctl restart nrdot-collector
+
+# Verify the collector is running
+sudo systemctl status nrdot-collector
+```
+</Collapser>
+
+<Collapser id="restart-otelcol-contrib" title="OpenTelemetry Collector 기여">
+systemd 다시 로드하고 수집기를 재시작하세요.
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart otelcol-contrib
+
+# Verify the collector is running
+sudo systemctl status otelcol-contrib
+```
+</Collapser>
+</CollapserGroup>
+
+## 로그 확인 [#verify-logs]
+
+**Docker logs**\[도커 로그]: 쿼리를 실행합니다.
+
+```sql
+FROM Log SELECT count(*) SINCE 10 minutes ago
+```
+
+고유한 로그 속성과 일치하도록 `WHERE` 절을 조정해 주십시오.
+
+## 관련 기사 [#related-articles]
+
+* [도커 모니터를 위한 NRDOT Collector 설치 및 설정](/docs/opentelemetry/integrations/docker/install-nrdot): 최소 설치, 설정 및 확인 단계
+* [도커를 모니터하기 위한 OpenTelemetry Collector Contrib 설치 및 설정](/docs/opentelemetry/integrations/docker/install-otelcol-contrib): 최소 설치, 설정 및 확인 단계
+* [도커 메트릭 참조](/docs/opentelemetry/integrations/docker/metrics-reference): 알림 권장 사항이 포함된 전체 메트릭 및 속성 참조
