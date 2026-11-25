@@ -1,0 +1,137 @@
+---
+title: OpenTelemetry Collector（CNCF）を使用したMySQLデータベース監視の設定
+tags:
+  - OpenTelemetry
+  - NRDOT
+  - MySQL
+  - MariaDB
+  - Linux
+metaDescription: Set up MySQL monitoring for your instance using the OpenTelemetry Collector Contrib
+freshnessValidatedDate: '2026-10-06T00:00:00.000Z'
+contentType: onboarding-install
+audience:
+  - human
+  - ai
+surface:
+  - cli
+integration: MySQL-with-NRDOT
+flow:
+  prev: /docs/opentelemetry/db360/mysql/introduction
+  next: null
+translationType: machine
+---
+
+MySQL用のOpenTelemetry Collector Contribを使用して、インスタンスをモニターできます。OpenTelemetry Collector Contribは、MySQLからテレメトリーデータを収集してNew Relicに送信する、コミュニティサポートのプロジェクトです。
+
+デフォルトでは、OpenTelemetry Collector ContribはMySQLから限定的なメトリクスを収集します。クエリのパフォーマンス、待機イベント、セッション、およびクライアントのメトリクスを送信するには、OpenTelemetry Collector Contribを設定する必要があります。このガイドでは、MySQLから高度なメトリクスを収集してNew Relicに送信するように設定する方法を説明します。
+
+<Callout variant="tip" title="注記">
+このページでは、標準の`otelcol-contrib`バイナリで提供されるコミュニティ`mysqlreceiver`について説明します。New Relicのディストリビューション（NRDOT）を使用している場合は、代わりに[セルフホスト型MySQL](/docs/opentelemetry/db360/mysql/introduction)を参照してください。
+</Callout>
+
+<Steps>
+<Step>
+## 前提条件 [#prerequisites]
+
+* システムにOpenTelemetry Collector Contrib（`otelcol-contrib`）がインストールされ、設定されています。最新のリリースは、[OpenTelemetry Collectorのリリース](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)ページからダウンロードできます。
+* `performance_schema` モニター対象のMySQL/MariaDBインスタンスで有効になっていること（MySQL 5.6.6以降ではデフォルトでオン）。
+</Step>
+
+<Step>
+## UIメトリクスを有効化 [#enable]
+
+`otelcol-contrib`設定ファイルにメトリクスを追加して有効にすることで、New Relicプラットフォームのエクスペリエンスを向上させることができます。このセクションで提供されている設定を使用すると、New Relicプラットフォームの以下のページにデータを入力できます。
+
+* <DNT>Overview</DNT>
+* <DNT>Query performance</DNT>
+* <DNT>Wait events</DNT>
+* <DNT>Sessions</DNT>
+* <DNT>Clients</DNT>
+
+<CollapserGroup>
+<Collapser id="overview" title="Overviewページメトリクスを有効化">
+<DNT>Overview</DNT>ページには、接続、バッファプールの健全性、I/O、ロック、テーブルサイズ、スロークエリ率などの主要なメトリクスを含む、MySQLインスタンスの概要が表示されます。さらに、`mysql.commands`および`mysql.innodb.data_file.io`は、APM-DBリンク（APMサービスのトレースとMySQLクエリアクティビティ間の相互ナビゲーション）を可能にします。
+
+New Relicプラットフォームの<DNT>Overview</DNT>ページにデータを入力するには、`otelcol-contrib`設定ファイルに以下の設定を追加します：
+
+```yaml
+receivers:
+  mysql:
+    metrics:
+      mysql.query.count:
+        enabled: true
+      mysql.query.slow.count:
+        enabled: true
+      mysql.table.size:
+        enabled: true
+      mysql.commands:
+        enabled: true
+      mysql.innodb.data_file.io:
+        enabled: true
+```
+</Collapser>
+
+<Collapser id="query-performance" title="クエリのパフォーマンス、セッション、待機、およびクライアントメトリクスを有効化">
+<DNT>Query performance</DNT>、<DNT>Wait events</DNT>、<DNT>Sessions</DNT>、および<DNT>Clients</DNT>ページにデータを入力するには：
+
+* Query performance \[クエリパフォーマンス]：MySQLインスタンスで実行されているクエリに関する詳細情報を以下のタブに表示します。
+
+  * Normalized queries \[正規化されたクエリ]：クエリごとの実行回数と平均所要時間を表示します。
+  * Query samples \[クエリサンプル]：所要時間、待機タイプ、データベース、DBユーザー、クライアントホストを含む、個々のクエリの実行を表示します。
+
+* Wait events \[待機イベント]：サンプリング時に待機していたステートメントの待機タイプと待機時間を表示します。
+
+* Sessions \[セッション]：セッション数、セッションステータス、個々のセッションの詳細など、MySQLインスタンスに接続されているセッションに関する情報を表示します。
+
+* Clients \[クライアント]：接続されているDBユーザーやクライアントホストの詳細など、MySQLインスタンスに接続されているクライアントに関する情報を表示します。
+
+以下の設定を`otelcol-contrib`設定ファイルに追加します。
+
+```yaml
+receivers:
+  mysql:
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+      db.server.query_plan:
+        enabled: true
+    top_query_collection:
+      lookback_time: 60
+      max_query_sample_count: 1000
+      top_query_count: 250
+      collection_interval: 60s
+    query_sample_collection:
+      max_rows_per_query: 100
+```
+
+<Callout variant="important">
+`db.server.query_plan` `db.server.top_query`または`db.server.query_sample`の少なくとも1つも有効にする必要があります。単独で有効にすると、設定検証エラーになります。
+</Callout>
+
+<Callout variant="tip" title="注記">
+コミュニティMySQLレシーバーは、ストアドプロシージャの収集やブロックされたセッションの検出をサポートしていません。Sessions \[セッション]とClients \[クライアント]にはデータが入力されますが、ブロックされたセッションのブロッカーは表示されません。
+</Callout>
+</Collapser>
+</CollapserGroup>
+</Step>
+
+<Step>
+## OpenTelemetry Collectorを再起動する [#restart]
+
+設定の変更を適用するには、次のコマンドを実行してOpenTelemetry Collectorを再起動してください：
+
+```bash
+sudo systemctl restart otelcol-contrib
+```
+</Step>
+</Steps>
+
+## 関連ドキュメント [#related]
+
+<DocTiles>
+<DocTile title="NRDOTを使用したMySQLモニタリングの概要" path="/docs/opentelemetry/db360/mysql/introduction">
+New Relicを使用したMySQL監視で利用可能なすべてのインストレーション方法についてご確認ください。
+</DocTile>
+</DocTiles>
