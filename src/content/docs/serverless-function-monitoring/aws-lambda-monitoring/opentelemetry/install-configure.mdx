@@ -1,0 +1,151 @@
+---
+title: Install and configure AWS Lambda functions with an OpenTelemetry layer
+metaDescription: "Install an OpenTelemetry Lambda layer, configure it, and verify traces, metrics, and logs are flowing to New Relic."
+tags:
+  - AWS Lambda
+  - OpenTelemetry
+  - OTel
+  - Lambda layer
+  - Serverless function monitoring
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: aws-lambda-opentelemetry
+flow:
+  prev: /docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/introduction
+  next: null
+---
+
+This page installs an OpenTelemetry (OTel) Lambda layer on an AWS Lambda function with no application code changes, applies the minimum configuration, and verifies data is flowing to New Relic. Expect about 15 minutes.
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+
+- ADOT (AWS Distro for OpenTelemetry), wrapper `/opt/otel-instrument`
+- CNCF community layer, wrapper `/opt/otel-handler`
+- Go, via the [OTel Collector extension](https://github.com/open-telemetry/opentelemetry-lambda/tree/main/go) (no wrapper)
+
+### Not supported
+
+- Real invocation spans on Go without OTel SDK code in the handler — the Go layer is a collector sidecar extension, not an auto-instrumentation agent
+- An ADOT layer paired with the CNCF wrapper value, or the reverse — the layer attaches but produces no telemetry, and no error is raised
+- Cumulative metric temporality — New Relic only accepts delta. See [Configure](#configure)
+
+### You need
+
+- A New Relic account with an <InlinePopover type="licenseKey" /> (ingest license key)
+- A way to set environment variables and attach a layer on your Lambda function — the AWS Console, AWS CLI, SAM, CDK, Terraform, or Serverless Framework all work
+- A layer version compatible with your runtime (for example, the Java layer supports Java 8, 11, 17, and 21, but not 25; the .NET layer supports .NET 8, 9, and 10) and with exporting to an external OTLP endpoint — an unsupported combination attaches with no telemetry and no error
+- [Metric streaming](/docs/infrastructure/amazon-integrations/aws-integration-for-metrics/via-cloudformation-cwms/), if you also want infrastructure or invocation metrics in addition to traces and logs (optional)
+
+<Steps>
+
+<Step>
+
+## Install [#install]
+
+1. Choose a layer family and attach its layer to your function. [#install-step-1]
+
+   Layer ARNs are region- and version-specific, so look up the current one for your region and runtime rather than reusing one from another guide or region:
+
+   - ADOT layer ARNs by region: [aws-otel.github.io/docs/getting-started/lambda](https://aws-otel.github.io/docs/getting-started/lambda#adot-lambda-layer-arns)
+   - CNCF community layers: [github.com/open-telemetry/opentelemetry-lambda](https://github.com/open-telemetry/opentelemetry-lambda)
+
+2. Activate the layer's wrapper with `AWS_LAMBDA_EXEC_WRAPPER`. [#install-step-2]
+
+   | Variable | Value | Layer |
+   |---|---|---|
+   | `AWS_LAMBDA_EXEC_WRAPPER` | `/opt/otel-instrument` | ADOT |
+   | `AWS_LAMBDA_EXEC_WRAPPER` | `/opt/otel-handler` | CNCF community |
+
+   *If you set the wrong wrapper value for your layer family, the layer attaches but produces no telemetry, with no error raised.*
+
+</Step>
+
+<Step>
+
+## Configure [#configure]
+
+Set the following environment variables on the function.
+
+**Identify the service**
+
+| Variable | Value | Description |
+|---|---|---|
+| `OTEL_SERVICE_NAME` | `<your-service-name>` | How the service appears in the New Relic UI. If unset, falls back to the Lambda function name. |
+
+**Point the exporter at New Relic and authenticate**
+
+| Variable | Value | Description |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://otlp.nr-data.net` | New Relic's OTLP ingest endpoint. Use port `4317` for gRPC (required by the Python CNCF layer). |
+| `OTEL_EXPORTER_OTLP_HEADERS` | `api-key=<YOUR_NR_LICENSE_KEY>` | Your New Relic <InlinePopover type="licenseKey" />, sent as an OTLP header. This is how New Relic authenticates the data. |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | Transport protocol. ADOT layers must set this explicitly. The CNCF Python layer defaults to gRPC and usually doesn't need it. |
+
+**Enable each signal you want to collect**
+
+| Variable | Value | Enables |
+|---|---|---|
+| `OTEL_TRACES_EXPORTER` | `otlp` | Traces |
+| `OTEL_LOGS_EXPORTER` | `otlp` | Logs |
+| `OTEL_METRICS_EXPORTER` | `otlp` | Metrics |
+
+Set all three explicitly rather than relying on per-layer defaults.
+
+**Set metric temporality (required if metrics are on)**
+
+| Variable | Value | Description |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE` | `delta` | New Relic only accepts delta temporality for metrics — it rejects the OTel default (cumulative). |
+
+**Adjust span flush timing for Lambda**
+
+| Variable | Value | Description |
+|---|---|---|
+| `OTEL_BSP_SCHEDULE_DELAY` | `1` | Flushes spans almost immediately instead of batching. Without this, Lambda can freeze the execution environment mid-batch and you lose that data. |
+
+**Stop ADOT from routing to X-Ray (ADOT only)**
+
+| Variable | Value | Description |
+|---|---|---|
+| `OTEL_AWS_APPLICATION_SIGNALS_ENABLED` | `false` | Without this, ADOT sends telemetry to AWS X-Ray instead of your OTLP endpoint, and it's silently missing from New Relic. Not needed for CNCF layers. |
+
+<Callout variant="caution" title="Preserve faas.name">
+  The layer auto-populates `faas.name`, which New Relic uses to recognize the parent (`SERVER`) span as a Lambda invocation and to synthesize the OTel entity. Don't delete or rename it in a downstream collector processor — doing so excludes the parent span from metric synthesis, produces incomplete transaction counts, and resolves the entity as `EXT|SERVICE` instead of a Lambda entity. See [Troubleshoot missing data for AWS Lambda with OpenTelemetry](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-troubleshooting) if this happens.
+</Callout>
+
+That's the minimum needed for telemetry to reach New Relic. For sampling, attribute handling, and runtime-specific tuning, see [Advanced configuration options](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/advanced-configuration).
+
+</Step>
+
+<Step>
+
+## Verify your install [#verify]
+
+Invoke the function at least once. Within about 5 minutes, you should see:
+
+- The entity at <DNT>**[one.newrelic.com](https://one.newrelic.com) → APM & Services → Services - OpenTelemetry**</DNT>, filtered by your `OTEL_SERVICE_NAME` value, with entity type <DNT>**OTel service**</DNT> (not a generic `EXT|SERVICE`)
+- A `SERVER` span on the entity's <DNT>**Distributed tracing**</DNT> tab for each invocation
+- A `FROM Span SELECT count(*) WHERE service.name = '<your-service-name>' SINCE 30 minutes ago` query returning at least one row
+
+If the entity type shows `EXT|SERVICE` instead of `OTel service`, `faas.name` was likely stripped downstream — see the callout in [Configure](#configure). If the NRQL query returns zero rows, check the endpoint, API key, and wrapper value (`AWS_LAMBDA_EXEC_WRAPPER`) from [Install](#install) and [Configure](#configure).
+
+If you don't see data within about 5 minutes, see [Troubleshoot missing data for AWS Lambda with OpenTelemetry](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-troubleshooting).
+
+Once the entity appears, its <DNT>**Transactions**</DNT> and <DNT>**Metrics**</DNT> tabs give you an APM-style view of invocations, and the map view auto-links to the underlying Lambda infrastructure entity — use the <DNT>**See in Serverless**</DNT> link to jump there.
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [Advanced configuration options for OpenTelemetry on AWS Lambda](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/advanced-configuration) — sampling, attribute handling, and runtime-specific tuning
+- [Group Lambda functions under a single OTel entity](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/otel-service-name-lambda) — use `OTEL_SERVICE_NAME` to group multiple instrumented functions under one New Relic entity
+- [Trace your Java Lambda functions with OpenTelemetry](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-java) — instrument a Java Lambda function manually with the OpenTelemetry SDK
+- [Trace your .NET Lambda functions with OpenTelemetry](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-dotnet) — instrument a .NET Lambda function manually with the OpenTelemetry SDK
+- [Forward Lambda function logs with OpenTelemetry](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/otel-adot-log-ingestion-serverless) — forward CloudWatch logs from an ADOT-instrumented function to New Relic
+- [Troubleshoot missing data for AWS Lambda with OpenTelemetry](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-troubleshooting) — fix missing CloudWatch metrics, invocations, or trace data
+- [New Relic OpenTelemetry quick start](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start) — get an overview of how OpenTelemetry data works in New Relic
