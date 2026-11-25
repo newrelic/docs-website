@@ -28,12 +28,12 @@ const waitForXPath = (xpath, timeout = TIMEOUT) =>
 const main = async () => {
   console.log('\n🧪 Beginning mobile test...');
 
-  // running on develop builds because the url is static
+  // running against the production alias because the url is static
   // github workflow triggers on PRs to main
   const testUrl =
     // TODO: search modal click breaks page on mobile localhost
     process.env.WEBDRIVER_ENV === 'main'
-      ? 'https://develop--docs-website-netlify.netlify.app/'
+      ? 'https://docs-website-netlify.netlify.app/'
       : 'http://localhost:8000/';
 
   console.log('\n🔍 looking for site at', testUrl);
@@ -120,11 +120,25 @@ const searchTest = async () => {
   );
 };
 
+const dismissCookieBanner = async () => {
+  try {
+    const [closeButton] = await waitForXPath(
+      '//*[@aria-label="Close this consent banner"]',
+      3000
+    );
+    await closeButton.click();
+    await driver.sleep(500);
+  } catch {
+    // banner didn't show up, nothing to dismiss
+  }
+};
+
 const tileTest = async () => {
   const initialUrl = await driver.getCurrentUrl();
   const [firstDocTile] = await waitForXPath(
     '//main//section//h3[text()="Popular docs"]/following::a'
   );
+  await dismissCookieBanner();
   // sometimes the cookie banner covers the doc tile so we need to scroll
   await driver.executeScript(
     'arguments[0].scrollIntoView(false)',
