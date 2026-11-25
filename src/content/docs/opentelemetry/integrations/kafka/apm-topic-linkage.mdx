@@ -1,0 +1,115 @@
+---
+title: APM to Kafka topic linkage
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Kafka
+  - APM
+metaDescription: "Link New Relic APM and OpenTelemetry services to self-hosted Kafka topic entities using the Kafka cluster ID to see producer and consumer relationships."
+freshnessValidatedDate: never
+---
+
+When your producers and consumers are instrumented, New Relic can build a **producer → topic → consumer** relationship map using the Kafka cluster ID. You can see which services write to which topics and which services read from them, directly in the entity explorer and service maps.
+
+The Kafka cluster ID is a unique identifier that Kafka assigns to every cluster. Linking by cluster ID keeps relationships accurate even when separate self-hosted clusters, for example in different VPCs, reuse the same broker addresses and topic names.
+
+## How it works [#how-it-works]
+
+New Relic forms a relationship when it can match the cluster ID and topic name reported by an application to a **Kafka topic entity**. The topic entity is created by your Kafka infrastructure monitoring, so both sides need to report the same cluster ID.
+
+| Side | What reports the cluster ID |
+|---|---|
+| **Kafka infrastructure** | The OpenTelemetry Collector `kafkametrics` receiver reports it as the `kafka.cluster.id` attribute on the Kafka topic entity. The New Relic Kafka integration (`nri-kafka`) adds `clusterId` to its Kafka samples by default. |
+| **New Relic APM agents** | The agent reads the cluster ID from the Kafka client's metadata and includes it in Kafka producer and consumer metrics. Metrics are enough, and spans aren't required. |
+| **OpenTelemetry instrumentation** | The instrumentation reports the cluster ID as the `messaging.kafka.cluster.id` attribute on producer and consumer spans. |
+
+<Callout variant="important">
+  The topic entity must already exist and carry the cluster ID. If your Kafka cluster isn't monitored, or its monitoring doesn't report the cluster ID, no relationship is formed. New Relic doesn't create placeholder topic entities and doesn't show an error.
+</Callout>
+
+## Before you begin [#prereqs]
+
+* Monitor your Kafka cluster with the OpenTelemetry Collector. See [Kafka monitoring overview](/docs/opentelemetry/integrations/kafka/overview/#get-started).
+* Instrument your producer and consumer applications with a [New Relic APM agent](/docs/apm/new-relic-apm/getting-started/introduction-apm/) or an OpenTelemetry SDK or agent.
+
+## Set up linkage [#setup]
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nr-apm">New Relic APM agent</TabsBarItem>
+    <TabsBarItem id="otel-apm">OpenTelemetry instrumentation</TabsBarItem>
+  </TabsBar>
+  <TabsPages>
+
+    <TabsPageItem id="nr-apm">
+
+      ### Java agent [#java-agent]
+
+      The Java agent reports Kafka cluster metrics in addition to its existing per-node Kafka metrics. This setting is turned off by default. To turn it on, add the following to your `newrelic.yml`:
+
+      ```yml
+      common: &default_settings
+        kafka:
+          metrics:
+            cluster:
+              metrics:
+                enabled: true
+      ```
+
+      You can also use an environment variable:
+
+      ```bash
+      NEW_RELIC_KAFKA_METRICS_CLUSTER_METRICS_ENABLED=true
+      ```
+
+      Keep the following in mind:
+
+      * The agent reports cluster metrics only after it has retrieved the cluster ID from the broker. Until then, nothing is reported for the cluster.
+      * The cluster metrics are reported in addition to the existing node metrics, not instead of them.
+      * The agent reuses the cluster ID for the lifetime of the Kafka client.
+
+      For other Kafka options, see [Instrument Kafka message queues](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/).
+
+    </TabsPageItem>
+
+    <TabsPageItem id="otel-apm">
+
+      ### OpenTelemetry Java agent [#otel-java]
+
+      The OpenTelemetry Java agent adds `messaging.kafka.cluster.id` to Kafka producer and consumer spans, and to Kafka client metrics. No configuration is required. For setup, see [OpenTelemetry zero-code instrumentation for Java](https://opentelemetry.io/docs/zero-code/java/agent/).
+
+      The agent reads the cluster ID from the Kafka client's existing metadata. The first span after startup can be missing the attribute until the client has received its metadata. Later spans include it.
+
+      ### Other languages [#otel-other]
+
+      Only the OpenTelemetry Java agent reports Kafka client metrics. For other languages, linkage depends on spans, so your instrumentation must set `messaging.kafka.cluster.id` on Kafka producer and consumer spans. Together with `messaging.destination.name`, which holds the topic name, this lets New Relic resolve the topic entity.
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Verify the relationship [#verify]
+
+After your applications and Kafka cluster have been reporting for a few minutes:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Message queues**</DNT>, and select your Kafka topic.
+2. Check the related entities for your producer and consumer services.
+
+Relationships expire if the underlying data stops arriving, so they disappear after a period of inactivity. Relationships appear again when data resumes.
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="no-relationship" title="No relationship appears">
+    * Confirm the Kafka cluster is monitored with the OpenTelemetry Collector `kafkametrics` receiver and that the topic entity is visible.
+    * Confirm the application reports the cluster ID: the Java agent setting is enabled, or your spans carry `messaging.kafka.cluster.id`.
+    * Confirm the application uses the same cluster as the monitored one, and that the topic name matches exactly.
+    * For the Java agent, confirm the application has actually produced or consumed messages, because the cluster ID is only available after the client has connected to a broker.
+  </Collapser>
+</CollapserGroup>
+
+## Next steps [#next-steps]
+
+* [Kafka monitoring overview](/docs/opentelemetry/integrations/kafka/overview)
+* [Find and query your data](/docs/opentelemetry/integrations/kafka/find-and-query-data)
+* [Instrument Kafka message queues with the Java agent](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/)
