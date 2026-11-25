@@ -1,13 +1,125 @@
 ---
-title: How to verify the checksum of .NET agent downloads
+title: How to verify .NET agent downloads
 redirects:
   - /docs/agents/net-agent/other-installation/how-verify-checksum-net-agent-downloads
 freshnessValidatedDate: never
 ---
 
-Read about how to confirm the checksum for New Relic's .NET agent installers. If you need the hashes for our current releases, [download their SHA256 hashes from our download site](https://download.newrelic.com/dot_net_agent/latest_release/SHA256/).
+Before you install the .NET agent from a file you downloaded (an MSI installer, ZIP file, tarball, `deb` file, or `rpm` file), confirm that it's the file New Relic built and that it wasn't corrupted or changed after it was published. You can use either of these methods:
 
-## Linux [#checksum-linux]
+| Method | Agent versions | What it shows |
+| --- | --- | --- |
+| [GitHub attestation](#attestation) | 10.58.0 and higher | A signed record, logged in a public transparency log, that New Relic's release workflow built this exact file from a specific release of the agent's source code. |
+| [SHA-256 hash from release data](#release-data) | 8.17 and higher | The file's contents are the same as the contents New Relic recorded in its public GitHub repository. |
+
+The attestation is the stronger check, so use it when you can. Both methods compare the file with a record that's kept outside the download site, so they can detect a file that was changed there.
+
+## Verify with a GitHub attestation [#attestation]
+
+Every installer and package on the download site for .NET agent version 10.58.0 and higher (the `.msi`, `.zip`, `.tar.gz`, `.deb`, and `.rpm` files) has a [GitHub artifact attestation](https://docs.github.com/en/actions/concepts/security/artifact-attestations). It ties the file's SHA-256 hash to the workflow, repository, and release tag that built it. The files without a version in their name, such as `NewRelicDotNetAgent_x64.msi`, are copies of the newest release and have the same attestation as the versioned file.
+
+Verifying is optional, and you don't need the GitHub CLI to install the agent. If you'd rather not install it, use the [SHA-256 method](#release-data) instead, which needs only standard command-line tools.
+
+To verify a file with the GitHub CLI:
+
+1. Install the [GitHub CLI](https://cli.github.com/), version 2.49.0 or higher.
+2. Sign in with `gh auth login`, or set the `GH_TOKEN` environment variable to a GitHub token. The CLI needs to be authenticated to look up attestations, even for a public repository.
+3. Run this command in the folder that contains the file:
+
+   ```sh
+   gh attestation verify YOUR_FILENAME --repo newrelic/newrelic-dotnet-agent
+   ```
+
+If the file is genuine, the command exits with status 0 and you'll get a response like this:
+
+```
+Loaded digest sha256:267d12b26c129e60fe961738abdb62bd46d8153d007b05b2077a0ae3ea34ba43 for file://NewRelicDotNetAgent_x64.msi
+Loaded 1 attestation from GitHub API
+
+...
+
+✓ Verification succeeded!
+
+The following 1 attestation matched the policy criteria
+
+- Attestation #1
+  - Build repo:..... newrelic/newrelic-dotnet-agent
+  - Build workflow:. .github/workflows/release_build.yml@refs/tags/v10.58.0
+  - Signer repo:.... newrelic/newrelic-dotnet-agent
+  - Signer workflow: .github/workflows/release_build.yml@refs/tags/v10.58.0
+```
+
+The workflow line ends with the tag of the release that built the file.
+
+<Callout variant="important">
+  If the command fails, don't install the file. It fails with a nonzero exit status and a message such as `Loading attestations from GitHub API failed` when the file was changed after it was built, or when it doesn't have an attestation, as is the case for versions before 10.58.0. Download the file again. If it still fails, contact [New Relic support](https://support.newrelic.com).
+</Callout>
+
+## Verify the SHA-256 hash against release data [#release-data]
+
+The file [`release-data/download-site-hashes.json`](https://github.com/newrelic/newrelic-dotnet-agent/blob/main/release-data/download-site-hashes.json) in the .NET agent's GitHub repository lists the SHA-256 hash of every installer and package that New Relic has published on the download site, for versions 8.17 and higher. Each change to the file is a reviewed pull request, and the file is stored apart from the files it describes. A release's entry is added shortly after the release. If the version you downloaded isn't listed yet, use the attestation, or compare the file with the checksum table in the [release notes](/docs/release-notes/agent-release-notes/net-release-notes/).
+
+In the file, each version has a `files` section that maps each file name to its hash. To compare a file, use its versioned file name, such as `NewRelicDotNetAgent_10.58.0_x64.msi` or `newrelic-dotnet-agent_10.58.0_amd64.tar.gz`, so that the version is clear. The files without a version in their name, such as `NewRelicDotNetAgent_x64.msi`, have the same hash as the versioned file of the newest release.
+
+These commands look up the expected hash and compare it with your file. Change `VERSION` and `FILE` for the file you downloaded.
+
+<CollapserGroup>
+  <Collapser
+    id="release-data-linux"
+    title="Linux and macOS"
+  >
+    ```sh
+    VERSION=10.58.0
+    FILE=newrelic-dotnet-agent_${VERSION}_amd64.tar.gz
+
+    EXPECTED=$(curl -fsSL https://raw.githubusercontent.com/newrelic/newrelic-dotnet-agent/main/release-data/download-site-hashes.json | grep -F "\"$FILE\"" | sed -E 's/.*"([0-9a-f]{64})".*/\1/')
+
+    # On macOS, use: shasum -a 256 -c -
+    echo "$EXPECTED  $FILE" | sha256sum -c -
+    ```
+
+    If the hash matches, you'll get this response:
+
+    ```
+    newrelic-dotnet-agent_10.58.0_amd64.tar.gz: OK
+    ```
+
+    If it doesn't match, or if the version or file isn't in the release data, the command reports an error and exits with a nonzero status.
+  </Collapser>
+
+  <Collapser
+    id="release-data-windows"
+    title="Windows (PowerShell)"
+  >
+    These commands work in Windows PowerShell 5.1.
+
+    ```powershell
+    $version = "10.58.0"
+    $file = "NewRelicDotNetAgent_${version}_x64.msi"
+
+    $url = "https://raw.githubusercontent.com/newrelic/newrelic-dotnet-agent/main/release-data/download-site-hashes.json"
+    $data = (Invoke-WebRequest $url -UseBasicParsing).Content | ConvertFrom-Json
+    $expected = $data.versions.$version.files.$file
+    $actual = (Get-FileHash $file -Algorithm SHA256).Hash
+
+    if ($actual -eq $expected) { "Hash matches" } else { "Hash does NOT match. Do not install this file." }
+    ```
+
+    If the hash matches, you'll get this response:
+
+    ```
+    Hash matches
+    ```
+  </Collapser>
+</CollapserGroup>
+
+If the hashes don't match, don't install the file. Download it again. If it still doesn't match, contact [New Relic support](https://support.newrelic.com).
+
+## Compute the hash of a file [#compute-hash]
+
+If you want to compare a hash yourself, for example with the checksum table in the release notes, use these commands to compute it.
+
+### Linux [#checksum-linux]
 
 On Linux, run:
 
@@ -21,7 +133,7 @@ If successful, you'll get this response:
 5092fd52e40132a41ac06c320296cd9d63196d6de0fa6ce9b74fc4de1b3f9502 YOUR_FILENAME
 ```
 
-## Windows [#checksum-windows]
+### Windows [#checksum-windows]
 
 On Windows, we recommended using either `CertUtil` or `Get-FileHash` to compute a file hash.
 
@@ -56,7 +168,7 @@ On Windows, we recommended using either `CertUtil` or `Get-FileHash` to compute 
     To compute the hash, run:
 
     ```powershell
-    Get-FileHash YOUR_FILENAME Algorithm SHA256 | Format-List
+    Get-FileHash YOUR_FILENAME -Algorithm SHA256 | Format-List
     ```
 
     If successful, you'll get this response:
@@ -68,3 +180,7 @@ On Windows, we recommended using either `CertUtil` or `Get-FileHash` to compute 
     ```
   </Collapser>
 </CollapserGroup>
+
+## The SHA256 folders on the download site [#download-site-sha256]
+
+The download site also has a `SHA256` folder next to the files, for example [latest_release/SHA256](https://download.newrelic.com/dot_net_agent/latest_release/SHA256/). Those hashes are stored with the files they describe, so a check against them can detect a corrupted download, but it can't show that a file and its hash weren't both changed. Use an attestation or the release data when you need that assurance.
