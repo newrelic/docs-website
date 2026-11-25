@@ -1,0 +1,129 @@
+---
+title: Troubleshoot HAProxy OpenTelemetry integration
+tags:
+  - OpenTelemetry
+  - HAProxy
+  - Integrations
+  - Troubleshooting
+metaDescription: "Troubleshoot common issues with the HAProxy OpenTelemetry integration and resolve data collection problems."
+freshnessValidatedDate: never
+---
+
+If you have completed [installation and configuration](/docs/opentelemetry/integrations/haproxy/introduction) but don't see data in New Relic, find your issue below and follow the solution steps.
+
+## Host-based deployments [#host-troubleshooting]
+
+<CollapserGroup>
+
+<Collapser id="troubleshoot-stats-endpoint" title="HAProxy stats endpoint not responding">
+
+Verify the stats frontend is configured in `haproxy.cfg`:
+
+```bash
+sudo haproxy -c -f /etc/haproxy/haproxy.cfg
+grep -A 4 "frontend stats" /etc/haproxy/haproxy.cfg
+```
+
+Solutions:
+- Ensure the `bind` port (default 8404) is not used by another process: `sudo ss -tlnp | grep 8404`
+- Check that HAProxy is running: `sudo systemctl status haproxy`
+- Reload configuration after changes: `sudo systemctl reload haproxy`
+
+</Collapser>
+
+<Collapser id="troubleshoot-collector-start" title="Collector service won't start">
+
+Check collector logs for configuration errors:
+
+```bash
+sudo journalctl -u otelcol-contrib -n 100 --no-pager
+# or for NRDOT:
+sudo journalctl -u nrdot-collector -n 100 --no-pager
+```
+
+Common causes:
+- Invalid YAML syntax in configuration file
+- Missing environment variables (`NEW_RELIC_LICENSE_KEY`, `OTEL_EXPORTER_OTLP_ENDPOINT`)
+- Port conflicts on the collector's telemetry port
+
+</Collapser>
+
+<Collapser id="troubleshoot-no-data" title="No data appears in New Relic">
+
+- Allow 2 to 3 minutes for initial data ingestion
+- Verify the collector is running: `sudo systemctl status otelcol-contrib`
+- Check the stats endpoint is reachable from the collector host: `curl -s http://localhost:8404/stats`
+- Verify your license key is correct and the OTLP endpoint is configured correctly. For more information, refer to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp).
+- Query for any HAProxy metrics:
+  ```sql
+  FROM Metric SELECT count(*) WHERE metricName LIKE 'haproxy.%' SINCE 30 minutes ago
+  ```
+
+</Collapser>
+
+<Collapser id="troubleshoot-auth-errors" title="Authentication errors">
+
+If you see `401 Unauthorized` or `403 Forbidden` in collector logs:
+
+- Verify your license key: ensure it's an **ingest** (INGEST - LICENSE) key, not a user key
+- Verify the endpoint is set correctly. For more information, refer to [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp).
+- Ensure the environment variable is properly set: `echo $NEW_RELIC_LICENSE_KEY`
+
+</Collapser>
+
+<Collapser id="troubleshoot-prom-endpoint" title="Prometheus endpoint not available">
+
+HAProxy's built-in Prometheus exporter (`promex`) requires version 2.0 or later.
+
+Check your HAProxy version:
+
+```bash
+haproxy -v
+```
+
+If running a version older than 2.0, use the **OTel Collector Contrib** tab with the haproxyreceiver instead, which uses the CSV stats endpoint and works with all HAProxy versions that support stats.
+
+If you're running HAProxy 2.0–2.3, verify `option http-use-htx` is present in the stats frontend configuration. This option became the default in HAProxy 2.4+ and isn't needed for newer versions.
+
+</Collapser>
+
+</CollapserGroup>
+
+## Kubernetes deployments [#kubernetes-troubleshooting]
+
+<CollapserGroup>
+
+  <Collapser id="no-data" title="No data appears in New Relic">
+
+  - Verify HAProxy pods have the correct label (for example, `app: haproxy`): `kubectl get pods -l app=haproxy`
+  - Check that the stats endpoint responds: `kubectl exec -it <haproxy-pod> -- curl -s http://localhost:8404/stats`
+  - Review collector logs for discovery errors: `kubectl logs -n newrelic -l app.kubernetes.io/name=nr-k8s-otel-collector -f` (NRDOT) or `kubectl logs -n newrelic -l app=otel-collector-haproxy -f` (OTel Contrib manifest)
+  - Ensure the collector ServiceAccount has `get`, `list`, and `watch` permissions on pods.
+
+  </Collapser>
+
+  <Collapser id="single-entity" title="Multiple HAProxy pods show as one entity">
+
+  Each HAProxy pod should create a separate entity in New Relic. If you see only one entity:
+  - Verify the collector has `host.id` set. In containerized environments, add this to the collector deployment:
+    ```yaml
+    env:
+      - name: K8S_NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+      - name: OTEL_RESOURCE_ATTRIBUTES
+        value: "host.id=$(K8S_NODE_NAME)"
+    ```
+  - Confirm different `haproxy.addr` values per pod by querying: `FROM Metric SELECT uniques(haproxy.addr) WHERE metricName LIKE 'haproxy.%' SINCE 10 minutes ago`
+
+  </Collapser>
+
+  <Collapser id="stats-unreachable" title="Collector can't reach HAProxy stats endpoint">
+
+  - The `receiver_creator` uses the pod IP (not `localhost`) to reach HAProxy. Ensure the stats frontend binds to `*:8404` (all interfaces), not `127.0.0.1:8404`.
+  - Check network policies that might block traffic between the collector pod and HAProxy pods.
+
+  </Collapser>
+
+</CollapserGroup>
