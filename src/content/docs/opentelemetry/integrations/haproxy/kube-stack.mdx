@@ -1,0 +1,203 @@
+---
+title: 'Monitor HAProxy with the OpenTelemetry kube-stack chart'
+metaDescription: 'Send HAProxy metrics, distributed traces, and APM data to New Relic with the OpenTelemetry kube-stack chart on Kubernetes.'
+tags:
+  - HAProxy
+  - OpenTelemetry
+  - Kubernetes
+  - kube-stack
+  - Distributed tracing
+freshnessValidatedDate: never
+---
+
+If you installed the `opentelemetry-kube-stack` chart from the values or manifests New Relic generated for your cluster, the Collector it deploys can already read HAProxy's statistics and receive its traces. HAProxy isn't auto-instrumented by the OpenTelemetry Operator. HAProxy exports its own traces through its OpenTelemetry filter, so you generate the Collector side with the HAProxy option turned on and then configure HAProxy to send to the Collector.
+
+For the other install paths, see the [HAProxy Kubernetes](/docs/opentelemetry/integrations/haproxy/kubernetes) and [distributed tracing](/docs/opentelemetry/integrations/haproxy/distributed-tracing) pages.
+
+## What you get [#what-you-get]
+
+- **Metrics**: each Collector discovers the HAProxy pods on its node by label and reads their statistics endpoint.
+- **Traces**: HAProxy exports a span for each stage of a request over OTLP. Spans join the traces of the services behind HAProxy through W3C trace context.
+
+## Before you begin [#requirements]
+
+- The kube-stack chart installed from configuration generated **with HAProxy monitoring enabled**. By default the Collector looks for pods labelled `app=haproxy` and a statistics endpoint on port `8404` at `/stats`. If yours differ, set the matching options when you generate the configuration.
+- HAProxy 3.4 or later **built with the OpenTelemetry filter** for traces. The official `haproxy` and `haproxytech` images are built without it. Check your image:
+
+  ```bash
+  docker run --rm --entrypoint haproxy <YOUR_IMAGE> -vv | grep -i opentelemetry
+  ```
+
+  If nothing prints, build HAProxy with the filter by following the [HAProxy OpenTelemetry filter build instructions](https://github.com/haproxytech/haproxy-opentelemetry).
+
+## Collect HAProxy metrics [#metrics]
+
+Metrics need a statistics frontend that matches what the Collector reads. Add it to `haproxy.cfg`:
+
+```text
+frontend stats
+  bind *:8404
+  stats enable
+  stats uri /stats
+```
+
+Label the HAProxy pods so the Collector finds them (`app: haproxy` by default). Metrics such as `haproxy.requests.total`, `haproxy.sessions.count`, and `haproxy.connections.rate` start arriving after the next scrape.
+
+## Send HAProxy traces to the Collector [#traces]
+
+Enable the filter on your frontend in `haproxy.cfg`:
+
+```text
+frontend web
+  bind *:8080
+  filter opentelemetry id otel config /usr/local/etc/haproxy/instrumentation.cfg
+  default_backend app
+```
+
+Point the filter's client at the Collector's OTLP HTTP port in `otel-client.yaml`. Replace `<RELEASE>` and `<NAMESPACE>` with your kube-stack release name and namespace:
+
+```yaml
+exporters:
+  exporter_otlp_http:
+    type: otlp_http
+    endpoint: "http://<RELEASE>-daemon-collector.<NAMESPACE>.svc.cluster.local:4318/v1/traces"
+    http_headers: []
+samplers:
+  sampler_traces:
+    type: parent_based
+    ratio: 1.0
+processors:
+  processor_traces_batch:
+    type: batch
+    max_queue_size: 2048
+    schedule_delay: 5000
+    max_export_batch_size: 512
+providers:
+  provider_traces:
+    resources:
+      - service.name: "haproxy"
+      - service.namespace: "<HAPROXY_NAMESPACE>"
+      - service.version: "3.4"
+signals:
+  traces:
+    scope_name: "HAProxy OTEL - traces"
+    exporters: exporter_otlp_http
+    samplers: sampler_traces
+    processors: processor_traces_batch
+    providers: provider_traces
+```
+
+Define the spans in `instrumentation.cfg`. This configuration also adds the HTTP attributes that [APM data](#apm) needs (the three `attribute` lines). The [HAProxy distributed tracing](/docs/opentelemetry/integrations/haproxy/distributed-tracing) page shows an alternative span layout.
+
+```text
+[otel]
+otel-instrumentation haproxy
+  config /usr/local/etc/haproxy/otel-client.yaml
+  scopes frontend_http_request
+  scopes backend_http_request
+  scopes process_request
+  scopes finish_http_request
+  scopes server_session_start
+  scopes wait_for_response
+  scopes http_response
+  scopes http_response_end
+  scopes server_session_end
+
+otel-scope frontend_http_request
+  span "HAProxy session" root kind server
+    attribute "http.method" method
+    attribute "http.target" path
+  span "Client session" parent "HAProxy session"
+  span "HTTP request" parent "Client session"
+  otel-event on-frontend-http-request
+
+otel-scope backend_http_request
+  span "Process backend request rules" parent "HTTP request"
+  otel-event on-backend-http-request
+
+otel-scope process_request
+  span "Process request" parent "HTTP request"
+  finish "Process backend request rules"
+  otel-event on-http-process-request
+
+otel-scope finish_http_request
+  span "Forward request" parent "HAProxy session"
+  finish "Process request"
+  finish "HTTP request"
+  otel-event on-http-end-request
+
+otel-scope server_session_start
+  span "Server session" parent "HAProxy session"
+  finish "Forward request"
+  otel-event on-server-session-start
+
+otel-scope wait_for_response
+  span "Wait for response" parent "Server session"
+  otel-event on-http-wait-response
+
+otel-scope http_response
+  span "HAProxy session"
+    attribute "http.status_code" status
+  span "HTTP response" parent "Server session"
+  finish "Wait for response"
+  otel-event on-http-response
+
+otel-scope http_response_end
+  span "Forward response" parent "HAProxy session"
+  finish "HTTP response"
+  otel-event on-http-end-response
+
+otel-scope server_session_end
+  finish *
+  otel-event on-server-session-end
+```
+
+### Attribute the spans to the HAProxy pod [#attribution]
+
+The Collector adds Kubernetes metadata to spans by matching the sender to a pod. When the Collector is meshed with Linkerd, every client looks like it comes from the Collector's own proxy, so HAProxy's spans can be tagged with the **Collector's** pod and namespace instead of HAProxy's. To avoid this, have HAProxy set its own pod identity as resource attributes. HAProxy can't read environment variables in this file, so render the file when the pod starts, for example with an init container that substitutes the downward API values into a template and writes the result to a shared `emptyDir`:
+
+```yaml
+providers:
+  provider_traces:
+    resources:
+      - service.name: "haproxy"
+      - service.namespace: "@POD_NAMESPACE@"
+      - service.instance.id: "@POD_NAME@"
+      - k8s.namespace.name: "@POD_NAMESPACE@"
+      - k8s.pod.name: "@POD_NAME@"
+      - k8s.pod.ip: "@POD_IP@"
+      - k8s.node.name: "@NODE_NAME@"
+```
+
+```yaml
+initContainers:
+  - name: render-otel-client
+    image: <YOUR_HAPROXY_IMAGE>
+    command: ["sh", "-c"]
+    args:
+      - >-
+        sed -e "s|@POD_NAME@|$POD_NAME|g" -e "s|@POD_NAMESPACE@|$POD_NAMESPACE|g"
+        -e "s|@POD_IP@|$POD_IP|g" -e "s|@NODE_NAME@|$NODE_NAME|g"
+        /config/otel-client.yaml.tmpl > /rendered/otel-client.yaml
+    env:
+      - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+      - { name: POD_NAMESPACE, valueFrom: { fieldRef: { fieldPath: metadata.namespace } } }
+      - { name: POD_IP, valueFrom: { fieldRef: { fieldPath: status.podIP } } }
+      - { name: NODE_NAME, valueFrom: { fieldRef: { fieldPath: spec.nodeName } } }
+```
+
+Point `config` in `instrumentation.cfg` at the rendered file. With `k8s.pod.ip` set, the Collector resolves the pod and adds its deployment and other metadata.
+
+## Add APM data [#apm]
+
+HAProxy's spans describe its internal stages. Without HTTP attributes they appear in distributed tracing, but New Relic can't build an HTTP transaction from them. The `instrumentation.cfg` above makes `HAProxy session` a **server** span and adds three attributes to it: `http.method`, `http.target` (the request path), and `http.status_code`. The Collector derives the `http.server.duration` metric from server spans like this one, and HAProxy then appears in APM with transactions named like `WebTransaction/server/GET /`.
+
+The route is the request path, so on a proxy that serves many distinct URLs you'll see many transactions. Remove the three `attribute` lines and the `kind server` setting if you don't want HAProxy in APM.
+
+## Find your data [#find]
+
+```sql
+FROM Span SELECT count(*) WHERE service.name = 'haproxy' FACET k8s.namespace.name, k8s.pod.name SINCE 30 minutes ago
+```
+
+The namespace and pod should be HAProxy's own. See [Find and query your HAProxy data](/docs/opentelemetry/integrations/haproxy/find-and-query-data) for metrics and the [metrics reference](/docs/opentelemetry/integrations/haproxy/metrics-reference).

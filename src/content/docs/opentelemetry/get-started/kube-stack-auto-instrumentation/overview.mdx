@@ -1,0 +1,148 @@
+---
+title: 'Auto-instrument applications on Kubernetes with the OpenTelemetry kube-stack chart'
+metaDescription: 'Send traces and APM data to New Relic from Java, Node.js, Python, .NET, Go, PHP, Ruby, Deno, Apache HTTPD, and NGINX workloads on Kubernetes without changing application code.'
+tags:
+  - OpenTelemetry
+  - Kubernetes
+  - Auto-instrumentation
+  - OpenTelemetry Operator
+  - APM
+freshnessValidatedDate: never
+---
+
+The `opentelemetry-kube-stack` Helm chart installs the OpenTelemetry Operator and a Collector on your cluster. The Operator can inject OpenTelemetry auto-instrumentation into your pods when they start, so you get traces and [APM data](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro) in New Relic without changing application code or rebuilding images. You turn instrumentation on per workload with a single pod annotation.
+
+The values or manifests New Relic generates for you already contain everything on the cluster side: the Operator, the `Instrumentation` resources that tell it where to send data, and a Collector that adds Kubernetes metadata and exports to New Relic. You only annotate the workloads you want to instrument.
+
+## Supported runtimes [#supported]
+
+| Runtime | How it's instrumented | Details |
+| --- | --- | --- |
+| Java, Node.js, Python, .NET | Operator injection (init container) | [Language setup](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/languages) |
+| Go | Operator injection (eBPF sidecar) | [Language setup](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/languages) |
+| PHP | Operator injection (init container) | [Language setup](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/languages) |
+| Ruby | Operator injection (init container) | [Language setup](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/languages) |
+| Deno | Built into the Deno runtime, enabled with environment variables | [Language setup](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/languages) |
+| Apache HTTPD, NGINX | Operator injection (init container) | [Web servers](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/web-servers) |
+| Linkerd | Proxies export traces to the Collector | [Linkerd with kube-stack](/docs/opentelemetry/integrations/linkerd/kube-stack) |
+| HAProxy | HAProxy's OpenTelemetry filter exports traces to the Collector | [HAProxy with kube-stack](/docs/opentelemetry/integrations/haproxy/kube-stack) |
+
+Linkerd and HAProxy don't use the Operator's auto-instrumentation. The chart is already set up to receive their data, and their pages explain how to point them at the Collector.
+
+## Before you begin [#before-you-begin]
+
+- The `opentelemetry-kube-stack` chart installed from the values or manifests generated for your cluster. Keep the release name and namespace you used, because the annotations refer to them.
+- Nodes with a CPU architecture the injected agent supports. The Apache HTTPD, NGINX, and PHP agents are `amd64` only. See each page for details.
+- Permission to edit the pod templates of the workloads you want to instrument.
+
+<Callout variant="important">
+  The Operator injects instrumentation when a pod is created. Annotating an existing Deployment has no effect on pods that are already running, so roll the workload out again after you add the annotation.
+</Callout>
+
+## How it works [#how-it-works]
+
+1. The generated configuration creates `Instrumentation` resources in the namespace where you installed the chart. They name the container image that carries the agent for each runtime and the Collector endpoint that receives the data.
+2. You add an annotation to the pod template of a workload.
+3. When a pod is created, the Operator's webhook adds the agent to the pod and sets the environment variables the agent needs.
+4. The agent sends OTLP data to the Collector. The Collector adds Kubernetes metadata (cluster, namespace, pod, deployment) and exports to New Relic.
+
+The images that carry the agents are published by the OpenTelemetry project and are listed in the `Instrumentation` resources. The versions below are the ones the generated configuration pins at the time of writing. Check the generated `Instrumentation` resource for the versions in your cluster.
+
+| Runtime | Image | Pinned version | Source |
+| --- | --- | --- | --- |
+| Java | `ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java` | 2.32.0 | [opentelemetry-operator](https://github.com/open-telemetry/opentelemetry-operator/tree/main/autoinstrumentation/java) |
+| Node.js | `ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs` | 0.82.0-1 | [opentelemetry-operator](https://github.com/open-telemetry/opentelemetry-operator/tree/main/autoinstrumentation/nodejs) |
+| Python | `ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python` | 0.66b1 | [opentelemetry-operator](https://github.com/open-telemetry/opentelemetry-operator/tree/main/autoinstrumentation/python) |
+| .NET | `ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-dotnet` | 1.17.0 | [opentelemetry-operator](https://github.com/open-telemetry/opentelemetry-operator/tree/main/autoinstrumentation/dotnet) |
+| Go | `ghcr.io/open-telemetry/opentelemetry-go-instrumentation/autoinstrumentation-go` | v0.24.0 | [opentelemetry-go-instrumentation](https://github.com/open-telemetry/opentelemetry-go-instrumentation) |
+| PHP | `ghcr.io/opentelemetry-php/autoinstrumentation-php` | 1.4.1 | [OpenTelemetry PHP zero-code instrumentation](https://opentelemetry.io/docs/zero-code/php/) |
+| Ruby | `ghcr.io/open-telemetry/opentelemetry-ruby-instrumentation/autoinstrumentation-ruby` | 0.1.0 | [opentelemetry-ruby-instrumentation](https://github.com/open-telemetry/opentelemetry-ruby-instrumentation) |
+| Apache HTTPD, NGINX | `ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-apache-httpd` | 1.0.4 | [opentelemetry-operator](https://github.com/open-telemetry/opentelemetry-operator/tree/main/autoinstrumentation/apache-httpd) |
+
+New Relic doesn't build or support custom injection images. For how the Operator works in general, including options this page doesn't cover, see the [OpenTelemetry Operator documentation](https://opentelemetry.io/docs/platforms/kubernetes/operator/automatic/).
+
+## Annotate a workload [#annotate]
+
+Add the annotation for your runtime to the **pod template** (`spec.template.metadata.annotations`), not to the Deployment's own metadata. The value is `<namespace>/<instrumentation-name>`, where the namespace and name identify an `Instrumentation` resource. List what the generated configuration created:
+
+```bash
+kubectl get instrumentation -n <YOUR_KUBE_STACK_NAMESPACE>
+```
+
+You'll see the main resource (named after your Helm release) plus a `-webserver` resource for Apache HTTPD and NGINX and a `-ruby` resource for Ruby. This example uses a release named `opentelemetry-kube-stack` installed in the `kubestack` namespace:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-java-app
+spec:
+  template:
+    metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "kubestack/opentelemetry-kube-stack"
+    spec:
+      containers:
+        - name: my-java-app
+          image: my-registry/my-java-app:1.0
+```
+
+To instrument every workload in a namespace instead, annotate the namespace. See the [Operator documentation](https://opentelemetry.io/docs/platforms/kubernetes/operator/automatic/#annotate-objects) for the namespace and multi-container options.
+
+## Verify the instrumentation [#verify]
+
+1. Confirm that the Operator added the agent to your pod. For init-container runtimes, the pod has an extra init container:
+
+   ```bash
+   kubectl get pod <POD_NAME> -o jsonpath='{.spec.initContainers[*].name}'
+   ```
+
+2. Generate some traffic, then check New Relic. This query shows the services that sent spans and the language of each agent:
+
+   ```sql
+   FROM Span SELECT count(*) FACET service.name, telemetry.sdk.language SINCE 30 minutes ago
+   ```
+
+3. Open **[one.newrelic.com](https://one.newrelic.com) > All capabilities > APM & services** and look for your service. See the [OpenTelemetry APM UI](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui) for what each page shows.
+
+By default the service name is the name of the Deployment (or the pod's owner). To set it explicitly, add the `OTEL_SERVICE_NAME` environment variable to the container.
+
+## APM data for every runtime [#apm-data]
+
+New Relic builds the APM experience (summary, transactions, error rate) from HTTP server **metrics** such as `http.server.request.duration`, not from spans. Java, Node.js, .NET, and Deno agents emit that metric themselves. Python emits the older `http.server.duration`, which New Relic also understands. For Ruby, New Relic derives the APM data from spans.
+
+The Go (eBPF) agent, the PHP agent, and the Apache HTTPD and NGINX modules emit spans but no HTTP server metric. The generated Collector configuration derives `http.server.request.duration` (or `http.server.duration` for Apache HTTPD and NGINX) from their server spans, so they appear in APM with transactions and error rates too. Because the metric is built from spans, it follows whatever sampling you apply to traces. Runtimes that already emit the metric are not counted twice.
+
+<Callout variant="tip">
+  APM metrics arrive in batches. If a new service shows traces but no APM data, wait about five minutes and use a time window of five minutes or more.
+</Callout>
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser id="no-init-container" title="The pod has no extra init container">
+
+  The pod was created before you added the annotation, the annotation is on the Deployment instead of the pod template, or the namespace/name doesn't match an `Instrumentation` resource. Check `kubectl get instrumentation -A`, fix the annotation, and restart the rollout. If the Operator's webhook was unavailable when the pod was created, pods can be created without injection and without an error, so check that the Operator pod is running.
+
+  </Collapser>
+
+  <Collapser id="init-pull-error" title="The init container fails with ImagePullBackOff and 'no match for platform in manifest'">
+
+  The injected image doesn't have a build for your node's CPU architecture. This applies to the Apache HTTPD and NGINX image on `arm64` nodes. Schedule those workloads on `amd64` nodes.
+
+  </Collapser>
+
+  <Collapser id="no-spans" title="The pod is instrumented but no spans arrive">
+
+  Check that the runtime is supported by the agent version you use, that the application receives traffic, and that the Collector is receiving data. The Collector's own `otelcol_receiver_accepted_spans` metric increases when spans arrive. For PHP, Ruby, Apache HTTPD, and NGINX, see the runtime-specific notes on their pages.
+
+  </Collapser>
+</CollapserGroup>
+
+## What's next [#next]
+
+- [Set up each language](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/languages)
+- [Instrument Apache HTTPD and NGINX](/docs/opentelemetry/get-started/kube-stack-auto-instrumentation/web-servers)
+- [Monitor Linkerd with kube-stack](/docs/opentelemetry/integrations/linkerd/kube-stack)
+- [Monitor HAProxy with kube-stack](/docs/opentelemetry/integrations/haproxy/kube-stack)
+- [Explore the OpenTelemetry APM UI](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui)
