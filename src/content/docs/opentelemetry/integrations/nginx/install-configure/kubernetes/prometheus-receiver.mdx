@@ -1,0 +1,496 @@
+---
+title: Monitor NGINX on Kubernetes with the Prometheus receiver
+metaDescription: "Use the Prometheus receiver with the nginx-prometheus-exporter sidecar to monitor NGINX pods on Kubernetes and send data to New Relic."
+tags:
+  - OpenTelemetry
+  - NGINX
+  - Prometheus
+  - Kubernetes
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: nginx
+flow:
+  prev: /docs/opentelemetry/integrations/nginx/introduction
+  next: null
+---
+
+Use this guide if you already run the [NGINX Prometheus exporter](https://github.com/nginxinc/nginx-prometheus-exporter) as a sidecar in your NGINX pods, or you're migrating from a Prometheus-based monitoring stack.
+
+<Callout variant="tip">
+If you don't already run a Prometheus exporter, use [NRDOT (manifest)](/docs/opentelemetry/integrations/nginx/install-configure/kubernetes/nrdot-manifest-install), [NRDOT (Helm)](/docs/opentelemetry/integrations/nginx/install-configure/kubernetes/nrdot-helm-install), or [OTel Collector Contrib](/docs/opentelemetry/integrations/nginx/install-configure/kubernetes/otel-collector-contrib) instead. They connect directly to the NGINX stub status endpoint without an extra exporter.
+</Callout>
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+- NGINX running as pods in a Kubernetes cluster
+- Helm install method
+
+### You need
+- A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- `kubectl` access to your Kubernetes cluster
+- The [HTTP stub status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) module enabled on each NGINX pod you want to monitor
+- The labels `app` and `role` on each NGINX pod you want to monitor
+- The [nginx-prometheus-exporter](https://github.com/nginxinc/nginx-prometheus-exporter) running as a sidecar in those pods, exposing a port named `metrics` (`9113`)
+- [Helm](https://helm.sh/docs/intro/install/) installed
+- For NRDOT: the base [Kubernetes OpenTelemetry Helm installation](/docs/kubernetes-pixie/k8s-otel/install/#helm-install) already completed
+- Outbound HTTPS (port 443) connectivity to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+<Steps>
+
+<Step>
+
+## Configure and install the collector [#install-helm]
+
+Choose your collector:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="prom-nrdot">
+      NRDOT
+    </TabsBarItem>
+    <TabsBarItem id="prom-contrib">
+      OTel Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="prom-nrdot">
+
+Complete the base [Kubernetes OpenTelemetry helm installation](/docs/kubernetes-pixie/k8s-otel/install/#helm-install) for `nr-k8s-otel-collector` before proceeding.
+
+1. Add the following sections under [`deployment.configMap.extraConfig`](https://github.com/newrelic/helm-charts/blob/5cfdda9d64dc26c289438554a23665434d4d584b/charts/nr-k8s-otel-collector/values.yaml#L259) in your [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/values.yaml):
+
+<Callout variant="important">
+In `deployment.configMap.extraConfig`, `pipelines:` must be defined at the root level — not nested under `service:`. The Helm chart template maps `extraConfig.pipelines` into `service.pipelines`, and `extraConfig.service.extensions` into `service.extensions`.
+</Callout>
+
+Extensions:
+```yaml
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  k8s_observer:
+    auth_type: serviceAccount
+    observe_nodes: true
+    observe_pods: true
+```
+
+Receivers:
+```yaml
+receivers:
+  receiver_creator/nginx_prom:
+    watch_observers:
+      - k8s_observer
+    receivers:
+      prometheus:
+        rule: type == "port" && pod.labels["app"] == "nginx" && pod.labels["role"] == "reverse-proxy" && name == "metrics"  # Update with your pod labels
+        config:
+          config:
+            scrape_configs:
+              - job_name: nginx_prom
+                metrics_path: /metrics
+                scrape_interval: 30s
+                static_configs:
+                  - targets:
+                      - '`endpoint`'
+        resource_attributes:
+          nginx.port: "9113"  # Update if nginx-prometheus-exporter runs on a different port
+          nginx.server.endpoint: http://`endpoint`/metrics
+```
+
+Processors:
+```yaml
+processors:
+  resource/cluster:
+    attributes:
+      - action: insert
+        key: k8s.cluster.name
+        value: "<CLUSTER_NAME>"  # Replace with your cluster name
+
+  metricstransform/nginx_prom:
+    transforms:
+      - action: update
+        include: nginx_http_requests_total
+        new_name: nginx.requests
+      - action: update
+        include: nginx_connections_accepted
+        new_name: nginx.connections_accepted
+      - action: update
+        include: nginx_connections_handled
+        new_name: nginx.connections_handled
+      - action: combine
+        include: ^nginx_connections_(?P<state>active|reading|writing|waiting)$
+        match_type: regexp
+        new_name: nginx.connections_current
+
+  filter/nginx_prom_only:
+    metrics:
+      include:
+        match_type: regexp
+        metric_names:
+          - ^nginx\..*
+
+  transform/nginx:
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["nginx.display.name"], Concat([ "server", "k8s", attributes["k8s.cluster.name"], attributes["k8s.namespace.name"], "pod", attributes["k8s.pod.name"], "nginx", attributes["nginx.port"] ], ":"))
+          - set(attributes["nginx.deployment.name"], attributes["k8s.pod.name"])
+
+  transform/metadata_nullify:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(description, "")
+          - set(unit, "")
+```
+
+Service extensions:
+```yaml
+service:
+  extensions:
+    - health_check
+    - k8s_observer
+```
+
+Pipelines:
+```yaml
+pipelines:
+  metrics/nginx_prometheus:
+    receivers:
+      - receiver_creator/nginx_prom
+    processors:
+      - batch
+      - resource/cluster
+      - metricstransform/nginx_prom
+      - filter/nginx_prom_only
+      - transform/nginx
+      - transform/metadata_nullify
+      - memory_limiter
+    exporters:
+      - otlphttp/newrelic
+```
+
+### Configuration parameters
+
+The following table describes the key configuration parameters:
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`<CLUSTER_NAME>`</td>
+    <td>Your Kubernetes cluster name. Used for identification in New Relic.</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_LICENSE_KEY>`</td>
+    <td>Your New Relic license key.</td>
+  </tr>
+  <tr>
+    <td>`app` and `role` labels</td>
+    <td>Pod labels used to discover NGINX pods. Update the `rule` to match your pod labels.</td>
+  </tr>
+  <tr>
+    <td>`name == "metrics"`</td>
+    <td>The named container port on `9113` that the receiver_creator watches for. Must match the port name in your pod spec.</td>
+  </tr>
+  <tr>
+    <td>`scrape_interval`</td>
+    <td>How often to scrape Prometheus metrics. Default: `30s`.</td>
+  </tr>
+</tbody>
+</table>
+
+2. Apply the updated values to your running Helm release:
+
+```bash
+helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector \
+  --namespace newrelic \
+  --reuse-values \
+  -f values.yaml
+```
+
+    </TabsPageItem>
+
+    <TabsPageItem id="prom-contrib">
+
+<CollapserGroup>
+
+  <Collapser id="prometheus-otelcol-step1" title="Step 1: Create custom values.yaml configuration">
+
+Download or create a custom `values.yaml` file based on the [OpenTelemetry Collector values.yaml](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml).
+
+Update the following sections in your `values.yaml` file:
+
+1. Set mode to deployment:
+   ```yaml
+   mode: deployment
+   ```
+
+2. Replace the image repository:
+   ```yaml
+   image:
+     repository: otel/opentelemetry-collector-contrib
+   ```
+
+3. Configure cluster role:
+   ```yaml
+   clusterRole:
+     create: true
+     rules:
+       - apiGroups: [""]
+         resources: ["pods", "nodes", "nodes/stats", "nodes/proxy"]
+         verbs: ["get", "list", "watch"]
+       - apiGroups: ["apps"]
+         resources: ["replicasets"]
+         verbs: ["get", "list", "watch"]
+   ```
+
+4. Configure resource limits:
+   ```yaml
+   resources:
+     limits:
+       cpu: 250m
+       memory: 512Mi
+   ```
+
+5. Replace the entire config section with the Prometheus receiver configuration:
+   ```yaml
+   config:
+     extensions:
+       health_check:
+         endpoint: 0.0.0.0:13133
+       k8s_observer:
+         auth_type: serviceAccount
+         observe_pods: true
+         observe_nodes: true
+
+     receivers:
+       receiver_creator/nginx_prom:
+         watch_observers: [k8s_observer]
+         receivers:
+           prometheus:
+             rule: type == "port" && pod.labels["app"] == "nginx" && pod.labels["role"] == "reverse-proxy" && name == "metrics"  # Update with your pod labels
+             config:
+               config:
+                 scrape_configs:
+                   - job_name: nginx_prom
+                     metrics_path: /metrics
+                     scrape_interval: 30s
+                     static_configs:
+                       - targets:
+                           - '`endpoint`'
+             resource_attributes:
+               nginx.port: "9113"  # Update if nginx-prometheus-exporter runs on a different port
+               nginx.server.endpoint: http://`endpoint`/metrics
+
+     processors:
+       batch:
+         send_batch_size: 1024
+         timeout: 30s
+
+       resource/cluster:
+         attributes:
+           - key: k8s.cluster.name
+             value: "<CLUSTER_NAME>"  # Replace with your cluster name
+             action: insert
+
+       metricstransform/nginx_prom:
+         transforms:
+           - action: update
+             include: nginx_http_requests_total
+             new_name: nginx.requests
+           - action: update
+             include: nginx_connections_accepted
+             new_name: nginx.connections_accepted
+           - action: update
+             include: nginx_connections_handled
+             new_name: nginx.connections_handled
+           - action: combine
+             include: ^nginx_connections_(?P<state>active|reading|writing|waiting)$
+             match_type: regexp
+             new_name: nginx.connections_current
+
+       filter/nginx_prom_only:
+         metrics:
+           include:
+             match_type: regexp
+             metric_names:
+               - ^nginx\..*
+
+       transform/nginx:
+         metric_statements:
+           - context: resource
+             statements:
+               - set(attributes["nginx.display.name"], Concat([ "server", "k8s", attributes["k8s.cluster.name"], attributes["k8s.namespace.name"], "pod", attributes["k8s.pod.name"], "nginx", attributes["nginx.port"] ], ":"))
+               - set(attributes["nginx.deployment.name"], attributes["k8s.pod.name"])
+
+       transform/metadata_nullify:
+         metric_statements:
+           - context: metric
+             statements:
+               - set(description, "")
+               - set(unit, "")
+
+     exporters:
+       otlphttp/newrelic:
+         endpoint: "<YOUR_NEWRELIC_OTLP_ENDPOINT>"  # Replace with your region's endpoint
+         headers:
+           api-key: "<YOUR_NEW_RELIC_LICENSE_KEY>"   # Replace with your license key
+
+     service:
+       extensions: [health_check, k8s_observer]
+       pipelines:
+         metrics/nginx_prometheus:
+           receivers: [receiver_creator/nginx_prom]
+           processors: [batch, resource/cluster, metricstransform/nginx_prom, filter/nginx_prom_only, transform/nginx, transform/metadata_nullify]
+           exporters: [otlphttp/newrelic]
+   ```
+
+### Configuration parameters
+
+The following table describes the key configuration parameters:
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`<CLUSTER_NAME>`</td>
+    <td>Your Kubernetes cluster name. Used for identification in New Relic.</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_NEW_RELIC_LICENSE_KEY>`</td>
+    <td>Your New Relic license key.</td>
+  </tr>
+  <tr>
+    <td>`<YOUR_NEWRELIC_OTLP_ENDPOINT>`</td>
+    <td>Your region's OTLP endpoint. See [OTLP endpoint documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).</td>
+  </tr>
+  <tr>
+    <td>`app` and `role` labels</td>
+    <td>Pod labels used to discover NGINX pods. Update the `rule` to match your pod labels.</td>
+  </tr>
+  <tr>
+    <td>`name == "metrics"`</td>
+    <td>The named container port on `9113` that the receiver_creator watches for. Must match the port name in your pod spec.</td>
+  </tr>
+  <tr>
+    <td>`scrape_interval`</td>
+    <td>How often to scrape Prometheus metrics. Default: `30s`.</td>
+  </tr>
+</tbody>
+</table>
+
+  </Collapser>
+
+  <Collapser id="prometheus-otelcol-step2" title="Step 2: Install with Helm">
+
+Follow the [OpenTelemetry Collector Helm chart installation guide](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/README.md#opentelemetry-collector-helm-chart) to install the collector using your custom `values.yaml` file.
+
+```bash
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo update
+helm upgrade --install nginx-otel-collector open-telemetry/opentelemetry-collector \
+  --namespace newrelic --create-namespace \
+  -f values.yaml
+```
+
+  </Collapser>
+
+  <Collapser id="prometheus-otelcol-step3" title="Step 3: Verify deployment and data collection">
+
+1. Verify the collector pods are running:
+
+    ```bash
+    kubectl get pods -n newrelic --watch
+    ```
+
+2. Check collector logs for successful pod discovery and scraping:
+
+    ```bash
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector -f
+    ```
+
+    Look for lines referencing `receiver_creator/nginx_prom` discovering your NGINX pods.
+
+3. Run an NRQL query in New Relic to confirm data is arriving. Replace `<CLUSTER_NAME>` with your cluster name:
+
+    ```sql
+    FROM Metric SELECT *
+    WHERE metricName LIKE 'nginx.%'
+      AND instrumentation.provider = 'opentelemetry'
+      AND k8s.cluster.name = '<CLUSTER_NAME>'
+    SINCE 10 minutes ago
+    ```
+
+  </Collapser>
+
+</CollapserGroup>
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+</Step>
+
+<Step>
+
+## Verify your install [#verify]
+
+Within about 5 minutes of installing, run this query in New Relic to confirm data is flowing (replace `<CLUSTER_NAME>` with your cluster's name):
+
+```sql
+FROM Metric
+SELECT *
+WHERE metricName LIKE 'nginx.%'
+  AND instrumentation.provider = 'opentelemetry'
+  AND k8s.cluster.name = '<CLUSTER_NAME>'
+SINCE 10 minutes ago
+```
+
+<Callout variant="tip">
+You can also check the collector itself: the pods should be in a `Running` state (`kubectl get pods -n newrelic --watch`) with no connection errors in the pod logs.
+</Callout>
+
+If you don't see data, see [Kubernetes troubleshooting](/docs/opentelemetry/integrations/nginx/troubleshooting#kubernetes-troubleshooting).
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find-and-use]
+
+Once New Relic collects your data, you can view it in the NGINX dashboard and query it with NRQL.
+
+To find your NGINX dashboard in New Relic:
+
+1. Go to <DNT>**one.newrelic.com > Integrations & Agents**</DNT>.
+2. Under the <DNT>**All**</DNT> tab, click <DNT>**Dashboards**</DNT>, then search for <DNT>**NGINX (OpenTelemetry Collector)**</DNT> to view the dashboard.
+
+Or, from the left navigation:
+
+1. Click <DNT>**Dashboards**</DNT>.
+2. Search for the <DNT>**NGINX (OpenTelemetry Collector)**</DNT> dashboard to view it.
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [NGINX distributed tracing with OpenTelemetry](/docs/opentelemetry/integrations/nginx/nginx-otel-distributed-tracing)
+- [NGINX metrics and attributes reference](/docs/opentelemetry/integrations/nginx/nginx-otel-metrics-reference)
+- [NGINX troubleshooting](/docs/opentelemetry/integrations/nginx/troubleshooting)

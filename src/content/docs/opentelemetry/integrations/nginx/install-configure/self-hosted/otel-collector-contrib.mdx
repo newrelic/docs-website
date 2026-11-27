@@ -1,0 +1,290 @@
+---
+title: Install and configure OTel Collector Contrib on self-hosted NGINX
+metaDescription: "Install and configure the OpenTelemetry Collector Contrib to monitor self-hosted NGINX servers on servers or VMs and send data to New Relic."
+tags:
+  - OpenTelemetry
+  - NGINX
+  - OTel Collector Contrib
+  - Self-hosted
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: nginx
+flow:
+  prev: /docs/opentelemetry/integrations/nginx/introduction
+  next: null
+---
+
+Use this guide to install and configure the OpenTelemetry Collector Contrib to monitor a self-hosted NGINX server on a Linux host. Once configured, the collector reads the NGINX stub status endpoint and sends connection and request metrics to New Relic.
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+NGINX with the HTTP stub status module enabled, running on a Linux host
+
+### You need
+- A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- Root or sudo privileges on the host
+- NGINX with the [HTTP stub status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) module enabled (verify with `nginx -V 2>&1 | grep -o with-http_stub_status_module`)
+- Outbound HTTPS (port 443) connectivity to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+- Network access from the host to your NGINX stub status endpoint
+
+<Steps>
+
+<Step>
+
+## Install OTel Collector Contrib [#install]
+
+Install the OpenTelemetry Collector Contrib as a systemd service. See the [OpenTelemetry Collector installation guide](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest).
+
+</Step>
+
+<Step>
+
+## Configure the OpenTelemetry Collector [#configure]
+
+Configure the OpenTelemetry Collector to scrape metrics from your NGINX stub status endpoint and send them to New Relic.
+
+{/* The OpenTelemetry Collector uses three main components for NGINX monitoring: - **Receivers** - Connect to your NGINX stub status endpoint to collect metrics - **Processors** - Add server identification and batch metrics for efficient transmission - **Exporters** - Send the processed metrics to your New Relic account via OTLP HTTP */}
+
+{/* Before editing the configuration, you'll need: - Your stub status URL from Step 1 (default: `http://<NGINX_SERVER_IP>:<YOUR_LOCAL_PORT>/nginx_status`) - A deployment name (for example `production-web-01`, `staging-api`) */}
+
+{/* The deployment name will appear in New Relic dashboards and helps you identify specific servers when you have multiple NGINX instances. */}
+
+<Callout variant="important">
+Before editing: Back up your existing configuration: `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
+</Callout>
+
+Edit your collector configuration file (typically `/etc/otelcol-contrib/config.yaml`) and add the following sections. If you already have receivers, processors, or exporters sections, merge these with your existing configuration:
+
+1. Configure the NGINX receiver:
+
+  ```yaml
+  receivers:
+    nginx:
+      endpoint: <YOUR_STUB_STATUS_ENDPOINT>  # Replace with your stub status URL
+      collection_interval: 30s                      # How often to collect metrics
+      metrics:
+        nginx.requests:
+          enabled: true
+        nginx.connections_accepted:
+          enabled: true
+        nginx.connections_handled:
+          enabled: true
+        nginx.connections_current:
+          enabled: true
+  ```
+
+2. Configure processors for metadata and batching:
+
+  ```yaml
+  processors:
+    # Detect system information
+    resourcedetection:
+      detectors: [system]
+      system:
+        resource_attributes:
+          host.name:
+            enabled: false
+          host.id:
+            enabled: true
+
+    # Add NGINX-specific identification
+    resource/nginx:
+      attributes:
+        - key: nginx.server.endpoint
+          value: "<YOUR_STUB_STATUS_ENDPOINT>"  # Replace with your endpoint
+          action: upsert
+        - key: nginx.deployment.name
+          value: "<DEPLOYMENT_NAME>"                    # Replace with your deployment name
+          action: upsert
+
+    # Batch metrics for efficient sending
+    batch:
+      timeout: 30s
+      send_batch_size: 1024
+
+    # Transform metrics for better display in New Relic
+    transform/nginx_metrics:
+      metric_statements:
+        - context: resource
+          statements:
+            # Customize the display name as needed for your New Relic dashboard
+            - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+
+    transform/metadata_nullify:
+      metric_statements:
+        - context: metric
+          statements:
+            - set(description, "")
+            - set(unit, "")
+  ```
+
+3. Configure the New Relic exporter:
+
+  ```yaml
+  exporters:
+    # Send metrics to New Relic via OTLP
+    otlp_http:
+      endpoint: ${env:YOUR_NEWRELIC_OTLP_ENDPOINT}
+      headers:
+        api-key: ${env:YOUR_NEW_RELIC_LICENSE_KEY}
+  ```
+
+4. Connect everything with a pipeline:
+
+  ```yaml
+  service:
+    pipelines:
+      metrics/nginx:
+        receivers: [nginx]
+        processors: [resourcedetection, resource/nginx, batch, transform/nginx_metrics, transform/metadata_nullify]
+        exporters: [otlp_http]
+  ```
+
+### Configuration parameters
+
+The following table describes the key configuration parameters:
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`<YOUR_STUB_STATUS_ENDPOINT>`</td>
+    <td>Replace with the NGINX stub status endpoint (for example `http://127.0.0.1/basic_status`)</td>
+  </tr>
+  <tr>
+    <td>`<DEPLOYMENT_NAME>`</td>
+    <td>Replace with a unique deployment name for this NGINX server (for example `production-web-01`, `staging-api`, `prod-lb-01`)</td>
+  </tr>
+  <tr>
+    <td>`collection_interval`</td>
+    <td>Interval in seconds to collect metrics. The default value is set to `30s`</td>
+  </tr>
+  <tr>
+    <td>`timeout`</td>
+    <td>Timeout in seconds to wait before sending batched metrics. The default value is set to `30s`</td>
+  </tr>
+  <tr>
+    <td>`send_batch_size`</td>
+    <td>Number of metrics to batch before sending. The default value is set to `1024`</td>
+  </tr>
+</tbody>
+</table>
+
+{/* **Replace these values in the configuration above:** 1. **Endpoint URL**: Change `http://<NGINX_SERVER_IP>:<YOUR_LOCAL_PORT>/nginx_status` to match your stub status configuration from Step 1 2. **Deployment name**: Replace `<DEPLOYMENT_NAME>` with a unique identifier for this NGINX server **Choosing a good deployment name:** - Use descriptive names like `production-web-01`, `staging-api`, or `prod-lb-01` - Must be unique across all NGINX servers within your New Relic account - This name will appear in dashboards and help you identify specific servers - Keep it short but meaningful for easy filtering and alerting */}
+
+</Step>
+
+<Step>
+
+## Set up authentication [#authentication]
+
+Configure secure authentication so the OpenTelemetry Collector can send data to your New Relic account. This step sets up environment variables to keep your credentials secure.
+
+1. Get your New Relic credentials:
+
+   - License Key: Get your license key from the [API Keys UI page](https://one.newrelic.com/admin-portal/api-keys/home)
+   - OTLP Endpoint: Use your region's endpoint from [New Relic OTLP endpoints](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+2. Configure the credentials:
+
+   1. Create a systemd override directory:
+
+    ```bash
+    sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+    ```
+
+   2. Create the environment configuration file:
+
+    ```bash
+    cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+    [Service]
+    Environment="NEWRELIC_OTLP_ENDPOINT=<YOUR_NEWRELIC_OTLP_ENDPOINT>"  # Replace with your region's endpoint
+    Environment="NEWRELIC_LICENSE_KEY=YOUR_NEW_RELIC_LICENSE_KEY"
+    EOF
+    ```
+
+{/* **Update the configuration with your credentials:** - Replace `https://otlp.nr-data.net:4318` with your region's endpoint - Replace `YOUR_LICENSE_KEY_HERE` with your actual license key from above */}
+
+</Step>
+
+<Step>
+
+## (Optional) Forward NGINX logs [#logs]
+
+To send NGINX access and error logs to New Relic alongside your metrics, see [Advanced configuration](/docs/opentelemetry/integrations/nginx/advanced-configuration#logs).
+
+</Step>
+
+<Step>
+
+## Restart the collector and verify data [#start]
+
+1. Apply the configuration changes and restart the collector:
+
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl restart otelcol-contrib.service
+    ```
+
+2. Verify the service is running:
+
+    ```bash
+    sudo systemctl status otelcol-contrib.service
+    sudo journalctl -u otelcol-contrib.service -n 20
+    ```
+
+    The status should show `Active: active (running)` with no recent errors.
+
+3. Generate test traffic so NGINX has metrics to report:
+
+    ```bash
+    curl http://localhost
+    ```
+
+4. After a few minutes, run this query in New Relic to confirm data is flowing (replace `<DEPLOYMENT_NAME>` with the value you set in the configuration):
+
+    ```sql
+    FROM Metric SELECT *
+    WHERE metricName LIKE 'nginx.%'
+      AND nginx.deployment.name = '<DEPLOYMENT_NAME>'
+    SINCE 10 minutes ago
+    ```
+
+If you don't see data, see [Host troubleshooting](/docs/opentelemetry/integrations/nginx/troubleshooting#host-troubleshooting).
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find-and-use]
+
+Once New Relic collects your data, you can view it in the NGINX dashboard and query it with NRQL.
+
+To find your NGINX dashboard in New Relic:
+
+1. Go to <DNT>**one.newrelic.com > Integrations & Agents**</DNT>.
+2. Under the <DNT>**All**</DNT> tab, click <DNT>**Dashboards**</DNT>, then search for <DNT>**NGINX (OpenTelemetry Collector)**</DNT> to view the dashboard.
+
+Or, from the left navigation:
+
+1. Click <DNT>**Dashboards**</DNT>.
+2. Search for the <DNT>**NGINX (OpenTelemetry Collector)**</DNT> dashboard to view it.
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [Advanced configuration](/docs/opentelemetry/integrations/nginx/advanced-configuration)
+- [NGINX distributed tracing with OpenTelemetry](/docs/opentelemetry/integrations/nginx/nginx-otel-distributed-tracing)
+- [NGINX metrics and attributes reference](/docs/opentelemetry/integrations/nginx/nginx-otel-metrics-reference)
+- [NGINX troubleshooting](/docs/opentelemetry/integrations/nginx/troubleshooting)
