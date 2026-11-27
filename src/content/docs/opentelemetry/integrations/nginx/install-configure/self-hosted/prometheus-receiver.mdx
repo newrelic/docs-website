@@ -1,0 +1,298 @@
+---
+title: Monitor self-hosted NGINX with the Prometheus receiver
+metaDescription: "Use the Prometheus receiver with an existing nginx-prometheus-exporter to monitor self-hosted NGINX servers and send data to New Relic."
+tags:
+  - OpenTelemetry
+  - NGINX
+  - Prometheus
+  - Self-hosted
+freshnessValidatedDate: never
+contentType: onboarding-install
+audience: [human, ai]
+surface: [cli]
+integration: nginx
+flow:
+  prev: /docs/opentelemetry/integrations/nginx/introduction
+  next: null
+---
+
+Use this guide if you already run the [NGINX Prometheus exporter](https://github.com/nginxinc/nginx-prometheus-exporter), or you're migrating from a Prometheus-based monitoring stack. The collector scrapes the exporter and sends the metrics to New Relic.
+
+<Callout variant="tip">
+If you don't already run a Prometheus exporter, use [NRDOT](/docs/opentelemetry/integrations/nginx/install-configure/self-hosted/nrdot) or [OTel Collector Contrib](/docs/opentelemetry/integrations/nginx/install-configure/self-hosted/otel-collector-contrib) instead. They connect directly to the NGINX stub status endpoint without an extra exporter component.
+</Callout>
+
+## Compatibility and requirements [#requirements]
+
+### Supported
+NGINX running on a Linux host
+
+### You need
+- A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+- Root or sudo privileges on the host
+- NGINX with the [HTTP stub status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) module enabled (verify with `nginx -V 2>&1 | grep -o with-http_stub_status_module`)
+- Outbound HTTPS (port 443) connectivity to New Relic's [OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+- [nginx-prometheus-exporter](https://github.com/nginxinc/nginx-prometheus-exporter) already running and scraping your NGINX stub status endpoint
+- Network access from the host to the exporter
+
+<Steps>
+
+<Step>
+
+## Install NRDOT collector or OTel Collector Contrib [#install]
+
+Install either collector as a systemd service. See [NRDOT](/docs/opentelemetry/integrations/nginx/install-configure/self-hosted/nrdot#install) or [OTel Collector Contrib](/docs/opentelemetry/integrations/nginx/install-configure/self-hosted/otel-collector-contrib#install) for installation instructions.
+
+</Step>
+
+<Step>
+
+## Configure the collector [#configure]
+
+This configuration works with both **NRDOT** and **OTel Collector Contrib**. Place it in the appropriate config location:
+* **NRDOT:** `/etc/nrdot-collector/config.yaml`
+* **OTel Collector Contrib:** `/etc/otelcol-contrib/config.yaml`
+
+<Callout variant="tip">
+  **Backup your existing configuration before making changes:**
+  ```bash
+  # For NRDOT
+  sudo cp /etc/nrdot-collector/config.yaml /etc/nrdot-collector/config.yaml.backup
+
+  # For OTel Collector Contrib
+  sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup
+  ```
+</Callout>
+
+Replace the file contents with the following configuration:
+
+<Callout variant="important">
+  Replace `<YOUR_STUB_STATUS_ENDPOINT>` with your NGINX stub status URL (for example `http://127.0.0.1:8080/nginx_status`) and `<DEPLOYMENT_NAME>` with a unique name for this NGINX server.
+</Callout>
+
+```yaml
+receivers:
+  prometheus/nginx:
+    config:
+      scrape_configs:
+        - job_name: nginx
+          scrape_interval: 30s
+          static_configs:
+            - targets: ["localhost:9113"]  # Update if exporter runs on a different port
+
+processors:
+  resourcedetection/prom:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: false
+        host.id:
+          enabled: true
+
+  resource/nginx_prom:
+    attributes:
+      - key: nginx.server.endpoint
+        value: "<YOUR_STUB_STATUS_ENDPOINT>"  # Replace with your stub status URL
+        action: upsert
+      - key: nginx.deployment.name
+        value: "<DEPLOYMENT_NAME>"            # Replace with a unique server name
+        action: upsert
+      # Strip prometheus receiver auto-labels — absent from nginxreceiver output
+      - key: service.name
+        action: delete
+      - key: service.instance.id
+        action: delete
+      - key: net.host.name
+        action: delete
+      - key: net.host.port
+        action: delete
+      - key: server.address
+        action: delete
+      - key: server.port
+        action: delete
+
+  # Rename prometheus metric names to nginxreceiver schema names
+  metricstransform/nginx_prom:
+    transforms:
+      - include: nginx_http_requests_total
+        action: update
+        new_name: nginx.requests
+      - include: nginx_connections_accepted
+        action: update
+        new_name: nginx.connections_accepted
+      - include: nginx_connections_handled
+        action: update
+        new_name: nginx.connections_handled
+      - include: ^nginx_connections_(?P<state>active|reading|writing|waiting)$
+        match_type: regexp
+        action: combine
+        new_name: nginx.connections_current
+
+  # Keep only the 4 renamed nginx.* metrics
+  filter/nginx_prom_only:
+    metrics:
+      include:
+        match_type: regexp
+        metric_names:
+          - ^nginx\..*
+
+  transform/nginx_metrics_prom:
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+
+  transform/metadata_nullify_prom:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(description, "")
+          - set(unit, "")
+
+  batch/nginx_prom:
+    timeout: 30s
+    send_batch_size: 1024
+
+exporters:
+  otlphttp/nginx_prom:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    metrics/nginx_prometheus:
+      receivers: [prometheus/nginx]
+      processors:
+        - resourcedetection/prom
+        - resource/nginx_prom
+        - metricstransform/nginx_prom
+        - filter/nginx_prom_only
+        - transform/nginx_metrics_prom
+        - transform/metadata_nullify_prom
+        - batch/nginx_prom
+      exporters: [otlphttp/nginx_prom]
+```
+
+### Configuration parameters
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`<YOUR_STUB_STATUS_ENDPOINT>`</td>
+    <td>Your NGINX stub status URL (for example `http://127.0.0.1:8080/nginx_status`). Used as the `nginx.server.endpoint` resource attribute.</td>
+  </tr>
+  <tr>
+    <td>`<DEPLOYMENT_NAME>`</td>
+    <td>Unique name for this NGINX server (for example `production-web-01`). Appears in New Relic dashboards.</td>
+  </tr>
+  <tr>
+    <td>`targets`</td>
+    <td>Address of the nginx-prometheus-exporter (default `localhost:9113`). Update if running on a different host or port.</td>
+  </tr>
+  <tr>
+    <td>`scrape_interval`</td>
+    <td>How often to scrape metrics from the exporter. Default: `30s`.</td>
+  </tr>
+</tbody>
+</table>
+
+</Step>
+
+<Step>
+
+## Set up environment variables [#env-vars]
+
+Create a systemd override to inject the required environment variables. Replace `<collector-service>` with your collector service name (`nrdot-collector` or `otelcol-contrib`):
+
+```bash
+sudo mkdir -p /etc/systemd/system/<collector-service>.service.d
+```
+
+Create the file `/etc/systemd/system/<collector-service>.service.d/environment.conf`:
+
+```ini
+[Service]
+Environment="OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+Environment="NEW_RELIC_LICENSE_KEY=YOUR_NEW_RELIC_LICENSE_KEY"
+```
+
+Replace `YOUR_NEW_RELIC_LICENSE_KEY` with your <InlinePopover type="licenseKey"/>.
+
+<Callout variant="tip">
+  For EU accounts, use `OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.eu01.nr-data.net:4318`. See [Configure endpoint, port, and protocol](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) for the full list of regional endpoints.
+</Callout>
+
+</Step>
+
+<Step>
+
+## Start the collector [#restart]
+
+Apply the configuration and restart the collector. Replace `<collector-service>` with `nrdot-collector` or `otelcol-contrib`:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart <collector-service>.service
+```
+
+Verify the service is running:
+
+```bash
+sudo systemctl status <collector-service>.service
+sudo journalctl -u <collector-service>.service -n 20
+```
+
+Expected output: `Active: active (running)` with no errors.
+
+</Step>
+
+<Step>
+
+## Verify data in New Relic [#verify]
+
+After a few minutes, run this NRQL query to confirm data is flowing. Replace `<DEPLOYMENT_NAME>` with the value you set in the configuration:
+
+```sql
+FROM Metric SELECT *
+WHERE metricName LIKE 'nginx.%'
+  AND nginx.deployment.name = '<DEPLOYMENT_NAME>'
+SINCE 10 minutes ago
+```
+
+Allow time for initial data to appear in New Relic, then see [Find and use your data](#find-and-use) to verify data collection.
+
+</Step>
+
+<Step>
+
+## Find and use your data [#find-and-use]
+
+Once New Relic collects your data, you can view it in the NGINX dashboard and query it with NRQL.
+
+To find your NGINX dashboard in New Relic:
+
+1. Go to <DNT>**one.newrelic.com > Integrations & Agents**</DNT>.
+2. Under the <DNT>**All**</DNT> tab, click <DNT>**Dashboards**</DNT>, then search for <DNT>**NGINX (OpenTelemetry Collector)**</DNT> to view the dashboard.
+
+Or, from the left navigation:
+
+1. Click <DNT>**Dashboards**</DNT>.
+2. Search for the <DNT>**NGINX (OpenTelemetry Collector)**</DNT> dashboard to view it.
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [NGINX distributed tracing with OpenTelemetry](/docs/opentelemetry/integrations/nginx/nginx-otel-distributed-tracing)
+- [NGINX metrics and attributes reference](/docs/opentelemetry/integrations/nginx/nginx-otel-metrics-reference)
+- [NGINX troubleshooting](/docs/opentelemetry/integrations/nginx/troubleshooting)

@@ -1,0 +1,130 @@
+---
+title: Troubleshoot NGINX OpenTelemetry integration
+metaDescription: "Diagnose and resolve common problems with NGINX monitoring using OpenTelemetry on self-hosted hosts and Kubernetes."
+tags:
+  - OpenTelemetry
+  - NGINX
+  - Integrations
+  - Troubleshooting
+freshnessValidatedDate: never
+---
+
+Use this guide to diagnose and resolve common problems with the NGINX OpenTelemetry integration. Replace `<COLLECTOR_SERVICE>` with `nrdot-collector` or `otelcol-contrib`.
+
+## Host-based deployments [#host-troubleshooting]
+
+### NGINX stub status issues [#nginx-stub-status]
+
+Getting 404 Not Found:
+```bash
+curl http://<NGINX_SERVER_IP>:<YOUR_LOCAL_PORT>/nginx_status
+```
+
+Solutions:
+- Check that the location path matches your request URL
+- Verify the configuration was added to the correct server block
+- Run `sudo nginx -T | grep -A5 nginx_status` to confirm configuration is loaded
+
+Getting 403 Forbidden:
+- Ensure you're testing from the correct server IP `<NGINX_SERVER_IP>`
+- Check your `allow`/`deny` directives in the NGINX configuration
+- Verify no other access restrictions are blocking the request
+
+Connection refused:
+- Check if NGINX is running: `sudo systemctl status nginx`
+- Verify your configured port isn't blocked: `sudo netstat -tlnp | grep :<YOUR_LOCAL_PORT>`
+- Check firewall rules if applicable
+
+### Collector service won't start [#collector-service]
+
+Check service status:
+```bash
+sudo systemctl status <COLLECTOR_SERVICE>.service
+sudo journalctl -u <COLLECTOR_SERVICE>.service -n 50
+```
+
+Common causes and fixes:
+- YAML syntax errors - Fix indentation and syntax issues
+- Missing environment variables - Verify credentials are set in environment file
+- File permission issues - Run `sudo chown <COLLECTOR_SERVICE>:<COLLECTOR_SERVICE> /etc/<COLLECTOR_SERVICE>/config.yaml`
+- Invalid endpoint URLs - Check NGINX endpoint and New Relic OTLP endpoint
+- Missing component configurations - Ensure all receivers, processors, and exporters referenced in the service pipelines section are actually defined in their respective configuration sections above
+
+Restart after fixes:
+```bash
+sudo systemctl restart <COLLECTOR_SERVICE>.service
+```
+
+### No data appears in New Relic [#no-data]
+
+Step-by-step diagnosis:
+
+1. Verify NGINX stub status works:
+   ```bash
+   curl http://<NGINX_SERVER_IP>:<YOUR_LOCAL_PORT>/nginx_status
+   ```
+   Should return connection statistics.
+
+2. Check Collector is running and healthy:
+   ```bash
+   sudo systemctl status <COLLECTOR_SERVICE>.service
+   sudo journalctl -u <COLLECTOR_SERVICE> -n 20
+   ```
+   The logs will provide detailed context if there are any configuration or runtime issues with the OpenTelemetry Collector.
+
+3. Check for data with NRQL:
+   ```sql
+   FROM Metric SELECT * WHERE nginx.deployment.name LIKE '%production%' LIMIT 1
+   ```
+
+### Log forwarding issues [#log-forwarding]
+
+No logs appearing in New Relic:
+```bash
+# Check Collector logs for file errors
+sudo journalctl -u <COLLECTOR_SERVICE> -f | grep -i "filelog\|error"
+```
+Common issues:
+- File permission errors - Add collector to adm group: `sudo usermod -a -G adm <COLLECTOR_SERVICE>`
+- Wrong file paths - Verify log file locations in your config
+
+## Kubernetes deployments [#kubernetes-troubleshooting]
+
+### No data appears in New Relic [#k8s-no-data]
+
+1. Verify the collector pods are running:
+
+   ```bash
+   kubectl get pods -n newrelic --watch
+   ```
+
+2. Check the collector logs for pod discovery and scrape errors:
+
+   ```bash
+   kubectl logs -n newrelic -l app.kubernetes.io/name=nr-k8s-otel-collector -f
+   ```
+
+   For OTel Collector Contrib, use `-l app.kubernetes.io/name=opentelemetry-collector`.
+
+3. Confirm data with NRQL (replace `<CLUSTER_NAME>` with your cluster name):
+
+   ```sql
+   FROM Metric SELECT *
+   WHERE metricName LIKE 'nginx.%'
+     AND k8s.cluster.name = '<CLUSTER_NAME>'
+   SINCE 10 minutes ago
+   ```
+
+### NGINX pods aren't discovered [#k8s-discovery]
+
+- Confirm each NGINX pod has the `app` and `role` labels, and that they match the `rule` in your collector configuration: `kubectl get pods -n <namespace> --show-labels`
+- Confirm the HTTP stub status module is enabled on the pod and the endpoint in the configuration is reachable from the collector.
+- For the Prometheus receiver, confirm the exporter sidecar exposes a port named `metrics`.
+
+### Helm values aren't applied [#k8s-helm]
+
+For NRDOT, make sure `pipelines:` is defined at the root of `extraConfig`, not nested under `service:`. Then re-apply your values with `helm upgrade`.
+
+## Next steps [#next-steps]
+
+- [NGINX metrics and attributes reference](/docs/opentelemetry/integrations/nginx/nginx-otel-metrics-reference)

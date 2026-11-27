@@ -1,0 +1,198 @@
+---
+title: Advanced configuration for NGINX monitoring
+metaDescription: "Forward NGINX access and error logs to New Relic with the OpenTelemetry Collector on self-hosted NGINX."
+tags:
+  - OpenTelemetry
+  - NGINX
+  - Integrations
+  - Logs
+freshnessValidatedDate: never
+---
+
+Use this guide to extend your self-hosted NGINX monitoring after you complete one of the [self-hosted install guides](/docs/opentelemetry/integrations/nginx/introduction#choose). It shows how to forward NGINX access and error logs to New Relic.
+
+## Forward NGINX logs [#logs]
+
+NGINX [access and error logs](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/) complement the [core NGINX metrics](/docs/opentelemetry/integrations/nginx/nginx-otel-metrics-reference#core-metrics) and give you request-level detail for troubleshooting.
+
+### Requirements [#logs-requirements]
+
+- A working self-hosted NGINX install with [NRDOT](/docs/opentelemetry/integrations/nginx/install-configure/self-hosted/nrdot) or [OTel Collector Contrib](/docs/opentelemetry/integrations/nginx/install-configure/self-hosted/otel-collector-contrib), with metrics already flowing
+- Root or sudo privileges on the host
+- NGINX writing access and error logs to `/var/log/nginx/` (adjust the paths below if yours differ)
+
+<Callout variant="tip">
+Kubernetes deployments don't use this procedure. Collect container logs with your cluster's existing log collection instead.
+</Callout>
+
+<Steps>
+
+<Step>
+
+## Configure NGINX to write JSON logs [#nginx-json]
+
+Add this to your NGINX configuration (`/etc/nginx/nginx.conf`), then reload NGINX:
+
+```nginx
+http {
+    # JSON log format for better parsing
+    log_format json_combined escape=json
+    '{'
+      '"time":"$time_local",'
+      '"remote_addr":"$remote_addr",'
+      '"request":"$request",'
+      '"status":$status,'
+      '"bytes_sent":$body_bytes_sent,'
+      '"request_time":$request_time,'
+      '"referer":"$http_referer",'
+      '"user_agent":"$http_user_agent"'
+    '}';
+
+    # Use the JSON format for access logs
+    access_log /var/log/nginx/access.log json_combined;
+    error_log /var/log/nginx/error.log warn;
+
+    # Your existing configuration...
+}
+```
+
+```bash
+sudo nginx -t && sudo nginx -s reload
+```
+
+</Step>
+
+<Step>
+
+## Add log pipelines to the collector [#collector-config]
+
+Add these sections to your collector configuration file: `/etc/nrdot-collector/nginx-config.yaml` for NRDOT, or `/etc/otelcol-contrib/config.yaml` for OTel Collector Contrib.
+
+```yaml
+receivers:
+  # Your existing nginx receiver...
+  nginx:
+    # existing configuration...
+
+  # Add log receivers
+  filelog/nginx_access:
+    include:
+      - /var/log/nginx/access.log
+
+  filelog/nginx_error:
+    include:
+      - /var/log/nginx/error.log
+
+processors:
+  # Your existing processors...
+
+  # Add log processors
+  transform/nginx_access_logs:
+    log_statements:
+    - context: resource
+      statements:
+        - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+        - set(attributes["logtype"], "nginx")
+  transform/nginx_error_logs:
+    log_statements:
+    - context: resource
+      statements:
+        - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+        - set(attributes["logtype"], "nginx-error")
+
+service:
+  pipelines:
+    # Your existing metrics pipeline...
+
+    # Add log pipelines
+    logs/nginx-access:
+      receivers: [filelog/nginx_access]
+      processors: [resource/nginx, batch, transform/nginx_access_logs]
+      exporters: [otlp_http]
+
+    logs/nginx-error:
+      receivers: [filelog/nginx_error]
+      processors: [resource/nginx, batch, transform/nginx_error_logs]
+      exporters: [otlp_http]
+```
+
+### Configuration parameters [#logs-configuration-parameters]
+
+<table>
+<thead>
+  <tr>
+    <th>Parameter</th>
+    <th>Description</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>`include`</td>
+    <td>Paths of the NGINX log files the collector reads. Match the `access_log` and `error_log` paths in your NGINX configuration.</td>
+  </tr>
+  <tr>
+    <td>`logtype`</td>
+    <td>Set to `nginx` for access logs and `nginx-error` for error logs. New Relic uses it to parse and filter the logs.</td>
+  </tr>
+  <tr>
+    <td>`resource/nginx`</td>
+    <td>The processor from your metrics configuration that adds `nginx.deployment.name`. The log pipelines reuse it so logs carry the same metadata as your metrics.</td>
+  </tr>
+</tbody>
+</table>
+
+</Step>
+
+<Step>
+
+## Let the collector read the log files [#permissions]
+
+Replace `<COLLECTOR_USER>` with `nrdot-collector` or `otelcol-contrib`:
+
+```bash
+# Add the collector user to the adm group (has read access to logs)
+sudo usermod -a -G adm <COLLECTOR_USER>
+
+# Ensure the log files are readable
+sudo chmod 644 /var/log/nginx/access.log
+sudo chmod 644 /var/log/nginx/error.log
+```
+
+</Step>
+
+<Step>
+
+## Restart the collector [#restart]
+
+Replace `<COLLECTOR_SERVICE>` with `nrdot-collector` or `otelcol-contrib`:
+
+```bash
+sudo systemctl restart <COLLECTOR_SERVICE>.service
+sudo systemctl status <COLLECTOR_SERVICE>.service
+```
+
+</Step>
+
+<Step>
+
+## Verify your logs [#verify]
+
+After a few minutes, run this query in New Relic (replace `<DEPLOYMENT_NAME>` with the value from your metrics configuration):
+
+```sql
+FROM Log SELECT *
+WHERE logtype IN ('nginx', 'nginx-error')
+  AND nginx.deployment.name = '<DEPLOYMENT_NAME>'
+SINCE 10 minutes ago
+```
+
+If no logs appear, see [Log forwarding issues](/docs/opentelemetry/integrations/nginx/troubleshooting#log-forwarding).
+
+</Step>
+
+</Steps>
+
+## Related articles [#related-articles]
+
+- [NGINX metrics and attributes reference](/docs/opentelemetry/integrations/nginx/nginx-otel-metrics-reference)
+- [NGINX troubleshooting](/docs/opentelemetry/integrations/nginx/troubleshooting)
