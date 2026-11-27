@@ -1,0 +1,342 @@
+---
+title: "Configure a proxy for Agent Control on Kubernetes"
+metaDescription: "Learn how to configure Agent Control to work through a proxy on Kubernetes, including a proxy that inspects TLS with its own CA."
+tags:
+  - new-relic-control
+  - agent-control
+  - proxy
+  - kubernetes
+freshnessValidatedDate: never
+---
+
+Setting up a proxy is not a single option. Several components make outbound requests, and each one is configured separately. This page gives the steps for the common case: a proxy that inspects TLS with its own certificate authority (CA), reachable without a user and password, and nodes that can pull images. Other cases are in the [other cases](#other-cases) section.
+
+| Component | What it does | Values key |
+|---|---|---|
+| Flux installation job | Runs `helm repo add` and installs Flux | `installation` |
+| Flux `source-controller` | Downloads Helm charts and OCI artifacts | `agentControlCd.chartValues.flux2.sourceController` |
+| Agent Control | OpAMP, OAuth2, and Fleet Control communication | `agentControlDeployment.chartValues.proxy` |
+| System identity job | Creates the system identity against New Relic | `agentControlDeployment.chartValues.systemIdentity` |
+| Sub-agents | Send their own data to New Relic | Not covered, see [Managed agents](#agents) |
+
+## Where the settings go [#where-settings-go]
+
+You keep the proxy settings in their own file, `proxy-values.yaml`, and pass it to Helm with an extra `--values` flag when you install Agent Control. Helm merges it with the rest of your values, so you do not edit any other file. Steps 1 to 3 create the namespace, the CA ConfigMap, and that file. Step 4 installs Agent Control with it.
+
+## Step 1: Create the namespace [#step-1]
+
+Use the namespace where you install Agent Control (the default is `newrelic-agent-control`) in every command below.
+
+```bash
+kubectl create namespace newrelic-agent-control
+```
+
+## Step 2: Create the ConfigMap with the proxy CA [#step-2]
+
+`proxy-ca.pem` is the CA of your proxy in PEM format. The key must be named `ca-certificates.crt`, because the mount in step 3 uses it as `subPath`. Create the ConfigMap before you install.
+
+```bash
+kubectl create configmap proxy-ca --from-file=ca-certificates.crt=./proxy-ca.pem -n newrelic-agent-control
+```
+
+## Step 3: Create the proxy values file [#step-3]
+
+Save the blocks below as `proxy-values.yaml`, and replace the proxy URL. The scheme of the URL must match how your proxy listens. Use `http://` if it accepts plain HTTP connections, which is the usual case and the one in the examples. Use `https://` if it listens with TLS, see [Proxy that listens with TLS](#tls-proxy). The scheme only describes the connection to the proxy. The CA is used to validate the certificate that the proxy presents for the destination when it inspects TLS, so `http://` and a mounted CA do not contradict each other.
+
+<Callout variant="caution">
+  Helm merges maps from several files, but it replaces a list as a whole. If another values file of yours already sets one of the lists in these blocks (`extraEnv`, `extraVolumes`, `extraVolumeMounts`, `volumes`, or `volumeMounts`) at the same place, the one from the last `--values` flag wins and the other entries are lost. In that case, copy those entries into `proxy-values.yaml`.
+</Callout>
+
+```yaml
+installation:
+  extraEnv:
+    - name: HTTPS_PROXY
+      value: http://proxy.example.com:8080
+    - name: NO_PROXY
+      value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
+  extraVolumes:
+    - name: proxy-ca
+      configMap:
+        name: proxy-ca
+  extraVolumeMounts:
+    - name: proxy-ca
+      mountPath: /etc/ssl/certs/ca-certificates.crt
+      subPath: ca-certificates.crt
+
+agentControlCd:
+  chartValues:
+    flux2:
+      sourceController:
+        extraEnv:
+          - name: HTTPS_PROXY
+            value: http://proxy.example.com:8080
+          - name: NO_PROXY
+            value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
+        volumes:
+          - name: proxy-ca
+            configMap:
+              name: proxy-ca
+        volumeMounts:
+          - name: proxy-ca
+            mountPath: /etc/ssl/certs/ca-certificates.crt
+            subPath: ca-certificates.crt
+
+agentControlDeployment:
+  chartValues:
+    proxy:
+      url: http://proxy.example.com:8080
+    extraVolumes:
+      - name: proxy-ca
+        configMap:
+          name: proxy-ca
+    extraVolumeMounts:
+      - name: proxy-ca
+        mountPath: /etc/ssl/certs/ca-certificates.crt
+        subPath: ca-certificates.crt
+    systemIdentity:
+      extraVolumes:
+        - name: proxy-ca
+          configMap:
+            name: proxy-ca
+      extraVolumeMounts:
+        - name: proxy-ca
+          mountPath: /etc/ssl/certs/ca-certificates.crt
+          subPath: ca-certificates.crt
+```
+
+`NO_PROXY` must contain the address of the Kubernetes API service. Otherwise, Flux cannot reach the cluster API through the proxy and the `source-controller` restarts in a loop. The example `10.0.0.0/8` covers clusters whose services use `10.x.x.x`. Find your address and add it to `NO_PROXY` if it is outside that range:
+
+```bash
+kubectl get service kubernetes -n default -o jsonpath='{.spec.clusterIP}'
+```
+
+For the full list of proxy options of Agent Control, see the [Agent Control settings reference](/docs/new-relic-control/agent-control/configuration-reference#proxy).
+
+## Step 4: Install [#step-4]
+
+Add `proxy-values.yaml` as the last `--values` flag of your install command:
+
+```bash
+helm upgrade --install agent-control-bootstrap newrelic/agent-control-bootstrap \
+  -n newrelic-agent-control --create-namespace \
+  --values <your-values-file>.yaml --values proxy-values.yaml
+```
+
+Put it after your own values file, so that the proxy settings are the last ones that Helm applies.
+
+## Step 5: Verify [#step-5]
+
+Check the following:
+
+* The pods are running: `kubectl get pods -n newrelic-agent-control`.
+* Both Flux releases are ready: `kubectl get helmrelease -n newrelic-agent-control`.
+* The logs have no `x509` or connection errors: `kubectl logs -n newrelic-agent-control deploy/agent-control`.
+
+### Check that each component has the proxy [#check-components]
+
+The installation and system identity jobs are deleted when they succeed, so `kubectl exec` and `kubectl logs` cannot reach them. Helm keeps their manifests, so read them with `helm get hooks`. Each command prints nothing if the proxy is missing in that component.
+
+| Component | Command | Expected output |
+|---|---|---|
+| Flux installation job | `helm get hooks agent-control-bootstrap -n newrelic-agent-control \| grep -iE proxy` | `HTTPS_PROXY`, `NO_PROXY`, and the `proxy-ca` volume |
+| System identity job | `helm get hooks agent-control-deployment -n newrelic-agent-control \| grep -iE proxy` | `--proxy-url "<your proxy URL>"` and the `proxy-ca` volume |
+| Flux `source-controller` | `kubectl get deploy source-controller -n newrelic-agent-control -o jsonpath='{range .spec.template.spec.containers[*].env[*]}{.name}={.value}{"\n"}{end}' \| grep -i proxy` | `HTTPS_PROXY=...` and `NO_PROXY=...` |
+| Agent Control | `kubectl get cm local-data-agent-control -n newrelic-agent-control -o yaml \| grep -n -i -A3 proxy` | `proxy:` and `url: <your proxy URL>` |
+
+The first command also matches the uninstall job, which is expected. The second one needs `agentControlDeployment.chartValues.proxy.url`, so it prints no `--proxy-url` if you inject the proxy with environment variables, see [Let operators do the work](#operators).
+
+Agent Control does not log the proxy it uses. To confirm that its traffic goes through the proxy, check the logs of your proxy for the New Relic hosts, for example `system-identity-oauth.service.newrelic.com` and `publickeys.newrelic.com`. An `HTTP Error 502 Bad Gateway` in the Agent Control log also means that the request reached a proxy.
+
+## Other cases [#other-cases]
+
+### Proxy that does not inspect TLS [#no-tls-inspection]
+
+If the proxy only tunnels the connections, you do not need a CA. Skip step 2 and remove the `extraVolumes`, `extraVolumeMounts`, `volumes`, and `volumeMounts` blocks from step 3. The `HTTPS_PROXY` and `NO_PROXY` variables are enough.
+
+### Proxy that listens with TLS [#tls-proxy]
+
+If your proxy accepts connections over TLS, use `https://` in every proxy URL of [step 3](#step-3), for example `https://proxy.example.com:8443`. The components must then trust the certificate of the proxy itself, so the CA that signed it must be in the file you mount in [step 2](#step-2). It is the same CA that re-signs the traffic when the proxy inspects TLS, or the one of your organization if they differ. In that case, use a [full CA bundle](#full-ca-bundle).
+
+<Callout variant="caution">
+  Some proxies negotiate HTTP/2 for the connection to themselves. The HTTP client that Flux uses announces HTTP/2 to an `https://` proxy but always sends HTTP/1.1 requests afterward, so those proxies reject the request. In that case, a `HelmRepository` of type OCI fails with `malformed HTTP status code "protocol"`. Use `http://` in the proxy URL if the proxy accepts it, or disable HTTP/2 for the connections to the proxy in its configuration.
+</Callout>
+
+### Proxy with user and password [#proxy-auth]
+
+Put them in the URL: `http://<user>:<password>@<host>:<port>`. Percent-encode special characters (`@` is `%40`, `/` is `%2F`, `#` is `%23`, and `%` is `%25`). Helm does not warn you if the URL has unencoded special characters. With an invalid `%`, it ignores the proxy and connects directly, so you only see a timeout. With `@`, `/`, or `#`, it reads a wrong host and fails with `lookup <fragment>: no such host`.
+
+The password is then stored in clear text in the pod specification. For the installation job and the Flux `source-controller`, you can keep the whole URL in a Secret instead:
+
+```bash
+kubectl create secret generic proxy-url -n newrelic-agent-control --from-literal=url='http://<user>:<encoded-password>@proxy.example.com:8080'
+```
+
+```yaml
+installation:
+  extraEnv:
+    - name: HTTPS_PROXY
+      valueFrom:
+        secretKeyRef:
+          name: proxy-url
+          key: url
+agentControlCd:
+  chartValues:
+    flux2:
+      sourceController:
+        extraEnv:
+          - name: HTTPS_PROXY
+            valueFrom:
+              secretKeyRef:
+                name: proxy-url
+                key: url
+```
+
+### Full CA bundle [#full-ca-bundle]
+
+A file with only the proxy CA is enough when all the HTTPS traffic of the component goes through the proxy and the proxy re-signs it. If any connection does not go through the proxy (for example a host in `NO_PROXY` or in a proxy exclusion list), it presents a certificate signed by a public CA and the component must trust it. Some images keep the public CAs as separate files in `/etc/ssl/certs/` and trust them anyway, but that depends on the image, so do not rely on it. In that case, mount the public CAs plus the proxy CA.
+
+Take the public CAs from a product image and append your proxy CA. This runs a temporary pod, so the cluster must be able to pull the image. Replace `<version>` with the version of Agent Control you install:
+
+```bash
+kubectl run ca-extract --rm -i --quiet --restart=Never \
+  --image=docker.io/newrelic/newrelic-agent-control-cli:<version> \
+  --command -- cat /etc/ssl/certs/ca-certificates.crt > bundle.pem
+cat proxy-ca.pem >> bundle.pem
+```
+
+If your organization already publishes a bundle with the public CAs and the proxy CA, use it instead. Check that the bundle verifies what the proxy presents:
+
+```bash
+echo | openssl s_client -connect helm-charts.newrelic.com:443 \
+  -proxy <proxy-host>:<proxy-port> -servername helm-charts.newrelic.com \
+  -CAfile bundle.pem 2>&1 | grep "Verify return code"
+```
+
+It must print `Verify return code: 0 (ok)`. Then use `bundle.pem` instead of `proxy-ca.pem` in step 2.
+
+### Rotate the CA [#rotate-ca]
+
+A file mounted with `subPath` does not change when you update the ConfigMap, so the running pods keep the old CA. After you replace the ConfigMap, restart the components:
+
+```bash
+kubectl rollout restart deployment -n newrelic-agent-control
+```
+
+### Let operators do the work [#operators]
+
+If your cluster already runs [cert-manager](https://cert-manager.io) with [trust-manager](https://cert-manager.io/docs/trust/trust-manager/) and an admission policy engine, they can replace [step 2](#step-2) and the proxy blocks of [step 3](#step-3). The installation job, the Flux `source-controller`, Agent Control, and the system identity job then get the proxy settings without any proxy entry in the values file. Use them only if they are already part of your platform. They are not worth installing for this alone.
+
+**CA bundle with trust-manager.** A `Bundle` joins the public CAs and your proxy CA, and publishes the `proxy-ca` ConfigMap that step 2 creates by hand. It also removes the need to build a [full CA bundle](#full-ca-bundle). Paste your PEM in `inLine`:
+
+```yaml
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: proxy-ca
+spec:
+  sources:
+    - useDefaultCAs: true
+    - inLine: |
+        -----BEGIN CERTIFICATE-----
+        <your proxy CA>
+        -----END CERTIFICATE-----
+  target:
+    configMap:
+      key: ca-certificates.crt
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: newrelic-agent-control
+```
+
+Create the namespace first ([step 1](#step-1)), so that trust-manager creates the ConfigMap in it before you install.
+
+**Proxy settings with Kyverno.** A `MutatingPolicy` adds the variables and the CA mount to every new pod of the namespace. Kyverno 1.20 no longer accepts `ClusterPolicy`, so this uses the `policies.kyverno.io/v1` API. Install Kyverno and the policy before [step 4](#step-4), because a pod created earlier is not changed:
+
+```yaml
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: inject-proxy
+spec:
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["CREATE"]
+      resources: ["pods"]
+  matchConditions:
+  - name: only-agent-control-namespace
+    expression: "object.metadata.namespace == 'newrelic-agent-control'"
+  mutations:
+  - patchType: ApplyConfiguration
+    applyConfiguration:
+      expression: |
+        Object{
+          spec: Object.spec{
+            volumes: [Object.spec.volumes{name: "proxy-ca", configMap: Object.spec.volumes.configMap{name: "proxy-ca"}}],
+            containers: object.spec.containers.map(c, Object.spec.containers{
+              name: c.name,
+              env: [
+                Object.spec.containers.env{name: "HTTPS_PROXY", value: "http://proxy.example.com:8080"},
+                Object.spec.containers.env{name: "NO_PROXY", value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"}
+              ],
+              volumeMounts: [Object.spec.containers.volumeMounts{name: "proxy-ca", mountPath: "/etc/ssl/certs/ca-certificates.crt", subPath: "ca-certificates.crt"}]
+            }),
+            initContainers: has(object.spec.initContainers) ? object.spec.initContainers.map(c, Object.spec.initContainers{
+              name: c.name,
+              env: [
+                Object.spec.initContainers.env{name: "HTTPS_PROXY", value: "http://proxy.example.com:8080"},
+                Object.spec.initContainers.env{name: "NO_PROXY", value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"}
+              ],
+              volumeMounts: [Object.spec.initContainers.volumeMounts{name: "proxy-ca", mountPath: "/etc/ssl/certs/ca-certificates.crt", subPath: "ca-certificates.crt"}]
+            }) : []
+          }
+        }
+```
+
+Keep in mind:
+
+* The `NO_PROXY` rule about the Kubernetes API address of step 3 applies here too.
+* Agent Control reads `HTTPS_PROXY` from its environment, so you can leave `agentControlDeployment.chartValues.proxy` out. The system identity job also uses it. In that case, the `--proxy-url` check of [step 5](#check-components) prints nothing and the `proxy:` entry is absent from the ConfigMap. Check the environment of the pods instead: `kubectl get pod -n newrelic-agent-control -o jsonpath='{range .items[*]}{.metadata.name}{": "}{.spec.containers[*].env[?(@.name=="HTTPS_PROXY")].value}{"\n"}{end}'`.
+* Do not apply the policy to the pods of your proxy, or exclude them, so that they do not proxy to themselves.
+* This policy uses the API of Kyverno 1.20. Check the documentation of your version.
+
+### The machine that runs the install command [#install-machine]
+
+The command runs from your machine, which needs access to the Helm repository and the cluster API. This is independent of the proxy inside the cluster. If your machine reaches the internet only through a proxy, export `HTTPS_PROXY` there too. Both `helm` and `kubectl` use it, so `kubectl` also sends the requests to the cluster API through the proxy. If your machine reaches the cluster API directly, add the API address to `NO_PROXY` on that machine.
+
+### Image pulls [#image-pulls]
+
+The values on this page configure the pods, but the container runtime of each node pulls the images, and it has its own proxy setting. If the nodes cannot reach the image registries directly, the pods stay in `ImagePullBackOff` and nothing reaches your proxy. With Docker as the runtime, set the proxy in the service unit of the Docker daemon on every node:
+
+```bash
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf <<EOF
+[Service]
+Environment="HTTPS_PROXY=http://proxy.example.com:8080"
+Environment="NO_PROXY=localhost,127.0.0.1,<service-and-node-ranges>"
+EOF
+sudo systemctl daemon-reload && sudo systemctl restart docker
+```
+
+If the proxy inspects TLS, the node must also trust the proxy CA. Other runtimes such as containerd, and the managed Kubernetes services, have their own way of setting this. Check the documentation of your runtime or provider.
+
+## Troubleshooting [#troubleshooting]
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The install works but entries you set in `extraEnv`, `extraVolumes`, or `extraVolumeMounts` are missing | Another values file sets the same list, and Helm replaces a list as a whole, so only the last `--values` file counts | Copy those entries into `proxy-values.yaml`, see [step 3](#step-3) |
+| Pods stay in `ContainerCreating` with `configmap "proxy-ca" not found`, and `helm` ends with a timeout | The ConfigMap did not exist when the install started | Create it ([step 2](#step-2)) and run the same install command again |
+| Install job fails with `x509: certificate signed by unknown authority` | The CA is not mounted in the job, or it is not the CA that signs what the proxy presents | Check `installation.extraVolumes`, `extraVolumeMounts`, and the CA file |
+| `HelmRepository` is not ready with `x509: certificate signed by unknown authority` | The CA is not mounted in the `source-controller` | Check the `sourceController` volumes. These keys are `volumes` and `volumeMounts`, not `extraVolumes` |
+| `source-controller` in `CrashLoopBackOff`, and the log shows `Bad Gateway` for `https://<ip>:443/api` | The API service address is not in `NO_PROXY` | Add the address from [step 3](#step-3) to `NO_PROXY` |
+| `source-controller` in `CrashLoopBackOff`, or the install job fails, with `x509: certificate signed by unknown authority` for `https://<ip>:443/api` or `/version` | Same cause when the proxy inspects TLS: it re-signs the call to the Kubernetes API and the component does not trust it. Here the CA is not the problem | Add the address from [step 3](#step-3) to `NO_PROXY` in `installation` and in `sourceController` |
+| `HelmRepository` of type OCI fails with `malformed HTTP status code "protocol"` | The proxy URL uses `https://` and the proxy negotiates HTTP/2 for the connection to itself | Use `http://` if the proxy accepts it, or disable HTTP/2 in the proxy, see [Proxy that listens with TLS](#tls-proxy) |
+| Install job times out and the log does not mention the proxy | The proxy URL has an invalid `%` and Helm ignored the proxy | Percent-encode the credentials, see [Proxy with user and password](#proxy-auth) |
+| A connection that does not go through the proxy fails with `x509: certificate signed by unknown authority` | The file has only the proxy CA and the image does not trust the public CAs another way | Use the [full CA bundle](#full-ca-bundle) |
+| Pods in `ImagePullBackOff` | The nodes cannot reach the registries and the runtime has no proxy | See [Image pulls](#image-pulls) |
+
+## Managed agents [#agents]
+
+Configuring the proxy in Agent Control does not configure it for the agents it manages. This page does not cover the agents. Each agent has its own proxy settings, and the exact keys are in the documentation of that agent. If the agent traffic has to go through the proxy, set them in the configuration of each agent. If the proxy inspects TLS, mount the proxy CA there in the same way.
